@@ -12,13 +12,15 @@ import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
 import dev.qtremors.arcile.core.storage.domain.toArcileError
+import dev.qtremors.arcile.core.storage.domain.joinStoragePath
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.presentation.userMessage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserOperationState
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.feature.browser.MoveUndoEntry
 import dev.qtremors.arcile.feature.browser.toBrowserRecoveryUiState
-import java.io.File
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
@@ -38,7 +40,6 @@ internal class BrowserOperationController(
     private val clipboardRepository: ClipboardRepository,
     private val clipboardController: ClipboardController,
     private val coordinator: BulkFileOperationCoordinator,
-    private val onStateChange: (BrowserOperationState) -> Unit,
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText?) -> Unit,
     private val refreshAction: () -> Unit
@@ -319,7 +320,7 @@ internal class BrowserOperationController(
         scope.launch {
             fileMutationRepository.renameFile(
                 undo.renamedPath,
-                File(undo.originalPath).name
+                storagePathName(undo.originalPath)
             ).onSuccess {
                 refreshAction()
             }.onFailure(::reportStorageError)
@@ -338,7 +339,7 @@ internal class BrowserOperationController(
     private fun undoMove(undo: BrowserUndoAction.Moved) {
         update { it.copy(pendingUndoAction = null) }
         scope.launch {
-            undo.entries.groupBy { parentStoragePath(it.originalPath) }
+            undo.entries.groupBy { storageParentPath(it.originalPath).orEmpty() }
                 .forEach { (originalParent, entries) ->
                     if (originalParent.isBlank()) {
                         onError(UiText.StringResource(R.string.file_operation_undo_failed))
@@ -380,7 +381,7 @@ internal class BrowserOperationController(
         }
         return BrowserUndoAction.Moved(
             sourcePaths.map {
-                MoveUndoEntry(it, joinStoragePath(destinationPath, File(it).name))
+                MoveUndoEntry(it, joinStoragePath(destinationPath, storagePathName(it)))
             }.toPersistentList()
         )
     }
@@ -410,19 +411,9 @@ internal class BrowserOperationController(
         return UiText.PluralResource(pluralRes, count, listOf(count))
     }
 
-    private fun parentStoragePath(path: String): String {
-        val normalized = path.replace('\\', '/').trimEnd('/')
-        val index = normalized.lastIndexOf('/')
-        return if (index > 0) normalized.substring(0, index) else ""
-    }
-
-    private fun joinStoragePath(parent: String, name: String): String =
-        parent.trimEnd('/', '\\') + "/" + name
-
     private inline fun update(
         transform: (BrowserOperationState) -> BrowserOperationState
     ) {
         _state.update(transform)
-        onStateChange(_state.value)
     }
 }

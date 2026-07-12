@@ -5,6 +5,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.storagePathName
+import dev.qtremors.arcile.core.storage.domain.storagePathNameWithoutExtension
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.PasteConflictDialog
 import dev.qtremors.arcile.core.ui.SearchFiltersSheet
@@ -16,7 +19,7 @@ import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
-import java.io.File
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 
 @Composable
 internal fun BrowserDialogs(
@@ -101,7 +104,7 @@ internal fun BrowserDialogs(
     if (dialogVisibility.showCreateArchiveDialog && state.selectedFiles.isNotEmpty()) {
         val defaultName = remember(state.selectedFiles) {
             state.selectedFiles.singleOrNull()
-                ?.let { File(it).nameWithoutExtension }
+                ?.let(::storagePathNameWithoutExtension)
                 ?.ifBlank { "Archive" }
                 ?: "Archive"
         }
@@ -120,9 +123,9 @@ internal fun BrowserDialogs(
 
     if (dialogVisibility.showExtractArchiveDialog && (state.selectedFiles.size == 1 || state.archiveContext != null)) {
         val archivePath = state.archiveContext?.archivePath ?: state.selectedFiles.first()
-        val parentPath = File(archivePath).parent.orEmpty()
+        val parentPath = storageParentPath(archivePath).orEmpty()
         ExtractArchiveDialog(
-            archiveName = File(archivePath).name,
+            archiveName = storagePathName(archivePath),
             defaultDestinationPath = parentPath,
             onDismiss = { dialogVisibility.showExtractArchiveDialog = false },
             onConfirm = { target, customDestination ->
@@ -148,7 +151,7 @@ internal fun BrowserDialogs(
 
     if (dialogVisibility.showRenameDialog && state.selectedFiles.size == 1) {
         val selectedPath = state.selectedFiles.first()
-        val currentName = selectedPath.substringAfterLast('/')
+        val currentName = storagePathName(selectedPath)
         RenameDialog(
             currentName = currentName,
             onDismiss = {

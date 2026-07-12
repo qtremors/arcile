@@ -11,6 +11,8 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchivePathRequest
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionDestinationStyle
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -20,7 +22,6 @@ import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
 import dev.qtremors.arcile.feature.browser.PendingArchiveExtraction
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
-import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -55,7 +56,7 @@ internal class BrowserArchiveController(
     private val operationCoordinator: BulkFileOperationCoordinator,
     private val contextProvider: () -> BrowserArchiveWorkflowContext,
     private val clearSelection: () -> Unit,
-    private val onStateChange: (BrowserArchiveWorkflowState) -> Unit,
+    private val onWorkflowChanged: (BrowserArchiveWorkflowState) -> Unit,
     private val onConflicts: (List<FileConflict>) -> Unit,
     private val onDismissConflicts: () -> Unit,
     private val onError: (UiText) -> Unit
@@ -119,37 +120,38 @@ internal class BrowserArchiveController(
         val path = context.archiveContext?.archivePath
             ?: context.selectedPaths.singleOrNull()
             ?: return
-        val destination = archiveDestination(path, target, customDestination, context.currentPath)
-            ?: return onUnsupportedArchive()
-        inspectAndBegin(
-            PendingArchiveExtraction(
-                archivePath = path,
-                destinationPath = destination,
-                password = context.archiveContext?.password,
-                nameEncoding = context.archiveContext?.nameEncoding ?: ArchiveNameEncoding.UTF_8
+        scope.launch {
+            val destination = resolveExtractionDestination(path, target, customDestination, context.currentPath)
+                ?: return@launch
+            inspectAndBegin(
+                PendingArchiveExtraction(
+                    archivePath = path,
+                    destinationPath = destination,
+                    password = context.archiveContext?.password,
+                    nameEncoding = context.archiveContext?.nameEncoding ?: ArchiveNameEncoding.UTF_8
+                )
             )
-        )
+        }
     }
 
     fun extractCurrentFolder(target: ArchiveExtractionTarget, customDestination: String?) {
         val context = contextProvider()
         val archive = context.archiveContext ?: return
         val prefix = archive.entryPrefix?.takeIf(String::isNotBlank) ?: return
-        val destination = archiveDestination(
-            archive.archivePath,
-            target,
-            customDestination,
-            context.currentPath
-        ) ?: return onUnsupportedArchive()
-        inspectAndBegin(
-            PendingArchiveExtraction(
-                archivePath = archive.archivePath,
-                destinationPath = destination,
-                entryPrefix = prefix,
-                password = archive.password,
-                nameEncoding = archive.nameEncoding
+        scope.launch {
+            val destination = resolveExtractionDestination(
+                archive.archivePath, target, customDestination, context.currentPath
+            ) ?: return@launch
+            inspectAndBegin(
+                PendingArchiveExtraction(
+                    archivePath = archive.archivePath,
+                    destinationPath = destination,
+                    entryPrefix = prefix,
+                    password = archive.password,
+                    nameEncoding = archive.nameEncoding
+                )
             )
-        )
+        }
     }
 
     fun extractSelectedEntries(target: ArchiveExtractionTarget, customDestination: String?) {
@@ -159,22 +161,21 @@ internal class BrowserArchiveController(
             .mapNotNull(ArchiveEntryThumbnailData::entryPathFromVirtualPath)
             .distinct()
         if (prefixes.isEmpty()) return
-        val destination = archiveDestination(
-            archive.archivePath,
-            target,
-            customDestination,
-            context.currentPath
-        ) ?: return onUnsupportedArchive()
-        inspectAndBegin(
-            PendingArchiveExtraction(
-                archivePath = archive.archivePath,
-                destinationPath = destination,
-                entryPrefix = prefixes.singleOrNull(),
-                entryPrefixes = prefixes,
-                password = archive.password,
-                nameEncoding = archive.nameEncoding
+        scope.launch {
+            val destination = resolveExtractionDestination(
+                archive.archivePath, target, customDestination, context.currentPath
+            ) ?: return@launch
+            inspectAndBegin(
+                PendingArchiveExtraction(
+                    archivePath = archive.archivePath,
+                    destinationPath = destination,
+                    entryPrefix = prefixes.singleOrNull(),
+                    entryPrefixes = prefixes,
+                    password = archive.password,
+                    nameEncoding = archive.nameEncoding
+                )
             )
-        )
+        }
     }
 
     private fun inspectAndBegin(request: PendingArchiveExtraction) {
@@ -329,6 +330,15 @@ internal class BrowserArchiveController(
         compressionLevel: ArchiveCompressionLevel,
         password: String?
     ) {
+        queueArchiveCreation(archiveName, format, compressionLevel, password)
+    }
+
+    private fun queueArchiveCreation(
+        archiveName: String?,
+        format: ArchiveFormat,
+        compressionLevel: ArchiveCompressionLevel,
+        password: String?
+    ) {
         val context = contextProvider()
         val selected = context.selectedPaths.toList()
         if (selected.isEmpty() || context.currentPath.isEmpty()) return
@@ -357,13 +367,7 @@ internal class BrowserArchiveController(
     }
 
     fun createZip() {
-        val selected = contextProvider().selectedPaths
-        val name = if (selected.size == 1) {
-            File(selected.first()).nameWithoutExtension.ifBlank { DEFAULT_ARCHIVE_NAME }
-        } else {
-            DEFAULT_ARCHIVE_NAME
-        }
-        createArchive(name, ArchiveFormat.ZIP, ArchiveCompressionLevel.STORE, null)
+        queueArchiveCreation(null, ArchiveFormat.ZIP, ArchiveCompressionLevel.STORE, null)
     }
 
     private fun startArchiveCreation(): Boolean {
@@ -384,22 +388,25 @@ internal class BrowserArchiveController(
         return started
     }
 
-    private fun archiveDestination(
+    private suspend fun resolveExtractionDestination(
         archivePath: String,
         target: ArchiveExtractionTarget,
         customDestination: String?,
         currentPath: String
-    ): String? {
-        val archive = File(archivePath)
-        val parent = archive.parent.orEmpty().replace('\\', '/').ifBlank { currentPath }
-        if (!ArchiveFormat.isSupported(archivePath) || parent.isEmpty()) return null
-        return when (target) {
-            ArchiveExtractionTarget.NAMED_FOLDER ->
-                File(parent, archive.archiveBaseName()).absolutePath.replace('\\', '/')
-            ArchiveExtractionTarget.SAME_FOLDER -> parent
-            ArchiveExtractionTarget.CUSTOM_FOLDER ->
-                customDestination?.takeIf(String::isNotBlank)?.replace('\\', '/') ?: parent
-        }
+    ): String? = archivePathResolver.resolveExtraction(
+        ArchiveExtractionPathRequest(
+            archivePath = archivePath,
+            style = when (target) {
+                ArchiveExtractionTarget.NAMED_FOLDER -> ArchiveExtractionDestinationStyle.NAMED_FOLDER
+                ArchiveExtractionTarget.SAME_FOLDER -> ArchiveExtractionDestinationStyle.SAME_FOLDER
+                ArchiveExtractionTarget.CUSTOM_FOLDER -> ArchiveExtractionDestinationStyle.CUSTOM_FOLDER
+            },
+            currentPath = currentPath,
+            customDestination = customDestination
+        )
+    ).getOrElse {
+        onUnsupportedArchive()
+        return null
     }
 
     private fun onUnsupportedArchive() =
@@ -409,21 +416,13 @@ internal class BrowserArchiveController(
         message.orEmpty().contains("password", ignoreCase = true) ||
             message.orEmpty().contains("encrypted", ignoreCase = true)
 
-    private fun File.archiveBaseName(): String {
-        val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension
-        return name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension }
-    }
-
     private inline fun update(
         transform: (BrowserArchiveWorkflowState) -> BrowserArchiveWorkflowState
     ) {
         _state.update(transform)
-        onStateChange(_state.value)
+        onWorkflowChanged(_state.value)
     }
 
-    private companion object {
-        const val DEFAULT_ARCHIVE_NAME = "Archive"
-    }
 }
 
 private data class PendingArchiveCreation(

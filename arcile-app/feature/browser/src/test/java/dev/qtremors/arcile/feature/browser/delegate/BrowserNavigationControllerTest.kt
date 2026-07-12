@@ -15,7 +15,6 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -42,7 +41,6 @@ class BrowserNavigationControllerTest {
     private lateinit var repository: FakeStorageRepositoryBundle
     private lateinit var browserPreferencesRepository: BrowserLocationPreferencesStore
     private lateinit var savedStateHandle: SavedStateHandle
-    private lateinit var state: MutableStateFlow<BrowserNavigationState>
     private lateinit var delegate: BrowserNavigationController
 
     @Before
@@ -69,27 +67,23 @@ class BrowserNavigationControllerTest {
         }
         savedStateHandle = mockk(relaxed = true)
         
-        state = MutableStateFlow(
-            BrowserNavigationState().withValues(
-                storageVolumes = listOf(testVolume).toPersistentList()
-            )
-        )
         delegate = BrowserNavigationController(
-            initialState = state.value,
+            initialState = BrowserNavigationState().withValues(
+                storageVolumes = listOf(testVolume).toPersistentList()
+            ),
             viewModelScope = testScope,
             fileBrowserRepository = repository.fileBrowserRepository,
             archiveRepository = repository.archiveRepository,
             searchRepository = repository.searchRepository,
             browserPreferencesRepository = browserPreferencesRepository,
             savedStateHandle = savedStateHandle,
-            onLocationChanged = {},
-            onStateChange = { state.value = it }
+            onLocationChanged = {}
         )
     }
 
     @Test
     fun `openVolumeRoots clears path and category state`() = testScope.runTest {
-        state.value = state.value.withValues(
+        delegate.state.value = delegate.state.value.withValues(
             currentPath = "/storage/emulated/0/some/path",
             activeCategoryName = "Images",
             isCategoryScreen = true
@@ -98,10 +92,10 @@ class BrowserNavigationControllerTest {
         delegate.openVolumeRoots()
         advanceUntilIdle()
 
-        assertTrue(state.value.isVolumeRootScreen)
-        assertFalse(state.value.isCategoryScreen)
-        assertEquals("", state.value.currentPath)
-        assertEquals("", state.value.activeCategoryName)
+        assertTrue(delegate.state.value.isVolumeRootScreen)
+        assertFalse(delegate.state.value.isCategoryScreen)
+        assertEquals("", delegate.state.value.currentPath)
+        assertEquals("", delegate.state.value.activeCategoryName)
         verify { savedStateHandle.set("isVolumeRootScreen", true) }
         verify { savedStateHandle.set("isCategoryScreen", false) }
     }
@@ -113,7 +107,7 @@ class BrowserNavigationControllerTest {
         delegate.openFileBrowser(restorePersistentLocation = false)
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0", state.value.currentPath)
+        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
         coVerify(exactly = 0) { browserPreferencesRepository.updateLastOpenedLocation(any(), any()) }
     }
 
@@ -130,7 +124,7 @@ class BrowserNavigationControllerTest {
         delegate.openFileBrowser(restorePersistentLocation = true)
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/Documents", state.value.currentPath)
+        assertEquals("/storage/emulated/0/Documents", delegate.state.value.currentPath)
         coVerify { browserPreferencesRepository.updateLastOpenedLocation("/storage/emulated/0/Documents", "vol1") }
     }
 
@@ -161,12 +155,12 @@ class BrowserNavigationControllerTest {
 
         assertTrue(delegate.navigateBack(allowVolumeRootFallback = false))
         advanceUntilIdle()
-        assertEquals("/storage/emulated/0/Pictures", state.value.currentPath)
+        assertEquals("/storage/emulated/0/Pictures", delegate.state.value.currentPath)
     }
 
     @Test
     fun `navigateBack returns false when history is empty`() = testScope.runTest {
-        state.value = state.value.withValues(
+        delegate.state.value = delegate.state.value.withValues(
             currentPath = "/storage/emulated/0"
         )
         // history is empty by default because we just instantiated the delegate
@@ -190,12 +184,12 @@ class BrowserNavigationControllerTest {
         advanceUntilIdle()
 
         assertTrue(result)
-        assertEquals("/storage/emulated/0/Pictures", state.value.currentPath)
+        assertEquals("/storage/emulated/0/Pictures", delegate.state.value.currentPath)
     }
 
     @Test
     fun `navigateBack returns false from category screen so app back stack can handle it`() = testScope.runTest {
-        state.value = state.value.withValues(
+        delegate.state.value = delegate.state.value.withValues(
             isCategoryScreen = true,
             activeCategoryName = "Images",
             currentPath = "",
@@ -206,13 +200,13 @@ class BrowserNavigationControllerTest {
         advanceUntilIdle()
 
         assertFalse(result)
-        assertTrue(state.value.isCategoryScreen)
-        assertEquals("Images", state.value.activeCategoryName)
+        assertTrue(delegate.state.value.isCategoryScreen)
+        assertEquals("Images", delegate.state.value.activeCategoryName)
     }
 
     @Test
     fun `navigateToSpecificFolder saves history, then navigateBack pops history and loads directory`() = testScope.runTest {
-        state.value = state.value.withValues(currentPath = "/storage/emulated/0/parent")
+        delegate.state.value = delegate.state.value.withValues(currentPath = "/storage/emulated/0/parent")
         repository.filesByPath = mapOf(
             "/storage/emulated/0/parent/child" to emptyList(),
             "/storage/emulated/0/parent" to listOf(FileModel("child", "/storage/emulated/0/parent/child", 0L, 0L, true, "", false))
@@ -222,7 +216,7 @@ class BrowserNavigationControllerTest {
         delegate.navigateToSpecificFolder("/storage/emulated/0/parent/child")
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/parent/child", state.value.currentPath)
+        assertEquals("/storage/emulated/0/parent/child", delegate.state.value.currentPath)
         verify { savedStateHandle.set("currentPath", "/storage/emulated/0/parent/child") }
 
         // 3. Navigate back (pops "/storage/emulated/0")
@@ -230,7 +224,7 @@ class BrowserNavigationControllerTest {
         advanceUntilIdle()
 
         assertTrue(result)
-        assertEquals("/storage/emulated/0", state.value.currentPath)
+        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
         
         // 4. Try navigating back again, should fail since history is empty now
         assertFalse(delegate.navigateBack())
@@ -246,7 +240,7 @@ class BrowserNavigationControllerTest {
         )
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/Download", state.value.currentPath)
+        assertEquals("/storage/emulated/0/Download", delegate.state.value.currentPath)
         assertFalse(delegate.navigateBack(allowVolumeRootFallback = false))
     }
 
@@ -263,8 +257,8 @@ class BrowserNavigationControllerTest {
             isRemovable = true,
             kind = dev.qtremors.arcile.core.storage.domain.StorageKind.SD_CARD
         )
-        state.value = state.value.withValues(
-            storageVolumes = (state.value.storageVolumes + sdCard).toPersistentList(),
+        delegate.state.value = delegate.state.value.withValues(
+            storageVolumes = (delegate.state.value.storageVolumes + sdCard).toPersistentList(),
             currentPath = "/storage/emulated/0/Download",
             isVolumeRootScreen = false
         )
@@ -272,13 +266,13 @@ class BrowserNavigationControllerTest {
         assertFalse(delegate.navigateBack(allowVolumeRootFallback = false))
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/Download", state.value.currentPath)
-        assertFalse(state.value.isVolumeRootScreen)
+        assertEquals("/storage/emulated/0/Download", delegate.state.value.currentPath)
+        assertFalse(delegate.state.value.isVolumeRootScreen)
     }
 
     @Test
     fun `navigateToCategory updates state and loads category files`() = testScope.runTest {
-        state.value = state.value.withValues(currentPath = "/storage/emulated/0/Music")
+        delegate.state.value = delegate.state.value.withValues(currentPath = "/storage/emulated/0/Music")
         val files = listOf(FileModel(
             name = "test",
             absolutePath = "/test",
@@ -293,12 +287,12 @@ class BrowserNavigationControllerTest {
         delegate.navigateToCategory("Images", "vol1")
         advanceUntilIdle()
 
-        assertTrue(state.value.isCategoryScreen)
-        assertEquals("Images", state.value.activeCategoryName)
-        assertEquals("", state.value.currentPath)
-        assertEquals("vol1", state.value.currentVolumeId)
-        assertFalse(state.value.isLoading)
-        assertEquals(files, state.value.files)
+        assertTrue(delegate.state.value.isCategoryScreen)
+        assertEquals("Images", delegate.state.value.activeCategoryName)
+        assertEquals("", delegate.state.value.currentPath)
+        assertEquals("vol1", delegate.state.value.currentVolumeId)
+        assertFalse(delegate.state.value.isLoading)
+        assertEquals(files, delegate.state.value.files)
     }
 
     @Test
@@ -329,7 +323,7 @@ class BrowserNavigationControllerTest {
         val loadedFiles = listOf(FileModel("new", "/storage/emulated/0/new", 0L, 0L, false, "", false))
         val deferredFiles = CompletableDeferred<Result<List<FileModel>>>()
         repository.listFilesResultProvider = { deferredFiles.await() }
-        state.value = state.value.withValues(
+        delegate.state.value = delegate.state.value.withValues(
             currentPath = "/storage/emulated/0",
             currentVolumeId = "vol1",
             files = previousFiles.toPersistentList()
@@ -337,14 +331,14 @@ class BrowserNavigationControllerTest {
 
         delegate.navigateToFolder("/storage/emulated/0/Downloads")
 
-        assertTrue(state.value.isLoading)
-        assertEquals(emptyList<FileModel>(), state.value.files)
+        assertTrue(delegate.state.value.isLoading)
+        assertEquals(emptyList<FileModel>(), delegate.state.value.files)
 
         deferredFiles.complete(Result.success(loadedFiles))
         advanceUntilIdle()
 
-        assertFalse(state.value.isLoading)
-        assertEquals(loadedFiles, state.value.files)
+        assertFalse(delegate.state.value.isLoading)
+        assertEquals(loadedFiles, delegate.state.value.files)
     }
 
     @Test
@@ -360,7 +354,7 @@ class BrowserNavigationControllerTest {
                 else -> Result.success(emptyList())
             }
         }
-        state.value = state.value.withValues(currentPath = "/storage/emulated/0", currentVolumeId = "vol1")
+        delegate.state.value = delegate.state.value.withValues(currentPath = "/storage/emulated/0", currentVolumeId = "vol1")
 
         delegate.navigateToFolder("/storage/emulated/0/Slow")
         delegate.navigateToFolder("/storage/emulated/0/Fast")
@@ -370,9 +364,9 @@ class BrowserNavigationControllerTest {
         firstListing.complete(Result.success(firstFiles))
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/Fast", state.value.currentPath)
-        assertFalse(state.value.isLoading)
-        assertEquals(secondFiles, state.value.files)
+        assertEquals("/storage/emulated/0/Fast", delegate.state.value.currentPath)
+        assertFalse(delegate.state.value.isLoading)
+        assertEquals(secondFiles, delegate.state.value.files)
         verify { savedStateHandle.set("currentPath", "/storage/emulated/0/Fast") }
     }
 
@@ -382,7 +376,7 @@ class BrowserNavigationControllerTest {
         val loadedFiles = listOf(FileModel("image", "/storage/emulated/0/image.jpg", 0L, 0L, false, "jpg", false))
         val deferredFiles = CompletableDeferred<Result<List<FileModel>>>()
         repository.filesByCategoryResultProvider = { _, _ -> deferredFiles.await() }
-        state.value = state.value.withValues(
+        delegate.state.value = delegate.state.value.withValues(
             currentPath = "/storage/emulated/0",
             currentVolumeId = "vol1",
             files = previousFiles.toPersistentList()
@@ -390,13 +384,13 @@ class BrowserNavigationControllerTest {
 
         delegate.navigateToCategory("Images", "vol1")
 
-        assertTrue(state.value.isLoading)
-        assertEquals(emptyList<FileModel>(), state.value.files)
+        assertTrue(delegate.state.value.isLoading)
+        assertEquals(emptyList<FileModel>(), delegate.state.value.files)
 
         deferredFiles.complete(Result.success(loadedFiles))
         advanceUntilIdle()
 
-        assertFalse(state.value.isLoading)
-        assertEquals(loadedFiles, state.value.files)
+        assertFalse(delegate.state.value.isLoading)
+        assertEquals(loadedFiles, delegate.state.value.files)
     }
 }

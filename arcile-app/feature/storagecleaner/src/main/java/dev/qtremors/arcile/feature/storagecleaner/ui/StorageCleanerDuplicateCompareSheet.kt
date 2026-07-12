@@ -215,9 +215,10 @@ private fun DuplicateComparePane(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        if (appContext?.icon != null) {
+                        val appIcon = appContext?.icon
+                        if (appIcon != null) {
                             Image(
-                                bitmap = appContext.icon.asImageBitmap(),
+                                bitmap = appIcon.asImageBitmap(),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(18.dp)

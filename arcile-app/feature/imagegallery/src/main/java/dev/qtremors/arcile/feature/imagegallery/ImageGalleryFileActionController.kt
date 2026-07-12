@@ -26,7 +26,8 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.core.presentation.delegate.DeleteStateCallbacks
-import java.io.File
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.normalizeStoragePath
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
@@ -171,12 +172,12 @@ internal class ImageGalleryFileActionController(
 
     fun removePaths(paths: Collection<String>) {
         if (paths.isEmpty()) return
-        val normalized = paths.map { it.replace('\\', '/') }.toSet()
+        val normalized = paths.mapTo(mutableSetOf(), ::normalizeStoragePath)
         propertiesLoader.dismiss()
         update {
             it.copy(
                 selectedFiles = it.selectedFiles
-                    .filterNot { path -> path.replace('\\', '/') in normalized }
+                    .filterNot { path -> normalizeStoragePath(path) in normalized }
                     .toPersistentSet()
             )
         }
@@ -276,7 +277,7 @@ internal class ImageGalleryFileActionController(
     fun createZip() {
         val selected = state.value.selectedFiles.toList()
         if (selected.isEmpty()) return
-        val parentPath = File(selected.first()).parent ?: return
+        val parentPath = storageParentPath(selected.first()) ?: return
         scope.launch {
             val destination = archivePathResolver.resolve(
                 ArchivePathRequest(

@@ -8,6 +8,8 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -22,13 +24,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 internal class ArchiveViewerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: ArchiveRepository,
+    private val archivePathResolver: ArchivePathResolver,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
     private val archivePath = savedStateHandle.get<String>("archivePath").orEmpty()
@@ -44,6 +46,18 @@ internal class ArchiveViewerViewModel @Inject constructor(
     fun load() {
         viewModelScope.launch {
             _state.update { it.copy(isLoading = true, error = null) }
+            val extractionDestination = archivePathResolver.resolveExtraction(
+                ArchiveExtractionPathRequest(archivePath)
+            ).getOrElse { error ->
+                _state.update {
+                    it.copy(
+                        isLoading = false,
+                        error = error.message?.let(UiText::Dynamic)
+                            ?: UiText.StringResource(R.string.error_unsupported_archive)
+                    )
+                }
+                return@launch
+            }
             val password = _state.value.archivePassword
             val encoding = _state.value.nameEncoding
             val entriesResult = repository.listArchiveEntries(archivePath, password, encoding)
@@ -66,6 +80,7 @@ internal class ArchiveViewerViewModel @Inject constructor(
                 it.copy(
                     entries = entries,
                     summary = metadataResult.getOrThrow(),
+                    extractionDestination = extractionDestination,
                     visibleItems = buildArchiveBrowserItems(entries, it.currentPrefix, it.searchQuery),
                     isLoading = false,
                     passwordRequired = false
@@ -213,8 +228,7 @@ internal class ArchiveViewerViewModel @Inject constructor(
 
     private fun startExtract(prefix: String?, password: String?) {
         viewModelScope.launch {
-            val archive = File(archivePath)
-            val destination = File(archive.parentFile ?: return@launch, archive.archiveBaseName()).absolutePath
+            val destination = _state.value.extractionDestination ?: return@launch
             val effectivePassword = password ?: _state.value.archivePassword
             val encoding = _state.value.nameEncoding
             val result = repository.detectArchiveConflicts(
@@ -253,8 +267,7 @@ internal class ArchiveViewerViewModel @Inject constructor(
     }
 
     private fun beginExtractOperation(prefix: String?, password: String?, resolutions: Map<String, ConflictResolution>) {
-        val archive = File(archivePath)
-        val destination = File(archive.parentFile ?: return, archive.archiveBaseName()).absolutePath
+        val destination = _state.value.extractionDestination ?: return
         bulkFileOperationCoordinator.startOperation(
             type = BulkFileOperationType.EXTRACT_ARCHIVE,
             sourcePaths = listOf(archivePath),
@@ -360,8 +373,4 @@ internal class ArchiveViewerViewModel @Inject constructor(
     private fun dev.qtremors.arcile.core.operation.BulkFileOperationRequest.isCurrentArchiveExtraction(): Boolean =
         type == BulkFileOperationType.EXTRACT_ARCHIVE && sourcePaths.firstOrNull() == archivePath
 
-    private fun File.archiveBaseName(): String {
-        val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension
-        return name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension }
-    }
 }

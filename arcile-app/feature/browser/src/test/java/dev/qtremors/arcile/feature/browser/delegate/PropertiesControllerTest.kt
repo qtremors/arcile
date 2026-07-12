@@ -30,7 +30,6 @@ class PropertiesControllerTest {
     private lateinit var scope: TestScope
     private lateinit var controller: PropertiesController
     private var context = BrowserPropertiesContext(emptyList(), emptyList(), null)
-    private var latestState = BrowserPropertiesState()
     private var latestError: UiText? = null
 
     @Before
@@ -38,15 +37,13 @@ class PropertiesControllerTest {
         fileBrowserRepository = mockk()
         archiveRepository = mockk(relaxed = true)
         scope = TestScope()
-        latestState = BrowserPropertiesState()
         latestError = null
         controller = PropertiesController(
-            initialState = latestState,
+            initialState = BrowserPropertiesState(),
             scope = scope,
             fileBrowserRepository = fileBrowserRepository,
             archiveRepository = archiveRepository,
             contextProvider = { context },
-            onStateChange = { latestState = it },
             onError = { latestError = it }
         )
     }
@@ -59,12 +56,12 @@ class PropertiesControllerTest {
             Result.success(properties("report.pdf", path, 12))
 
         controller.openForSelection()
-        assertTrue(latestState.isLoading)
+        assertTrue(controller.state.value.isLoading)
         advanceUntilIdle()
 
-        assertTrue(latestState.isVisible)
-        assertFalse(latestState.isLoading)
-        assertEquals("report.pdf", latestState.properties?.title)
+        assertTrue(controller.state.value.isVisible)
+        assertFalse(controller.state.value.isLoading)
+        assertEquals("report.pdf", controller.state.value.properties?.title)
         assertNull(latestError)
     }
 
@@ -79,10 +76,10 @@ class PropertiesControllerTest {
 
         controller.openForSelection()
 
-        assertTrue(latestState.isVisible)
-        assertFalse(latestState.isLoading)
-        assertEquals(32L, latestState.properties?.totalBytes)
-        assertEquals("photos.zip/photos", latestState.properties?.pathSummary)
+        assertTrue(controller.state.value.isVisible)
+        assertFalse(controller.state.value.isLoading)
+        assertEquals(32L, controller.state.value.properties?.totalBytes)
+        assertEquals("photos.zip/photos", controller.state.value.properties?.pathSummary)
     }
 
     @Test
@@ -97,9 +94,9 @@ class PropertiesControllerTest {
         result.complete(Result.success(properties("slow.txt", path, 1)))
         advanceUntilIdle()
 
-        assertFalse(latestState.isVisible)
-        assertFalse(latestState.isLoading)
-        assertNull(latestState.properties)
+        assertFalse(controller.state.value.isVisible)
+        assertFalse(controller.state.value.isLoading)
+        assertNull(controller.state.value.properties)
     }
 
     @Test
@@ -112,7 +109,7 @@ class PropertiesControllerTest {
         controller.openForSelection()
         advanceUntilIdle()
 
-        assertFalse(latestState.isVisible)
+        assertFalse(controller.state.value.isVisible)
         assertNotNull(latestError)
     }
 

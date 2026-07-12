@@ -86,6 +86,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import java.text.SimpleDateFormat
@@ -96,8 +97,7 @@ import java.util.TimeZone
 @OptIn(ExperimentalMaterial3Api::class)
 
 internal fun fileModelFromPath(path: String): FileModel {
-    val normalized = path.replace('\\', '/')
-    val name = normalized.substringAfterLast('/').ifBlank { path }
+    val name = storagePathName(path).ifBlank { path }
     val extension = name.substringAfterLast('.', "").lowercase()
     return FileModel(
         name = name,

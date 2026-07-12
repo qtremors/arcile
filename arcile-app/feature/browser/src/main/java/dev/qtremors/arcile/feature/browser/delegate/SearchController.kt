@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.browser.delegate
 
+import dev.qtremors.arcile.core.presentation.DebouncedSearchController
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
@@ -9,13 +10,11 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserSearchState
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
 
 internal data class BrowserSearchContext(
     val currentPath: String,
@@ -28,99 +27,97 @@ internal data class BrowserSearchContext(
 
 internal class SearchController(
     initialState: BrowserSearchState,
-    private val scope: CoroutineScope,
-    private val repository: SearchRepository,
-    private val contextProvider: () -> BrowserSearchContext,
-    private val onStateChange: (BrowserSearchState) -> Unit,
-    private val onError: (UiText?) -> Unit
+    scope: CoroutineScope,
+    repository: SearchRepository,
+    private val contextProvider: () -> BrowserSearchContext
 ) {
-    private val _state = MutableStateFlow(initialState)
-    val state: StateFlow<BrowserSearchState> = _state.asStateFlow()
-    private var searchJob: Job? = null
+    private val filterMenuVisible = MutableStateFlow(initialState.isSearchFilterMenuVisible)
+
+    private val searchEngine = DebouncedSearchController(
+        scope = scope,
+        initialFilters = initialState.activeSearchFilters,
+        initialQuery = initialState.browserSearchQuery,
+        initialResults = initialState.searchResults,
+        debounceMillis = SEARCH_DEBOUNCE_MILLIS,
+        fallbackError = UiText.StringResource(R.string.error_search_failed)
+    ) { query, filters ->
+        search(query, filters, repository)
+    }
+    val state: StateFlow<BrowserSearchState> = BrowserSearchStateFlow(
+        searchState = searchEngine.state,
+        filterMenuVisible = filterMenuVisible
+    )
 
     fun updateQuery(query: String) {
-        updateState { it.copy(browserSearchQuery = query) }
-        search(query)
+        searchEngine.updateQuery(query)
     }
 
     fun updateFilters(filters: SearchFilters) {
-        updateState { it.copy(activeSearchFilters = filters) }
-        state.value.browserSearchQuery.takeIf(String::isNotBlank)?.let(::search)
+        searchEngine.updateFilters(filters)
     }
 
     fun setFilterMenuVisible(visible: Boolean) {
-        updateState { it.copy(isSearchFilterMenuVisible = visible) }
+        filterMenuVisible.value = visible
     }
 
-    private fun search(query: String) {
-        searchJob?.cancel()
-        if (query.isBlank()) {
-            updateState {
-                it.copy(
-                    searchResults = kotlinx.collections.immutable.persistentListOf(),
-                    isSearching = false
-                )
-            }
-            return
-        }
-        searchJob = scope.launch {
-            delay(SEARCH_DEBOUNCE_MILLIS)
-            onError(null)
-            updateState { it.copy(isSearching = true) }
-            val context = contextProvider()
-            val archiveFiles = context.archiveFiles
-            if (archiveFiles != null) {
-                val normalized = query.trim().lowercase()
-                updateState {
-                    it.copy(
-                        searchResults = archiveFiles
-                            .filter { file -> file.name.lowercase().contains(normalized) }
-                            .toPersistentList(),
-                        isSearching = false
-                    )
-                }
-                return@launch
-            }
-            val storageScope = when {
-                context.isVolumeRootScreen -> StorageScope.AllStorage
-                context.isCategoryScreen ->
-                    StorageScope.Category(context.currentVolumeId, context.activeCategoryName)
-                context.currentVolumeId != null && context.currentPath.isNotEmpty() ->
-                    StorageScope.Path(context.currentVolumeId, context.currentPath)
-                else -> StorageScope.AllStorage
-            }
-            repository.searchFiles(
-                query,
-                storageScope,
-                state.value.activeSearchFilters
-            ).fold(
-                onSuccess = { files ->
-                    updateState {
-                        it.copy(
-                            searchResults = files.toPersistentList(),
-                            isSearching = false
-                        )
-                    }
-                },
-                onFailure = { error ->
-                    updateState { it.copy(isSearching = false) }
-                    onError(
-                        error.message?.let(UiText::Dynamic)
-                            ?: UiText.StringResource(R.string.error_search_failed)
-                    )
-                }
+    fun clearError() {
+        searchEngine.clearError()
+    }
+
+    private suspend fun search(
+        query: String,
+        filters: SearchFilters,
+        repository: SearchRepository
+    ): Result<List<FileModel>> {
+        val context = contextProvider()
+        context.archiveFiles?.let { archiveFiles ->
+            val normalized = query.trim().lowercase()
+            return Result.success(
+                archiveFiles.filter { file -> file.name.lowercase().contains(normalized) }
             )
         }
-    }
-
-    private inline fun updateState(
-        transform: (BrowserSearchState) -> BrowserSearchState
-    ) {
-        _state.update(transform)
-        onStateChange(_state.value)
+        val storageScope = when {
+            context.isVolumeRootScreen -> StorageScope.AllStorage
+            context.isCategoryScreen ->
+                StorageScope.Category(context.currentVolumeId, context.activeCategoryName)
+            context.currentVolumeId != null && context.currentPath.isNotEmpty() ->
+                StorageScope.Path(context.currentVolumeId, context.currentPath)
+            else -> StorageScope.AllStorage
+        }
+        return repository.searchFiles(query, storageScope, filters)
     }
 
     private companion object {
         const val SEARCH_DEBOUNCE_MILLIS = 400L
     }
 }
+
+@OptIn(kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi::class)
+private class BrowserSearchStateFlow(
+    private val searchState: StateFlow<dev.qtremors.arcile.core.presentation.DebouncedSearchState<FileModel, SearchFilters>>,
+    private val filterMenuVisible: StateFlow<Boolean>
+) : StateFlow<BrowserSearchState> {
+    override val value: BrowserSearchState
+        get() = searchState.value.toBrowserState(filterMenuVisible.value)
+
+    override val replayCache: List<BrowserSearchState>
+        get() = listOf(value)
+
+    override suspend fun collect(collector: FlowCollector<BrowserSearchState>): Nothing {
+        combine(searchState, filterMenuVisible) { search, menuVisible ->
+            search.toBrowserState(menuVisible)
+        }.collect(collector)
+        awaitCancellation()
+    }
+}
+
+private fun dev.qtremors.arcile.core.presentation.DebouncedSearchState<FileModel, SearchFilters>.toBrowserState(
+    filterMenuVisible: Boolean
+) = BrowserSearchState(
+    browserSearchQuery = query,
+    searchResults = results.toPersistentList(),
+    isSearching = isSearching,
+    error = error,
+    activeSearchFilters = filters,
+    isSearchFilterMenuVisible = filterMenuVisible
+)

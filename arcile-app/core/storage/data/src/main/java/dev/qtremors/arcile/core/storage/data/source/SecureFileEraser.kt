@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
 import java.io.File
 import java.io.FileOutputStream
@@ -67,6 +68,7 @@ internal class SecureFileEraser(
             }
             DefaultFileSystemDataSource.SecureOverwriteResult.Success
         } catch (error: Exception) {
+            error.rethrowIfCancellation()
             DefaultFileSystemDataSource.SecureOverwriteResult.Failure(
                 message = "Unable to securely overwrite ${file.name}: " +
                     (error.message ?: error.javaClass.simpleName),

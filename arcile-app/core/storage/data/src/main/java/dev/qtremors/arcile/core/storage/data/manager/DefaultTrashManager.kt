@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import android.content.Context
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
@@ -116,7 +117,7 @@ class DefaultTrashManager(
                 try {
                     metadataStore.write(destFile, metadataEntity)
                 } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    e.rethrowIfCancellation()
                     AppLogger.e("TrashManager", "Failed to write trash metadata, aborting move to trash", e)
                     return@withContext Result.failure(Exception("Failed to write trash metadata: ${e.message}", e))
                 }
@@ -139,7 +140,6 @@ class DefaultTrashManager(
                         mutationJournal.forgetTrashFallback(targetTrashFile.absolutePath, destFile.absolutePath)
                         fallbackSuccess = true
                     } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
                         File(trashMetadataDir, "$trashId.json").delete()
                         if (targetTrashFile.exists()) {
                             if (targetTrashFile.isDirectory) targetTrashFile.deleteRecursively() else targetTrashFile.delete()
@@ -148,6 +148,7 @@ class DefaultTrashManager(
                         if (scannedPaths.isNotEmpty()) {
                             finalizeMutation(*scannedPaths.toTypedArray())
                         }
+                        e.rethrowIfCancellation()
                         val msg = if (scannedPaths.isNotEmpty()) "Moved ${scannedPaths.size} of ${targets.size} items to trash. Failed on ${file.name}: ${e.message}" else "Failed to move ${file.name} to trash: ${e.message}"
                         return@withContext Result.failure(Exception(msg, e))
                     }
@@ -161,7 +162,7 @@ class DefaultTrashManager(
             finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }
@@ -264,7 +265,7 @@ class DefaultTrashManager(
             finalizeMutation(*scannedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }
@@ -295,7 +296,7 @@ class DefaultTrashManager(
             finalizeMutation(*changedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }
@@ -372,7 +373,7 @@ class DefaultTrashManager(
             }
             Result.success(list.sortedByDescending { it.deletionTime })
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }
@@ -390,7 +391,7 @@ class DefaultTrashManager(
             }.filterValues { it > 0L }
             Result.success(TrashStorageUsage(totalBytes = byVolume.values.sum(), byVolumeId = byVolume))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }
@@ -400,7 +401,7 @@ class DefaultTrashManager(
         try {
             context.contentResolver.delete(android.net.Uri.parse(contentUri), null, null)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             AppLogger.e("TrashManager", "Failed to explicitly delete from MediaStore", e)
         }
     }
@@ -446,7 +447,7 @@ class DefaultTrashManager(
             finalizeMutation(*changedPaths.toTypedArray())
             Result.success(Unit)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }

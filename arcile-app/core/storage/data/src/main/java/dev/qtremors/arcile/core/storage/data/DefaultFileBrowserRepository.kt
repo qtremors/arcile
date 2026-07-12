@@ -13,7 +13,6 @@ import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
@@ -27,7 +26,7 @@ class DefaultFileBrowserRepository(
         fileSystemDataSource.listFiles(path)
 
     override fun listFilePages(path: String, pageSize: Int): Flow<ListingPage> =
-        runCatching { StorageNodePath.of(path) }
+        runCatchingPreservingCancellation { StorageNodePath.of(path) }
             .map { fileSystemDataSource.list(it, pageSize) }
             .getOrElse {
                 flowOf(ListingPage.failed(StorageNodePath.of(File("/").absolutePath), it))
@@ -79,7 +78,7 @@ class DefaultFileBrowserRepository(
                 }
             )
         } catch (error: Exception) {
-            if (error is CancellationException) throw error
+            error.rethrowIfCancellation()
             Result.failure(error)
         }
     }

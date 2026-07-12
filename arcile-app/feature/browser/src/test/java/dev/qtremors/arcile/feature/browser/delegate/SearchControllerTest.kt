@@ -23,8 +23,6 @@ class SearchControllerTest {
     private lateinit var repository: SearchRepository
     private lateinit var controller: SearchController
     private lateinit var testScope: TestScope
-    private var latestState = BrowserSearchState()
-    private var latestError: UiText? = null
     private var context = BrowserSearchContext(
         currentPath = "",
         currentVolumeId = null,
@@ -38,15 +36,11 @@ class SearchControllerTest {
     fun setup() {
         testScope = TestScope()
         repository = mockk(relaxed = true)
-        latestState = BrowserSearchState()
-        latestError = null
         controller = SearchController(
-            initialState = latestState,
+            initialState = BrowserSearchState(),
             scope = testScope,
             repository = repository,
-            contextProvider = { context },
-            onStateChange = { latestState = it },
-            onError = { latestError = it }
+            contextProvider = { context }
         )
     }
 
@@ -62,7 +56,6 @@ class SearchControllerTest {
 
         assertFalse(controller.state.value.isSearching)
         assertEquals(files, controller.state.value.searchResults)
-        assertEquals(controller.state.value, latestState)
         coVerify(exactly = 1) { repository.searchFiles("test query", any(), any()) }
     }
 
@@ -118,6 +111,10 @@ class SearchControllerTest {
         advanceTimeBy(401)
 
         assertFalse(controller.state.value.isSearching)
-        assertEquals(UiText.Dynamic("search unavailable"), latestError)
+        assertEquals(UiText.Dynamic("search unavailable"), controller.state.value.error)
+
+        controller.clearError()
+
+        assertEquals(null, controller.state.value.error)
     }
 }

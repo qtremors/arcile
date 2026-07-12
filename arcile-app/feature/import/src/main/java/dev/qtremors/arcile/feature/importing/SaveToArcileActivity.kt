@@ -11,11 +11,11 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.ThemeState
-import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
@@ -29,6 +29,9 @@ class SaveToArcileActivity : ComponentActivity() {
 
     @Inject
     lateinit var browserPreferencesStore: SaveDestinationPreferencesStore
+
+    @Inject
+    lateinit var saveDestinationBrowser: SaveDestinationBrowser
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +59,7 @@ class SaveToArcileActivity : ComponentActivity() {
                                 .first()
                                 .defaultPath
                         },
+                        destinationBrowser = saveDestinationBrowser,
                         saveDefaultPath = {
                             browserPreferencesStore.updateDefaultSaveToArcilePath(it)
                         },
@@ -73,12 +77,12 @@ class SaveToArcileActivity : ComponentActivity() {
     }
 
     private fun enqueueIncomingImport(
-        destination: File,
+        destinationPath: String,
         incoming: List<IncomingSharedFile>
     ): Result<SaveIncomingResult> {
         persistReadableUriPermissions(incoming)
         val started = bulkFileOperationCoordinator.startImportOperation(
-            destinationPath = destination.absolutePath,
+            destinationPath = destinationPath,
             importItems = incoming.map { item ->
                 SaveToArcileImportItem(
                     uri = item.uri.toString(),

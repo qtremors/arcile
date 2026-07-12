@@ -12,6 +12,7 @@ import androidx.navigation.compose.composable
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 
 sealed interface StorageCleanerDestination {
     data class OpenFile(val path: String) : StorageCleanerDestination
@@ -42,6 +43,7 @@ fun NavGraphBuilder.registerStorageCleanerRoute(
             state = state,
             onNavigateBack = onNavigateBack,
             onRefresh = { viewModel.scan() },
+            onClearThumbnailCache = { viewModel.clearThumbnailCache() },
             onCleanFiles = { paths, acknowledgedHighRisk -> viewModel.clean(paths, acknowledgedHighRisk) },
             onUndoClean = { viewModel.undoClean(it) },
             onClearMessages = { viewModel.clearMessages() },
@@ -49,7 +51,7 @@ fun NavGraphBuilder.registerStorageCleanerRoute(
                 onDestination(StorageCleanerDestination.OpenFile(path))
             },
             onOpenContainingFolder = { focusPath ->
-                val parentPath = focusPath.substringBeforeLast('/', missingDelimiterValue = "")
+                val parentPath = storageParentPath(focusPath).orEmpty()
                 if (parentPath.isNotBlank()) {
                     onDestination(
                         StorageCleanerDestination.ContainingFolder(

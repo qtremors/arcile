@@ -10,8 +10,7 @@ class BrowserRevealControllerTest {
 
     @Test
     fun `only the requested path can consume an armed reveal`() {
-        var mirrored = BrowserRevealState()
-        val controller = BrowserRevealController(BrowserRevealState()) { mirrored = it }
+        val controller = BrowserRevealController(BrowserRevealState())
 
         controller.request("/Pictures/photo.jpg")
         controller.arm()
@@ -24,12 +23,11 @@ class BrowserRevealControllerTest {
 
         assertNull(controller.state.value.path)
         assertFalse(controller.state.value.isReady)
-        assertEquals(BrowserRevealState(), mirrored)
     }
 
     @Test
     fun `arming without a request does nothing`() {
-        val controller = BrowserRevealController(BrowserRevealState()) {}
+        val controller = BrowserRevealController(BrowserRevealState())
 
         controller.arm()
 

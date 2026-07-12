@@ -15,6 +15,7 @@ import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
+import dev.qtremors.arcile.feature.browser.delegate.BrowserTransientState
 
 @Immutable
 internal data class BrowserSelectionState(
@@ -26,6 +27,7 @@ internal data class BrowserSelectionState(
 internal data class BrowserSearchState(
     val searchResults: PersistentList<FileModel> = persistentListOf(),
     val isSearching: Boolean = false,
+    val error: UiText? = null,
     val browserSearchQuery: String = "",
     val activeSearchFilters: SearchFilters = SearchFilters(),
     val isSearchFilterMenuVisible: Boolean = false
@@ -64,6 +66,7 @@ internal data class BrowserUiState(
     val dialogs: BrowserDialogState = BrowserDialogState(),
     val propertiesState: BrowserPropertiesState = BrowserPropertiesState(),
     val operation: BrowserOperationState = BrowserOperationState(),
+    val transient: BrowserTransientState = BrowserTransientState(),
     val pendingArchiveExtraction: PendingArchiveExtraction? = null,
     val pendingRevealFilePath: String? = null,
     val pendingRevealReady: Boolean = false
@@ -79,9 +82,9 @@ internal data class BrowserUiState(
     val files get() = listing.files
     val folderStatsByPath get() = listing.folderStatsByPath
     val folderStatsLoadingPaths get() = listing.folderStatsLoadingPaths
-    val isLoading get() = listing.isLoading
+    val isLoading get() = listing.isLoading || transient.isBusy
     val isPullToRefreshing get() = listing.isPullToRefreshing
-    val error get() = listing.error
+    val error get() = search.error ?: transient.error ?: listing.error
     val browserSortOption get() = listing.browserSortOption
     val browserViewMode get() = listing.browserViewMode
     val browserListZoom get() = listing.browserListZoom
@@ -121,6 +124,7 @@ internal sealed interface BrowserSearchEvent {
     data class QueryChanged(val query: String) : BrowserSearchEvent
     data class ResultsLoaded(val files: List<FileModel>) : BrowserSearchEvent
     data class SearchingChanged(val isSearching: Boolean) : BrowserSearchEvent
+    data class ErrorChanged(val error: UiText?) : BrowserSearchEvent
     data class FiltersChanged(val filters: SearchFilters) : BrowserSearchEvent
     data class FilterMenuChanged(val visible: Boolean) : BrowserSearchEvent
 }
@@ -143,6 +147,7 @@ internal fun BrowserSearchState.reduce(event: BrowserSearchEvent): BrowserSearch
         searchResults = event.files.toPersistentList()
     )
     is BrowserSearchEvent.SearchingChanged -> copy(isSearching = event.isSearching)
+    is BrowserSearchEvent.ErrorChanged -> copy(error = event.error)
     is BrowserSearchEvent.FiltersChanged -> copy(activeSearchFilters = event.filters)
     is BrowserSearchEvent.FilterMenuChanged -> copy(isSearchFilterMenuVisible = event.visible)
 }

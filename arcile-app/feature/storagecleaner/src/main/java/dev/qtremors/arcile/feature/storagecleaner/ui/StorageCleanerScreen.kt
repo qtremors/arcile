@@ -127,6 +127,7 @@ internal fun StorageCleanerScreen(
     state: StorageCleanerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
+    onClearThumbnailCache: () -> Unit = {},
     onCleanFiles: (List<String>, Boolean) -> Unit,
     onUndoClean: (List<String>) -> Unit = {},
     onClearMessages: () -> Unit,
@@ -304,7 +305,10 @@ internal fun StorageCleanerScreen(
                     }
 
                     item {
-                        CleanerThumbnailCacheCard()
+                        CleanerThumbnailCacheCard(
+                            state = state.thumbnailCache,
+                            onClear = onClearThumbnailCache
+                        )
                     }
 
                     items(CleanerGroupType.entries, key = { it.name }) { type ->

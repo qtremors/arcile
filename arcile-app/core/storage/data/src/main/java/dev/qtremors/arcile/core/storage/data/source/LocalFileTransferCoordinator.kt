@@ -1,12 +1,12 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileOperationException
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 
 internal class LocalFileTransferCoordinator(
@@ -81,7 +81,7 @@ internal class LocalFileTransferCoordinator(
     } catch (error: java.io.IOException) {
         Result.failure(FileOperationException.IOError(cause = error))
     } catch (error: Exception) {
-        if (error is CancellationException) throw error
+        error.rethrowIfCancellation()
         Result.failure(FileOperationException.Unknown(cause = error))
     }
 }

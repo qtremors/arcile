@@ -88,7 +88,6 @@ import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.ConflictCard
 import dev.qtremors.arcile.core.ui.keyboardInputField
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.io.File
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -174,11 +173,6 @@ internal fun ArchiveContextHeader(
             overflow = TextOverflow.Ellipsis
         )
     }
-}
-
-internal fun File.archiveBaseName(): String {
-    val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension
-    return name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension }
 }
 
 @Composable

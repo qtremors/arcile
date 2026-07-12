@@ -29,7 +29,6 @@ internal class PropertiesController(
     private val fileBrowserRepository: FileBrowserRepository,
     private val archiveRepository: ArchiveRepository,
     private val contextProvider: () -> BrowserPropertiesContext,
-    private val onStateChange: (BrowserPropertiesState) -> Unit,
     private val onError: (UiText) -> Unit
 ) {
     private val _state = MutableStateFlow(initialState)
@@ -111,6 +110,5 @@ internal class PropertiesController(
 
     private fun update(next: BrowserPropertiesState) {
         _state.value = next
-        onStateChange(next)
     }
 }

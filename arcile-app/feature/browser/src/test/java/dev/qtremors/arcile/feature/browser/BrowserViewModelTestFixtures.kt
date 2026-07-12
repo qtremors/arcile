@@ -73,6 +73,20 @@ private object BrowserTestArchivePathResolver :
             "${request.parentPath.orEmpty().trimEnd('/')}/$name.${request.format.extension}"
         )
     }
+
+    override suspend fun resolveExtraction(
+        request: dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
+    ): Result<String> {
+        val parent = request.archivePath.substringBeforeLast('/', request.currentPath.orEmpty())
+        val destination = when (request.style) {
+            dev.qtremors.arcile.core.storage.domain.ArchiveExtractionDestinationStyle.NAMED_FOLDER ->
+                "$parent/${request.archivePath.substringAfterLast('/').substringBeforeLast('.')}"
+            dev.qtremors.arcile.core.storage.domain.ArchiveExtractionDestinationStyle.SAME_FOLDER -> parent
+            dev.qtremors.arcile.core.storage.domain.ArchiveExtractionDestinationStyle.CUSTOM_FOLDER ->
+                request.customDestination?.takeIf(String::isNotBlank) ?: parent
+        }
+        return Result.success(destination)
+    }
 }
 
 class FakeStorageMutationNotifier : StorageMutationNotifier {

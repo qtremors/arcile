@@ -140,8 +140,8 @@ internal fun TrashScreen(
     var showEmptyTrashConfirmation by rememberSaveable { mutableStateOf(false) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
 
-    LaunchedEffect(state.error) {
-        state.error?.let { errorMsg ->
+    LaunchedEffect(state.feedbackError) {
+        state.feedbackError?.let { errorMsg ->
             haptics.error()
             onFeedback(ArcileFeedbackEvent(errorMsg, ArcileFeedbackSeverity.Error))
             onClearError()

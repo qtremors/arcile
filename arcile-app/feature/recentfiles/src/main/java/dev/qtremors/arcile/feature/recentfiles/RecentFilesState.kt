@@ -21,6 +21,7 @@ internal data class RecentFilesState(
     val hasMore: Boolean = true,
     val currentOffset: Int = 0,
     val error: UiText? = null,
+    val searchError: UiText? = null,
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
     val showMixedDeleteExplanation: Boolean = false,
@@ -40,7 +41,9 @@ internal data class RecentFilesState(
     val isPropertiesVisible: Boolean = false,
     val isPropertiesLoading: Boolean = false,
     val properties: PropertiesUiModel? = null
-)
+) {
+    val feedbackError: UiText? get() = searchError ?: error
+}
 
 internal fun RecentFilesState.displayRecentFiles(
     source: List<FileModel> = recentFiles

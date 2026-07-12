@@ -1,31 +1,25 @@
 package dev.qtremors.arcile.feature.importing
 
-import dev.qtremors.arcile.core.operation.android.MAX_IMPORT_BYTES
-import dev.qtremors.arcile.core.operation.android.MAX_IMPORT_ITEMS
-import dev.qtremors.arcile.core.operation.android.sanitizeIncomingFileName
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
-import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import kotlinx.coroutines.test.runTest
+import dev.qtremors.arcile.core.operation.android.MAX_IMPORT_BYTES
+import dev.qtremors.arcile.core.operation.android.MAX_IMPORT_ITEMS
+import dev.qtremors.arcile.core.operation.android.sanitizeIncomingFileName
+import java.io.File
+import java.io.RandomAccessFile
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import java.io.ByteArrayInputStream
-import java.io.File
-import java.io.RandomAccessFile
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class SaveToArcileActivityTest {
-
     @Test
     fun `reader parses single and multiple stream uris without duplicates`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -48,10 +42,7 @@ class SaveToArcileActivityTest {
         val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
             putExtra(
                 Intent.EXTRA_STREAM,
-                arrayListOf(
-                    Uri.parse("http://example.com/file.txt"),
-                    Uri.fromFile(external)
-                )
+                arrayListOf(Uri.parse("http://example.com/file.txt"), Uri.fromFile(external))
             )
         }
 
@@ -88,7 +79,6 @@ class SaveToArcileActivityTest {
                 ArrayList((0..MAX_IMPORT_ITEMS).map { Uri.parse("content://example/$it") })
             )
         }
-
         assertTrue(IncomingShareReader.preflightFromIntent(context, tooMany).limitExceeded)
 
         val huge = File(context.cacheDir, "huge.bin").apply {
@@ -125,69 +115,10 @@ class SaveToArcileActivityTest {
         assertEquals("evil_name.txt", sanitizeIncomingFileName("../evil\u0000:name.txt"))
         assertEquals("shared-file.txt", sanitizeIncomingFileName("CON.txt"))
         assertEquals(255, sanitizeIncomingFileName(longName).length)
-        assertEquals("photo (1).jpg", sanitizeIncomingFileName("photo.jpg", existingNames = setOf("photo.jpg")))
-    }
-
-    @Test
-    fun `saveIncomingFiles keeps duplicate names and records partial stream failures`() = runTest {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val destination = File(context.cacheDir, "save-test").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-        val good = Uri.parse("content://example/good")
-        val bad = Uri.parse("content://example/bad")
-        var finalizedPath: String? = null
-
-        val result = saveIncomingFiles(
-            destination = destination,
-            incoming = listOf(
-                IncomingSharedFile(good, "same.txt"),
-                IncomingSharedFile(bad, "same.txt")
-            ),
-            openInputStream = { uri ->
-                if (uri == bad) null else ByteArrayInputStream("payload".toByteArray())
-            },
-            finalizeDestination = { finalizedPath = it },
-            invalidDestinationMessage = "invalid",
-            insufficientSpaceMessage = "space",
-            failedOpenStreamMessage = "open failed"
-        ).getOrThrow()
-
-        assertEquals(1, result.savedCount)
-        assertEquals(IncomingShareFailureReason.CopyFailed, result.failures.single().reason)
-        assertTrue(File(destination, "same.txt").exists())
-        assertFalse(File(destination, "same (1).txt").exists())
-        assertEquals(destination.absolutePath, finalizedPath)
-    }
-
-    @Test
-    fun `saveIncomingFiles refuses insufficient destination space before copy`() = runTest {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val destination = File(context.cacheDir, "space-test").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-        var opened = false
-
-        val result = runCatching {
-            saveIncomingFiles(
-                destination = destination,
-                incoming = listOf(IncomingSharedFile(Uri.parse("content://example/a"), "a.txt", sizeBytes = 100L)),
-                openInputStream = {
-                    opened = true
-                    ByteArrayInputStream(byteArrayOf(1))
-                },
-                finalizeDestination = {},
-                invalidDestinationMessage = "invalid",
-                insufficientSpaceMessage = "space",
-                failedOpenStreamMessage = "open failed",
-                usableSpaceProvider = { 1L }
-            )
-        }
-
-        assertTrue(result.isFailure)
-        assertFalse(opened)
+        assertEquals(
+            "photo (1).jpg",
+            sanitizeIncomingFileName("photo.jpg", existingNames = setOf("photo.jpg"))
+        )
     }
 
     @Test
@@ -197,64 +128,9 @@ class SaveToArcileActivityTest {
         val message = SaveIncomingResult(savedCount = 0, failures = emptyList(), queued = true)
             .userMessage(context)
 
-        assertEquals(context.getString(dev.qtremors.arcile.core.ui.R.string.save_to_arcile_import_started), message)
-    }
-
-    @Test
-    fun `default save to arcile folder opens first when it is valid`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val volumeRoot = File(context.cacheDir, "default-volume").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-        val defaultFolder = File(volumeRoot, "Imports").apply { mkdirs() }
-
-        val resolved = resolveInitialSaveToArcileDirectory(
-            defaultPath = defaultFolder.absolutePath,
-            volumes = listOf(testSaveVolume(volumeRoot))
-        )
-
-        assertEquals(defaultFolder.canonicalFile, resolved?.canonicalFile)
-        volumeRoot.deleteRecursively()
-    }
-
-    @Test
-    fun `default save to arcile folder falls back when missing or outside volumes`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val volumeRoot = File(context.cacheDir, "valid-volume").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-        val outsideRoot = File(context.cacheDir, "outside-volume").apply {
-            deleteRecursively()
-            mkdirs()
-        }
-        val outsideFolder = File(outsideRoot, "Imports").apply { mkdirs() }
-        val missingFolder = File(volumeRoot, "Missing")
-
         assertEquals(
-            null,
-            resolveInitialSaveToArcileDirectory(missingFolder.absolutePath, listOf(testSaveVolume(volumeRoot)))
+            context.getString(dev.qtremors.arcile.core.ui.R.string.save_to_arcile_import_started),
+            message
         )
-        assertEquals(
-            null,
-            resolveInitialSaveToArcileDirectory(outsideFolder.absolutePath, listOf(testSaveVolume(volumeRoot)))
-        )
-
-        volumeRoot.deleteRecursively()
-        outsideRoot.deleteRecursively()
     }
-
 }
-
-private fun testSaveVolume(root: File) = StorageVolume(
-    id = root.name,
-    storageKey = root.name,
-    name = root.name,
-    path = root.absolutePath,
-    totalBytes = 100L,
-    freeBytes = 50L,
-    isPrimary = false,
-    isRemovable = true,
-    kind = StorageKind.INTERNAL
-)

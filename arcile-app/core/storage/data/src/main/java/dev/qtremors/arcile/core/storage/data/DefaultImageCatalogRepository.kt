@@ -40,12 +40,15 @@ class DefaultImageCatalogRepository @Inject constructor(
 
     override suspend fun loadImages(volumeId: String?, forceRefresh: Boolean): Result<ImageCatalogSnapshot> =
         withContext(dispatchers.io) {
-            runCatching {
+            runCatchingPreservingCancellation {
                 val normalizedVolumeId = volumeId?.takeIf { it.isNotBlank() }
                 if (!forceRefresh) {
                     val cached = cachedImages(normalizedVolumeId)
                     if (cached.isNotEmpty()) {
-                        return@runCatching ImageCatalogSnapshot(cached, isStale = true)
+                        return@runCatchingPreservingCancellation ImageCatalogSnapshot(
+                            cached,
+                            isStale = true
+                        )
                     }
                 }
 

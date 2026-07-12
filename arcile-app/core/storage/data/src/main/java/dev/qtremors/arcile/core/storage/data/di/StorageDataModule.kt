@@ -8,6 +8,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.DefaultFolderStatsStore
 import dev.qtremors.arcile.core.storage.data.DefaultArchivePathResolver
+import dev.qtremors.arcile.core.storage.data.DefaultSaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.data.DefaultImageCatalogRepository
 import dev.qtremors.arcile.core.storage.data.DefaultStorageCleanerScanner
 import dev.qtremors.arcile.core.storage.data.DefaultStorageMutationNotifier
@@ -49,6 +50,7 @@ import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
@@ -99,6 +101,12 @@ object StorageDataModule {
     fun provideArchivePathResolver(
         dispatchers: ArcileDispatchers
     ): ArchivePathResolver = DefaultArchivePathResolver(dispatchers)
+
+    @Provides
+    @Singleton
+    fun provideSaveDestinationBrowser(
+        dispatchers: ArcileDispatchers
+    ): SaveDestinationBrowser = DefaultSaveDestinationBrowser(dispatchers)
 
     @Provides
     @Singleton

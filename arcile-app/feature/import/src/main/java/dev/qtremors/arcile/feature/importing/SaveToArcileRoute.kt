@@ -7,30 +7,27 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationDirectory
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import java.io.File
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 internal data class SaveToArcileState(
     val incoming: List<IncomingSharedFile>,
     val volumes: List<StorageVolume> = emptyList(),
-    val currentDirectory: File? = null,
-    val childDirectories: List<File> = emptyList(),
+    val currentDirectory: SaveDestinationDirectory? = null,
+    val childDirectories: List<SaveDestinationDirectory> = emptyList(),
     val isLoading: Boolean = true,
     val isSaving: Boolean = false
 ) {
-    val canUseCurrentDirectory: Boolean
-        get() = currentDirectory != null &&
-            isValidSaveToArcileDirectory(currentDirectory, volumes)
+    val canUseCurrentDirectory: Boolean get() = currentDirectory?.canSave == true
 }
 
 internal data class SaveToArcileActions(
     val navigateBack: () -> Unit,
     val selectVolume: (StorageVolume) -> Unit,
-    val selectDirectory: (File) -> Unit,
+    val selectDirectory: (SaveDestinationDirectory) -> Unit,
     val saveAsDefault: () -> Unit,
     val saveHere: () -> Unit
 )
@@ -40,8 +37,9 @@ internal fun SaveToArcileRoute(
     incoming: List<IncomingSharedFile>,
     loadVolumes: suspend () -> List<StorageVolume>,
     loadDefaultPath: suspend () -> String?,
+    destinationBrowser: SaveDestinationBrowser,
     saveDefaultPath: suspend (String) -> Unit,
-    copyTo: suspend (File) -> Result<SaveIncomingResult>,
+    copyTo: suspend (String) -> Result<SaveIncomingResult>,
     onCancel: () -> Unit,
     onDefaultSaved: () -> Unit,
     onFinished: (SaveIncomingResult) -> Unit,
@@ -50,10 +48,36 @@ internal fun SaveToArcileRoute(
     val scope = rememberCoroutineScope()
     var state by remember(incoming) { mutableStateOf(SaveToArcileState(incoming)) }
 
+    fun selectDirectory(directory: SaveDestinationDirectory?) {
+        state = state.copy(currentDirectory = directory, childDirectories = emptyList())
+    }
+
+    fun reportFailure(error: Throwable) {
+        if (error is CancellationException) throw error
+        onFailed(error)
+    }
+
+    fun selectPath(path: String) {
+        if (state.isLoading || state.isSaving) return
+        scope.launch {
+            state = state.copy(isLoading = true)
+            destinationBrowser.resolve(path, state.volumes)
+                .onSuccess { directory ->
+                    if (directory == null) {
+                        reportFailure(IllegalStateException("Save destination is unavailable"))
+                    } else {
+                        selectDirectory(directory)
+                    }
+                }
+                .onFailure(::reportFailure)
+            state = state.copy(isLoading = false)
+        }
+    }
+
     LaunchedEffect(incoming) {
         try {
             val volumes = loadVolumes()
-            val initialDirectory = resolveInitialSaveToArcileDirectory(loadDefaultPath(), volumes)
+            val initialDirectory = destinationBrowser.resolve(loadDefaultPath(), volumes).getOrThrow()
             state = state.copy(
                 volumes = volumes,
                 currentDirectory = initialDirectory,
@@ -69,27 +93,15 @@ internal fun SaveToArcileRoute(
 
     LaunchedEffect(state.currentDirectory) {
         val selected = state.currentDirectory
-        val children = withContext(Dispatchers.IO) {
-            try {
-                selected
-                    ?.listFiles { file -> file.isDirectory && file.canRead() }
-                    ?.asSequence()
-                    ?.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
-                    ?.toList()
-                    .orEmpty()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Throwable) {
+        val children = selected?.let {
+            destinationBrowser.children(it.path, state.volumes).getOrElse { error ->
+                reportFailure(error)
                 emptyList()
             }
-        }
+        }.orEmpty()
         if (state.currentDirectory == selected) {
             state = state.copy(childDirectories = children)
         }
-    }
-
-    fun selectDirectory(directory: File?) {
-        state = state.copy(currentDirectory = directory, childDirectories = emptyList())
     }
 
     SaveToArcileScreen(
@@ -99,25 +111,30 @@ internal fun SaveToArcileRoute(
                 val selected = state.currentDirectory
                 if (selected == null) {
                     onCancel()
-                } else {
-                    val parent = selected.parentFile
-                    val containingVolume = state.volumes.firstOrNull { volume ->
-                        runCatching { File(volume.path).canonicalFile == selected.canonicalFile }
-                            .getOrDefault(false)
+                } else if (!state.isLoading && !state.isSaving) {
+                    scope.launch {
+                        state = state.copy(isLoading = true)
+                        try {
+                            destinationBrowser.parent(selected.path, state.volumes)
+                                .onSuccess(::selectDirectory)
+                                .onFailure(::reportFailure)
+                        } finally {
+                            state = state.copy(isLoading = false)
+                        }
                     }
-                    selectDirectory(if (containingVolume != null) null else parent)
                 }
             },
-            selectVolume = { volume -> selectDirectory(File(volume.path)) },
-            selectDirectory = ::selectDirectory,
+            selectVolume = { volume -> selectPath(volume.path) },
+            selectDirectory = { directory -> selectPath(directory.path) },
             saveAsDefault = {
-                val destination = state.currentDirectory
-                    ?.takeIf { isValidSaveToArcileDirectory(it, state.volumes) }
-                    ?: return@SaveToArcileActions
+                val destination = state.currentDirectory ?: return@SaveToArcileActions
                 if (!state.isSaving) {
                     scope.launch {
                         try {
-                            saveDefaultPath(destination.absolutePath)
+                            val verified = destinationBrowser.resolve(destination.path, state.volumes)
+                                .getOrThrow() ?: error("Save destination is unavailable")
+                            check(verified.canSave) { "Save destination is not writable" }
+                            saveDefaultPath(verified.path)
                             onDefaultSaved()
                         } catch (error: CancellationException) {
                             throw error
@@ -128,14 +145,15 @@ internal fun SaveToArcileRoute(
                 }
             },
             saveHere = {
-                val destination = state.currentDirectory
-                    ?.takeIf { isValidSaveToArcileDirectory(it, state.volumes) }
-                    ?: return@SaveToArcileActions
+                val destination = state.currentDirectory ?: return@SaveToArcileActions
                 if (!state.isSaving) {
                     state = state.copy(isSaving = true)
                     scope.launch {
                         try {
-                            copyTo(destination).onSuccess(onFinished).onFailure(onFailed)
+                            val verified = destinationBrowser.resolve(destination.path, state.volumes)
+                                .getOrThrow() ?: error("Save destination is unavailable")
+                            check(verified.canSave) { "Save destination is not writable" }
+                            copyTo(verified.path).onSuccess(onFinished).onFailure(onFailed)
                         } catch (error: CancellationException) {
                             throw error
                         } catch (error: Throwable) {

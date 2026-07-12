@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
@@ -12,26 +11,22 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
-import dev.qtremors.arcile.core.ui.loadApplicationIconBitmap
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import dev.qtremors.arcile.core.ui.ApplicationIconInfo
+import dev.qtremors.arcile.core.ui.rememberApplicationIconInfo
 
 @Composable
 internal fun CleanerRiskSummary(
     file: CleanerCandidate,
-    appContext: CleanerAppContext? = null,
+    appContext: ApplicationIconInfo? = null,
     modifier: Modifier = Modifier
 ) {
     val reasonLabels = buildList {
@@ -80,8 +75,7 @@ internal fun CleanerRiskSummary(
 }
 
 @Composable
-internal fun rememberCleanerAppContext(file: CleanerCandidate): CleanerAppContext? {
-    val context = LocalContext.current
+internal fun rememberCleanerAppContext(file: CleanerCandidate): ApplicationIconInfo? {
     val packageName = remember(file.absolutePath, file.riskReasons) {
         if (CleanerRiskReason.AppLikeFolder in file.riskReasons) {
             packageNameFromPath(file.absolutePath)
@@ -89,29 +83,8 @@ internal fun rememberCleanerAppContext(file: CleanerCandidate): CleanerAppContex
             null
         }
     }
-    val appContext by produceState<CleanerAppContext?>(initialValue = null, context, packageName) {
-        value = packageName?.let { packageId ->
-            withContext(Dispatchers.IO) {
-                val label = runCatching {
-                    val packageManager = context.packageManager
-                    packageManager.getApplicationLabel(
-                        packageManager.getApplicationInfo(packageId, 0)
-                    ).toString()
-                }.getOrNull()
-                CleanerAppContext(
-                    label = label,
-                    icon = context.loadApplicationIconBitmap(packageId)
-                )
-            }
-        }
-    }
-    return appContext
+    return rememberApplicationIconInfo(packageName)
 }
-
-internal data class CleanerAppContext(
-    val label: String?,
-    val icon: Bitmap?
-)
 
 internal fun cleanFilePath(path: String): String = when {
     path == PRIMARY_STORAGE_ROOT -> ""

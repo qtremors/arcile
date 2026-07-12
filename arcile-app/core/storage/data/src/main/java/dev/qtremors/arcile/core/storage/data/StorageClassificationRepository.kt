@@ -35,7 +35,7 @@ class StorageClassificationRepository(
                         val classification = jsonFormat.decodeFromString<StorageClassification>(value)
                         result[key.name] = classification
                     } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        e.rethrowIfCancellation()
                         AppLogger.e("StorageClassification", "Failed to parse stored classification", e)
                     }
                 }
@@ -51,7 +51,7 @@ class StorageClassificationRepository(
         return try {
             jsonFormat.decodeFromString<StorageClassification>(jsonString)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             AppLogger.e("StorageClassification", "Failed to parse stored classification", e)
             resetClassification(storageKey)
             null

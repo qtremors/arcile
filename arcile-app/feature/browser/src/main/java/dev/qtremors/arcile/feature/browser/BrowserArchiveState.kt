@@ -3,7 +3,8 @@ package dev.qtremors.arcile.feature.browser
 import androidx.compose.runtime.Immutable
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
-import java.io.File
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 
 internal enum class ArchiveExtractionTarget {
     NAMED_FOLDER,
@@ -21,8 +22,8 @@ internal data class BrowserArchiveContext(
     val passwordRequired: Boolean = false,
     val pendingPasswordAction: ArchivePasswordAction = ArchivePasswordAction.OPEN
 ) {
-    val archiveName: String get() = File(archivePath).name
-    val parentPath: String get() = File(archivePath).parent.orEmpty()
+    val archiveName: String get() = storagePathName(archivePath)
+    val parentPath: String get() = storageParentPath(archivePath).orEmpty()
 }
 
 internal enum class ArchivePasswordAction {

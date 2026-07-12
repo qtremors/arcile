@@ -18,9 +18,9 @@ import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.presentation.DebouncedSearchController
 import dev.qtremors.arcile.core.presentation.SelectionReducer
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,9 +47,17 @@ internal class RecentFilesViewModel @Inject constructor(
     private val _state = MutableStateFlow(RecentFilesState())
     val state: StateFlow<RecentFilesState> = _state.asStateFlow()
 
-    private var searchJob: Job? = null
     private var recentLoadJob: Job? = null
     private var recentLoadGeneration = 0L
+
+    private val searchController = DebouncedSearchController(
+        scope = viewModelScope,
+        initialFilters = SearchFilters(),
+        debounceMillis = SEARCH_DEBOUNCE_MILLIS,
+        fallbackError = UiText.StringResource(R.string.error_search_failed)
+    ) { query, filters ->
+        searchRepository.searchFiles(query, _state.value.searchScope(), filters)
+    }
 
     private val deleteFlowDelegate = createRecentDeleteController(
         coroutineScope = viewModelScope,
@@ -73,6 +81,28 @@ internal class RecentFilesViewModel @Inject constructor(
 
         val volumeId: String? = savedStateHandle.get<String>("volumeId")
         _state.update { it.copy(currentVolumeId = volumeId?.takeIf { value -> value.isNotBlank() }, todayStart = tStart, yesterdayStart = yStart) }
+        viewModelScope.launch {
+            searchController.state.collectLatest { searchState ->
+                _state.update { current ->
+                    current.copy(
+                        searchQuery = searchState.query,
+                        activeSearchFilters = searchState.filters,
+                        searchResults = if (searchState.query.isBlank()) {
+                            emptyList()
+                        } else {
+                            buildRecentFilesDisplay(
+                                files = searchState.results,
+                                query = "",
+                                filters = searchState.filters,
+                                presentation = current.presentation
+                            )
+                        },
+                        isSearching = searchState.isSearching,
+                        searchError = searchState.error
+                    )
+                }
+            }
+        }
         viewModelScope.launch {
             browserPreferencesRepository.recentFilesPreferencesFlow.collectLatest { prefs ->
                 _state.update {
@@ -262,12 +292,13 @@ internal class RecentFilesViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _state.update { it.copy(error = null) }
+        searchController.clearError()
+        _state.update { it.copy(error = null, searchError = null) }
     }
 
     fun updateSearchQuery(query: String) {
         _state.update { it.copy(searchQuery = query) }
-        debouncedSearch(query)
+        searchController.updateQuery(query)
     }
 
     fun updateSearchFilters(filters: SearchFilters) {
@@ -277,10 +308,7 @@ internal class RecentFilesViewModel @Inject constructor(
                 searchResults = it.copy(activeSearchFilters = filters).displaySearchResults()
             )
         }
-        val currentQuery = _state.value.searchQuery
-        if (currentQuery.isNotBlank()) {
-            debouncedSearch(currentQuery)
-        }
+        searchController.updateFilters(filters)
     }
 
     fun updatePresentation(preferences: FileListingPreferences) {
@@ -341,38 +369,7 @@ internal class RecentFilesViewModel @Inject constructor(
         }
     }
 
-    private fun debouncedSearch(query: String) {
-        searchJob?.cancel()
-        if (query.isBlank()) {
-            _state.update { it.copy(searchResults = emptyList(), isSearching = false) }
-            return
-        }
-        searchJob = viewModelScope.launch {
-            delay(400)
-            _state.update { it.copy(isSearching = true, error = null) }
-            val stateValue = _state.value
-            searchRepository.searchFiles(query, stateValue.searchScope(), stateValue.activeSearchFilters)
-                .onSuccess { files ->
-                    _state.update {
-                        it.copy(
-                            isSearching = false,
-                            searchResults = buildRecentFilesDisplay(
-                                files = files,
-                                query = "",
-                                filters = stateValue.activeSearchFilters,
-                                presentation = it.presentation
-                            )
-                        )
-                    }
-                }
-                .onFailure { error ->
-                    _state.update {
-                        it.copy(
-                            isSearching = false,
-                            error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_search_failed)
-                        )
-                    }
-                }
-        }
+    private companion object {
+        const val SEARCH_DEBOUNCE_MILLIS = 400L
     }
 }

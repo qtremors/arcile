@@ -3,6 +3,8 @@ package dev.qtremors.arcile.core.storage.data
 import dev.qtremors.arcile.core.storage.domain.ArchiveCollisionStyle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchivePathRequest
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionDestinationStyle
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,6 +19,36 @@ import org.junit.rules.TemporaryFolder
 class DefaultArchivePathResolverTest {
     @get:Rule
     val temporaryFolder = TemporaryFolder()
+
+    @Test
+    fun `extraction destinations are resolved and normalized in storage data`() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val resolver = DefaultArchivePathResolver(
+            ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher)
+        )
+        val archive = File(temporaryFolder.root, "backup.tar.gz")
+
+        val named = resolver.resolveExtraction(
+            ArchiveExtractionPathRequest(archive.path)
+        ).getOrThrow()
+        val same = resolver.resolveExtraction(
+            ArchiveExtractionPathRequest(
+                archivePath = archive.path,
+                style = ArchiveExtractionDestinationStyle.SAME_FOLDER
+            )
+        ).getOrThrow()
+        val custom = resolver.resolveExtraction(
+            ArchiveExtractionPathRequest(
+                archivePath = archive.path,
+                style = ArchiveExtractionDestinationStyle.CUSTOM_FOLDER,
+                customDestination = "C:\\Exports"
+            )
+        ).getOrThrow()
+
+        assertEquals(File(temporaryFolder.root, "backup").path.replace('\\', '/'), named)
+        assertEquals(temporaryFolder.root.path.replace('\\', '/'), same)
+        assertEquals("C:/Exports", custom)
+    }
 
     @Test
     fun `single source uses source name and underscore collision style`() = runTest {

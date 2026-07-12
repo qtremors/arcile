@@ -16,6 +16,8 @@ import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferences
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.externalfile.ExternalStagingCache
+import dev.qtremors.arcile.feature.settings.ui.SettingsExternalCacheState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -30,7 +32,8 @@ internal class SettingsViewModel @Inject constructor(
     private val browserPreferencesStore: BrowserLocationPreferencesStore,
     private val recentFilesPreferencesStore: RecentFilesPreferencesStore,
     private val galleryPreferencesStore: GalleryPreferencesStore,
-    private val preferencesBackupManager: PreferencesBackupGateway
+    private val preferencesBackupManager: PreferencesBackupGateway,
+    private val externalStagingCache: ExternalStagingCache
 ) : ViewModel() {
     val browserPreferences = combine(
         browserPreferencesStore.locationPreferencesFlow,
@@ -41,6 +44,46 @@ internal class SettingsViewModel @Inject constructor(
 
     private val _backupState = MutableStateFlow<PreferencesBackupUiState>(PreferencesBackupUiState.Idle)
     val backupState: StateFlow<PreferencesBackupUiState> = _backupState.asStateFlow()
+
+    private val _externalCache = MutableStateFlow(SettingsExternalCacheState())
+    val externalCache: StateFlow<SettingsExternalCacheState> = _externalCache.asStateFlow()
+
+    init {
+        refreshExternalCache()
+    }
+
+    fun refreshExternalCache() {
+        viewModelScope.launch {
+            _externalCache.value = _externalCache.value.copy(isBusy = true)
+            externalStagingCache.stats().fold(
+                onSuccess = { stats ->
+                    _externalCache.value = SettingsExternalCacheState(
+                        fileCount = stats.fileCount,
+                        sizeBytes = stats.sizeBytes,
+                        isBusy = false
+                    )
+                },
+                onFailure = { _externalCache.value = _externalCache.value.copy(isBusy = false) }
+            )
+        }
+    }
+
+    fun clearExternalCache() {
+        if (_externalCache.value.isBusy) return
+        viewModelScope.launch {
+            _externalCache.value = _externalCache.value.copy(isBusy = true)
+            externalStagingCache.clear().fold(
+                onSuccess = { stats ->
+                    _externalCache.value = SettingsExternalCacheState(
+                        fileCount = stats.fileCount,
+                        sizeBytes = stats.sizeBytes,
+                        isBusy = false
+                    )
+                },
+                onFailure = { _externalCache.value = _externalCache.value.copy(isBusy = false) }
+            )
+        }
+    }
 
     fun updateShowThumbnails(show: Boolean) {
         viewModelScope.launch {

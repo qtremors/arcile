@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.domain.FileOperationException
 import android.content.Context
 import android.os.Environment
@@ -92,7 +94,7 @@ class DefaultFileSystemDataSource(
     }
 
     private fun validatedDestructiveRef(file: File): Result<StorageNodeRef> =
-        runCatching { StorageNodeRef.local(file.absolutePath) }
+        runCatchingPreservingCancellation { StorageNodeRef.local(file.absolutePath) }
             .fold(
                 onSuccess = { ref ->
                     validateDestructivePath(file).map { ref }
@@ -186,7 +188,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             emit(ListingPage.failed(path, FileOperationException.IOError(cause = e)))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             emit(ListingPage.failed(path, FileOperationException.Unknown(cause = e)))
         }
     }.flowOn(dispatchers.io)
@@ -204,7 +206,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -229,7 +231,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -254,7 +256,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -314,7 +316,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -345,7 +347,7 @@ class DefaultFileSystemDataSource(
                     continue
                 }
 
-                val shredFailures = runCatching {
+                val shredFailures = runCatchingPreservingCancellation {
                     secureFileEraser.shredRecursively(file)
                 }.getOrElse { error ->
                     listOf(error.toBatchFailure(file, cleanupRequired = true))
@@ -384,7 +386,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -445,7 +447,7 @@ class DefaultFileSystemDataSource(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }

@@ -1,12 +1,12 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.data.db.CategorySummaryDao
 import dev.qtremors.arcile.core.storage.data.db.CategorySummaryEntity
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
-import kotlinx.coroutines.CancellationException
 
 internal class MediaStoreCategoryCache(
     private val dao: CategorySummaryDao,
@@ -28,7 +28,7 @@ internal class MediaStoreCategoryCache(
                 }
             )
         } catch (error: Exception) {
-            if (error is CancellationException) throw error
+            error.rethrowIfCancellation()
             AppLogger.e("MediaStoreClient", "Failed to save category cache")
         }
     }
@@ -50,7 +50,7 @@ internal class MediaStoreCategoryCache(
                 )
             }
         } catch (error: Exception) {
-            if (error is CancellationException) throw error
+            error.rethrowIfCancellation()
             AppLogger.e("MediaStoreClient", "Category cache read failed")
             return null
         }

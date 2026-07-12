@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 
 internal enum class TrashAuthorizationAction { RESTORE, RESTORE_TO_DESTINATION, EMPTY, DELETE }
 
@@ -32,6 +33,7 @@ internal data class TrashState(
     val selectedFiles: Set<String> = emptySet(),
     val isLoading: Boolean = true,
     val error: UiText? = null,
+    val searchError: UiText? = null,
     val snackbarMessage: UiText? = null,
     val showDestinationPicker: Boolean = false,
     val selectedTrashIdsForDestination: List<String> = emptyList(),
@@ -49,7 +51,9 @@ internal data class TrashState(
     val filter: TrashFilter = TrashFilter.ALL,
     val isPropertiesVisible: Boolean = false,
     val properties: TrashPropertiesUiModel? = null
-)
+) {
+    val feedbackError: UiText? get() = searchError ?: error
+}
 
 internal fun searchMatches(
     items: List<TrashMetadata>,
@@ -90,7 +94,7 @@ internal fun applyTrashPresentation(
             .thenBy { it.fileModel.extension.lowercase() }
             .thenBy { it.fileModel.name.lowercase() }
         TrashSortOption.ORIGINAL_FOLDER ->
-            compareBy<TrashMetadata> { it.originalPath.substringBeforeLast("/", "") }
+            compareBy<TrashMetadata> { storageParentPath(it.originalPath).orEmpty() }
                 .thenBy { it.fileModel.name.lowercase() }
     }
     return filtered.sortedWith(comparator)

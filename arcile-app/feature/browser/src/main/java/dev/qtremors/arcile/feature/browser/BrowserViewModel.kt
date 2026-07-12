@@ -75,6 +75,7 @@ internal class BrowserViewModel @Inject constructor(
     private val browserCoordinator = controllers.coordinator
     val uiState: StateFlow<BrowserUiState> = viewModelScope.composeBrowserUiState(
         navigation = navigationController.state,
+        transient = controllers.transient.state,
         search = searchController.state,
         selection = selectionController.state,
         properties = propertiesController.state,
@@ -222,6 +223,8 @@ internal class BrowserViewModel @Inject constructor(
         operationController.handleAuthorizationUnavailable(requestId)
     fun renameFile(path: String, newName: String) = mutationController.rename(path, newName)
     fun clearError() {
+        searchController.clearError()
+        controllers.transient.clearError()
         navigationController.clearError()
     }
     fun dismissArchivePasswordPrompt() {

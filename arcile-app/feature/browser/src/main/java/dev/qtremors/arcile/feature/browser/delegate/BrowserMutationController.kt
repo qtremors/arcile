@@ -46,7 +46,6 @@ internal class BrowserMutationController(
     private val operationCoordinator: BulkFileOperationCoordinator,
     private val contextProvider: () -> BrowserMutationContext,
     private val clearSelection: () -> Unit,
-    private val onStateChange: (BrowserDeleteWorkflowState) -> Unit,
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText) -> Unit,
     private val onMutationCompleted: (UiText, BrowserUndoAction) -> Unit
@@ -220,6 +219,5 @@ internal class BrowserMutationController(
         transform: (BrowserDeleteWorkflowState) -> BrowserDeleteWorkflowState
     ) {
         _state.update(transform)
-        onStateChange(_state.value)
     }
 }

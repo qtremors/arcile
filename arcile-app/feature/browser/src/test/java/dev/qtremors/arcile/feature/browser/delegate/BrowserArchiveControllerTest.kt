@@ -145,7 +145,7 @@ class BrowserArchiveControllerTest {
         operationCoordinator = operations,
         contextProvider = { context },
         clearSelection = { selectionCleared = true },
-        onStateChange = {},
+        onWorkflowChanged = {},
         onConflicts = {},
         onDismissConflicts = {},
         onError = { error = it }

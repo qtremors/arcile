@@ -155,7 +155,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
 
     private fun decodeStoredItems(serialized: String?): List<QuickAccessItem> {
         if (serialized.isNullOrEmpty()) return defaultItems
-        return runCatching {
+        return runCatchingPreservingCancellation {
             json.decodeFromString<List<QuickAccessItem>>(serialized).map(::migrateStoredItem)
         }.getOrDefault(defaultItems)
     }

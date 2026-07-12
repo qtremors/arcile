@@ -16,6 +16,7 @@ internal enum class ArchiveOperationStatusMessage {
 
 internal data class ArchiveViewerState(
     val archivePath: String = "",
+    val extractionDestination: String? = null,
     val currentPrefix: String? = null,
     val searchQuery: String = "",
     val summary: ArchiveSummary? = null,

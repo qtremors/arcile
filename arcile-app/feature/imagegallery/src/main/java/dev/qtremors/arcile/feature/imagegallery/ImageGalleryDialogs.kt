@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 
 @Composable
 internal fun ImageGalleryDialogs(
@@ -26,7 +27,7 @@ internal fun ImageGalleryDialogs(
     if (showRenameDialog && state.selectedFiles.size == 1) {
         val selectedPath = state.selectedFiles.first()
         RenameDialog(
-            currentName = selectedPath.substringAfterLast('/'),
+            currentName = storagePathName(selectedPath),
             onDismiss = {
                 onDismissRenameDialog()
                 selectionActions.clear()

@@ -6,7 +6,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import dev.qtremors.arcile.core.storage.data.BrowserPreferencesRepository
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesDataSource
+import dev.qtremors.arcile.core.storage.data.DefaultBrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultGalleryPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultRecentFilesPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultSaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.data.ActivityLogRepository
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
@@ -29,12 +33,12 @@ object BrowserPrefsModule {
 
     @Provides
     @Singleton
-    fun provideBrowserPreferencesRepository(
+    fun provideBrowserPreferencesDataSource(
         @ApplicationContext context: Context,
         activityLogRepository: ActivityLogRepository,
         dispatchers: ArcileDispatchers
-    ): BrowserPreferencesRepository {
-        return BrowserPreferencesRepository(
+    ): BrowserPreferencesDataSource {
+        return BrowserPreferencesDataSource(
             context = context,
             activityLogRepository = activityLogRepository,
             dispatchers = dispatchers
@@ -43,23 +47,23 @@ object BrowserPrefsModule {
 
     @Provides
     fun provideBrowserLocationPreferencesStore(
-        repository: BrowserPreferencesRepository
-    ): BrowserLocationPreferencesStore = repository
+        dataSource: BrowserPreferencesDataSource
+    ): BrowserLocationPreferencesStore = DefaultBrowserLocationPreferencesStore(dataSource)
 
     @Provides
     fun provideRecentFilesPreferencesStore(
-        repository: BrowserPreferencesRepository
-    ): RecentFilesPreferencesStore = repository
+        dataSource: BrowserPreferencesDataSource
+    ): RecentFilesPreferencesStore = DefaultRecentFilesPreferencesStore(dataSource)
 
     @Provides
     fun provideGalleryPreferencesStore(
-        repository: BrowserPreferencesRepository
-    ): GalleryPreferencesStore = repository
+        dataSource: BrowserPreferencesDataSource
+    ): GalleryPreferencesStore = DefaultGalleryPreferencesStore(dataSource)
 
     @Provides
     fun provideSaveDestinationPreferencesStore(
-        repository: BrowserPreferencesRepository
-    ): SaveDestinationPreferencesStore = repository
+        dataSource: BrowserPreferencesDataSource
+    ): SaveDestinationPreferencesStore = DefaultSaveDestinationPreferencesStore(dataSource)
 
     @Provides
     @Singleton

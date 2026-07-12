@@ -135,7 +135,7 @@ internal fun ZoomableImageViewer(
         offsetY.snapTo(0f)
     }
 
-    val requestData = remember(context, file) { imageRequestDataFor(context, file) }
+    val requestData = remember(file) { imageRequestDataFor(file) }
     val request = remember(context, requestData) {
         ImageRequest.Builder(context)
             .data(requestData)

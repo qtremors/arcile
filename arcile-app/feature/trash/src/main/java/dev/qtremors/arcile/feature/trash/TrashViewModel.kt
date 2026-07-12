@@ -13,12 +13,13 @@ import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.onAuthorizationRequired
 import dev.qtremors.arcile.core.storage.domain.onFailure
 import dev.qtremors.arcile.core.storage.domain.onSuccess
+import dev.qtremors.arcile.core.storage.domain.joinStoragePath
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.SelectionReducer
-import dev.qtremors.arcile.core.presentation.LocalSearchHelper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -31,18 +32,21 @@ internal class TrashViewModel @Inject constructor(
     private val _state = MutableStateFlow(TrashState())
     val state: StateFlow<TrashState> = _state.asStateFlow()
 
-    private val localSearchHelper = LocalSearchHelper(
-        scope = viewModelScope,
-        source = { _state.value.trashFiles },
-        matches = { item: TrashMetadata, query: String -> item.fileModel.name.contains(query, ignoreCase = true) },
-        onQueryChanged = { query -> _state.update { it.copy(searchQuery = query) } },
-        onSearchingChanged = { isSearching -> _state.update { it.copy(isSearching = isSearching) } },
-        onResultsChanged = { results ->
-            _state.update { state -> state.copy(searchResults = applyTrashPresentation(results, state.filter, state.sortOption)) }
-        }
-    )
+    private val searchController = TrashSearchController(viewModelScope) { _state.value.trashFiles }
 
     init {
+        viewModelScope.launch {
+            searchController.state.collectLatest { searchState ->
+                _state.update { current ->
+                    current.copy(
+                        searchQuery = searchState.query,
+                        searchResults = searchState.results,
+                        isSearching = searchState.isSearching,
+                        searchError = searchState.error
+                    )
+                }
+            }
+        }
         loadTrashFiles()
         viewModelScope.launch {
             volumeRepository.observeStorageVolumes().collect { volumes ->
@@ -77,6 +81,7 @@ internal class TrashViewModel @Inject constructor(
 
                     )
                 }
+                searchController.refresh()
             }.onFailure { error ->
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_load_trash_failed)) }
             }
@@ -160,7 +165,7 @@ internal class TrashViewModel @Inject constructor(
                 val normalizedIds = trashIds.map { it.removePrefix("legacy:") }.toSet()
                 val undoPaths = _state.value.trashFiles
                     .filter { it.id in normalizedIds }
-                    .map { java.io.File(destinationPath, it.fileModel.name).absolutePath }
+                    .map { joinStoragePath(destinationPath, it.fileModel.name) }
                 _state.update {
                     it.copy(
                         selectedFiles = it.selectedFiles - normalizedIds,
@@ -305,7 +310,8 @@ internal class TrashViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _state.update { it.copy(error = null) }
+        searchController.clearError()
+        _state.update { it.copy(error = null, searchError = null) }
     }
 
     fun clearSnackbarMessage() {
@@ -331,7 +337,14 @@ internal class TrashViewModel @Inject constructor(
     }
 
     fun updateSearchQuery(query: String) {
-        localSearchHelper.updateQuery(query)
+        _state.update {
+            it.copy(
+                searchQuery = query,
+                searchResults = if (query.isBlank()) emptyList() else it.searchResults,
+                isSearching = if (query.isBlank()) false else it.isSearching
+            )
+        }
+        searchController.updateQuery(query)
     }
 
     fun updateSortOption(sortOption: TrashSortOption) {
@@ -342,6 +355,7 @@ internal class TrashViewModel @Inject constructor(
                 searchResults = applyTrashPresentation(searchMatches(it.trashFiles, it.searchQuery), it.filter, sortOption)
             )
         }
+        searchController.updatePresentation(_state.value.filter, sortOption)
     }
 
     fun updateFilter(filter: TrashFilter) {
@@ -356,6 +370,7 @@ internal class TrashViewModel @Inject constructor(
                 }.toSet()
             )
         }
+        searchController.updatePresentation(filter, _state.value.sortOption)
     }
 
     fun openPropertiesForSelection() {
@@ -379,5 +394,6 @@ internal class TrashViewModel @Inject constructor(
             UiText.PluralResource(R.plurals.trash_restored_items, restoredCount, listOf(restoredCount))
         }
     }
+
 }
 

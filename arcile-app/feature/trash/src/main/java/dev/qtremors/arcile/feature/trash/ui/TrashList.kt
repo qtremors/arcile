@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import dev.qtremors.arcile.core.presentation.formatFileSize
@@ -157,11 +158,10 @@ private fun TrashRow(
                         dev.qtremors.arcile.core.storage.domain.StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.external_unclassified)
                         else -> stringResource(R.string.otg_usb)
                     }
-                    val parentPath = if (trashItem.originalPath.contains("/")) {
-                        trashItem.originalPath.substringBeforeLast("/")
-                    } else {
-                        trashItem.originalPath.ifBlank { stringResource(R.string.trash_original_unavailable) }
-                    }
+                    val parentPath = storageParentPath(trashItem.originalPath)
+                        ?: trashItem.originalPath.ifBlank {
+                            stringResource(R.string.trash_original_unavailable)
+                        }
                     Text(
                         text = stringResource(R.string.trash_original_location, sourceVolumeStr, parentPath),
                         style = MaterialTheme.typography.bodySmall,

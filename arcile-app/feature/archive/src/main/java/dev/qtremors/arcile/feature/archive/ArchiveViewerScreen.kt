@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.core.ui.theme.spacing
+import java.io.File
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -86,7 +87,6 @@ import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ConflictCard
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.io.File
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -127,9 +127,7 @@ internal fun ArchiveViewerScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val archiveFile = remember(state.archivePath) { File(state.archivePath) }
     var showEncodingDialog by rememberSaveable { mutableStateOf(false) }
-    val extractionDestination = remember(state.archivePath) {
-        File(archiveFile.parentFile ?: archiveFile, archiveFile.archiveBaseName()).absolutePath
-    }
+    val extractionDestination = state.extractionDestination.orEmpty()
     val operationStatusMessage = state.operationStatusMessage?.let { stringResource(it.stringRes()) }
     val errorMessage = state.error?.asString()
     LaunchedEffect(errorMessage) {

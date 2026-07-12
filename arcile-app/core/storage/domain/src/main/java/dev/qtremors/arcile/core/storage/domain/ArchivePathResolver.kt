@@ -13,6 +13,20 @@ data class ArchivePathRequest(
     val collisionStyle: ArchiveCollisionStyle = ArchiveCollisionStyle.PARENTHESIZED
 )
 
+enum class ArchiveExtractionDestinationStyle {
+    NAMED_FOLDER,
+    SAME_FOLDER,
+    CUSTOM_FOLDER
+}
+
+data class ArchiveExtractionPathRequest(
+    val archivePath: String,
+    val style: ArchiveExtractionDestinationStyle = ArchiveExtractionDestinationStyle.NAMED_FOLDER,
+    val currentPath: String? = null,
+    val customDestination: String? = null
+)
+
 interface ArchivePathResolver {
     suspend fun resolve(request: ArchivePathRequest): Result<String>
+    suspend fun resolveExtraction(request: ArchiveExtractionPathRequest): Result<String>
 }

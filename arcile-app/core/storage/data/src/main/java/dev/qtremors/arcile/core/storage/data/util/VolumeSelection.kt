@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.util
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.storage.domain.StorageClassification
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.StorageScope
@@ -33,7 +34,7 @@ fun trashEnabledVolumes(volumes: List<StorageVolume>): List<StorageVolume> =
 
 fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVolume? {
     val canonicalPath = if (path.contains("/.") && (path.contains("/./") || path.contains("/../") || path.endsWith("/.") || path.endsWith("/.."))) {
-        runCatching { File(path).canonicalPath }.getOrElse { return null }
+        runCatchingPreservingCancellation { File(path).canonicalPath }.getOrElse { return null }
     } else {
         path
     }
@@ -44,7 +45,7 @@ fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVol
 
 fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
     val canonicalPath = if (path.contains("/.") && (path.contains("/./") || path.contains("/../") || path.endsWith("/.") || path.endsWith("/.."))) {
-        runCatching { File(path).canonicalPath }.getOrNull() ?: return false
+        runCatchingPreservingCancellation { File(path).canonicalPath }.getOrNull() ?: return false
     } else {
         path
     }

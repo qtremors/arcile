@@ -138,7 +138,8 @@ class DefaultStorageUsageScanner @Inject constructor(
         if (depth >= limits.maxDepth || progress.scannedNodes >= limits.maxNodes) {
             val childCount = try {
                 file.listFiles()?.count { it.name != ".thumbnails" } ?: 0
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                error.rethrowIfCancellation()
                 0
             }
             return StorageUsageNode(
@@ -153,7 +154,8 @@ class DefaultStorageUsageScanner @Inject constructor(
 
         val listedChildren = try {
             file.listFiles()
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
             null
         }
         val children = listedChildren?.filterNot { it.name == ".thumbnails" }.orEmpty()
@@ -231,7 +233,8 @@ class DefaultStorageUsageScanner @Inject constructor(
     private fun safeLength(file: File): Long =
         try {
             file.length().coerceAtLeast(0L)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
             0L
         }
 

@@ -11,6 +11,8 @@ import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.isStorageDescendantOrSelf
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.feature.browser.BrowserNavigationEvent
@@ -28,7 +30,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
 internal class BrowserNavigationController(
     initialState: BrowserNavigationState,
@@ -38,8 +39,7 @@ internal class BrowserNavigationController(
     private val searchRepository: SearchRepository,
     internal val browserPreferencesRepository: BrowserLocationPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
-    internal val onLocationChanged: () -> Unit,
-    private val onStateChange: (BrowserNavigationState) -> Unit
+    internal val onLocationChanged: () -> Unit
 ) {
     internal val state = MutableStateFlow(initialState)
     internal val navigationPersistence = BrowserNavigationPersistence(savedStateHandle)
@@ -98,11 +98,7 @@ internal class BrowserNavigationController(
     internal fun findVolumeForPath(path: String) =
         state.value.storageVolumes
             .sortedByDescending { it.path.length }
-            .firstOrNull {
-                path == it.path ||
-                    path.startsWith(it.path + "/") ||
-                    path.startsWith(it.path + java.io.File.separator)
-            }
+            .firstOrNull { isStorageDescendantOrSelf(path, it.path) }
 
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: UiText? = null) {
         viewModelScope.launch {
@@ -232,7 +228,7 @@ internal class BrowserNavigationController(
                 loadArchiveEntries(archive.archivePath, parent, archive.password, archive.nameEncoding, pushHistory = false)
                 return true
             }
-            val parentPath = File(archive.archivePath).parent?.normalizeStorageSeparators()
+            val parentPath = storageParentPath(archive.archivePath)
             if (!parentPath.isNullOrBlank()) {
                 navigationPersistence.clear()
                 loadDirectory(parentPath, state.value.currentVolumeId, clearHistory = false)
@@ -268,8 +264,11 @@ internal class BrowserNavigationController(
             val currentPath = state.value.currentPath.takeIf { it.isNotBlank() }
             val volume = currentPath?.let(::findVolumeForPath)
             val parentPath = currentPath
-                ?.let { File(it).parent?.normalizeStorageSeparators() }
-                ?.takeIf { it.isNotBlank() && volume != null && currentPath != volume.path && it.startsWith(volume.path) }
+                ?.let(::storageParentPath)
+                ?.takeIf {
+                    it.isNotBlank() && volume != null && currentPath != volume.path &&
+                        isStorageDescendantOrSelf(it, volume.path)
+                }
             if (parentPath != null && volume != null) {
                 loadDirectory(parentPath, volume.id, clearHistory = false)
                 return true
@@ -339,14 +338,6 @@ internal class BrowserNavigationController(
 
     fun updatePresentation(presentation: FileListingPreferences) {
         applyPresentation(presentation.normalized())
-    }
-
-    fun setBusy(isBusy: Boolean) {
-        update { it.withValues(isLoading = isBusy) }
-    }
-
-    fun setError(error: UiText?) {
-        update { it.withValues(error = error) }
     }
 
     fun applyArchiveWorkflow(state: BrowserArchiveWorkflowState) {
@@ -432,7 +423,6 @@ internal class BrowserNavigationController(
 
     internal inline fun update(transform: (BrowserNavigationState) -> BrowserNavigationState) {
         state.update(transform)
-        onStateChange(state.value)
     }
 
     companion object {

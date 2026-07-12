@@ -53,6 +53,8 @@ import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
@@ -241,7 +243,9 @@ internal fun RecentFileCarouselItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                val parentFolderName = File(file.absolutePath).parentFile?.name ?: stringResource(R.string.unknown_folder)
+                val parentFolderName = storageParentPath(file.absolutePath)
+                    ?.let(::storagePathName)
+                    ?: stringResource(R.string.unknown_folder)
                 Text(
                     text = parentFolderName,
                     style = MaterialTheme.typography.bodySmall,
@@ -306,7 +310,7 @@ internal fun RecentFileCarouselItem(
                                     leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
                                     onClick = {
                                         showMenu = false
-                                        File(file.absolutePath).parentFile?.absolutePath?.let { onNavigateToPath(it) }
+                                        storageParentPath(file.absolutePath)?.let(onNavigateToPath)
                                     }
                                 )
                             }

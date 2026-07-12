@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.provider
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import android.app.usage.StorageStatsManager
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -57,10 +59,9 @@ class DefaultVolumeProvider(
     private val cachedVolumes = AtomicReference<List<StorageVolume>?>(null)
 
     init {
-        runCatching {
+        runCatchingPreservingCancellation {
             _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
         }.onFailure { error ->
-            if (error is kotlinx.coroutines.CancellationException) throw error
             applicationScope.launch(dispatchers.io) {
                 _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
             }
@@ -82,7 +83,7 @@ class DefaultVolumeProvider(
             path: String,
             platformVolume: android.os.storage.StorageVolume? = null
         ) {
-            runCatching {
+            runCatchingPreservingCancellation {
                 val canonicalPath = File(path).canonicalPath
                 val rootFile = File(canonicalPath)
                 if (!rootFile.exists()) return
@@ -154,7 +155,7 @@ class DefaultVolumeProvider(
     }
 
     private fun primaryStorageCapacity(): Pair<Long, Long>? {
-        return runCatching {
+        return runCatchingPreservingCancellation {
             val statsManager = appContext.getSystemService(StorageStatsManager::class.java)
             val uuid = StorageManager.UUID_DEFAULT
             statsManager.getTotalBytes(uuid) to statsManager.getFreeBytes(uuid)
@@ -229,7 +230,7 @@ class DefaultVolumeProvider(
             val classifications = classificationRepo.observeClassifications().first()
             Result.success(mergeStorageClassifications(volumes, classifications))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(e)
         }
     }

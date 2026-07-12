@@ -3,28 +3,17 @@ package dev.qtremors.arcile.feature.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupDialogs
-import dev.qtremors.arcile.feature.settings.ui.SettingsExternalCacheState
 import dev.qtremors.arcile.feature.settings.ui.SettingsNavigationActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsPreferenceActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsScreen
 import dev.qtremors.arcile.feature.settings.ui.SettingsScreenState
 import dev.qtremors.arcile.feature.settings.ui.SettingsStorageActions
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 @Composable
 internal fun SettingsRoute(
@@ -37,9 +26,7 @@ internal fun SettingsRoute(
     val viewModel = hiltViewModel<SettingsViewModel>()
     val preferences by viewModel.browserPreferences.collectAsStateWithLifecycle()
     val backupState by viewModel.backupState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var externalCache by remember { mutableStateOf(SettingsExternalCacheState()) }
+    val externalCache by viewModel.externalCache.collectAsStateWithLifecycle()
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -50,16 +37,6 @@ internal fun SettingsRoute(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         if (uri != null) viewModel.previewRestore(uri)
-    }
-
-    LaunchedEffect(context) {
-        val stats = runCatching {
-            withContext(Dispatchers.IO) {
-                ExternalFileAccessHelper.getStagingCacheStats(context)
-            }
-        }.getOrNull()
-        externalCache = stats?.toSettingsState(isBusy = false)
-            ?: externalCache.copy(isBusy = false)
     }
 
     SettingsBackupDialogs(
@@ -97,28 +74,7 @@ internal fun SettingsRoute(
             }
         ),
         storageActions = SettingsStorageActions(
-            clearExternalCache = {
-                if (!externalCache.isBusy) {
-                    externalCache = externalCache.copy(isBusy = true)
-                    scope.launch {
-                        val stats = runCatching {
-                            withContext(Dispatchers.IO) {
-                                ExternalFileAccessHelper.clearStagingArea(context)
-                            }
-                        }.getOrNull()
-                        externalCache = stats?.toSettingsState(isBusy = false)
-                            ?: externalCache.copy(isBusy = false)
-                    }
-                }
-            }
+            clearExternalCache = viewModel::clearExternalCache
         )
     )
 }
-
-private fun ExternalFileAccessHelper.StagingCacheStats.toSettingsState(
-    isBusy: Boolean
-) = SettingsExternalCacheState(
-    fileCount = fileCount,
-    sizeBytes = sizeBytes,
-    isBusy = isBusy
-)

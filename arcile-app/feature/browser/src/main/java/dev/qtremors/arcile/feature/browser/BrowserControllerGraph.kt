@@ -27,6 +27,8 @@ import dev.qtremors.arcile.feature.browser.delegate.BrowserNavigationController
 import dev.qtremors.arcile.feature.browser.delegate.BrowserOperationController
 import dev.qtremors.arcile.feature.browser.delegate.BrowserPropertiesContext
 import dev.qtremors.arcile.feature.browser.delegate.BrowserRevealController
+import dev.qtremors.arcile.feature.browser.delegate.BrowserBusySource
+import dev.qtremors.arcile.feature.browser.delegate.BrowserTransientController
 import dev.qtremors.arcile.feature.browser.delegate.BrowserRevealState
 import dev.qtremors.arcile.feature.browser.delegate.BrowserSearchContext
 import dev.qtremors.arcile.feature.browser.delegate.BrowserSelectionContext
@@ -37,6 +39,7 @@ import kotlinx.coroutines.CoroutineScope
 
 internal data class BrowserControllerGraph(
     val navigation: BrowserNavigationController,
+    val transient: BrowserTransientController,
     val search: SearchController,
     val properties: PropertiesController,
     val selection: SelectionController,
@@ -64,6 +67,7 @@ internal fun createBrowserControllerGraph(
     bulkFileCoordinator: BulkFileOperationCoordinator
 ): BrowserControllerGraph {
     lateinit var coordinator: BrowserCoordinator
+    val transient = BrowserTransientController()
     val navigation = BrowserNavigationController(
         initialState = BrowserNavigationState(),
         viewModelScope = scope,
@@ -72,8 +76,7 @@ internal fun createBrowserControllerGraph(
         searchRepository = searchRepository,
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
-        onLocationChanged = { coordinator.onLocationChanged() },
-        onStateChange = {}
+        onLocationChanged = { coordinator.onLocationChanged() }
     )
     val search = SearchController(
         initialState = BrowserSearchState(),
@@ -89,9 +92,7 @@ internal fun createBrowserControllerGraph(
                 activeCategoryName = current.activeCategoryName,
                 archiveFiles = current.files.takeIf { current.archiveContext != null }
             )
-        },
-        onStateChange = {},
-        onError = navigation::setError
+        }
     )
     lateinit var selection: SelectionController
     val properties = PropertiesController(
@@ -107,8 +108,7 @@ internal fun createBrowserControllerGraph(
                 archiveContext = current.archiveContext
             )
         },
-        onStateChange = {},
-        onError = navigation::setError
+        onError = transient::reportError
     )
     selection = SelectionController(
         initialState = BrowserSelectionState(),
@@ -120,10 +120,9 @@ internal fun createBrowserControllerGraph(
                 folderStats = current.folderStatsByPath
             )
         },
-        onStateChange = {},
         onSelectionChanged = properties::dismiss
     )
-    val conflicts = BrowserConflictController(BrowserConflictState(), onStateChange = {})
+    val conflicts = BrowserConflictController(BrowserConflictState())
     val clipboardPresentation = ClipboardController(clipboardRepository)
     val operation = BrowserOperationController(
         initialState = BrowserOperationState(),
@@ -133,9 +132,8 @@ internal fun createBrowserControllerGraph(
         clipboardRepository = clipboardRepository,
         clipboardController = clipboardPresentation,
         coordinator = bulkFileCoordinator,
-        onStateChange = {},
-        onBusyChange = navigation::setBusy,
-        onError = navigation::setError,
+        onBusyChange = { transient.setBusy(BrowserBusySource.OPERATION, it) },
+        onError = transient::reportError,
         refreshAction = { coordinator.refreshAfterMutation() }
     )
     val clipboard = BrowserClipboardController(
@@ -157,8 +155,8 @@ internal fun createBrowserControllerGraph(
         clearSelection = selection::clear,
         onConflicts = { conflicts.show(BrowserConflictOwner.PASTE, it) },
         onDismissConflicts = conflicts::dismiss,
-        onBusyChange = navigation::setBusy,
-        onError = navigation::setError
+        onBusyChange = { transient.setBusy(BrowserBusySource.CLIPBOARD, it) },
+        onError = transient::reportError
     )
     val archive = BrowserArchiveController(
         initialState = BrowserArchiveWorkflowState(),
@@ -175,10 +173,10 @@ internal fun createBrowserControllerGraph(
             )
         },
         clearSelection = selection::clear,
-        onStateChange = { coordinator.onArchiveWorkflowChanged(it) },
+        onWorkflowChanged = { coordinator.onArchiveWorkflowChanged(it) },
         onConflicts = { conflicts.show(BrowserConflictOwner.ARCHIVE, it) },
         onDismissConflicts = conflicts::dismiss,
-        onError = navigation::setError
+        onError = transient::reportError
     )
     val mutation = BrowserMutationController(
         initialState = BrowserDeleteWorkflowState(),
@@ -197,15 +195,15 @@ internal fun createBrowserControllerGraph(
             )
         },
         clearSelection = selection::clear,
-        onStateChange = {},
-        onBusyChange = navigation::setBusy,
-        onError = navigation::setError,
+        onBusyChange = { transient.setBusy(BrowserBusySource.MUTATION, it) },
+        onError = transient::reportError,
         onMutationCompleted = { status, undo -> coordinator.onLocalMutationCompleted(status, undo) }
     )
-    val reveal = BrowserRevealController(BrowserRevealState(), onStateChange = {})
+    val reveal = BrowserRevealController(BrowserRevealState())
     coordinator = BrowserCoordinator(navigation, search, selection, archive, conflicts, operation)
     return BrowserControllerGraph(
         navigation,
+        transient,
         search,
         properties,
         selection,

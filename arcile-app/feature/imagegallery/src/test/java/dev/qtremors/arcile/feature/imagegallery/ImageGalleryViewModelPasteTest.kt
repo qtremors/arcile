@@ -291,6 +291,15 @@ private object TestArchivePathResolver :
     ): Result<String> = Result.success(
         "${request.parentPath.orEmpty().trimEnd('/')}/Archive.${request.format.extension}"
     )
+
+    override suspend fun resolveExtraction(
+        request: dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
+    ): Result<String> = Result.success(
+        request.customDestination
+            ?: request.currentPath
+            ?: dev.qtremors.arcile.core.storage.domain.storageParentPath(request.archivePath)
+            ?: request.archivePath
+    )
 }
 
 private class RecordingGalleryRepository : ImageGalleryRepository {

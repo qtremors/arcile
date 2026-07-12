@@ -6,6 +6,9 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
+import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.ArchivePathRequest
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -98,6 +101,14 @@ class ArchiveViewerViewModelTest {
         ArchiveViewerViewModel(
             savedStateHandle = SavedStateHandle(mapOf("archivePath" to archivePath)),
             repository = repository.archiveRepository,
+            archivePathResolver = object : ArchivePathResolver {
+                override suspend fun resolve(request: ArchivePathRequest) =
+                    Result.failure<String>(UnsupportedOperationException())
+
+                override suspend fun resolveExtraction(request: ArchiveExtractionPathRequest) =
+                    Result.success(request.archivePath.substringBeforeLast('/') + "/" +
+                        request.archivePath.substringAfterLast('/').substringBeforeLast('.'))
+            },
             bulkFileOperationCoordinator = coordinator
         )
 

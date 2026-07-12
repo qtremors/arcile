@@ -82,7 +82,7 @@ class DefaultMutationJournal(
                     EntryType.TRASH_FALLBACK -> cleanupTrashFallback(entry, roots, remaining)
                 }
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                e.rethrowIfCancellation()
                 AppLogger.w("MutationJournal", "Failed to clean abandoned mutation entry", e)
                 remaining += entry
             }
@@ -149,7 +149,7 @@ class DefaultMutationJournal(
 
     private fun readEntries(): List<MutationJournalEntry> {
         val encoded = preferences.getString(KEY_ENTRIES, null) ?: return emptyList()
-        return runCatching { json.decodeFromString<List<MutationJournalEntry>>(encoded) }
+        return runCatchingPreservingCancellation { json.decodeFromString<List<MutationJournalEntry>>(encoded) }
             .getOrElse {
                 AppLogger.w("MutationJournal", "Dropping unreadable mutation journal", it)
                 emptyList()

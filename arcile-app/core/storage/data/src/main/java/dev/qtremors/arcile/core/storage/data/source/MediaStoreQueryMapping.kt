@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import android.database.Cursor
 import android.content.ContentUris
 import android.provider.MediaStore
@@ -238,4 +239,4 @@ private fun pathBelongsToVolume(path: String, volume: StorageVolume): Boolean {
 }
 
 private fun File.canonicalPathOrAbsolute(): String =
-    runCatching { canonicalPath }.getOrDefault(absolutePath)
+    runCatchingPreservingCancellation { canonicalPath }.getOrDefault(absolutePath)

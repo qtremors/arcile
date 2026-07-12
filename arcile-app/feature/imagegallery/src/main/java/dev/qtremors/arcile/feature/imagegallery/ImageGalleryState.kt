@@ -7,6 +7,8 @@ import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.normalizeStoragePath
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
@@ -79,8 +81,8 @@ internal data class ImageGalleryState(
 
 internal fun ImageGalleryState.withoutGalleryPaths(paths: Collection<String>): ImageGalleryState {
     if (paths.isEmpty()) return this
-    val removed = paths.map { it.replace('\\', '/') }.toSet()
-    fun isRemoved(path: String): Boolean = path.replace('\\', '/') in removed
+    val removed = paths.mapTo(mutableSetOf(), ::normalizeStoragePath)
+    fun isRemoved(path: String): Boolean = normalizeStoragePath(path) in removed
     val nextFiles = files.filterNot { isRemoved(it.absolutePath) }
     return copy(
         files = nextFiles.toPersistentList(),
@@ -94,7 +96,7 @@ internal fun ImageGalleryState.withResolvedDisplayedFiles(): ImageGalleryState {
     val albumFiltered = when (selectedAlbumPath) {
         "__favorites__" -> files.filter { it.absolutePath in favoriteFiles }
         null -> files
-        else -> files.filter { galleryParentPath(it.absolutePath) == selectedAlbumPath }
+        else -> files.filter { storageParentPath(it.absolutePath) == selectedAlbumPath }
     }
     return copy(
         displayedFiles = filterAndSortFiles(

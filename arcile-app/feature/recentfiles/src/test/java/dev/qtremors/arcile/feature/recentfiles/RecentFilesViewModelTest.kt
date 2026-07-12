@@ -70,6 +70,32 @@ class RecentFilesViewModelTest {
     }
 
     @Test
+    fun `successful search does not clear an unrelated recent loading error`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle().apply {
+            recentFilesResultProvider = { _, _, _, _ ->
+                Result.failure(IllegalStateException("recent load unavailable"))
+            }
+            searchFilesResultProvider = { _, _, _ -> Result.success(emptyList()) }
+        }
+        val viewModel = recentViewModel(repository)
+
+        advanceUntilIdle()
+        assertEquals(
+            dev.qtremors.arcile.core.presentation.UiText.Dynamic("recent load unavailable"),
+            viewModel.state.value.error
+        )
+
+        viewModel.updateSearchQuery("photo")
+        advanceUntilIdle()
+
+        assertEquals(
+            dev.qtremors.arcile.core.presentation.UiText.Dynamic("recent load unavailable"),
+            viewModel.state.value.error
+        )
+        assertEquals(null, viewModel.state.value.searchError)
+    }
+
+    @Test
     fun `default presentation is date newest and displayed files are sorted newest first`() = runTest(mainDispatcherRule.dispatcher) {
         val files = listOf(
             recentFile("old.txt", lastModified = 100L),

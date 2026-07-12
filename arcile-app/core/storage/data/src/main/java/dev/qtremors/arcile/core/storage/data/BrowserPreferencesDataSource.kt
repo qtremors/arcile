@@ -10,10 +10,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
@@ -31,7 +27,7 @@ import java.io.IOException
 
 val Context.browserDataStore by preferencesDataStore(name = "browser_prefs")
 
-class BrowserPreferencesRepository(
+class BrowserPreferencesDataSource(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.browserDataStore,
     private val activityLogRepository: ActivityLogRepository? = null,
@@ -41,10 +37,7 @@ class BrowserPreferencesRepository(
         main = Dispatchers.Main,
         storage = Dispatchers.IO
     )
-) : BrowserLocationPreferencesStore,
-    RecentFilesPreferencesStore,
-    GalleryPreferencesStore,
-    SaveDestinationPreferencesStore {
+) {
     internal val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
@@ -183,21 +176,21 @@ class BrowserPreferencesRepository(
 
             val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
             val favoriteFiles: Set<String> = if (!favoriteFilesStr.isNullOrEmpty()) {
-                runCatching { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
+                runCatchingPreservingCancellation { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
             } else {
                 emptySet()
             }
 
             val pinnedAlbumsStr = prefs[PINNED_ALBUMS_KEY]
             val pinnedAlbums: Set<String> = if (!pinnedAlbumsStr.isNullOrEmpty()) {
-                runCatching { Json.decodeFromString<Set<String>>(pinnedAlbumsStr) }.getOrDefault(emptySet())
+                runCatchingPreservingCancellation { Json.decodeFromString<Set<String>>(pinnedAlbumsStr) }.getOrDefault(emptySet())
             } else {
                 emptySet()
             }
 
             val albumCoversStr = prefs[ALBUM_COVERS_KEY]
             val albumCovers: Map<String, String> = if (!albumCoversStr.isNullOrEmpty()) {
-                runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
+                runCatchingPreservingCancellation { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
             } else {
                 emptyMap()
             }
@@ -235,12 +228,12 @@ class BrowserPreferencesRepository(
         }
         .flowOn(dispatchers.io)
 
-    override val locationPreferencesFlow = preferencesFlow.asLocationPreferences()
-    override val recentFilesPreferencesFlow = preferencesFlow.asRecentFilesPreferences()
-    override val galleryPreferencesFlow = preferencesFlow.asGalleryPreferences()
-    override val saveDestinationPreferencesFlow = preferencesFlow.asSaveDestinationPreferences()
+    val locationPreferencesFlow = preferencesFlow.asLocationPreferences()
+    val recentFilesPreferencesFlow = preferencesFlow.asRecentFilesPreferences()
+    val galleryPreferencesFlow = preferencesFlow.asGalleryPreferences()
+    val saveDestinationPreferencesFlow = preferencesFlow.asSaveDestinationPreferences()
 
-    override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
+    suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
             prefs[GLOBAL_SORT_KEY] = normalized.sortOption.name
@@ -251,7 +244,7 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateRecentPresentation(presentation: FileListingPreferences) {
+    suspend fun updateRecentPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
             prefs[RECENT_SORT_KEY] = normalized.sortOption.name
@@ -262,61 +255,61 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateHomeRecentCarouselLimit(limit: Int) {
+    suspend fun updateHomeRecentCarouselLimit(limit: Int) {
         dataStore.edit { prefs ->
             prefs[HOME_RECENT_CAROUSEL_LIMIT_KEY] = BrowserPreferences.normalizeHomeRecentCarouselLimit(limit)
         }
     }
 
-    override suspend fun updateShowHiddenFiles(show: Boolean) {
+    suspend fun updateShowHiddenFiles(show: Boolean) {
         dataStore.edit { prefs ->
             prefs[SHOW_HIDDEN_FILES_KEY] = show
         }
     }
 
-    override suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) {
+    suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[BROWSER_SCROLLBAR_ENABLED_KEY] = enabled
         }
     }
 
-    override suspend fun updateGalleryScrollbarEnabled(enabled: Boolean) {
+    suspend fun updateGalleryScrollbarEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[GALLERY_SCROLLBAR_ENABLED_KEY] = enabled
         }
     }
 
-    override suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
+    suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY] = show
         }
     }
 
-    override suspend fun updateImageGalleryAspectRatio(enabled: Boolean) {
+    suspend fun updateImageGalleryAspectRatio(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_ASPECT_RATIO_KEY] = enabled
         }
     }
 
-    override suspend fun updateImageGallerySectioned(enabled: Boolean) {
+    suspend fun updateImageGallerySectioned(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_SECTIONED_KEY] = enabled
         }
     }
 
-    override suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) {
+    suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_GROUPING_KEY] = grouping.name
         }
     }
 
-    override suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab) {
+    suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY] = tab.name
         }
     }
 
-    override suspend fun updateAlbumPresentation(presentation: FileListingPreferences) {
+    suspend fun updateAlbumPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
         dataStore.edit { prefs ->
             prefs[ALBUM_SORT_OPTION_KEY] = normalized.sortOption.name
@@ -325,7 +318,7 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateImageGalleryPresentation(presentation: FileListingPreferences) {
+    suspend fun updateImageGalleryPresentation(presentation: FileListingPreferences) {
         updatePathPresentation(
             path = IMAGE_GALLERY_PRESENTATION_PATH,
             presentation = presentation,
@@ -333,13 +326,13 @@ class BrowserPreferencesRepository(
         )
     }
 
-    override suspend fun updateAlbumAspectRatio(enabled: Boolean) {
+    suspend fun updateAlbumAspectRatio(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[ALBUM_ASPECT_RATIO_KEY] = enabled
         }
     }
 
-    override suspend fun updatePathPresentation(
+    suspend fun updatePathPresentation(
         path: String,
         presentation: FileListingPreferences?,
         applyToSubfolders: Boolean
@@ -360,7 +353,7 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
+    suspend fun updateLastOpenedLocation(path: String, volumeId: String?) {
         dataStore.edit { prefs ->
             prefs[LAST_OPENED_PATH_KEY] = path
             if (volumeId != null) {
@@ -372,7 +365,7 @@ class BrowserPreferencesRepository(
         activityLogRepository?.recordFolderOpened(path, volumeId)
     }
 
-    override suspend fun updateDefaultSaveToArcilePath(path: String?) {
+    suspend fun updateDefaultSaveToArcilePath(path: String?) {
         dataStore.edit { prefs ->
             if (path.isNullOrBlank()) {
                 prefs.remove(DEFAULT_SAVE_TO_ARCILE_PATH_KEY)
@@ -382,11 +375,11 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateFavorite(path: String, isFavorite: Boolean) {
+    suspend fun updateFavorite(path: String, isFavorite: Boolean) {
         dataStore.edit { prefs ->
             val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
             val currentFavorites = if (!favoriteFilesStr.isNullOrEmpty()) {
-                runCatching { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
+                runCatchingPreservingCancellation { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
             } else {
                 emptySet()
             }
@@ -399,11 +392,11 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
+    suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
         dataStore.edit { prefs ->
             val pinnedStr = prefs[PINNED_ALBUMS_KEY]
             val currentPinned = if (!pinnedStr.isNullOrEmpty()) {
-                runCatching { Json.decodeFromString<Set<String>>(pinnedStr) }.getOrDefault(emptySet())
+                runCatchingPreservingCancellation { Json.decodeFromString<Set<String>>(pinnedStr) }.getOrDefault(emptySet())
             } else {
                 emptySet()
             }
@@ -416,11 +409,11 @@ class BrowserPreferencesRepository(
         }
     }
 
-    override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
+    suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
         dataStore.edit { prefs ->
             val albumCoversStr = prefs[ALBUM_COVERS_KEY]
             val currentCovers = if (!albumCoversStr.isNullOrEmpty()) {
-                runCatching { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
+                runCatchingPreservingCancellation { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
             } else {
                 emptyMap()
             }

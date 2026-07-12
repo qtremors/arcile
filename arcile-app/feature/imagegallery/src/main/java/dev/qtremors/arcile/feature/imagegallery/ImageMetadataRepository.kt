@@ -6,8 +6,8 @@ import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataUpdate
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataWriteResult
 import dev.qtremors.arcile.core.ui.metadata.SharedImageMetadataReader
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 internal typealias GalleryFileMetadata = ImageFileMetadata
@@ -22,24 +22,25 @@ internal interface ImageMetadataRepository {
 }
 
 internal class DefaultImageMetadataRepository @Inject constructor(
-    @param:ApplicationContext private val context: Context
+    @param:ApplicationContext private val context: Context,
+    private val dispatchers: ArcileDispatchers
 ) : ImageMetadataRepository {
     override suspend fun read(
         filePath: String,
         mimeType: String?
-    ): GalleryFileMetadata = withContext(Dispatchers.IO) {
+    ): GalleryFileMetadata = withContext(dispatchers.io) {
         SharedImageMetadataReader.readFileMetadata(filePath, mimeType)
     }
 
     override suspend fun erase(filePath: String): ImageMetadataWriteResult =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             SharedImageMetadataReader.eraseFileMetadataResult(filePath, context)
         }
 
     override suspend fun update(
         filePath: String,
         update: ImageMetadataUpdate
-    ): ImageMetadataWriteResult = withContext(Dispatchers.IO) {
+    ): ImageMetadataWriteResult = withContext(dispatchers.io) {
         SharedImageMetadataReader.updateFileMetadata(filePath, update, context)
     }
 }

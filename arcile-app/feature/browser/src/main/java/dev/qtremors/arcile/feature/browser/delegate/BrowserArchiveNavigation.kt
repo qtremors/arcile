@@ -2,11 +2,11 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
 import dev.qtremors.arcile.feature.browser.withUpdatedDisplayState
-import java.io.File
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
@@ -24,7 +24,7 @@ internal fun BrowserNavigationController.openArchive(
         return
     }
     navigationPersistence.clear()
-    val parent = File(archivePath).parent?.normalizeStorageSeparators()
+    val parent = storageParentPath(archivePath)
     if (seedHistory && !parent.isNullOrBlank()) {
         navigationPersistence.push(BrowserHistoryEntry.Directory(parent))
     }

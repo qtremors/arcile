@@ -6,7 +6,6 @@ import dev.qtremors.arcile.core.storage.data.util.resolveVolumeForPath
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
@@ -32,7 +31,7 @@ class DefaultVolumeRepository(
                     else -> Result.success(volume)
                 }
             } catch (error: Exception) {
-                if (error is CancellationException) throw error
+                error.rethrowIfCancellation()
                 Result.failure(error)
             }
         }

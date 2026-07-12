@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -84,7 +85,7 @@ class FileTransferEngine(
                     onBytesCopied = tracker::onBytesCopied
                 )
             } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                e.rethrowIfCancellation()
                 return Result.failure(e)
             }
             scannedPaths += targetFile.absolutePath
@@ -148,7 +149,7 @@ class FileTransferEngine(
                     }
                 } catch (e: Exception) {
                     deleteTarget(targetFile)
-                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    e.rethrowIfCancellation()
                     return Result.failure(e)
                 }
             }
@@ -197,7 +198,7 @@ class FileTransferEngine(
                 }
             } catch (e: Exception) {
                 deleteTarget(target)
-                if (e is kotlinx.coroutines.CancellationException) throw e
+                e.rethrowIfCancellation()
                 return Result.failure(e)
             }
         }

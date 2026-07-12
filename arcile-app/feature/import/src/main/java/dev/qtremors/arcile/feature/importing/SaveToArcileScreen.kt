@@ -168,7 +168,7 @@ private fun SaveToArcileDirectoryList(
         item {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text(
-                    text = state.currentDirectory?.absolutePath
+                    text = state.currentDirectory?.path
                         ?: stringResource(R.string.save_to_arcile_choose_storage),
                     style = MaterialTheme.typography.titleMedium,
                     maxLines = 2,
@@ -197,11 +197,11 @@ private fun SaveToArcileDirectoryList(
                 )
             }
         } else {
-            items(state.childDirectories, key = { it.absolutePath }) { directory ->
+            items(state.childDirectories, key = { it.path }) { directory ->
                 ListItem(
                     headlineContent = { Text(directory.name) },
                     supportingContent = {
-                        Text(directory.absolutePath, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(directory.path, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
                     leadingContent = { Icon(Icons.Outlined.Folder, contentDescription = null) },
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)

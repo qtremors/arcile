@@ -5,6 +5,7 @@ import dev.qtremors.arcile.feature.browser.delegate.BrowserArchiveWorkflowState
 import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictState
 import dev.qtremors.arcile.feature.browser.delegate.BrowserDeleteWorkflowState
 import dev.qtremors.arcile.feature.browser.delegate.BrowserRevealState
+import dev.qtremors.arcile.feature.browser.delegate.BrowserTransientState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -17,7 +18,8 @@ internal data class BrowserPrimaryControllerState(
     val navigation: BrowserNavigationState,
     val search: BrowserSearchState,
     val selection: BrowserSelectionState,
-    val properties: BrowserPropertiesState
+    val properties: BrowserPropertiesState,
+    val transient: BrowserTransientState
 )
 
 internal data class BrowserWorkflowControllerState(
@@ -33,13 +35,14 @@ internal fun CoroutineScope.composeBrowserUiState(
     search: StateFlow<BrowserSearchState>,
     selection: StateFlow<BrowserSelectionState>,
     properties: StateFlow<BrowserPropertiesState>,
+    transient: StateFlow<BrowserTransientState>,
     operation: StateFlow<BrowserOperationState>,
     conflicts: StateFlow<BrowserConflictState>,
     deletion: StateFlow<BrowserDeleteWorkflowState>,
     archive: StateFlow<BrowserArchiveWorkflowState>,
     reveal: StateFlow<BrowserRevealState>
 ): StateFlow<BrowserUiState> {
-    val primary = combine(navigation, search, selection, properties, ::BrowserPrimaryControllerState)
+    val primary = combine(navigation, search, selection, properties, transient, ::BrowserPrimaryControllerState)
     val workflows = combine(operation, conflicts, deletion, archive, reveal, ::BrowserWorkflowControllerState)
     val updates = combine(primary, workflows, ::composeBrowserSnapshot)
         .stateIn(
@@ -50,7 +53,8 @@ internal fun CoroutineScope.composeBrowserUiState(
                     navigation.value,
                     search.value,
                     selection.value,
-                    properties.value
+                    properties.value,
+                    transient.value
                 ),
                 BrowserWorkflowControllerState(
                     operation.value,
@@ -69,7 +73,8 @@ internal fun CoroutineScope.composeBrowserUiState(
                     navigation.value,
                     search.value,
                     selection.value,
-                    properties.value
+                    properties.value,
+                    transient.value
                 ),
                 BrowserWorkflowControllerState(
                     operation.value,
@@ -131,6 +136,7 @@ private fun composeBrowserSnapshot(
         ),
         propertiesState = properties,
         operation = operation,
+        transient = primary.transient,
         pendingArchiveExtraction = archive.pendingExtraction,
         pendingRevealFilePath = reveal.path,
         pendingRevealReady = reveal.isReady

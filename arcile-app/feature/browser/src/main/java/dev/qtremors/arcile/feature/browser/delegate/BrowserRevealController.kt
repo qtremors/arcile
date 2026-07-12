@@ -10,8 +10,7 @@ internal data class BrowserRevealState(
 )
 
 internal class BrowserRevealController(
-    initialState: BrowserRevealState,
-    private val onStateChange: (BrowserRevealState) -> Unit
+    initialState: BrowserRevealState
 ) {
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<BrowserRevealState> = _state.asStateFlow()
@@ -28,6 +27,5 @@ internal class BrowserRevealController(
 
     private fun publish(next: BrowserRevealState) {
         _state.value = next
-        onStateChange(next)
     }
 }

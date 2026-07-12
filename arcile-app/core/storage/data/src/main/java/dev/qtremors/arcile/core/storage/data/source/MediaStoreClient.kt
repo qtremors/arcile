@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.domain.FileOperationException
 
 import android.content.Context
@@ -97,7 +99,7 @@ class DefaultMediaStoreClient(
             }.toSet()
             categoryCache.invalidateVolumes(affectedVolumeIds)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             AppLogger.e("MediaStoreClient", "Cache invalidation error", e)
             throw e
         }
@@ -123,7 +125,7 @@ class DefaultMediaStoreClient(
                 )
             }
         }
-        val id = runCatching { android.content.ContentUris.parseId(uri) }.getOrNull()?.takeIf { it > 0L }
+        val id = runCatchingPreservingCancellation { android.content.ContentUris.parseId(uri) }.getOrNull()?.takeIf { it > 0L }
         MediaStoreInvalidationTarget(
             path = null,
             parentPath = null,
@@ -195,7 +197,7 @@ class DefaultMediaStoreClient(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -254,7 +256,7 @@ class DefaultMediaStoreClient(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -329,7 +331,7 @@ class DefaultMediaStoreClient(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
@@ -465,7 +467,7 @@ class DefaultMediaStoreClient(
         } catch (e: java.io.IOException) {
             Result.failure(FileOperationException.IOError(cause = e))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }

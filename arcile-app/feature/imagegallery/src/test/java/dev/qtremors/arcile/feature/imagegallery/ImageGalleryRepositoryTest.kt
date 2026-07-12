@@ -5,10 +5,14 @@ import dev.qtremors.arcile.core.storage.domain.ImageCatalogItem
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogSnapshot
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class ImageGalleryRepositoryTest {
     @Test
     fun `broad invalidation clears cached snapshot and reloads catalog`() = runTest {
@@ -22,7 +26,12 @@ class ImageGalleryRepositoryTest {
                 )
             )
         )
-        val repository = DefaultImageGalleryRepository(catalog, NoOpStorageMutationNotifier)
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val repository = DefaultImageGalleryRepository(
+            catalog,
+            NoOpStorageMutationNotifier,
+            ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher)
+        )
 
         assertEquals(listOf(first.absolutePath), repository.loadImages(null, forceRefresh = false).files.map { it.absolutePath })
         assertEquals(listOf(first.absolutePath), repository.loadImages(null, forceRefresh = false).files.map { it.absolutePath })

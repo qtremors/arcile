@@ -19,7 +19,6 @@ internal data class BrowserSelectionContext(
 internal class SelectionController(
     initialState: BrowserSelectionState,
     private val contextProvider: () -> BrowserSelectionContext,
-    private val onStateChange: (BrowserSelectionState) -> Unit,
     private val onSelectionChanged: () -> Unit
 ) {
     private val _state = MutableStateFlow(initialState)
@@ -60,7 +59,6 @@ internal class SelectionController(
             )
         )
         _state.value = next
-        onStateChange(next)
         onSelectionChanged()
     }
 }

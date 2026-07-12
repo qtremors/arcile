@@ -123,8 +123,8 @@ internal fun RecentFilesScreen(
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
 
-    LaunchedEffect(state.error) {
-        state.error?.let { errorMsg ->
+    LaunchedEffect(state.feedbackError) {
+        state.feedbackError?.let { errorMsg ->
             haptics.error()
             onFeedback(ArcileFeedbackEvent(errorMsg, ArcileFeedbackSeverity.Error))
             onClearError()

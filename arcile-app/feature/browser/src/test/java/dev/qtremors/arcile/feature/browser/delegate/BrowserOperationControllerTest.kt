@@ -44,7 +44,6 @@ class BrowserOperationControllerTest {
     private lateinit var fileMutationRepository: FileMutationRepository
     private lateinit var trashRepository: TrashRepository
     private lateinit var controller: BrowserOperationController
-    private var latestState = BrowserOperationState()
     private var busy = false
     private var latestError: UiText? = null
     private var refreshCount = 0
@@ -63,19 +62,17 @@ class BrowserOperationControllerTest {
         fileMutationRepository = mockk(relaxed = true)
         trashRepository = mockk(relaxed = true)
         coEvery { trashRepository.getTrashFiles() } returns Result.success(emptyList())
-        latestState = BrowserOperationState()
         busy = false
         latestError = null
         refreshCount = 0
         controller = BrowserOperationController(
-            initialState = latestState,
+            initialState = BrowserOperationState(),
             scope = scope,
             trashRepository = trashRepository,
             fileMutationRepository = fileMutationRepository,
             clipboardRepository = clipboardRepository,
             clipboardController = ClipboardController(clipboardRepository),
             coordinator = coordinator,
-            onStateChange = { latestState = it },
             onBusyChange = { busy = it },
             onError = { latestError = it },
             refreshAction = { refreshCount += 1 }
@@ -106,8 +103,8 @@ class BrowserOperationControllerTest {
         advanceUntilIdle()
 
         assertTrue(busy)
-        assertEquals(1, latestState.activeFileOperation?.completedItems)
-        assertEquals(2, latestState.activeFileOperation?.totalItems)
+        assertEquals(1, controller.state.value.activeFileOperation?.completedItems)
+        assertEquals(2, controller.state.value.activeFileOperation?.totalItems)
 
         coordinator.onOperationCompleted(request)
         advanceUntilIdle()
@@ -115,9 +112,9 @@ class BrowserOperationControllerTest {
         assertFalse(busy)
         assertEquals(
             OperationCompletionStatus.SUCCESS,
-            latestState.activeFileOperation?.terminalStatus
+            controller.state.value.activeFileOperation?.terminalStatus
         )
-        assertNull(latestState.clipboardState)
+        assertNull(controller.state.value.clipboardState)
         assertEquals(1, refreshCount)
         assertNull(latestError)
         controller.stopObserving()
@@ -125,7 +122,7 @@ class BrowserOperationControllerTest {
 
     @Test
     fun `move undo uses original parent and clears pending action`() = scope.runTest {
-        latestState = BrowserOperationState(
+        val initialState = BrowserOperationState(
             pendingUndoAction = BrowserUndoAction.Moved(
                 persistentListOf(
                     MoveUndoEntry(
@@ -136,14 +133,13 @@ class BrowserOperationControllerTest {
             )
         )
         controller = BrowserOperationController(
-            initialState = latestState,
+            initialState = initialState,
             scope = scope,
             trashRepository = trashRepository,
             fileMutationRepository = fileMutationRepository,
             clipboardRepository = clipboardRepository,
             clipboardController = ClipboardController(clipboardRepository),
             coordinator = coordinator,
-            onStateChange = { latestState = it },
             onBusyChange = { busy = it },
             onError = { latestError = it },
             refreshAction = { refreshCount += 1 }
@@ -155,7 +151,7 @@ class BrowserOperationControllerTest {
         coVerify(exactly = 1) {
             clipboardRepository.moveFiles(listOf("/dest/item.txt"), "/source")
         }
-        assertNull(latestState.pendingUndoAction)
+        assertNull(controller.state.value.pendingUndoAction)
         assertEquals(1, refreshCount)
     }
 
@@ -171,9 +167,9 @@ class BrowserOperationControllerTest {
         controller.undoLastTrashMove()
         advanceUntilIdle()
 
-        assertEquals(requirement, latestState.pendingAuthorization)
+        assertEquals(requirement, controller.state.value.pendingAuthorization)
         assertFalse(controller.handleAuthorizationResult("stale-request", confirmed = true))
-        assertEquals(requirement, latestState.pendingAuthorization)
+        assertEquals(requirement, controller.state.value.pendingAuthorization)
         coVerify(exactly = 1) { trashRepository.restoreFromTrash(listOf("trash-1")) }
     }
 
@@ -190,8 +186,8 @@ class BrowserOperationControllerTest {
 
         assertTrue(controller.handleAuthorizationResult(requirement.requestId, confirmed = false))
 
-        assertNull(latestState.pendingAuthorization)
-        assertEquals(listOf("trash-1"), latestState.pendingTrashUndoIds)
+        assertNull(controller.state.value.pendingAuthorization)
+        assertEquals(listOf("trash-1"), controller.state.value.pendingTrashUndoIds)
         coVerify(exactly = 1) { trashRepository.restoreFromTrash(listOf("trash-1")) }
     }
 
@@ -211,7 +207,7 @@ class BrowserOperationControllerTest {
         assertTrue(controller.handleAuthorizationResult(requirement.requestId, confirmed = true))
         advanceUntilIdle()
 
-        assertNull(latestState.pendingAuthorization)
+        assertNull(controller.state.value.pendingAuthorization)
         assertEquals(1, refreshCount)
         coVerify(exactly = 2) { trashRepository.restoreFromTrash(listOf("trash-1")) }
     }
@@ -229,13 +225,12 @@ class BrowserOperationControllerTest {
 
         assertTrue(controller.handleAuthorizationUnavailable(requirement.requestId))
 
-        assertNull(latestState.pendingAuthorization)
+        assertNull(controller.state.value.pendingAuthorization)
         assertTrue(latestError != null)
         coVerify(exactly = 1) { trashRepository.restoreFromTrash(listOf("trash-1")) }
     }
 
     private fun operationController(initialState: BrowserOperationState): BrowserOperationController {
-        latestState = initialState
         return BrowserOperationController(
             initialState = initialState,
             scope = scope,
@@ -244,7 +239,6 @@ class BrowserOperationControllerTest {
             clipboardRepository = clipboardRepository,
             clipboardController = ClipboardController(clipboardRepository),
             coordinator = coordinator,
-            onStateChange = { latestState = it },
             onBusyChange = { busy = it },
             onError = { latestError = it },
             refreshAction = { refreshCount += 1 }

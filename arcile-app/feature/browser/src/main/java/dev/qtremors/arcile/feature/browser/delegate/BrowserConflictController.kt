@@ -20,8 +20,7 @@ internal data class BrowserConflictState(
 )
 
 internal class BrowserConflictController(
-    initialState: BrowserConflictState,
-    private val onStateChange: (BrowserConflictState) -> Unit
+    initialState: BrowserConflictState
 ) {
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<BrowserConflictState> = _state.asStateFlow()
@@ -40,6 +39,5 @@ internal class BrowserConflictController(
 
     private fun publish(next: BrowserConflictState) {
         _state.value = next
-        onStateChange(next)
     }
 }

@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.8
-> **Last Updated:** 2026-07-12
+> **Version:** 1.4.9
+> **Last Updated:** 2026-07-13
 
 ---
+
+## [1.4.9] - 2026-07-13
+
+- **Preference Reliability**: Browser, Recents, Gallery, and save-destination settings now update through independent stores while retaining all existing saved values and backup compatibility.
+- **Search Reliability**: Browser, Recents, and Trash now prevent stale searches from replacing newer results and keep search failures separate from unrelated loading errors.
+- **File Operation Reliability**: Concurrent Browser workflows keep independent progress and feedback, while cancelled storage work cleans up staged data before stopping.
+- **Destination Reliability**: Save-to-Arcile and archive workflows now validate storage-owned paths throughout navigation, preserve access to readable folders, and prevent writes to unavailable or read-only destinations.
+- **Cache Control Reliability**: Settings staging and Storage Cleaner thumbnail caches now load and clear through independent owners, reject duplicate actions, and report failures without blocking unrelated state.
 
 ## [1.4.8] - 2026-07-12
 

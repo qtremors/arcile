@@ -1,10 +1,10 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import java.io.File
-import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -27,7 +27,7 @@ internal class TrashMetadataStore {
             try {
                 File(trashDirectory, ".nomedia").createNewFile()
             } catch (error: Exception) {
-                if (error is CancellationException) throw error
+                error.rethrowIfCancellation()
                 AppLogger.e("TrashManager", "Failed to create .nomedia in trash", error)
             }
         }
@@ -54,7 +54,7 @@ internal class TrashMetadataStore {
                 metadataFile.readText(Charsets.UTF_8)
             )
         } catch (error: Exception) {
-            if (error is CancellationException) throw error
+            error.rethrowIfCancellation()
             AppLogger.w(
                 "TrashManager",
                 "Trash metadata is unreadable; preserving payload if present",

@@ -8,13 +8,13 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.ArcileTopBar
 import dev.qtremors.arcile.core.ui.SearchTopBar
 import dev.qtremors.arcile.core.ui.TopBarAction
 import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +95,7 @@ internal fun BrowserTopBars(
                     TopBarAction.NewFolder -> dialogVisibility.showCreateFolderDialog = true
                     TopBarAction.PinToQuickAccess -> {
                         state.currentPath.takeIf { it.isNotEmpty() }?.let { path ->
-                            val label = File(path).name
+                            val label = storagePathName(path)
                             selectionIntents.onPinToQuickAccess(path, label)
                             onShowPinnedSnackbar(label)
                         }

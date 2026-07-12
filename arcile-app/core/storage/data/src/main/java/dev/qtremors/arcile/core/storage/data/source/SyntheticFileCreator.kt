@@ -1,11 +1,11 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.util.Random
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
@@ -58,7 +58,7 @@ internal class SyntheticFileCreator(
             finalizeMutation(target.absolutePath)
             Result.success(fileModelMapper.toFileModel(target))
         } catch (error: Exception) {
-            if (error is CancellationException) throw error
+            error.rethrowIfCancellation()
             Result.failure(error)
         }
     }

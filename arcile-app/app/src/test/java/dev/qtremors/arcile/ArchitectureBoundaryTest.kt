@@ -132,6 +132,7 @@ class ArchitectureBoundaryTest {
             "Context" to Regex("""\bandroid\.content\.Context\b|\bContext\b"""),
             "ApplicationContext" to Regex("""\bApplicationContext\b"""),
             "Dispatchers.IO" to Regex("""\bDispatchers\.IO\b"""),
+            "java.io.File" to Regex("""\bjava\.io\.File\b|\bFile\s*\("""),
             "LocalFileRepository" to Regex("""\bLocalFileRepository\b"""),
             "core.storage.data" to Regex("""\bdev\.qtremors\.arcile\.core\.storage\.data\b""")
         )
@@ -302,6 +303,40 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `feature composables do not own blocking filesystem work`() {
+        val forbiddenPatterns = mapOf(
+            "Dispatchers.IO" to Regex("""\bDispatchers\.IO\b"""),
+            "filesystem existence" to Regex("""\.exists\s*\("""),
+            "filesystem traversal" to Regex("""\.listFiles\s*\("""),
+            "canonical path resolution" to Regex("""\.canonical(?:File|Path)?\b""")
+        )
+        val offenders = File(projectRoot(), "feature").kotlinFiles()
+            .filter { file ->
+                "${File.separator}src${File.separator}main${File.separator}" in file.path &&
+                    "@Composable" in file.readText()
+            }
+            .flatMap { file ->
+                file.readLines().flatMapIndexed { index, line ->
+                    forbiddenPatterns.mapNotNull { (name, pattern) ->
+                        if (pattern.containsMatchIn(line)) {
+                            "${violation(file, index, line)} ($name)"
+                        } else {
+                            null
+                        }
+                    }
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Feature composables must delegate blocking filesystem work to owned services:\n" +
+                    offenders.joinToString("\n")
+            )
+        }
+    }
+
+    @Test
     fun `native storage authorization stays behind the route platform adapter`() {
         val forbidden = Regex("""\b(?:IntentSender|NativeStorageAuthorizationGateway)\b""")
         val guardedRoots = listOf(
@@ -341,7 +376,12 @@ class ArchitectureBoundaryTest {
             "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/ArchiveModels.kt",
             "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/ConflictModels.kt",
             "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageCleanerModels.kt",
-            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageUsageModels.kt"
+            "core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageUsageModels.kt",
+            "core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesRepository.kt",
+            "core/presentation/src/main/java/dev/qtremors/arcile/core/presentation/LocalSearchHelper.kt",
+            "feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsContract.kt",
+            "feature/import/src/main/java/dev/qtremors/arcile/feature/importing/SaveDestinationResolver.kt",
+            "feature/import/src/main/java/dev/qtremors/arcile/feature/importing/SaveIncomingFiles.kt"
         ).map { File(projectRoot(), it) }.filter(File::exists)
 
         if (removedFiles.isNotEmpty()) {
@@ -354,8 +394,10 @@ class ArchitectureBoundaryTest {
         val forbiddenDeclarations = listOf(
             "BrowserPresentationPreferences",
             "BrowserPreferencesStore",
+            "BrowserPreferencesRepository",
             "BrowserViewMode",
             "FileRepository",
+            "LocalSearchHelper",
             "NativeConfirmationRequiredException"
         )
         val offenders = productionKotlinFiles().flatMap { file ->
@@ -375,6 +417,22 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `production files identify a cohesive responsibility`() {
+        val genericBucketName = Regex("""(?:Models|Helpers|Utils|Contracts|StateSlices)\.kt$""")
+        val offenders = productionKotlinFiles()
+            .filter { genericBucketName.containsMatchIn(it.name) }
+            .map { it.relativeTo(projectRoot()).invariantSeparatorsPath }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Generic production buckets conceal unrelated ownership; use responsibility-specific files:\n" +
+                    offenders.joinToString("\n")
+            )
+        }
+    }
+
+    @Test
     fun `storage data does not depend on presentation feature or app shell theme packages`() {
         noClasses()
             .that().resideInAPackage("dev.qtremors.arcile.core.storage.data..")
@@ -385,6 +443,45 @@ class ArchitectureBoundaryTest {
             )
             .because("storage data must stay behind domain contracts")
             .check(productionClasses)
+    }
+
+    @Test
+    fun `storage failures preserve coroutine cancellation`() {
+        val storageRoot = File(projectRoot(), "core/storage/data/src/main/java")
+        val rawResultWrapper = Regex("""\brunCatching\s*\{""")
+        val broadCatch = Regex(
+            """catch\s*\(\s*([A-Za-z][A-Za-z0-9_]*)\s*:\s*(?:Exception|Throwable)\s*\)\s*\{"""
+        )
+        val offenders = storageRoot.kotlinFiles().flatMap { file ->
+            val lines = file.readLines()
+            lines.asSequence().flatMapIndexed { index, line ->
+                sequence {
+                    if (rawResultWrapper.containsMatchIn(line)) {
+                        yield(violation(file, index, line))
+                    }
+                    val caughtName = broadCatch.find(line)?.groupValues?.get(1)
+                    if (caughtName != null) {
+                        val catchBlock = collectBraceBlock(lines, index)
+                        val preservesCancellation =
+                            "$caughtName.rethrowIfCancellation()" in catchBlock ||
+                                Regex("""\bthrow\s+$caughtName\b""").containsMatchIn(catchBlock)
+                        if (!preservesCancellation) {
+                            yield(
+                                violation(file, index, line) +
+                                    " must rethrow cancellation before handling the failure"
+                            )
+                        }
+                    }
+                }
+            }
+        }.toList()
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Storage failure handling must use cancellation-preserving wrappers and catches:\n" +
+                    offenders.joinToString("\n")
+            )
+        }
     }
 
     @Test
@@ -725,6 +822,29 @@ class ArchitectureBoundaryTest {
         return null
     }
 
+    private fun collectBraceBlock(lines: List<String>, startIndex: Int): String {
+        val builder = StringBuilder()
+        var depth = 0
+        var started = false
+        for (index in startIndex until lines.size) {
+            val line = lines[index]
+            builder.appendLine(line)
+            line.forEach { char ->
+                when (char) {
+                    '{' -> {
+                        depth += 1
+                        started = true
+                    }
+                    '}' -> if (started) {
+                        depth -= 1
+                        if (depth == 0) return builder.toString()
+                    }
+                }
+            }
+        }
+        return builder.toString()
+    }
+
     private fun countTopLevelParameters(signature: String): Int {
         val params = signature.substringAfter('(', "").substringBeforeLast(')', "")
         if (params.isBlank()) return 0
@@ -742,16 +862,18 @@ class ArchitectureBoundaryTest {
     }
 
     private fun isApprovedFeatureApi(declaration: String): Boolean =
-        declaration.matches(Regex("""fun NavGraphBuilder\.register[A-Za-z0-9_]*Route\(.*""")) ||
-            declaration.matches(Regex("""sealed interface [A-Za-z0-9_]*Destination\b.*""")) ||
-            declaration.matches(Regex("""fun (HomeRoute|BrowserRoute|OnboardingRoute)\(.*""")) ||
-            declaration.matches(
-                Regex(
-                    """(sealed interface BrowserEntry|data class BrowserEntryRequest|""" +
-                        """data class BrowserRouteStatus)\b.*"""
-                )
-            ) ||
-            declaration.matches(Regex("""class SaveToArcileActivity\b.*"""))
+        declaration.removePrefix("public ").let { publicDeclaration ->
+            publicDeclaration.matches(Regex("""fun NavGraphBuilder\.register[A-Za-z0-9_]*Route\(.*""")) ||
+                publicDeclaration.matches(Regex("""sealed interface [A-Za-z0-9_]*Destination\b.*""")) ||
+                publicDeclaration.matches(Regex("""fun (HomeRoute|BrowserRoute|OnboardingRoute)\(.*""")) ||
+                publicDeclaration.matches(
+                    Regex(
+                        """(sealed interface BrowserEntry|data class BrowserEntryRequest|""" +
+                            """data class BrowserRouteStatus)\b.*"""
+                    )
+                ) ||
+                publicDeclaration.matches(Regex("""class SaveToArcileActivity\b.*"""))
+        }
 
     private fun violation(file: File, index: Int, line: String): String =
         "${file.relativeTo(File(projectRoot(), "app/src/main/java")).invariantSeparatorsPath}:${index + 1}: ${line.trim()}"
@@ -768,8 +890,8 @@ class ArchitectureBoundaryTest {
         const val MAX_COMPOSABLE_PARAMETERS = 15
         val PUBLIC_FUNCTION = Regex("""^(?:public\s+)?fun\s+([A-Za-z0-9_]+)\s*\(.*""")
         val PUBLIC_TOP_LEVEL_DECLARATION = Regex(
-            """^(?!(?:internal|private|protected|public)\s)""" +
-                """(?:(?:data|sealed|enum|annotation|value|suspend|operator|inline|tailrec|infix|const)\s+)*""" +
+            """^(?!(?:internal|private|protected)\s)""" +
+                """(?:(?:public|data|sealed|enum|annotation|value|suspend|operator|inline|tailrec|infix|const)\s+)*""" +
                 """(?:class|interface|object|fun|typealias|val|var)\s+"""
         )
 
