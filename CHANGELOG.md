@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.5
-> **Last Updated:** 2026-07-11
+> **Version:** 1.4.6
+> **Last Updated:** 2026-07-12
 
 ---
+
+## [1.4.6] - 2026-07-12
+
+- **Model Viewer Reliability**: GLB loading, cancellation, back navigation, viewer controls, and top/bottom overlays now retain consistent state through viewer changes.
+- **Storage Cleaner Reliability**: Duplicate groups handle empty and directory entries safely, while risk summaries and displayed storage paths remain accurate.
 
 ## [1.4.5] - 2026-07-11
 

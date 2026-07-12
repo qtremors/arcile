@@ -1,48 +1,13 @@
 package dev.qtremors.arcile.plugin.glb
 
-import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.WbSunny
-import androidx.compose.material.icons.filled.ZoomIn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -53,22 +18,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.plugin.ui.LocalViewerMarqueeFilenames
-import dev.qtremors.arcile.plugin.ui.ViewerDropdownMenuItem
-import dev.qtremors.arcile.plugin.ui.ViewerSplitButtonGroup
-import dev.qtremors.arcile.plugin.ui.ViewerToolbarAction
-import dev.qtremors.arcile.plugin.ui.formatViewerFileSize
-import dev.qtremors.arcile.plugin.ui.viewerMenuFirst
-import dev.qtremors.arcile.plugin.ui.viewerMenuLast
-import dev.qtremors.arcile.plugin.ui.viewerMenuMiddle
-import dev.qtremors.arcile.plugin.ui.viewerMenuSingle
 import io.github.sceneview.SceneView
 import io.github.sceneview.SurfaceType
 import io.github.sceneview.math.Position
@@ -81,25 +32,7 @@ import io.github.sceneview.rememberFillLightNode
 import io.github.sceneview.rememberMainLightNode
 import io.github.sceneview.rememberModelLoader
 import io.github.sceneview.rememberOnGestureListener
-import io.github.sceneview.loaders.ModelLoader
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.nio.ByteBuffer
-import kotlin.math.roundToInt
-
-internal enum class ModelViewerControl {
-    None,
-    Zoom,
-    Brightness,
-    Background
-}
-
-internal enum class ModelViewerBackground {
-    Theme,
-    White,
-    Black
-}
+import kotlinx.coroutines.CancellationException
 
 @Composable
 fun ModelViewerScreen(
@@ -111,21 +44,21 @@ fun ModelViewerScreen(
     onShare: () -> Unit,
     onOpenWith: () -> Unit
 ) {
-    val context = LocalContext.current
-    var uiVisible by remember { mutableStateOf(true) }
-    var infoVisible by remember { mutableStateOf(false) }
-    var activeControl by remember { mutableStateOf(ModelViewerControl.None) }
-    var zoomScale by remember(reference) { mutableFloatStateOf(1f) }
-    var lightBrightness by remember(reference) { mutableFloatStateOf(1f) }
-    var backgroundMode by remember(reference) { mutableStateOf(ModelViewerBackground.Theme) }
+    var viewerState by remember(reference) { mutableStateOf(ModelViewerState()) }
     val animatedZoomScale by animateFloatAsState(
-        targetValue = zoomScale,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = viewerState.zoomScale,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
         label = "modelZoomScale"
     )
     val animatedLightBrightness by animateFloatAsState(
-        targetValue = lightBrightness,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMedium),
+        targetValue = viewerState.lightBrightness,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
         label = "modelLightBrightness"
     )
     val engine = rememberEngine()
@@ -133,43 +66,48 @@ fun ModelViewerScreen(
     val environmentLoader = rememberEnvironmentLoader(engine)
     val environment = rememberEnvironment(environmentLoader, isOpaque = false)
     val mainLightNode = rememberMainLightNode(engine) {
-        intensity = 10_000f * animatedLightBrightness
+        intensity = MAIN_LIGHT_INTENSITY * animatedLightBrightness
     }
     val fillLightNode = rememberFillLightNode(engine) {
-        intensity = 3_000f * animatedLightBrightness
+        intensity = FILL_LIGHT_INTENSITY * animatedLightBrightness
     }
     var modelInstance by remember(reference) { mutableStateOf<ModelInstance?>(null) }
-    var loading by remember(reference) { mutableStateOf(true) }
-    var errorMessage by remember(reference) { mutableStateOf<String?>(null) }
-    val marqueeEnabled = LocalViewerMarqueeFilenames.current
     val modelViewerError = stringResource(R.string.model_viewer_error)
-    val backgroundColor = when (backgroundMode) {
+    val backgroundColor = when (viewerState.backgroundMode) {
         ModelViewerBackground.Theme -> MaterialTheme.colorScheme.surface
         ModelViewerBackground.White -> Color.White
         ModelViewerBackground.Black -> Color.Black
     }
 
     SideEffect {
-        environment.indirectLight?.intensity = 10_000f * animatedLightBrightness
+        environment.indirectLight?.intensity = MAIN_LIGHT_INTENSITY * animatedLightBrightness
     }
 
-    BackHandler(enabled = infoVisible || activeControl != ModelViewerControl.None) {
+    BackHandler {
         when {
-            infoVisible -> infoVisible = false
-            activeControl != ModelViewerControl.None -> activeControl = ModelViewerControl.None
+            viewerState.infoVisible -> {
+                viewerState = viewerState.copy(infoVisible = false)
+            }
+            viewerState.activeControl != ModelViewerControl.None -> {
+                viewerState = viewerState.copy(activeControl = ModelViewerControl.None)
+            }
+            else -> onNavigateBack()
         }
     }
 
     LaunchedEffect(reference, modelLoader) {
-        loading = true
+        viewerState = viewerState.copy(loading = true, errorMessage = null)
         modelInstance = null
-        errorMessage = null
         try {
             modelInstance = loadSceneViewModelInstance(modelLoader, reference)
+            viewerState = viewerState.copy(loading = false)
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Throwable) {
-            errorMessage = error.localizedMessage ?: modelViewerError
-        } finally {
-            loading = false
+            viewerState = viewerState.copy(
+                loading = false,
+                errorMessage = error.localizedMessage ?: modelViewerError
+            )
         }
     }
 
@@ -187,10 +125,10 @@ fun ModelViewerScreen(
                 autoFitContent = true,
                 onGestureListener = rememberOnGestureListener(
                     onSingleTapConfirmed = { _, _ ->
-                        if (activeControl == ModelViewerControl.None) {
-                            uiVisible = !uiVisible
+                        viewerState = if (viewerState.activeControl == ModelViewerControl.None) {
+                            viewerState.copy(uiVisible = !viewerState.uiVisible)
                         } else {
-                            activeControl = ModelViewerControl.None
+                            viewerState.copy(activeControl = ModelViewerControl.None)
                         }
                     }
                 )
@@ -207,7 +145,7 @@ fun ModelViewerScreen(
                 }
             }
 
-            if (loading) {
+            if (viewerState.loading) {
                 ViewerStatusCard(
                     title = stringResource(R.string.model_viewer_loading),
                     detail = title.ifBlank { reference.substringAfterLast('/') },
@@ -215,220 +153,40 @@ fun ModelViewerScreen(
                 )
             }
 
-            val currentError = errorMessage
-            if (currentError != null) {
+            viewerState.errorMessage?.let { message ->
                 ViewerErrorCard(
-                    message = currentError.ifBlank { stringResource(R.string.model_viewer_error) },
+                    message = message.ifBlank { modelViewerError },
                     onOpenWith = onOpenWith,
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
 
-            AnimatedVisibility(
-                visible = uiVisible && !infoVisible,
-                enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-                exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.Start,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(horizontal = 4.dp)
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Color.Black.copy(alpha = 0.5f))
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = title.ifBlank { reference.substringAfterLast('/') },
-                            color = Color.White,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            maxLines = 1,
-                            overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                            modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                        )
-                        Text(
-                            text = "GLB • ${stringResource(R.string.model_viewer_hint)}",
-                            color = Color.White.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                            modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                        )
-                    }
-                }
-            }
+            ModelViewerTopOverlay(
+                visible = viewerState.uiVisible && !viewerState.infoVisible,
+                title = title.ifBlank { reference.substringAfterLast('/') },
+                modifier = Modifier.align(Alignment.TopCenter)
+            )
+            ModelViewerBottomOverlay(
+                visible = viewerState.uiVisible && !viewerState.infoVisible,
+                state = viewerState,
+                onStateChange = { viewerState = it },
+                onShare = onShare,
+                onOpenWith = onOpenWith,
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
 
-            AnimatedVisibility(
-                visible = uiVisible && !infoVisible,
-                enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-                exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.BottomCenter)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .navigationBarsPadding()
-                ) {
-                    AnimatedVisibility(
-                        visible = activeControl != ModelViewerControl.None,
-                        enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-                        exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow))
-                    ) {
-                        ModelViewerControlDrawer(
-                            activeControl = activeControl,
-                            zoomScale = zoomScale,
-                            onZoomScaleChange = { zoomScale = it },
-                            lightBrightness = lightBrightness,
-                            onLightBrightnessChange = { lightBrightness = it },
-                            backgroundMode = backgroundMode,
-                            onBackgroundModeChange = { backgroundMode = it }
-                        )
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        ViewerSplitButtonGroup(
-                            actions = listOf(
-                                ViewerToolbarAction(
-                                    icon = Icons.Default.ZoomIn,
-                                    contentDescription = stringResource(R.string.model_viewer_zoom),
-                                    tint = Color.White,
-                                    onClick = { activeControl = activeControl.toggled(ModelViewerControl.Zoom) }
-                                ),
-                                ViewerToolbarAction(
-                                    icon = Icons.Default.WbSunny,
-                                    contentDescription = stringResource(R.string.model_viewer_brightness),
-                                    tint = Color.White,
-                                    onClick = { activeControl = activeControl.toggled(ModelViewerControl.Brightness) }
-                                ),
-                                ViewerToolbarAction(
-                                    icon = Icons.Default.Palette,
-                                    contentDescription = stringResource(R.string.model_viewer_background),
-                                    tint = Color.White,
-                                    onClick = { activeControl = activeControl.toggled(ModelViewerControl.Background) }
-                                )
-                            ),
-                            containerColor = Color.Black.copy(alpha = 0.5f),
-                            contentColor = Color.White,
-                            height = 56.dp,
-                            minWidth = 64.dp,
-                            iconSize = 28.dp
-                        )
-
-                        Spacer(Modifier.weight(1f))
-                        Box {
-                            var menuVisible by remember { mutableStateOf(false) }
-                            Surface(
-                                onClick = { menuVisible = true },
-                                shape = CircleShape,
-                                color = Color.Black.copy(alpha = 0.5f),
-                                modifier = Modifier.size(56.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.MoreVert,
-                                        contentDescription = stringResource(R.string.action_more_options),
-                                        tint = Color.White,
-                                        modifier = Modifier.size(28.dp)
-                                    )
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = menuVisible,
-                                onDismissRequest = { menuVisible = false },
-                                shape = MaterialTheme.shapes.extraLarge,
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                                modifier = Modifier.width(200.dp)
-                            ) {
-                                val menuActions = listOf<@Composable () -> Unit>(
-                                    {
-                                        ViewerDropdownMenuItem(
-                                            text = { Text(stringResource(R.string.action_info), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                            onClick = {
-                                                menuVisible = false
-                                                activeControl = ModelViewerControl.None
-                                                infoVisible = true
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                        )
-                                    },
-                                    {
-                                        ViewerDropdownMenuItem(
-                                            text = { Text(stringResource(R.string.image_gallery_open_with), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                                            onClick = {
-                                                menuVisible = false
-                                                onOpenWith()
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                        )
-                                    },
-                                    {
-                                        ViewerDropdownMenuItem(
-                                            text = { Text(stringResource(R.string.share), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                            onClick = {
-                                                menuVisible = false
-                                                onShare()
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                        )
-                                    }
-                                )
-
-                                menuActions.forEachIndexed { index, action ->
-                                    val shape = when {
-                                        menuActions.size == 1 -> MaterialTheme.shapes.viewerMenuSingle
-                                        index == 0 -> MaterialTheme.shapes.viewerMenuFirst
-                                        index == menuActions.size - 1 -> MaterialTheme.shapes.viewerMenuLast
-                                        else -> MaterialTheme.shapes.viewerMenuMiddle
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                                            .clip(shape)
-                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                    ) {
-                                        action()
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if (infoVisible) {
+            if (viewerState.infoVisible) {
                 ModelInfoDialog(
                     title = title,
                     reference = reference,
                     sizeBytes = sizeBytes,
                     mimeType = mimeType,
-                    onDismiss = { infoVisible = false }
+                    onDismiss = { viewerState = viewerState.copy(infoVisible = false) }
                 )
             }
         }
     }
 }
+
+private const val MAIN_LIGHT_INTENSITY = 10_000f
+private const val FILL_LIGHT_INTENSITY = 3_000f

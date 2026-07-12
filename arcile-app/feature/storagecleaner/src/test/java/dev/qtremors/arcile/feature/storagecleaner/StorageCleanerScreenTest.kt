@@ -21,7 +21,9 @@ import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerBackAction
 import dev.qtremors.arcile.feature.storagecleaner.ui.CleanerCandidateRow
+import dev.qtremors.arcile.feature.storagecleaner.ui.DuplicateGroupCard
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
+import dev.qtremors.arcile.feature.storagecleaner.ui.cleanFilePath
 import dev.qtremors.arcile.feature.storagecleaner.ui.resolveStorageCleanerBackAction
 import dev.qtremors.arcile.testutil.ArcileTestTheme
 import org.junit.Assert.assertEquals
@@ -37,6 +39,32 @@ class StorageCleanerScreenTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun `cleaner path only removes the primary storage prefix`() {
+        assertEquals("Download/report.pdf", cleanFilePath("/storage/emulated/0/Download/report.pdf"))
+        assertEquals("", cleanFilePath("/storage/emulated/0"))
+        assertEquals(
+            "/mnt/media_rw/storage/emulated/0/report.pdf",
+            cleanFilePath("/mnt/media_rw/storage/emulated/0/report.pdf")
+        )
+    }
+
+    @Test
+    fun `empty duplicate group renders safely`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                DuplicateGroupCard(
+                    filesInGroup = emptyList(),
+                    selectedFiles = emptySet(),
+                    onSelectedFilesChange = {},
+                    onCompare = {}
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+    }
 
     @Test
     fun `candidate checkbox invokes one selection callback`() {
