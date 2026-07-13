@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.2.0 | **Last Updated:** 2026-06-21
+**Version:** 1.5.0 | **Last Updated:** 2026-07-13
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -18,6 +18,7 @@
 - [Room Cache Database](#room-cache-database)
 - [Archive System](#archive-system)
 - [Trash System](#trash-system)
+- [Plugin System](#plugin-system)
 - [UI & Design System](#ui--design-system)
 - [Feature Modules Deep Dive](#feature-modules-deep-dive)
 - [Naming Conventions](#naming-conventions)
@@ -40,12 +41,12 @@ Arcile is a **modular multi-module Android app** with strict Gradle-enforced arc
 
 ```mermaid
 graph TD
-    A["Compose UI<br/>Screens + Components"] -->|events| B["Feature ViewModels<br/>StateFlow + delegates"]
-    B -->|use cases / repository calls| C["Domain Contracts<br/>Models + FileRepository"]
-    C -->|implemented by| D["LocalFileRepository"]
+    A["Compose UI<br/>Routes + Screens"] -->|typed intents| B["Feature ViewModels<br/>StateFlow + controllers"]
+    B -->|use cases / repository calls| C["Focused Domain Contracts"]
+    C -->|implemented by| D["Focused Storage Repositories"]
     D --> E["VolumeProvider"]
     D --> F["MediaStoreClient"]
-    D --> G["FileSystemDataSource"]
+    D --> G["DefaultFileSystemDataSource"]
     D --> H["TrashManager"]
     D --> I["ArchiveManager"]
     D --> K["ExternalFileAccessHelper"]
@@ -59,68 +60,61 @@ graph TD
 | Decision | Rationale |
 |----------|-----------|
 | **Multi-module Gradle Architecture** | Enforces clean boundaries between features and core services, isolates compilation units, speeds up incremental builds, and prevents architectural degradation as features expand. |
-| **Feature-scoped ViewModels** | Browser, Home, Recent Files, Trash, Quick Access, Archive Viewer, Onboarding, Image Gallery, Storage Cleaner, and Settings each own their own state and action flow. |
-| **Repository Facade** | `LocalFileRepository` coordinates volume lookup, MediaStore queries, direct filesystem mutations, trash, folder stats, and archive operations. |
+| **Feature-owned Routes** | Every stateful product area creates its own ViewModel, collects lifecycle-aware state, owns platform launchers, and emits neutral destination events. The app shell only maps those events to root routes. |
+| **Focused Storage Capabilities** | Features inject only listing, mutation, search, analytics, trash, archive, volume, or clipboard contracts that they actually use. |
 | **Typed Navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings to verify routing correctness at compile time. |
 | **Offline-first Privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
 | **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
 | **Room Database Caching** | Cache metadata, aggregate folder sizes, categories, and thumbnail listings are persisted in a local Room database to prevent repeated, expensive disk scans. |
+| **Intent-based Plugins** | Optional heavyweight viewers run as separately installed, same-signer APKs and communicate through versioned explicit intents and temporary read-only content URI grants. |
 
 ---
 
 ## Project Structure
 
-Arcile's codebase is divided into **20 Gradle modules** split into application entry, core components, and independent feature modules:
+Arcile's codebase is divided into **28 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
 
 ```text
 arcile/
 ├── arcile-app/
-│   ├── build-logic/                             # Convention plugins for build script sharing
-│   │   └── src/main/kotlin/                     # Arcile Android application convention plugin
-│   ├── app/                                     # App entry point, Hilt composition, and shell UI
-│   │   ├── src/main/java/dev/qtremors/arcile/
-│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader (Coil video thumb setup)
-│   │   │   ├── MainActivity.kt                  # App activity, splash preloading, and main layout navigation shell
-│   │   │   ├── SaveToArcileActivity.kt          # Shares/Handoff target helper for saving files locally
-│   │   │   ├── presentation/                    # Shell Presentation layout
-│   │   │   │   ├── ui/                          # AppNavigationGraph, ArcileAppShell, and Permission banners
-│   │   │   │   ├── operations/                  # Foreground services and operation journal tracking
-│   │   │   │   │   ├── BulkFileOperationService # Foreground Service doing the heavy operations
-│   │   │   │   │   └── BulkFileOperationCoordinator # Coordinator API start/cancels
-│   │   │   │   └── settings/                    # Settings UI modules
-│   │   │   └── di/                              # AppModule, CoroutinesModule, StorageModule
-│   ├── core/                                    # Shared business logic and UI frameworks
-│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers (UiText, AppLogger)
-│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose components
-│   │   │   ├── src/main/java/dev/qtremors/arcile/
-│   │   │   │   ├── image/                       # Coil thumbnail policies, target sizes, state persistence
-│   │   │   │   └── shared/ui/                   # Reusable widgets: ArcileTopBar, EmptyState, ConflictCard, ExpandableFabMenu
-│   │   │   └── testing/                         # Shared compose test theme helper (ArcileTestTheme)
-│   │   ├── navigation/
-│   │   │   └── api/                             # Serializable typed routes (AppRoutes)
-│   │   ├── presentation/
-│   │   │   └── api/                             # FolderTabs, LocalSearchHelper, DeleteFlowDelegate, PropertiesUiModel
-│   │   ├── testing/                             # Shared unit test fakes (FakeFileRepository, FakeBulkFileOperationCoordinator)
-│   │   ├── operation/                           # Foreground operation coordinator implementation
-│   │   │   └── api/                             # Task progress events (BulkFileOperationEvent) and operation models
-│   │   └── storage/                             # File system data orchestrator
-│   │       ├── domain/                          # Domain models, volume references, and repository interfaces
-│   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
-│   │           ├── db/                          # Room Database cache (ArcileDatabase, FolderStatsDao, etc.)
-│   │           ├── manager/                     # ArchiveManager, SevenZipHandler, ZipArchiveHandler, TrashManager
-│   │           ├── provider/                    # VolumeProvider (mounted storage lookup)
-│   │           ├── source/                      # MediaStoreClient, FileSystemDataSource, FileTransferEngine
-│   │           └── util/                        # PathSafety, VolumeUtils
-│   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
-│       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
-│       ├── browser/                             # File browser layout, selection bar, clipboard, and folder tabs
-│       ├── imagegallery/                        # Image gallery albums/photos grid, dynamic timeline grouping, custom covers
-│       ├── onboarding/                          # First-run setup and permission guidance
-│       ├── quickaccess/                         # Pinned folders, SAF bookmarks, and folder shortcuts
-│       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
-│       ├── storagecleaner/                      # Scanner/cleanup of Marker files, Empty folders, Duplicates (SHA-256)
-│       ├── storageusage/                        # Storage dashboard and sunburst radial usage-map UI
-│       └── trash/                               # Custom trash listings, restore workflows, properties, and destination picker
+│   ├── build-logic/                             # Convention and release-verification plugins
+│   ├── app/                                     # Activities, Hilt composition, root shell, route mapping
+│   │   └── src/main/java/dev/qtremors/arcile/
+│   │       ├── AppSessionTracker.kt              # Cold-launch vs configuration recreation ownership
+│   │       ├── MainActivity.kt                   # Splash preload and app-shell entry
+│   │       └── presentation/ui/                  # Root graph, shell coordinator, destination mappers
+│   ├── core/
+│   │   ├── navigation/api/                      # Serializable app route contracts
+│   │   ├── operation/
+│   │   │   ├── api/                             # Requests, progress, events, recovery, coordinator contract
+│   │   │   └── android/                         # Foreground service, journal, importer, coordinator
+│   │   ├── plugin/android/                      # Plugin discovery and compatibility validation
+│   │   ├── presentation/                        # Shared reducers, search, clipboard, properties, UI text
+│   │   ├── runtime/                             # Dispatcher injection, logging, authorization gateway
+│   │   ├── storage/
+│   │   │   ├── domain/                          # Focused storage contracts, models, path helpers
+│   │   │   └── data/                            # Focused repositories, Room, MediaStore, filesystem engines
+│   │   ├── testing/                             # Shared repository and operation fakes
+│   │   └── ui/
+│   │       ├── testing/                         # Shared Compose test infrastructure
+│   │       └── src/main/                        # Design system, external-file and metadata adapters
+│   ├── feature/
+│   │   ├── activitylog/                         # Operation history
+│   │   ├── archive/                             # Archive viewer and extraction workflows
+│   │   ├── browser/                             # Browser route, state slices, controllers, file UI
+│   │   ├── home/                                # Home dashboard and shortcuts
+│   │   ├── imagegallery/                        # Independent Gallery and Viewer routes
+│   │   ├── import/                              # Save-to-Arcile share target
+│   │   ├── onboarding/                          # First-run setup and permission guidance
+│   │   ├── plugins/                             # Installed/available plugin management UI
+│   │   ├── quickaccess/                         # Local shortcuts and SAF bookmarks
+│   │   ├── recentfiles/                         # Recent-file timeline and actions
+│   │   ├── settings/                            # Preferences, backup, cache controls
+│   │   ├── storagecleaner/                      # Cleaner scans and cleanup workflows
+│   │   ├── storageusage/                        # Dashboard, management, sunburst map
+│   │   └── trash/                               # Trash listing, restore, permanent deletion
+│   ├── plugin-api/                              # Stable dependency-light intent contract
+│   └── plugin-ui/                               # Stateless UI shared with plugin APKs
 ├── docs/                                        # Landing page website files
 ├── beta/                                        # Beta phase archived changelog & releases
 ├── CHANGELOG.md                                 # Stable release changelog
@@ -134,14 +128,14 @@ arcile/
 
 ## Runtime Flow
 
-1. **Splash Screen Preloading:** `MainActivity` installs the Android splash screen and preloads theme preferences and onboarding settings asynchronously from Jetpack DataStore (enforced with a 2-second fallback timeout) to prevent UI flicker.
-2. **Onboarding Gate:** If the user hasn't completed onboarding, `OnboardingScreen` guides them through welcome slides, All Files Access settings, and notification permissions (Android 13+).
+1. **Launch Classification:** `AppSessionTracker` classifies the Activity creation as `ColdLauncher` or `ConfigurationRecreation`. A cold launcher start consumes Android-restored navigation behind a neutral surface, replaces the restored stack with `AppRoutes.Main(initialPage = 0)`, and reveals Home without flashing another feature.
+2. **Splash Screen Preloading:** `MainActivity` installs the Android splash screen and preloads theme preferences and onboarding settings asynchronously from Jetpack DataStore (with a 2-second fallback timeout) to prevent UI flicker.
+3. **Onboarding Gate:** If the user hasn't completed onboarding, `OnboardingScreen` guides them through welcome slides, All Files Access settings, and notification permissions (Android 13+).
    - *Auto-Detection:* If the app discovers permissions are already active, onboarding automatically completes.
    - *Manual Reset:* Users can reset onboarding in settings.
-3. **App Shell Assembly:** Once permissions are granted, `ArcileAppShell` sets up the typed navigation graph and the bottom navigation bar.
-4. **Horizontal Pager Navigation:** The main screen (`MainScreen`) uses a two-page `HorizontalPager` hosting **Home** (Page 0) and **Browser** (Page 1).
-   - If seeded by category shortcuts, deep links, or quick access paths, the pager opens on the Browser and populates the history. Swiping or standard back presses returns the user to Home or the previous browser directory.
-5. **Route-Order Back Stack:** Browser handoffs from Cleaner, Recent Files, Quick Access, Storage Dashboard, Archive Viewer, and similar detail routes keep the originating app route on the Navigation Compose back stack. Browser consumes local modal/search/selection and folder/archive history first, then lets the app route pop back in the same order the user navigated.
+4. **App Shell Assembly:** Once permissions are granted, `ArcileAppShell` sets up the typed navigation graph and bottom navigation. Configuration recreation retains the restored route; warm resumes do not reset navigation.
+5. **Main-Shell Coordination:** `MainShellCoordinator` owns the Home/Browser pager, explicit Browser entry, viewer return, and Browser initialization. Browser restores its persistent location only when Browser is entered and exposes explicit uninitialized/restoring/ready/failed UI state.
+6. **Route-Order Back Stack:** Browser handoffs from Cleaner, Recent Files, Quick Access, Storage Dashboard, Archive Viewer, and similar detail routes keep the originating app route on the Navigation Compose back stack. Browser consumes local modal/search/selection and folder/archive history first, then lets the app route pop back in navigation order.
 
 ---
 
@@ -179,7 +173,9 @@ The navigation endpoints are modeled as serializable classes/objects under the `
 - `AppRoutes.Home`
 - `AppRoutes.Explorer(path, category, volumeId, restorePersistentLocation)`
 - `AppRoutes.Tools`
+- `AppRoutes.ActivityLog`
 - `AppRoutes.Settings`
+- `AppRoutes.Plugins`
 - `AppRoutes.Trash`
 - `AppRoutes.RecentFiles(volumeId)`
 - `AppRoutes.ImageGallery(volumeId)`
@@ -192,6 +188,8 @@ The navigation endpoints are modeled as serializable classes/objects under the `
 - `AppRoutes.About`
 - `AppRoutes.Licenses`
 
+Each navigation-hosted stateful feature registers its route through `NavGraphBuilder.registerXRoute(...)`. The route owns ViewModel creation, lifecycle-aware state collection, platform launchers, screen-state mapping, and callback wiring. Standalone entry points such as the Import share target keep the same ownership inside their feature Activity/route. Features emit typed destination contracts such as `RecentFilesDestination.ContainingFolder`; only the app shell translates those contracts into `AppRoutes`.
+
 ### Screen Transitions & Animation Rules
 To maintain premium design aesthetics, Arcile implements customized bouncy spring transitions:
 - **Detail Screens** (Dashboard, Settings, Archive Viewer): Slide horizontally with volumetric scale modifiers (`scaleIn` starting at 0.94f and `scaleOut` expanding to 1.04f).
@@ -203,17 +201,19 @@ To maintain premium design aesthetics, Arcile implements customized bouncy sprin
 
 ## Storage & File Operations
 
-### Repository Facades
-`LocalFileRepository` implements `FileRepository` along with focused sub-interfaces (`FileBrowserRepository`, `FileMutationRepository`, etc.). It acts as a coordinator delegating to:
+### Focused Storage Repositories
+Storage is split into independently bound implementations for file browsing, mutation, media search and analytics, trash, archives, volumes, and clipboard state. Each implementation delegates only to the lower-level services required by its contract:
 
 - `VolumeProvider`: Discovers mounted storage volumes, resolves pathways, and parses volume details.
 - `MediaStoreClient`: Queries MediaStore for files, recent assets, categories, and folder statistics.
-- `FileSystemDataSource`: Conducts direct JVM `java.io.File` mutations (make file, folder, rename, and delete).
+- `DefaultFileSystemDataSource`: Conducts direct JVM `java.io.File` listing and mutations behind storage contracts.
 - `FolderStatsStore`: Manages async aggregate size calculations.
 - `TrashManager`: Handles custom volume-scoped trash.
 - `ArchiveManager`: Coordinates archive packaging and extraction.
 - `ExternalFileAccessHelper`: Manages temporary handoffs and staging caches.
 - `MutationFinalizer`: Updates media scanners and database tables post-mutation.
+
+Feature composables and ViewModels must not inspect filesystem existence, writability, canonical paths, or `Dispatchers.IO` directly. Domain/data services own those decisions and expose typed results or presentation-ready state.
 
 ### Conflict Detection & Resolution Preflight
 To prevent accidental data loss, file conflict resolution runs *before* operations execute:
@@ -336,6 +336,117 @@ Custom Trash is enforced on all permanent volumes:
 
 ---
 
+## Plugin System
+
+Arcile plugins are independent Android application APKs. They are discovered and launched through Android intents; Arcile never loads plugin classes, resources, or native libraries into its own process.
+
+### Modules and Ownership
+
+| Module | Responsibility |
+|--------|----------------|
+| `plugin-api` | Stable contract constants, API version, MIME constants, and immutable plugin metadata/status models. It must not acquire runtime library dependencies. |
+| `plugin-ui` | Stateless Compose viewer primitives that can be packaged into both Arcile and plugin APKs. It must not depend on app storage, feature modules, Hilt, or privileged file APIs. |
+| `core:plugin:android` | Plugin discovery, signature/API validation, and installed-plugin compatibility checks. |
+| `feature:plugins` | Installed/available plugin management UI and route ownership. |
+| `app` | Root file routing, temporary URI creation, plugin prompt mapping, and application-level composition. |
+
+The current contract version is `PluginContract.PLUGIN_API_VERSION = 1`.
+
+### Intent Contract
+
+Plugins expose an exported activity with the registration action:
+
+```text
+dev.qtremors.arcile.plugin.REGISTER
+```
+
+Arcile launches the discovered activity explicitly with:
+
+```text
+Action: dev.qtremors.arcile.plugin.VIEW_FILE
+Data: content:// URI
+Type: resolved MIME type
+Flag: Intent.FLAG_GRANT_READ_URI_PERMISSION
+ClipData: the same content URI
+```
+
+The following namespaced extras accompany the data URI:
+
+| Extra | Type | Meaning |
+|-------|------|---------|
+| `dev.qtremors.arcile.plugin.extra.FILE_URI` | `Uri` | Read-only file URI; intent data remains the primary source. |
+| `dev.qtremors.arcile.plugin.extra.FILE_NAME` | `String` | User-facing display name. |
+| `dev.qtremors.arcile.plugin.extra.MIME_TYPE` | `String` | Normalized MIME type. |
+
+Registration metadata:
+
+| Key | Format |
+|-----|--------|
+| `dev.qtremors.arcile.plugin.API_VERSION` | Integer plugin API version. |
+| `dev.qtremors.arcile.plugin.NAME` | Display name or string resource. |
+| `dev.qtremors.arcile.plugin.SUPPORTED_MIME_TYPES` | Lowercase comma-separated MIME types; type wildcards such as `image/*` are allowed. |
+| `dev.qtremors.arcile.plugin.SUPPORTED_EXTENSIONS` | Lowercase comma-separated extensions without leading dots. |
+| `dev.qtremors.arcile.plugin.HOMEPAGE` | Optional project or release URL. |
+
+`PackageInfo.versionName` and `longVersionCode` are authoritative for the plugin version. Do not duplicate them in metadata.
+
+### Discovery, Compatibility, and Security
+
+1. Arcile declares the registration action under `<queries>` for Android 11+ package visibility.
+2. `PluginManager` calls `queryIntentActivities()` with metadata enabled.
+3. Disabled/non-exported activities, malformed metadata, and unsigned or differently signed packages are rejected.
+4. A plugin is launchable only when its API version exactly matches the current contract.
+5. Matching prefers exact MIME, then extension, then MIME wildcard; version code and package name provide deterministic tie-breaking.
+6. File access is staged through Arcile's read-only `ExternalFileAccessProvider`. Plugins must accept `content://` URIs and must not request all-files access.
+
+Arcile and every official plugin release must use the same signing certificate. Debug variants naturally use the shared debug certificate. Release signing reads `signing.properties`, then `local.properties`; absolute and app-relative keystore paths are supported.
+
+### Creating a Plugin
+
+1. Add an Android application module under `arcile-app/`, include it in `settings.gradle.kts`, and give it a unique application ID such as `dev.qtremors.arcile.plugin.stl`.
+2. Depend on `:plugin-api`; add `:plugin-ui` only when the plugin uses Arcile viewer primitives.
+3. Add one exported registration/viewer activity. A viewer intended only for Arcile must not declare `MAIN`, `LAUNCHER`, or a generic `ACTION_VIEW` filter.
+4. Declare all registration metadata on that activity.
+5. Validate the custom action, `content` URI scheme, MIME/extension, and readability before rendering.
+6. Keep heavyweight rendering/codec dependencies inside the plugin module.
+7. Add contract, request-validation, rendering-failure, and build tests.
+8. Add the plugin to `PluginManager.catalog` only when Arcile should advertise installation while it is absent.
+
+Minimal manifest registration:
+
+```xml
+<activity
+    android:name=".ViewerActivity"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="dev.qtremors.arcile.plugin.REGISTER" />
+        <category android:name="android.intent.category.DEFAULT" />
+    </intent-filter>
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.API_VERSION"
+        android:value="1" />
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.NAME"
+        android:value="@string/plugin_name" />
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.SUPPORTED_MIME_TYPES"
+        android:value="model/stl" />
+    <meta-data
+        android:name="dev.qtremors.arcile.plugin.SUPPORTED_EXTENSIONS"
+        android:value="stl" />
+</activity>
+```
+
+Verify the generic plugin contract, Android discovery layer, and management UI:
+
+```bash
+./gradlew :plugin-api:testDebugUnitTest :core:plugin:android:testDebugUnitTest :feature:plugins:testDebugUnitTest
+```
+
+Plugin implementations are distributed separately from this repository. Before publishing a compatible plugin, install Arcile and the plugin release APK together, verify their certificate digests match with `apksigner verify --print-certs`, exercise missing/incompatible flows, open a real file, share/open-with it, and confirm Back returns to Arcile.
+
+---
+
 ## UI & Design System
 
 Arcile implements a high-end, premium design system built on **Material 3 Expressive** design tokens, custom spring physics, responsive gesture mechanics, and wallpaper-reactive accents.
@@ -413,53 +524,52 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 
 ## Feature Modules Deep Dive
 
-### 1. Onboarding (`feature/onboarding`)
-- **UI Architecture:** `OnboardingScreen` features a multi-page setup wizard with step indicators.
-- **ViewModel:** `OnboardingViewModel` manages permissions and transitions.
-- **Logic:** Requests storage and notification permissions. Automatically marks onboarding complete if permissions are already active.
+### 1. Browser (`feature/browser`)
+- **Entry:** `BrowserRoute` owns lifecycle collection, route callbacks, and platform interactions; `BrowserScreen` remains presentation-only.
+- **State:** `BrowserUiState` composes focused navigation, listing, selection, search, operation, properties, archive, and undo state.
+- **Controllers:** Navigation, selection, search, clipboard, conflicts, mutations, operations, reveal, archive, properties, and transient feedback have focused owners. Cross-domain transitions remain coordinated through the Browser owner rather than controllers mutating one another.
 
-### 2. Browser (`feature/browser`)
-- **UI Architecture:** `BrowserScreen` displays files in customizable lists or grids with a floating bottom action bar and an expandable FAB.
-- **ViewModel:** `BrowserViewModel` coordinates delegates for browser features.
-- **Delegates:**
-  - `NavigationDelegate`: Manages folder hierarchy traversal, categories, and deep links.
-  - `ClipboardDelegate`: Manages copy/cut states and resolves conflict preflights.
-  - `SearchDelegate`: Filters local files and searches MediaStore.
-  - `ArchiveActionDelegate`: Coordinates archive creation and password validation.
-  - `UndoDelegate`: Manages undo actions for file operations.
+### 2. Home (`feature/home`)
+- Owns dashboard state, recent-file presentation, category shortcuts, and neutral navigation destinations.
 
-### 3. Image Gallery (`feature/imagegallery`)
-- **UI Architecture:** A modular gallery interface containing `ImageGalleryAlbumsGrid`, `ImageGalleryTimeline`, and `ImageGalleryViewOptions`.
-- **ViewModel:** `ImageGalleryViewModel` manages media catalogs.
-- **Logic:** Group media by day, week, or month, customizable album covers, virtual Favorites album, and pinch-to-zoom grid scaling.
+### 3. Gallery and Viewer (`feature/imagegallery`)
+- `ImageGalleryViewModel` owns albums, timelines, filters, selection, and gallery presentation.
+- `ImageViewerViewModel` independently owns the current viewer session, metadata panel, rotations, and chrome.
+- `ImageGalleryFileActionController` owns reusable file actions. EXIF reads/writes and editability decisions stay behind the shared metadata adapter rather than feature composables.
 
-### 4. Image Viewer (`feature/imagegallery` - Viewer segment)
-- **UI Architecture:** Immersive fullscreen `ImageViewerScreen` with a zoomable viewport, scrolling filmstrip, and EXIF panel.
-- **Logic:** Elastic drag-to-dismiss gestures, camera properties extraction, and location parameter scrubbing.
+### 4. Archive (`feature/archive`)
+- Owns archive viewing, selection, password prompts, extraction presentation, and typed return-to-Browser destinations. Archive path creation and extraction destinations are resolved by storage-domain services.
 
-### 5. Storage Cleaner (`feature/storagecleaner`)
-- **UI Architecture:** A central scanner hub showing categories (Large Files, Downloads, Duplicate Files, Marker Files, Empty Folders) with a comparison sheet.
-- **Logic:** Identifies duplicate files using size, byte samples, and SHA-256 hashes. Resolves app-associated folders and manages exclusion lists.
+### 5. Import (`feature/import`)
+- `SaveToArcileActivity` handles `ACTION_SEND` and `ACTION_SEND_MULTIPLE`, while the route owns share parsing, destination navigation, save state, and feedback.
+- Destination browsing revalidates storage-owned paths and distinguishes readable navigation from writable save destinations.
 
-### 6. Storage Usage Map (`feature/storageusage`)
-- **UI Architecture:** Radial segment sunburst chart (`StorageUsageSunburst`).
-- **Logic:** Displays interactive storage breakdowns by category.
+### 6. Storage Cleaner (`feature/storagecleaner`)
+- Owns cleaner scans, duplicate comparison, app-risk presentation, exclusions, cleanup operations, and thumbnail-cache controls.
 
-### 7. Trash Hub (`feature/trash`)
-- **UI Architecture:** `TrashScreen` displays trashed files with search and metadata (deleted date, original path).
-- **Logic:** Handles batch restoration, permanent deletion, empty trash operations, and destination pickers.
+### 7. Storage Usage (`feature/storageusage`)
+- Owns the storage dashboard, storage management, category/path destinations, and interactive sunburst usage map.
 
-### 8. Recent Files (`feature/recentfiles`)
-- **UI Architecture:** Timeline view of recent modifications with category shortcuts.
-- **Logic:** Surfaces recent items across active scopes.
+### 8. Trash (`feature/trash`)
+- Owns trash listing, search, selection, restore, permanent deletion, empty-trash flows, and destination handling.
 
-### 9. Quick Access (`feature/quickaccess`)
-- **UI Architecture:** Pinned folders list.
-- **Logic:** Links custom shortcuts and SAF bookmarks.
+### 9. Recent Files (`feature/recentfiles`)
+- Owns scoped recent-file loading, debounced search, selection/actions, properties, and `ContainingFolder` destinations without Browser dependencies.
 
-### 10. External Share Target (`SaveToArcileActivity`)
-- **UI Architecture:** A standalone target activity `SaveToArcileActivity` implementing a Scaffold layout with a `LargeTopAppBar` and standard folder navigation lists.
-- **Logic:** Registers for standard Android sharing intents (`ACTION_SEND` and `ACTION_SEND_MULTIPLE`). When files are shared from external apps, it opens a customized folder picker allowing users to browse their mounted storage volumes and save the shared streams into their selected directory. Handles cursor lookup for file sizes and display names (`OpenableColumns`) and notifies the repository of mutations on completion.
+### 10. Quick Access (`feature/quickaccess`)
+- Owns local shortcuts, SAF bookmarks, restricted Documents-provider entries, and typed local/external destinations.
+
+### 11. Settings (`feature/settings`)
+- Owns preferences, backup/restore UI, navigation destinations, staging-cache statistics, and cache clearing.
+
+### 12. Activity Log (`feature/activitylog`)
+- Owns operation-history state and presentation independently of Browser and the app shell.
+
+### 13. Plugins (`feature/plugins`)
+- Owns installed/available plugin management UI; discovery and compatibility checks remain in `core:plugin:android`.
+
+### 14. Onboarding (`feature/onboarding`)
+- Owns first-run permission guidance, persisted completion state, and automatic completion when required access is already available.
 
 ---
 
@@ -500,8 +610,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 120 |
-| **Version Name** | `1.2.0` |
+| **Version Code** | 150 |
+| **Version Name** | `1.5.0` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -554,25 +664,26 @@ try {
 
 ## Testing Suite
 
-Arcile features a comprehensive test suite of **unit, Robolectric, and instrumented UI tests**.
+Arcile uses **JVM unit, Robolectric, architecture-boundary, build-logic, and instrumented UI tests**.
 
 ### Test Distribution
 
-- **JVM Unit & Robolectric Tests:** ~102 Kotlin test files (~536 `@Test` annotations) covering ViewModels, delegates, managers, and Room database migrations.
-- **Instrumented UI Tests:** ~3 Kotlin test files verifying screen layouts on emulator/device.
-- **Robolectric Configuration:** Compose Unit tests are pinned to SDK 35 (`@Config(sdk = [35])`) because Robolectric support can lag newer compile SDK releases.
+- **JVM Unit & Robolectric Tests:** Cover feature ViewModels/controllers, storage services, Room migrations, metadata, operation recovery, navigation restoration, and reusable presentation logic.
+- **Architecture Boundary Tests:** Enforce dependency direction, package ownership, feature API visibility, production file/ViewModel size, composable parameter limits, and forbidden feature-side filesystem ownership.
+- **Instrumented UI Tests:** Verify device-dependent layouts and platform interactions on an emulator or device.
+- **Robolectric Configuration:** Compose-facing tests generally use SDK 35, while lower-level platform tests may use SDK 34. Both remain below compile SDK 37 where Robolectric support requires it.
 
 ### Verification Commands
 
 ```bash
-# Full local suite: all module unit/Robolectric tests, lint, and verification checks
-./gradlew check
+# All JVM and Android unit/Robolectric tasks
+./gradlew test testDebugUnitTest
 
-# Entire suite including device/emulator instrumented tests
-./gradlew check connectedCheck
+# Release-oriented non-device verification
+./gradlew :app:lintDebug checkProductionStrings :app:verifyArcileBuildConventions
 
-# Run app-module unit and Robolectric tests only
-./gradlew :app:testDebugUnitTest
+# Architecture boundaries only
+./gradlew :app:testDebugUnitTest --tests dev.qtremors.arcile.ArchitectureBoundaryTest
 
 # Validate production string assets (checks for non-resource text)
 ./gradlew checkProductionStrings
@@ -581,7 +692,7 @@ Arcile features a comprehensive test suite of **unit, Robolectric, and instrumen
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-Use `./gradlew check` for normal local verification. Use `./gradlew check connectedCheck` for the entire suite when a device or emulator is available; `connectedCheck` runs instrumented Android tests across modules that define them. Process-death behavior is covered by focused Robolectric/unit gates where possible.
+During implementation, run only the affected module tests. Run architecture checks after changing dependencies, package ownership, public APIs, feature ViewModels, or production UI boundaries. Reserve the complete unit/Robolectric and lint passes for release milestones. Run `connectedCheck` only when an emulator or device is intentionally available; process-death behavior is covered by focused Robolectric/unit gates where possible but still requires final device validation.
 
 ### Per-Module Test Commands
 
@@ -595,8 +706,9 @@ Use module-scoped tasks when iterating on a focused area:
 ./gradlew :core:storage:data:testDebugUnitTest
 ./gradlew :core:storage:domain:test
 ./gradlew :core:ui:testDebugUnitTest
-./gradlew :core:presentation:api:testDebugUnitTest
+./gradlew :core:presentation:testDebugUnitTest
 ./gradlew :core:navigation:api:test
+./gradlew :core:operation:android:testDebugUnitTest
 
 # Feature modules
 ./gradlew :feature:browser:testDebugUnitTest
@@ -608,6 +720,12 @@ Use module-scoped tasks when iterating on a focused area:
 ./gradlew :feature:trash:testDebugUnitTest
 ./gradlew :feature:onboarding:testDebugUnitTest
 ./gradlew :feature:quickaccess:testDebugUnitTest
+./gradlew :feature:home:testDebugUnitTest
+./gradlew :feature:settings:testDebugUnitTest
+./gradlew :feature:activitylog:testDebugUnitTest
+./gradlew :feature:plugins:testDebugUnitTest
+./gradlew :feature:import:testDebugUnitTest
+./gradlew :plugin-api:testDebugUnitTest
 
 # Instrumented tests for modules that define androidTest sources
 ./gradlew :app:connectedDebugAndroidTest
@@ -620,19 +738,19 @@ Pure Kotlin/JVM modules use `test`; Android modules use `testDebugUnitTest` for 
 
 ## Build & Release Engineering
 
-To package the application:
+To package Arcile:
 
 ```bash
-# Generate Debug APK
-./gradlew assembleDebug
+# Generate the Debug APK
+./gradlew :app:assembleDebug
 
-# Generate Release AAB/APK
-./gradlew assembleRelease
+# Generate the signed, minified Release APK
+./gradlew :app:assembleRelease
 ```
 
 ### APK Naming Standards
-- **Debug Package:** `app/build/outputs/apk/debug/Arcile-1.2.0-debug.apk`
-- **Release Package:** `app/build/outputs/apk/release/Arcile-1.2.0.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.5.0-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.5.0.apk`
 
 ---
 
@@ -652,6 +770,11 @@ When reviewing code changes, ensure:
 1. **Scope Compliance:** Mutations must remain within target volume boundaries.
 2. **Memory Efficiency:** Avoid loading large directories or image lists directly into memory; use paginated loaders or database cache lookups instead.
 3. **Resource Management:** String literals should be defined in `strings.xml` to pass `checkProductionStrings` validation.
+4. **Module Independence:** Features must not depend on other features; app code may consume only route registration and destination contracts from feature modules.
+5. **State Ownership:** A controller mutates only its own private state. Cross-feature navigation uses typed destinations, and cross-controller transitions stay with the owning coordinator.
+6. **Platform Boundaries:** Feature ViewModels must not use `Context`, `Dispatchers.IO`, concrete storage implementations, or direct filesystem policy. Feature composables must not inspect existence, permissions, traversal, or canonical paths.
+7. **Hard Limits:** Production files remain at or below 500 lines, ViewModels at or below 400 lines, and public composables at or below 15 parameters. The architecture suite has no grandfathered size baselines.
+8. **Focused Verification:** Run affected module tests while iterating; run architecture, lint, strings, and build-convention gates at release milestones.
 
 ---
 
@@ -666,8 +789,9 @@ When reviewing code changes, ensure:
 
 ## Maintenance Notes
 
-- **Changelogs:** Document all changes in `CHANGELOG.md` when preparing a release.
-- **Version alignment:** Ensure the version code and name are consistent across `build.gradle.kts`, `DEVELOPMENT.md`, and `README.md`.
+- **Changelogs:** Update the current-version `CHANGELOG.md` for every user-visible change, keeping entries concise and omitting intermediate refactors.
+- **Version alignment:** Bump versions only when explicitly requested. Keep project/build versions identical and derive the integer code by removing dots (`1.5.0` → `150`).
+- **Architecture direction:** Treat the current boundaries as guardrails, not a reason for speculative abstraction. Prefer features, measurable improvements, and concrete bug fixes unless a guard exposes a real ownership problem.
 - **Archive handlers:** Keep extraction path validation intact for all archive formats.
 
 ---

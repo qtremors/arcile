@@ -36,8 +36,7 @@ kotlin {
 dependencies {
     implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
-    implementation(project(":core:operation"))
-    implementation(project(":core:presentation:api"))
+    implementation(project(":core:presentation"))
     implementation(project(":core:runtime"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))
@@ -60,6 +59,7 @@ dependencies {
 
     implementation(libs.coil.compose)
     implementation(libs.androidx.exifinterface)
+
 
     testImplementation(project(":core:testing"))
     testImplementation(libs.junit)

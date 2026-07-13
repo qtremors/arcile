@@ -1,8 +1,11 @@
 package dev.qtremors.arcile.presentation.ui
 
-import dev.qtremors.arcile.shared.ui.ToolItem
-import dev.qtremors.arcile.shared.ui.ToolCard
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.utilities.ArcileUtilityCatalog
+import dev.qtremors.arcile.core.ui.utilities.UtilityAction
+
+import dev.qtremors.arcile.core.ui.ToolItem
+import dev.qtremors.arcile.core.ui.ToolCard
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -15,11 +18,12 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.dp
 
 
@@ -50,6 +54,7 @@ fun ToolsScreen(
                     Box(
                         modifier = Modifier
                             .size(48.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
                             .bounceClickable { onNavigateBack() },
                         contentAlignment = Alignment.Center
                     ) {
@@ -103,6 +108,7 @@ fun ToolsScreen(
                                 .align(Alignment.TopEnd)
                                 .padding(8.dp)
                                 .size(36.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
                                 .bounceClickable { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) }
                         ) {
                             Box(contentAlignment = Alignment.Center) {

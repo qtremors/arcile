@@ -93,7 +93,7 @@ class QuickAccessPreferencesRepositoryTest {
         assertEquals("WhatsApp", whatsApp.label)
         assertEquals("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media", whatsApp.path)
         assertEquals(QuickAccessType.STANDARD, whatsApp.type)
-        assertTrue(whatsApp.isPinned)
+        assertFalse(whatsApp.isPinned)
         assertEquals("Files", files.label)
         assertEquals(QuickAccessType.FILES_APP, files.type)
         assertTrue(files.path.startsWith("content://com.android.externalstorage.documents/tree/primary"))

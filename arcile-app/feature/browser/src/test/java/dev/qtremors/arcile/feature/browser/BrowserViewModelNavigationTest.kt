@@ -1,15 +1,16 @@
 package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -29,6 +30,111 @@ class BrowserViewModelNavigationTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `browser stays uninitialized until its page is requested`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val viewModel = createViewModel(
+                repository = BrowserFakeFileRepository(
+                    volumes = listOf(internal),
+                    filesByPath = mapOf(internal.path to emptyList())
+                ),
+                savedStateHandle = SavedStateHandle(),
+                initialize = false
+            )
+
+            advanceUntilIdle()
+
+            assertEquals(
+                BrowserInitializationState.Uninitialized,
+                viewModel.initializationState.value
+            )
+            assertEquals("", viewModel.uiState.value.currentPath)
+
+            viewModel.initialize(entryRequest = null)
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(internal.path, viewModel.uiState.value.currentPath)
+        }
+
+    @Test
+    fun `explicit browser entry overrides restored state on first initialization`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val requestedPath = "${internal.path}/Requested"
+            val viewModel = createViewModel(
+                repository = BrowserFakeFileRepository(
+                    volumes = listOf(internal),
+                    filesByPath = mapOf(requestedPath to emptyList())
+                ),
+                savedStateHandle = SavedStateHandle(
+                    mapOf(
+                        "currentPath" to "${internal.path}/Stale",
+                        "currentVolumeId" to internal.id,
+                        "isCategoryScreen" to false,
+                        "isVolumeRootScreen" to false
+                    )
+                ),
+                initialize = false
+            )
+
+            viewModel.initialize(
+                BrowserEntryRequest(
+                    id = 1L,
+                    entry = BrowserEntry.Path(requestedPath)
+                )
+            )
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(requestedPath, viewModel.uiState.value.currentPath)
+        }
+
+    @Test
+    fun `failed browser restoration remains browser owned and can be retried`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val repository = BrowserFakeFileRepository(volumes = listOf(internal)).apply {
+                listFilesResultProvider = { Result.failure(IllegalStateException("unavailable")) }
+            }
+            val viewModel = createViewModel(
+                repository = repository,
+                savedStateHandle = SavedStateHandle(),
+                initialize = false
+            )
+
+            viewModel.initialize(entryRequest = null)
+            advanceUntilIdle()
+
+            assertEquals(
+                BrowserInitializationState.Failed(UiText.Dynamic("unavailable")),
+                viewModel.initializationState.value
+            )
+
+            repository.listFilesResultProvider = { Result.success(emptyList()) }
+            viewModel.retryInitialization()
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(internal.path, viewModel.uiState.value.currentPath)
+        }
+
+    @Test
     fun `navigation state saves committed destination`() = runTest(mainDispatcherRule.dispatcher) {
         val savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
@@ -38,7 +144,7 @@ class BrowserViewModelNavigationTest {
                 filesByPath = mapOf("/storage/emulated/0/Download" to emptyList()),
                 filesByCategory = mapOf("Images" to emptyList())
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = savedStateHandle
         )
 
@@ -78,20 +184,20 @@ class BrowserViewModelNavigationTest {
                     "/storage/emulated/0" to listOf(browserFile("Download", "/storage/emulated/0/Download", isDirectory = true))
                 )
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = savedStateHandle
         )
 
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
-        assertEquals(listOf("hello.txt"), viewModel.state.value.files.map { it.name })
+        assertEquals("/storage/emulated/0/Download", viewModel.uiState.value.currentPath)
+        assertEquals(listOf("hello.txt"), viewModel.uiState.value.files.map { it.name })
 
         assertTrue(viewModel.navigateBack())
         advanceUntilIdle()
 
-        assertEquals("/storage/emulated/0", viewModel.state.value.currentPath)
-        assertEquals(listOf("Download"), viewModel.state.value.files.map { it.name })
+        assertEquals("/storage/emulated/0", viewModel.uiState.value.currentPath)
+        assertEquals(listOf("Download"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -102,10 +208,10 @@ class BrowserViewModelNavigationTest {
                 volumes = listOf(internal),
                 filesByCategory = mapOf("Images" to listOf(browserFile("pic.jpg", "/storage/emulated/0/DCIM/pic.jpg")))
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(
+            browserPreferencesRepository = FakeFilePreferencesStore(
                 BrowserPreferences(
                     pathPresentationOptions = mapOf(
-                        "category_Images" to BrowserPresentationPreferences(sortOption = FileSortOption.DATE_OLDEST)
+                        "category_Images" to FileListingPreferences(sortOption = FileSortOption.DATE_OLDEST)
                     )
                 )
             ),
@@ -121,13 +227,13 @@ class BrowserViewModelNavigationTest {
 
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isCategoryScreen)
-        assertEquals("Images", viewModel.state.value.activeCategoryName)
-        assertEquals("", viewModel.state.value.currentPath)
-        assertEquals("primary", viewModel.state.value.currentVolumeId)
-        assertEquals(FileSortOption.DATE_OLDEST, viewModel.state.value.browserSortOption)
-        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
-        assertEquals(listOf("pic.jpg"), viewModel.state.value.files.map { it.name })
+        assertTrue(viewModel.uiState.value.isCategoryScreen)
+        assertEquals("Images", viewModel.uiState.value.activeCategoryName)
+        assertEquals("", viewModel.uiState.value.currentPath)
+        assertEquals("primary", viewModel.uiState.value.currentVolumeId)
+        assertEquals(FileSortOption.DATE_OLDEST, viewModel.uiState.value.browserSortOption)
+        assertEquals(FileViewMode.LIST, viewModel.uiState.value.browserViewMode)
+        assertEquals(listOf("pic.jpg"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -138,7 +244,7 @@ class BrowserViewModelNavigationTest {
                 volumes = listOf(internal),
                 filesByCategory = mapOf("Audio" to listOf(browserFile("song.mp3", "/storage/emulated/0/Music/song.mp3")))
             ),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(
                 mapOf(
                     "currentPath" to "/storage/emulated/0/Download",
@@ -152,16 +258,16 @@ class BrowserViewModelNavigationTest {
 
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isCategoryScreen)
-        assertEquals("Audio", viewModel.state.value.activeCategoryName)
-        assertEquals("", viewModel.state.value.currentPath)
-        assertEquals(listOf("song.mp3"), viewModel.state.value.files.map { it.name })
+        assertTrue(viewModel.uiState.value.isCategoryScreen)
+        assertEquals("Audio", viewModel.uiState.value.activeCategoryName)
+        assertEquals("", viewModel.uiState.value.currentPath)
+        assertEquals(listOf("song.mp3"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
     fun `updateBrowserPresentation persists category presentation key`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
-        val preferences = FakeBrowserPreferencesStore()
+        val preferences = FakeFilePreferencesStore()
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(
                 volumes = listOf(internal),
@@ -175,9 +281,9 @@ class BrowserViewModelNavigationTest {
         viewModel.navigateToCategory("Images", "primary")
         advanceUntilIdle()
         viewModel.updateBrowserPresentation(
-            BrowserPresentationPreferences(
+            FileListingPreferences(
                 sortOption = FileSortOption.DATE_OLDEST,
-                viewMode = BrowserViewMode.GRID,
+                viewMode = FileViewMode.GRID,
                 listZoom = 1.1f,
                 gridMinCellSize = 144f
             ),
@@ -187,7 +293,7 @@ class BrowserViewModelNavigationTest {
 
         assertEquals("category_Images", preferences.lastUpdatedPath)
         assertEquals(FileSortOption.DATE_OLDEST, preferences.lastUpdatedPathPresentation?.sortOption)
-        assertEquals(BrowserViewMode.GRID, preferences.lastUpdatedPathPresentation?.viewMode)
+        assertEquals(FileViewMode.GRID, preferences.lastUpdatedPathPresentation?.viewMode)
         assertNull(preferences.lastUpdatedGlobalPresentation)
     }
 
@@ -211,11 +317,11 @@ class BrowserViewModelNavigationTest {
         viewModel.navigateToCategory("Images", "primary")
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.selectedFolderTabPath)
+        assertNull(viewModel.uiState.value.selectedFolderTabPath)
 
         viewModel.selectFolderTab("/storage/emulated/0/DCIM")
 
-        assertEquals("/storage/emulated/0/DCIM", viewModel.state.value.selectedFolderTabPath)
+        assertEquals("/storage/emulated/0/DCIM", viewModel.uiState.value.selectedFolderTabPath)
     }
 
     @Test
@@ -249,7 +355,7 @@ class BrowserViewModelNavigationTest {
         advanceTimeBy(300)
         advanceUntilIdle()
 
-        assertEquals(listOf("new.jpg"), viewModel.state.value.files.map { it.name })
+        assertEquals(listOf("new.jpg"), viewModel.uiState.value.files.map { it.name })
     }
 
     @Test
@@ -285,8 +391,8 @@ class BrowserViewModelNavigationTest {
         advanceTimeBy(300)
         advanceUntilIdle()
 
-        assertEquals(listOf("keep.jpg"), viewModel.state.value.files.map { it.name })
-        assertEquals(setOf(selectedPath), viewModel.state.value.selectedFiles)
+        assertEquals(listOf("keep.jpg"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(setOf(selectedPath), viewModel.uiState.value.selectedFiles)
     }
 
     @Test
@@ -322,8 +428,8 @@ class BrowserViewModelNavigationTest {
         advanceTimeBy(300)
         advanceUntilIdle()
 
-        assertEquals(listOf("keep.jpg"), viewModel.state.value.files.map { it.name })
-        assertEquals(setOf(selectedPath), viewModel.state.value.selectedFiles)
+        assertEquals(listOf("keep.jpg"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(setOf(selectedPath), viewModel.uiState.value.selectedFiles)
     }
 
     @Test
@@ -349,13 +455,13 @@ class BrowserViewModelNavigationTest {
         viewModel.toggleSelection("/storage/emulated/0/DCIM/one.jpg")
         viewModel.selectFolderTab("/storage/emulated/0/DCIM")
 
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
 
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.selectedFolderTabPath)
-        assertFalse(viewModel.state.value.isCategoryScreen)
+        assertNull(viewModel.uiState.value.selectedFolderTabPath)
+        assertFalse(viewModel.uiState.value.isCategoryScreen)
     }
 
     @Test
@@ -388,17 +494,17 @@ class BrowserViewModelNavigationTest {
         viewModel.navigateToFolder(ArchiveEntryThumbnailData.virtualPath(archivePath, "docs"))
         advanceUntilIdle()
 
-        assertEquals("docs", viewModel.state.value.archiveContext?.entryPrefix)
+        assertEquals("docs", viewModel.uiState.value.archiveContext?.entryPrefix)
 
         assertTrue(viewModel.navigateBack())
         advanceUntilIdle()
-        assertNull(viewModel.state.value.archiveContext?.entryPrefix)
+        assertNull(viewModel.uiState.value.archiveContext?.entryPrefix)
 
         assertTrue(viewModel.navigateBack())
         advanceUntilIdle()
 
-        assertNull(viewModel.state.value.archiveContext)
-        assertEquals("/storage/emulated/0/Download", viewModel.state.value.currentPath)
+        assertNull(viewModel.uiState.value.archiveContext)
+        assertEquals("/storage/emulated/0/Download", viewModel.uiState.value.currentPath)
         assertEquals("/storage/emulated/0/Download", savedStateHandle.get<String>("currentPath"))
     }
 
@@ -434,6 +540,6 @@ class BrowserViewModelNavigationTest {
         assertEquals(listOf(archivePath), request.sourcePaths)
         assertEquals("/storage/emulated/0/Download", request.destinationPath)
         assertEquals("image.jpg", request.archiveEntryPrefix)
-        assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
     }
 }

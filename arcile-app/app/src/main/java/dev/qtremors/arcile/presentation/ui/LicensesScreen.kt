@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.presentation.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,7 +10,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import dev.qtremors.arcile.ui.theme.spacing
+import androidx.compose.foundation.shape.CircleShape
+import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -38,10 +38,11 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
-import dev.qtremors.arcile.shared.ui.ArcileListSurface
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.ArcileListSurface
 
 // ──────────────────────────────────────────────────────
 // Data model for a third-party library entry
@@ -91,7 +92,12 @@ fun LicensesScreen(
                 title = { Text(stringResource(R.string.open_source_licenses)) },
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = onNavigateBack)
+                    ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.back)
@@ -143,7 +149,7 @@ fun LicensesScreen(
                                 colors = ListItemDefaults.colors(containerColor = Color.Transparent),
                                 modifier = Modifier
                                     .clip(ExpressiveShapes.medium)
-                                    .clickable { uriHandler.openUri(lib.url) }
+                                    .bounceClickable { uriHandler.openUri(lib.url) }
                             )
                             if (index < libraries.lastIndex) {
                                 HorizontalDivider(

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.util
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import java.io.File
 import java.nio.file.Files
 
@@ -24,7 +25,7 @@ object PathSafety {
 
         val canonical = file.canonicalPath
         val isAllowed = activeStorageRoots.any { root ->
-            val canonicalRoot = runCatching { File(root).canonicalPath }.getOrDefault(root)
+            val canonicalRoot = runCatchingPreservingCancellation { File(root).canonicalPath }.getOrDefault(root)
             canonical == canonicalRoot || canonical.startsWith(canonicalRoot + File.separator)
         }
 
@@ -36,10 +37,10 @@ object PathSafety {
 
     fun pathWithAncestors(path: String, activeStorageRoots: List<String>): List<String> {
         val file = File(path)
-        val canonical = runCatching { file.canonicalFile }.getOrDefault(file.absoluteFile)
+        val canonical = runCatchingPreservingCancellation { file.canonicalFile }.getOrDefault(file.absoluteFile)
         val matchingRoot = activeStorageRoots
             .map(::File)
-            .map { runCatching { it.canonicalFile }.getOrDefault(it.absoluteFile) }
+            .map { runCatchingPreservingCancellation { it.canonicalFile }.getOrDefault(it.absoluteFile) }
             .filter { root ->
                 canonical.path == root.path || canonical.path.startsWith(root.path + File.separator)
             }

@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.onFailure
+import dev.qtremors.arcile.core.storage.domain.onSuccess
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
@@ -15,6 +17,9 @@ import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.ui.image.ThumbnailCacheService
+import dev.qtremors.arcile.core.ui.image.ThumbnailCacheStats
+import dev.qtremors.arcile.core.ui.image.NoOpThumbnailCacheService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +30,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class StorageCleanerState(
+internal data class StorageCleanerState(
     val groups: List<CleanerGroup> = CleanerGroupType.entries.map { CleanerGroup(it, emptyList()) },
     val isScanning: Boolean = false,
     val isCleaning: Boolean = false,
@@ -33,7 +38,8 @@ data class StorageCleanerState(
     val isPartial: Boolean = false,
     val rules: StorageCleanerRules = StorageCleanerRules(),
     val errorMessage: String? = null,
-    val successMessage: CleanerSuccessMessage? = null
+    val successMessage: CleanerSuccessMessage? = null,
+    val thumbnailCache: CleanerThumbnailCacheState = CleanerThumbnailCacheState()
 ) {
     val totalBytes: Long get() = groups.sumOf { it.totalBytes }
     fun group(type: CleanerGroupType): CleanerGroup =
@@ -43,18 +49,25 @@ data class StorageCleanerState(
         groups.flatMap { it.candidates }.distinctBy { it.absolutePath }.filter { it.absolutePath in paths }
 }
 
-data class CleanerSuccessMessage(
+internal data class CleanerThumbnailCacheState(
+    val stats: ThumbnailCacheStats = ThumbnailCacheStats(),
+    val isLoading: Boolean = true,
+    val isClearing: Boolean = false
+)
+
+internal data class CleanerSuccessMessage(
     val cleanedCount: Int,
     val undoTrashIds: List<String> = emptyList()
 )
 
 @HiltViewModel
-class StorageCleanerViewModel @Inject constructor(
+internal class StorageCleanerViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val trashRepository: TrashRepository,
     private val scanner: StorageCleanerScanner,
     private val preferencesStore: StorageCleanerPreferencesStore,
-    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
+    private val thumbnailCacheService: ThumbnailCacheService = NoOpThumbnailCacheService
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(StorageCleanerState())
@@ -63,6 +76,7 @@ class StorageCleanerViewModel @Inject constructor(
     private var scanJob: Job? = null
 
     init {
+        refreshThumbnailCache()
         viewModelScope.launch {
             preferencesStore.rulesFlow.collectLatest { rules ->
                 _state.update { it.copy(rules = rules) }
@@ -77,6 +91,65 @@ class StorageCleanerViewModel @Inject constructor(
                     scanner.invalidateStorageCleaner(event.paths)
                     scan(clearMessages = false)
                 }
+        }
+    }
+
+    private fun refreshThumbnailCache() {
+        viewModelScope.launch {
+            _state.update { current ->
+                current.copy(thumbnailCache = current.thumbnailCache.copy(isLoading = true))
+            }
+            thumbnailCacheService.stats().fold(
+                onSuccess = { stats ->
+                    _state.update { current ->
+                        current.copy(
+                            thumbnailCache = current.thumbnailCache.copy(
+                                stats = stats,
+                                isLoading = false
+                            )
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    _state.update { current ->
+                        current.copy(
+                            thumbnailCache = current.thumbnailCache.copy(isLoading = false),
+                            errorMessage = error.message.orEmpty()
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearThumbnailCache() {
+        if (_state.value.thumbnailCache.isLoading || _state.value.thumbnailCache.isClearing) return
+        _state.update { current ->
+            current.copy(thumbnailCache = current.thumbnailCache.copy(isClearing = true))
+        }
+        viewModelScope.launch {
+            thumbnailCacheService.clear().fold(
+                onSuccess = { stats ->
+                    _state.update { current ->
+                        current.copy(
+                            thumbnailCache = current.thumbnailCache.copy(
+                                stats = stats,
+                                isClearing = false
+                            )
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    _state.update { current ->
+                        current.copy(
+                            thumbnailCache = current.thumbnailCache.copy(isClearing = false),
+                            errorMessage = error.message.orEmpty()
+                        )
+                    }
+                }
+            )
         }
     }
 

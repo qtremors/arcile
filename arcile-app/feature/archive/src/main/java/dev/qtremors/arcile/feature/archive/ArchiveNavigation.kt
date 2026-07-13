@@ -12,13 +12,17 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 
-fun NavGraphBuilder.archiveViewerScreen(
+sealed interface ArchiveDestination {
+    data class OpenInBrowser(val archivePath: String) : ArchiveDestination
+}
+
+fun NavGraphBuilder.registerArchiveViewerRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onOpenArchiveInBrowser: (String) -> Unit = {}
+    onDestination: (ArchiveDestination) -> Unit
 ) {
     composable<AppRoutes.ArchiveViewer>(
         enterTransition = enterTransition,
@@ -28,32 +32,40 @@ fun NavGraphBuilder.archiveViewerScreen(
     ) {
         val route = it.toRoute<AppRoutes.ArchiveViewer>()
         androidx.compose.runtime.LaunchedEffect(route.archivePath) {
-            onOpenArchiveInBrowser(route.archivePath)
+            onDestination(ArchiveDestination.OpenInBrowser(route.archivePath))
         }
         val viewModel = hiltViewModel<ArchiveViewerViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         ArchiveViewerScreen(
             state = state,
-            onNavigateBack = onNavigateBack,
-            onNavigateUpInArchive = { viewModel.navigateBack() },
-            onOpenFolder = { viewModel.openFolder(it) },
-            onSearchQueryChange = { viewModel.updateSearchQuery(it) },
-            onExtractAll = { password -> viewModel.extractAll(password) },
-            onExtractCurrentFolder = { password -> viewModel.extractCurrentFolder(password) },
-            onSubmitPassword = { viewModel.submitPassword(it) },
-            onSelectNameEncoding = { viewModel.selectNameEncoding(it) },
-            onSetConflictResolution = { path, resolution -> viewModel.setConflictResolution(path, resolution) },
-            onApplyConflictResolutionToAll = { viewModel.applyConflictResolutionToAll(it) },
-            onConfirmConflictResolutions = { viewModel.confirmConflictResolutions() },
-            onDismissConflicts = { viewModel.dismissConflicts() },
-            onClearError = { viewModel.clearError() },
-            onCancelExtraction = { viewModel.cancelExtraction() },
-            onClearOperationStatusMessage = { viewModel.clearOperationStatusMessage() },
-            onClearActiveOperation = { viewModel.clearActiveOperation() },
-            onToggleItemSelection = { viewModel.toggleItemSelection(it) },
-            onClearSelection = { viewModel.clearSelection() },
-            onExtractSelected = { password -> viewModel.extractSelected(password) },
-            onSelectAll = { viewModel.selectAllVisible() }
+            navigationActions = ArchiveNavigationActions(
+                navigateBack = onNavigateBack,
+                navigateUpInArchive = viewModel::navigateBack,
+                openFolder = viewModel::openFolder,
+                searchQueryChange = viewModel::updateSearchQuery
+            ),
+            extractionActions = ArchiveExtractionActions(
+                extractAll = viewModel::extractAll,
+                extractCurrentFolder = viewModel::extractCurrentFolder,
+                submitPassword = viewModel::submitPassword,
+                selectNameEncoding = viewModel::selectNameEncoding,
+                cancelExtraction = viewModel::cancelExtraction,
+                clearError = viewModel::clearError,
+                clearOperationStatusMessage = viewModel::clearOperationStatusMessage,
+                clearActiveOperation = viewModel::clearActiveOperation
+            ),
+            conflictActions = ArchiveConflictActions(
+                setResolution = viewModel::setConflictResolution,
+                applyResolutionToAll = viewModel::applyConflictResolutionToAll,
+                confirmResolutions = viewModel::confirmConflictResolutions,
+                dismissConflicts = viewModel::dismissConflicts
+            ),
+            selectionActions = ArchiveSelectionActions(
+                toggleItem = viewModel::toggleItemSelection,
+                clear = viewModel::clearSelection,
+                extractSelected = viewModel::extractSelected,
+                selectAll = viewModel::selectAllVisible
+            )
         )
     }
 }

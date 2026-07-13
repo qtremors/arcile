@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -31,6 +30,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -47,9 +49,9 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +68,8 @@ internal fun DuplicateCompareSheet(
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        shape = ExpressiveShapes.sheet
     ) {
         Column(
             modifier = Modifier
@@ -117,6 +120,7 @@ internal fun DuplicateCompareSheet(
                 Button(
                     onClick = { onRequestClean(selectedComparePaths) },
                     enabled = selectedComparePaths.isNotEmpty(),
+                    shape = ExpressiveShapes.medium,
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -181,7 +185,7 @@ private fun DuplicateComparePane(
                     badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier
                         .clip(CircleShape)
-                        .clickable {
+                        .bounceClickable {
                             if (file.isDirectory) {
                                 onOpenContainingFolder(file.absolutePath)
                             } else {
@@ -211,9 +215,10 @@ private fun DuplicateComparePane(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        if (appContext?.icon != null) {
+                        val appIcon = appContext?.icon
+                        if (appIcon != null) {
                             Image(
-                                bitmap = appContext.icon.asImageBitmap(),
+                                bitmap = appIcon.asImageBitmap(),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(18.dp)
@@ -251,7 +256,7 @@ private fun DuplicateComparePane(
                     .padding(horizontal = 16.dp)
                     .padding(bottom = 16.dp)
                     .clip(MaterialTheme.shapes.medium)
-                    .clickable { onOpenContainingFolder(file.absolutePath) },
+                    .bounceClickable { onOpenContainingFolder(file.absolutePath) },
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shape = MaterialTheme.shapes.medium
             ) {
@@ -285,7 +290,8 @@ private fun DuplicateComparePane(
                 Row(
                     modifier = Modifier
                         .weight(1f)
-                        .clickable(onClick = onToggle)
+                        .clip(ExpressiveShapes.medium)
+                        .bounceClickable(onClick = onToggle)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -308,6 +314,7 @@ private fun DuplicateComparePane(
                     onClick = onDelete,
                     modifier = Modifier
                         .padding(end = 8.dp)
+                        .clip(CircleShape)
                         .semantics { contentDescription = deleteDescription }
                 ) {
                     Icon(
@@ -318,6 +325,7 @@ private fun DuplicateComparePane(
                 }
                 TextButton(
                     onClick = { onIgnoreFile(file.absolutePath) },
+                    shape = ExpressiveShapes.medium,
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
                     Text(stringResource(R.string.cleaner_ignore))

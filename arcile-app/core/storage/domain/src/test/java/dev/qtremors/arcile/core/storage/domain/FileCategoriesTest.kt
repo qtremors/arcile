@@ -7,7 +7,7 @@ import org.junit.Test
 class FileCategoriesTest {
     @Test
     fun `images category includes common image extensions`() {
-        val expected = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "tiff", "tif")
+        val expected = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif")
 
         assertTrue(FileCategories.Images.extensions.containsAll(expected))
     }
@@ -25,5 +25,12 @@ class FileCategoriesTest {
         assertTrue(FileCategories.Videos.extensions.containsAll(expected))
         assertEquals(FileCategories.Videos, FileCategories.getCategoryForFile("m2ts", null))
         assertEquals(FileCategories.Videos, FileCategories.getCategoryForFile("", "video/mp4"))
+    }
+
+    @Test
+    fun `models category includes glb extension and mime`() {
+        assertTrue(FileCategories.Models.extensions.contains("glb"))
+        assertEquals(FileCategories.Models, FileCategories.getCategoryForFile("glb", null))
+        assertEquals(FileCategories.Models, FileCategories.getCategoryForFile("", "model/gltf-binary"))
     }
 }

@@ -35,25 +35,29 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.feature.browser.BrowserFileOperationUiState
-import dev.qtremors.arcile.shared.ui.ArcileActionSheet
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.presentation.OperationUiState
+import dev.qtremors.arcile.core.ui.ArcileActionSheet
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OperationProgressDetailsSheet(
-    activeOp: BrowserFileOperationUiState,
-    actions: BrowserUiActions,
+    activeOp: OperationUiState,
+    clipboardIntents: BrowserClipboardIntents,
     onDismissRequest: () -> Unit
 ) {
     val timeElapsedSec = (System.currentTimeMillis() - activeOp.startTimeMillis) / 1000f
-    val speedBytesPerSec = if (timeElapsedSec > 0.5f && activeOp.bytesCopied != null) {
-        activeOp.bytesCopied.toFloat() / timeElapsedSec
+    val bytesCopied = activeOp.bytesCopied
+    val totalBytes = activeOp.totalBytes
+    val speedBytesPerSec = if (timeElapsedSec > 0.5f && bytesCopied != null) {
+        bytesCopied.toFloat() / timeElapsedSec
     } else {
         0f
     }
-    val etaSec = if (speedBytesPerSec > 1024f && activeOp.totalBytes != null && activeOp.bytesCopied != null) {
-        val remainingBytes = activeOp.totalBytes - activeOp.bytesCopied
+    val etaSec = if (speedBytesPerSec > 1024f && totalBytes != null && bytesCopied != null) {
+        val remainingBytes = totalBytes - bytesCopied
         (remainingBytes.toFloat() / speedBytesPerSec).toLong()
     } else {
         -1L
@@ -78,7 +82,10 @@ internal fun OperationProgressDetailsSheet(
             TransferDetailsHeader(onDismissRequest)
             TransferMetrics(speedText = speedText, etaText = etaText)
             TransferProgress(activeOp)
-            TransferCancelButton(actions = actions, onDismissRequest = onDismissRequest)
+            TransferCancelButton(
+                clipboardIntents = clipboardIntents,
+                onDismissRequest = onDismissRequest
+            )
             TransferQueue(activeOp)
         }
     }
@@ -98,7 +105,10 @@ private fun TransferDetailsHeader(onDismissRequest: () -> Unit) {
         )
         IconButton(
             onClick = onDismissRequest,
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .bounceClickable(onClick = onDismissRequest)
         ) {
             Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_close))
         }
@@ -133,10 +143,11 @@ private fun TransferMetrics(speedText: String, etaText: String) {
 }
 
 @Composable
-private fun TransferProgress(activeOp: BrowserFileOperationUiState) {
+private fun TransferProgress(activeOp: OperationUiState) {
+    val totalBytes = activeOp.totalBytes
     val progressFraction = when {
-        activeOp.totalBytes != null && activeOp.totalBytes > 0L ->
-            ((activeOp.bytesCopied ?: 0L).toFloat() / activeOp.totalBytes.toFloat()).coerceIn(0f, 1f)
+        totalBytes != null && totalBytes > 0L ->
+            ((activeOp.bytesCopied ?: 0L).toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
         activeOp.totalItems > 0 ->
             (activeOp.completedItems.toFloat() / activeOp.totalItems.toFloat()).coerceIn(0f, 1f)
         else -> 0f
@@ -149,11 +160,11 @@ private fun TransferProgress(activeOp: BrowserFileOperationUiState) {
             .clip(CircleShape)
     )
     Spacer(modifier = Modifier.height(8.dp))
-    val progressText = if (activeOp.totalBytes != null && activeOp.totalBytes > 0L) {
+    val progressText = if (totalBytes != null && totalBytes > 0L) {
         stringResource(
             R.string.transfer_progress_bytes,
             formatFileSize(activeOp.bytesCopied ?: 0L),
-            formatFileSize(activeOp.totalBytes)
+            formatFileSize(totalBytes)
         )
     } else {
         stringResource(R.string.transfer_progress_items, activeOp.completedItems, activeOp.totalItems)
@@ -168,23 +179,27 @@ private fun TransferProgress(activeOp: BrowserFileOperationUiState) {
 
 @Composable
 private fun TransferCancelButton(
-    actions: BrowserUiActions,
+    clipboardIntents: BrowserClipboardIntents,
     onDismissRequest: () -> Unit
 ) {
+    val onCancelClick = {
+        clipboardIntents.onCancelClipboard()
+        onDismissRequest()
+    }
     Button(
-        onClick = {
-            actions.onCancelClipboard()
-            onDismissRequest()
-        },
+        onClick = onCancelClick,
         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-        modifier = Modifier.fillMaxWidth()
+        shape = dev.qtremors.arcile.core.ui.theme.ExpressiveShapes.medium,
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClickable(onClick = onCancelClick)
     ) {
         Text(stringResource(R.string.transfer_cancel_operation), color = Color.White)
     }
 }
 
 @Composable
-private fun TransferQueue(activeOp: BrowserFileOperationUiState) {
+private fun TransferQueue(activeOp: OperationUiState) {
     if (activeOp.sourcePaths.isEmpty()) return
     Spacer(modifier = Modifier.height(16.dp))
     Text(
@@ -204,7 +219,7 @@ private fun TransferQueue(activeOp: BrowserFileOperationUiState) {
     ) {
         items(activeOp.sourcePaths) { path ->
             TransferQueueRow(
-                name = path.substringAfterLast('/'),
+                name = storagePathName(path),
                 isCurrent = path == activeOp.currentPath
             )
         }

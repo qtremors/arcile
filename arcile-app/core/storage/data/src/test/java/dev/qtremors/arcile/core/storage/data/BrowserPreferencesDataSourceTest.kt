@@ -1,0 +1,249 @@
+package dev.qtremors.arcile.core.storage.data
+
+import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import org.junit.Assert.assertEquals
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import java.io.File
+import java.util.UUID
+
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class BrowserPreferencesDataSourceTest {
+
+    private lateinit var context: Context
+    private lateinit var dataStoreFile: File
+    private lateinit var dataStoreScope: CoroutineScope
+    private lateinit var dataStore: DataStore<Preferences>
+
+    @Before
+    fun setUp() {
+        context = ApplicationProvider.getApplicationContext()
+        dataStoreFile = File(
+            context.filesDir,
+            "datastore/browser-prefs-test-${UUID.randomUUID()}.preferences_pb"
+        )
+        dataStoreScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        dataStore = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { dataStoreFile }
+        )
+    }
+
+    @After
+    fun tearDown() {
+        dataStoreScope.cancel()
+        dataStoreFile.delete()
+    }
+
+    @Test
+    fun `defaults to name ascending with empty maps`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        val preferences = repository.preferencesFlow.first()
+
+        assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
+        assertEquals(FileViewMode.LIST, preferences.globalPresentation.viewMode)
+        assertEquals(FileViewMode.GRID, preferences.albumPresentation.viewMode)
+        assertEquals(FileListingPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
+        assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
+        assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
+        assertEquals(ImageGalleryDefaultTab.PHOTOS, preferences.imageGalleryDefaultTab)
+        assertEquals(true, preferences.showHiddenFiles)
+        assertEquals(true, preferences.browserScrollbarEnabled)
+        assertEquals(true, preferences.galleryScrollbarEnabled)
+        assertEquals(emptyMap<String, FileListingPreferences>(), preferences.pathPresentationOptions)
+        assertEquals(emptyMap<String, FileListingPreferences>(), preferences.exactPathPresentationOptions)
+    }
+
+    @Test
+    fun `updatePathPresentation stores exact and recursive keys with normalized path`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updatePathPresentation(
+            "/storage/emulated/0/Download/",
+            FileListingPreferences(
+                sortOption = FileSortOption.SIZE_LARGEST,
+                viewMode = FileViewMode.GRID,
+                listZoom = 1.1f,
+                gridMinCellSize = 148f
+            ),
+            applyToSubfolders = false
+        )
+        repository.updatePathPresentation(
+            "/storage/emulated/0/Pictures/",
+            FileListingPreferences(
+                sortOption = FileSortOption.DATE_NEWEST,
+                viewMode = FileViewMode.LIST,
+                listZoom = 0.95f,
+                gridMinCellSize = 124f
+            ),
+            applyToSubfolders = true
+        )
+
+        val preferences = repository.preferencesFlow.first()
+
+        assertEquals(FileSortOption.SIZE_LARGEST, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.sortOption)
+        assertEquals(FileViewMode.GRID, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.viewMode)
+        assertEquals(FileSortOption.DATE_NEWEST, preferences.pathPresentationOptions["/storage/emulated/0/Pictures"]?.sortOption)
+        assertEquals(124f, preferences.pathPresentationOptions["/storage/emulated/0/Pictures"]?.gridMinCellSize)
+    }
+
+    @Test
+    fun `clearing path presentation removes both exact and recursive values`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updatePathPresentation(
+            "/storage/emulated/0/Download",
+            FileListingPreferences(sortOption = FileSortOption.NAME_DESC, viewMode = FileViewMode.GRID),
+            applyToSubfolders = true
+        )
+        repository.updatePathPresentation("/storage/emulated/0/Download", null, applyToSubfolders = false)
+
+        val preferences = repository.preferencesFlow.first()
+
+        assertEquals(null, preferences.pathPresentationOptions["/storage/emulated/0/Download"])
+        assertEquals(null, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"])
+    }
+
+    @Test
+    fun `updateLastOpenedLocation records opened folder activity when activity log is attached`() = runBlocking {
+        val activityDataStoreFile = File(
+            context.filesDir,
+            "datastore/activity-log-browser-prefs-test-${UUID.randomUUID()}.preferences_pb"
+        )
+        val activityDataStore = PreferenceDataStoreFactory.create(
+            scope = dataStoreScope,
+            produceFile = { activityDataStoreFile }
+        )
+        val activityLog = ActivityLogRepository(context, activityDataStore)
+        val repository = BrowserPreferencesDataSource(
+            context = context,
+            dataStore = dataStore,
+            activityLogRepository = activityLog
+        )
+
+        repository.updateLastOpenedLocation("/storage/emulated/0/Download", "primary")
+
+        val entry = activityLog.entries.first().single() as ActivityLogEntry.FolderOpened
+        assertEquals("/storage/emulated/0/Download", entry.path)
+        assertEquals("primary", entry.volumeId)
+        activityDataStoreFile.delete()
+        Unit
+    }
+
+    @Test
+    fun `invalid stored sort and view options fall back to defaults`() = runBlocking {
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("global_sort_option")] = "NOT_REAL"
+            prefs[stringPreferencesKey("global_view_mode")] = "NOPE"
+            prefs[floatPreferencesKey("global_list_zoom")] = 9f
+        }
+
+        val preferences = BrowserPreferencesDataSource(context, dataStore).preferencesFlow.first()
+
+        assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
+        assertEquals(FileViewMode.LIST, preferences.globalPresentation.viewMode)
+        assertEquals(FileListingPreferences.MAX_LIST_ZOOM, preferences.globalPresentation.listZoom)
+    }
+
+    @Test
+    fun `invalid stored album view option falls back to album default`() = runBlocking {
+        dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("album_view_mode")] = "NOPE"
+        }
+
+        val preferences = BrowserPreferencesDataSource(context, dataStore).preferencesFlow.first()
+
+        assertEquals(FileViewMode.GRID, preferences.albumPresentation.viewMode)
+    }
+
+    @Test
+    fun `home recent carousel limit is clamped when stored or updated`() = runBlocking {
+        dataStore.edit { prefs ->
+            prefs[intPreferencesKey("home_recent_carousel_limit")] = 200
+        }
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        assertEquals(48, repository.preferencesFlow.first().homeRecentCarouselLimit)
+
+        repository.updateHomeRecentCarouselLimit(-5)
+
+        assertEquals(0, repository.preferencesFlow.first().homeRecentCarouselLimit)
+    }
+
+    @Test
+    fun `show hidden files preference is persisted`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateShowHiddenFiles(true)
+
+        assertEquals(true, repository.preferencesFlow.first().showHiddenFiles)
+    }
+
+    @Test
+    fun `browser and gallery scrollbar preferences are persisted independently`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateBrowserScrollbarEnabled(false)
+        repository.updateGalleryScrollbarEnabled(true)
+
+        var preferences = repository.preferencesFlow.first()
+        assertEquals(false, preferences.browserScrollbarEnabled)
+        assertEquals(true, preferences.galleryScrollbarEnabled)
+
+        repository.updateBrowserScrollbarEnabled(true)
+        repository.updateGalleryScrollbarEnabled(false)
+
+        preferences = repository.preferencesFlow.first()
+        assertEquals(true, preferences.browserScrollbarEnabled)
+        assertEquals(false, preferences.galleryScrollbarEnabled)
+    }
+
+    @Test
+    fun `default save to arcile path is persisted and cleared`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateDefaultSaveToArcilePath("/storage/emulated/0/Download")
+
+        assertEquals("/storage/emulated/0/Download", repository.preferencesFlow.first().defaultSaveToArcilePath)
+
+        repository.updateDefaultSaveToArcilePath(null)
+
+        assertEquals(null, repository.preferencesFlow.first().defaultSaveToArcilePath)
+    }
+
+    @Test
+    fun `image gallery default tab preference is persisted`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateImageGalleryDefaultTab(ImageGalleryDefaultTab.ALBUMS)
+
+        assertEquals(ImageGalleryDefaultTab.ALBUMS, repository.preferencesFlow.first().imageGalleryDefaultTab)
+    }
+
+}

@@ -1,14 +1,63 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.2.0
-> **Last Updated:** 2026-06-21
+> **Version:** 1.5.0
+> **Last Updated:** 2026-07-13
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.5.0](#v150) | 2026-07-13 | Independent feature ownership, safer file workflows, viewer and sharing reliability, plugin distribution, and navigation fixes |
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v1.5.0
+
+**Release Date:** July 13, 2026
+
+**Previous public release:** v1.2.0
+
+**Unreleased development range included:** v1.2.1 through v1.5.0
+
+**Skipped public versions:** v1.3.0 and v1.4.0
+
+Arcile v1.5.0 consolidates the unreleased v1.2.x, v1.3.x, and v1.4.x development series into the first public release since v1.2.0. It focuses on independently owned features, safer storage and file handoffs, more dependable Gallery and viewer behavior, and startup, navigation, and feedback reliability.
+
+## What's New Since v1.2.0
+
+### Architecture & Startup Reliability
+- **Independent feature ownership:** Browser, Home, Gallery, Recents, Trash, Settings, onboarding, archives, storage tools, plugins, and shared-file imports now own their state and workflows through focused feature and core modules.
+- **Focused storage capabilities:** Browsing, mutations, media, volumes, Trash, preferences, authorization, and archive destinations use narrower storage contracts so unrelated workflows no longer share mutable state.
+- **Reliable startup and restoration:** Cold launches open Home predictably, Browser restoration starts only when Browser is entered, and loading or recovery failures provide dedicated retry states instead of crashing the initial screen.
+- **Lifecycle-safe authorization:** System file confirmations, settings pickers, and route-owned access survive lifecycle changes, reject stale results, and recover cleanly when access is denied or unavailable.
+
+### File Workflows, Search & Storage Safety
+- **Independent operations and feedback:** Concurrent Browser operations keep separate progress and results, cancelled work cleans staged data, and in-app feedback remains on the screen where its action originated.
+- **Safer destinations and imports:** Save-to-Arcile and archive workflows validate storage-owned paths, preserve readable-folder navigation, prevent writes to unavailable or read-only locations, and reject duplicate or stale import actions.
+- **Search and cache reliability:** Browser, Recents, and Trash prevent older searches from replacing newer results, while thumbnail, staging, and cleaner caches expose isolated loading, clearing, and failure states.
+- **Path and metadata correctness:** File names display consistently for Android and Windows-style paths, while image metadata editing is limited to supported, writable local files.
+
+### Gallery, Viewer & File Actions
+- **Complete viewer context:** Images open anchored to the selected item with the full ordered neighboring-image carousel, including images opened from Gallery, Browser, and Trash.
+- **Selection-safe viewer actions:** Gallery selection remains available in the viewer and is preserved correctly when an image is deleted or an operation fails.
+- **Trash-aware viewing:** Trash images open in Arcile's read-only viewer with applicable share and open-with actions, while unavailable edit or destructive actions remain hidden.
+- **Reliable multi-file sharing:** Android shares the complete selected batch with the required URI grants, and safely sends nothing if every selected file cannot be prepared.
+
+### Navigation, Quick Access & Interface Reliability
+- **Predictable back behavior:** Home now allows the system back gesture to close Arcile normally, while Browser and viewer returns retain the correct route, location, selection, and scroll context.
+- **Quick Access correctness:** Custom locations are normalized before saving, restricted shortcuts use persisted Android access, and each shortcut appears in one appropriate management section.
+- **Consistent file presentation:** Shared grids, lists, filters, range selection, thumbnails, fast scrolling, workflow dialogs, theming, and accessibility behavior now come from bounded reusable UI components.
+- **State-accurate storage tools:** Storage Cleaner, storage usage, Activity Log, Trash, archive, and cache controls keep their loading, empty, error, and action states independent.
+
+### Plugins & Distribution
+- **Optional plugin system:** Arcile retains signed plugin discovery, compatibility checks, management, and secure file handoff without embedding optional viewers in the main app.
+- **Standalone model viewer:** The bundled Arcile GLB Viewer and its install-catalog entry were removed because model viewing is now distributed as a separate standalone application.
+
+### Documentation & Verification
+- **Current project guidance:** README, website, development guidance, and release documentation now describe Arcile 1.5.0, the current modular ownership model, supported workflows, and focused module verification.
+- **Regression coverage:** Focused tests cover navigation, viewer datasets and deletion, sharing, imports, storage authorization, preferences, search ordering, cancellation cleanup, architecture boundaries, and startup behavior.
 
 ---
 

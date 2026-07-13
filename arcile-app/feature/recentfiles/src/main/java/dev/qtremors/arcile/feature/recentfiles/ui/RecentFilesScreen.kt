@@ -2,9 +2,6 @@ package dev.qtremors.arcile.feature.recentfiles.ui
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,11 +9,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -29,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
@@ -56,63 +54,68 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesState
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.SearchFiltersBottomSheet
-import dev.qtremors.arcile.shared.ui.SearchTopBar
-import dev.qtremors.arcile.shared.ui.SortOptionDialog
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.lists.ActiveFiltersRow
-import dev.qtremors.arcile.shared.ui.lists.FileGrid
-import dev.qtremors.arcile.shared.ui.lists.FileItemRow
-import dev.qtremors.arcile.shared.ui.lists.FileList
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.SearchFiltersSheet
+import dev.qtremors.arcile.core.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.SortOptionDialog
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
+import dev.qtremors.arcile.core.ui.lists.FileGrid
+import dev.qtremors.arcile.core.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.lists.FileList
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import kotlinx.coroutines.delay
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun RecentFilesScreen(
+internal fun RecentFilesScreen(
     state: RecentFilesState,
-    onNavigateBack: () -> Unit,
-    onOpenFile: (String) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onClearSelection: () -> Unit,
-    onRequestDeleteSelected: () -> Unit,
-    onConfirmDelete: () -> Unit,
-    onTogglePermanentDelete: () -> Unit,
-    onDismissDeleteConfirmation: () -> Unit,
-    onToggleShred: () -> Unit = {},
-    onShareSelected: () -> Unit,
-    onSelectAll: () -> Unit,
-    onRefresh: () -> Unit,
-    onClearError: () -> Unit = {},
-    onSearchQueryChange: (String) -> Unit = {},
-    onClearSearch: () -> Unit = {},
-    onSearchFiltersChange: (SearchFilters) -> Unit = {},
-    onPresentationChange: (BrowserPresentationPreferences) -> Unit = {},
-    onSelectMultiple: (List<String>) -> Unit = {},
-    onLoadMore: () -> Unit = {},
-    onOpenProperties: () -> Unit = {},
-    onDismissProperties: () -> Unit = {},
-    onOpenContainingFolder: (String) -> Unit = {},
-    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
-    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null
+    navigationActions: RecentNavigationActions,
+    selectionActions: RecentSelectionActions,
+    deleteActions: RecentDeleteActions,
+    searchActions: RecentSearchActions,
+    contentActions: RecentContentActions
 ) {
+    val onNavigateBack = navigationActions.navigateBack
+    val onOpenFile = navigationActions.openFile
+    val onOpenContainingFolder = navigationActions.openContainingFolder
+    val onToggleSelection = selectionActions.toggle
+    val onClearSelection = selectionActions.clear
+    val onShareSelected = selectionActions.share
+    val onSelectAll = selectionActions.selectAll
+    val onSelectMultiple = selectionActions.selectMultiple
+    val onOpenProperties = selectionActions.openProperties
+    val onDismissProperties = selectionActions.dismissProperties
+    val onRequestDeleteSelected = deleteActions.request
+    val onConfirmDelete = deleteActions.confirm
+    val onTogglePermanentDelete = deleteActions.togglePermanent
+    val onToggleShred = deleteActions.toggleShred
+    val onDismissDeleteConfirmation = deleteActions.dismissConfirmation
+    val onSearchQueryChange = searchActions.queryChange
+    val onClearSearch = searchActions.clear
+    val onSearchFiltersChange = searchActions.filtersChange
+    val onPresentationChange = searchActions.presentationChange
+    val onLoadMore = searchActions.loadMore
+    val onRefresh = contentActions.refresh
+    val onClearError = contentActions.clearError
+    val onFeedback = contentActions.feedback
     val haptics = rememberArcileHaptics()
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
@@ -120,28 +123,11 @@ fun RecentFilesScreen(
     val todayLabel = stringResource(R.string.today)
     val yesterdayLabel = stringResource(R.string.yesterday)
 
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            when (state.pendingNativeAction) {
-                dev.qtremors.arcile.feature.recentfiles.RecentNativeAction.TRASH -> onConfirmDelete()
-                null -> {}
-            }
-        }
-    }
-
-    LaunchedEffect(state.error) {
-        state.error?.let { errorMsg ->
+    LaunchedEffect(state.feedbackError) {
+        state.feedbackError?.let { errorMsg ->
             haptics.error()
             onFeedback(ArcileFeedbackEvent(errorMsg, ArcileFeedbackSeverity.Error))
             onClearError()
-        }
-    }
-
-    LaunchedEffect(nativeRequestFlow) {
-        nativeRequestFlow?.collect { sender ->
-            launcher.launch(IntentSenderRequest.Builder(sender).build())
         }
     }
 
@@ -174,66 +160,71 @@ fun RecentFilesScreen(
 
     val filesToDisplay = if (showSearchBar) state.searchResults else state.displayedRecentFiles
     Scaffold(
-        modifier = Modifier.graphicsLayer {
-            if (isBackPredicting) {
-                val scale = 1f - (backProgress * 0.08f)
-                scaleX = scale
-                scaleY = scale
-                translationX = backProgress * 100.dp.toPx()
-                alpha = 1f - (backProgress * 0.4f)
-            }
-        },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
-            when {
-                isSelectionMode -> RecentSelectionTopBar(
-                    selectedCount = state.selectedFiles.size,
-                    selectedSize = dev.qtremors.arcile.utils.formatFileSize(state.selectedFilesTotalSize),
-                    onClearSelection = onClearSelection
-                )
-                showSearchBar -> Column {
-                    SearchTopBar(
-                        query = state.searchQuery,
-                        onQueryChange = onSearchQueryChange,
-                        onClose = {
-                            showSearchBar = false
-                            onClearSearch()
-                        },
-                        onFilterClick = { showFilterSheet = true },
-                        placeholder = stringResource(R.string.search_recent_files_placeholder)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        if (isBackPredicting) {
+                            translationY = -backProgress * size.height.toFloat()
+                            alpha = 1f - backProgress
+                        }
+                    }
+            ) {
+                when {
+                    isSelectionMode -> RecentSelectionTopBar(
+                        selectedCount = state.selectedFiles.size,
+                        selectedSize = dev.qtremors.arcile.core.presentation.formatFileSize(state.selectedFilesTotalSize),
+                        onClearSelection = onClearSelection
                     )
-                    ActiveFiltersRow(
-                        filters = state.activeSearchFilters,
-                        onClearFilter = onSearchFiltersChange
-                    )
-                }
-                else -> Column {
-                    TopAppBar(
-                        title = { Text(stringResource(R.string.recent_files_title)) },
-                        navigationIcon = {
-                            IconButton(onClick = onNavigateBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                            }
-                        },
-                        actions = {
-                            SplitButtonGroup(
-                                actions = listOf(
-                                    ToolbarAction(
-                                        icon = Icons.Default.Search,
-                                        contentDescription = stringResource(R.string.action_search),
-                                        onClick = { showSearchBar = true }
-                                    ),
-                                    ToolbarAction(
-                                        icon = Icons.AutoMirrored.Filled.Sort,
-                                        contentDescription = stringResource(R.string.action_sort),
-                                        onClick = { showPresentationSheet = true }
+                    showSearchBar -> Column {
+                        SearchTopBar(
+                            query = state.searchQuery,
+                            onQueryChange = onSearchQueryChange,
+                            onClose = {
+                                showSearchBar = false
+                                onClearSearch()
+                            },
+                            onFilterClick = { showFilterSheet = true },
+                            placeholder = stringResource(R.string.search_recent_files_placeholder)
+                        )
+                        ActiveFiltersRow(
+                            filters = state.activeSearchFilters,
+                            onClearFilter = onSearchFiltersChange
+                        )
+                    }
+                    else -> Column {
+                        TopAppBar(
+                            title = { Text(stringResource(R.string.recent_files_title)) },
+                            navigationIcon = {
+                                IconButton(
+                                    onClick = onNavigateBack,
+                                    modifier = Modifier.clip(CircleShape)
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                                }
+                            },
+                            actions = {
+                                SplitButtonGroup(
+                                    actions = listOf(
+                                        ToolbarAction(
+                                            icon = Icons.Default.Search,
+                                            contentDescription = stringResource(R.string.action_search),
+                                            onClick = { showSearchBar = true }
+                                        ),
+                                        ToolbarAction(
+                                            icon = Icons.AutoMirrored.Filled.Sort,
+                                            contentDescription = stringResource(R.string.action_sort),
+                                            onClick = { showPresentationSheet = true }
+                                        )
                                     )
                                 )
-                            )
-                        },
-                        scrollBehavior = scrollBehavior
-                    )
+                            },
+                            scrollBehavior = scrollBehavior
+                        )
+                    }
                 }
             }
         }
@@ -311,16 +302,27 @@ fun RecentFilesScreen(
                         }
                     }
 
-                    RecentSelectionToolbar(
-                        isVisible = isSelectionMode,
-                        selectedFiles = state.selectedFiles,
-                        contentPadding = PaddingValues(),
-                        onSelectAll = onSelectAll,
-                        onShareSelected = onShareSelected,
-                        onRequestDeleteSelected = onRequestDeleteSelected,
-                        onOpenProperties = onOpenProperties,
-                        onOpenContainingFolder = onOpenContainingFolder
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                if (isBackPredicting && isSelectionMode) {
+                                    translationY = backProgress * 150.dp.toPx()
+                                    alpha = 1f - backProgress
+                                }
+                            }
+                    ) {
+                        RecentSelectionToolbar(
+                            isVisible = isSelectionMode,
+                            selectedFiles = state.selectedFiles,
+                            contentPadding = PaddingValues(),
+                            onSelectAll = onSelectAll,
+                            onShareSelected = onShareSelected,
+                            onRequestDeleteSelected = onRequestDeleteSelected,
+                            onOpenProperties = onOpenProperties,
+                            onOpenContainingFolder = onOpenContainingFolder
+                        )
+                    }
                 }
             }
         }
@@ -364,7 +366,7 @@ fun RecentFilesScreen(
     }
 
     if (showFilterSheet) {
-        SearchFiltersBottomSheet(
+        SearchFiltersSheet(
             currentFilters = state.activeSearchFilters,
             onApplyFilters = onSearchFiltersChange,
             onDismiss = { showFilterSheet = false },
@@ -378,7 +380,17 @@ fun RecentFilesScreen(
             selectedPreferences = state.presentation,
             showApplyToSubfolders = false,
             onDismiss = { showPresentationSheet = false },
-            onApply = { preferences, _ -> onPresentationChange(preferences) }
+            onApply = { preferences, _ -> onPresentationChange(preferences) },
+            minDateMillis = state.activeSearchFilters.minDateMillis,
+            maxDateMillis = state.activeSearchFilters.maxDateMillis,
+            onDateRangeChange = { minDate, maxDate ->
+                onSearchFiltersChange(state.activeSearchFilters.copy(minDateMillis = minDate, maxDateMillis = maxDate))
+            },
+            minSize = state.activeSearchFilters.minSize,
+            maxSize = state.activeSearchFilters.maxSize,
+            onSizeRangeChange = { minSizeVal, maxSizeVal ->
+                onSearchFiltersChange(state.activeSearchFilters.copy(minSize = minSizeVal, maxSize = maxSizeVal))
+            }
         )
     }
 

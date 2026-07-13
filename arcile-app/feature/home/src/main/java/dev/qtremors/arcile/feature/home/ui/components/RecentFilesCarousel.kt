@@ -1,0 +1,467 @@
+package dev.qtremors.arcile.feature.home.ui.components
+
+import android.net.Uri
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.request.CachePolicy
+import coil.request.ImageRequest
+import coil.size.Precision
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.storagePathName
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.image.ThumbnailType
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import java.io.File
+import kotlin.math.roundToInt
+
+private const val HomeRecentFilesCarouselWidthFraction = 0.5f
+private const val HomeRecentFilesCarouselHeightRatio = 1.25f
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun RecentFilesCarousel(
+    files: List<FileModel>,
+    onOpenFile: (String) -> Unit,
+    onNavigateToPath: (String) -> Unit,
+    onShareFile: (String) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current.density
+    val primaryWidth = configuration.screenWidthDp.dp / 2
+    val itemHeight = primaryWidth * 1.25f
+    val renderedThumbnailSizePx = remember(configuration.screenWidthDp, density) {
+        homeCarouselRenderedThumbnailSizePx(
+            screenWidthDp = configuration.screenWidthDp,
+            density = density
+        )
+    }
+
+    val state = rememberCarouselState { files.size }
+    HorizontalMultiBrowseCarousel(
+        state = state,
+        preferredItemWidth = primaryWidth,
+        modifier = modifier.fillMaxWidth(),
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        itemSpacing = 8.dp
+    ) { index ->
+        val file = files[index]
+        RecentFileCarouselItem(
+            file = file,
+            onClick = { onOpenFile(file.absolutePath) },
+            onNavigateToPath = onNavigateToPath,
+            onShareFile = onShareFile,
+            itemHeight = itemHeight,
+            renderedThumbnailSizePx = renderedThumbnailSizePx,
+            modifier = Modifier.maskClip(RoundedCornerShape(24.dp))
+        )
+    }
+}
+
+@Composable
+internal fun RecentFileCarouselItem(
+    file: FileModel,
+    onClick: () -> Unit,
+    onNavigateToPath: (String) -> Unit,
+    onShareFile: (String) -> Unit,
+    itemHeight: androidx.compose.ui.unit.Dp,
+    renderedThumbnailSizePx: Int,
+    modifier: Modifier = Modifier
+) {
+    val extension = file.extension.lowercase()
+    val previewAccent = previewAccentFor(file)
+    val previewIcon = dev.qtremors.arcile.core.ui.getFileIconVector(file)
+    val context = LocalContext.current
+    val thumbnailPolicy = remember { ThumbnailPolicy() }
+    val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {
+        ThumbnailKey.from(file)
+    }
+    val thumbnailSizePx = remember(renderedThumbnailSizePx, thumbnailKey.type) {
+        homeCarouselThumbnailSizePx(renderedThumbnailSizePx, thumbnailKey.type)
+    }
+    val usesFullBleedThumbnail = !file.isDirectory && thumbnailKey.type != ThumbnailType.Unsupported
+    val thumbnailData = remember(thumbnailKey) {
+        homeThumbnailRequestData(file, thumbnailKey)
+    }
+    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size, thumbnailSizePx) {
+        homeThumbnailCacheKey(file, thumbnailSizePx)
+    }
+    val thumbnailRequest = remember(thumbnailData, thumbnailSizePx, thumbnailCacheKey) {
+        ImageRequest.Builder(context)
+            .data(thumbnailData)
+            .size(thumbnailSizePx)
+            .precision(Precision.INEXACT)
+            .memoryCacheKey(thumbnailCacheKey)
+            .diskCacheKey(thumbnailCacheKey)
+            .memoryCachePolicy(CachePolicy.ENABLED)
+            .diskCachePolicy(CachePolicy.ENABLED)
+            .networkCachePolicy(CachePolicy.DISABLED)
+            .crossfade(false)
+            .build()
+    }
+
+    Card(
+        modifier = modifier
+            .height(itemHeight)
+            .bounceClickable { onClick() },
+        shape = RoundedCornerShape(0.dp), // Let maskClip handle the shape
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (usesFullBleedThumbnail) {
+                ThumbnailFallback(icon = previewIcon)
+                AsyncImage(
+                    model = thumbnailRequest,
+                    contentDescription = stringResource(R.string.desc_thumbnail),
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onLoading = {
+                        thumbnailPolicy.recordInFlight(thumbnailKey, thumbnailSizePx)
+                    },
+                    onSuccess = {
+                        thumbnailPolicy.clearFailure(thumbnailKey)
+                        thumbnailPolicy.recordLoaded(thumbnailKey, thumbnailSizePx)
+                    },
+                    onError = {
+                        thumbnailPolicy.recordFailure(thumbnailKey, thumbnailSizePx)
+                    }
+                )
+            } else {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(
+                                    previewAccent.copy(alpha = 0.28f),
+                                    MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    MaterialTheme.colorScheme.surfaceContainer
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(28.dp),
+                        color = previewAccent.copy(alpha = 0.16f),
+                        modifier = Modifier.size(104.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = previewIcon,
+                                contentDescription = null,
+                                tint = previewAccent,
+                                modifier = Modifier.size(56.dp)
+                            )
+                        }
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 92.dp)
+                    ) {
+                        Text(
+                            text = fileTypeLabel(file),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = previewAccent,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                        )
+                    }
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(80.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.7f))
+                        )
+                    )
+            )
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomStart)
+                    .padding(12.dp)
+            ) {
+                Text(
+                    text = file.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val parentFolderName = storageParentPath(file.absolutePath)
+                    ?.let(::storagePathName)
+                    ?: stringResource(R.string.unknown_folder)
+                Text(
+                    text = parentFolderName,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.White.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            var showMenu by remember { mutableStateOf(false) }
+
+            FileTypeBadge(
+                icon = previewIcon,
+                tint = if (usesFullBleedThumbnail) Color.White else previewAccent,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(8.dp)
+            )
+            
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+            ) {
+                Surface(
+                    onClick = { showMenu = true },
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.4f),
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.MoreVert,
+                            contentDescription = stringResource(R.string.action_more_options),
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+                
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                ) {
+                    val menuActions = remember(onClick, file, onNavigateToPath, onShareFile) {
+                        mutableListOf<@Composable () -> Unit>().apply {
+                            add {
+                                ArcileDropdownMenuItem(
+                                    text = { Text(stringResource(R.string.open)) },
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onClick()
+                                    }
+                                )
+                            }
+                            add {
+                                ArcileDropdownMenuItem(
+                                    text = { Text(stringResource(R.string.open_containing_folder)) },
+                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        storageParentPath(file.absolutePath)?.let(onNavigateToPath)
+                                    }
+                                )
+                            }
+                            add {
+                                ArcileDropdownMenuItem(
+                                    text = { Text(stringResource(R.string.share)) },
+                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onShareFile(file.absolutePath)
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    menuActions.forEachIndexed { index, action ->
+                        val shape = when {
+                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                            else -> MaterialTheme.shapes.menuGroupMiddle
+                        }
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                .clip(shape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                        ) {
+                            action()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ThumbnailFallback(
+    icon: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.28f),
+            modifier = Modifier.size(48.dp)
+        )
+    }
+}
+
+@Composable
+private fun FileTypeBadge(
+    icon: ImageVector,
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.4f),
+        modifier = modifier.size(32.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = tint,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+internal fun homeCarouselRenderedThumbnailSizePx(screenWidthDp: Int, density: Float): Int {
+    val safeScreenWidthDp = screenWidthDp.coerceAtLeast(1)
+    val safeDensity = density.takeIf { it.isFinite() && it > 0f } ?: 1f
+    val widthPx = safeScreenWidthDp * HomeRecentFilesCarouselWidthFraction * safeDensity
+    val heightPx = widthPx * HomeRecentFilesCarouselHeightRatio
+    return ThumbnailTargetSize.fromBounds(
+        widthPx = widthPx.roundToInt(),
+        heightPx = heightPx.roundToInt(),
+        maxPx = ThumbnailTargetSize.MAX_PX
+    )
+}
+
+internal fun homeCarouselThumbnailSizePx(renderedSizePx: Int, type: ThumbnailType): Int =
+    ThumbnailTargetSize.fromBounds(
+        widthPx = renderedSizePx,
+        maxPx = if (type == ThumbnailType.Image) {
+            ThumbnailTargetSize.MAX_PX
+        } else {
+            ThumbnailTargetSize.MAX_EXPENSIVE_PX
+        }
+    )
+
+internal fun homeThumbnailRequestData(file: FileModel, thumbnailKey: ThumbnailKey): Any =
+    when (thumbnailKey.type) {
+        ThumbnailType.Audio,
+        ThumbnailType.Video,
+        ThumbnailType.Pdf,
+        ThumbnailType.Apk -> thumbnailKey
+        ThumbnailType.Image -> thumbnailKey.contentUri
+            ?.takeIf { it.isNotBlank() }
+            ?.let(Uri::parse)
+            ?: File(file.absolutePath)
+        ThumbnailType.Unsupported -> File(file.absolutePath)
+    }
+
+internal fun homeThumbnailCacheKey(file: FileModel, thumbnailSizePx: Int): String =
+    ThumbnailKey.from(file).variantKey(thumbnailSizePx).cacheKey
+
+@Composable
+private fun previewAccentFor(file: FileModel): Color {
+    val scheme = MaterialTheme.colorScheme
+    val ext = file.extension.lowercase()
+    return when {
+        file.isDirectory -> scheme.primary
+        FileCategories.APKs.extensions.contains(ext) -> scheme.tertiary
+        FileCategories.Archives.extensions.contains(ext) -> scheme.secondary
+        FileCategories.Audio.extensions.contains(ext) -> scheme.primary
+        FileCategories.Documents.extensions.contains(ext) -> scheme.error
+        else -> scheme.onSurfaceVariant
+    }
+}
+
+@Composable
+private fun fileTypeLabel(file: FileModel): String {
+    if (file.isDirectory) return stringResource(R.string.file_type_folder)
+    return file.extension
+        .takeIf { it.isNotBlank() }
+        ?.uppercase()
+        ?: stringResource(R.string.file_type_generic)
+}

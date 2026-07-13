@@ -15,6 +15,7 @@ class AppRoutesTest {
         assertEquals(AppRoutes.Tools, json.decodeFromString<AppRoutes.Tools>(json.encodeToString(AppRoutes.Tools)))
         assertEquals(AppRoutes.ActivityLog, json.decodeFromString<AppRoutes.ActivityLog>(json.encodeToString(AppRoutes.ActivityLog)))
         assertEquals(AppRoutes.Settings, json.decodeFromString<AppRoutes.Settings>(json.encodeToString(AppRoutes.Settings)))
+        assertEquals(AppRoutes.Plugins, json.decodeFromString<AppRoutes.Plugins>(json.encodeToString(AppRoutes.Plugins)))
         assertEquals(AppRoutes.Trash, json.decodeFromString<AppRoutes.Trash>(json.encodeToString(AppRoutes.Trash)))
         assertEquals(
             AppRoutes.StorageManagement,

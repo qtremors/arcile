@@ -11,7 +11,7 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
@@ -50,7 +50,7 @@ class StorageCleanerPreferencesRepository(
         }
         .map { prefs ->
             prefs[rulesKey]
-                ?.let { encoded -> runCatching { json.decodeFromString<StorageCleanerRules>(encoded) }.getOrNull() }
+                ?.let { encoded -> runCatchingPreservingCancellation { json.decodeFromString<StorageCleanerRules>(encoded) }.getOrNull() }
                 ?.normalized()
                 ?: StorageCleanerRules()
         }
@@ -81,7 +81,7 @@ class StorageCleanerPreferencesRepository(
     private suspend fun mutateRules(transform: (StorageCleanerRules) -> StorageCleanerRules) {
         dataStore.edit { prefs ->
             val current = prefs[rulesKey]
-                ?.let { encoded -> runCatching { json.decodeFromString<StorageCleanerRules>(encoded) }.getOrNull() }
+                ?.let { encoded -> runCatchingPreservingCancellation { json.decodeFromString<StorageCleanerRules>(encoded) }.getOrNull() }
                 ?.normalized()
                 ?: StorageCleanerRules()
             prefs[rulesKey] = json.encodeToString(transform(current).normalized())

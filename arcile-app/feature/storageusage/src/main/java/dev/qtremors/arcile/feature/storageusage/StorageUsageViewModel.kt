@@ -16,7 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.isIndexed
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -25,7 +25,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-data class StorageUsageUiState(
+internal data class StorageUsageUiState(
     val selectedVolumeId: String? = null,
     val rootVolume: StorageVolume? = null,
     val scanState: StorageUsageScanState = StorageUsageScanState.Idle,
@@ -37,7 +37,7 @@ data class StorageUsageUiState(
 )
 
 @HiltViewModel
-class StorageUsageViewModel @Inject constructor(
+internal class StorageUsageViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val scanner: StorageUsageScanner,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,

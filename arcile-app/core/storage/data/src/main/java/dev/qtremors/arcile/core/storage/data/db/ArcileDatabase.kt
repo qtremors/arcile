@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.db
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
@@ -55,7 +56,7 @@ abstract class ArcileDatabase : RoomDatabase() {
             if (marker.exists()) return
 
             context.deleteDatabase(DATABASE_NAME)
-            runCatching {
+            runCatchingPreservingCancellation {
                 marker.parentFile?.mkdirs()
                 marker.writeText("1")
             }

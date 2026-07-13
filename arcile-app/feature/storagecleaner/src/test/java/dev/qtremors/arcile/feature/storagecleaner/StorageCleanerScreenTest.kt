@@ -20,9 +20,12 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerBackAction
+import dev.qtremors.arcile.feature.storagecleaner.ui.CleanerCandidateRow
+import dev.qtremors.arcile.feature.storagecleaner.ui.DuplicateGroupCard
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
+import dev.qtremors.arcile.feature.storagecleaner.ui.cleanFilePath
 import dev.qtremors.arcile.feature.storagecleaner.ui.resolveStorageCleanerBackAction
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -36,6 +39,59 @@ class StorageCleanerScreenTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun `cleaner path only removes the primary storage prefix`() {
+        assertEquals("Download/report.pdf", cleanFilePath("/storage/emulated/0/Download/report.pdf"))
+        assertEquals("", cleanFilePath("/storage/emulated/0"))
+        assertEquals(
+            "/mnt/media_rw/storage/emulated/0/report.pdf",
+            cleanFilePath("/mnt/media_rw/storage/emulated/0/report.pdf")
+        )
+    }
+
+    @Test
+    fun `empty duplicate group renders safely`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                DuplicateGroupCard(
+                    filesInGroup = emptyList(),
+                    selectedFiles = emptySet(),
+                    onSelectedFilesChange = {},
+                    onCompare = {}
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+    }
+
+    @Test
+    fun `candidate checkbox invokes one selection callback`() {
+        val file = CleanerCandidate(
+            name = "single.txt",
+            absolutePath = "/storage/emulated/0/single.txt",
+            size = 1L,
+            lastModified = 0L,
+            groupTypes = setOf(CleanerGroupType.Junk)
+        )
+        var callbackCount = 0
+        composeRule.setContent {
+            ArcileTestTheme {
+                CleanerCandidateRow(
+                    file = file,
+                    selected = false,
+                    onToggle = { callbackCount += 1 }
+                )
+            }
+        }
+
+        composeRule.onNode(hasTestTag("checkbox_${file.absolutePath}")).performClick()
+
+        composeRule.runOnIdle {
+            assertEquals(1, callbackCount)
+        }
+    }
 
     @Test
     fun `cleaner back priority dismisses local state before navigation`() {

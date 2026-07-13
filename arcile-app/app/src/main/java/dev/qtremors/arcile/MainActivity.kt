@@ -6,8 +6,6 @@ import android.os.Process
 import android.os.StrictMode
 import android.os.Trace
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -20,27 +18,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import android.net.Uri
-import dev.qtremors.arcile.backup.PreferencesBackupItemStatus
-import dev.qtremors.arcile.backup.PreferencesBackupManager
-import dev.qtremors.arcile.backup.PreferencesBackupOperationResult
-import dev.qtremors.arcile.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.presentation.MainViewModel
-import dev.qtremors.arcile.feature.onboarding.OnboardingStep
-import dev.qtremors.arcile.feature.onboarding.OnboardingViewModel
+import dev.qtremors.arcile.feature.onboarding.OnboardingRoute
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
-import dev.qtremors.arcile.presentation.utils.ExternalFileAccessHelper
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
-import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
-import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreFailure
-import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreItem
-import dev.qtremors.arcile.feature.onboarding.ui.OnboardingRestoreState
-import dev.qtremors.arcile.ui.theme.ArcileTheme
-import dev.qtremors.arcile.ui.theme.ThemePreferences
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ArcileTheme
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
@@ -62,14 +49,10 @@ class MainActivity : ComponentActivity() {
     @Inject
     lateinit var onboardingPreferencesStore: OnboardingPreferencesStore
 
-    @Inject
-    lateinit var preferencesBackupManager: PreferencesBackupManager
-
-    private companion object {
-        const val FULL_FEATURE_ANDROID_SDK = Build.VERSION_CODES.R
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
+        val appLaunchContext = (application as ArcileApp)
+            .appSessionTracker
+            .onMainActivityCreated(hasSavedInstanceState = savedInstanceState != null)
         installDebugStrictMode()
         val splashScreen = traceStartupSection("Arcile.installSplashScreen") {
             installSplashScreen()
@@ -100,148 +83,50 @@ class MainActivity : ComponentActivity() {
         
         traceStartupSection("Arcile.setContent") {
             setContent {
-            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(initialValue = ThemeState())
-            val onboardingPreferences by produceState<OnboardingPreferences?>(initialValue = null) {
-                onboardingPreferencesStore.preferencesFlow.collect { value = it }
-            }
-            val onboardingViewModel: OnboardingViewModel = androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel()
-            val onboardingState by onboardingViewModel.state.collectAsStateWithLifecycle()
-            val coroutineScope = rememberCoroutineScope()
-            val notificationPermissionRequired = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
-            val hasNotificationPermission = !notificationPermissionRequired ||
-                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            val notificationLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission()
-            ) {
-                onboardingViewModel.handleNotificationPermissionResult()
-            }
-            var onboardingRestoreState by remember { mutableStateOf<OnboardingRestoreState>(OnboardingRestoreState.Idle) }
-            var pendingOnboardingRestoreUri by remember { mutableStateOf<Uri?>(null) }
-            val restoreBackupLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.OpenDocument()
-            ) { uri ->
-                if (uri != null) {
-                    pendingOnboardingRestoreUri = uri
-                    onboardingRestoreState = OnboardingRestoreState.Busy
-                    coroutineScope.launch {
-                        preferencesBackupManager.preview(uri).fold(
-                            onSuccess = { preview ->
-                                onboardingRestoreState = preview.toOnboardingRestorePreview()
+                val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
+                    initialValue = ThemeState()
+                )
+                val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
+                val coroutineScope = rememberCoroutineScope()
+
+                ArcileTheme(themeState = themeState) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background
+                    ) {
+                        OnboardingRoute(
+                            currentThemeState = themeState,
+                            onThemeChange = { newState ->
+                                coroutineScope.launch {
+                                    themePreferences.saveThemeState(newState)
+                                }
                             },
-                            onFailure = { error ->
-                                pendingOnboardingRestoreUri = null
-                                onboardingRestoreState = OnboardingRestoreState.Failed(error.message ?: getString(R.string.settings_backup_failed_title))
-                            }
-                        )
-                    }
-                }
-            }
-
-            ArcileTheme(themeState = themeState) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
-
-                    LaunchedEffect(hasPermission, hasNotificationPermission, notificationPermissionRequired) {
-                        onboardingViewModel.updatePermissionState(
                             hasStoragePermission = hasPermission,
-                            hasNotificationPermission = hasNotificationPermission,
-                            notificationPermissionRequired = notificationPermissionRequired
-                        )
-                    }
-
-                    val preferences = onboardingPreferences
-                    val isOnboardingCompletedForThisRun = preferences?.isCompleted == true
-
-                    LaunchedEffect(preferences?.isCompleted, hasPermission, onboardingState.step) {
-                        if (preferences != null &&
-                            !preferences.isCompleted &&
-                            hasPermission &&
-                            onboardingState.step == OnboardingStep.WelcomeAndFeatures
-                        ) {
-                            onboardingViewModel.markExistingUserCompleted()
-                        }
-                    }
-
-                    val shouldAutoCompleteExistingUser = preferences != null &&
-                        !preferences.isCompleted &&
-                        hasPermission &&
-                        onboardingState.step == OnboardingStep.WelcomeAndFeatures
-
-                    if (preferences == null) {
-                        // Keep the themed surface blank until DataStore emits. This prevents a
-                        // completed user from seeing the first onboarding page for one frame.
-                    } else if (!isOnboardingCompletedForThisRun && !shouldAutoCompleteExistingUser) {
-                        OnboardingScreen(
-                            state = onboardingState,
-                            currentThemeState = themeState,
-                            onThemeChange = { newState ->
-                                coroutineScope.launch {
-                                    themePreferences.saveThemeState(newState)
-                                }
+                            onOpenStoragePermissionSettings = ::requestStoragePermission,
+                            onRestartApp = ::restartApp,
+                            appContent = {
+                                ArcileAppShell(
+                                    appLaunchContext = appLaunchContext,
+                                    currentThemeState = themeState,
+                                    onThemeChange = { newState ->
+                                        coroutineScope.launch {
+                                            themePreferences.saveThemeState(newState)
+                                        }
+                                    },
+                                    onOpenFile = ::openFile,
+                                    onOpenFileWith = ::openFileWith,
+                                    onRestartApp = ::restartApp
+                                )
                             },
-                            onNext = { onboardingViewModel.next() },
-                            onBack = { onboardingViewModel.back() },
-                            onStepSelected = { step -> onboardingViewModel.setStep(step) },
-                            onOpenStoragePermissionSettings = { requestStoragePermission() },
-                            onRequestNotificationPermission = {
-                                if (notificationPermissionRequired) {
-                                    notificationLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                                } else {
-                                    onboardingViewModel.handleNotificationPermissionResult()
-                                }
-                            },
-                            showOlderAndroidWarning = Build.VERSION.SDK_INT < FULL_FEATURE_ANDROID_SDK,
-                            restoreState = onboardingRestoreState,
-                            onChooseRestoreBackup = {
-                                restoreBackupLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
-                            },
-                            onApplyRestoreBackup = {
-                                val uri = pendingOnboardingRestoreUri
-                                if (uri != null) {
-                                    onboardingRestoreState = OnboardingRestoreState.Busy
-                                    coroutineScope.launch {
-                                        preferencesBackupManager.restoreFrom(uri).fold(
-                                            onSuccess = { result ->
-                                                onboardingRestoreState = result.toOnboardingRestoreRestored()
-                                            },
-                                            onFailure = { error ->
-                                                onboardingRestoreState = OnboardingRestoreState.Failed(error.message ?: getString(R.string.settings_backup_failed_title))
-                                            }
-                                        )
-                                    }
-                                }
-                            },
-                            onDismissRestoreBackup = {
-                                pendingOnboardingRestoreUri = null
-                                onboardingRestoreState = OnboardingRestoreState.Idle
-                            },
-                            onRestartApp = { restartApp() }
-                        )
-                    } else if (hasPermission) {
-                        ArcileAppShell(
-                            currentThemeState = themeState,
-                            onThemeChange = { newState ->
-                                coroutineScope.launch {
-                                    themePreferences.saveThemeState(newState)
-                                }
-                            },
-                            onOpenFile = { path -> openFile(path) },
-                            onOpenFileWith = { path -> openFileWith(path) },
-                            onRestartApp = { restartApp() }
-                        )
-                    } else {
-                        PermissionRequestScreen(
-                            onRequestPermission = {
-                                requestStoragePermission()
+                            permissionContent = {
+                                PermissionRequestScreen(
+                                    onRequestPermission = ::requestStoragePermission
+                                )
                             }
                         )
                     }
                 }
             }
-        }
         }
     }
 
@@ -362,38 +247,5 @@ class MainActivity : ComponentActivity() {
     private fun String.isContentReference(): Boolean =
         runCatching { android.net.Uri.parse(this).scheme == "content" }.getOrDefault(false)
 
-    private fun PreferencesBackupPreview.toOnboardingRestorePreview(): OnboardingRestoreState.Preview =
-        OnboardingRestoreState.Preview(
-            items = items.map { item ->
-                OnboardingRestoreItem(
-                    label = item.label,
-                    status = item.status.toBackupStatusLabel()
-                )
-            }
-        )
-
-    private fun PreferencesBackupOperationResult.toOnboardingRestoreRestored(): OnboardingRestoreState.Restored =
-        OnboardingRestoreState.Restored(
-            items = items.map { item ->
-                OnboardingRestoreItem(
-                    label = item.label,
-                    status = item.status.toBackupStatusLabel()
-                )
-            },
-            failures = failures.map { failure ->
-                OnboardingRestoreFailure(
-                    label = failure.label,
-                    message = failure.message
-                )
-            }
-        )
-
-    private fun PreferencesBackupItemStatus.toBackupStatusLabel(): String = when (this) {
-        PreferencesBackupItemStatus.Exported -> getString(R.string.settings_backup_status_exported)
-        PreferencesBackupItemStatus.WillRestore -> getString(R.string.settings_backup_status_will_restore)
-        PreferencesBackupItemStatus.WillReset -> getString(R.string.settings_backup_status_will_reset)
-        PreferencesBackupItemStatus.Restored -> getString(R.string.settings_backup_status_restored)
-        PreferencesBackupItemStatus.Reset -> getString(R.string.settings_backup_status_reset)
-    }
 }
 

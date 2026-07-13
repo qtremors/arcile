@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
+import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
@@ -15,7 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.io.IOException
 import java.util.UUID
@@ -253,7 +254,7 @@ class DefaultArchiveManager(
         try {
             Result.success(block())
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             val message = e.message.orEmpty()
             val friendly = when {
                 message.contains("password", ignoreCase = true) ||

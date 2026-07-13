@@ -37,8 +37,7 @@ dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
-    implementation(project(":core:operation"))
-    implementation(project(":core:presentation:api"))
+    implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))
 
@@ -50,6 +49,7 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.hilt.lifecycle.viewmodel.compose)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.collections.immutable)
     implementation(libs.hilt.android)

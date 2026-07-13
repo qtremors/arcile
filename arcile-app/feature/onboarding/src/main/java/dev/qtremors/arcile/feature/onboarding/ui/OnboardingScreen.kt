@@ -84,16 +84,18 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
-import dev.qtremors.arcile.shared.ui.settings.AccentColorPickerSheet
-import dev.qtremors.arcile.shared.ui.settings.accentLabelRes
-import dev.qtremors.arcile.shared.ui.settings.ThemeModeSelector
-import dev.qtremors.arcile.ui.theme.ThemeState
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
+import dev.qtremors.arcile.core.ui.settings.AccentColorPickerSheet
+import dev.qtremors.arcile.core.ui.settings.accentLabelRes
+import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
+import androidx.activity.compose.PredictiveBackHandler
+import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.spacing
 import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun OnboardingScreen(
+internal fun OnboardingScreen(
     state: OnboardingUiState,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
@@ -139,6 +141,21 @@ fun OnboardingScreen(
                 page = targetPage,
                 animationSpec = tween(durationMillis = 420)
             )
+        }
+    }
+
+    PredictiveBackHandler(enabled = pagerState.currentPage > 0) { progressFlow ->
+        var completed = false
+        try {
+            progressFlow.collect { backEvent ->
+                pagerState.scrollToPage(page = 0, pageOffsetFraction = 1f - backEvent.progress)
+            }
+            completed = true
+            onBack()
+        } finally {
+            if (!completed) {
+                pagerState.animateScrollToPage(1)
+            }
         }
     }
 
@@ -212,21 +229,3 @@ fun OnboardingScreen(
         onRestartApp = onRestartApp
     )
 }
-
-sealed interface OnboardingRestoreState {
-    data object Idle : OnboardingRestoreState
-    data object Busy : OnboardingRestoreState
-    data class Preview(val items: List<OnboardingRestoreItem>) : OnboardingRestoreState
-    data class Restored(val items: List<OnboardingRestoreItem>, val failures: List<OnboardingRestoreFailure>) : OnboardingRestoreState
-    data class Failed(val message: String) : OnboardingRestoreState
-}
-
-data class OnboardingRestoreItem(
-    val label: String,
-    val status: String
-)
-
-data class OnboardingRestoreFailure(
-    val label: String,
-    val message: String
-)

@@ -111,21 +111,24 @@ internal object PropertiesScanner {
     private fun listChildren(file: File): Array<File>? =
         try {
             file.listFiles()
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
             null
         }
 
     private fun safeLength(file: File): Long =
         try {
             file.length().coerceAtLeast(0L)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
             0L
         }
 
     private fun safeLastModified(file: File): Long? =
         try {
             file.lastModified().takeIf { it > 0L }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
             null
         }
 

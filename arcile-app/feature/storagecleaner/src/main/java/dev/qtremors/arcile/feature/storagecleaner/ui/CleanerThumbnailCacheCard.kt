@@ -15,30 +15,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import coil.annotation.ExperimentalCoilApi
-import coil.imageLoader
+import dev.qtremors.arcile.feature.storagecleaner.CleanerThumbnailCacheState
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.GlobalThumbnailFailureCache
-import dev.qtremors.arcile.image.GlobalThumbnailLoadStateStore
-import dev.qtremors.arcile.image.GlobalThumbnailStatePersistence
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.utils.formatFileSize
-import java.io.File
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
+import dev.qtremors.arcile.core.presentation.formatFileSize
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -46,19 +31,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 
-@OptIn(ExperimentalCoilApi::class)
 @Composable
-internal fun CleanerThumbnailCacheCard() {
-    val context = LocalContext.current
+internal fun CleanerThumbnailCacheCard(
+    state: CleanerThumbnailCacheState,
+    onClear: () -> Unit
+) {
     val haptics = rememberArcileHaptics()
-    val coroutineScope = rememberCoroutineScope()
-    var stats by remember { mutableStateOf(CleanerThumbnailCacheStats()) }
-
-    LaunchedEffect(context) {
-        stats = withContext(Dispatchers.IO) {
-            loadCleanerThumbnailCacheStats(context)
-        }
-    }
 
     Card(
         modifier = Modifier
@@ -97,10 +75,10 @@ internal fun CleanerThumbnailCacheCard() {
                 Text(
                     text = stringResource(
                         R.string.settings_thumbnail_cache_stats,
-                        formatFileSize(stats.diskBytes),
-                        stats.loadedCount,
-                        stats.failedCount,
-                        stats.inFlightCount
+                        formatFileSize(state.stats.diskBytes),
+                        state.stats.loadedCount,
+                        state.stats.failedCount,
+                        state.stats.inFlightCount
                     ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -108,46 +86,13 @@ internal fun CleanerThumbnailCacheCard() {
             }
             TextButton(
                 onClick = {
-                    coroutineScope.launch {
-                        haptics.selectionChanged()
-                        context.imageLoader.memoryCache?.clear()
-                        withContext(Dispatchers.IO) {
-                            context.imageLoader.diskCache?.clear()
-                            GlobalThumbnailFailureCache.clear()
-                            GlobalThumbnailLoadStateStore.clear()
-                            GlobalThumbnailStatePersistence.delegate?.clear()
-                        }
-                        stats = withContext(Dispatchers.IO) {
-                            loadCleanerThumbnailCacheStats(context)
-                        }
-                    }
-                }
+                    haptics.selectionChanged()
+                    onClear()
+                },
+                enabled = !state.isLoading && !state.isClearing
             ) {
                 Text(stringResource(R.string.settings_clear_thumbnail_cache))
             }
         }
     }
-}
-
-private data class CleanerThumbnailCacheStats(
-    val diskBytes: Long = 0L,
-    val loadedCount: Int = 0,
-    val failedCount: Int = 0,
-    val inFlightCount: Int = 0
-)
-
-private fun loadCleanerThumbnailCacheStats(context: android.content.Context): CleanerThumbnailCacheStats {
-    val loadStateStats = GlobalThumbnailLoadStateStore.stats()
-    return CleanerThumbnailCacheStats(
-        diskBytes = context.cacheDir.resolve("image_cache").directorySize(),
-        loadedCount = loadStateStats.loadedCount,
-        failedCount = loadStateStats.failedCount,
-        inFlightCount = loadStateStats.inFlightCount
-    )
-}
-
-private fun File.directorySize(): Long {
-    if (!exists()) return 0L
-    if (isFile) return length()
-    return listFiles()?.sumOf { it.directorySize() } ?: 0L
 }

@@ -5,13 +5,13 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FolderStats
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.shared.presentation.FolderTab
-import dev.qtremors.arcile.shared.presentation.buildFolderTabs
-import dev.qtremors.arcile.shared.presentation.filterAndSortFiles
-import dev.qtremors.arcile.shared.presentation.filterFilesByFolderTab
-import dev.qtremors.arcile.shared.ui.lists.FileRowUiModel
-import dev.qtremors.arcile.shared.ui.lists.toFileRowUiModel
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.presentation.FolderTab
+import dev.qtremors.arcile.core.presentation.buildFolderTabs
+import dev.qtremors.arcile.core.presentation.filterAndSortFiles
+import dev.qtremors.arcile.core.presentation.filterFilesByFolderTab
+import dev.qtremors.arcile.core.ui.lists.FileRowUiModel
+import dev.qtremors.arcile.core.ui.lists.toFileRowUiModel
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
@@ -23,7 +23,7 @@ import java.util.Locale
 import kotlin.math.roundToInt
 
 @Immutable
-data class BrowserDisplayState(
+internal data class BrowserDisplayState(
     val visibleFiles: PersistentList<FileModel> = persistentListOf(),
     val visibleListRows: PersistentList<FileRowUiModel> = persistentListOf(),
     val visibleGridRows: PersistentList<FileRowUiModel> = persistentListOf(),
@@ -35,7 +35,7 @@ data class BrowserDisplayState(
     val existingNames: PersistentSet<String> = persistentSetOf()
 )
 
-fun buildBrowserDisplayState(
+internal fun buildBrowserDisplayState(
     files: List<FileModel>,
     sortOption: FileSortOption,
     selectedFolderTabPath: String?,

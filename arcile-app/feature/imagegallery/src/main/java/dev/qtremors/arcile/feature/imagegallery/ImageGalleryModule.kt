@@ -8,8 +8,14 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-interface ImageGalleryModule {
+internal interface ImageGalleryModule {
     @Binds
     @Singleton
     fun bindImageGalleryRepository(repository: DefaultImageGalleryRepository): ImageGalleryRepository
+
+    @Binds
+    @Singleton
+    fun bindImageMetadataRepository(
+        repository: DefaultImageMetadataRepository
+    ): ImageMetadataRepository
 }

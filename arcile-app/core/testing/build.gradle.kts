@@ -15,7 +15,7 @@ kotlin {
 
 dependencies {
     api(project(":core:storage:domain"))
-    api(project(":core:operation"))
+    api(project(":core:operation:api"))
 
     api(libs.junit)
     api(libs.kotlinx.coroutines.test)

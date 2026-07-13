@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 120
-        versionName = "1.2.0"
+        versionCode = 150
+        versionName = "1.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -111,8 +111,9 @@ dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
-    implementation(project(":core:operation"))
-    implementation(project(":core:presentation:api"))
+    implementation(project(":core:operation:android"))
+    implementation(project(":core:plugin:android"))
+    implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:storage:data"))
     implementation(project(":core:ui"))
@@ -125,6 +126,12 @@ dependencies {
     implementation(project(":feature:quickaccess"))
     implementation(project(":feature:storagecleaner"))
     implementation(project(":feature:storageusage"))
+    implementation(project(":feature:home"))
+    implementation(project(":feature:settings"))
+    implementation(project(":feature:activitylog"))
+    implementation(project(":feature:plugins"))
+    implementation(project(":feature:import"))
+    implementation(project(":plugin-api"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

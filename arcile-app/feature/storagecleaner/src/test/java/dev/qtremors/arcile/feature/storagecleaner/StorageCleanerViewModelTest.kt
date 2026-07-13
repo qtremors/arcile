@@ -15,9 +15,12 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.ui.image.ThumbnailCacheService
+import dev.qtremors.arcile.core.ui.image.ThumbnailCacheStats
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +29,7 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -88,6 +92,26 @@ class FakeStorageCleanerPreferencesStore(
 
     override suspend fun resetSection(type: CleanerGroupType) {
         rules.value = rules.value.withSection(type, CleanerSectionRule())
+    }
+}
+
+private class FakeThumbnailCacheService(
+    var currentStats: ThumbnailCacheStats = ThumbnailCacheStats()
+) : ThumbnailCacheService {
+    var statsCalls = 0
+    var clearCalls = 0
+    var clearGate: CompletableDeferred<Unit>? = null
+
+    override suspend fun stats(): Result<ThumbnailCacheStats> {
+        statsCalls++
+        return Result.success(currentStats)
+    }
+
+    override suspend fun clear(): Result<ThumbnailCacheStats> {
+        clearCalls++
+        clearGate?.await()
+        currentStats = ThumbnailCacheStats()
+        return Result.success(currentStats)
     }
 }
 
@@ -358,6 +382,41 @@ class StorageCleanerViewModelTest {
 
         assertEquals(listOf(changedPath), fakeScanner.invalidatedPaths.last())
         assertTrue(fakeScanner.scannedRules.size > initialScanCount)
+    }
+
+    @Test
+    fun `thumbnail cache state is loaded and duplicate clear requests are ignored`() = runTest(dispatcher) {
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume("internal", File("internal"), StorageKind.INTERNAL))
+        )
+        val cache = FakeThumbnailCacheService(
+            ThumbnailCacheStats(diskBytes = 512L, loadedCount = 3, failedCount = 1)
+        )
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore,
+            thumbnailCacheService = cache
+        )
+        advanceUntilIdle()
+
+        assertEquals(512L, viewModel.state.value.thumbnailCache.stats.diskBytes)
+        assertFalse(viewModel.state.value.thumbnailCache.isLoading)
+
+        cache.clearGate = CompletableDeferred()
+        viewModel.clearThumbnailCache()
+        viewModel.clearThumbnailCache()
+        runCurrent()
+
+        assertEquals(1, cache.clearCalls)
+        assertTrue(viewModel.state.value.thumbnailCache.isClearing)
+
+        cache.clearGate?.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(0L, viewModel.state.value.thumbnailCache.stats.diskBytes)
+        assertFalse(viewModel.state.value.thumbnailCache.isClearing)
     }
 
     private fun volume(id: String, root: File, kind: StorageKind) = testVolume(

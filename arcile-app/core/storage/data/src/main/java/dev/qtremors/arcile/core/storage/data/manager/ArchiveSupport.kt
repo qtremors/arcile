@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.storage.data.source.FileConflictNameGenerator
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -158,7 +159,7 @@ internal fun prepareFileTarget(
 
 internal fun cleanupCreatedOutputs(createdOutputs: Set<File>) {
     createdOutputs.toList().asReversed().forEach { output ->
-        runCatching {
+        runCatchingPreservingCancellation {
             if (output.exists()) {
                 if (output.isDirectory) output.deleteRecursively() else output.delete()
             }
@@ -187,7 +188,7 @@ internal fun rememberReplacementBackup(target: File, replacementBackups: Mutable
 
 internal fun cleanupReplacementBackups(replacementBackups: Map<File, File>) {
     replacementBackups.values.forEach { backup ->
-        runCatching {
+        runCatchingPreservingCancellation {
             if (backup.exists()) {
                 if (backup.isDirectory) backup.deleteRecursively() else backup.delete()
             }
@@ -197,7 +198,7 @@ internal fun cleanupReplacementBackups(replacementBackups: Map<File, File>) {
 
 internal fun restoreReplacementBackups(replacementBackups: Map<File, File>) {
     replacementBackups.entries.toList().asReversed().forEach { (target, backup) ->
-        runCatching {
+        runCatchingPreservingCancellation {
             if (backup.exists()) {
                 if (backup.isDirectory) {
                     if (target.exists()) target.deleteRecursively()

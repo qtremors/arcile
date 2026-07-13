@@ -39,18 +39,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.util.Calendar
 import java.util.Date
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TrashList(
+internal fun TrashList(
     files: List<TrashMetadata>,
     selectedFiles: Set<String>,
     onToggleSelection: (String) -> Unit,
+    onOpenFile: (FileModel) -> Unit,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy \u2022 HH:mm")
@@ -75,7 +78,14 @@ fun TrashList(
                 key = { it.id },
                 contentType = { if (it.fileModel.isDirectory) "trash_directory" else "trash_file" }
             ) { trashItem ->
-                TrashRow(trashItem, selectedFiles.contains(trashItem.id), formatter, onToggleSelection)
+                TrashRow(
+                    trashItem = trashItem,
+                    isSelected = selectedFiles.contains(trashItem.id),
+                    isSelectionMode = selectedFiles.isNotEmpty(),
+                    formatter = formatter,
+                    onToggleSelection = onToggleSelection,
+                    onOpenFile = onOpenFile
+                )
             }
         }
     }
@@ -86,15 +96,24 @@ fun TrashList(
 private fun TrashRow(
     trashItem: TrashMetadata,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     formatter: java.text.DateFormat,
-    onToggleSelection: (String) -> Unit
+    onToggleSelection: (String) -> Unit,
+    onOpenFile: (FileModel) -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 6.dp)
+            .clip(MaterialTheme.shapes.large)
             .combinedClickable(
-                onClick = { onToggleSelection(trashItem.id) },
+                onClick = {
+                    if (isSelectionMode || trashItem.fileModel.isDirectory) {
+                        onToggleSelection(trashItem.id)
+                    } else {
+                        onOpenFile(trashItem.fileModel)
+                    }
+                },
                 onLongClick = { onToggleSelection(trashItem.id) }
             ),
         shape = MaterialTheme.shapes.large,
@@ -123,7 +142,7 @@ private fun TrashRow(
                         error = {
                             androidx.compose.foundation.layout.Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
                                 androidx.compose.material3.Icon(
-                                    imageVector = dev.qtremors.arcile.shared.ui.getFileIconVector(file),
+                                    imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(file),
                                     contentDescription = null,
                                     tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.size(24.dp)
@@ -133,7 +152,7 @@ private fun TrashRow(
                     )
                 } else {
                     androidx.compose.material3.Icon(
-                        imageVector = dev.qtremors.arcile.shared.ui.getFileIconVector(file),
+                        imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(file),
                         contentDescription = null,
                         tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(40.dp)
@@ -156,11 +175,10 @@ private fun TrashRow(
                         dev.qtremors.arcile.core.storage.domain.StorageKind.EXTERNAL_UNCLASSIFIED -> stringResource(R.string.external_unclassified)
                         else -> stringResource(R.string.otg_usb)
                     }
-                    val parentPath = if (trashItem.originalPath.contains("/")) {
-                        trashItem.originalPath.substringBeforeLast("/")
-                    } else {
-                        trashItem.originalPath.ifBlank { stringResource(R.string.trash_original_unavailable) }
-                    }
+                    val parentPath = storageParentPath(trashItem.originalPath)
+                        ?: trashItem.originalPath.ifBlank {
+                            stringResource(R.string.trash_original_unavailable)
+                        }
                     Text(
                         text = stringResource(R.string.trash_original_location, sourceVolumeStr, parentPath),
                         style = MaterialTheme.typography.bodySmall,

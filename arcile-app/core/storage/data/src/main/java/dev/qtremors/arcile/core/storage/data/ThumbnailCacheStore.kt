@@ -3,7 +3,7 @@ package dev.qtremors.arcile.core.storage.data
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailDao
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailEntryEntity
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailVariantEntity
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject

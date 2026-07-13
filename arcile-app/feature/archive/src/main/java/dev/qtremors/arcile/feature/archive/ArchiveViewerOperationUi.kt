@@ -24,7 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -44,7 +44,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
@@ -76,19 +75,20 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
-import dev.qtremors.arcile.feature.archive.ArchiveOperationUiState
+import dev.qtremors.arcile.core.presentation.OperationUiState
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.shared.ui.ConflictCard
-import dev.qtremors.arcile.utils.formatFileSize
-import java.io.File
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ConflictCard
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -97,8 +97,8 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
 @Composable
-fun ArchiveOperationCard(
-    operation: ArchiveOperationUiState,
+internal fun ArchiveOperationCard(
+    operation: OperationUiState,
     onCancel: () -> Unit
 ) {
     val progress = operation.totalItems.takeIf { it > 0 }
@@ -110,8 +110,7 @@ fun ArchiveOperationCard(
         stringResource(R.string.file_operation_extracting_archive)
     }
     val currentName = operation.currentPath
-        ?.substringAfterLast('/')
-        ?.substringAfterLast(File.separatorChar)
+        ?.let(::storagePathName)
         ?.takeIf { it.isNotBlank() }
     ElevatedCard(
         modifier = Modifier
@@ -129,7 +128,8 @@ fun ArchiveOperationCard(
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 TextButton(
                     enabled = !operation.isCancelling && operation.terminalStatus == null,
-                    onClick = onCancel
+                    onClick = onCancel,
+                    shape = ExpressiveShapes.medium
                 ) {
                     Text(stringResource(R.string.cancel))
                 }

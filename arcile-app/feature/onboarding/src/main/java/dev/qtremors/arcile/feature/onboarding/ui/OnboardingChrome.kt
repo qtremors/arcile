@@ -29,12 +29,17 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,7 +54,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 
 @Composable
 internal fun OnboardingHeader(
@@ -58,6 +63,7 @@ internal fun OnboardingHeader(
     currentPage: Int,
     onBack: () -> Unit
 ) {
+    val haptics = rememberArcileHaptics()
     val actionWidth = 104.dp
     val actionPadding = PaddingValues(horizontal = 8.dp)
 
@@ -79,13 +85,18 @@ internal fun OnboardingHeader(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (state.step != OnboardingStep.WelcomeAndFeatures && state.step != OnboardingStep.Done) {
+                    val backClick = {
+                        haptics.selectionChanged()
+                        onBack()
+                    }
                     FilledTonalButton(
-                        onClick = onBack,
+                        onClick = backClick,
                         contentPadding = PaddingValues(start = 8.dp, end = 12.dp),
                         modifier = Modifier
                             .width(actionWidth)
-                            .defaultMinSize(minHeight = 44.dp),
-                        shape = CircleShape
+                            .defaultMinSize(minHeight = 44.dp)
+                            .bounceClickable(onClick = backClick),
+                        shape = ExpressiveShapes.medium
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -141,6 +152,7 @@ internal fun OnboardingBottomBar(
     state: OnboardingUiState,
     onNext: () -> Unit
 ) {
+    val haptics = rememberArcileHaptics()
     val buttonText = when (state.step) {
         OnboardingStep.SetupPermissions -> stringResource(R.string.onboarding_finish)
         OnboardingStep.Done -> stringResource(R.string.onboarding_finish)
@@ -168,13 +180,29 @@ internal fun OnboardingBottomBar(
                 textAlign = TextAlign.Center
             )
         }
+        val nextClick = {
+            haptics.selectionChanged()
+            onNext()
+        }
+        val isFinish = state.step == OnboardingStep.SetupPermissions || state.step == OnboardingStep.Done
         Button(
-            onClick = onNext,
+            onClick = nextClick,
             enabled = isEnabled,
+            shape = ExpressiveShapes.medium,
             modifier = Modifier
                 .fillMaxWidth()
                 .defaultMinSize(minHeight = 56.dp)
+                .bounceClickable(
+                    enabled = isEnabled,
+                    onClick = nextClick
+                )
         ) {
+            Icon(
+                imageVector = if (isFinish) Icons.Default.Check else Icons.Default.ArrowForward,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
             Text(buttonText)
         }
     }

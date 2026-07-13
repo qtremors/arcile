@@ -3,8 +3,9 @@ package dev.qtremors.arcile.presentation.utils
 import android.content.Context
 import android.content.ClipData
 import android.content.Intent
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import java.util.ArrayList
 
 object ShareHelper {
@@ -26,19 +27,26 @@ object ShareHelper {
             if (targets.isEmpty()) return false
             val uris = ArrayList(targets.map { it.uri })
 
-            val intent = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+            val isMultiple = targets.size > 1
+            val intent = Intent(
+                if (isMultiple) Intent.ACTION_SEND_MULTIPLE else Intent.ACTION_SEND
+            ).apply {
                 type = commonMimeType(targets.map { it.mimeType })
-                putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
-                if (targets.size == 1) {
+                if (isMultiple) {
+                    putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
+                } else {
+                    putExtra(Intent.EXTRA_STREAM, uris.single())
                     putExtra(Intent.EXTRA_TITLE, targets.single().displayName)
                     putExtra(Intent.EXTRA_SUBJECT, targets.single().displayName)
                 }
-                clipData = shareClipData(targets)
-                flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                clipData = shareClipData(context, targets)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
 
             val chooser = Intent.createChooser(intent, context.getString(R.string.share_files_via))
-            chooser.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            chooser.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
             context.startActivity(chooser)
             return true
         } catch (e: Exception) {
@@ -48,15 +56,14 @@ object ShareHelper {
         }
     }
 
-    private fun shareClipData(targets: List<ExternalFileAccessHelper.ShareTarget>): ClipData {
+    private fun shareClipData(
+        context: Context,
+        targets: List<ExternalFileAccessHelper.ShareTarget>
+    ): ClipData {
         val first = targets.first()
-        return ClipData(
-            first.displayName,
-            arrayOf(first.mimeType),
-            ClipData.Item(first.displayName, null, null, first.uri)
-        ).apply {
+        return ClipData.newUri(context.contentResolver, first.displayName, first.uri).apply {
             targets.drop(1).forEach { target ->
-                addItem(ClipData.Item(target.displayName, null, null, target.uri))
+                addItem(ClipData.Item(target.uri))
             }
         }
     }

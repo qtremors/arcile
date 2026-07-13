@@ -4,6 +4,13 @@ import kotlinx.serialization.Serializable
 
 object AppRoutes {
     const val IMAGE_VIEWER_CONTEXT_PATHS_KEY = "imageViewerContextPaths"
+    const val IMAGE_VIEWER_CONTEXT_NAMES_KEY = "imageViewerContextNames"
+    const val IMAGE_VIEWER_CONTEXT_EXTENSIONS_KEY = "imageViewerContextExtensions"
+    const val IMAGE_VIEWER_CONTEXT_MIME_TYPES_KEY = "imageViewerContextMimeTypes"
+    const val IMAGE_VIEWER_CONTEXT_SIZES_KEY = "imageViewerContextSizes"
+    const val IMAGE_VIEWER_CONTEXT_MODIFIED_KEY = "imageViewerContextModified"
+    const val IMAGE_VIEWER_SELECTION_PATHS_KEY = "imageViewerSelectionPaths"
+    const val IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY = "imageViewerReturnSelectionPaths"
 
     @Serializable data class Main(
         val initialPage: Int = 0,
@@ -25,6 +32,7 @@ object AppRoutes {
     @Serializable object Tools
     @Serializable object ActivityLog
     @Serializable object Settings
+    @Serializable object Plugins
     @Serializable object Trash
     @Serializable data class RecentFiles(val volumeId: String? = null)
     @Serializable data class ImageGallery(val volumeId: String? = null)
@@ -33,7 +41,8 @@ object AppRoutes {
         val albumPath: String? = null,
         val searchQuery: String? = null,
         val volumeId: String? = null,
-        val returnToBrowserPage: Boolean = false
+        val returnToBrowserPage: Boolean = false,
+        val managedTrash: Boolean = false
     )
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner

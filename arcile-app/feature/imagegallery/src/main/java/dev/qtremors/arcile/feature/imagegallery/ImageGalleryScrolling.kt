@@ -6,7 +6,6 @@ import androidx.activity.compose.PredictiveBackHandler
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -28,7 +27,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.foundation.clickable
-import dev.qtremors.arcile.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -80,7 +79,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.scrollBy
-import dev.qtremors.arcile.shared.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
@@ -109,12 +108,9 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -165,297 +161,40 @@ import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Precision
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.ArchiveEntryThumbnailData
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailPolicy
-import dev.qtremors.arcile.image.ThumbnailTargetSize
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.shared.ui.EmptyState
-import dev.qtremors.arcile.shared.ui.EmptyStateVariant
-import dev.qtremors.arcile.shared.ui.FloatingSelectionToolbar
-import dev.qtremors.arcile.shared.ui.ToolbarAction
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
-import dev.qtremors.arcile.shared.ui.rememberDateTimeFormatter
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.shared.ui.dialogs.RenameDialog
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.ui.theme.menuGroupLast
-import dev.qtremors.arcile.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
+import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-
-interface ScrollbarState {
-    val firstVisibleItemIndex: Int
-    val totalItemsCount: Int
-    val firstVisibleItemScrollOffset: Int
-    val isScrollInProgress: Boolean
-    suspend fun scrollToItem(index: Int)
-    suspend fun scrollBy(value: Float): Float
-}
-
-class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
-    override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
-    override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
-    override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
-    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
-    override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
-    override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
-}
-
-class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
-    override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
-    override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
-    override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
-    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
-    override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
-    override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
-}
-
-class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : ScrollbarState {
-    override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
-    override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
-    override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
-    override val isScrollInProgress: Boolean get() = state.isScrollInProgress
-    override suspend fun scrollToItem(index: Int) = state.scrollToItem(index)
-    override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
-}
-
-@Composable
-fun FastScrollbar(
-    scrollbarState: ScrollbarState,
-    displayedFiles: List<FileModel>,
-    modifier: Modifier = Modifier,
-    contentPadding: PaddingValues = PaddingValues()
-) {
-    val totalItems = scrollbarState.totalItemsCount
-    if (totalItems <= 1) return
-
-    val firstVisibleIndex = scrollbarState.firstVisibleItemIndex
-    val firstVisibleOffset = scrollbarState.firstVisibleItemScrollOffset
-
-    var isDragging by remember { mutableStateOf(false) }
-    var isPressed by remember { mutableStateOf(false) }
-    var dragPositionFraction by remember { mutableStateOf(0f) }
-
-    val coroutineScope = rememberCoroutineScope()
-
-    val scrollFraction = remember(firstVisibleIndex, firstVisibleOffset, totalItems) {
-        if (totalItems > 1) {
-            firstVisibleIndex.toFloat() / (totalItems - 1).toFloat()
-        } else {
-            0f
-        }
-    }
-
-    val activeFraction = if (isDragging) dragPositionFraction else scrollFraction
-
-    val targetIndex = (activeFraction * (displayedFiles.size - 1)).toInt().coerceIn(0, displayedFiles.size - 1)
-    val targetFile = displayedFiles.getOrNull(targetIndex)
-    val formatter = remember { java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault()) }
-    val dateText = remember(targetFile) {
-        if (targetFile != null) {
-            formatter.format(java.util.Date(targetFile.lastModified))
-        } else {
-            ""
-        }
-    }
-
-    val thumbWidth by animateDpAsState(
-        targetValue = if (isDragging) 10.dp else 6.dp,
-        label = "scrollbarThumbWidth"
-    )
-    val thumbColor by animateColorAsState(
-        targetValue = if (isDragging) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-        label = "scrollbarThumbColor"
-    )
-
-    val tooltipAlpha by animateFloatAsState(
-        targetValue = if ((isDragging || isPressed) && dateText.isNotEmpty()) 1f else 0f,
-        label = "scrollbarTooltipAlpha"
-    )
-    val scrollbarAlpha by animateFloatAsState(
-        targetValue = if (isDragging || isPressed || scrollbarState.isScrollInProgress) 1f else 0f,
-        label = "scrollbarAlpha"
-    )
-
-    BoxWithConstraints(
-        modifier = modifier
-            .width(24.dp)
-            .padding(contentPadding)
-            .graphicsLayer { alpha = scrollbarAlpha }
-    ) {
-        val trackHeight = maxHeight
-
-        val dragModifier = Modifier.pointerInput(totalItems) {
-            detectDragGestures(
-                onDragStart = { offset ->
-                    isDragging = true
-                    isPressed = true
-                    val y = offset.y.coerceIn(0f, size.height.toFloat())
-                    dragPositionFraction = y / size.height.toFloat()
-                    val targetIdx = (dragPositionFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
-                    coroutineScope.launch {
-                        scrollbarState.scrollToItem(targetIdx)
-                    }
-                },
-                onDragEnd = {
-                    isDragging = false
-                    isPressed = false
-                },
-                onDragCancel = {
-                    isDragging = false
-                    isPressed = false
-                },
-                onDrag = { change, dragAmount ->
-                    change.consume()
-                    val currentY = change.position.y.coerceIn(0f, size.height.toFloat())
-                    dragPositionFraction = currentY / size.height.toFloat()
-                    val targetIdx = (dragPositionFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
-                    coroutineScope.launch {
-                        scrollbarState.scrollToItem(targetIdx)
-                    }
-                }
-            )
-        }.pointerInput(totalItems) {
-            detectTapGestures(
-                onPress = {
-                    isPressed = true
-                    try {
-                        awaitRelease()
-                    } finally {
-                        isPressed = false
-                    }
-                },
-                onTap = { offset ->
-                    val y = offset.y.coerceIn(0f, size.height.toFloat())
-                    val tapFraction = y / size.height.toFloat()
-                    val targetIdx = (tapFraction * (totalItems - 1)).toInt().coerceIn(0, totalItems - 1)
-                    coroutineScope.launch {
-                        scrollbarState.scrollToItem(targetIdx)
-                    }
-                }
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .width(24.dp)
-                .align(Alignment.CenterEnd)
-                .then(dragModifier)
-        ) {
-            if (isDragging || isPressed) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .width(4.dp)
-                        .align(Alignment.CenterEnd)
-                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f), CircleShape)
-                )
-            }
-
-            val thumbHeight = 24.dp
-            val maxOffset = trackHeight - thumbHeight
-            val thumbOffset = maxOffset * activeFraction
-
-            Canvas(
-                modifier = Modifier
-                    .offset(y = thumbOffset)
-                    .size(24.dp)
-                    .align(Alignment.TopEnd)
-                    .graphicsLayer {
-                        compositingStrategy = CompositingStrategy.Offscreen
-                    }
-            ) {
-                val cx = size.width / 2f
-                val cy = size.height / 2f
-                val outerRadiusPx = size.width / 2f
-                val holeRadiusPx = outerRadiusPx * 0.2f
-                
-                val rotationAngle = activeFraction * 360f * 4f
-                
-                rotate(degrees = rotationAngle, pivot = Offset(cx, cy)) {
-                    val path = Path()
-                    val numLobes = 12
-                    val amplitude = outerRadiusPx * 0.08f
-                    val steps = 120
-                    for (i in 0..steps) {
-                        val angle = (i * 2f * Math.PI / steps).toFloat()
-                        val r = outerRadiusPx - amplitude + amplitude * cos(numLobes * angle)
-                        val x = cx + r * cos(angle)
-                        val y = cy + r * sin(angle)
-                        if (i == 0) {
-                            path.moveTo(x, y)
-                        } else {
-                            path.lineTo(x, y)
-                        }
-                    }
-                    path.close()
-                    drawPath(path, color = thumbColor)
-                    
-                    drawCircle(
-                        color = Color.Transparent,
-                        radius = holeRadiusPx,
-                        center = Offset(cx, cy),
-                        blendMode = BlendMode.Clear
-                    )
-                }
-            }
-
-            if (tooltipAlpha > 0f) {
-                val tooltipOffset = thumbOffset + (thumbHeight / 2) - 20.dp
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    ),
-                    shape = WavyShape(numLobes = 12, amplitudeFraction = 0.06f),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                    modifier = Modifier
-                        .offset(
-                            x = (-132).dp,
-                            y = tooltipOffset
-                        )
-                        .requiredWidthIn(min = 112.dp, max = 156.dp)
-                        .graphicsLayer {
-                            alpha = tooltipAlpha
-                            scaleX = tooltipAlpha
-                            scaleY = tooltipAlpha
-                        }
-                        .align(Alignment.TopEnd)
-                ) {
-                    Text(
-                        text = dateText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-enum class GalleryViewState {
+internal enum class GalleryViewState {
     PHOTOS_TAB, ALBUMS_TAB_GRID, ALBUM_PHOTOS
 }
-
-fun Modifier.pinchToResize(
+internal fun Modifier.pinchToResize(
     currentCellSize: Float,
     minSize: Float = 96f,
     maxSize: Float = 256f,
@@ -486,38 +225,5 @@ fun Modifier.pinchToResize(
             val finalSize = (startCellSize * accumulatedScale).coerceIn(minSize, maxSize)
             onSizeFinalized(finalSize)
         }
-    }
-}
-
-class WavyShape(
-    private val numLobes: Int = 12,
-    private val amplitudeFraction: Float = 0.08f
-) : Shape {
-    override fun createOutline(
-        size: Size,
-        layoutDirection: LayoutDirection,
-        density: Density
-    ): Outline {
-        val cx = size.width / 2f
-        val cy = size.height / 2f
-        val rBase = minOf(size.width, size.height) / 2f
-        val amplitude = rBase * amplitudeFraction
-        val path = Path()
-        val steps = 180
-        for (i in 0..steps) {
-            val angle = (i * 2f * Math.PI / steps).toFloat()
-            val r = rBase - amplitude + amplitude * cos(numLobes * angle)
-            val rx = r * cos(angle)
-            val ry = r * sin(angle)
-            val x = cx + rx * (size.width / (rBase * 2f))
-            val y = cy + ry * (size.height / (rBase * 2f))
-            if (i == 0) {
-                path.moveTo(x, y)
-            } else {
-                path.lineTo(x, y)
-            }
-        }
-        path.close()
-        return Outline.Generic(path)
     }
 }

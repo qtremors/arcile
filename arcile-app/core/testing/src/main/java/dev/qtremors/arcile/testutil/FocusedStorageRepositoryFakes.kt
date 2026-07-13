@@ -25,11 +25,11 @@ import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
+import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
-import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import kotlinx.coroutines.flow.Flow
@@ -216,210 +216,6 @@ class FakeClipboardRepository : ClipboardRepository {
     }
 }
 
-class FakeTrashRepository : TrashRepository {
-    var moveToTrashResultProvider: (suspend (List<String>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
-    var restoreFromTrashResultProvider: (suspend (List<String>, String?) -> Result<Unit>)? = null
-    var emptyTrashResult: Result<Unit> = Result.failure(NotImplementedError())
-    var trashFilesResult: Result<List<TrashMetadata>> = Result.failure(NotImplementedError())
-    var deletePermanentlyFromTrashResult: Result<Unit> = Result.failure(NotImplementedError())
-
-    val moveToTrashRequests = mutableListOf<List<String>>()
-    val restoreFromTrashRequests = mutableListOf<RestoreRequest>()
-    val emptyTrashCalls = mutableListOf<Unit>()
-    val deletePermanentlyFromTrashRequests = mutableListOf<List<String>>()
-
-    data class RestoreRequest(val trashIds: List<String>, val destinationPath: String?)
-
-    override suspend fun moveToTrash(
-        paths: List<String>,
-        onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> {
-        moveToTrashRequests += paths
-        return moveToTrashResultProvider?.invoke(paths, onProgress) ?: Result.success(Unit)
-    }
-
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> {
-        restoreFromTrashRequests += RestoreRequest(trashIds, destinationPath)
-        return restoreFromTrashResultProvider?.invoke(trashIds, destinationPath) ?: Result.success(Unit)
-    }
-
-    override suspend fun emptyTrash(): Result<Unit> {
-        emptyTrashCalls += Unit
-        return emptyTrashResult
-    }
-
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = trashFilesResult
-
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> {
-        deletePermanentlyFromTrashRequests += trashIds
-        return deletePermanentlyFromTrashResult
-    }
-}
-
-class FakeArchiveRepository : ArchiveRepository {
-    var archiveEntriesResultProvider: (suspend (String, String?, ArchiveNameEncoding) -> Result<List<ArchiveEntryModel>>)? = null
-    var archiveMetadataResultProvider: (suspend (String, String?, ArchiveNameEncoding) -> Result<ArchiveSummary>)? = null
-    var detectArchiveConflictsResultProvider: (suspend (String, String, String?, String?, ArchiveNameEncoding) -> Result<List<FileConflict>>)? = null
-    var extractArchiveResultProvider: (suspend (String, String, String?, String?, ArchiveNameEncoding, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
-    var createArchiveResultProvider: (suspend (List<String>, String, ArchiveFormat, String?, ArchiveNameEncoding, ArchiveCompressionLevel, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
-
-    val extractArchiveRequests = mutableListOf<ArchiveExtractRequest>()
-    val createArchiveRequests = mutableListOf<ArchiveCreateRequest>()
-
-    data class ArchiveExtractRequest(
-        val archivePath: String,
-        val destinationPath: String,
-        val entryPrefix: String?,
-        val password: String?,
-        val nameEncoding: ArchiveNameEncoding,
-        val resolutions: Map<String, ConflictResolution>
-    )
-    data class ArchiveCreateRequest(
-        val sourcePaths: List<String>,
-        val destinationArchivePath: String,
-        val format: ArchiveFormat,
-        val password: String?,
-        val nameEncoding: ArchiveNameEncoding,
-        val compressionLevel: ArchiveCompressionLevel
-    )
-
-    override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> =
-        listArchiveEntries(archivePath, null, ArchiveNameEncoding.UTF_8)
-
-    override suspend fun listArchiveEntries(archivePath: String, password: String?): Result<List<ArchiveEntryModel>> =
-        listArchiveEntries(archivePath, password, ArchiveNameEncoding.UTF_8)
-
-    override suspend fun listArchiveEntries(
-        archivePath: String,
-        password: String?,
-        nameEncoding: ArchiveNameEncoding
-    ): Result<List<ArchiveEntryModel>> =
-        archiveEntriesResultProvider?.invoke(archivePath, password, nameEncoding) ?: Result.success(emptyList())
-
-    override suspend fun getArchiveMetadata(archivePath: String): Result<ArchiveSummary> =
-        getArchiveMetadata(archivePath, null, ArchiveNameEncoding.UTF_8)
-
-    override suspend fun getArchiveMetadata(archivePath: String, password: String?): Result<ArchiveSummary> =
-        getArchiveMetadata(archivePath, password, ArchiveNameEncoding.UTF_8)
-
-    override suspend fun getArchiveMetadata(
-        archivePath: String,
-        password: String?,
-        nameEncoding: ArchiveNameEncoding
-    ): Result<ArchiveSummary> =
-        archiveMetadataResultProvider?.invoke(archivePath, password, nameEncoding) ?: Result.failure(NotImplementedError())
-
-    override suspend fun detectArchiveConflicts(
-        archivePath: String,
-        destinationPath: String,
-        entryPrefix: String?,
-        password: String?,
-        nameEncoding: ArchiveNameEncoding
-    ): Result<List<FileConflict>> =
-        detectArchiveConflictsResultProvider?.invoke(archivePath, destinationPath, entryPrefix, password, nameEncoding)
-            ?: Result.success(emptyList())
-
-    override suspend fun extractArchive(
-        archivePath: String,
-        destinationPath: String,
-        entryPrefix: String?,
-        password: String?,
-        nameEncoding: ArchiveNameEncoding,
-        resolutions: Map<String, ConflictResolution>,
-        onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> {
-        extractArchiveRequests += ArchiveExtractRequest(archivePath, destinationPath, entryPrefix, password, nameEncoding, resolutions)
-        return extractArchiveResultProvider?.invoke(archivePath, destinationPath, entryPrefix, password, nameEncoding, resolutions, onProgress)
-            ?: Result.success(Unit)
-    }
-
-    override suspend fun createArchive(
-        sourcePaths: List<String>,
-        destinationArchivePath: String,
-        format: ArchiveFormat,
-        password: String?,
-        nameEncoding: ArchiveNameEncoding,
-        compressionLevel: ArchiveCompressionLevel,
-        onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> {
-        createArchiveRequests += ArchiveCreateRequest(sourcePaths, destinationArchivePath, format, password, nameEncoding, compressionLevel)
-        return createArchiveResultProvider?.invoke(sourcePaths, destinationArchivePath, format, password, nameEncoding, compressionLevel, onProgress)
-            ?: Result.success(Unit)
-    }
-}
-
-class FakeStorageAnalyticsRepository(
-    volumes: List<StorageVolume> = emptyList(),
-    initialRecentFilesByScope: Map<StorageScope, List<FileModel>> = emptyMap(),
-    initialCategorySizesByScope: Map<StorageScope, List<CategoryStorage>> = emptyMap()
-) : StorageAnalyticsRepository {
-    var observedVolumes: List<StorageVolume> = volumes
-    var recentFilesByScope: Map<StorageScope, List<FileModel>> = initialRecentFilesByScope
-    var categorySizesByScope: Map<StorageScope, List<CategoryStorage>> = initialCategorySizesByScope
-    var storageInfoResultProvider: (suspend (StorageScope) -> Result<StorageInfo>)? = null
-    var recentFilesResultProvider: (suspend (StorageScope, Int, Int, Long) -> Result<List<FileModel>>)? = null
-    var categoryStorageResultProvider: (suspend (StorageScope) -> Result<List<CategoryStorage>>)? = null
-    var trashStorageUsageResult: Result<TrashStorageUsage> = Result.success(TrashStorageUsage(0L, emptyMap()))
-    var invalidateAnalyticsCacheResult: Result<Unit> = Result.success(Unit)
-
-    val requestedRecentScopes = mutableListOf<StorageScope>()
-    val requestedStorageInfoScopes = mutableListOf<StorageScope>()
-    val requestedCategoryScopes = mutableListOf<StorageScope>()
-    var invalidateAnalyticsCacheCalls = 0
-
-    override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
-        requestedRecentScopes += scope
-        return recentFilesResultProvider?.invoke(scope, limit, offset, minTimestamp)
-            ?: Result.success(recentFilesByScope[scope].orEmpty())
-    }
-
-    override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> {
-        requestedStorageInfoScopes += scope
-        return storageInfoResultProvider?.invoke(scope) ?: Result.success(storageInfoForScope(scope, observedVolumes))
-    }
-
-    override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> {
-        requestedCategoryScopes += scope
-        return categoryStorageResultProvider?.invoke(scope) ?: Result.success(categorySizesByScope[scope].orEmpty())
-    }
-
-    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = trashStorageUsageResult
-
-    override suspend fun invalidateAnalyticsCache() {
-        invalidateAnalyticsCacheCalls += 1
-        invalidateAnalyticsCacheResult.getOrThrow()
-    }
-}
-
-class FakeVolumeRepository(volumes: List<StorageVolume> = emptyList()) : VolumeRepository {
-    private val observedVolumes = MutableSharedFlow<List<StorageVolume>>(replay = 1).apply {
-        tryEmit(volumes)
-    }
-
-    var volumeLookupOverride: ((String) -> Result<StorageVolume>)? = null
-
-    fun emitVolumes(volumes: List<StorageVolume>) {
-        observedVolumes.tryEmit(volumes)
-    }
-
-    fun currentObservedVolumes(): List<StorageVolume> = observedVolumes.replayCache.lastOrNull().orEmpty()
-
-    override fun observeStorageVolumes(): Flow<List<StorageVolume>> = observedVolumes
-
-    override suspend fun getStorageVolumes(): Result<List<StorageVolume>> =
-        Result.success(currentObservedVolumes())
-
-    override suspend fun getVolumeForPath(path: String): Result<StorageVolume> {
-        volumeLookupOverride?.let { return it(path) }
-        val volume = currentObservedVolumes()
-            .sortedByDescending { it.path.length }
-            .firstOrNull { path == it.path || path.startsWith(it.path + "/") || path.startsWith(it.path + File.separator) }
-        return volume?.let { Result.success(it) } ?: Result.failure(IllegalArgumentException("No volume for path"))
-    }
-
-    override fun getStandardFolders(): Map<String, String?> = emptyMap()
-}
-
 class FakeSearchRepository(
     initialFilesByCategory: Map<String, List<FileModel>> = emptyMap()
 ) : SearchRepository {
@@ -579,6 +375,11 @@ class FakeStorageRepositoryBundle(
         set(value) {
             trashRepository.restoreFromTrashResultProvider = value
         }
+    var restoreFromTrashMutationResultProvider: (suspend (List<String>, String?) -> StorageMutationResult)?
+        get() = trashRepository.restoreFromTrashMutationResultProvider
+        set(value) {
+            trashRepository.restoreFromTrashMutationResultProvider = value
+        }
     var emptyTrashResult: Result<Unit>
         get() = trashRepository.emptyTrashResult
         set(value) {
@@ -675,11 +476,3 @@ private fun defaultSelectionProperties(paths: List<String>): SelectionProperties
         isSingleItem = paths.size == 1,
         isDirectory = false
     )
-
-private fun storageInfoForScope(scope: StorageScope, volumes: List<StorageVolume>): StorageInfo =
-    when (scope) {
-        StorageScope.AllStorage -> StorageInfo(volumes)
-        is StorageScope.Volume -> StorageInfo(volumes.filter { it.id == scope.volumeId })
-        is StorageScope.Path -> StorageInfo(volumes.filter { it.id == scope.volumeId })
-        is StorageScope.Category -> StorageInfo(volumes.filter { it.id == scope.volumeId })
-    }

@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.ui
+package dev.qtremors.arcile.feature.quickaccess
 
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessState
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessScreen
+import dev.qtremors.arcile.feature.quickaccess.QuickAccessActions
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,14 +33,7 @@ class QuickAccessScreenTest {
         composeTestRule.setContent {
             QuickAccessScreen(
                 state = QuickAccessState(items = items, isLoading = false),
-                onNavigateBack = {},
-                onNavigateToPath = {},
-                onNavigateToSaf = {},
-                onTogglePin = {},
-                onRemoveItem = {},
-                onAddCustomFolder = { _, _ -> },
-                onAddSafFolder = { _, _ -> },
-                onReorderItems = {}
+                actions = testActions()
             )
         }
 
@@ -66,14 +60,7 @@ class QuickAccessScreenTest {
         composeTestRule.setContent {
             QuickAccessScreen(
                 state = QuickAccessState(items = items, isLoading = false),
-                onNavigateBack = {},
-                onNavigateToPath = { navigatedPath = it },
-                onNavigateToSaf = {},
-                onTogglePin = {},
-                onRemoveItem = {},
-                onAddCustomFolder = { _, _ -> },
-                onAddSafFolder = { _, _ -> },
-                onReorderItems = {}
+                actions = testActions(navigateToPath = { navigatedPath = it })
             )
         }
 
@@ -92,14 +79,7 @@ class QuickAccessScreenTest {
         composeTestRule.setContent {
             QuickAccessScreen(
                 state = QuickAccessState(items = listOf(item), isLoading = false),
-                onNavigateBack = {},
-                onNavigateToPath = {},
-                onNavigateToSaf = {},
-                onTogglePin = { toggledItem = it },
-                onRemoveItem = {},
-                onAddCustomFolder = { _, _ -> },
-                onAddSafFolder = { _, _ -> },
-                onReorderItems = {}
+                actions = testActions(togglePin = { toggledItem = it })
             )
         }
 
@@ -108,3 +88,20 @@ class QuickAccessScreenTest {
         assert(toggledItem == item)
     }
 }
+
+private fun testActions(
+    navigateToPath: (String) -> Unit = {},
+    togglePin: (QuickAccessItem) -> Unit = {}
+) = QuickAccessActions(
+    navigateBack = {},
+    navigateToPath = navigateToPath,
+    navigateToSaf = {},
+    togglePin = togglePin,
+    removeItem = {},
+    addCustomFolder = { _, _ -> },
+    requestSafFolder = {},
+    addFilesShortcut = {},
+    addAndroidDataShortcut = {},
+    addAndroidObbShortcut = {},
+    reorderItems = {}
+)

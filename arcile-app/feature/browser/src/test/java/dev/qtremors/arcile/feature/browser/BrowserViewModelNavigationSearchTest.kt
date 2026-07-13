@@ -1,14 +1,14 @@
 package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.ui.UiText
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceTimeBy
@@ -29,11 +29,11 @@ class BrowserViewModelNavigationSearchTest {
     fun `multiple volumes open volume root screen with stored root sort option`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)
-        val preferences = FakeBrowserPreferencesStore(
+        val preferences = FakeFilePreferencesStore(
             BrowserPreferences(
-                globalPresentation = BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC),
+                globalPresentation = FileListingPreferences(sortOption = FileSortOption.NAME_ASC),
                 pathPresentationOptions = mapOf(
-                    "/" to BrowserPresentationPreferences(sortOption = FileSortOption.SIZE_LARGEST)
+                    "/" to FileListingPreferences(sortOption = FileSortOption.SIZE_LARGEST)
                 )
             )
         )
@@ -45,11 +45,11 @@ class BrowserViewModelNavigationSearchTest {
 
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isVolumeRootScreen)
-        assertEquals(listOf("Internal", "SD Card"), viewModel.state.value.files.map { it.name })
-        assertEquals(FileSortOption.SIZE_LARGEST, viewModel.state.value.browserSortOption)
-        assertEquals(BrowserViewMode.LIST, viewModel.state.value.browserViewMode)
-        assertFalse(viewModel.state.value.isLoading)
+        assertTrue(viewModel.uiState.value.isVolumeRootScreen)
+        assertEquals(listOf("Internal", "SD Card"), viewModel.uiState.value.files.map { it.name })
+        assertEquals(FileSortOption.SIZE_LARGEST, viewModel.uiState.value.browserSortOption)
+        assertEquals(FileViewMode.LIST, viewModel.uiState.value.browserViewMode)
+        assertFalse(viewModel.uiState.value.isLoading)
     }
 
     @Test
@@ -57,7 +57,7 @@ class BrowserViewModelNavigationSearchTest {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(volumes = listOf(internal, browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true))),
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -65,9 +65,9 @@ class BrowserViewModelNavigationSearchTest {
         viewModel.navigateToSpecificFolder("/missing/path")
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isVolumeRootScreen)
-        assertEquals(UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_storage_for_path_unavailable), viewModel.state.value.error)
-        assertEquals("", viewModel.state.value.currentPath)
+        assertTrue(viewModel.uiState.value.isVolumeRootScreen)
+        assertEquals(UiText.StringResource(dev.qtremors.arcile.core.ui.R.string.error_storage_for_path_unavailable), viewModel.uiState.value.error)
+        assertEquals("", viewModel.uiState.value.currentPath)
     }
 
     @Test
@@ -80,7 +80,7 @@ class BrowserViewModelNavigationSearchTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -92,13 +92,13 @@ class BrowserViewModelNavigationSearchTest {
         viewModel.updateSearchFilters(filters)
         viewModel.updateBrowserSearchQuery("holiday")
         advanceTimeBy(399)
-        assertFalse(viewModel.state.value.isSearching)
+        assertFalse(viewModel.uiState.value.isSearching)
         advanceTimeBy(1)
         advanceUntilIdle()
 
         assertEquals("holiday", repo.lastSearchQuery)
         assertEquals(StorageScope.Path("primary", "/storage/emulated/0/Download"), repo.lastSearchScope)
         assertEquals(filters, repo.lastSearchFilters)
-        assertEquals(listOf("holiday.jpg"), viewModel.state.value.searchResults.map { it.name })
+        assertEquals(listOf("holiday.jpg"), viewModel.uiState.value.searchResults.map { it.name })
     }
 }

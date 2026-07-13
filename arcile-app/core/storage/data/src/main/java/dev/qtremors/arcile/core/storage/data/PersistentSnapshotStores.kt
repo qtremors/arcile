@@ -13,7 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.security.MessageDigest
 import javax.inject.Inject
@@ -33,7 +33,7 @@ class RecentFilesSnapshotStore @Inject constructor(
 
     suspend fun get(scope: StorageScope, limit: Int, minTimestamp: Long): List<FileModel>? = withContext(dispatchers.io) {
         val entity = dao.get(key(scope, limit, minTimestamp)) ?: return@withContext null
-        runCatching {
+        runCatchingPreservingCancellation {
             json.decodeFromString<List<CachedFileModel>>(entity.payloadJson).map { it.toDomain() }
         }.getOrNull()
     }
@@ -70,7 +70,7 @@ class StorageUsageSnapshotStore @Inject constructor(
 
     suspend fun get(rootPath: String, limits: StorageUsageScanLimits): StorageUsageNode? = withContext(dispatchers.io) {
         val entity = dao.get(key(rootPath, limits)) ?: return@withContext null
-        runCatching { json.decodeFromString<CachedStorageUsageNode>(entity.payloadJson).toDomain() }.getOrNull()
+        runCatchingPreservingCancellation { json.decodeFromString<CachedStorageUsageNode>(entity.payloadJson).toDomain() }.getOrNull()
     }
 
     suspend fun put(rootPath: String, limits: StorageUsageScanLimits, root: StorageUsageNode) = withContext(dispatchers.io) {
@@ -112,7 +112,7 @@ class StorageCleanerSnapshotStore @Inject constructor(
         rules: StorageCleanerRules
     ): StorageCleanerResult? = withContext(dispatchers.io) {
         val entity = dao.get(key(rootPaths, limits, rules)) ?: return@withContext null
-        runCatching { json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain() }.getOrNull()
+        runCatchingPreservingCancellation { json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain() }.getOrNull()
     }
 
     suspend fun put(

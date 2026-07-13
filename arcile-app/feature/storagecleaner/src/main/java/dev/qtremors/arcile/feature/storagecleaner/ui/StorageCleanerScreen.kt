@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -73,25 +74,25 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerState
-import dev.qtremors.arcile.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.spacing
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import coil.compose.SubcomposeAsyncImage
 import androidx.compose.ui.layout.ContentScale
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.shared.ui.getFileIconVector
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.core.ui.UiText
-import dev.qtremors.arcile.shared.ui.rememberDateFormatter
-import java.io.File
+import dev.qtremors.arcile.core.ui.getFileIconVector
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import java.util.Date
 import java.util.Locale
-import dev.qtremors.arcile.ui.theme.bounceClickable
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.animateFloat
@@ -101,14 +102,14 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.ui.graphics.graphicsLayer
 
-enum class StorageCleanerBackAction {
+internal enum class StorageCleanerBackAction {
     DismissIgnoredItems,
     DismissDeleteConfirmation,
     DismissDetails,
     NavigateBack
 }
 
-fun resolveStorageCleanerBackAction(
+internal fun resolveStorageCleanerBackAction(
     showIgnoredItems: Boolean,
     showDeleteConfirm: Boolean,
     hasActiveDetails: Boolean
@@ -121,10 +122,11 @@ fun resolveStorageCleanerBackAction(
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun StorageCleanerScreen(
+internal fun StorageCleanerScreen(
     state: StorageCleanerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
+    onClearThumbnailCache: () -> Unit = {},
     onCleanFiles: (List<String>, Boolean) -> Unit,
     onUndoClean: (List<String>) -> Unit = {},
     onClearMessages: () -> Unit,
@@ -160,17 +162,28 @@ fun StorageCleanerScreen(
         confirmCleanerPaths = emptySet()
     }
 
-    fun handleBack() {
-        when (resolveStorageCleanerBackAction(showIgnoredItems, showDeleteConfirm, activeCleanerGroup != null)) {
-            StorageCleanerBackAction.DismissIgnoredItems -> showIgnoredItems = false
-            StorageCleanerBackAction.DismissDeleteConfirmation -> dismissDeleteConfirmation()
-            StorageCleanerBackAction.DismissDetails -> dismissActiveDetails()
-            StorageCleanerBackAction.NavigateBack -> onNavigateBack()
-        }
-    }
+    var backProgress by remember { mutableStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
 
-    BackHandler {
-        handleBack()
+    val isBackHandlerEnabled = showIgnoredItems || showDeleteConfirm || activeCleanerGroup != null
+    PredictiveBackHandler(enabled = isBackHandlerEnabled) { progressFlow ->
+        isBackPredicting = true
+        try {
+            progressFlow.collect { backEvent ->
+                backProgress = backEvent.progress
+            }
+            when (resolveStorageCleanerBackAction(showIgnoredItems, showDeleteConfirm, activeCleanerGroup != null)) {
+                StorageCleanerBackAction.DismissIgnoredItems -> showIgnoredItems = false
+                StorageCleanerBackAction.DismissDeleteConfirmation -> dismissDeleteConfirmation()
+                StorageCleanerBackAction.DismissDetails -> dismissActiveDetails()
+                StorageCleanerBackAction.NavigateBack -> onNavigateBack()
+            }
+        } catch (e: Exception) {
+            // Cancelled
+        } finally {
+            isBackPredicting = false
+            backProgress = 0f
+        }
     }
 
     val infiniteTransition = rememberInfiniteTransition(label = "refreshRotation")
@@ -229,18 +242,28 @@ fun StorageCleanerScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.storage_cleaner_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showIgnoredItems = true }) {
+                    IconButton(
+                        onClick = { showIgnoredItems = true },
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = stringResource(R.string.cleaner_ignored_items)
                         )
                     }
-                    IconButton(onClick = onRefresh, enabled = !state.isScanning && !state.isCleaning) {
+                    IconButton(
+                        onClick = onRefresh,
+                        enabled = !state.isScanning && !state.isCleaning,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = stringResource(R.string.refresh),
@@ -281,7 +304,10 @@ fun StorageCleanerScreen(
                     }
 
                     item {
-                        CleanerThumbnailCacheCard()
+                        CleanerThumbnailCacheCard(
+                            state = state.thumbnailCache,
+                            onClear = onClearThumbnailCache
+                        )
                     }
 
                     items(CleanerGroupType.entries, key = { it.name }) { type ->
@@ -321,7 +347,9 @@ fun StorageCleanerScreen(
             rules = state.rules,
             onUpdateSectionRule = onUpdateSectionRule,
             onResetSectionRule = onResetSectionRule,
-            onIgnorePath = onIgnorePath
+            onIgnorePath = onIgnorePath,
+            backProgress = backProgress,
+            isBackPredicting = isBackPredicting && activeCleanerGroup != null
         )
     }
 
@@ -351,15 +379,17 @@ fun StorageCleanerScreen(
                         confirmCleanerPaths = emptySet()
                     },
                     enabled = !hasHighRisk || highRiskAcknowledged,
+                    shape = ExpressiveShapes.medium,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
                     Text(stringResource(R.string.delete))
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    dismissDeleteConfirmation()
-                }) {
+                TextButton(
+                    onClick = { dismissDeleteConfirmation() },
+                    shape = ExpressiveShapes.medium
+                ) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -372,104 +402,5 @@ fun StorageCleanerScreen(
             onUnignorePath = onUnignorePath,
             onDismiss = { showIgnoredItems = false }
         )
-    }
-}
-
-@Composable
-private fun IgnoredItemsDialog(
-    ignoredPaths: Set<String>,
-    onUnignorePath: (String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.cleaner_ignored_items)) },
-        text = {
-            if (ignoredPaths.isEmpty()) {
-                Text(
-                    text = stringResource(R.string.cleaner_no_ignored_items),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                LazyColumn(
-                    modifier = Modifier.height(240.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(ignoredPaths.sorted(), key = { it }) { path ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = path,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            TextButton(onClick = { onUnignorePath(path) }) {
-                                Text(stringResource(R.string.cleaner_restore_item))
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.ok))
-            }
-        }
-    )
-}
-
-@Composable
-internal fun CleanerConfirmContent(
-    selectedCandidates: List<CleanerCandidate>,
-    hasHighRisk: Boolean,
-    highRiskAcknowledged: Boolean,
-    onHighRiskAcknowledgedChange: (Boolean) -> Unit
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.clean_confirm_message, selectedCandidates.size))
-        LazyColumn(
-            modifier = Modifier.height(180.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            items(selectedCandidates, key = { it.absolutePath }) { candidate ->
-                Column {
-                    Text(
-                        text = candidate.absolutePath,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = stringResource(
-                            R.string.cleaner_confirm_file_detail,
-                            formatFileSize(candidate.size),
-                            cleanerRiskLabel(candidate.riskLevel)
-                        ),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = cleanerRiskColor(candidate.riskLevel)
-                    )
-                }
-            }
-        }
-        if (hasHighRisk) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(
-                    checked = highRiskAcknowledged,
-                    onCheckedChange = onHighRiskAcknowledgedChange
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.cleaner_high_risk_acknowledge),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
-        }
     }
 }

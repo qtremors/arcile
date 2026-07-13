@@ -1,10 +1,185 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.2.0
-> **Last Updated:** 2026-06-21
+> **Version:** 1.5.0
+> **Last Updated:** 2026-07-13
 
 ---
+
+## [1.5.0] - 2026-07-13
+
+- **Metadata Editing Reliability**: Image metadata editing is now offered only for supported, writable local images and safely remains unavailable for missing, read-only, or external content.
+- **Operation Path Reliability**: Archive and Browser progress surfaces now display file names consistently for both Unix- and Windows-style storage paths.
+- **Developer Guidance**: Development documentation now reflects the current modular architecture, feature ownership, release metadata, and focused verification workflow.
+- **Plugin Distribution**: Removed the bundled Arcile GLB Viewer application and its install catalog entry while retaining generic plugin discovery, compatibility checks, and file handoff support.
+- **Project Documentation**: README, website, development guidance, and release notes now reflect Arcile 1.5.0, its current feature set, modular structure, and focused verification workflow.
+- **Navigation & Feedback Reliability**: Feedback stays on its originating screen, and the system back gesture exits normally from Home instead of being intercepted by the hidden Browser page.
+- **Home Thumbnail Quality**: Recent image cards now use Gallery-aligned content sources, rendered-size requests, and cache variants so their previews remain sharp on high-density screens.
+- **Gallery Viewer**: Opening an image now keeps that image anchored while neighboring images load, preserves Gallery selection through viewer actions and deletion, supplies the complete thumbnail carousel, and uses the standard viewer route transition without image morphing.
+- **File Actions & Sharing**: Trash images now open with neighboring items in Arcile's read-only viewer, Trash files expose only applicable actions, and Android multi-file sharing either delivers the complete selection with correct grants or safely sends nothing.
+
+## [1.4.9] - 2026-07-13
+
+- **Preference Reliability**: Browser, Recents, Gallery, and save-destination settings now update through independent stores while retaining all existing saved values and backup compatibility.
+- **Search Reliability**: Browser, Recents, and Trash now prevent stale searches from replacing newer results and keep search failures separate from unrelated loading errors.
+- **File Operation Reliability**: Concurrent Browser workflows keep independent progress and feedback, while cancelled storage work cleans up staged data before stopping.
+- **Destination Reliability**: Save-to-Arcile and archive workflows now validate storage-owned paths throughout navigation, preserve access to readable folders, and prevent writes to unavailable or read-only destinations.
+- **Cache Control Reliability**: Settings staging and Storage Cleaner thumbnail caches now load and clear through independent owners, reject duplicate actions, and report failures without blocking unrelated state.
+
+## [1.4.8] - 2026-07-12
+
+- **Upgrade Reliability**: Shared thumbnail loading and feature test wiring now remain owned by their correct modules, with automated package-location checks preventing release-only source drift.
+
+## [1.4.7] - 2026-07-12
+
+- **File Interface Reliability**: Grid previews, range selection, Trash loading/empty states, and Activity Log labels now remain independently consistent.
+- **Quick Access Organization**: Custom paths are normalized before saving and every shortcut appears in exactly one appropriate management section.
+
+## [1.4.6] - 2026-07-12
+
+- **Model Viewer Reliability**: GLB loading, cancellation, back navigation, viewer controls, and top/bottom overlays now retain consistent state through viewer changes.
+- **Storage Cleaner Reliability**: Duplicate groups handle empty and directory entries safely, while risk summaries and displayed storage paths remain accurate.
+
+## [1.4.5] - 2026-07-11
+
+- **Startup Stability**: Restored the generated authorization bridge required by Browser so the app no longer crashes while composing its initial screen.
+- **Shared Import Reliability**: Save-to-Arcile now validates incoming shares and destinations through isolated workflows, safely restores its selected folder, and prevents duplicate saves.
+- **Quick Access Reliability**: Folder selection and restricted Files shortcuts now use route-owned Android access with persisted permissions and normalized destinations.
+
+## [1.4.4] - 2026-07-11
+
+- **File Authorization Reliability**: System file confirmations now survive lifecycle changes, reject stale results, and recover cleanly when denied or unavailable.
+- **Settings Reliability**: Backup pickers and external-cache cleanup now use route-owned workflows with duplicate-action protection and accurate remaining-cache status.
+
+## [1.4.3] - 2026-07-11
+
+- **File Workflow Reliability**: Isolated file-list rendering and focused archive, cleaner, storage-usage, activity-log, conflict, and filesystem responsibilities for safer independent updates.
+
+## [1.4.2] - 2026-07-11
+
+- **Navigation Reliability**: Unified file opening, sharing, plugin prompts, Browser entry, and viewer-return handling across app destinations.
+
+## [1.4.1] - 2026-07-11
+
+- **Startup Reliability**: Browser restoration now begins only after entering Browser, with dedicated loading and retry UI instead of restoring behind Home.
+
+## [1.4.0] - 2026-07-10
+
+- **Architecture Reliability**: Completed feature ownership for browsing, Home, galleries, storage tools, settings, recents, trash, onboarding, archives, and plugin viewers.
+- **Storage Reliability**: Split storage browsing, mutations, media, volumes, and trash into focused repositories with clearer runtime boundaries.
+- **Interface Consistency**: Consolidated shared workflow feedback, viewer navigation, theming, and reusable file-management presentation.
+
+## [1.3.9] - 2026-07-05
+
+- **File Workflow Reliability**: Consolidated creation, rename, deletion, properties, clipboard, and conflict dialogs into shared UI ownership.
+
+## [1.3.8] - 2026-07-05
+
+- **Search Filter Reliability**: Consolidated search filters, date-range selection, localized date formatting, presets, and expressive filter controls into shared UI ownership.
+
+## [1.3.7] - 2026-07-05
+
+- **File List Reliability**: Consolidated list, grid, volume, filter, row presentation, and accessibility behavior into bounded shared file-browsing components.
+
+## [1.3.6] - 2026-07-05
+
+- **Media Browsing Reliability**: Consolidated thumbnail sizing, loading and failure state, image metadata presentation, and fast-scroll behavior into shared UI components.
+
+## [1.3.5] - 2026-07-05
+
+- **Theme Reliability**: Consolidated theme state, colors, typography, shapes, spacing, motion, and category styling under the shared UI layer with direct preference coverage.
+
+## [1.3.4] - 2026-07-05
+
+- **Shared Workflow Reliability**: Consolidated selection properties, clipboard state, debounced search, file formatting, folder tabs, and operation feedback into focused shared presentation components.
+
+## [1.3.3] - 2026-07-05
+
+- **Storage Path Reliability**: Isolated filesystem listing, file transfer, secure deletion, synthetic-file creation, MediaStore queries, volume selection, and archive destination handling for more predictable storage operations.
+
+## [1.3.2] - 2026-07-05
+
+- **Storage Reliability**: Added focused storage capabilities for browsing, file changes, archives, media, trash, volumes, preferences, and authorization so each workflow can depend only on the operations it needs.
+
+## [1.3.1] - 2026-07-02
+
+- **Browser Navigation Reliability**: Browser now owns its navigation state, scroll restoration, file actions, and back handling while Home-to-Browser requests use explicit folder, category, archive, and restore targets.
+- **Onboarding and Browser Search Reliability**: Onboarding now owns permission and backup restoration state, while Browser search uses an independently owned, debounced state controller.
+
+## [1.3.0] - 2026-07-02
+
+- **Settings and Import Reliability**: Isolated settings, backup, activity history, plugins, external file access, and shared-file imports so these workflows no longer depend on app-shell state ownership.
+
+## [1.2.9] - 2026-07-01
+
+- **Home and Storage Reliability**: Isolated Home, storage dashboard, and storage management state so loading, refreshes, file opening, and volume classification no longer depend on app-shell state ownership.
+
+## [1.2.8] - 2026-07-01
+
+- **Background Operation Reliability**: Isolated background file operations, shared-file imports, and interrupted-operation recovery with dedicated coverage while preserving import safeguards.
+- **File Opening Reliability**: Centralized plugin, archive, image, and external file resolution with direct coverage for viewer context and unsupported archives.
+
+## [1.2.7] - 2026-06-29
+
+- **Reliable App Relaunch**: Cold launcher starts now open Home instead of briefly restoring a previous utility screen, while Browser still restores its last location when opened and configuration changes retain the active screen.
+- **Architecture Groundwork**: Renamed shared file-listing presentation contracts away from Browser-specific terms and added ratcheting size guardrails while preserving existing preferences.
+
+## [1.2.6] - 2026-06-28
+
+- **Optional Plugin System**: Moved GLB rendering into an independently versioned Arcile GLB Viewer APK, added signed intent-based discovery, compatibility checks, consistent file routing, shared viewer UI, missing/update guidance, and plugin management while removing SceneView and Filament from the main APK.
+
+## [1.2.5] - 2026-06-28
+
+- **Image Metadata and Viewer Controls**: Added editing and clearing for descriptive, camera, date, time, and GPS metadata; improved metadata refreshes, date/time dialogs, sheet transitions, and touch-anchored pinch and double-tap zoom.
+- **Date and Size Filtering**: Added date-range and file-size presets, custom date selection, MB-based minimum/maximum size inputs, and reliable application and clearing of active filters.
+- **Recents and Fast Scrolling**: Improved calendar-day grouping and year-aware labels, corrected staggered-grid fast scrolling, refined scrollbar tooltips, and prevented hidden overlays from intercepting touches.
+- **Home Performance**: Displayed recent files and storage volumes sooner, handled overlapping refreshes reliably, and reduced repeated storage animation work.
+- **File Format Documentation**: Documented recognized formats, built-in capabilities, metadata-writing support, and features requiring Android codecs or external apps.
+
+## [1.2.4] - 2026-06-23
+
+- **Image Viewer Navigation and Selection Fixes**: Preserved Browser breadcrumbs, active selection, and far-scroll position when returning from Browser-opened images by routing viewer back gestures through the Browser-return path, suppressing Browser auto-restore reloads after viewer pops, and avoiding same-folder list clearing during refreshes; removed user-visible image viewer zoom-in and zoom-out caps with improved double-tap targeting; allowed Browser image thumbnails to open the viewer during selection mode while the rest of the row or card keeps toggling selection; and added visible Gallery photo open icons during selection mode.
+- **Browser Viewer Back Stack Hardening**: Prevented Browser page restores after returning from the image viewer from clearing active folder history, and skipped redundant persistent-location restores when the Browser is already showing a real folder/category/archive/root location so Back from a viewed image returns to the containing folder before Home.
+- **Browser Folder Scroll Restoration**: Preserved Browser list and grid scroll positions by folder/category/archive location after opening images or other files, kept the Main pager from recreating on Home during viewer returns, and explicitly reveals the opened file when returning.
+- **Settings Toggle Shape Simplification**: Replaced the custom lobed Settings toggle thumb with a simple circular thumb while keeping the existing animated check and close indicators.
+
+## [1.2.3] - 2026-06-23
+
+- **Model Viewer Implementation**: Added GLB/model file recognition, in-app and standalone model viewer routing, SceneView/Filament rendering support, viewer metadata and share/open-with actions, image-viewer-aligned chrome, zoom and brightness controls, and Theme/White/Black background choices.
+
+## [1.2.2] - 2026-06-22
+
+- **Quick Access Default Fix**: Kept WhatsApp available in Manage Quick Access while no longer pinning it to Home by default for fresh preference state.
+- **Thumbnail Cache Cleaner Accuracy**: Measured thumbnail disk usage from Coil's active disk cache directory and recalculated stats after clearing so the cleaner reliably reports `0B` when cache data is gone.
+- **Gallery Viewer Return Position**: Returned Gallery to the last image viewed in the image viewer, including grouped gallery layouts with section headers.
+- **Browser and Gallery Scrollbar Controls**: Added separate Settings toggles to disable Browser and Gallery scrollbar overlays entirely.
+- **Fast Scrollbar Expressive Polish**: Shared the scrollbar overlay between Browser and Gallery, showing a normal rounded thumb during regular scrolling and an animated 10-pointed Material Expressive "Lobate" (wavy) shape thumb (rotating dynamically as a function of scroll progress) during direct scrollbar fast-scrolling.
+- **View Switcher Expressive Design**: Updated the view switchers in bottom sheets (such as Search Filters, Gallery Options, and Sort Options) to a custom morphing expressive segmented row design, animating selected segment corners to a capsule shape (20dp radius) while retaining rounded rectangle corners (12dp radius) on unselected segments, and animating a checkmark icon to slide in upon selection.
+- **Settings Expressive Toggles**: Replaced all standard preference switches in the Settings screen with a custom spring-animated `ExpressiveSwitch` containing a morphing 7-sided cookie thumb and scaling state icons.
+- **Settings Elastic Inputs**: Refreshed Custom Theme hex input fields in the Settings screen to utilize focus-driven elastic spring scaling (1.03x pop-out animation upon receiving input focus).
+- **Release String Gate Cleanup**: Localized search filter date labels and clear actions for production string validation.
+
+## [1.2.1] - 2026-06-21
+
+- **Material 3 Expressive UI Pass**: Updated dialogs, sheets, toolbar actions, chips, list rows, and cleaner/gallery controls with rounded expressive styling, tactile feedback, and clipped touch states.
+- **Search and File Dialog Polish**: Improved search filter controls and refreshed file/archive creation dialogs with clearer expressive inputs and actions.
+- **Gallery and Viewer Polish**: Converted gallery Search, Sort, and More into split actions, refined image viewer bottom chrome, and improved thumbnail strip behavior.
+- **Gallery Tab Touch Polish**: Clipped Photos and Albums bottom tab hover states to their pill shapes.
+- **Browser Top Bar Touch Polish**: Clipped Browser top-bar hover and touch states to their circular and split-button shapes.
+- **Dynamic Toast Polish**: Made in-app feedback toasts/snackbars content-sized so short messages no longer stretch across the screen.
+- **Storage Touch Polish**: Replaced storage breadcrumbs and classification chips with expressive rounded surfaces and shaped storage usage actions.
+- **Archive Viewer Touch Polish**: Clipped archive viewer toolbar and list-row touch states to their circular and rounded row shapes.
+- **Trash Touch Polish**: Shaped Trash top-bar actions, empty-trash controls, restore destination rows, and dialog actions to match their rounded UI surfaces.
+- **Home and App Toolbar Touch Polish**: Rounded Home header actions and clipped About, Licenses, and Activity toolbar buttons to circular touch states.
+- **Shared Dialog Touch Polish**: Shaped shared sort, search filter, and clipboard dialog actions with expressive sheets, rounded buttons, and clipped icon targets.
+- **Gallery Surface Shape Polish**: Aligned gallery photo and album touch surfaces with shared expressive shape tokens.
+- **Archive and Dialog Touch Polish**: Replaced archive chips and shared create/rename dismiss actions with expressive rounded touch surfaces.
+- **Onboarding Chip Polish**: Replaced remaining standard onboarding chips with expressive rounded chip surfaces.
+- **Quick Access and Cleaner Polish**: Refined Quick Access management controls and Storage Cleaner duplicate/detail interactions with consistent expressive surfaces.
+- **Top Bar and Import Touch Polish**: Clipped Quick Access, Recent Files, Storage Cleaner, gallery, standalone image viewer, and Save to Arcile action states to their visible rounded shapes.
+- **Remaining Component Shape Polish**: Removed stale standard chip references and rounded additional archive, browser transfer, gallery options, storage dashboard, and cleaner dialog controls.
+- **Dropdown Menu Touch Polish**: Routed app overflow and picker menu rows through a rounded dropdown item wrapper so hover and ripple states match expressive menu shapes.
+- **List and Breadcrumb Touch Polish**: Clipped volume root rows, archive encoding choices, Tools shortcuts, Settings navigation, and breadcrumb segments to rounded touch-state bounds.
 
 ## [1.2.0] - 2026-06-21
 

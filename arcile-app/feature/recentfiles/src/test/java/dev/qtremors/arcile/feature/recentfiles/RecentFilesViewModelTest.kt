@@ -1,13 +1,11 @@
 package dev.qtremors.arcile.feature.recentfiles
 
-import android.content.IntentSender
 import androidx.lifecycle.SavedStateHandle
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -19,7 +17,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
@@ -72,6 +70,32 @@ class RecentFilesViewModelTest {
     }
 
     @Test
+    fun `successful search does not clear an unrelated recent loading error`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle().apply {
+            recentFilesResultProvider = { _, _, _, _ ->
+                Result.failure(IllegalStateException("recent load unavailable"))
+            }
+            searchFilesResultProvider = { _, _, _ -> Result.success(emptyList()) }
+        }
+        val viewModel = recentViewModel(repository)
+
+        advanceUntilIdle()
+        assertEquals(
+            dev.qtremors.arcile.core.presentation.UiText.Dynamic("recent load unavailable"),
+            viewModel.state.value.error
+        )
+
+        viewModel.updateSearchQuery("photo")
+        advanceUntilIdle()
+
+        assertEquals(
+            dev.qtremors.arcile.core.presentation.UiText.Dynamic("recent load unavailable"),
+            viewModel.state.value.error
+        )
+        assertEquals(null, viewModel.state.value.searchError)
+    }
+
+    @Test
     fun `default presentation is date newest and displayed files are sorted newest first`() = runTest(mainDispatcherRule.dispatcher) {
         val files = listOf(
             recentFile("old.txt", lastModified = 100L),
@@ -102,7 +126,7 @@ class RecentFilesViewModelTest {
         val viewModel = recentViewModel(repository)
 
         advanceUntilIdle()
-        viewModel.updatePresentation(BrowserPresentationPreferences(sortOption = FileSortOption.NAME_ASC))
+        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.NAME_ASC))
 
         assertEquals(FileSortOption.NAME_ASC, viewModel.state.value.presentation.sortOption)
         assertEquals(listOf("beta.txt", "alpha.txt", "gamma.txt"), viewModel.state.value.recentFiles.map { it.name })
@@ -151,7 +175,7 @@ class RecentFilesViewModelTest {
 
         advanceUntilIdle()
         viewModel.updateSearchFilters(SearchFilters(fileType = "Images"))
-        viewModel.updatePresentation(BrowserPresentationPreferences(sortOption = FileSortOption.SIZE_LARGEST))
+        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.SIZE_LARGEST))
         viewModel.updateSearchQuery("holiday")
         advanceTimeBy(400)
         advanceUntilIdle()
@@ -311,6 +335,7 @@ class RecentFilesViewModelTest {
         assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
         assertEquals(listOf("/storage/emulated/0/Holiday.jpg"), coordinator.startedRequests.single().sourcePaths)
         assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+        assertEquals(0L, viewModel.state.value.selectedFilesTotalSize)
     }
 
     @Test
@@ -354,11 +379,11 @@ class RecentFilesViewModelTest {
 
     @Test
     fun `presentation updates are persisted for recent files`() = runTest(mainDispatcherRule.dispatcher) {
-        val preferences = FakeBrowserPreferencesStore()
+        val preferences = FakeFilePreferencesStore()
         val viewModel = recentViewModel(FakeStorageRepositoryBundle(), preferences = preferences)
-        val presentation = BrowserPresentationPreferences(
+        val presentation = FileListingPreferences(
             sortOption = FileSortOption.NAME_ASC,
-            viewMode = dev.qtremors.arcile.core.storage.domain.BrowserViewMode.GRID
+            viewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID
         )
 
         advanceUntilIdle()
@@ -383,7 +408,7 @@ class RecentFilesViewModelTest {
 
         advanceUntilIdle()
         viewModel.updateSearchFilters(SearchFilters(fileType = "Images"))
-        viewModel.updatePresentation(BrowserPresentationPreferences(sortOption = FileSortOption.DATE_NEWEST))
+        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST))
         viewModel.loadMore()
         advanceUntilIdle()
 
@@ -440,7 +465,7 @@ private fun recentFile(
 private fun recentViewModel(
     repository: FakeStorageRepositoryBundle,
     coordinator: FakeBulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
-    preferences: FakeBrowserPreferencesStore = FakeBrowserPreferencesStore(),
+    preferences: FakeFilePreferencesStore = FakeFilePreferencesStore(),
     storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier()
 ) = RecentFilesViewModel(
     volumeRepository = repository.volumeRepository,

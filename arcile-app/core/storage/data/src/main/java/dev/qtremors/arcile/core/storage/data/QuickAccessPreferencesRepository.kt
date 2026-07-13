@@ -105,7 +105,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 label = "WhatsApp",
                 path = "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media",
                 type = QuickAccessType.STANDARD,
-                isPinned = true,
+                isPinned = false,
                 isEnabled = true
             ),
             QuickAccessItem(
@@ -155,7 +155,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
 
     private fun decodeStoredItems(serialized: String?): List<QuickAccessItem> {
         if (serialized.isNullOrEmpty()) return defaultItems
-        return runCatching {
+        return runCatchingPreservingCancellation {
             json.decodeFromString<List<QuickAccessItem>>(serialized).map(::migrateStoredItem)
         }.getOrDefault(defaultItems)
     }

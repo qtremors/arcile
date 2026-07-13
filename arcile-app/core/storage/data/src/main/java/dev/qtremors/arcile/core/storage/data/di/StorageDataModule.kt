@@ -7,13 +7,21 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.DefaultFolderStatsStore
+import dev.qtremors.arcile.core.storage.data.DefaultArchivePathResolver
+import dev.qtremors.arcile.core.storage.data.DefaultSaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.data.DefaultImageCatalogRepository
 import dev.qtremors.arcile.core.storage.data.DefaultStorageCleanerScanner
 import dev.qtremors.arcile.core.storage.data.DefaultStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.data.DefaultStorageUsageScanner
 import dev.qtremors.arcile.core.storage.data.DefaultStorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
-import dev.qtremors.arcile.core.storage.data.LocalFileRepository
+import dev.qtremors.arcile.core.storage.data.DefaultArchiveRepository
+import dev.qtremors.arcile.core.storage.data.DefaultClipboardRepository
+import dev.qtremors.arcile.core.storage.data.DefaultFileBrowserRepository
+import dev.qtremors.arcile.core.storage.data.DefaultFileMutationRepository
+import dev.qtremors.arcile.core.storage.data.DefaultMediaRepository
+import dev.qtremors.arcile.core.storage.data.DefaultTrashRepository
+import dev.qtremors.arcile.core.storage.data.DefaultVolumeRepository
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.DefaultMutationJournal
 import dev.qtremors.arcile.core.storage.data.MutationJournal
@@ -41,11 +49,12 @@ import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
+import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
-import dev.qtremors.arcile.core.storage.domain.FileRepository
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
@@ -56,8 +65,8 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
-import dev.qtremors.arcile.di.ApplicationScope
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ApplicationScope
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -86,6 +95,18 @@ object StorageDataModule {
     fun provideApplicationScope(dispatchers: ArcileDispatchers): CoroutineScope {
         return CoroutineScope(SupervisorJob() + dispatchers.io)
     }
+
+    @Provides
+    @Singleton
+    fun provideArchivePathResolver(
+        dispatchers: ArcileDispatchers
+    ): ArchivePathResolver = DefaultArchivePathResolver(dispatchers)
+
+    @Provides
+    @Singleton
+    fun provideSaveDestinationBrowser(
+        dispatchers: ArcileDispatchers
+    ): SaveDestinationBrowser = DefaultSaveDestinationBrowser(dispatchers)
 
     @Provides
     @Singleton
@@ -282,65 +303,79 @@ object StorageDataModule {
 
     @Provides
     @Singleton
-    fun provideLocalFileRepository(
+    fun provideFileBrowserRepository(
+        fileSystemDataSource: FileSystemDataSource,
+        folderStatsStore: FolderStatsStore,
+        dispatchers: ArcileDispatchers
+    ): FileBrowserRepository =
+        DefaultFileBrowserRepository(fileSystemDataSource, folderStatsStore, dispatchers)
+
+    @Provides
+    @Singleton
+    fun provideFileMutationRepository(
+        fileSystemDataSource: FileSystemDataSource,
+        volumeRepository: VolumeRepository,
+        trashRepository: TrashRepository,
+        dispatchers: ArcileDispatchers
+    ): FileMutationRepository = DefaultFileMutationRepository(
+        fileSystemDataSource,
+        volumeRepository,
+        trashRepository,
+        dispatchers
+    )
+
+    @Provides
+    @Singleton
+    fun provideMediaRepository(
         volumeProvider: VolumeProvider,
         mediaStoreClient: MediaStoreClient,
         trashManager: TrashManager,
-        archiveManager: ArchiveManager,
-        fileSystemDataSource: FileSystemDataSource,
-        folderStatsStore: FolderStatsStore,
         recentFilesSnapshotStore: RecentFilesSnapshotStore,
-        @ApplicationScope applicationScope: CoroutineScope,
         dispatchers: ArcileDispatchers
-    ): LocalFileRepository {
-        return LocalFileRepository(
-            volumeProvider,
-            mediaStoreClient,
-            trashManager,
-            fileSystemDataSource,
-            folderStatsStore,
-            archiveManager,
-            recentFilesSnapshotStore,
-            applicationScope,
-            dispatchers
-        )
-    }
+    ): DefaultMediaRepository = DefaultMediaRepository(
+        volumeProvider,
+        mediaStoreClient,
+        trashManager,
+        recentFilesSnapshotStore,
+        dispatchers
+    )
 
     @Provides
     @Singleton
-    fun provideFileRepository(repository: LocalFileRepository): FileRepository = repository
+    fun provideSearchRepository(repository: DefaultMediaRepository): SearchRepository = repository
 
     @Provides
     @Singleton
-    fun provideFileBrowserRepository(repository: LocalFileRepository): FileBrowserRepository = repository
+    fun provideStorageAnalyticsRepository(
+        repository: DefaultMediaRepository
+    ): StorageAnalyticsRepository = repository
 
     @Provides
     @Singleton
-    fun provideFileMutationRepository(repository: LocalFileRepository): FileMutationRepository = repository
+    fun provideTrashRepository(
+        trashManager: TrashManager,
+        authorizationGateway: dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
+    ): TrashRepository = DefaultTrashRepository(trashManager, authorizationGateway)
 
     @Provides
     @Singleton
-    fun provideSearchRepository(repository: LocalFileRepository): SearchRepository = repository
+    fun provideArchiveRepository(archiveManager: ArchiveManager): ArchiveRepository =
+        DefaultArchiveRepository(archiveManager)
 
     @Provides
     @Singleton
-    fun provideStorageAnalyticsRepository(repository: LocalFileRepository): StorageAnalyticsRepository = repository
+    fun provideVolumeRepository(
+        volumeProvider: VolumeProvider,
+        fileSystemDataSource: FileSystemDataSource,
+        dispatchers: ArcileDispatchers
+    ): VolumeRepository =
+        DefaultVolumeRepository(volumeProvider, fileSystemDataSource, dispatchers)
 
     @Provides
     @Singleton
-    fun provideTrashRepository(repository: LocalFileRepository): TrashRepository = repository
-
-    @Provides
-    @Singleton
-    fun provideArchiveRepository(repository: LocalFileRepository): ArchiveRepository = repository
-
-    @Provides
-    @Singleton
-    fun provideVolumeRepository(repository: LocalFileRepository): VolumeRepository = repository
-
-    @Provides
-    @Singleton
-    fun provideClipboardRepository(repository: LocalFileRepository): ClipboardRepository = repository
+    fun provideClipboardRepository(
+        fileSystemDataSource: FileSystemDataSource
+    ): ClipboardRepository = DefaultClipboardRepository(fileSystemDataSource)
 
     @Provides
     @Singleton

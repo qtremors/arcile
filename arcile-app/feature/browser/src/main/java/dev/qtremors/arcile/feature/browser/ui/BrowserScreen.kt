@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
@@ -24,35 +25,41 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.feature.browser.BrowserState
+import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.ui.asString
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
+import dev.qtremors.arcile.feature.browser.BrowserScrollPosition
+import dev.qtremors.arcile.feature.browser.scrollPositionKey
 import dev.qtremors.arcile.feature.browser.ui.BrowserContent
 import dev.qtremors.arcile.feature.browser.ui.BrowserCreateFab
 import dev.qtremors.arcile.feature.browser.ui.BrowserDialogs
 import dev.qtremors.arcile.feature.browser.ui.BrowserFloatingSurfaces
 import dev.qtremors.arcile.feature.browser.ui.BrowserTopBars
-import dev.qtremors.arcile.feature.browser.ui.BrowserUiActions
 import dev.qtremors.arcile.feature.browser.ui.rememberBrowserDialogVisibility
-import dev.qtremors.arcile.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.theme.spacing
 
 /**
  * Full-featured file browser screen.
@@ -62,69 +69,33 @@ import dev.qtremors.arcile.ui.theme.spacing
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
-fun BrowserScreen(
-    state: BrowserState,
-    onNavigateBack: () -> Unit,
-    onNavigateTo: (String) -> Unit,
-    onOpenFile: (String) -> Unit,
-    onToggleSelection: (String) -> Unit,
-    onSelectMultiple: (List<String>) -> Unit,
-    onClearSelection: () -> Unit,
-    onCreateFolder: (String) -> Unit,
-    onCreateFile: (String) -> Unit,
-    onCreateFakeFile: (String, Long) -> Unit,
-    onRequestDeleteSelected: () -> Unit,
-    onConfirmDelete: () -> Unit,
-    onTogglePermanentDelete: () -> Unit,
-    onDismissDeleteConfirmation: () -> Unit,
-    onToggleShred: () -> Unit = {},
-    onRenameFile: (String, String) -> Unit,
-    onSearchQueryChange: (String) -> Unit,
-    onClearSearch: () -> Unit,
-    onPresentationChange: (BrowserPresentationPreferences, Boolean) -> Unit,
-    onClearError: () -> Unit,
-    onCopySelected: () -> Unit,
-    onCutSelected: () -> Unit,
-    onPasteFromClipboard: () -> Unit,
-    onCancelClipboard: () -> Unit,
-    onShareSelected: () -> Unit,
-    onClearFileOperationStatusMessage: () -> Unit = {},
-    onOpenProperties: () -> Unit = {},
-    onDismissProperties: () -> Unit = {},
-    onClearActiveFileOperation: () -> Unit = {},
-    onDismissConflictDialog: () -> Unit = {},
-    isRefreshing: Boolean = false,
-    onRefresh: () -> Unit = {},
-    onSearchFiltersChange: (dev.qtremors.arcile.core.storage.domain.SearchFilters) -> Unit = {},
-    onToggleSearchFilterMenu: (Boolean) -> Unit = {},
-    onResolvingConflicts: (Map<String, dev.qtremors.arcile.core.storage.domain.ConflictResolution>) -> Unit = {},
-    onPinToQuickAccess: (String, String) -> Unit = { _, _ -> },
-    onNativeRequestResult: (Boolean) -> Unit = {},
-    onInvertSelection: (List<String>) -> Unit = {},
-    onSelectAll: (List<String>) -> Unit = {},
-    onRemoveFromClipboard: (String) -> Unit = {},
-    onSelectFolderTab: (String?) -> Unit = {},
-    onExtractArchive: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
-    onExtractSelectedArchiveEntries: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
-    onExtractCurrentArchiveFolder: (ArchiveExtractionTarget, String?) -> Unit = { _, _ -> },
-    onCreateZipFromSelection: () -> Unit = {},
-    onCreateArchiveFromSelection: (String, ArchiveFormat, ArchiveCompressionLevel, String?) -> Unit = { _, _, _, _ -> },
-    onSubmitArchivePassword: (String) -> Unit = {},
-    onDismissArchivePassword: () -> Unit = {},
-    onUndoLastTrashMove: () -> Unit = {},
-    onClearPendingTrashUndo: () -> Unit = {},
-    onUndoLastOperation: () -> Unit = onUndoLastTrashMove,
-    onClearPendingUndo: () -> Unit = onClearPendingTrashUndo,
-    onRetryRecoveredOperation: (String) -> Unit = {},
-    onCleanupRecoveredOperation: (String) -> Unit = {},
-    onDismissRecoveredOperation: (String) -> Unit = {},
-    onFeedback: (ArcileFeedbackEvent) -> Unit = {},
-    nativeRequestFlow: kotlinx.coroutines.flow.SharedFlow<android.content.IntentSender>? = null,
-    listState: LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
-    gridState: LazyGridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
+internal fun BrowserScreen(
+    state: BrowserUiState,
+    intents: BrowserIntents,
+    scroll: BrowserScrollBindings,
+    onFeedback: (ArcileFeedbackEvent) -> Unit,
+    isRouteVisible: Boolean = true
 ) {
+    val listState = scroll.listState
+    val gridState = scroll.gridState
+    val onArmPendingReveal = scroll.onArmPendingReveal
+    val onSelectFolderTab = intents.navigation.onSelectFolderTab
+    val onDismissConflictDialog = intents.clipboard.onDismissConflictDialog
+    val onDismissProperties = intents.selection.onDismissProperties
+    val onDismissDeleteConfirmation = intents.mutation.onDismissDeleteConfirmation
+    val onToggleSearchFilterMenu = intents.search.onToggleSearchFilterMenu
+    val onClearSearch = intents.search.onClearSearch
+    val onClearSelection = intents.selection.onClearSelection
+    val onNavigateBack = intents.navigation.onNavigateBack
+    val onClearError = intents.search.onClearError
+    val onClearFileOperationStatusMessage = intents.operation.onClearFileOperationStatusMessage
+    val onUndoLastOperation = intents.operation.onUndoLastOperation
+    val onClearPendingUndo = intents.operation.onClearPendingUndo
+    val isRefreshing = state.isPullToRefreshing
     val haptics = rememberArcileHaptics()
     val dialogVisibility = rememberBrowserDialogVisibility()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var resumeRestoreTick by remember { mutableStateOf(0) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
     
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
@@ -133,15 +104,22 @@ fun BrowserScreen(
         label = "fabRotation"
     )
 
-    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartIntentSenderForResult()
-    ) { result ->
-        onNativeRequestResult(result.resultCode == android.app.Activity.RESULT_OK)
-    }
-
-    LaunchedEffect(nativeRequestFlow) {
-        nativeRequestFlow?.collect { sender ->
-            launcher.launch(androidx.activity.result.IntentSenderRequest.Builder(sender).build())
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE,
+                Lifecycle.Event.ON_STOP -> {
+                    onArmPendingReveal()
+                }
+                Lifecycle.Event.ON_RESUME -> {
+                    resumeRestoreTick += 1
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -165,7 +143,7 @@ fun BrowserScreen(
         state.browserGridMinCellSize,
         state.browserShowThumbnails
     ) {
-        BrowserPresentationPreferences(
+        FileListingPreferences(
             sortOption = state.browserSortOption,
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
@@ -173,59 +151,7 @@ fun BrowserScreen(
             showThumbnails = state.browserShowThumbnails && state.archiveContext == null
         )
     }
-    val actions = BrowserUiActions(
-        onNavigateBack = onNavigateBack,
-        onNavigateTo = onNavigateTo,
-        onOpenFile = onOpenFile,
-        onToggleSelection = onToggleSelection,
-        onSelectMultiple = onSelectMultiple,
-        onClearSelection = onClearSelection,
-        onCreateFolder = onCreateFolder,
-        onCreateFile = onCreateFile,
-        onCreateFakeFile = onCreateFakeFile,
-        onRequestDeleteSelected = onRequestDeleteSelected,
-        onConfirmDelete = onConfirmDelete,
-        onTogglePermanentDelete = onTogglePermanentDelete,
-        onToggleShred = onToggleShred,
-        onDismissDeleteConfirmation = onDismissDeleteConfirmation,
-        onRenameFile = onRenameFile,
-        onSearchQueryChange = onSearchQueryChange,
-        onClearSearch = onClearSearch,
-        onPresentationChange = onPresentationChange,
-        onClearError = onClearError,
-        onCopySelected = onCopySelected,
-        onCutSelected = onCutSelected,
-        onPasteFromClipboard = onPasteFromClipboard,
-        onCancelClipboard = onCancelClipboard,
-        onShareSelected = onShareSelected,
-        onClearFileOperationStatusMessage = onClearFileOperationStatusMessage,
-        onOpenProperties = onOpenProperties,
-        onDismissProperties = onDismissProperties,
-        onClearActiveFileOperation = onClearActiveFileOperation,
-        onDismissConflictDialog = onDismissConflictDialog,
-        onRefresh = onRefresh,
-        onSearchFiltersChange = onSearchFiltersChange,
-        onToggleSearchFilterMenu = onToggleSearchFilterMenu,
-        onResolvingConflicts = onResolvingConflicts,
-        onPinToQuickAccess = onPinToQuickAccess,
-        onNativeRequestResult = onNativeRequestResult,
-        onInvertSelection = onInvertSelection,
-        onSelectAll = onSelectAll,
-        onRemoveFromClipboard = onRemoveFromClipboard,
-        onSelectFolderTab = onSelectFolderTab,
-        onExtractArchive = onExtractArchive,
-        onExtractSelectedArchiveEntries = onExtractSelectedArchiveEntries,
-        onExtractCurrentArchiveFolder = onExtractCurrentArchiveFolder,
-        onCreateZipFromSelection = onCreateZipFromSelection,
-        onCreateArchiveFromSelection = onCreateArchiveFromSelection,
-        onSubmitArchivePassword = onSubmitArchivePassword,
-        onDismissArchivePassword = onDismissArchivePassword,
-        onUndoLastTrashMove = onUndoLastTrashMove,
-        onClearPendingTrashUndo = onClearPendingTrashUndo,
-        onRetryRecoveredOperation = onRetryRecoveredOperation,
-        onCleanupRecoveredOperation = onCleanupRecoveredOperation,
-        onDismissRecoveredOperation = onDismissRecoveredOperation
-    )
+    BrowserScrollEffects(state, scroll, resumeRestoreTick)
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
     val switchCategoryFolderTab: (Int) -> Unit = { direction ->
@@ -235,23 +161,6 @@ fun BrowserScreen(
             if (nextIndex != selectedCategoryFolderTabIndex) {
                 onSelectFolderTab(categoryFolderTabs[nextIndex].path)
             }
-        }
-    }
-
-    val scrollResetKey = "${state.browserSortOption}|${state.currentPath}|${state.activeCategoryName.orEmpty()}|${state.selectedFolderTabPath.orEmpty()}"
-    var lastScrollResetKey by rememberSaveable { mutableStateOf(scrollResetKey) }
-    var pendingScrollReset by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(scrollResetKey) {
-        if (scrollResetKey != lastScrollResetKey) {
-            pendingScrollReset = true
-            lastScrollResetKey = scrollResetKey
-        }
-    }
-    LaunchedEffect(scrollResetKey, displayedFiles.size) {
-        if (pendingScrollReset && displayedFiles.isNotEmpty()) {
-            listState.scrollToItem(0)
-            gridState.scrollToItem(0)
-            pendingScrollReset = false
         }
     }
 
@@ -306,19 +215,37 @@ fun BrowserScreen(
 
     var backProgress by remember { mutableStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
+    var backActionAtStart by remember { mutableStateOf<BrowserBackAction?>(null) }
 
-    PredictiveBackHandler { progressFlow ->
+    val backAction = resolveBrowserBackAction(backState)
+    PredictiveBackHandler(
+        enabled = isRouteVisible && backAction != BrowserBackAction.ExitApp
+    ) { progressFlow ->
+        backActionAtStart = backAction
         isBackPredicting = true
         try {
             progressFlow.collect { backEvent ->
                 backProgress = backEvent.progress
             }
-            handleBrowserBack()
+            when (backActionAtStart) {
+                BrowserBackAction.CloseModal -> handleBrowserBack()
+                BrowserBackAction.CloseSheet -> onToggleSearchFilterMenu(false)
+                BrowserBackAction.CloseSearch -> {
+                    showSearchBar = false
+                    onClearSearch()
+                }
+                BrowserBackAction.ClearSelection -> onClearSelection()
+                BrowserBackAction.NavigateFolderUp,
+                BrowserBackAction.PopRoute,
+                BrowserBackAction.ExitApp -> onNavigateBack()
+                else -> Unit
+            }
         } catch (e: Exception) {
             // Cancelled
         } finally {
             isBackPredicting = false
             backProgress = 0f
+            backActionAtStart = null
         }
     }
 
@@ -326,34 +253,42 @@ fun BrowserScreen(
         state.clipboardState?.let { clipboard ->
             val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
             val count = clipboard.files.size
-            onFeedback(
-                ArcileFeedbackEvent(
-                    message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
-                    severity = ArcileFeedbackSeverity.Info
+            if (isRouteVisible) {
+                onFeedback(
+                    ArcileFeedbackEvent(
+                        message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
+                        severity = ArcileFeedbackSeverity.Info
+                    )
                 )
-            )
+            }
         }
     }
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
-            haptics.error()
-            onFeedback(ArcileFeedbackEvent(message = errorMsg, severity = ArcileFeedbackSeverity.Error))
+            if (isRouteVisible) {
+                haptics.error()
+                onFeedback(ArcileFeedbackEvent(message = errorMsg, severity = ArcileFeedbackSeverity.Error))
+            }
         }
     }
     LaunchedEffect(state.fileOperationStatusMessage) {
         state.fileOperationStatusMessage?.let { message ->
             onClearFileOperationStatusMessage()
-            onFeedback(
-                ArcileFeedbackEvent(
-                    message = message,
-                    severity = ArcileFeedbackSeverity.Success,
-                    actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
-                    onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
-                    onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }
+            if (isRouteVisible) {
+                onFeedback(
+                    ArcileFeedbackEvent(
+                        message = message,
+                        severity = ArcileFeedbackSeverity.Success,
+                        actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
+                        onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
+                        onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }
+                    )
                 )
-            )
+            } else if (state.pendingUndoAction != null) {
+                onClearPendingUndo()
+            }
         }
     }
 
@@ -370,7 +305,7 @@ fun BrowserScreen(
         modifier = Modifier
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .graphicsLayer {
-                if (isBackPredicting) {
+                if (isBackPredicting && backActionAtStart == BrowserBackAction.PopRoute) {
                     val scale = 1f - (backProgress * 0.08f)
                     scaleX = scale
                     scaleY = scale
@@ -381,25 +316,41 @@ fun BrowserScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
-            BrowserTopBars(
-                state = state,
-                displayedFiles = displayedFiles,
-                showSearchBar = showSearchBar,
-                onShowSearchBarChange = { showSearchBar = it },
-                scrollBehavior = scrollBehavior,
-                dialogVisibility = dialogVisibility,
-                actions = actions,
-                onBackClick = handleBrowserBack,
-                onSelectionChanged = { haptics.selectionChanged() },
-                onShowPinnedSnackbar = { label ->
-                    onFeedback(
-                        ArcileFeedbackEvent(
-                            message = UiText.StringResource(R.string.quick_access_pinned, listOf(label)),
-                            severity = ArcileFeedbackSeverity.Success
-                        )
-                    )
-                }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .graphicsLayer {
+                        if (isBackPredicting && (backActionAtStart == BrowserBackAction.CloseSearch || backActionAtStart == BrowserBackAction.ClearSelection)) {
+                            translationY = -backProgress * size.height.toFloat()
+                            alpha = 1f - backProgress
+                        }
+                    }
+            ) {
+                BrowserTopBars(
+                    state = state,
+                    displayedFiles = displayedFiles,
+                    showSearchBar = showSearchBar,
+                    onShowSearchBarChange = { showSearchBar = it },
+                    scrollBehavior = scrollBehavior,
+                    dialogVisibility = dialogVisibility,
+                    searchIntents = intents.search,
+                    selectionIntents = intents.selection,
+                    mutationIntents = intents.mutation,
+                    clipboardIntents = intents.clipboard,
+                    onBackClick = handleBrowserBack,
+                    onSelectionChanged = { haptics.selectionChanged() },
+                    onShowPinnedSnackbar = { label ->
+                        if (isRouteVisible) {
+                            onFeedback(
+                                ArcileFeedbackEvent(
+                                    message = UiText.StringResource(R.string.quick_access_pinned, listOf(label)),
+                                    severity = ArcileFeedbackSeverity.Success
+                                )
+                            )
+                        }
+                    }
+                )
+            }
         },
         bottomBar = {},
         floatingActionButton = {
@@ -417,33 +368,60 @@ fun BrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
         ) {
-            BrowserContent(
-                state = state,
-                displayedFiles = displayedFiles,
-                currentPresentation = currentPresentation,
-                showSearchBar = showSearchBar,
-                showLoading = showLoading,
-                isRefreshing = isRefreshing,
-                bottomContentPadding = bottomContentPadding,
-                scaffoldPadding = padding,
-                layoutDirection = layoutDirection,
-                listState = listState,
-                gridState = gridState,
-                actions = actions,
-                onShowSearchBarChange = { showSearchBar = it },
-                onSwitchCategoryFolderTab = switchCategoryFolderTab
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        if (isBackPredicting && backActionAtStart == BrowserBackAction.NavigateFolderUp) {
+                            translationX = backProgress * 120.dp.toPx()
+                            alpha = 1f - backProgress * 0.5f
+                        }
+                    }
+            ) {
+                BrowserContent(
+                    state = state,
+                    displayedFiles = displayedFiles,
+                    currentPresentation = currentPresentation,
+                    showSearchBar = showSearchBar,
+                    showLoading = showLoading,
+                    isRefreshing = isRefreshing,
+                    bottomContentPadding = bottomContentPadding,
+                    scaffoldPadding = padding,
+                    layoutDirection = layoutDirection,
+                    listState = listState,
+                    gridState = gridState,
+                    navigationIntents = intents.navigation,
+                    selectionIntents = intents.selection,
+                    searchIntents = intents.search,
+                    onShowSearchBarChange = { showSearchBar = it },
+                    onSwitchCategoryFolderTab = switchCategoryFolderTab
+                )
+            }
 
-            BrowserFloatingSurfaces(
-                state = state,
-                scaffoldPadding = padding,
-                isFabExpanded = isFabExpanded,
-                onFabExpandedChange = { isFabExpanded = it },
-                dialogVisibility = dialogVisibility,
-                actions = actions,
-                onOperationSucceeded = { haptics.success() },
-                onOperationFailed = { haptics.error() }
-            )
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        if (isBackPredicting && backActionAtStart == BrowserBackAction.ClearSelection) {
+                            translationY = backProgress * 150.dp.toPx()
+                            alpha = 1f - backProgress
+                        }
+                    }
+            ) {
+                BrowserFloatingSurfaces(
+                    state = state,
+                    scaffoldPadding = padding,
+                    isFabExpanded = isFabExpanded,
+                    onFabExpandedChange = { isFabExpanded = it },
+                    dialogVisibility = dialogVisibility,
+                    selectionIntents = intents.selection,
+                    mutationIntents = intents.mutation,
+                    clipboardIntents = intents.clipboard,
+                    operationIntents = intents.operation,
+                    onOperationSucceeded = { haptics.success() },
+                    onOperationFailed = { haptics.error() }
+                )
+            }
         }
     }
 
@@ -451,6 +429,10 @@ fun BrowserScreen(
         state = state,
         currentPresentation = currentPresentation,
         dialogVisibility = dialogVisibility,
-        actions = actions
+        selectionIntents = intents.selection,
+        mutationIntents = intents.mutation,
+        searchIntents = intents.search,
+        clipboardIntents = intents.clipboard,
+        archiveIntents = intents.archive
     )
 }

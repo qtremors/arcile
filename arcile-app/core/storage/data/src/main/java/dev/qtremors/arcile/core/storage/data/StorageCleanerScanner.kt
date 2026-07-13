@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.storage.data
 
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
@@ -169,7 +169,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
         return regex.matches(lowerValue)
     }
 
-    private fun sampleHash(file: File, size: Long): String? = runCatching {
+    private fun sampleHash(file: File, size: Long): String? = runCatchingPreservingCancellation {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             if (size <= SAMPLE_WINDOW_BYTES * 3L) {
@@ -197,7 +197,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
         }
     }
 
-    private fun fullHash(file: File): String? = runCatching {
+    private fun fullHash(file: File): String? = runCatchingPreservingCancellation {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input -> input.copyTo(DigestOutputStreamAdapter(digest)) }
         digest.digest().toHex()
@@ -246,7 +246,8 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
             val children = try {
                 current.listFiles()
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                error.rethrowIfCancellation()
                 null
             }
             if (children == null) {

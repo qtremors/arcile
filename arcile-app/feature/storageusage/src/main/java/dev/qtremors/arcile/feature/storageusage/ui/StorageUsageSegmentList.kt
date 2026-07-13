@@ -1,8 +1,6 @@
 package dev.qtremors.arcile.feature.storageusage.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -28,9 +26,9 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.ui.theme.titleMediumBold
-import dev.qtremors.arcile.utils.formatFileSize
+import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.presentation.formatFileSize
 
 @Composable
 internal fun StorageUsageSegmentList(
@@ -57,52 +55,48 @@ internal fun StorageUsageSegmentList(
                 formatFileSize(node.sizeBytes),
                 node.childCount
             )
-            Box(
+            Surface(
+                onClick = { onSelectNode(node) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics {
                         role = Role.Button
                         selected = isSelected
                         contentDescription = segmentDescription
-                    }
-                    .clickable { onSelectNode(node) }
+                    },
+                shape = MaterialTheme.shapes.large,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainer
+                }
             ) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large,
-                    color = if (isSelected) {
-                        MaterialTheme.colorScheme.primaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceContainer
-                    }
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (node.kind == StorageUsageNodeKind.File) {
-                                Icons.Default.InsertDriveFile
-                            } else {
-                                Icons.Default.Folder
-                            },
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary
+                    Icon(
+                        imageVector = if (node.kind == StorageUsageNodeKind.File) {
+                            Icons.Default.InsertDriveFile
+                        } else {
+                            Icons.Default.Folder
+                        },
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = node.name,
+                            style = MaterialTheme.typography.bodyMediumBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = node.name,
-                                style = MaterialTheme.typography.bodyMediumBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = formatFileSize(node.sizeBytes),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                        Text(
+                            text = formatFileSize(node.sizeBytes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             }

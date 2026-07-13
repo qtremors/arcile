@@ -15,5 +15,7 @@ kotlin {
 }
 
 dependencies {
+    api(project(":core:storage:domain"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:${libs.versions.coroutines.get()}")
     implementation(libs.kotlinx.serialization.json)
 }

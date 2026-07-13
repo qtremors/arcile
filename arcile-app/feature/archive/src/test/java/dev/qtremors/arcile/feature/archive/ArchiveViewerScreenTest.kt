@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.archive
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -26,26 +26,34 @@ class ArchiveViewerScreenTest {
                         archivePath = "/storage/emulated/0/Download/empty.zip",
                         isLoading = false
                     ),
-                    onNavigateBack = {},
-                    onNavigateUpInArchive = { false },
-                    onOpenFolder = {},
-                    onSearchQueryChange = {},
-                    onExtractAll = {},
-                    onExtractCurrentFolder = {},
-                    onSubmitPassword = {},
-                    onSelectNameEncoding = {},
-                    onSetConflictResolution = { _, _ -> },
-                    onApplyConflictResolutionToAll = {},
-                    onConfirmConflictResolutions = {},
-                    onDismissConflicts = {},
-                    onClearError = {},
-                    onCancelExtraction = {},
-                    onClearOperationStatusMessage = {},
-                    onClearActiveOperation = {},
-                    onToggleItemSelection = {},
-                    onClearSelection = {},
-                    onExtractSelected = {},
-                    onSelectAll = {}
+                    navigationActions = ArchiveNavigationActions(
+                        navigateBack = {},
+                        navigateUpInArchive = { false },
+                        openFolder = {},
+                        searchQueryChange = {}
+                    ),
+                    extractionActions = ArchiveExtractionActions(
+                        extractAll = {},
+                        extractCurrentFolder = {},
+                        submitPassword = {},
+                        selectNameEncoding = {},
+                        cancelExtraction = {},
+                        clearError = {},
+                        clearOperationStatusMessage = {},
+                        clearActiveOperation = {}
+                    ),
+                    conflictActions = ArchiveConflictActions(
+                        setResolution = { _, _ -> },
+                        applyResolutionToAll = {},
+                        confirmResolutions = {},
+                        dismissConflicts = {}
+                    ),
+                    selectionActions = ArchiveSelectionActions(
+                        toggleItem = {},
+                        clear = {},
+                        extractSelected = {},
+                        selectAll = {}
+                    )
                 )
             }
         }

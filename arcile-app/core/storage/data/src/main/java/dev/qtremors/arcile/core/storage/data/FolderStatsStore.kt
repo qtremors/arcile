@@ -5,13 +5,13 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.db.FolderStatsDao
 import dev.qtremors.arcile.core.storage.data.db.FolderStatsEntity
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -143,9 +143,8 @@ class DefaultFolderStatsStore @Inject constructor(
             activeJobs.remove(path)?.cancel()
             queuedPaths.remove(path)
             memoryCache.remove(path)
-            runCatching { folderStatsDao.delete(listOf(path)) }
+            runCatchingPreservingCancellation { folderStatsDao.delete(listOf(path)) }
                 .onFailure { error ->
-                    if (error is kotlinx.coroutines.CancellationException) throw error
                     AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path", error)
                 }
         }
@@ -159,9 +158,8 @@ class DefaultFolderStatsStore @Inject constructor(
             memoryCache.clear()
             retryCounts.clear()
             pathGenerations.clear()
-            runCatching { folderStatsDao.clear() }
+            runCatchingPreservingCancellation { folderStatsDao.clear() }
                 .onFailure { error ->
-                    if (error is kotlinx.coroutines.CancellationException) throw error
                     AppLogger.w("FolderStatsStore", "Failed to clear folder stats cache", error)
                 }
         }
@@ -174,7 +172,7 @@ class DefaultFolderStatsStore @Inject constructor(
         return try {
             calculator(File(path))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             AppLogger.w("FolderStatsStore", "Folder stats calculation failed for $path", e)
             FolderStats(0L, 0L, System.currentTimeMillis(), FolderStatsStatus.Unavailable)
         }
@@ -185,7 +183,7 @@ class DefaultFolderStatsStore @Inject constructor(
             folderStatsDao.upsert(FolderStatsEntity.from(path, stats))
             pruneIfNeeded()
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             AppLogger.w("FolderStatsStore", "Failed to persist folder stats for $path", e)
         }
     }

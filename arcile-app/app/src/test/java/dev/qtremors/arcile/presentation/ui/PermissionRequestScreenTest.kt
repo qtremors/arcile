@@ -2,7 +2,7 @@ package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith

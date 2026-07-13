@@ -1,20 +1,20 @@
 package dev.qtremors.arcile.feature.archive
 
-import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
+import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.ArchivePathRequest
+import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -101,10 +101,15 @@ class ArchiveViewerViewModelTest {
         ArchiveViewerViewModel(
             savedStateHandle = SavedStateHandle(mapOf("archivePath" to archivePath)),
             repository = repository.archiveRepository,
-            bulkFileOperationCoordinator = coordinator,
-            context = mockk<Context> {
-                every { getString(any()) } returns "Fallback error"
-            }
+            archivePathResolver = object : ArchivePathResolver {
+                override suspend fun resolve(request: ArchivePathRequest) =
+                    Result.failure<String>(UnsupportedOperationException())
+
+                override suspend fun resolveExtraction(request: ArchiveExtractionPathRequest) =
+                    Result.success(request.archivePath.substringBeforeLast('/') + "/" +
+                        request.archivePath.substringAfterLast('/').substringBeforeLast('.'))
+            },
+            bulkFileOperationCoordinator = coordinator
         )
 
     private fun entry(path: String): ArchiveEntryModel =

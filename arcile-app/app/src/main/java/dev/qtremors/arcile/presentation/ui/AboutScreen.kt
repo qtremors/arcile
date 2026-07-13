@@ -4,7 +4,6 @@ package dev.qtremors.arcile.presentation.ui
 
 import android.content.ClipData
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +16,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
-import dev.qtremors.arcile.ui.theme.spacing
+import androidx.compose.foundation.shape.CircleShape
+import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -57,11 +57,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.launch
-import dev.qtremors.arcile.shared.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.shared.ui.ArcileSectionHeader
-import dev.qtremors.arcile.shared.ui.ArcileListSurface
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.ArcileListSurface
 
 import coil.compose.AsyncImage
 
@@ -96,7 +97,12 @@ fun AboutScreen(
                 title = { Text(stringResource(R.string.about_title)) },
                 scrollBehavior = scrollBehavior,
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
+                    IconButton(
+                        onClick = onNavigateBack,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = onNavigateBack)
+                    ) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 }
@@ -134,7 +140,7 @@ fun AboutScreen(
                         supportingContent = { Text(dev.qtremors.arcile.BuildConfig.VERSION_NAME) },
                         leadingContent = { Icon(Icons.Default.Info, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable {
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable {
                             copyToClipboard("Arcile v${dev.qtremors.arcile.BuildConfig.VERSION_NAME}")
                         }
                     )
@@ -145,7 +151,7 @@ fun AboutScreen(
                         leadingContent = { Icon(Icons.Default.Code, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri(context.getString(R.string.developer_url)) }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable { uriHandler.openUri(context.getString(R.string.developer_url)) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
@@ -154,7 +160,7 @@ fun AboutScreen(
                         leadingContent = { Icon(Icons.Default.Source, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri(context.getString(R.string.repository_full_url)) }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable { uriHandler.openUri(context.getString(R.string.repository_full_url)) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
@@ -162,7 +168,7 @@ fun AboutScreen(
                         supportingContent = { Text("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})") },
                         leadingContent = { Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable {
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable {
                             copyToClipboard("${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})")
                         }
                     )
@@ -177,7 +183,7 @@ fun AboutScreen(
                         leadingContent = { Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri(context.getString(R.string.privacy_policy_url)) }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable { uriHandler.openUri(context.getString(R.string.privacy_policy_url)) }
                     )
                 }
             }
@@ -190,7 +196,7 @@ fun AboutScreen(
                         leadingContent = { Icon(Icons.Default.History, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri("https://github.com/qtremors/arcile/releases") }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable { uriHandler.openUri("https://github.com/qtremors/arcile/releases") }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
@@ -199,7 +205,7 @@ fun AboutScreen(
                         leadingContent = { Icon(Icons.Default.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         trailingContent = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp)) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { uriHandler.openUri(context.getString(R.string.report_issue_url)) }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable { uriHandler.openUri(context.getString(R.string.report_issue_url)) }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
                     ListItem(
@@ -207,7 +213,7 @@ fun AboutScreen(
                         supportingContent = { Text(stringResource(R.string.open_source_licenses_description)) },
                         leadingContent = { Icon(Icons.AutoMirrored.Filled.Assignment, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
                         colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
-                        modifier = Modifier.clip(ExpressiveShapes.medium).clickable { onNavigateToLicenses() }
+                        modifier = Modifier.clip(ExpressiveShapes.medium).bounceClickable { onNavigateToLicenses() }
                     )
                 }
             }

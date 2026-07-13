@@ -25,7 +25,8 @@ internal object FolderStatsCalculator {
         val pending = ArrayDeque<File>()
         val rootChildren = try {
             root.listFiles() ?: return FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
             return FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
         }
 
@@ -56,7 +57,8 @@ internal object FolderStatsCalculator {
 
             val children = try {
                 current.listFiles() ?: throw IOException("Unable to read directory: ${current.absolutePath}")
-            } catch (_: Exception) {
+            } catch (error: Exception) {
+                error.rethrowIfCancellation()
                 encounteredLimitedAccess = true
                 continue
             }

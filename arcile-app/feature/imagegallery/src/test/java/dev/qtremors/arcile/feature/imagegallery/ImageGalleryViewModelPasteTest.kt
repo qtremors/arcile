@@ -16,9 +16,9 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
-import dev.qtremors.arcile.core.ui.UiText
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeClipboardRepository
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -33,7 +33,6 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.junit.runner.RunWith
@@ -259,51 +258,6 @@ class ImageGalleryViewModelPasteTest {
         assertEquals(clipboard, fixture.viewModel.state.value.clipboardState)
     }
 
-    @Test
-    fun `viewer state restores from saved state handle after recreation`() = runTest(mainDispatcherRule.dispatcher) {
-        val savedStateHandle = SavedStateHandle()
-        val fixture = createFixture(savedStateHandle)
-        val initialPath = "/storage/emulated/0/DCIM/opened.jpg"
-        val path = "/storage/emulated/0/DCIM/photo.jpg"
-
-        fixture.viewModel.startViewerSession(initialPath)
-        fixture.viewModel.setViewerCurrentPath(path)
-        fixture.viewModel.setViewerMetadataVisible(path, visible = true)
-        fixture.viewModel.setViewerUiVisible(false)
-        fixture.viewModel.rotateViewerImage(path)
-        fixture.viewModel.setViewerEraseDialogPath(path)
-
-        val recreated = createFixture(savedStateHandle).viewModel.state.value
-
-        assertEquals(initialPath, recreated.viewerSessionInitialPath)
-        assertEquals(path, recreated.viewerCurrentPath)
-        assertEquals(path, recreated.viewerMetadataPath)
-        assertFalse(recreated.viewerUiVisible)
-        assertEquals(90f, recreated.viewerRotationDegrees[path])
-        assertEquals(path, recreated.viewerEraseDialogPath)
-    }
-
-    @Test
-    fun `starting new viewer session resets stale current image state`() = runTest(mainDispatcherRule.dispatcher) {
-        val fixture = createFixture()
-        val firstPath = "/storage/emulated/0/DCIM/first.jpg"
-        val secondPath = "/storage/emulated/0/DCIM/second.jpg"
-
-        fixture.viewModel.startViewerSession(firstPath)
-        fixture.viewModel.setViewerCurrentPath("/storage/emulated/0/DCIM/swiped.jpg")
-        fixture.viewModel.setViewerMetadataVisible("/storage/emulated/0/DCIM/swiped.jpg", visible = true)
-        fixture.viewModel.setViewerUiVisible(false)
-        fixture.viewModel.setViewerEraseDialogPath("/storage/emulated/0/DCIM/swiped.jpg")
-        fixture.viewModel.startViewerSession(secondPath)
-
-        val state = fixture.viewModel.state.value
-        assertEquals(secondPath, state.viewerSessionInitialPath)
-        assertEquals(secondPath, state.viewerCurrentPath)
-        assertNull(state.viewerMetadataPath)
-        assertTrue(state.viewerUiVisible)
-        assertNull(state.viewerEraseDialogPath)
-    }
-
     private fun createFixture(savedStateHandle: SavedStateHandle = SavedStateHandle()): Fixture {
         val repository = RecordingGalleryRepository()
         val clipboardRepository = FakeClipboardRepository()
@@ -314,9 +268,9 @@ class ImageGalleryViewModelPasteTest {
             fileMutationRepository = NoOpFileMutationRepository,
             clipboardRepository = clipboardRepository,
             volumeRepository = NoOpVolumeRepository,
-            browserPreferencesStore = FakeBrowserPreferencesStore(),
+            browserPreferencesStore = FakeFilePreferencesStore(),
             bulkFileOperationCoordinator = operationCoordinator,
-            context = RuntimeEnvironment.getApplication(),
+            archivePathResolver = TestArchivePathResolver,
             savedStateHandle = savedStateHandle
         )
         return Fixture(viewModel, repository, clipboardRepository, operationCoordinator)
@@ -327,6 +281,24 @@ class ImageGalleryViewModelPasteTest {
         val repository: RecordingGalleryRepository,
         val clipboardRepository: FakeClipboardRepository,
         val operationCoordinator: FakeBulkFileOperationCoordinator
+    )
+}
+
+private object TestArchivePathResolver :
+    dev.qtremors.arcile.core.storage.domain.ArchivePathResolver {
+    override suspend fun resolve(
+        request: dev.qtremors.arcile.core.storage.domain.ArchivePathRequest
+    ): Result<String> = Result.success(
+        "${request.parentPath.orEmpty().trimEnd('/')}/Archive.${request.format.extension}"
+    )
+
+    override suspend fun resolveExtraction(
+        request: dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
+    ): Result<String> = Result.success(
+        request.customDestination
+            ?: request.currentPath
+            ?: dev.qtremors.arcile.core.storage.domain.storageParentPath(request.archivePath)
+            ?: request.archivePath
     )
 }
 

@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.browser.ui
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,24 +9,32 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.FilledTonalButton
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.InputChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -52,9 +59,10 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
-import dev.qtremors.arcile.shared.ui.keyboardInputField
-import dev.qtremors.arcile.shared.ui.dialogs.FileNameInput
-import dev.qtremors.arcile.shared.ui.dialogs.validateFileName
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.keyboardInputField
+import dev.qtremors.arcile.core.ui.dialogs.FileNameInput
+import dev.qtremors.arcile.core.ui.dialogs.validateFileName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -143,6 +151,7 @@ internal fun CreateArchiveDialog(
                             format = ArchiveFormat.creatableFormats().first { it.displayName == selected }
                             if (!format.supportsPassword) usePassword = false
                         },
+                        leadingIcon = Icons.Default.FolderZip,
                         modifier = Modifier.fillMaxWidth()
                     )
                     ArchiveDropdown(
@@ -152,14 +161,16 @@ internal fun CreateArchiveDialog(
                         onOptionSelected = { selected ->
                             compressionLevel = ArchiveCompressionLevel.entries.first { it.displayName == selected }
                         },
+                        leadingIcon = Icons.Default.Tune,
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
                 if (format.supportsPassword) {
+                    val onTogglePasswordClick = { usePassword = !usePassword }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { usePassword = !usePassword }
+                            .bounceClickable(onClick = onTogglePasswordClick)
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -206,17 +217,30 @@ internal fun CreateArchiveDialog(
             }
         },
         confirmButton = {
-            TextButton(
+            val onConfirmClick = {
+                onConfirm(sanitizedArchiveBase, format, compressionLevel, effectivePassword)
+            }
+            FilledTonalButton(
                 enabled = canCreate,
-                onClick = {
-                    onConfirm(sanitizedArchiveBase, format, compressionLevel, effectivePassword)
-                }
+                onClick = onConfirmClick,
+                modifier = Modifier.bounceClickable(enabled = canCreate, onClick = onConfirmClick),
+                shape = ExpressiveShapes.medium
             ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.archive_create_action))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }
@@ -229,11 +253,12 @@ private fun ArchiveFormatChoice(
     selected: ArchiveFormat,
     onSelect: (ArchiveFormat) -> Unit
 ) {
+    val onChoiceClick = { onSelect(option) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
-            .clickable { onSelect(option) }
+            .bounceClickable(onClick = onChoiceClick)
             .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -279,6 +304,7 @@ internal fun ExtractArchiveDialog(
                             ArchiveExtractionTarget.CUSTOM_FOLDER -> stringResource(R.string.archive_choose_folder)
                         }
                         val isSelected = target == option
+                        val onSelectTarget = { target = option }
                         Surface(
                             shape = MaterialTheme.shapes.large,
                             color = if (isSelected) {
@@ -289,7 +315,7 @@ internal fun ExtractArchiveDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(MaterialTheme.shapes.large)
-                                .clickable { target = option }
+                                .bounceClickable(onClick = onSelectTarget)
                         ) {
                             Row(
                                 modifier = Modifier
@@ -321,21 +347,43 @@ internal fun ExtractArchiveDialog(
                         onValueChange = { customDestination = it },
                         modifier = Modifier.fillMaxWidth().keyboardInputField(),
                         singleLine = true,
-                        label = { Text(stringResource(R.string.archive_destination_folder)) }
+                        label = { Text(stringResource(R.string.archive_destination_folder)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        shape = ExpressiveShapes.medium
                     )
                 }
             }
         },
         confirmButton = {
-            TextButton(
-                enabled = target != ArchiveExtractionTarget.CUSTOM_FOLDER || customDestination.isNotBlank(),
-                onClick = { onConfirm(target, customDestination.takeIf { target == ArchiveExtractionTarget.CUSTOM_FOLDER }) }
+            val onConfirmClick = { onConfirm(target, customDestination.takeIf { target == ArchiveExtractionTarget.CUSTOM_FOLDER }) }
+            val confirmEnabled = target != ArchiveExtractionTarget.CUSTOM_FOLDER || customDestination.isNotBlank()
+            FilledTonalButton(
+                enabled = confirmEnabled,
+                onClick = onConfirmClick,
+                modifier = Modifier.bounceClickable(enabled = confirmEnabled, onClick = onConfirmClick),
+                shape = ExpressiveShapes.medium
             ) {
+                Icon(
+                    imageVector = Icons.Default.Check,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(stringResource(R.string.archive_extract_archive))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) {
                 Text(stringResource(R.string.cancel))
             }
         }
@@ -352,134 +400,5 @@ private fun archiveBaseName(name: String): String {
         trimmed.dropLast(supportedSuffix.length)
     } else {
         trimmed
-    }
-}
-
-@Composable
-internal fun ArchivePasswordPromptDialog(
-    archiveName: String,
-    onDismiss: () -> Unit,
-    onConfirm: (String) -> Unit
-) {
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-        title = { Text(stringResource(R.string.archive_password_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(archiveName, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                PasswordInputField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = stringResource(R.string.archive_password),
-                    supportingText = stringResource(R.string.archive_password_description),
-                    passwordVisible = passwordVisible,
-                    onToggleVisibility = { passwordVisible = !passwordVisible }
-                )
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = password.isNotEmpty(),
-                onClick = { onConfirm(password) }
-            ) {
-                Text(stringResource(R.string.open))
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
-            }
-        }
-    )
-}
-
-@Composable
-private fun PasswordInputField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    passwordVisible: Boolean,
-    onToggleVisibility: (() -> Unit)?,
-    isError: Boolean = false,
-    supportingText: String? = null
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth().keyboardInputField(),
-        label = { Text(label) },
-        isError = isError,
-        supportingText = supportingText?.let { text ->
-            { Text(text) }
-        },
-        visualTransformation = if (passwordVisible) {
-            VisualTransformation.None
-        } else {
-            PasswordVisualTransformation()
-        },
-        trailingIcon = if (onToggleVisibility != null) {
-            {
-                val icon = if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility
-                val contentDescription = stringResource(
-                    if (passwordVisible) {
-                        R.string.archive_password_hide
-                    } else {
-                        R.string.archive_password_show
-                    }
-                )
-                IconButton(onClick = onToggleVisibility) {
-                    Icon(icon, contentDescription = contentDescription)
-                }
-            }
-        } else {
-            null
-        }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ArchiveDropdown(
-    label: String,
-    selectedOption: String,
-    options: List<String>,
-    onOptionSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(
-        expanded = expanded,
-        onExpandedChange = { expanded = !expanded },
-        modifier = modifier
-    ) {
-        OutlinedTextField(
-            value = selectedOption,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text(label) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-            modifier = Modifier
-                .fillMaxWidth()
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
-        )
-        ExposedDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            options.forEach { option ->
-                DropdownMenuItem(
-                    text = { Text(option) },
-                    onClick = {
-                        onOptionSelected(option)
-                        expanded = false
-                    }
-                )
-            }
-        }
     }
 }

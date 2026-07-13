@@ -27,10 +27,10 @@ import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailType
-import dev.qtremors.arcile.shared.ui.getFileIconVector
-import dev.qtremors.arcile.shared.ui.loadApplicationIconBitmap
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailType
+import dev.qtremors.arcile.core.ui.getFileIconVector
+import dev.qtremors.arcile.core.ui.loadApplicationIconBitmap
 import java.io.File
 
 import androidx.compose.foundation.layout.offset

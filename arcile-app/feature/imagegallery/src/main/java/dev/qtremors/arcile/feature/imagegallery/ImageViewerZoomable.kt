@@ -42,6 +42,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,21 +83,26 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.shared.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.shared.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.Job
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 
 @Composable
-fun ZoomableImageViewer(
+internal fun ZoomableImageViewer(
     file: FileModel,
     rotation: Float,
     onDismiss: () -> Unit,
     onTap: () -> Unit,
     onScaleChanged: (Float) -> Unit,
     onSwipeUp: () -> Unit,
+    onOpenWith: () -> Unit,
+    imageModifier: Modifier = Modifier,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -130,26 +136,39 @@ fun ZoomableImageViewer(
         offsetY.snapTo(0f)
     }
 
-    val requestData = remember(context, file) { imageRequestDataFor(context, file) }
+    val requestData = remember(file) { imageRequestDataFor(file) }
     val request = remember(context, requestData) {
         ImageRequest.Builder(context)
             .data(requestData)
             .build()
     }
+    var renderFailed by remember(file.absolutePath) { mutableStateOf(false) }
+    var imageSize by remember(file.absolutePath) { mutableStateOf(IntSize.Zero) }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .pointerInput(file) {
+            .pointerInput(file, imageSize, rotation) {
                 val touchSlop = viewConfiguration.touchSlop
                 val doubleTapTimeout = 300L
                 var lastTapTime = 0L
                 var lastTapPosition = Offset.Zero
+                var transformJob: Job? = null
+
+                fun fittedContentSize() = viewerFittedContentSize(
+                    viewportWidth = size.width.toFloat(),
+                    viewportHeight = size.height.toFloat(),
+                    imageWidth = imageSize.width.toFloat(),
+                    imageHeight = imageSize.height.toFloat(),
+                    rotationDegrees = rotation
+                )
                 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val downTime = System.currentTimeMillis()
                     val downPos = down.position
+                    var gestureScale = scale.value
+                    var gestureOffset = Offset(offsetX.value, offsetY.value)
                     
                     var isMultiTouch = false
                     var dragStarted = false
@@ -168,24 +187,27 @@ fun ZoomableImageViewer(
                             
                             val zoomChange = event.calculateZoom()
                             val panChange = event.calculatePan()
-                            
-                            coroutineScope.launch {
-                                val rawScale = scale.value * zoomChange
-                                val constrainedScale = if (rawScale < 0.8f) {
-                                    0.8f
-                                } else if (rawScale > 5f) {
-                                    5f
-                                } else {
-                                    rawScale
-                                }
+                            val centroid = event.calculateCentroid()
+                            val oldScale = gestureScale
+                            val rawScale = oldScale * zoomChange
+                            val constrainedScale = rawScale.coerceIn(VIEWER_MIN_STABLE_SCALE, VIEWER_MAX_STABLE_SCALE)
+                            val nextOffset = viewerOffsetForScale(
+                                currentOffset = gestureOffset,
+                                oldScale = oldScale,
+                                newScale = constrainedScale,
+                                centroid = centroid,
+                                viewportCenter = Offset(size.width / 2f, size.height / 2f),
+                                pan = panChange
+                            )
+                            gestureScale = constrainedScale
+                            gestureOffset = nextOffset
+                            transformJob?.cancel()
+                            transformJob = coroutineScope.launch {
                                 scale.snapTo(constrainedScale)
-                                onScaleChanged(constrainedScale)
-                                
-                                val newX = offsetX.value + panChange.x
-                                val newY = offsetY.value + panChange.y
-                                offsetX.snapTo(newX)
-                                offsetY.snapTo(newY)
+                                offsetX.snapTo(nextOffset.x)
+                                offsetY.snapTo(nextOffset.y)
                             }
+                            onScaleChanged(constrainedScale)
                         } else if (pointers.size == 1 && !isMultiTouch) {
                             val change = pointers[0]
                             if (change.pressed) {
@@ -207,9 +229,10 @@ fun ZoomableImageViewer(
                                 if (dragStarted) {
                                     if (scale.value > 1.05f) {
                                         change.consume()
+                                        val contentSize = fittedContentSize()
                                         coroutineScope.launch {
-                                            val maxX = (scale.value - 1f) * size.width / 2f
-                                            val maxY = (scale.value - 1f) * size.height / 2f
+                                            val maxX = viewerPanLimit(scale.value, contentSize.width, size.width.toFloat())
+                                            val maxY = viewerPanLimit(scale.value, contentSize.height, size.height.toFloat())
                                             
                                             val targetX = offsetX.value + delta.x
                                             val targetY = offsetY.value + delta.y
@@ -250,16 +273,69 @@ fun ZoomableImageViewer(
                     val releaseTime = System.currentTimeMillis()
                     val dragY = offsetY.value
                     
-                    if (isMultiTouch || scale.value > 1.05f) {
+                    if (!isMultiTouch && !dragStarted && (releaseTime - downTime) < 300L) {
+                        val timeDiff = releaseTime - lastTapTime
+                        val distDiff = (downPos - lastTapPosition).getDistance()
+                        if (timeDiff < doubleTapTimeout && distDiff < touchSlop * 2) {
+                            coroutineScope.launch {
+                                if (abs(scale.value - 1f) > 0.05f) {
+                                    launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
+                                    onScaleChanged(1f)
+                                } else {
+                                    val targetScale = 2.5f
+                                    val targetOffset = viewerOffsetForScale(
+                                        currentOffset = Offset(offsetX.value, offsetY.value),
+                                        oldScale = scale.value,
+                                        newScale = targetScale,
+                                        centroid = downPos,
+                                        viewportCenter = Offset(size.width / 2f, size.height / 2f)
+                                    )
+                                    val contentSize = fittedContentSize()
+                                    val maxX = viewerPanLimit(targetScale, contentSize.width, size.width.toFloat())
+                                    val maxY = viewerPanLimit(targetScale, contentSize.height, size.height.toFloat())
+                                    launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
+                                    launch {
+                                        offsetX.animateTo(
+                                            targetOffset.x.coerceIn(-maxX, maxX),
+                                            spring(stiffness = Spring.StiffnessMedium)
+                                        )
+                                    }
+                                    launch {
+                                        offsetY.animateTo(
+                                            targetOffset.y.coerceIn(-maxY, maxY),
+                                            spring(stiffness = Spring.StiffnessMedium)
+                                        )
+                                    }
+                                    onScaleChanged(targetScale)
+                                }
+                            }
+                            lastTapTime = 0L
+                            lastTapPosition = Offset.Zero
+                        } else {
+                            lastTapTime = releaseTime
+                            lastTapPosition = downPos
+                            coroutineScope.launch {
+                                delay(doubleTapTimeout)
+                                if (lastTapTime == releaseTime) {
+                                    lastTapTime = 0L
+                                    lastTapPosition = Offset.Zero
+                                    onTap()
+                                }
+                            }
+                        }
+                    } else if (isMultiTouch || scale.value > 1.05f) {
                         coroutineScope.launch {
-                            val targetScale = scale.value.coerceIn(1f, 4f)
+                            val targetScale = viewerReleaseScale(scale.value)
                             if (scale.value != targetScale) {
                                 launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
                                 onScaleChanged(targetScale)
                             }
                             
-                            val maxX = (targetScale - 1f) * size.width / 2f
-                            val maxY = (targetScale - 1f) * size.height / 2f
+                            val contentSize = fittedContentSize()
+                            val maxX = viewerPanLimit(targetScale, contentSize.width, size.width.toFloat())
+                            val maxY = viewerPanLimit(targetScale, contentSize.height, size.height.toFloat())
                             val targetX = offsetX.value.coerceIn(-maxX, maxX)
                             val targetY = offsetY.value.coerceIn(-maxY, maxY)
                             
@@ -288,36 +364,6 @@ fun ZoomableImageViewer(
                                 launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
                             }
                         }
-                    } else if (!dragStarted && (releaseTime - downTime) < 300L) {
-                        val timeDiff = releaseTime - lastTapTime
-                        val distDiff = (downPos - lastTapPosition).getDistance()
-                        if (timeDiff < doubleTapTimeout && distDiff < touchSlop * 2) {
-                            coroutineScope.launch {
-                                if (scale.value > 1.05f) {
-                                    launch { scale.animateTo(1f, spring(stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetX.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetY.animateTo(0f, spring(stiffness = Spring.StiffnessMedium)) }
-                                    onScaleChanged(1f)
-                                } else {
-                                    val targetScale = 2.5f
-                                    launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
-                                    onScaleChanged(targetScale)
-                                    
-                                    val maxX = (targetScale - 1f) * size.width / 2f
-                                    val maxY = (targetScale - 1f) * size.height / 2f
-                                    val targetX = ((size.width / 2f - downPos.x) * (targetScale - 1f)).coerceIn(-maxX, maxX)
-                                    val targetY = ((size.height / 2f - downPos.y) * (targetScale - 1f)).coerceIn(-maxY, maxY)
-                                    launch { offsetX.animateTo(targetX, spring(stiffness = Spring.StiffnessMedium)) }
-                                    launch { offsetY.animateTo(targetY, spring(stiffness = Spring.StiffnessMedium)) }
-                                }
-                            }
-                            lastTapTime = 0L
-                            lastTapPosition = Offset.Zero
-                        } else {
-                            onTap()
-                            lastTapTime = releaseTime
-                            lastTapPosition = downPos
-                        }
                     }
                 }
             },
@@ -325,11 +371,11 @@ fun ZoomableImageViewer(
     ) {
         val dragFraction = (abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
         val backdropAlpha = (1f - dragFraction * 0.8f).coerceIn(0.1f, 1f)
-        val viewScale = (scale.value * (1f - dragFraction * 0.15f)).coerceIn(0.5f, 4f)
+        val viewScale = viewerRenderScale(scale.value, dragFraction)
 
         // Backdrop fade overlay on vertical drag
         Box(
-            modifier = Modifier
+            modifier = imageModifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = backdropAlpha))
         )
@@ -338,6 +384,19 @@ fun ZoomableImageViewer(
             model = request,
             contentDescription = null,
             contentScale = ContentScale.Fit,
+            onSuccess = { success ->
+                renderFailed = false
+                val intrinsic = success.painter.intrinsicSize
+                if (
+                    intrinsic.width.isFinite() &&
+                    intrinsic.height.isFinite() &&
+                    intrinsic.width > 0f &&
+                    intrinsic.height > 0f
+                ) {
+                    imageSize = IntSize(intrinsic.width.roundToInt(), intrinsic.height.roundToInt())
+                }
+            },
+            onError = { renderFailed = true },
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
@@ -348,11 +407,36 @@ fun ZoomableImageViewer(
                     rotationZ = animatedRotation
                 }
         )
+
+        if (renderFailed) {
+            Column(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .padding(24.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(Color.Black.copy(alpha = 0.7f))
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = stringResource(R.string.cannot_render_image),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(onClick = onOpenWith) {
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(stringResource(R.string.image_gallery_open_with))
+                }
+            }
+        }
     }
 }
 
 // Reusable utility method for format size
-fun formatFileSize(size: Long): String {
+internal fun formatFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
@@ -360,7 +444,7 @@ fun formatFileSize(size: Long): String {
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-enum class DragDirection {
+internal enum class DragDirection {
     VERTICAL, HORIZONTAL
 }
 

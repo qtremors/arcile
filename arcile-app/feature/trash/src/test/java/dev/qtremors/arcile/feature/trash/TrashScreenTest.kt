@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.trash
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.feature.trash.TrashState
-import dev.qtremors.arcile.testutil.ArcileTestTheme
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,17 +24,13 @@ class TrashScreenTest {
             ArcileTestTheme {
                 TrashScreen(
                     state = TrashState(isLoading = false),
-                    onNavigateBack = {},
-                    onToggleSelection = {},
-                    onClearSelection = {},
-                    onRestoreSelected = {},
-                    onEmptyTrash = {},
-                    onClearError = {},
-                    onDismissDestinationPicker = {},
-                    onRestoreToDestination = { _, _ -> },
-                    onPermanentlyDeleteSelected = {},
-                    onDismissPermanentDelete = {},
-                    onSelectAll = {}
+                    navigationActions = testNavigationActions(),
+                    selectionActions = testSelectionActions(),
+                    fileActions = testFileActions(),
+                    restoreActions = testRestoreActions(),
+                    deleteActions = testDeleteActions(),
+                    presentationActions = testPresentationActions(),
+                    feedbackActions = testFeedbackActions()
                 )
             }
         }
@@ -54,17 +50,13 @@ class TrashScreenTest {
                         searchResults = emptyList(),
                         isSearching = false
                     ),
-                    onNavigateBack = {},
-                    onToggleSelection = {},
-                    onClearSelection = {},
-                    onRestoreSelected = {},
-                    onEmptyTrash = {},
-                    onClearError = {},
-                    onDismissDestinationPicker = {},
-                    onRestoreToDestination = { _, _ -> },
-                    onPermanentlyDeleteSelected = {},
-                    onDismissPermanentDelete = {},
-                    onSelectAll = {}
+                    navigationActions = testNavigationActions(),
+                    selectionActions = testSelectionActions(),
+                    fileActions = testFileActions(),
+                    restoreActions = testRestoreActions(),
+                    deleteActions = testDeleteActions(),
+                    presentationActions = testPresentationActions(),
+                    feedbackActions = testFeedbackActions()
                 )
             }
         }
@@ -72,3 +64,17 @@ class TrashScreenTest {
         composeRule.onNodeWithText("No results found").assertExists()
     }
 }
+
+private fun testNavigationActions() = TrashNavigationActions {}
+
+private fun testSelectionActions() = TrashSelectionActions({}, {}, {}, {}, {})
+
+private fun testFileActions() = TrashFileActions({}, {}, {})
+
+private fun testRestoreActions() = TrashRestoreActions({}, {}, { _, _ -> }, {}, {})
+
+private fun testDeleteActions() = TrashDeleteActions({}, {}, {})
+
+private fun testPresentationActions() = TrashPresentationActions({}, {}, {}, {}, null)
+
+private fun testFeedbackActions() = TrashFeedbackActions({}, {}, {})

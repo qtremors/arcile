@@ -6,7 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.testutil.FakeBrowserPreferencesStore
+import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -39,7 +39,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -47,8 +47,8 @@ class BrowserViewModelFolderStatsTest {
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
 
-        assertEquals(cachedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
-        assertTrue(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Music"))
+        assertEquals(cachedStats, viewModel.uiState.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertTrue(viewModel.uiState.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Music"))
         assertEquals(listOf("/storage/emulated/0/Download/Music"), repo.lastQueuedFolderStats)
     }
 
@@ -71,7 +71,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -79,9 +79,9 @@ class BrowserViewModelFolderStatsTest {
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
 
-        assertEquals(staleStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
-        assertEquals(staleStats, viewModel.state.value.displayState.visibleListRows.single().folderStats)
-        assertTrue(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
+        assertEquals(staleStats, viewModel.uiState.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertEquals(staleStats, viewModel.uiState.value.displayState.visibleListRows.single().folderStats)
+        assertTrue(viewModel.uiState.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
         assertEquals(listOf("/storage/emulated/0/Download/Docs"), repo.lastQueuedFolderStats)
     }
 
@@ -98,7 +98,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -110,10 +110,10 @@ class BrowserViewModelFolderStatsTest {
         repo.emitFolderStatUpdate(FolderStatUpdate("/storage/emulated/0/Download/Docs", updatedStats))
         advanceUntilIdle()
 
-        assertEquals(updatedStats, viewModel.state.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
-        assertEquals(updatedStats, viewModel.state.value.displayState.visibleListRows.single().folderStats)
-        assertEquals(updatedStats, viewModel.state.value.displayState.visibleGridRows.single().folderStats)
-        assertFalse(viewModel.state.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
+        assertEquals(updatedStats, viewModel.uiState.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
+        assertEquals(updatedStats, viewModel.uiState.value.displayState.visibleListRows.single().folderStats)
+        assertEquals(updatedStats, viewModel.uiState.value.displayState.visibleGridRows.single().folderStats)
+        assertFalse(viewModel.uiState.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
     }
 
     @Test
@@ -132,7 +132,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
         )
 
@@ -150,8 +150,8 @@ class BrowserViewModelFolderStatsTest {
         )
         advanceUntilIdle()
 
-        assertFalse(viewModel.state.value.folderStatsByPath.containsKey("/storage/emulated/0/Download/Docs"))
-        assertEquals("/storage/emulated/0/Pictures", viewModel.state.value.currentPath)
+        assertFalse(viewModel.uiState.value.folderStatsByPath.containsKey("/storage/emulated/0/Download/Docs"))
+        assertEquals("/storage/emulated/0/Pictures", viewModel.uiState.value.currentPath)
     }
 
     @Test
@@ -182,7 +182,7 @@ class BrowserViewModelFolderStatsTest {
         )
         val viewModel = createViewModel(
             repository = repo,
-            browserPreferencesRepository = FakeBrowserPreferencesStore(),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
             savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false, "currentPath" to "/storage/emulated/0/Download", "currentVolumeId" to "primary"))
         )
 
@@ -191,9 +191,9 @@ class BrowserViewModelFolderStatsTest {
         viewModel.openPropertiesForSelection()
         advanceUntilIdle()
 
-        assertTrue(viewModel.state.value.isPropertiesVisible)
-        assertFalse(viewModel.state.value.isPropertiesLoading)
-        assertEquals("Docs", viewModel.state.value.properties?.title)
-        assertEquals(PropertiesAccessStatus.Partial, viewModel.state.value.properties?.accessStatus)
+        assertTrue(viewModel.uiState.value.isPropertiesVisible)
+        assertFalse(viewModel.uiState.value.isPropertiesLoading)
+        assertEquals("Docs", viewModel.uiState.value.properties?.title)
+        assertEquals(PropertiesAccessStatus.Partial, viewModel.uiState.value.properties?.accessStatus)
     }
 }

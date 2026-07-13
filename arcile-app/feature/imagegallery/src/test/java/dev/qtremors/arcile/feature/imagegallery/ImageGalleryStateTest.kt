@@ -1,8 +1,9 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import android.net.Uri
-import dev.qtremors.arcile.core.storage.domain.BrowserPresentationPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserViewMode
+import androidx.compose.ui.geometry.Offset
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -29,8 +30,8 @@ class ImageGalleryStateTest {
         val state = ImageGalleryState(volumeId = "primary")
 
         assertEquals("primary", state.volumeId)
-        assertEquals(BrowserPresentationPreferences.DEFAULT_CATEGORY_SORT_OPTION, state.presentation.sortOption)
-        assertEquals(BrowserViewMode.GRID, state.presentation.viewMode)
+        assertEquals(FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION, state.presentation.sortOption)
+        assertEquals(FileViewMode.GRID, state.presentation.viewMode)
         assertTrue(state.isLoading)
         assertTrue(state.files.isEmpty())
         assertTrue(state.selectedFiles.isEmpty())
@@ -52,7 +53,7 @@ class ImageGalleryStateTest {
     fun `dynamic image gallery grouping options are stored correctly in state`() {
         val state = ImageGalleryState(
             imageGalleryGrouping = ImageGalleryGrouping.DAY,
-            albumPresentation = BrowserPresentationPreferences(gridMinCellSize = 180f),
+            albumPresentation = FileListingPreferences(gridMinCellSize = 180f),
             imageGalleryDefaultTab = ImageGalleryDefaultTab.ALBUMS,
             preferencesLoaded = true
         )
@@ -68,7 +69,9 @@ class ImageGalleryStateTest {
             FileModel("file1", "path1", size = 100, lastModified = 0, isDirectory = false)
         )
         val clipboard = ClipboardState(ClipboardOperation.COPY, dummyFiles)
-        val state = ImageGalleryState(clipboardState = clipboard)
+        val state = ImageGalleryState(
+            fileActions = ImageGalleryFileActionState(clipboardState = clipboard)
+        )
         assertEquals(clipboard, state.clipboardState)
     }
 
@@ -383,6 +386,51 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `viewer keeps opened image anchored when neighboring dataset arrives`() {
+        val opened = FileModel("opened.jpg", "/photos/opened.jpg", extension = "jpg")
+        val neighbors = listOf(
+            FileModel("before.jpg", "/photos/before.jpg", extension = "jpg"),
+            opened,
+            FileModel("after.jpg", "/photos/after.jpg", extension = "jpg")
+        )
+
+        assertEquals(
+            1,
+            viewerPageAfterDatasetChange(opened.absolutePath, currentPage = 0, neighbors)
+        )
+    }
+
+    @Test
+    fun `gallery lazy index for viewer return includes grouped section headers`() {
+        val first = FileModel("one.jpg", "/photos/one.jpg", size = 100, lastModified = 100, isDirectory = false)
+        val second = FileModel("two.jpg", "/photos/two.jpg", size = 100, lastModified = 200, isDirectory = false)
+        val third = FileModel("three.jpg", "/photos/three.jpg", size = 100, lastModified = 300, isDirectory = false)
+        val grouped = linkedMapOf(
+            GroupKey("First", 1L) to listOf(first, second),
+            GroupKey("Second", 2L) to listOf(third)
+        )
+
+        assertEquals(
+            2,
+            galleryLazyIndexForPath(
+                path = second.absolutePath,
+                displayedFiles = listOf(first, second, third),
+                imageGalleryGrouping = ImageGalleryGrouping.MONTH,
+                groupedFiles = grouped
+            )
+        )
+        assertEquals(
+            4,
+            galleryLazyIndexForPath(
+                path = third.absolutePath,
+                displayedFiles = listOf(first, second, third),
+                imageGalleryGrouping = ImageGalleryGrouping.MONTH,
+                groupedFiles = grouped
+            )
+        )
+    }
+
+    @Test
     fun `viewer position label is based on current page and context size`() {
         assertEquals("3/100", viewerPositionLabel(currentPage = 2, total = 100))
         assertEquals("1/1", viewerPositionLabel(currentPage = 0, total = 1))
@@ -415,6 +463,66 @@ class ImageGalleryStateTest {
             ViewerThumbnailScrollAction.None,
             viewerThumbnailScrollAction(previousIndex = 20, targetIndex = -1)
         )
+    }
+
+    @Test
+    fun `viewer zoom release keeps high zoom instead of old clamp`() {
+        assertEquals(0.8f, viewerReleaseScale(0.8f), 0f)
+        assertEquals(0.05f, viewerReleaseScale(0.05f), 0f)
+        assertEquals(250f, viewerReleaseScale(250f), 0f)
+        assertEquals(10_000f, viewerRenderScale(10_000f, dragFraction = 0f), 0f)
+    }
+
+    @Test
+    fun `viewer zoom out is not clamped back to fit`() {
+        assertEquals(0.25f, viewerReleaseScale(0.25f), 0f)
+        assertEquals(0.25f, viewerRenderScale(0.25f, dragFraction = 0f), 0f)
+        assertEquals(0f, viewerPanLimit(0.25f, viewportSize = 1080), 0f)
+        assertEquals(540f, viewerPanLimit(2f, viewportSize = 1080), 0f)
+    }
+
+    @Test
+    fun `viewer zoom preserves the touched focal point`() {
+        val next = viewerOffsetForScale(
+            currentOffset = Offset.Zero,
+            oldScale = 1f,
+            newScale = 2f,
+            centroid = Offset(250f, 400f),
+            viewportCenter = Offset(500f, 500f)
+        )
+
+        assertEquals(250f, next.x, 0.001f)
+        assertEquals(100f, next.y, 0.001f)
+    }
+
+    @Test
+    fun `viewer pan limits respect fitted letterboxed image bounds`() {
+        val fitted = viewerFittedContentSize(
+            viewportWidth = 1080f,
+            viewportHeight = 1920f,
+            imageWidth = 4000f,
+            imageHeight = 3000f,
+            rotationDegrees = 0f
+        )
+
+        assertEquals(1080f, fitted.width, 0.001f)
+        assertEquals(810f, fitted.height, 0.001f)
+        assertEquals(540f, viewerPanLimit(2f, fitted.width, 1080f), 0.001f)
+        assertEquals(0f, viewerPanLimit(2f, fitted.height, 1920f), 0.001f)
+    }
+
+    @Test
+    fun `viewer fitted bounds swap dimensions after quarter turn`() {
+        val fitted = viewerFittedContentSize(
+            viewportWidth = 1080f,
+            viewportHeight = 1920f,
+            imageWidth = 4000f,
+            imageHeight = 3000f,
+            rotationDegrees = 90f
+        )
+
+        assertEquals(1080f, fitted.width, 0.001f)
+        assertEquals(1440f, fitted.height, 0.001f)
     }
 
     @Test
@@ -519,7 +627,6 @@ class ImageGalleryStateTest {
                 ImageGalleryAlbum("/photos/other", "other", 1, 300)
             ),
             selectedAlbumPath = "/photos/album",
-            selectedFiles = kotlinx.collections.immutable.persistentSetOf(deleted.absolutePath),
             favoriteFiles = kotlinx.collections.immutable.persistentSetOf(deleted.absolutePath, kept.absolutePath),
             albumCovers = kotlinx.collections.immutable.persistentMapOf("/photos/album" to deleted.absolutePath)
         )
@@ -529,7 +636,6 @@ class ImageGalleryStateTest {
         assertEquals(listOf(kept.absolutePath, other.absolutePath), next.files.map { it.absolutePath })
         assertEquals(listOf(kept.absolutePath), next.displayedFiles.map { it.absolutePath })
         assertEquals(setOf(kept.absolutePath), next.favoriteFiles)
-        assertTrue(next.selectedFiles.isEmpty())
         assertTrue(next.albumCovers.isEmpty())
         assertEquals(1, next.albums.first { it.path == "/photos/album" }.count)
     }

@@ -32,34 +32,32 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import dev.qtremors.arcile.AppLaunchContext
+import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.feature.browser.BrowserViewModel
-import dev.qtremors.arcile.presentation.home.HomeRefreshMode
-import dev.qtremors.arcile.presentation.home.HomeViewModel
-import dev.qtremors.arcile.feature.recentfiles.RecentFilesViewModel
-import dev.qtremors.arcile.feature.trash.TrashViewModel
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.shared.ui.ArcileSnackbarHost
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.shared.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 
@@ -68,23 +66,41 @@ private val FeedbackAboveActionsPadding = 88.dp
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun ArcileAppShell(
+    appLaunchContext: AppLaunchContext,
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRestartApp: () -> Unit
 ) {
-    val navController = rememberNavController()
+    val navController = key(appLaunchContext.navigationSessionId) {
+        rememberNavController()
+    }
+    var isColdLaunchResetting by remember(appLaunchContext.navigationSessionId) {
+        mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
+    }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val feedbackEvents = remember { MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 16) }
+    val feedbackEvents = remember { MutableSharedFlow<OwnedFeedbackEvent>(extraBufferCapacity = 16) }
+    val activeFeedbackOwnerId by rememberUpdatedState(feedbackOwnerId)
+    val emitOwnedFeedback = remember(feedbackOwnerId) {
+        { event: ArcileFeedbackEvent ->
+            feedbackEvents.tryEmit(OwnedFeedbackEvent(feedbackOwnerId, event))
+            Unit
+        }
+    }
     var currentFeedbackSeverity by remember { mutableStateOf(ArcileFeedbackSeverity.Info) }
 
     LaunchedEffect(feedbackEvents, context) {
-        feedbackEvents.collect { event ->
+        feedbackEvents.collect { owned ->
+            val event = owned.event
+            if (!owned.belongsTo(activeFeedbackOwnerId)) {
+                event.onDismiss?.invoke()
+                return@collect
+            }
             currentFeedbackSeverity = event.severity
             val result = snackbarHostState.showSnackbar(
                 message = event.message.asString(context),
@@ -100,8 +116,21 @@ fun ArcileAppShell(
         }
     }
 
-    LaunchedEffect(currentRoute) {
+    LaunchedEffect(feedbackOwnerId) {
         snackbarHostState.currentSnackbarData?.dismiss()
+    }
+
+    LaunchedEffect(appLaunchContext.navigationSessionId, appLaunchContext.mode) {
+        if (appLaunchContext.mode == AppLaunchMode.ColdLauncher) {
+            navController.navigate(AppRoutes.Main(initialPage = 0, restorePersistentLocation = false)) {
+                popUpTo(navController.graph.id) {
+                    inclusive = true
+                }
+                launchSingleTop = true
+                restoreState = false
+            }
+            isColdLaunchResetting = false
+        }
     }
 
     androidx.compose.animation.SharedTransitionLayout {
@@ -128,8 +157,15 @@ fun ArcileAppShell(
                     onOpenFile = onOpenFile,
                     onOpenFileWith = onOpenFileWith,
                     onRestartApp = onRestartApp,
-                    onFeedback = { feedbackEvents.tryEmit(it) }
+                    onFeedback = emitOwnedFeedback
                 )
+                if (isColdLaunchResetting) {
+                    Surface(
+                        modifier = Modifier.fillMaxSize(),
+                        color = MaterialTheme.colorScheme.background,
+                        content = {}
+                    )
+                }
             }
         }
     }

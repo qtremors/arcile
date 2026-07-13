@@ -14,6 +14,9 @@
         <package android:name="com.whatsapp.w4b" />
 
         <intent>
+            <action android:name="dev.qtremors.arcile.plugin.REGISTER" />
+        </intent>
+        <intent>
             <action android:name="android.intent.action.VIEW" />
             <category android:name="android.intent.category.DEFAULT" />
             <data android:mimeType="vnd.android.document/directory" />
@@ -48,7 +51,7 @@
         </activity>
 
         <activity
-            android:name=".SaveToArcileActivity"
+            android:name="dev.qtremors.arcile.feature.importing.SaveToArcileActivity"
             android:exported="true"
             android:label="@string/save_to_arcile_title"
             android:theme="@style/Theme.Arcile">
@@ -78,6 +81,20 @@
             </intent-filter>
         </activity>
 
+
+        <activity
+            android:name=".FileOpenActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
@@ -88,16 +105,6 @@
                 android:resource="@xml/file_provider_paths" />
         </provider>
 
-        <provider
-            android:name=".presentation.utils.ExternalFileAccessProvider"
-            android:authorities="${applicationId}.externalfileaccess"
-            android:exported="false"
-            android:grantUriPermissions="true" />
-
-        <service
-            android:name=".operations.BulkFileOperationService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

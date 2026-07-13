@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.storageParentPath
 
 internal const val FAVORITES_ALBUM_PATH = "__favorites__"
 
@@ -35,7 +36,7 @@ internal fun buildAlbumCoverLookup(
     val filesByPath = files.associateBy { it.absolutePath }
     val firstFileByAlbum = LinkedHashMap<String?, FileModel>()
     files.forEach { file ->
-        firstFileByAlbum.putIfAbsent(galleryParentPath(file.absolutePath), file)
+        firstFileByAlbum.putIfAbsent(storageParentPath(file.absolutePath), file)
     }
 
     val lookup = LinkedHashMap<String?, FileModel>()

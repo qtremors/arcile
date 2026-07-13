@@ -23,7 +23,7 @@ class TrashRoutingTest {
         )
     }
 
-    // Helper reflecting what LocalFileRepository does
+    // Mirrors DefaultFileMutationRepository volume routing.
     private fun getTrashMetadataDirForVolume(volume: StorageVolume): File {
         val root = File(volume.path)
         val arcileDir = File(root, ".arcile")

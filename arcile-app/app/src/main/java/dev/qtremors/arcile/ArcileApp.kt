@@ -13,15 +13,15 @@ import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.StorageCacheInvalidationObserver
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheRecord
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheStore
-import dev.qtremors.arcile.di.ApplicationScope
-import dev.qtremors.arcile.image.ApkIconFetcher
-import dev.qtremors.arcile.image.ArchiveEntryImageFetcher
-import dev.qtremors.arcile.image.AudioAlbumArtFetcher
-import dev.qtremors.arcile.image.GlobalThumbnailStatePersistence
-import dev.qtremors.arcile.image.PdfThumbnailFetcher
-import dev.qtremors.arcile.image.ThumbnailKey
-import dev.qtremors.arcile.image.ThumbnailStatePersistence
-import dev.qtremors.arcile.image.VideoThumbnailFetcher
+import dev.qtremors.arcile.core.runtime.di.ApplicationScope
+import dev.qtremors.arcile.core.ui.image.ApkIconFetcher
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryImageFetcher
+import dev.qtremors.arcile.core.ui.image.AudioAlbumArtFetcher
+import dev.qtremors.arcile.core.ui.image.GlobalThumbnailStatePersistence
+import dev.qtremors.arcile.core.ui.image.PdfThumbnailFetcher
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailStatePersistence
+import dev.qtremors.arcile.core.ui.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -29,6 +29,8 @@ import javax.inject.Inject
 
 @HiltAndroidApp
 class ArcileApp : Application(), ImageLoaderFactory {
+    val appSessionTracker = AppSessionTracker()
+
     @Inject
     lateinit var mutationJournal: MutationJournal
 

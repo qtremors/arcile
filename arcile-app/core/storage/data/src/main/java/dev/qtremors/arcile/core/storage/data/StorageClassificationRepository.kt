@@ -9,7 +9,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassification
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.utils.AppLogger
+import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -35,7 +35,7 @@ class StorageClassificationRepository(
                         val classification = jsonFormat.decodeFromString<StorageClassification>(value)
                         result[key.name] = classification
                     } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
+                        e.rethrowIfCancellation()
                         AppLogger.e("StorageClassification", "Failed to parse stored classification", e)
                     }
                 }
@@ -51,7 +51,7 @@ class StorageClassificationRepository(
         return try {
             jsonFormat.decodeFromString<StorageClassification>(jsonString)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            e.rethrowIfCancellation()
             AppLogger.e("StorageClassification", "Failed to parse stored classification", e)
             resetClassification(storageKey)
             null

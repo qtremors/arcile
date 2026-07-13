@@ -6,18 +6,25 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import dev.qtremors.arcile.core.storage.data.BrowserPreferencesRepository
+import dev.qtremors.arcile.core.storage.data.BrowserPreferencesDataSource
+import dev.qtremors.arcile.core.storage.data.DefaultBrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultGalleryPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultRecentFilesPreferencesStore
+import dev.qtremors.arcile.core.storage.data.DefaultSaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.data.ActivityLogRepository
 import dev.qtremors.arcile.core.storage.data.OnboardingPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.StorageCleanerPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.UtilityPreferencesRepository
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
-import dev.qtremors.arcile.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import javax.inject.Singleton
 
 @Module
@@ -26,12 +33,12 @@ object BrowserPrefsModule {
 
     @Provides
     @Singleton
-    fun provideBrowserPreferencesRepository(
+    fun provideBrowserPreferencesDataSource(
         @ApplicationContext context: Context,
         activityLogRepository: ActivityLogRepository,
         dispatchers: ArcileDispatchers
-    ): BrowserPreferencesRepository {
-        return BrowserPreferencesRepository(
+    ): BrowserPreferencesDataSource {
+        return BrowserPreferencesDataSource(
             context = context,
             activityLogRepository = activityLogRepository,
             dispatchers = dispatchers
@@ -39,12 +46,24 @@ object BrowserPrefsModule {
     }
 
     @Provides
-    @Singleton
-    fun provideBrowserPreferencesStore(
-        repository: BrowserPreferencesRepository
-    ): BrowserPreferencesStore {
-        return repository
-    }
+    fun provideBrowserLocationPreferencesStore(
+        dataSource: BrowserPreferencesDataSource
+    ): BrowserLocationPreferencesStore = DefaultBrowserLocationPreferencesStore(dataSource)
+
+    @Provides
+    fun provideRecentFilesPreferencesStore(
+        dataSource: BrowserPreferencesDataSource
+    ): RecentFilesPreferencesStore = DefaultRecentFilesPreferencesStore(dataSource)
+
+    @Provides
+    fun provideGalleryPreferencesStore(
+        dataSource: BrowserPreferencesDataSource
+    ): GalleryPreferencesStore = DefaultGalleryPreferencesStore(dataSource)
+
+    @Provides
+    fun provideSaveDestinationPreferencesStore(
+        dataSource: BrowserPreferencesDataSource
+    ): SaveDestinationPreferencesStore = DefaultSaveDestinationPreferencesStore(dataSource)
 
     @Provides
     @Singleton
