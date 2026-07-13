@@ -15,7 +15,7 @@ class AppFileOpenResolverTest {
     fun `installed plugin launch handles file without fallback`() = runTest {
         val resolver = resolver(PluginFileResolution.Launched)
 
-        val result = resolver.resolve("/storage/model.glb", emptyList())
+        val result = resolver.resolve("/storage/document.pdf", emptyList())
 
         assertSame(AppFileOpenResolution.Handled, result)
     }
@@ -23,16 +23,16 @@ class AppFileOpenResolverTest {
     @Test
     fun `missing plugin is returned as a prompt`() = runTest {
         val catalogEntry = PluginCatalogEntry(
-            name = "Model Viewer",
+            name = "TIFF Viewer",
             packageName = "dev.example.viewer",
-            supportedMimeTypes = setOf("model/gltf-binary"),
-            supportedExtensions = setOf("glb"),
+            supportedMimeTypes = setOf("image/tiff"),
+            supportedExtensions = setOf("tiff"),
             available = true
         )
         val prompt = PluginFileResolution.Missing(catalogEntry)
         val resolver = resolver(prompt)
 
-        val result = resolver.resolve("/storage/model.glb", emptyList())
+        val result = resolver.resolve("/storage/scan.tiff", emptyList())
 
         assertEquals(AppFileOpenResolution.PluginPrompt(prompt), result)
     }

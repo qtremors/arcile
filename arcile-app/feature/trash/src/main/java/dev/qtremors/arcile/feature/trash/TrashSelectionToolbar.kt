@@ -1,18 +1,18 @@
 package dev.qtremors.arcile.feature.trash
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -26,7 +26,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -34,6 +33,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.storage.domain.FileModel
 
 @Composable
 internal fun TrashSelectionToolbar(
@@ -41,6 +41,7 @@ internal fun TrashSelectionToolbar(
     isBackPredicting: Boolean,
     backProgress: Float,
     contentPadding: PaddingValues,
+    selectedItems: List<FileModel>,
     actions: TrashSelectionToolbarActions
 ) {
     Box(
@@ -76,7 +77,10 @@ internal fun TrashSelectionToolbar(
                 )
             ),
             moreContent = {
-                TrashSelectionMoreMenu(onOpenProperties = actions.openProperties)
+                TrashSelectionMoreMenu(
+                    selectedItems = selectedItems,
+                    actions = actions
+                )
             }
         )
     }
@@ -86,11 +90,17 @@ internal data class TrashSelectionToolbarActions(
     val selectAll: () -> Unit,
     val restore: () -> Unit,
     val deletePermanently: () -> Unit,
+    val open: (FileModel) -> Unit,
+    val openWith: (FileModel) -> Unit,
+    val share: () -> Unit,
     val openProperties: () -> Unit
 )
 
 @Composable
-private fun TrashSelectionMoreMenu(onOpenProperties: () -> Unit) {
+private fun TrashSelectionMoreMenu(
+    selectedItems: List<FileModel>,
+    actions: TrashSelectionToolbarActions
+) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     Box {
         Surface(
@@ -112,21 +122,47 @@ private fun TrashSelectionMoreMenu(onOpenProperties: () -> Unit) {
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            ) {
+            val singleFile = selectedItems.singleOrNull()?.takeUnless { it.isDirectory }
+            if (singleFile != null) {
                 ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.open)) },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                    },
+                    onClick = {
+                        expanded = false
+                        actions.open(singleFile)
+                    }
+                )
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                    },
+                    onClick = {
+                        expanded = false
+                        actions.openWith(singleFile)
+                    }
+                )
+            }
+            if (selectedItems.isNotEmpty() && selectedItems.none(FileModel::isDirectory)) {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.share)) },
+                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        actions.share()
+                    }
+                )
+            }
+            ArcileDropdownMenuItem(
                     text = { Text(stringResource(R.string.properties_title)) },
                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                     onClick = {
                         expanded = false
-                        onOpenProperties()
+                        actions.openProperties()
                     }
                 )
-            }
         }
     }
 }

@@ -25,6 +25,7 @@ interface DeleteStateCallbacks {
     fun isShredChecked(): Boolean = false
     fun toggleShredChecked() = Unit
     fun dismissDeleteConfirmation()
+    fun hideDeleteConfirmationForOperation() = dismissDeleteConfirmation()
     fun setError(error: String)
     fun setError(error: UiText) = setError(
         when (error) {
@@ -132,7 +133,7 @@ class DeleteFlowDelegate(
 
         coroutineScope.launch {
             callbacks.setLoading(true)
-            callbacks.dismissDeleteConfirmation()
+            callbacks.hideDeleteConfirmationForOperation()
 
             if (startBulkDeleteOperation(BulkFileOperationType.TRASH, selected)) {
                 callbacks.setLoading(false)
@@ -151,7 +152,7 @@ class DeleteFlowDelegate(
 
         coroutineScope.launch {
             callbacks.setLoading(true)
-            callbacks.dismissDeleteConfirmation()
+            callbacks.hideDeleteConfirmationForOperation()
 
             if (startBulkDeleteOperation(BulkFileOperationType.DELETE, selected)) {
                 callbacks.setLoading(false)
@@ -170,7 +171,7 @@ class DeleteFlowDelegate(
 
         coroutineScope.launch {
             callbacks.setLoading(true)
-            callbacks.dismissDeleteConfirmation()
+            callbacks.hideDeleteConfirmationForOperation()
 
             if (startBulkDeleteOperation(BulkFileOperationType.SHRED, selected)) {
                 callbacks.setLoading(false)

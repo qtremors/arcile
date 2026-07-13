@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,15 +80,27 @@ fun ArcileAppShell(
         mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
     }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = navBackStackEntry?.destination?.route
+    val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
 
     val snackbarHostState = remember { SnackbarHostState() }
-    val feedbackEvents = remember { MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 16) }
+    val feedbackEvents = remember { MutableSharedFlow<OwnedFeedbackEvent>(extraBufferCapacity = 16) }
+    val activeFeedbackOwnerId by rememberUpdatedState(feedbackOwnerId)
+    val emitOwnedFeedback = remember(feedbackOwnerId) {
+        { event: ArcileFeedbackEvent ->
+            feedbackEvents.tryEmit(OwnedFeedbackEvent(feedbackOwnerId, event))
+            Unit
+        }
+    }
     var currentFeedbackSeverity by remember { mutableStateOf(ArcileFeedbackSeverity.Info) }
 
     LaunchedEffect(feedbackEvents, context) {
-        feedbackEvents.collect { event ->
+        feedbackEvents.collect { owned ->
+            val event = owned.event
+            if (!owned.belongsTo(activeFeedbackOwnerId)) {
+                event.onDismiss?.invoke()
+                return@collect
+            }
             currentFeedbackSeverity = event.severity
             val result = snackbarHostState.showSnackbar(
                 message = event.message.asString(context),
@@ -103,7 +116,7 @@ fun ArcileAppShell(
         }
     }
 
-    LaunchedEffect(currentRoute) {
+    LaunchedEffect(feedbackOwnerId) {
         snackbarHostState.currentSnackbarData?.dismiss()
     }
 
@@ -144,7 +157,7 @@ fun ArcileAppShell(
                     onOpenFile = onOpenFile,
                     onOpenFileWith = onOpenFileWith,
                     onRestartApp = onRestartApp,
-                    onFeedback = { feedbackEvents.tryEmit(it) }
+                    onFeedback = emitOwnedFeedback
                 )
                 if (isColdLaunchResetting) {
                     Surface(

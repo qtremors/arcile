@@ -386,6 +386,21 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `viewer keeps opened image anchored when neighboring dataset arrives`() {
+        val opened = FileModel("opened.jpg", "/photos/opened.jpg", extension = "jpg")
+        val neighbors = listOf(
+            FileModel("before.jpg", "/photos/before.jpg", extension = "jpg"),
+            opened,
+            FileModel("after.jpg", "/photos/after.jpg", extension = "jpg")
+        )
+
+        assertEquals(
+            1,
+            viewerPageAfterDatasetChange(opened.absolutePath, currentPage = 0, neighbors)
+        )
+    }
+
+    @Test
     fun `gallery lazy index for viewer return includes grouped section headers`() {
         val first = FileModel("one.jpg", "/photos/one.jpg", size = 100, lastModified = 100, isDirectory = false)
         val second = FileModel("two.jpg", "/photos/two.jpg", size = 100, lastModified = 200, isDirectory = false)

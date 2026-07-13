@@ -218,6 +218,7 @@ internal class ImageGalleryViewModel @Inject constructor(
 
     fun toggleSelection(path: String) = fileActions.toggleSelection(path)
     fun selectMultiple(paths: List<String>) = fileActions.selectMultiple(paths)
+    fun replaceSelection(paths: Collection<String>) = fileActions.replaceSelection(paths)
     fun clearSelection() = fileActions.clearSelection()
     fun selectAll() = fileActions.selectAll()
     fun invertSelection() = fileActions.invertSelection()

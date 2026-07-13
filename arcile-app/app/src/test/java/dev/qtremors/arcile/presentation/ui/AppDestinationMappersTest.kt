@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import dev.qtremors.arcile.feature.archive.ArchiveDestination
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.imagegallery.GalleryDestination
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessDestination
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesDestination
@@ -12,10 +13,15 @@ import org.junit.Test
 class AppDestinationMappersTest {
     private val browserRoutes = mutableListOf<AppRoutes.Main>()
     private val openedPaths = mutableListOf<String>()
+    private val galleryContexts = mutableListOf<Pair<List<String>, Set<String>>>()
     private val externalFolders = mutableListOf<String>()
     private val mappers = AppDestinationMappers(
         navigateToBrowser = browserRoutes::add,
         openPath = openedPaths::add,
+        openGalleryPath = { path, files, selectedPaths ->
+            openedPaths += path
+            galleryContexts += files.map(FileModel::absolutePath) to selectedPaths
+        },
         openExternalFolder = externalFolders::add
     )
 
@@ -99,9 +105,21 @@ class AppDestinationMappersTest {
 
     @Test
     fun `gallery destination remains a file action`() {
-        mappers.gallery.map(GalleryDestination.ViewImage("/images/photo.jpg"))
+        mappers.gallery.map(
+            GalleryDestination.ViewImage(
+                path = "/images/photo.jpg",
+                surroundingFiles = listOf(
+                    FileModel("photo.jpg", "/images/photo.jpg", extension = "jpg")
+                ),
+                selectedPaths = setOf("/images/photo.jpg")
+            )
+        )
 
         assertEquals(listOf("/images/photo.jpg"), openedPaths)
+        assertEquals(
+            listOf(listOf("/images/photo.jpg") to setOf("/images/photo.jpg")),
+            galleryContexts
+        )
         assertEquals(emptyList<AppRoutes.Main>(), browserRoutes)
     }
 }

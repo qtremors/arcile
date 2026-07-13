@@ -41,6 +41,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.util.Calendar
@@ -52,6 +53,7 @@ internal fun TrashList(
     files: List<TrashMetadata>,
     selectedFiles: Set<String>,
     onToggleSelection: (String) -> Unit,
+    onOpenFile: (FileModel) -> Unit,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp)
 ) {
     val formatter = rememberDateFormatter("MMM dd, yyyy \u2022 HH:mm")
@@ -76,7 +78,14 @@ internal fun TrashList(
                 key = { it.id },
                 contentType = { if (it.fileModel.isDirectory) "trash_directory" else "trash_file" }
             ) { trashItem ->
-                TrashRow(trashItem, selectedFiles.contains(trashItem.id), formatter, onToggleSelection)
+                TrashRow(
+                    trashItem = trashItem,
+                    isSelected = selectedFiles.contains(trashItem.id),
+                    isSelectionMode = selectedFiles.isNotEmpty(),
+                    formatter = formatter,
+                    onToggleSelection = onToggleSelection,
+                    onOpenFile = onOpenFile
+                )
             }
         }
     }
@@ -87,8 +96,10 @@ internal fun TrashList(
 private fun TrashRow(
     trashItem: TrashMetadata,
     isSelected: Boolean,
+    isSelectionMode: Boolean,
     formatter: java.text.DateFormat,
-    onToggleSelection: (String) -> Unit
+    onToggleSelection: (String) -> Unit,
+    onOpenFile: (FileModel) -> Unit
 ) {
     ElevatedCard(
         modifier = Modifier
@@ -96,7 +107,13 @@ private fun TrashRow(
             .padding(horizontal = 12.dp, vertical = 6.dp)
             .clip(MaterialTheme.shapes.large)
             .combinedClickable(
-                onClick = { onToggleSelection(trashItem.id) },
+                onClick = {
+                    if (isSelectionMode || trashItem.fileModel.isDirectory) {
+                        onToggleSelection(trashItem.id)
+                    } else {
+                        onOpenFile(trashItem.fileModel)
+                    }
+                },
                 onLongClick = { onToggleSelection(trashItem.id) }
             ),
         shape = MaterialTheme.shapes.large,

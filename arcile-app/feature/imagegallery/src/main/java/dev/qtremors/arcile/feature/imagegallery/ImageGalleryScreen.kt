@@ -123,6 +123,8 @@ internal fun ImageGalleryScreen(
 ) {
     val onNavigateBack = navigationActions.navigateBack
     val onOpenFile = navigationActions.openFile
+    val onOpenFileWithContext: (String, List<dev.qtremors.arcile.core.storage.domain.FileModel>) -> Unit =
+        { path, files -> onOpenFile(path, files, state.selectedFiles) }
     val onToggleSelection = selectionActions.toggle
     val onClearSelection = selectionActions.clear
     val onSelectAll = selectionActions.selectAll
@@ -297,7 +299,7 @@ internal fun ImageGalleryScreen(
                             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
                             bottom = bottomPadding
                         ),
-                        onOpenFile = onOpenFile,
+                        onOpenFile = onOpenFileWithContext,
                         onToggleSelection = onToggleSelection,
                         onSelectMultiple = onSelectMultiple,
                         onSelectAlbum = onSelectAlbum,
@@ -343,7 +345,7 @@ internal fun ImageGalleryScreen(
                                 top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
                                 bottom = bottomPadding
                             ),
-                            onOpenFile = onOpenFile,
+                            onOpenFile = onOpenFileWithContext,
                             onToggleSelection = onToggleSelection,
                             onSelectMultiple = onSelectMultiple,
                             onSelectAlbum = onSelectAlbum,

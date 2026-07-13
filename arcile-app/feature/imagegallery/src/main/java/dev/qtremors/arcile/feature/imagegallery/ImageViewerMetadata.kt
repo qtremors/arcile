@@ -112,7 +112,6 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -157,12 +156,7 @@ internal fun MetadataSheet(
 ) {
     var isEditing by rememberSaveable(file.absolutePath) { mutableStateOf(false) }
     var revisionAtEditStart by rememberSaveable(file.absolutePath) { mutableStateOf(metadataRevision) }
-    val canEdit = remember(file.absolutePath) {
-        val localFile = File(file.absolutePath)
-        localFile.isFile &&
-            localFile.canWrite() &&
-            localFile.extension.lowercase() in setOf("jpg", "jpeg", "png", "webp")
-    }
+    val canEdit = metadata?.isEditable == true
 
     LaunchedEffect(metadataRevision) {
         if (metadataRevision > revisionAtEditStart) {

@@ -20,7 +20,11 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import kotlinx.coroutines.launch
 
 sealed interface GalleryDestination {
-    data class ViewImage(val path: String) : GalleryDestination
+    data class ViewImage(
+        val path: String,
+        val surroundingFiles: List<FileModel>,
+        val selectedPaths: Set<String>
+    ) : GalleryDestination
 }
 
 fun NavGraphBuilder.registerImageGalleryRoute(
@@ -44,6 +48,12 @@ fun NavGraphBuilder.registerImageGalleryRoute(
         val viewerReturnPath by backStackEntry.savedStateHandle
             .getStateFlow<String?>(VIEWER_RETURN_PATH_KEY, null)
             .collectAsStateWithLifecycle()
+        val viewerReturnSelectionPaths by backStackEntry.savedStateHandle
+            .getStateFlow<ArrayList<String>?>(
+                AppRoutes.IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY,
+                null
+            )
+            .collectAsStateWithLifecycle()
         val coroutineScope = rememberCoroutineScope()
         LaunchedEffect(viewerReturnPath) {
             viewerReturnPath?.let { path ->
@@ -51,12 +61,22 @@ fun NavGraphBuilder.registerImageGalleryRoute(
                 backStackEntry.savedStateHandle.remove<String>(VIEWER_RETURN_PATH_KEY)
             }
         }
+        LaunchedEffect(viewerReturnSelectionPaths) {
+            viewerReturnSelectionPaths?.let { paths ->
+                viewModel.replaceSelection(paths)
+                backStackEntry.savedStateHandle.remove<ArrayList<String>>(
+                    AppRoutes.IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY
+                )
+            }
+        }
 
         ImageGalleryScreen(
             state = state,
             navigationActions = GalleryNavigationActions(
                 navigateBack = onNavigateBack,
-                openFile = { path -> onDestination(GalleryDestination.ViewImage(path)) }
+                openFile = { path, files, selectedPaths ->
+                    onDestination(GalleryDestination.ViewImage(path, files, selectedPaths))
+                }
             ),
             selectionActions = GallerySelectionActions(
                 toggle = viewModel::toggleSelection,
@@ -125,8 +145,8 @@ fun NavGraphBuilder.registerImageViewerRoute(
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onShareFile: (String) -> Unit,
-    onOpenFileWith: (String) -> Unit
+    onShareFile: (FileModel, Boolean) -> Unit,
+    onOpenFileWith: (FileModel, Boolean) -> Unit
 ) {
     composable<AppRoutes.ImageViewer>(
         enterTransition = enterTransition,
@@ -142,16 +162,51 @@ fun NavGraphBuilder.registerImageViewerRoute(
                 ?.toList()
                 .orEmpty()
         }
+        val initialSelectionPaths = remember(backStackEntry) {
+            navController.previousBackStackEntry
+                ?.savedStateHandle
+                ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_SELECTION_PATHS_KEY)
+                ?.toList()
+                .orEmpty()
+        }
+        val contextFiles = remember(backStackEntry, contextPaths) {
+            viewerContextFiles(
+                paths = contextPaths,
+                names = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_NAMES_KEY),
+                extensions = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_EXTENSIONS_KEY),
+                mimeTypes = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_MIME_TYPES_KEY),
+                sizes = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_SIZES_KEY),
+                modified = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY)
+            )
+        }
 
         val viewModel = hiltViewModel<ImageViewerViewModel>()
-        LaunchedEffect(route.initialPath, contextPaths) {
-            viewModel.initialize(route.initialPath, contextPaths)
+        LaunchedEffect(route.initialPath, contextFiles, initialSelectionPaths, route.managedTrash) {
+            viewModel.initialize(
+                route.initialPath,
+                contextFiles,
+                initialSelectionPaths,
+                discoverSiblings = !route.managedTrash
+            )
         }
         val navigateBack = {
             viewModel.state.value.viewerCurrentPath?.let { path ->
                 navController.previousBackStackEntry
                     ?.savedStateHandle
                     ?.set(VIEWER_RETURN_PATH_KEY, path)
+            }
+            if (initialSelectionPaths.isNotEmpty()) {
+                navController.previousBackStackEntry
+                    ?.savedStateHandle
+                    ?.set(
+                        AppRoutes.IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY,
+                        ArrayList(viewModel.state.value.selectedFiles)
+                    )
             }
             if (route.returnToBrowserPage) {
                 navController.previousBackStackEntry
@@ -164,12 +219,37 @@ fun NavGraphBuilder.registerImageViewerRoute(
         ImageViewerScreen(
             initialPath = route.initialPath,
             viewModel = viewModel,
-            contextPaths = contextPaths,
+            contextFiles = contextFiles,
+            selectionModeEnabled = initialSelectionPaths.isNotEmpty(),
+            readOnly = route.managedTrash,
             onNavigateBack = navigateBack,
-            onShareFile = onShareFile,
-            onOpenWith = onOpenFileWith
+            onShareFile = { file -> onShareFile(file, route.managedTrash) },
+            onOpenWith = { file -> onOpenFileWith(file, route.managedTrash) }
         )
     }
+}
+
+private fun viewerContextFiles(
+    paths: List<String>,
+    names: List<String>?,
+    extensions: List<String>?,
+    mimeTypes: List<String>?,
+    sizes: LongArray?,
+    modified: LongArray?
+): List<FileModel> {
+    val hasCompleteMetadata = listOf(names?.size, extensions?.size, mimeTypes?.size,
+        sizes?.size, modified?.size).all { it == paths.size }
+    if (!hasCompleteMetadata) return paths.distinct().map(::fileModelFromPath)
+    return paths.indices.map { index ->
+        FileModel(
+            name = names!![index],
+            absolutePath = paths[index],
+            size = sizes!![index],
+            lastModified = modified!![index],
+            extension = extensions!![index],
+            mimeType = mimeTypes!![index].ifBlank { null }
+        )
+    }.distinctBy(FileModel::absolutePath)
 }
 
 private const val VIEWER_RETURN_PATH_KEY = "image_viewer.return_path"

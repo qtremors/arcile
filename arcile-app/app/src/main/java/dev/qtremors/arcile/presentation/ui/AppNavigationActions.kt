@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import android.content.Context
+import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -13,6 +14,7 @@ import androidx.navigation.NavHostController
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 import dev.qtremors.arcile.core.plugin.android.PluginManager
 import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
@@ -39,6 +41,7 @@ internal class AppNavigationActions(
     val destinationMappers = AppDestinationMappers(
         navigateToBrowser = ::navigateToBrowser,
         openPath = ::openPath,
+        openGalleryPath = ::openGalleryPath,
         openExternalFolder = ::openExternalFolder
     )
 
@@ -60,6 +63,15 @@ internal class AppNavigationActions(
 
     fun openBrowserFile(path: String, files: List<FileModel>) {
         openPathWithContext(path, files, returnToBrowserPage = true)
+    }
+
+    fun openGalleryPath(path: String, files: List<FileModel>, selectedPaths: Set<String>) {
+        openPathWithContext(
+            path = path,
+            surroundingFiles = files,
+            returnToBrowserPage = false,
+            selectedPaths = selectedPaths
+        )
     }
 
     fun openFileWith(path: String) {
@@ -85,14 +97,86 @@ internal class AppNavigationActions(
         coroutineScope.launch { shareKnownFiles(paths, files) }
     }
 
-    fun sharePath(path: String) {
-        coroutineScope.launch { ShareHelper.shareFiles(context, listOf(path)) }
+    fun shareViewerFile(file: FileModel, managedTrash: Boolean) {
+        coroutineScope.launch {
+            ShareHelper.shareFileReferences(
+                context,
+                listOf(if (managedTrash) file.toManagedTrashReference() else file.toExternalReference())
+            )
+        }
+    }
+
+    fun openViewerFileWith(file: FileModel, managedTrash: Boolean) {
+        if (managedTrash) openManagedTrashFileExternally(file, forceChooser = true)
+        else onOpenFileWith(file.absolutePath)
+    }
+
+    fun openManagedTrashFile(file: FileModel, surroundingFiles: List<FileModel>) {
+        if (FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Images) {
+            val images = (surroundingFiles + file).distinctBy(FileModel::absolutePath).filter {
+                !it.isDirectory &&
+                    FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images
+            }
+            openImageViewer(
+                resolution = AppFileOpenResolution.ViewImage(
+                    path = file.absolutePath,
+                    contextPaths = images.map(FileModel::absolutePath)
+                ),
+                returnToBrowserPage = false,
+                selectedPaths = emptySet(),
+                contextFiles = images,
+                managedTrash = true
+            )
+        } else {
+            openManagedTrashFileExternally(file, forceChooser = false)
+        }
+    }
+
+    fun openManagedTrashFileWith(file: FileModel) {
+        openManagedTrashFileExternally(file, forceChooser = true)
+    }
+
+    private fun openManagedTrashFileExternally(file: FileModel, forceChooser: Boolean) {
+        coroutineScope.launch {
+            runCatching {
+                val intent = ExternalFileAccessHelper.createOpenIntent(
+                    context,
+                    file.toManagedTrashReference()
+                )
+                context.startActivity(
+                    if (forceChooser) {
+                        Intent.createChooser(intent, file.name).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                        }
+                    } else {
+                        intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    }
+                )
+            }.onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                reportError(
+                    UiText.StringResource(
+                        R.string.cannot_open_file,
+                        listOf(error.localizedMessage.orEmpty())
+                    )
+                )
+            }
+        }
+    }
+
+    suspend fun shareManagedTrashFiles(files: List<FileModel>): Boolean {
+        return ShareHelper.shareFileReferences(
+            context,
+            files.filterNot(FileModel::isDirectory).map { it.toManagedTrashReference() }
+        )
     }
 
     private fun openPathWithContext(
         path: String,
         surroundingFiles: List<FileModel>,
-        returnToBrowserPage: Boolean
+        returnToBrowserPage: Boolean,
+        selectedPaths: Set<String> = emptySet()
     ) {
         coroutineScope.launch {
             when (val resolution = fileOpenResolver.resolve(path, surroundingFiles)) {
@@ -116,7 +200,9 @@ internal class AppNavigationActions(
                 )
                 is AppFileOpenResolution.ViewImage -> openImageViewer(
                     resolution,
-                    returnToBrowserPage
+                    returnToBrowserPage,
+                    selectedPaths,
+                    surroundingFiles
                 )
                 is AppFileOpenResolution.External -> onOpenFile(resolution.path)
             }
@@ -125,16 +211,54 @@ internal class AppNavigationActions(
 
     private fun openImageViewer(
         resolution: AppFileOpenResolution.ViewImage,
-        returnToBrowserPage: Boolean
+        returnToBrowserPage: Boolean,
+        selectedPaths: Set<String>,
+        contextFiles: List<FileModel>,
+        managedTrash: Boolean = false
     ) {
         val savedStateHandle = navController.currentBackStackEntry?.savedStateHandle
-        if (resolution.contextPaths.size > 1 && resolution.path in resolution.contextPaths) {
+        if (resolution.contextPaths.isNotEmpty() && resolution.path in resolution.contextPaths) {
             savedStateHandle?.set(
                 AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY,
                 ArrayList(resolution.contextPaths)
             )
+            val filesByPath = contextFiles.associateBy(FileModel::absolutePath)
+            val orderedFiles = resolution.contextPaths.mapNotNull(filesByPath::get)
+            if (orderedFiles.size == resolution.contextPaths.size) {
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_NAMES_KEY,
+                    ArrayList(orderedFiles.map(FileModel::name))
+                )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_EXTENSIONS_KEY,
+                    ArrayList(orderedFiles.map(FileModel::extension))
+                )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_MIME_TYPES_KEY,
+                    ArrayList(orderedFiles.map { it.mimeType.orEmpty() })
+                )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_SIZES_KEY,
+                    orderedFiles.map(FileModel::size).toLongArray()
+                )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY,
+                    orderedFiles.map(FileModel::lastModified).toLongArray()
+                )
+            } else {
+                clearViewerContextMetadata(savedStateHandle)
+            }
         } else {
             savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY)
+            clearViewerContextMetadata(savedStateHandle)
+        }
+        if (selectedPaths.isNotEmpty()) {
+            savedStateHandle?.set(
+                AppRoutes.IMAGE_VIEWER_SELECTION_PATHS_KEY,
+                ArrayList(selectedPaths)
+            )
+        } else {
+            savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_SELECTION_PATHS_KEY)
         }
         if (returnToBrowserPage) {
             savedStateHandle?.set(BROWSER_VIEWER_RETURN_PENDING_KEY, true)
@@ -142,9 +266,18 @@ internal class AppNavigationActions(
         navController.navigate(
             AppRoutes.ImageViewer(
                 initialPath = resolution.path,
-                returnToBrowserPage = returnToBrowserPage
+                returnToBrowserPage = returnToBrowserPage,
+                managedTrash = managedTrash
             )
         )
+    }
+
+    private fun clearViewerContextMetadata(savedStateHandle: androidx.lifecycle.SavedStateHandle?) {
+        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_NAMES_KEY)
+        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_EXTENSIONS_KEY)
+        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_MIME_TYPES_KEY)
+        savedStateHandle?.remove<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_SIZES_KEY)
+        savedStateHandle?.remove<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY)
     }
 
     private fun FileModel.toExternalReference() =
@@ -154,6 +287,16 @@ internal class AppNavigationActions(
             sizeBytes = size,
             mimeType = mimeType,
             nodeRef = nodeRef
+        )
+
+    private fun FileModel.toManagedTrashReference() =
+        ExternalFileAccessHelper.ExternalFileReference(
+            path = absolutePath,
+            displayName = name,
+            sizeBytes = size,
+            mimeType = mimeType,
+            nodeRef = nodeRef,
+            allowManagedTrashPayload = true
         )
 
     private fun reportError(message: UiText) {

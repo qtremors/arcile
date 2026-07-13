@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.4.9
+> **Version:** 1.5.0
 > **Last Updated:** 2026-07-13
 
 ---
+
+## [1.5.0] - 2026-07-13
+
+- **Metadata Editing Reliability**: Image metadata editing is now offered only for supported, writable local images and safely remains unavailable for missing, read-only, or external content.
+- **Operation Path Reliability**: Archive and Browser progress surfaces now display file names consistently for both Unix- and Windows-style storage paths.
+- **Developer Guidance**: Development documentation now reflects the current modular architecture, feature ownership, release metadata, and focused verification workflow.
+- **Plugin Distribution**: Removed the bundled Arcile GLB Viewer application and its install catalog entry while retaining generic plugin discovery, compatibility checks, and file handoff support.
+- **Project Documentation**: README, website, development guidance, and release notes now reflect Arcile 1.5.0, its current feature set, modular structure, and focused verification workflow.
+- **Navigation & Feedback Reliability**: Feedback stays on its originating screen, and the system back gesture exits normally from Home instead of being intercepted by the hidden Browser page.
+- **Home Thumbnail Quality**: Recent image cards now use Gallery-aligned content sources, rendered-size requests, and cache variants so their previews remain sharp on high-density screens.
+- **Gallery Viewer**: Opening an image now keeps that image anchored while neighboring images load, preserves Gallery selection through viewer actions and deletion, supplies the complete thumbnail carousel, and uses the standard viewer route transition without image morphing.
+- **File Actions & Sharing**: Trash images now open with neighboring items in Arcile's read-only viewer, Trash files expose only applicable actions, and Android multi-file sharing either delivers the complete selection with correct grants or safely sends nothing.
 
 ## [1.4.9] - 2026-07-13
 

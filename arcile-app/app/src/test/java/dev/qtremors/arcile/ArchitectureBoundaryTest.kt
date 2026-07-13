@@ -250,7 +250,6 @@ class ArchitectureBoundaryTest {
             put("core/ui/testing", "dev.qtremors.arcile.core.ui.testing")
             put("plugin-api", "dev.qtremors.arcile.plugin.api")
             put("plugin-ui", "dev.qtremors.arcile.plugin.ui")
-            put("plugin-glb", "dev.qtremors.arcile.plugin.glb")
         }
         val ownedRoots = modulePackages.flatMap { (module, expectedPackage) ->
             listOf("main", "test", "androidTest").mapNotNull { sourceSet ->
@@ -307,6 +306,7 @@ class ArchitectureBoundaryTest {
         val forbiddenPatterns = mapOf(
             "Dispatchers.IO" to Regex("""\bDispatchers\.IO\b"""),
             "filesystem existence" to Regex("""\.exists\s*\("""),
+            "filesystem permission inspection" to Regex("""\.can(?:Read|Write|Execute)\s*\("""),
             "filesystem traversal" to Regex("""\.listFiles\s*\("""),
             "canonical path resolution" to Regex("""\.canonical(?:File|Path)?\b""")
         )
@@ -768,8 +768,7 @@ class ArchitectureBoundaryTest {
         return sequenceOf(
             File(root, "app/src/main/java"),
             File(root, "core"),
-            File(root, "feature"),
-            File(root, "plugin-glb/src/main/java")
+            File(root, "feature")
         )
             .filter(File::exists)
             .flatMap { it.walkTopDown() }

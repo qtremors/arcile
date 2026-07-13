@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.2.6-blueviolet" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.5.0-blueviolet" alt="Version">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">
@@ -38,7 +38,7 @@ It supports internal storage, SD cards, USB drives, Trash, recent files, quick a
 | **Storage Dashboard** | Volume/category breakdowns, Trash usage, and a folder usage map with breadcrumb drill-in. |
 | **Quick Access** | Pin local folders, custom folders, and external handoff targets such as Android/data and Android/obb. |
 | **Recent Files** | Browse recent files with grouping, search, filters, thumbnails, selection, properties, and containing-folder jumps. |
-| **Gallery, Image & Model Viewers** | Browse photos and albums, view images with focal-point gestures, inspect or edit metadata, favorite items, and open GLB models through the optional Arcile GLB Viewer plugin. |
+| **Gallery & Image Viewer** | Browse photos and albums, view images with focal-point gestures, inspect or edit metadata, and favorite items. |
 | **Storage Cleaner** | Review large files, exact duplicates, APKs, downloads, videos, marker files, empty folders, ignored items, and conservative cache cleanup. |
 | **Archive Workflows** | Create ZIP, 7z, and TAR-family archives; browse and extract supported archive formats; handle password-protected ZIP/7z files; and block unsafe extraction paths. |
 | **Foreground File Operations** | Copy, move, archive, extract, Trash, and delete flows show foreground progress and operation recovery prompts where available. |
@@ -67,7 +67,7 @@ Arcile can browse and manage files of any type, including files with unknown or 
 | **Archives — create** | `.zip`, `.7z`, `.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz2`, `.tar.xz`, `.txz` | Built-in archive creation with selectable compression options. |
 | **Other recognized archives** | `.rar`, `.zst` | Recognized as archives for categorization and normal file management; use Open With for an installed compatible app. |
 | **Android packages** | `.apk`, `.xapk`, `.apks`, `.apkm` | Package icons, categorization, file operations, sharing, and Android-compatible handoff. Installation support depends on the package type and installed system/app handlers. |
-| **3D models** | `.glb` | Supported through the optional Arcile GLB Viewer plugin APK, with model controls, metadata, sharing, and background options. |
+| **3D models** | `.glb` | Recognized as model files for categorization, file operations, sharing, and Open With through a compatible installed Android app. |
 
 Actual playback, decoding, preview, and external opening capabilities can vary by Android version, device codecs, and installed apps.
 
@@ -84,31 +84,29 @@ Download the latest APK from [GitHub Releases](https://github.com/qtremors/arcil
 Run Gradle commands from `arcile-app/` (`gradlew.bat` may be used instead of `./gradlew` on Windows):
 
 ```bash
-# Build both debug APKs
-./gradlew :app:assembleDebug :plugin-glb:assembleDebug
+# Build the debug APK
+./gradlew :app:assembleDebug
 
-# Run the main plugin-related unit tests
-./gradlew :plugin-api:testDebugUnitTest :plugin-glb:testDebugUnitTest :app:testDebugUnitTest
+# Run the plugin-system and app integration unit tests
+./gradlew :plugin-api:testDebugUnitTest :core:plugin:android:testDebugUnitTest :feature:plugins:testDebugUnitTest :app:testDebugUnitTest
 
-# Build signed, minified release APKs
-./gradlew :app:assembleRelease :plugin-glb:assembleRelease
+# Build the signed, minified release APK
+./gradlew :app:assembleRelease
 ```
 
 Release outputs:
 
 ```text
-app/build/outputs/apk/release/Arcile-1.2.6.apk
-plugin-glb/build/outputs/apk/release/Arcile-GLB-Viewer-1.0.0.apk
+app/build/outputs/apk/release/Arcile-1.5.0.apk
 ```
 
-The GLB plugin is optional. Install both APKs to open `.glb` files inside Arcile:
+Install the Arcile APK with:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/Arcile-1.2.6-debug.apk
-adb install -r plugin-glb/build/outputs/apk/debug/Arcile-GLB-Viewer-1.0.0-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-1.5.0-debug.apk
 ```
 
-Arcile and its plugins must be signed by the same certificate. The GLB plugin has no launcher entry and is opened only when Arcile hands it a supported file.
+Arcile retains its versioned plugin discovery and handoff system for separately distributed compatible plugins; no viewer plugin APK is bundled in this repository. Compatible Arcile plugins must be signed with the same certificate as Arcile.
 
 ### Release Signing
 
@@ -124,7 +122,7 @@ signing.keyPassword=your_key_password
 From the Gradle root (`arcile-app/`), build the release APK:
 
 ```bash
-./gradlew :app:assembleRelease :plugin-glb:assembleRelease
+./gradlew :app:assembleRelease
 ```
 
 Release builds enable R8 minification and resource shrinking.
@@ -138,7 +136,7 @@ Release builds enable R8 minification and resource shrinking.
 | **Language** | Kotlin 2.2.10 |
 | **Android Gradle Plugin** | 9.2.1 |
 | **UI** | Jetpack Compose BOM 2026.05.00, Material 3 1.5.0-alpha19, Material 3 Adaptive |
-| **Architecture** | Modular MVVM with Gradle boundaries, feature-scoped ViewModels, StateFlow, and Hilt DI |
+| **Architecture** | Modular MVVM with Gradle-enforced boundaries, feature-owned routes and ViewModels, StateFlow, and Hilt DI |
 | **Navigation** | Navigation Compose with `kotlinx.serialization` typed routes |
 | **Storage** | `java.io.File`, `StatFs`, MediaStore, cache-backed FileProvider handoffs, foreground service operations |
 | **Persistence** | Room cache database (`arcile-cache.db`, schema version 2) plus DataStore Preferences for theme, browser presentation, storage classification, quick access, cleaner rules, and onboarding |
@@ -153,40 +151,34 @@ Release builds enable R8 minification and resource shrinking.
 ```text
 arcile/
 ├── arcile-app/
-│   ├── app/                                     # App entry point, Hilt composition, and shell UI
-│   │   ├── src/main/java/dev/qtremors/arcile/
-│   │   │   ├── ArcileApp.kt                     # Hilt application startup & image loader
-│   │   │   ├── MainActivity.kt                  # App activity, splash, and main layout navigation shell
-│   │   │   ├── presentation/                    # ViewModels, screens, components, and AppNavigationGraph
-│   │   │   └── di/                              # Dagger Hilt dependency injection modules
-│   ├── core/                                    # Shared business logic and UI frameworks
-│   │   ├── runtime/                             # Dispatcher injection, app logger, and common helpers
-│   │   ├── ui/                                  # Common UI design tokens, theme, haptics, and reusable Compose nodes
-│   │   │   └── testing/                         # Shared compose test theme helper (ArcileTestTheme)
-│   │   ├── navigation/
-│   │   │   └── api/                             # Serializable typed routes (AppRoutes)
-│   │   ├── presentation/
-│   │   │   └── api/                             # FolderTabs, LocalSearchHelper, DeleteFlowDelegate, PropertiesUiModel
-│   │   ├── testing/                             # Shared unit test fakes (FakeFileRepository, FakeBulkFileOperationCoordinator)
-│   │   ├── operation/                           # Foreground services and operation journal tracking
-│   │   │   ├── api/                             # Task progress events and operations interfaces
-│   │   │   └── src/                             # Concrete operation coordinator and background service
-│   │   └── storage/                             # File system data orchestrator
-│   │       ├── domain/                          # Domain models, volume references, and repository interfaces
-│   │       └── data/                            # FileSystem, MediaStore client, volume discovery, and transfers
-│   ├── plugin-api/                              # Dependency-free intent contract and plugin metadata models
-│   ├── shared/                                  # UI primitives shared by Arcile and plugin APKs
-│   ├── plugin-glb/                              # Independently versioned GLB Viewer application APK
-│   └── feature/                                 # Feature Gradle modules with isolated ViewModels and screens
-│       ├── archive/                             # ZIP/7z creation, password prompt, extraction UX
-│       ├── browser/                             # File browser layout, selection bar, clipboard, and file lists
-│       ├── imagegallery/                        # Image gallery photos/albums, viewer, favorites, and metadata
-│       ├── onboarding/                          # First-run setup and permission guidance
-│       ├── quickaccess/                         # Pinned folders, SAF handoffs, and folder shortcuts
-│       ├── recentfiles/                         # Scoped recent files timeline and visual carousel
-│       ├── storagecleaner/                      # Cleanup scanner and review workflow
-│       ├── storageusage/                        # Storage dashboard and usage-map UI
-│       └── trash/                               # Volume-scoped trash listings, restore workflows, and properties
+│   ├── build-logic/                             # Shared Gradle conventions and architecture checks
+│   ├── app/                                     # Activities, Hilt composition, root shell, and route mapping
+│   ├── core/
+│   │   ├── navigation/api/                      # Serializable typed destinations
+│   │   ├── operation/{api,android}/             # Operation contracts, journal, coordinator, and service
+│   │   ├── plugin/android/                      # Generic plugin discovery and compatibility checks
+│   │   ├── presentation/                        # Shared presentation controllers, reducers, and models
+│   │   ├── runtime/                             # Dispatchers, logging, and runtime helpers
+│   │   ├── storage/{domain,data}/               # Focused storage contracts and Android implementations
+│   │   ├── testing/                             # Shared unit-test fakes
+│   │   └── ui/testing/                          # Design system plus Compose test support
+│   ├── feature/                                 # Feature-owned routes, ViewModels, screens, and workflows
+│   │   ├── activitylog/                         # Completed operation history
+│   │   ├── archive/                             # Archive creation, browsing, and extraction
+│   │   ├── browser/                             # File browsing, selection, clipboard, and file actions
+│   │   ├── home/                                # Storage overview, categories, pins, and recent files
+│   │   ├── imagegallery/                        # Photos, albums, viewer, favorites, and metadata
+│   │   ├── import/                              # Save-to-Arcile share intake
+│   │   ├── onboarding/                          # First-run setup and permission guidance
+│   │   ├── plugins/                             # Generic compatible-plugin management UI
+│   │   ├── quickaccess/                         # Pins and Android restricted-location handoffs
+│   │   ├── recentfiles/                         # Recent-file timeline and filters
+│   │   ├── settings/                            # Preferences, backup, and maintenance controls
+│   │   ├── storagecleaner/                      # Cleanup scanning and review
+│   │   ├── storageusage/                        # Storage dashboard and folder usage map
+│   │   └── trash/                               # Volume-scoped restore and permanent deletion
+│   ├── plugin-api/                              # Versioned plugin intent and metadata contract
+│   └── plugin-ui/                               # UI primitives for separately distributed plugins
 ├── docs/                                        # Promotional landing page website
 ├── beta/                                        # Beta phase archived changelog & releases
 │   ├── CHANGELOG-BETA.md                        # Archived beta changelog
@@ -202,28 +194,31 @@ arcile/
 
 ## Testing
 
-Run from the Gradle root (`arcile-app/`). These commands cover all included modules:
+Run from the Gradle root (`arcile-app/`). Use the narrowest relevant task while iterating, then run the broader local gates for a release milestone:
 
 ```bash
-# Full local suite across all modules: unit/Robolectric tests, lint, and verification checks
-./gradlew check
+# Test only an affected Android module while iterating
+./gradlew :feature:browser:testDebugUnitTest
 
-# Full device/emulator instrumented suite across all modules
-./gradlew connectedCheck
+# All JVM and Android unit/Robolectric tests
+./gradlew test testDebugUnitTest
 
-# Full local + device/emulator verification
-./gradlew check connectedCheck
+# Release-oriented non-device verification
+./gradlew :app:lintDebug checkProductionStrings :app:verifyArcileBuildConventions
 
-# Release Arcile and the optional GLB plugin
-./gradlew :app:assembleRelease :plugin-glb:assembleRelease
+# Architecture boundaries only
+./gradlew :app:testDebugUnitTest --tests dev.qtremors.arcile.ArchitectureBoundaryTest
 
-# Production string guard across production sources
-./gradlew checkProductionStrings
+# Release Arcile
+./gradlew :app:assembleRelease
+
+# Device tests, only when an emulator or device is intentionally available
+./gradlew :app:connectedDebugAndroidTest
 ```
 
-Use `./gradlew check` for normal pre-commit verification. Use `./gradlew check connectedCheck` when a device or emulator is attached and you want the entire test suite, including instrumented Android tests.
+Pure Kotlin/JVM modules use `test`; Android modules use `testDebugUnitTest`. Run architecture checks after changing dependencies, package ownership, public APIs, feature ViewModels, or production UI boundaries. Reserve complete unit/Robolectric and lint passes for release milestones.
 
-The suite includes JVM/Robolectric tests, Compose UI tests, instrumented Android tests, architecture checks, lint, and release convention checks.
+Instrumented tests are a deliberate separate step and require an attached emulator or device. The complete suite includes JVM/Robolectric tests, Compose UI tests, instrumented Android tests, architecture checks, lint, and release convention checks.
 
 ---
 

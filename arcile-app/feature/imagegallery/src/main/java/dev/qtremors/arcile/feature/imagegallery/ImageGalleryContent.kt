@@ -58,7 +58,7 @@ internal fun ImageGalleryContent(
     onPhotosGridCellSizeChange: (Float) -> Unit,
     onPhotosGridCellSizeFinalized: (Float) -> Unit,
     contentPadding: PaddingValues,
-    onOpenFile: (String) -> Unit,
+    onOpenFile: (String, List<FileModel>) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
     onSelectAlbum: (String?) -> Unit,
@@ -143,7 +143,7 @@ internal fun ImageGalleryContent(
                 onToggleSelection(file.absolutePath)
                 haptics.selectionChanged()
             } else {
-                onOpenFile(file.absolutePath)
+                onOpenFile(file.absolutePath, flatUiFiles)
             }
         }
     }
@@ -283,7 +283,7 @@ internal fun ImageGalleryContent(
                                                     showDetails = state.showFileDetails,
                                                     onClick = { onClickItem(file) },
                                                     onLongClick = { onLongClickItem(file) },
-                                                    onOpenDirectly = { onOpenFile(file.absolutePath) },
+                                                    onOpenDirectly = { onOpenFile(file.absolutePath, flatUiFiles) },
                                                     modifier = Modifier.animateItem()
                                                 )
                                             }
@@ -299,7 +299,7 @@ internal fun ImageGalleryContent(
                                             showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
                                             onLongClick = { onLongClickItem(file) },
-                                            onOpenDirectly = { onOpenFile(file.absolutePath) },
+                                            onOpenDirectly = { onOpenFile(file.absolutePath, flatUiFiles) },
                                             modifier = Modifier.animateItem()
                                         )
                                     }
@@ -341,7 +341,7 @@ internal fun ImageGalleryContent(
                                                     showDetails = state.showFileDetails,
                                                     onClick = { onClickItem(file) },
                                                     onLongClick = { onLongClickItem(file) },
-                                                    onOpenDirectly = { onOpenFile(file.absolutePath) },
+                                                    onOpenDirectly = { onOpenFile(file.absolutePath, flatUiFiles) },
                                                     modifier = Modifier.animateItem()
                                                 )
                                             }
@@ -357,7 +357,7 @@ internal fun ImageGalleryContent(
                                             showDetails = state.showFileDetails,
                                             onClick = { onClickItem(file) },
                                             onLongClick = { onLongClickItem(file) },
-                                            onOpenDirectly = { onOpenFile(file.absolutePath) },
+                                            onOpenDirectly = { onOpenFile(file.absolutePath, flatUiFiles) },
                                             modifier = Modifier.animateItem()
                                         )
                                     }
@@ -390,7 +390,7 @@ internal fun ImageGalleryContent(
                                                 zoom = state.presentation.listZoom,
                                                 onClick = { onClickItem(file) },
                                                 onLongClick = { onLongClickItem(file) },
-                                                onOpenDirectly = { onOpenFile(file.absolutePath) },
+                                                onOpenDirectly = { onOpenFile(file.absolutePath, flatUiFiles) },
                                                 modifier = Modifier.animateItem()
                                             )
                                         }
@@ -405,7 +405,7 @@ internal fun ImageGalleryContent(
                                         zoom = state.presentation.listZoom,
                                         onClick = { onClickItem(file) },
                                         onLongClick = { onLongClickItem(file) },
-                                        onOpenDirectly = { onOpenFile(file.absolutePath) },
+                                        onOpenDirectly = { onOpenFile(file.absolutePath, flatUiFiles) },
                                         modifier = Modifier.animateItem()
                                     )
                                 }

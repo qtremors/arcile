@@ -39,6 +39,7 @@ import dev.qtremors.arcile.core.presentation.OperationUiState
 import dev.qtremors.arcile.core.ui.ArcileActionSheet
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -218,7 +219,7 @@ private fun TransferQueue(activeOp: OperationUiState) {
     ) {
         items(activeOp.sourcePaths) { path ->
             TransferQueueRow(
-                name = path.substringAfterLast('/'),
+                name = storagePathName(path),
                 isCurrent = path == activeOp.currentPath
             )
         }

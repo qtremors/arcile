@@ -88,7 +88,7 @@ import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.ConflictCard
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.io.File
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -110,8 +110,7 @@ internal fun ArchiveOperationCard(
         stringResource(R.string.file_operation_extracting_archive)
     }
     val currentName = operation.currentPath
-        ?.substringAfterLast('/')
-        ?.substringAfterLast(File.separatorChar)
+        ?.let(::storagePathName)
         ?.takeIf { it.isNotBlank() }
     ElevatedCard(
         modifier = Modifier

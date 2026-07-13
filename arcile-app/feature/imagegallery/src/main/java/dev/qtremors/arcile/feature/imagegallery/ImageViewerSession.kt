@@ -148,6 +148,16 @@ internal fun viewerInitialPageForSession(
         ?: viewerContext.initialPage
 }
 
+internal fun viewerPageAfterDatasetChange(
+    currentPath: String?,
+    currentPage: Int,
+    files: List<FileModel>
+): Int {
+    if (files.isEmpty()) return 0
+    val currentPathIndex = files.indexOfFirst { it.absolutePath == currentPath }
+    return currentPathIndex.takeIf { it >= 0 } ?: currentPage.coerceIn(files.indices)
+}
+
 internal fun viewerThumbnailScrollAction(
     previousIndex: Int?,
     targetIndex: Int,

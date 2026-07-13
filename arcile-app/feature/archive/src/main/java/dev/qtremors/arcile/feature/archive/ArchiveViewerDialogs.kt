@@ -89,7 +89,6 @@ import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.ConflictCard
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.io.File
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date

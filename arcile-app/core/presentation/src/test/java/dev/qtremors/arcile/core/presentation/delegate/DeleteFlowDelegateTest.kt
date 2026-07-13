@@ -125,7 +125,7 @@ class DeleteFlowDelegateTest {
         delegate.confirmDeleteSelected()
 
         verify { callbacks.setLoading(true) }
-        verify { callbacks.dismissDeleteConfirmation() }
+        verify { callbacks.hideDeleteConfirmationForOperation() }
         verify { callbacks.setLoading(false) }
         verify { callbacks.clearSelection() }
     }
@@ -140,7 +140,7 @@ class DeleteFlowDelegateTest {
         delegate.confirmDeleteSelected()
 
         verify { callbacks.setLoading(true) }
-        verify { callbacks.dismissDeleteConfirmation() }
+        verify { callbacks.hideDeleteConfirmationForOperation() }
         verify { callbacks.setLoading(false) }
         verify { callbacks.clearSelection() }
     }
@@ -154,7 +154,7 @@ class DeleteFlowDelegateTest {
         delegate.moveSelectedToTrash()
 
         verify { callbacks.setLoading(true) }
-        verify { callbacks.dismissDeleteConfirmation() }
+        verify { callbacks.hideDeleteConfirmationForOperation() }
         verify { callbacks.setLoading(false) }
         verify { callbacks.setError(UiText.StringResource(R.string.error_operation_already_running)) }
         assert(onFailureCalled)
@@ -169,7 +169,7 @@ class DeleteFlowDelegateTest {
         delegate.deleteSelectedPermanently()
 
         verify { callbacks.setLoading(true) }
-        verify { callbacks.dismissDeleteConfirmation() }
+        verify { callbacks.hideDeleteConfirmationForOperation() }
         verify { callbacks.setLoading(false) }
         verify { callbacks.setError(UiText.StringResource(R.string.error_operation_already_running)) }
         assert(onFailureCalled)

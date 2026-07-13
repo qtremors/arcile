@@ -1,8 +1,0 @@
-<resources>
-    <style name="Theme.ArcilePlugin" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:fontFamily">sans</item>
-        <item name="android:windowLightStatusBar">false</item>
-        <item name="android:windowLightNavigationBar">false</item>
-        <item name="android:colorAccent">#6750A4</item>
-    </style>
-</resources>

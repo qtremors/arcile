@@ -31,7 +31,8 @@ data class ImageFileMetadata(
     val description: String? = null,
     val userComment: String? = null,
     val artist: String? = null,
-    val copyright: String? = null
+    val copyright: String? = null,
+    val isEditable: Boolean = false
 )
 
 data class ImageMetadataDetailLabels(
@@ -92,7 +93,8 @@ object SharedImageMetadataReader {
             mimeType = mimeType,
             width = options.outWidth.coerceAtLeast(0),
             height = options.outHeight.coerceAtLeast(0),
-            exif = exif
+            exif = exif,
+            isEditable = validateWritableMetadataFile(filePath) == null
         )
     }
 
@@ -166,7 +168,8 @@ object SharedImageMetadataReader {
             mimeType = mimeType ?: context.contentResolver.getType(uri),
             width = options.outWidth.coerceAtLeast(0),
             height = options.outHeight.coerceAtLeast(0),
-            exif = exif
+            exif = exif,
+            isEditable = false
         )
     }
 
@@ -176,7 +179,8 @@ object SharedImageMetadataReader {
         mimeType: String?,
         width: Int,
         height: Int,
-        exif: ExifInterface?
+        exif: ExifInterface?,
+        isEditable: Boolean
     ): ImageFileMetadata {
         val megapixel = if (width > 0 && height > 0) {
             Math.round((width * height).toDouble() / 1_000_000.0 * 100.0) / 100.0
@@ -233,7 +237,8 @@ object SharedImageMetadataReader {
             description = exif?.getAttribute(ExifInterface.TAG_IMAGE_DESCRIPTION),
             userComment = exif?.getAttribute(ExifInterface.TAG_USER_COMMENT),
             artist = exif?.getAttribute(ExifInterface.TAG_ARTIST),
-            copyright = exif?.getAttribute(ExifInterface.TAG_COPYRIGHT)
+            copyright = exif?.getAttribute(ExifInterface.TAG_COPYRIGHT),
+            isEditable = isEditable
         )
     }
 

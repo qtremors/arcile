@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.ui.metadata
 import android.graphics.Bitmap
 import androidx.exifinterface.media.ExifInterface
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -55,6 +56,7 @@ class ImageMetadataWriterTest {
         assertEquals("Arcile User", updated.artist)
         assertEquals("Google", updated.cameraMaker)
         assertEquals(12.9716, updated.latitude ?: 0.0, 0.0001)
+        assertTrue(updated.isEditable)
 
         val eraseResult = SharedImageMetadataReader.eraseFileMetadataResult(image.absolutePath, context)
         assertEquals(ImageMetadataWriteResult.Success, eraseResult)
@@ -95,14 +97,17 @@ class ImageMetadataWriterTest {
             ImageMetadataWriteResult.UnsupportedFormat,
             SharedImageMetadataReader.updateFileMetadata(unsupported.absolutePath, update, context)
         )
+        assertFalse(SharedImageMetadataReader.readFileMetadata(unsupported.absolutePath).isEditable)
+        val missing = File(context.cacheDir, "missing.jpg")
         assertEquals(
             ImageMetadataWriteResult.NotWritable,
             SharedImageMetadataReader.updateFileMetadata(
-                File(context.cacheDir, "missing.jpg").absolutePath,
+                missing.absolutePath,
                 update,
                 context
             )
         )
+        assertFalse(SharedImageMetadataReader.readFileMetadata(missing.absolutePath).isEditable)
         assertTrue(unsupported.delete())
     }
 }

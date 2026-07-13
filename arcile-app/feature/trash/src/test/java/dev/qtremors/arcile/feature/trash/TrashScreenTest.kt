@@ -26,6 +26,7 @@ class TrashScreenTest {
                     state = TrashState(isLoading = false),
                     navigationActions = testNavigationActions(),
                     selectionActions = testSelectionActions(),
+                    fileActions = testFileActions(),
                     restoreActions = testRestoreActions(),
                     deleteActions = testDeleteActions(),
                     presentationActions = testPresentationActions(),
@@ -51,6 +52,7 @@ class TrashScreenTest {
                     ),
                     navigationActions = testNavigationActions(),
                     selectionActions = testSelectionActions(),
+                    fileActions = testFileActions(),
                     restoreActions = testRestoreActions(),
                     deleteActions = testDeleteActions(),
                     presentationActions = testPresentationActions(),
@@ -66,6 +68,8 @@ class TrashScreenTest {
 private fun testNavigationActions() = TrashNavigationActions {}
 
 private fun testSelectionActions() = TrashSelectionActions({}, {}, {}, {}, {})
+
+private fun testFileActions() = TrashFileActions({}, {}, {})
 
 private fun testRestoreActions() = TrashRestoreActions({}, {}, { _, _ -> }, {}, {})
 

@@ -19,29 +19,29 @@ import org.robolectric.annotation.Config
 class PluginManagerTest {
     @Test
     fun `metadata values normalize and discard blanks`() {
-        assertEquals(setOf("model/gltf-binary", "image/*"), PluginManager.parseCsv(" MODEL/GLTF-BINARY, ,image/* "))
-        assertEquals("glb", PluginManager.normalizeExtension(" .GLB "))
+        assertEquals(setOf("image/tiff", "image/*"), PluginManager.parseCsv(" IMAGE/TIFF, ,image/* "))
+        assertEquals("tiff", PluginManager.normalizeExtension(" .TIFF "))
         assertNull(PluginManager.normalizeExtension(" "))
     }
 
     @Test
     fun `mime wildcard matches only its own type`() {
         assertTrue(PluginManager.wildcardMatches("image/*", "image/tiff"))
-        assertFalse(PluginManager.wildcardMatches("image/*", "model/gltf-binary"))
+        assertFalse(PluginManager.wildcardMatches("image/*", "application/pdf"))
         assertFalse(PluginManager.wildcardMatches("image/tiff", "image/tiff"))
     }
 
     @Test
     fun `ranking prefers exact mime then extension then wildcard and newer versions`() {
-        val wildcard = plugin("wildcard", 5, setOf("model/*"), emptySet())
-        val extension = plugin("extension", 1, emptySet(), setOf("glb"))
-        val exactOld = plugin("exact.old", 1, setOf("model/gltf-binary"), emptySet())
-        val exactNew = plugin("exact.new", 2, setOf("model/gltf-binary"), emptySet())
+        val wildcard = plugin("wildcard", 5, setOf("image/*"), emptySet())
+        val extension = plugin("extension", 1, emptySet(), setOf("tiff"))
+        val exactOld = plugin("exact.old", 1, setOf("image/tiff"), emptySet())
+        val exactNew = plugin("exact.new", 2, setOf("image/tiff"), emptySet())
 
         val ranked = PluginManager.rankPlugins(
             listOf(wildcard, extension, exactOld, exactNew),
-            "model/gltf-binary",
-            "glb"
+            "image/tiff",
+            "tiff"
         )
 
         assertEquals(listOf("exact.new", "exact.old", "extension", "wildcard"), ranked.map { it.packageName })
@@ -49,18 +49,18 @@ class PluginManagerTest {
 
     @Test
     fun `launch intent is explicit and grants the content uri`() {
-        val plugin = plugin("dev.qtremors.arcile.plugin.glb", 1, setOf("model/gltf-binary"), setOf("glb"))
-        val uri = Uri.parse("content://dev.qtremors.arcile.externalfileaccess/open/model.glb")
-        val base = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "model/gltf-binary") }
+        val plugin = plugin("dev.example.arcile.plugin", 1, setOf("image/tiff"), setOf("tiff"))
+        val uri = Uri.parse("content://dev.qtremors.arcile.externalfileaccess/open/scan.tiff")
+        val base = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "image/tiff") }
 
-        val launch = buildPluginLaunchIntent(plugin, base, "model.glb")
+        val launch = buildPluginLaunchIntent(plugin, base, "scan.tiff")
 
         assertEquals(PluginContract.ACTION_VIEW_FILE, launch.action)
         assertEquals(plugin.packageName, launch.component?.packageName)
         assertEquals(plugin.activityName, launch.component?.className)
         assertEquals(uri, launch.data)
         assertEquals(uri, launch.clipData?.getItemAt(0)?.uri)
-        assertEquals("model.glb", launch.getStringExtra(PluginContract.EXTRA_FILE_NAME))
+        assertEquals("scan.tiff", launch.getStringExtra(PluginContract.EXTRA_FILE_NAME))
         assertTrue(launch.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
     }
 

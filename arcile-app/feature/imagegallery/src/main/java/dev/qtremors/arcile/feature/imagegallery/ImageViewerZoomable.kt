@@ -102,6 +102,7 @@ internal fun ZoomableImageViewer(
     onScaleChanged: (Float) -> Unit,
     onSwipeUp: () -> Unit,
     onOpenWith: () -> Unit,
+    imageModifier: Modifier = Modifier,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -374,7 +375,7 @@ internal fun ZoomableImageViewer(
 
         // Backdrop fade overlay on vertical drag
         Box(
-            modifier = Modifier
+            modifier = imageModifier
                 .fillMaxSize()
                 .background(Color.Black.copy(alpha = backdropAlpha))
         )

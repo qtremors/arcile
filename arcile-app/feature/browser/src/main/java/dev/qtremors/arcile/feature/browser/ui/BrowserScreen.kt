@@ -73,7 +73,8 @@ internal fun BrowserScreen(
     state: BrowserUiState,
     intents: BrowserIntents,
     scroll: BrowserScrollBindings,
-    onFeedback: (ArcileFeedbackEvent) -> Unit
+    onFeedback: (ArcileFeedbackEvent) -> Unit,
+    isRouteVisible: Boolean = true
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
@@ -217,7 +218,9 @@ internal fun BrowserScreen(
     var backActionAtStart by remember { mutableStateOf<BrowserBackAction?>(null) }
 
     val backAction = resolveBrowserBackAction(backState)
-    PredictiveBackHandler(enabled = backAction != BrowserBackAction.ExitApp) { progressFlow ->
+    PredictiveBackHandler(
+        enabled = isRouteVisible && backAction != BrowserBackAction.ExitApp
+    ) { progressFlow ->
         backActionAtStart = backAction
         isBackPredicting = true
         try {
@@ -250,34 +253,42 @@ internal fun BrowserScreen(
         state.clipboardState?.let { clipboard ->
             val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
             val count = clipboard.files.size
-            onFeedback(
-                ArcileFeedbackEvent(
-                    message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
-                    severity = ArcileFeedbackSeverity.Info
+            if (isRouteVisible) {
+                onFeedback(
+                    ArcileFeedbackEvent(
+                        message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
+                        severity = ArcileFeedbackSeverity.Info
+                    )
                 )
-            )
+            }
         }
     }
 
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
-            haptics.error()
-            onFeedback(ArcileFeedbackEvent(message = errorMsg, severity = ArcileFeedbackSeverity.Error))
+            if (isRouteVisible) {
+                haptics.error()
+                onFeedback(ArcileFeedbackEvent(message = errorMsg, severity = ArcileFeedbackSeverity.Error))
+            }
         }
     }
     LaunchedEffect(state.fileOperationStatusMessage) {
         state.fileOperationStatusMessage?.let { message ->
             onClearFileOperationStatusMessage()
-            onFeedback(
-                ArcileFeedbackEvent(
-                    message = message,
-                    severity = ArcileFeedbackSeverity.Success,
-                    actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
-                    onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
-                    onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }
+            if (isRouteVisible) {
+                onFeedback(
+                    ArcileFeedbackEvent(
+                        message = message,
+                        severity = ArcileFeedbackSeverity.Success,
+                        actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
+                        onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
+                        onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }
+                    )
                 )
-            )
+            } else if (state.pendingUndoAction != null) {
+                onClearPendingUndo()
+            }
         }
     }
 
@@ -329,12 +340,14 @@ internal fun BrowserScreen(
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
                     onShowPinnedSnackbar = { label ->
-                        onFeedback(
-                            ArcileFeedbackEvent(
-                                message = UiText.StringResource(R.string.quick_access_pinned, listOf(label)),
-                                severity = ArcileFeedbackSeverity.Success
+                        if (isRouteVisible) {
+                            onFeedback(
+                                ArcileFeedbackEvent(
+                                    message = UiText.StringResource(R.string.quick_access_pinned, listOf(label)),
+                                    severity = ArcileFeedbackSeverity.Success
+                                )
                             )
-                        )
+                        }
                     }
                 )
             }

@@ -47,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
@@ -155,7 +156,7 @@ private fun recoverySummary(state: BrowserUiState): String {
         BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
         BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
     }
-    val current = recovery.currentPath?.substringAfterLast('/')?.takeIf(String::isNotBlank)
+    val current = recovery.currentPath?.let(::storagePathName)?.takeIf(String::isNotBlank)
     val progress = stringResource(
         R.string.transfer_progress_items,
         recovery.completedItems,

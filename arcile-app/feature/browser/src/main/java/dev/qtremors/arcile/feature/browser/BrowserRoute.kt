@@ -296,7 +296,8 @@ fun BrowserRoute(
                     onArmPendingReveal = viewModel::armOpenedFileReveal,
                     onConsumePendingReveal = viewModel::consumeOpenedFileReveal
                 ),
-                onFeedback = onFeedback
+                onFeedback = onFeedback,
+                isRouteVisible = isVisible
             )
         } else {
             BrowserInitializationSurface(

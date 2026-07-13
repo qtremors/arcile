@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
@@ -8,7 +9,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 internal data class GalleryNavigationActions(
     val navigateBack: () -> Unit,
-    val openFile: (String) -> Unit
+    val openFile: (String, List<FileModel>, Set<String>) -> Unit
 )
 
 internal data class GallerySelectionActions(

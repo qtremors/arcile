@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.trash
 
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.storage.domain.FileModel
 
 internal data class TrashNavigationActions(
     val navigateBack: () -> Unit
@@ -12,6 +13,12 @@ internal data class TrashSelectionActions(
     val selectAll: () -> Unit,
     val openProperties: () -> Unit,
     val dismissProperties: () -> Unit
+)
+
+internal data class TrashFileActions(
+    val open: (FileModel) -> Unit,
+    val openWith: (FileModel) -> Unit,
+    val shareSelected: () -> Unit
 )
 
 internal data class TrashRestoreActions(

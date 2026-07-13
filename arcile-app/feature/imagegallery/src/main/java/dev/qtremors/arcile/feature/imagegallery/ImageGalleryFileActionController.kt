@@ -187,6 +187,17 @@ internal class ImageGalleryFileActionController(
         deleteFlow.requestDeleteSelected()
     }
 
+    fun replaceSelection(paths: Collection<String>) {
+        val displayed = displayedPaths().toHashSet()
+        update {
+            it.copy(
+                selectedFiles = paths
+                    .filterTo(linkedSetOf()) { path -> path in displayed }
+                    .toPersistentSet()
+            )
+        }
+    }
+
     fun confirmDeleteSelected() {
         deleteFlow.confirmDeleteSelected()
     }

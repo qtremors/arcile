@@ -78,16 +78,16 @@ internal enum class ViewerBackAction {
 internal fun ImageViewerScreen(
     initialPath: String,
     viewModel: ImageViewerViewModel,
-    contextPaths: List<String> = emptyList(),
+    contextFiles: List<FileModel> = emptyList(),
+    selectionModeEnabled: Boolean = false,
+    readOnly: Boolean = false,
     onNavigateBack: () -> Unit,
-    onShareFile: (String) -> Unit,
-    onOpenWith: (String) -> Unit
+    onShareFile: (FileModel) -> Unit,
+    onOpenWith: (FileModel) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val marqueeEnabled = LocalMarqueeFilenames.current
-    val externalFiles = remember(contextPaths) {
-        contextPaths.distinct().map(::fileModelFromPath)
-    }
+    val externalFiles = remember(contextFiles) { contextFiles.distinctBy(FileModel::absolutePath) }
     val viewerContext = remember(initialPath, externalFiles, state.displayedFiles, state.files) {
         if (externalFiles.any { it.absolutePath == initialPath }) {
             viewerFileContextForInitialPath(initialPath, externalFiles, externalFiles)
@@ -98,7 +98,7 @@ internal fun ImageViewerScreen(
     val displayedFiles = viewerContext.files
     val haptics = rememberArcileHaptics()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
-    val showMetadataSheet = state.viewerMetadataPath != null
+    val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
 
 
 
@@ -177,9 +177,18 @@ internal fun ImageViewerScreen(
         }
     }
 
-    LaunchedEffect(displayedFiles.size, viewerContext.initialPage) {
-        if (displayedFiles.isNotEmpty() && pagerState.currentPage > displayedFiles.lastIndex) {
-            pagerState.scrollToPage(displayedFiles.lastIndex)
+    val displayedPaths = displayedFiles.map(FileModel::absolutePath)
+    LaunchedEffect(displayedPaths) {
+        if (displayedFiles.isEmpty()) return@LaunchedEffect
+        val anchoredPath = state.viewerCurrentPath ?: initialPath
+        val anchoredPage = viewerPageAfterDatasetChange(
+            anchoredPath,
+            pagerState.currentPage,
+            displayedFiles
+        )
+        if (pagerState.currentPage != anchoredPage) pagerState.scrollToPage(anchoredPage)
+        if (displayedFiles[anchoredPage].absolutePath != anchoredPath) {
+            viewModel.setViewerCurrentPath(displayedFiles[anchoredPage].absolutePath)
         }
     }
 
@@ -200,7 +209,7 @@ internal fun ImageViewerScreen(
         Box(modifier = Modifier.fillMaxSize()) {
             var currentScale by remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
             var previousPagePath by remember { mutableStateOf<String?>(null) }
-            LaunchedEffect(pagerState.currentPage, displayedFiles) {
+            LaunchedEffect(pagerState.currentPage) {
                 val pagePath = displayedFiles.getOrNull(pagerState.currentPage)?.absolutePath
                 if (previousPagePath != null && previousPagePath != pagePath) {
                     currentScale = 1f
@@ -249,8 +258,8 @@ internal fun ImageViewerScreen(
                     val showEraseDialog = state.viewerEraseDialogPath == file.absolutePath
 
                     val verticalPagerState = rememberPagerState(
-                        initialPage = if (state.viewerMetadataPath == file.absolutePath) 1 else 0,
-                        pageCount = { 2 }
+                        initialPage = if (!readOnly && state.viewerMetadataPath == file.absolutePath) 1 else 0,
+                        pageCount = { if (readOnly) 1 else 2 }
                     )
 
                     val isCurrentPage = pagerState.currentPage == page
@@ -321,9 +330,11 @@ internal fun ImageViewerScreen(
                                     }
                                 },
                                 onSwipeUp = {
-                                    viewModel.setViewerMetadataVisible(file.absolutePath, visible = true)
+                                    if (!readOnly) {
+                                        viewModel.setViewerMetadataVisible(file.absolutePath, visible = true)
+                                    }
                                 },
-                                onOpenWith = { onOpenWith(file.absolutePath) }
+                                onOpenWith = { onOpenWith(file) }
                             )
                         } else {
                             Box(
@@ -350,7 +361,7 @@ internal fun ImageViewerScreen(
                         }
                     }
 
-                    if (showEraseDialog) {
+                    if (!readOnly && showEraseDialog) {
                         val confirmClick = {
                             haptics.destructiveConfirm()
                             viewModel.eraseMetadata(file.absolutePath)
@@ -411,10 +422,9 @@ internal fun ImageViewerScreen(
                     onToggleFavorite = viewModel::toggleFavorite,
                     onRotate = viewModel::rotateViewerImage,
                     onDelete = { path ->
-                        viewModel.clearSelection()
-                        viewModel.toggleSelection(path)
-                        viewModel.requestDeleteSelected()
+                        viewModel.requestDeleteCurrent(path)
                     },
+                    onToggleSelection = viewModel::toggleSelection,
                     onShowMetadata = { path ->
                         viewModel.setViewerMetadataVisible(path, visible = true)
                     },
@@ -428,6 +438,9 @@ internal fun ImageViewerScreen(
                 currentPage = pagerState.currentPage,
                 currentFile = currentFile,
                 favoriteFiles = state.favoriteFiles,
+                selectedFiles = state.selectedFiles,
+                selectionModeEnabled = selectionModeEnabled,
+                readOnly = readOnly,
                 actions = chromeActions,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

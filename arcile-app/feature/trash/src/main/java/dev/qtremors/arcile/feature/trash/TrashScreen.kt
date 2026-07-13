@@ -98,6 +98,7 @@ internal fun TrashScreen(
     state: TrashState,
     navigationActions: TrashNavigationActions,
     selectionActions: TrashSelectionActions,
+    fileActions: TrashFileActions,
     restoreActions: TrashRestoreActions,
     deleteActions: TrashDeleteActions,
     presentationActions: TrashPresentationActions,
@@ -109,6 +110,9 @@ internal fun TrashScreen(
     val onSelectAll = selectionActions.selectAll
     val onOpenProperties = selectionActions.openProperties
     val onDismissProperties = selectionActions.dismissProperties
+    val onOpenFile = fileActions.open
+    val onOpenFileWith = fileActions.openWith
+    val onShareSelected = fileActions.shareSelected
     val onRestoreSelected = restoreActions.restoreSelected
     val onDismissDestinationPicker = restoreActions.dismissDestinationPicker
     val onRestoreToDestination = restoreActions.restoreToDestination
@@ -327,7 +331,8 @@ internal fun TrashScreen(
                         showLoading = showLoading,
                         showSearchBar = showSearchBar,
                         bottomContentPadding = bottomContentPadding,
-                        onToggleSelection = onToggleSelection
+                        onToggleSelection = onToggleSelection,
+                        onOpenFile = onOpenFile
                     )
                 }
             } else {
@@ -337,7 +342,8 @@ internal fun TrashScreen(
                         showLoading = showLoading,
                         showSearchBar = showSearchBar,
                         bottomContentPadding = bottomContentPadding,
-                        onToggleSelection = onToggleSelection
+                        onToggleSelection = onToggleSelection,
+                        onOpenFile = onOpenFile
                     )
                 }
             }
@@ -348,10 +354,16 @@ internal fun TrashScreen(
                 isBackPredicting = isBackPredicting,
                 backProgress = backProgress,
                 contentPadding = padding,
+                selectedItems = state.trashFiles
+                    .filter { it.id in state.selectedFiles }
+                    .map { it.fileModel },
                 actions = TrashSelectionToolbarActions(
                     selectAll = onSelectAll,
                     restore = onRestoreSelected,
                     deletePermanently = onPermanentlyDeleteSelected,
+                    open = onOpenFile,
+                    openWith = onOpenFileWith,
+                    share = onShareSelected,
                     openProperties = onOpenProperties
                 )
             )

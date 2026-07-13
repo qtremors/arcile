@@ -33,11 +33,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -83,9 +85,10 @@ internal data class ImageViewerChromeActions(
     val onToggleFavorite: (String) -> Unit,
     val onRotate: (String) -> Unit,
     val onDelete: (String) -> Unit,
+    val onToggleSelection: (String) -> Unit,
     val onShowMetadata: (String) -> Unit,
-    val onOpenWith: (String) -> Unit,
-    val onShare: (String) -> Unit
+    val onOpenWith: (FileModel) -> Unit,
+    val onShare: (FileModel) -> Unit
 )
 
 @Composable
@@ -156,6 +159,9 @@ internal fun ImageViewerBottomChrome(
     currentPage: Int,
     currentFile: FileModel?,
     favoriteFiles: Set<String>,
+    selectedFiles: Set<String>,
+    selectionModeEnabled: Boolean,
+    readOnly: Boolean,
     actions: ImageViewerChromeActions,
     modifier: Modifier = Modifier
 ) {
@@ -268,6 +274,10 @@ internal fun ImageViewerBottomChrome(
                 val favoriteDescription = stringResource(R.string.action_favorite)
                 val rotateDescription = stringResource(R.string.action_rotate)
                 val deleteDescription = stringResource(R.string.action_delete_selected)
+                val isSelected = currentFile != null && currentFile.absolutePath in selectedFiles
+                val selectionDescription = stringResource(
+                    if (isSelected) R.string.deselect_image else R.string.select_image
+                )
                 val deleteTint = MaterialTheme.colorScheme.error
                 val toolbarActions = remember(
                     currentFile,
@@ -275,44 +285,77 @@ internal fun ImageViewerBottomChrome(
                     favoriteDescription,
                     rotateDescription,
                     deleteDescription,
+                    isSelected,
+                    selectionDescription,
+                    selectionModeEnabled,
+                    readOnly,
                     deleteTint,
                     actions
                 ) {
-                    listOf(
-                        ToolbarAction(
-                            icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
-                            contentDescription = favoriteDescription,
-                            tint = if (isFavorite) Color.Red else Color.White,
-                            onClick = {
-                                currentFile?.let {
-                                    haptics.selectionChanged()
-                                    actions.onToggleFavorite(it.absolutePath)
+                    buildList {
+                        if (selectionModeEnabled) {
+                            add(
+                                ToolbarAction(
+                                    icon = if (isSelected) {
+                                        Icons.Default.CheckCircle
+                                    } else {
+                                        Icons.Default.RadioButtonUnchecked
+                                    },
+                                    contentDescription = selectionDescription,
+                                    tint = Color.White,
+                                    onClick = {
+                                        currentFile?.let {
+                                            haptics.selectionChanged()
+                                            actions.onToggleSelection(it.absolutePath)
+                                        }
+                                    }
+                                )
+                            )
+                        }
+                        if (!readOnly) {
+                            add(
+                                ToolbarAction(
+                                    icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                                    contentDescription = favoriteDescription,
+                                    tint = if (isFavorite) Color.Red else Color.White,
+                                    onClick = {
+                                        currentFile?.let {
+                                            haptics.selectionChanged()
+                                            actions.onToggleFavorite(it.absolutePath)
+                                        }
+                                    }
+                                )
+                            )
+                        }
+                        add(
+                            ToolbarAction(
+                                icon = Icons.AutoMirrored.Filled.RotateRight,
+                                contentDescription = rotateDescription,
+                                tint = Color.White,
+                                onClick = {
+                                    currentFile?.let {
+                                        haptics.selectionChanged()
+                                        actions.onRotate(it.absolutePath)
+                                    }
                                 }
-                            }
-                        ),
-                        ToolbarAction(
-                            icon = Icons.AutoMirrored.Filled.RotateRight,
-                            contentDescription = rotateDescription,
-                            tint = Color.White,
-                            onClick = {
-                                currentFile?.let {
-                                    haptics.selectionChanged()
-                                    actions.onRotate(it.absolutePath)
-                                }
-                            }
-                        ),
-                        ToolbarAction(
-                            icon = Icons.Default.Delete,
-                            contentDescription = deleteDescription,
-                            tint = deleteTint,
-                            onClick = {
-                                currentFile?.let {
-                                    haptics.selectionStart()
-                                    actions.onDelete(it.absolutePath)
-                                }
-                            }
+                            )
                         )
-                    )
+                        if (!readOnly) {
+                            add(
+                                ToolbarAction(
+                                    icon = Icons.Default.Delete,
+                                    contentDescription = deleteDescription,
+                                    tint = deleteTint,
+                                    onClick = {
+                                        currentFile?.let {
+                                            haptics.selectionStart()
+                                            actions.onDelete(it.absolutePath)
+                                        }
+                                    }
+                                )
+                            )
+                        }
+                    }
                 }
 
                 SplitButtonGroup(
@@ -320,12 +363,13 @@ internal fun ImageViewerBottomChrome(
                     containerColor = Color.Black.copy(alpha = 0.5f),
                     contentColor = Color.White,
                     height = 56.dp,
-                    minWidth = 64.dp,
+                    minWidth = if (selectionModeEnabled) 52.dp else 64.dp,
                     iconSize = 28.dp
                 )
 
                 ImageViewerOverflowMenu(
                     currentFile = currentFile,
+                    readOnly = readOnly,
                     actions = actions
                 )
             }
@@ -336,6 +380,7 @@ internal fun ImageViewerBottomChrome(
 @Composable
 private fun ImageViewerOverflowMenu(
     currentFile: FileModel?,
+    readOnly: Boolean,
     actions: ImageViewerChromeActions
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -364,8 +409,8 @@ private fun ImageViewerOverflowMenu(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
             modifier = Modifier.width(200.dp)
         ) {
-            val menuActions = listOf<@Composable () -> Unit>(
-                {
+            val menuActions = buildList<@Composable () -> Unit> {
+                if (!readOnly) add {
                     ViewerOverflowMenuItem(
                         text = stringResource(R.string.action_info),
                         icon = { Icon(Icons.Default.Info, contentDescription = null) },
@@ -374,28 +419,28 @@ private fun ImageViewerOverflowMenu(
                             currentFile?.let { actions.onShowMetadata(it.absolutePath) }
                         }
                     )
-                },
-                {
+                }
+                add {
                     ViewerOverflowMenuItem(
                         text = stringResource(R.string.image_gallery_open_with),
                         icon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                         onClick = {
                             expanded = false
-                            currentFile?.let { actions.onOpenWith(it.openableReference()) }
+                            currentFile?.let(actions.onOpenWith)
                         }
                     )
-                },
-                {
+                }
+                add {
                     ViewerOverflowMenuItem(
                         text = stringResource(R.string.share),
                         icon = { Icon(Icons.Default.Share, contentDescription = null) },
                         onClick = {
                             expanded = false
-                            currentFile?.let { actions.onShare(it.openableReference()) }
+                            currentFile?.let(actions.onShare)
                         }
                     )
                 }
-            )
+            }
 
             menuActions.forEachIndexed { index, action ->
                 val shape = when {

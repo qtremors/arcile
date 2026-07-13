@@ -38,7 +38,8 @@ internal fun TrashBody(
     showLoading: Boolean,
     showSearchBar: Boolean,
     bottomContentPadding: Dp,
-    onToggleSelection: (String) -> Unit
+    onToggleSelection: (String) -> Unit,
+    onOpenFile: (dev.qtremors.arcile.core.storage.domain.FileModel) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize()) {
         when {
@@ -62,6 +63,7 @@ internal fun TrashBody(
                 files = if (showSearchBar) state.searchResults else state.visibleTrashFiles,
                 selectedFiles = state.selectedFiles,
                 onToggleSelection = onToggleSelection,
+                onOpenFile = onOpenFile,
                 contentPadding = PaddingValues(bottom = bottomContentPadding)
             )
         }

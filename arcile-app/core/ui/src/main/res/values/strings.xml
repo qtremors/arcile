@@ -10,6 +10,8 @@
     <string name="refresh">Refresh</string>
     <string name="clear_selection">Clear Selection</string>
     <string name="selected_count">%1$d selected</string>
+    <string name="select_image">Select image</string>
+    <string name="deselect_image">Deselect image</string>
     <string name="share">Share</string>
     <string name="done">Done</string>
     <!-- Accessibility & Actions -->

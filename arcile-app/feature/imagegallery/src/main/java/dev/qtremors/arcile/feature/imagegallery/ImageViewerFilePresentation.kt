@@ -144,3 +144,8 @@ internal fun formatResolution(width: Int, height: Int): String? {
     if (width <= 0 || height <= 0) return null
     return "$width x $height"
 }
+internal fun viewerParentPath(path: String): String? {
+    val normalized = path.trimEnd('/', '\\')
+    val separatorIndex = normalized.lastIndexOfAny(charArrayOf('/', '\\'))
+    return normalized.substring(0, separatorIndex).takeIf { separatorIndex > 0 }
+}

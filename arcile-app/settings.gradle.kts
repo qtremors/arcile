@@ -52,5 +52,4 @@ include(":feature:plugins")
 include(":feature:import")
 include(":plugin-api")
 include(":plugin-ui")
-include(":plugin-glb")
  

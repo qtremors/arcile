@@ -6,9 +6,9 @@
     <title>Arcile | Private Android File Manager</title>
     
     <!-- SEO & Open Graph Meta Tags -->
-    <meta name="description" content="Arcile is a private Android file manager for browsing storage, managing files, using Trash, opening archives, and cleaning up space.">
+    <meta name="description" content="Arcile 1.5.0 is a private Android file manager with multi-volume browsing, gallery and archive workflows, recoverable Trash, and storage cleanup.">
     <meta property="og:title" content="Arcile | Private Android File Manager">
-    <meta property="og:description" content="A source-available Android file manager with no internet permission, file operations, Trash, archives, cleanup tools, and a Material 3 interface.">
+    <meta property="og:description" content="A source-available Android file manager with no internet permission, gallery and archive workflows, recoverable Trash, cleanup tools, and a Material 3 interface.">
     <meta property="og:image" content="https://qtremors.github.io/arcile/assets/Homepage.png">
     <meta property="og:type" content="website">
     <meta name="twitter:card" content="summary_large_image">
@@ -51,7 +51,7 @@
                         Source
                     </a>
                     <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="hidden sm:flex px-6 py-2.5 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-sm hover:bg-m3-primaryContainer hover:text-m3-onPrimaryContainer transition-colors items-center gap-2">
-                        Download v1.2.5
+                        Download v1.5.0
                     </a>
                     <!-- Mobile Menu Button -->
                     <button id="mobile-menu-btn" class="lg:hidden p-2 text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors rounded-lg hover:bg-m3-surfaceContainerHighest flex items-center justify-center" aria-label="Toggle menu">
@@ -76,7 +76,7 @@
                 Source
             </a>
             <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="mobile-link px-8 py-3 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-base hover:bg-m3-primaryContainer transition-colors flex items-center gap-2">
-                Download v1.2.5
+                Download v1.5.0
             </a>
         </div>
     </div>
@@ -284,7 +284,7 @@
                     <h3 class="text-2xl font-medium text-m3-onSurface mb-3 font-display">Quick Access</h3>
                     
                     <!-- Part 3: Description -->
-                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Pin your most-used folders and work with multiple files at once.</p>
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Pin folders and hand off restricted Android locations while keeping common destinations close.</p>
                 </div>
 
                 <!-- Bento Item 6: Search & Filters -->
@@ -325,7 +325,38 @@
                     <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Identify what's taking up space and review everything before deleting.</p>
                 </div>
 
-                <!-- Bento Item 8: Home Dashboard (Full Width) -->
+                <!-- Bento Item 8: Gallery & Image Viewer -->
+                <div class="bg-m3-surfaceContainer rounded-[40px] p-8 relative overflow-hidden group m3-card flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-pink-400/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="images" class="w-7 h-7 text-pink-400"></i>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Albums</div>
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Metadata</div>
+                        </div>
+                    </div>
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3 font-display">Gallery And Image Viewer</h3>
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Browse photos and albums, use focal-point gestures, manage favorites, and inspect supported metadata.</p>
+                </div>
+
+                <!-- Bento Item 9: Archive Workflows -->
+                <div class="bg-m3-surfaceContainer rounded-[40px] p-8 relative overflow-hidden group m3-card flex flex-col items-start reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100 md:col-span-1 lg:col-span-2">
+                    <div class="w-full flex items-center justify-between mb-8">
+                        <div class="w-14 h-14 rounded-full bg-amber-400/20 flex items-center justify-center shrink-0">
+                            <i data-lucide="archive" class="w-7 h-7 text-amber-400"></i>
+                        </div>
+                        <div class="flex gap-2">
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">ZIP</div>
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">7z</div>
+                            <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">TAR</div>
+                        </div>
+                    </div>
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-3 font-display">Archive Workflows</h3>
+                    <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Create, browse, and safely extract common archive formats, including password-protected ZIP and 7z files.</p>
+                </div>
+
+                <!-- Bento Item 10: Home Dashboard (Full Width) -->
                 <div class="bg-m3-surfaceContainer rounded-[40px] p-8 sm:p-10 relative overflow-hidden group m3-card flex flex-col lg:flex-row items-center gap-8 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out md:col-span-2 lg:col-span-3">
                     <div class="flex-1">
                         <!-- Part 1: Header (Icon + Chips) -->
@@ -502,7 +533,7 @@
             </div>
             
             <p class="mt-10 text-m3-onSurfaceVariant text-base max-w-3xl mx-auto leading-relaxed reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-200">
-                Arcile uses MVVM, Hilt, DataStore, Navigation Compose, foreground file-operation services, MediaStore, and local file access.
+                Arcile 1.5.0 uses 28 focused Gradle modules, feature-owned routes, MVVM, Hilt, DataStore, Navigation Compose, foreground file-operation services, MediaStore, and local file access.
             </p>
         </div>
     </section>
@@ -655,7 +686,7 @@
             <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="w-full sm:w-auto px-10 py-5 rounded-full bg-m3-primary text-m3-onPrimary font-bold text-lg hover:bg-[#EADDFF] hover:scale-105 transition-all shadow-xl shadow-m3-primary/20 flex items-center justify-center gap-3">
                     <i data-lucide="download" class="w-6 h-6"></i>
-                    Download v1.2.5
+                    Download v1.5.0
                 </a>
                 <a href="https://github.com/qtremors/arcile" target="_blank" class="w-full sm:w-auto px-10 py-5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface font-bold text-lg hover:bg-m3-surfaceContainerHigh hover:scale-105 transition-all flex items-center justify-center gap-3">
                     <i data-lucide="github" class="w-6 h-6"></i>
@@ -692,7 +723,7 @@
                     <h4 class="text-m3-onSurface font-medium mb-4">Resources</h4>
                     <ul class="space-y-3 text-sm text-m3-onSurfaceVariant">
                         <li><a href="https://github.com/qtremors/arcile/blob/main/README.md" target="_blank" class="hover:text-m3-primary transition-colors">Documentation</a></li>
-                        <li><a href="https://github.com/qtremors/arcile/blob/main/CHANGELOG.md" target="_blank" class="hover:text-m3-primary transition-colors">Changelog (v1.2.5)</a></li>
+                        <li><a href="https://github.com/qtremors/arcile/blob/main/CHANGELOG.md" target="_blank" class="hover:text-m3-primary transition-colors">Changelog (v1.5.0)</a></li>
                         <li><a href="https://github.com/qtremors/arcile/blob/main/DEVELOPMENT.md" target="_blank" class="hover:text-m3-primary transition-colors">Architecture Guide</a></li>
                         <li><a href="https://github.com/qtremors/arcile/issues" target="_blank" class="hover:text-m3-primary transition-colors">Bug Tracker</a></li>
                     </ul>

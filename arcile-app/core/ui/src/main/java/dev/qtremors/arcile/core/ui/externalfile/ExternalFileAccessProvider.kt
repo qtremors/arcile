@@ -8,6 +8,7 @@ import android.database.MatrixCursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import java.io.File
 import java.io.FileNotFoundException
 
@@ -36,7 +37,14 @@ class ExternalFileAccessProvider : ContentProvider() {
         }
     }
 
-    override fun getType(uri: Uri): String? = null
+    override fun getType(uri: Uri): String {
+        val extension = fileFor(uri).extension.lowercase()
+        return when (extension) {
+            "glb" -> "model/gltf-binary"
+            else -> MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+                ?: "application/octet-stream"
+        }
+    }
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (mode != "r") throw SecurityException("External handoffs are read-only")

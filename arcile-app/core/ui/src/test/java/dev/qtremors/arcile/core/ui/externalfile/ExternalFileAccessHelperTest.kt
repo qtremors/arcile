@@ -16,6 +16,7 @@ import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
@@ -249,7 +250,8 @@ class ExternalFileAccessHelperTest {
         assertEquals(2, targets.size)
         assertEquals("photo.jpg", targets[0].displayName)
         assertEquals("photo.jpg", targets[1].displayName)
-        val stagedFiles = File(context.cacheDir, "external_access/share").listFiles()?.map { it.name }.orEmpty()
+        val stagedFiles = File(context.cacheDir, "external_access/share").walkTopDown()
+            .filter(File::isFile).map(File::getName).toList()
         assertTrue(stagedFiles.contains("photo.jpg"))
         assertTrue(stagedFiles.contains("photo (1).jpg"))
     }
@@ -279,10 +281,34 @@ class ExternalFileAccessHelperTest {
 
         assertEquals(3, targets.size)
         val stagedDir = File(context.cacheDir, "external_access/share")
-        val stagedFiles = stagedDir.listFiles()?.associate { it.name to it.readText() }.orEmpty()
+        val stagedFiles = stagedDir.walkTopDown().filter(File::isFile)
+            .associate { it.name to it.readText() }
         assertEquals("first", stagedFiles["photo.jpg"])
         assertEquals("second", stagedFiles["photo (1).jpg"])
         assertEquals("third", stagedFiles["photo (1) (1).jpg"])
+    }
+
+    @Test
+    fun `createShareTargets rejects whole batch and removes partial staging`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val root = configureExternalStorageRoot()
+        ExternalFileAccessHelper.clearStagingArea(context)
+        val valid = File(root, "valid.pdf").apply { writeText("valid") }
+        val missing = File(root, "missing.pdf")
+
+        try {
+            ExternalFileAccessHelper.createShareTargets(
+                context,
+                listOf(valid.absolutePath, missing.absolutePath)
+            )
+            fail("Expected incomplete share batch to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("every selected file"))
+        }
+
+        val stagedFiles = File(context.cacheDir, "external_access/share")
+            .walkTopDown().count(File::isFile)
+        assertEquals(0, stagedFiles)
     }
 
     @Test
@@ -305,6 +331,7 @@ class ExternalFileAccessHelperTest {
 
         assertTrue(target.uri.toString().startsWith("content://${context.packageName}.externalfileaccess/"))
         assertEquals("Report Final.pdf", target.displayName)
+        assertEquals("application/pdf", context.contentResolver.getType(target.uri))
         cursor.use {
             assertTrue(it?.moveToFirst() == true)
             assertEquals("Report Final.pdf", it!!.getString(it.getColumnIndexOrThrow(OpenableColumns.DISPLAY_NAME)))
@@ -351,6 +378,52 @@ class ExternalFileAccessHelperTest {
                 assertTrue(expected.message.orEmpty().contains("Unsupported file path"))
             }
         }
+    }
+
+    @Test
+    fun `managed trash grant only allows payloads below arcile trash`() = runTest {
+        configureExternalStorageRoot()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val trashPayload = File(
+            Environment.getExternalStorageDirectory(),
+            ".arcile/.trash/95c27c1f"
+        ).apply {
+            parentFile?.mkdirs()
+            writeText("image")
+        }
+        val metadata = File(
+            Environment.getExternalStorageDirectory(),
+            ".arcile/metadata.json"
+        ).apply {
+            parentFile?.mkdirs()
+            writeText("private")
+        }
+
+        assertFalse(ExternalFileAccessHelper.isAllowedUserFile(context, trashPayload))
+        assertTrue(
+            ExternalFileAccessHelper.isAllowedUserFile(
+                context,
+                trashPayload,
+                allowManagedTrashPayload = true
+            )
+        )
+        assertFalse(
+            ExternalFileAccessHelper.isAllowedUserFile(
+                context,
+                metadata,
+                allowManagedTrashPayload = true
+            )
+        )
+
+        val openIntent = ExternalFileAccessHelper.createOpenIntent(
+            context,
+            ExternalFileAccessHelper.ExternalFileReference(
+                path = trashPayload.absolutePath,
+                displayName = "photo.jpg",
+                allowManagedTrashPayload = true
+            )
+        )
+        assertEquals("image/jpeg", openIntent.type)
     }
 
     private fun mediaStoreCursor(

@@ -129,13 +129,6 @@ class PluginManager(private val context: Context) {
 
         val catalog = listOf(
             PluginCatalogEntry(
-                name = "GLB Viewer",
-                packageName = "dev.qtremors.arcile.plugin.glb",
-                supportedMimeTypes = setOf(PluginContract.MIME_TYPE_GLB),
-                supportedExtensions = setOf("glb"),
-                available = true
-            ),
-            PluginCatalogEntry(
                 name = "STL Viewer",
                 packageName = "dev.qtremors.arcile.plugin.stl",
                 supportedMimeTypes = setOf("model/stl"),

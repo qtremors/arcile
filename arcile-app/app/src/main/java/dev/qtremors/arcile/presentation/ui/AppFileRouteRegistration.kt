@@ -70,6 +70,9 @@ internal fun NavGraphBuilder.registerFileRoutes(
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
+        onOpenFile = actions::openManagedTrashFile,
+        onOpenFileWith = actions::openManagedTrashFileWith,
+        onShareSelected = actions::shareManagedTrashFiles,
         onFeedback = onFeedback
     )
     registerRecentFilesRoute(
@@ -104,8 +107,8 @@ internal fun NavGraphBuilder.registerFileRoutes(
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
-        onShareFile = actions::sharePath,
-        onOpenFileWith = actions::openFileWith
+        onShareFile = actions::shareViewerFile,
+        onOpenFileWith = actions::openViewerFileWith
     )
     registerArchiveViewerRoute(
         enterTransition = transitions.detailEnter,

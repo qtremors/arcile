@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.home.ui.components
 
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -50,6 +52,7 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Precision
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -66,8 +69,10 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import java.io.File
+import kotlin.math.roundToInt
 
-internal const val HomeRecentFilesCarouselThumbnailSizePx = 512
+private const val HomeRecentFilesCarouselWidthFraction = 0.5f
+private const val HomeRecentFilesCarouselHeightRatio = 1.25f
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,11 +83,15 @@ internal fun RecentFilesCarousel(
     onShareFile: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current.density
     val primaryWidth = configuration.screenWidthDp.dp / 2
     val itemHeight = primaryWidth * 1.25f
-    val thumbnailSizePx = with(LocalDensity.current) {
-        ThumbnailTargetSize.fromBounds(primaryWidth.roundToPx(), maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX)
+    val renderedThumbnailSizePx = remember(configuration.screenWidthDp, density) {
+        homeCarouselRenderedThumbnailSizePx(
+            screenWidthDp = configuration.screenWidthDp,
+            density = density
+        )
     }
 
     val state = rememberCarouselState { files.size }
@@ -100,7 +109,7 @@ internal fun RecentFilesCarousel(
             onNavigateToPath = onNavigateToPath,
             onShareFile = onShareFile,
             itemHeight = itemHeight,
-            thumbnailSizePx = thumbnailSizePx,
+            renderedThumbnailSizePx = renderedThumbnailSizePx,
             modifier = Modifier.maskClip(RoundedCornerShape(24.dp))
         )
     }
@@ -113,7 +122,7 @@ internal fun RecentFileCarouselItem(
     onNavigateToPath: (String) -> Unit,
     onShareFile: (String) -> Unit,
     itemHeight: androidx.compose.ui.unit.Dp,
-    thumbnailSizePx: Int,
+    renderedThumbnailSizePx: Int,
     modifier: Modifier = Modifier
 ) {
     val extension = file.extension.lowercase()
@@ -124,28 +133,26 @@ internal fun RecentFileCarouselItem(
     val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {
         ThumbnailKey.from(file)
     }
+    val thumbnailSizePx = remember(renderedThumbnailSizePx, thumbnailKey.type) {
+        homeCarouselThumbnailSizePx(renderedThumbnailSizePx, thumbnailKey.type)
+    }
     val usesFullBleedThumbnail = !file.isDirectory && thumbnailKey.type != ThumbnailType.Unsupported
     val thumbnailData = remember(thumbnailKey) {
-        when (thumbnailKey.type) {
-            ThumbnailType.Audio,
-            ThumbnailType.Video,
-            ThumbnailType.Pdf,
-            ThumbnailType.Apk -> thumbnailKey
-            else -> File(file.absolutePath)
-        }
+        homeThumbnailRequestData(file, thumbnailKey)
     }
-    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size) {
-        homeThumbnailCacheKey(file)
+    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size, thumbnailSizePx) {
+        homeThumbnailCacheKey(file, thumbnailSizePx)
     }
     val thumbnailRequest = remember(thumbnailData, thumbnailSizePx, thumbnailCacheKey) {
         ImageRequest.Builder(context)
             .data(thumbnailData)
             .size(thumbnailSizePx)
+            .precision(Precision.INEXACT)
             .memoryCacheKey(thumbnailCacheKey)
-            .placeholderMemoryCacheKey(thumbnailCacheKey)
             .diskCacheKey(thumbnailCacheKey)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)
+            .networkCachePolicy(CachePolicy.DISABLED)
             .crossfade(false)
             .build()
     }
@@ -167,8 +174,15 @@ internal fun RecentFileCarouselItem(
                     contentDescription = stringResource(R.string.desc_thumbnail),
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
+                    onLoading = {
+                        thumbnailPolicy.recordInFlight(thumbnailKey, thumbnailSizePx)
+                    },
                     onSuccess = {
-                        thumbnailPolicy.recordLoaded(thumbnailKey, HomeRecentFilesCarouselThumbnailSizePx)
+                        thumbnailPolicy.clearFailure(thumbnailKey)
+                        thumbnailPolicy.recordLoaded(thumbnailKey, thumbnailSizePx)
+                    },
+                    onError = {
+                        thumbnailPolicy.recordFailure(thumbnailKey, thumbnailSizePx)
                     }
                 )
             } else {
@@ -391,8 +405,43 @@ private fun FileTypeBadge(
     }
 }
 
-internal fun homeThumbnailCacheKey(file: FileModel): String =
-    ThumbnailKey.from(file).variantKey(HomeRecentFilesCarouselThumbnailSizePx).cacheKey
+internal fun homeCarouselRenderedThumbnailSizePx(screenWidthDp: Int, density: Float): Int {
+    val safeScreenWidthDp = screenWidthDp.coerceAtLeast(1)
+    val safeDensity = density.takeIf { it.isFinite() && it > 0f } ?: 1f
+    val widthPx = safeScreenWidthDp * HomeRecentFilesCarouselWidthFraction * safeDensity
+    val heightPx = widthPx * HomeRecentFilesCarouselHeightRatio
+    return ThumbnailTargetSize.fromBounds(
+        widthPx = widthPx.roundToInt(),
+        heightPx = heightPx.roundToInt(),
+        maxPx = ThumbnailTargetSize.MAX_PX
+    )
+}
+
+internal fun homeCarouselThumbnailSizePx(renderedSizePx: Int, type: ThumbnailType): Int =
+    ThumbnailTargetSize.fromBounds(
+        widthPx = renderedSizePx,
+        maxPx = if (type == ThumbnailType.Image) {
+            ThumbnailTargetSize.MAX_PX
+        } else {
+            ThumbnailTargetSize.MAX_EXPENSIVE_PX
+        }
+    )
+
+internal fun homeThumbnailRequestData(file: FileModel, thumbnailKey: ThumbnailKey): Any =
+    when (thumbnailKey.type) {
+        ThumbnailType.Audio,
+        ThumbnailType.Video,
+        ThumbnailType.Pdf,
+        ThumbnailType.Apk -> thumbnailKey
+        ThumbnailType.Image -> thumbnailKey.contentUri
+            ?.takeIf { it.isNotBlank() }
+            ?.let(Uri::parse)
+            ?: File(file.absolutePath)
+        ThumbnailType.Unsupported -> File(file.absolutePath)
+    }
+
+internal fun homeThumbnailCacheKey(file: FileModel, thumbnailSizePx: Int): String =
+    ThumbnailKey.from(file).variantKey(thumbnailSizePx).cacheKey
 
 @Composable
 private fun previewAccentFor(file: FileModel): Color {

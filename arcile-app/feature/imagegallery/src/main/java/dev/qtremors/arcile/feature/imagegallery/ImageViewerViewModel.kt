@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.presentation.SelectionReducer
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
 internal data class ImageViewerState(
@@ -69,6 +71,9 @@ internal class ImageViewerViewModel @Inject constructor(
     private val galleryRepository: ImageGalleryRepository,
     private val savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    private var siblingLoadJob: Job? = null
+    private var selectionBeforeCurrentDelete: PersistentSet<String>? = null
+    private var currentDeleteTarget: String? = null
     private val _state = MutableStateFlow(
         ImageViewerState(
             viewerSessionInitialPath = savedStateHandle[KEY_SESSION_INITIAL_PATH],
@@ -124,15 +129,12 @@ internal class ImageViewerViewModel @Inject constructor(
                 _state.update { it.copy(isShredChecked = !it.isShredChecked) }
             }
             override fun dismissDeleteConfirmation() {
-                _state.update {
-                    it.copy(
-                        showTrashConfirmation = false,
-                        showPermanentDeleteConfirmation = false,
-                        showMixedDeleteExplanation = false,
-                        deleteDecision = null,
-                        isShredChecked = false
-                    )
-                }
+                _state.update { it.withDeleteDialogsHidden(selectionBeforeCurrentDelete ?: it.selectedFiles) }
+                selectionBeforeCurrentDelete = null
+                currentDeleteTarget = null
+            }
+            override fun hideDeleteConfirmationForOperation() {
+                _state.update(ImageViewerState::withDeleteDialogsHidden)
             }
             override fun setError(error: String) {
                 _state.update { it.copy(error = UiText.Dynamic(error)) }
@@ -144,7 +146,14 @@ internal class ImageViewerViewModel @Inject constructor(
                 _state.update { it.copy(deleteDecision = decision) }
             }
             override fun clearSelection() {
-                _state.update { it.copy(selectedFiles = persistentSetOf()) }
+                val originalSelection = selectionBeforeCurrentDelete
+                val restoredSelection = currentDeleteTarget
+                    ?.let { target -> originalSelection?.remove(target) }
+                    ?: originalSelection
+                    ?: persistentSetOf()
+                _state.update { it.copy(selectedFiles = restoredSelection) }
+                selectionBeforeCurrentDelete = null
+                currentDeleteTarget = null
             }
         },
         startBulkDeleteOperation = { type, selected ->
@@ -155,7 +164,16 @@ internal class ImageViewerViewModel @Inject constructor(
                 resolutions = emptyMap()
             )
         },
-        onFailure = { _state.update { it.copy(isRefreshing = false) } }
+        onFailure = {
+            _state.update {
+                it.copy(
+                    isRefreshing = false,
+                    selectedFiles = selectionBeforeCurrentDelete ?: it.selectedFiles
+                )
+            }
+            selectionBeforeCurrentDelete = null
+            currentDeleteTarget = null
+        }
     )
 
     init {
@@ -168,16 +186,42 @@ internal class ImageViewerViewModel @Inject constructor(
         }
     }
 
-    fun initialize(initialPath: String, contextPaths: List<String>) {
-        val paths = (contextPaths + initialPath).distinct()
-        val files = paths.map(::fileModelFromPath).toPersistentList()
+    fun initialize(
+        initialPath: String,
+        contextFiles: List<FileModel>,
+        selectedPaths: List<String> = emptyList(),
+        discoverSiblings: Boolean = true
+    ) {
+        siblingLoadJob?.cancel()
+        val files = (contextFiles + fileModelFromPath(initialPath))
+            .distinctBy(FileModel::absolutePath).toPersistentList()
         _state.update {
             it.copy(
                 files = files,
-                displayedFiles = files
+                displayedFiles = files,
+                selectedFiles = selectedPaths.toPersistentSet()
             )
         }
         startViewerSession(initialPath)
+
+        if (discoverSiblings && contextFiles.distinctBy(FileModel::absolutePath).size <= 1) {
+            siblingLoadJob = viewModelScope.launch {
+                val parentPath = viewerParentPath(initialPath) ?: return@launch
+                val siblings = fileBrowserRepository.listFiles(parentPath).getOrNull()
+                    ?.filter { file ->
+                        !file.isDirectory &&
+                            FileCategories.getCategoryForFile(file.extension, file.mimeType) ==
+                            FileCategories.Images
+                    }
+                    .orEmpty()
+                if (siblings.none { it.absolutePath == initialPath }) return@launch
+                if (_state.value.viewerSessionInitialPath != initialPath) return@launch
+                val siblingFiles = siblings.toPersistentList()
+                _state.update {
+                    it.copy(files = siblingFiles, displayedFiles = siblingFiles)
+                }
+            }
+        }
     }
 
     fun toggleSelection(path: String) {
@@ -189,7 +233,16 @@ internal class ImageViewerViewModel @Inject constructor(
     }
 
     fun clearSelection() {
+        selectionBeforeCurrentDelete = null
+        currentDeleteTarget = null
         _state.update { it.copy(selectedFiles = persistentSetOf()) }
+    }
+
+    fun requestDeleteCurrent(path: String) {
+        selectionBeforeCurrentDelete = _state.value.selectedFiles
+        currentDeleteTarget = path
+        _state.update { it.copy(selectedFiles = persistentSetOf(path)) }
+        deleteFlow.requestDeleteSelected()
     }
 
     fun requestDeleteSelected() {

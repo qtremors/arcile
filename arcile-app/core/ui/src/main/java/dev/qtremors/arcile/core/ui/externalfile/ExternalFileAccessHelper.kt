@@ -12,6 +12,7 @@ import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.UUID
 import kotlin.jvm.JvmName
 
 object ExternalFileAccessHelper {
@@ -40,7 +41,8 @@ object ExternalFileAccessHelper {
         val displayName: String? = null,
         val sizeBytes: Long? = null,
         val mimeType: String? = null,
-        val nodeRef: StorageNodeRef? = null
+        val nodeRef: StorageNodeRef? = null,
+        val allowManagedTrashPayload: Boolean = false
     ) {
         val contentUri: String?
             get() = nodeRef?.contentUri?.takeIf { it.isNotBlank() }
@@ -132,7 +134,11 @@ object ExternalFileAccessHelper {
         return roots.toList()
     }
 
-    fun isAllowedUserFile(context: Context, file: File): Boolean {
+    fun isAllowedUserFile(
+        context: Context,
+        file: File,
+        allowManagedTrashPayload: Boolean = false
+    ): Boolean {
         val canonicalPath = file.canonicalPath
         val normalizedSegments = canonicalPath
             .split(File.separatorChar, '/', '\\')
@@ -146,8 +152,14 @@ object ExternalFileAccessHelper {
         if (disallowedRoots.any { canonicalPath == it || canonicalPath.startsWith("$it${File.separator}") }) {
             return false
         }
-        if (canonicalPath.contains("${File.separator}.arcile${File.separator}") || canonicalPath.endsWith("${File.separator}.arcile")) {    
-            return false
+        val isManagedTrashPayload = normalizedSegments
+            .zipWithNext()
+            .any { (first, second) -> first == ".arcile" && second == ".trash" }
+        if (
+            canonicalPath.contains("${File.separator}.arcile${File.separator}") ||
+            canonicalPath.endsWith("${File.separator}.arcile")
+        ) {
+            if (!allowManagedTrashPayload || !isManagedTrashPayload) return false
         }
         if (normalizedSegments.zipWithNext().any { (first, second) ->
                 first == "android" && (second == "data" || second == "obb")
@@ -159,14 +171,6 @@ object ExternalFileAccessHelper {
             canonicalPath == root || canonicalPath.startsWith("$root${File.separator}")
         }
     }
-
-    private fun mimeTypeFor(file: File): String =
-        when (file.extension.lowercase()) {
-            "glb" -> "model/gltf-binary"
-            else -> MimeTypeMap.getSingleton()
-                .getMimeTypeFromExtension(file.extension.lowercase())
-                ?: "*/*"
-        }
 
     private fun mimeTypeForPath(path: String, fallback: String? = null): String =
         fallback
@@ -188,12 +192,16 @@ object ExternalFileAccessHelper {
         context: Context,
         file: File,
         purpose: String,
-        stagedName: String = file.name
+        stagedName: String = file.name,
+        allowManagedTrashPayload: Boolean = false,
+        cleanupBeforeStaging: Boolean = true
     ): File = withContext(Dispatchers.IO) {
         require(file.exists() && file.isFile) { "Source file does not exist" }
-        require(isAllowedUserFile(context, file)) { "Unsupported file path" }
+        require(isAllowedUserFile(context, file, allowManagedTrashPayload)) {
+            "Unsupported file path"
+        }
 
-        cleanupStagingArea(context)
+        if (cleanupBeforeStaging) cleanupStagingArea(context)
 
         val stagingDir = File(context.cacheDir, "$STAGING_ROOT${File.separator}$purpose").apply { mkdirs() }
         val stagedFile = File(stagingDir, sanitizeDisplayName(stagedName))
@@ -271,9 +279,17 @@ object ExternalFileAccessHelper {
         } else {
             val path = reference.path
             val sourceFile = File(path)
-            require(isAllowedUserFile(context, sourceFile)) { "Unsupported file path" }
+            require(isAllowedUserFile(context, sourceFile, reference.allowManagedTrashPayload)) {
+                "Unsupported file path"
+            }
             if (sourceFile.exists() && sourceFile.isFile) {
-                val stagedFile = stageFile(context, sourceFile, OPEN_STAGING, reference.displayName ?: sourceFile.name)
+                val stagedFile = stageFile(
+                    context,
+                    sourceFile,
+                    OPEN_STAGING,
+                    reference.displayName ?: sourceFile.name,
+                    reference.allowManagedTrashPayload
+                )
                 val uri = runCatching {
                     directOpenUriFactory(context, stagedFile)
                 }.getOrElse { error ->
@@ -281,7 +297,8 @@ object ExternalFileAccessHelper {
                 }
                 OpenTarget(
                     uri = uri,
-                    mimeType = reference.mimeType ?: mimeTypeFor(sourceFile),
+                    mimeType = reference.mimeType
+                        ?: mimeTypeForPath(reference.displayName ?: sourceFile.name),
                     displayName = reference.displayName ?: sourceFile.name
                 )
             } else {
@@ -307,9 +324,12 @@ object ExternalFileAccessHelper {
         val files = references.filter { it.contentUri == null && !isContentReference(it.path) }.map { File(it.path) }
         validateShareBatch(files)
         val stagedNames = collisionSafeNames(references)
+        cleanupStagingArea(context)
+        val batchPurpose = "$SHARE_STAGING${File.separator}${UUID.randomUUID()}"
+        val batchDirectory = File(context.cacheDir, "$STAGING_ROOT${File.separator}$batchPurpose")
 
-        references.mapIndexedNotNull { index, reference ->
-            runCatching {
+        try {
+            references.mapIndexed { index, reference ->
                 val contentUri = reference.contentUri ?: reference.path.takeIf(::isContentReference)
                 if (contentUri != null) {
                     val uri = Uri.parse(contentUri)
@@ -317,7 +337,7 @@ object ExternalFileAccessHelper {
                         ?: displayNameForContentUri(context, uri)
                         ?: uri.lastPathSegment
                         ?: "File"
-                    return@runCatching ShareTarget(
+                    return@mapIndexed ShareTarget(
                         uri = uri,
                         mimeType = reference.mimeType ?: context.contentResolver.getType(uri) ?: mimeTypeForPath(displayName),
                         displayName = displayName,
@@ -325,18 +345,27 @@ object ExternalFileAccessHelper {
                     )
                 }
                 val file = File(reference.path)
-                val stagedFile = stageFile(context, file, SHARE_STAGING, stagedNames[index])
+                val stagedFile = stageFile(
+                    context,
+                    file,
+                    batchPurpose,
+                    stagedNames[index],
+                    reference.allowManagedTrashPayload,
+                    cleanupBeforeStaging = false
+                )
                 ShareTarget(
                     uri = createStagedContentUri(context, stagedFile),
-                    mimeType = reference.mimeType ?: mimeTypeFor(file),
+                    mimeType = reference.mimeType
+                        ?: mimeTypeForPath(reference.displayName ?: file.name),
                     displayName = reference.displayName ?: file.name,
                     sizeBytes = reference.sizeBytes ?: file.length()
                 )
-            }.getOrElse { error ->
-                if (error is kotlinx.coroutines.CancellationException) throw error
-                AppLogger.w("ExternalFileAccess", "Skipping unsupported share target: ${reference.path}")
-                null
             }
+        } catch (error: Throwable) {
+            batchDirectory.deleteRecursively()
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            AppLogger.w("ExternalFileAccess", "Unable to prepare complete share selection")
+            throw IllegalArgumentException("Unable to prepare every selected file for sharing", error)
         }
     }
 

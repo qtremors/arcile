@@ -120,7 +120,6 @@ import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.utilities.HomeUtilityCatalog
 import dev.qtremors.arcile.core.ui.utilities.UtilityAction
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -145,16 +144,20 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
+import coil.size.Precision
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
-import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
 import dev.qtremors.arcile.core.ui.image.ThumbnailType
 import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
-import dev.qtremors.arcile.feature.home.ui.components.HomeRecentFilesCarouselThumbnailSizePx
+import dev.qtremors.arcile.feature.home.ui.components.homeCarouselRenderedThumbnailSizePx
+import dev.qtremors.arcile.feature.home.ui.components.homeCarouselThumbnailSizePx
 import dev.qtremors.arcile.feature.home.ui.components.homeThumbnailCacheKey
+import dev.qtremors.arcile.feature.home.ui.components.homeThumbnailRequestData
 
 private const val HomeRecentFilesPreloadLimit = 6
 /**
@@ -177,6 +180,14 @@ internal fun HomeScreen(
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current.density
+    val homeRecentRenderedThumbnailSizePx = remember(configuration.screenWidthDp, density) {
+        homeCarouselRenderedThumbnailSizePx(
+            screenWidthDp = configuration.screenWidthDp,
+            density = density
+        )
+    }
 
     LifecycleResumeEffect(Unit) {
         contentIntents.resumeRefresh()
@@ -186,7 +197,7 @@ internal fun HomeScreen(
     val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.BrowserPreferences
         .normalizeHomeRecentCarouselLimit(homeRecentCarouselLimit)
     val displayedRecentFiles = state.displayState.todayRecentFiles.take(normalizedRecentLimit)
-    LaunchedEffect(displayedRecentFiles) {
+    LaunchedEffect(displayedRecentFiles, homeRecentRenderedThumbnailSizePx) {
         if (normalizedRecentLimit == 0) return@LaunchedEffect
         displayedRecentFiles
             .asSequence()
@@ -196,23 +207,22 @@ internal fun HomeScreen(
             .take(HomeRecentFilesPreloadLimit)
             .forEach { file ->
                 val thumbnailKey = ThumbnailKey.from(file)
-                val thumbnailData = when (thumbnailKey.type) {
-                    ThumbnailType.Audio,
-                    ThumbnailType.Video,
-                    ThumbnailType.Pdf,
-                    ThumbnailType.Apk -> thumbnailKey
-                    else -> File(file.absolutePath)
-                }
-                val thumbnailCacheKey = homeThumbnailCacheKey(file)
+                val thumbnailSizePx = homeCarouselThumbnailSizePx(
+                    renderedSizePx = homeRecentRenderedThumbnailSizePx,
+                    type = thumbnailKey.type
+                )
+                val thumbnailData = homeThumbnailRequestData(file, thumbnailKey)
+                val thumbnailCacheKey = homeThumbnailCacheKey(file, thumbnailSizePx)
                 context.imageLoader.enqueue(
                     ImageRequest.Builder(context)
                         .data(thumbnailData)
-                        .size(ThumbnailTargetSize.fromBounds(HomeRecentFilesCarouselThumbnailSizePx))
+                        .size(thumbnailSizePx)
+                        .precision(Precision.INEXACT)
                         .memoryCacheKey(thumbnailCacheKey)
-                        .placeholderMemoryCacheKey(thumbnailCacheKey)
                         .diskCacheKey(thumbnailCacheKey)
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
+                        .networkCachePolicy(CachePolicy.DISABLED)
                         .crossfade(false)
                         .build()
                 )

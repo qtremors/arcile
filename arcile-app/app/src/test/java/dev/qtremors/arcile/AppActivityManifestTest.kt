@@ -86,7 +86,7 @@ class AppActivityManifestTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val matches = context.packageManager.queryIntentActivities(
             Intent(Intent.ACTION_VIEW).setDataAndType(
-                Uri.parse("content://example/model.glb"),
+                Uri.parse("content://example/file.bin"),
                 "application/octet-stream"
             ),
             0
