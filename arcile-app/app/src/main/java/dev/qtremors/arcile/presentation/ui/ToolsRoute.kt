@@ -10,7 +10,8 @@ internal fun ToolsRoute(
     onNavigateBack: () -> Unit,
     onNavigateToCleaner: () -> Unit,
     onNavigateToTrash: () -> Unit,
-    onNavigateToActivity: () -> Unit
+    onNavigateToActivity: () -> Unit,
+    onNavigateToOnlyFiles: () -> Unit
 ) {
     val viewModel = hiltViewModel<UtilityPreferencesViewModel>()
     val homeUtilityIds by viewModel.homeUtilityIds.collectAsStateWithLifecycle()
@@ -20,6 +21,7 @@ internal fun ToolsRoute(
         onNavigateToCleaner = onNavigateToCleaner,
         onNavigateToTrash = onNavigateToTrash,
         onNavigateToActivity = onNavigateToActivity,
+        onNavigateToOnlyFiles = onNavigateToOnlyFiles,
         homeUtilityIds = homeUtilityIds,
         onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
     )

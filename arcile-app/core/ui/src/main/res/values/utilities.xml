@@ -7,5 +7,11 @@
     <string name="tool_large">Large Files</string>
     <string name="tool_manager">App Manager</string>
     <string name="tool_onlyfiles">OnlyFiles</string>
+    <string name="onlyfiles_import_notification_channel">OnlyFiles imports</string>
+    <string name="onlyfiles_import_notification_title">Importing into OnlyFiles</string>
+    <string name="onlyfiles_import_notification_preparing">Preparing encrypted import</string>
+    <string name="onlyfiles_import_notification_progress">Encrypted %1$d of %2$d files</string>
+    <string name="onlyfiles_settings_section">Privacy</string>
+    <string name="onlyfiles_settings_description">Open and manage your encrypted vaults</string>
     <string name="tool_share">Network Share</string>
 </resources>

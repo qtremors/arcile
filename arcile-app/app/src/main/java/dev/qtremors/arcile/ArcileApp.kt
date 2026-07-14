@@ -25,6 +25,10 @@ import dev.qtremors.arcile.core.ui.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -44,9 +48,17 @@ class ArcileApp : Application(), ImageLoaderFactory {
     @Inject
     lateinit var storageCacheInvalidationObserver: StorageCacheInvalidationObserver
 
+    @Inject
+    lateinit var vaultRepository: VaultRepository
+
     override fun onCreate() {
         super.onCreate()
         storageCacheInvalidationObserver.register()
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                applicationScope.launch { vaultRepository.lockAll() }
+            }
+        })
         GlobalThumbnailStatePersistence.delegate = RoomThumbnailStatePersistence(
             thumbnailCacheStore = thumbnailCacheStore,
             applicationScope = applicationScope

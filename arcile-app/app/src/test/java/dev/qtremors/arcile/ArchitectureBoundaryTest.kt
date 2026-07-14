@@ -503,6 +503,7 @@ class ArchitectureBoundaryTest {
             "imagegallery.registerImageGalleryRoute",
             "imagegallery.registerImageViewerRoute",
             "onboarding.OnboardingRoute",
+            "onlyfiles.registerOnlyFilesRoute",
             "plugins.registerPluginsRoute",
             "quickaccess.QuickAccessDestination",
             "quickaccess.registerQuickAccessRoute",

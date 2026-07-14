@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 150
-        versionName = "1.5.0"
+        versionCode = 151
+        versionName = "1.5.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -117,6 +117,8 @@ dependencies {
     implementation(project(":core:storage:domain"))
     implementation(project(":core:storage:data"))
     implementation(project(":core:ui"))
+    implementation(project(":core:vault:domain"))
+    implementation(project(":core:vault:data"))
     implementation(project(":feature:browser"))
     implementation(project(":feature:trash"))
     implementation(project(":feature:archive"))
@@ -130,12 +132,14 @@ dependencies {
     implementation(project(":feature:settings"))
     implementation(project(":feature:activitylog"))
     implementation(project(":feature:plugins"))
+    implementation(project(":feature:onlyfiles"))
     implementation(project(":feature:import"))
     implementation(project(":plugin-api"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.core.splashscreen)
 

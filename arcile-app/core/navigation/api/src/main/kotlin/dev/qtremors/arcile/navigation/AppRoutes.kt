@@ -31,6 +31,7 @@ object AppRoutes {
     )
     @Serializable object Tools
     @Serializable object ActivityLog
+    @Serializable object OnlyFiles
     @Serializable object Settings
     @Serializable object Plugins
     @Serializable object Trash

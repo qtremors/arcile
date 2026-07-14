@@ -16,7 +16,8 @@ enum class UtilityAction {
     None,
     Trash,
     Cleaner,
-    Activity
+    Activity,
+    OnlyFiles
 }
 
 data class UtilityDefinition(
@@ -34,7 +35,7 @@ val ArcileUtilityCatalog: List<UtilityDefinition> = listOf(
     UtilityDefinition("activity", R.string.activity_log_title, Icons.Outlined.History, isImplemented = true, showOnHome = true, action = UtilityAction.Activity),
     UtilityDefinition("ftp", R.string.tool_ftp, Icons.Outlined.WifiTethering),
     UtilityDefinition("manager", R.string.tool_manager, Icons.Outlined.Apps),
-    UtilityDefinition("onlyfiles", R.string.tool_onlyfiles, Icons.Outlined.Lock),
+    UtilityDefinition("onlyfiles", R.string.tool_onlyfiles, Icons.Outlined.Lock, isImplemented = true, showOnHome = true, action = UtilityAction.OnlyFiles),
     UtilityDefinition("share", R.string.tool_share, Icons.Outlined.Dns)
 ).distinctBy { it.id }
 

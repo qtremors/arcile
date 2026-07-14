@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.0
-> **Last Updated:** 2026-07-13
+> **Version:** 1.5.1
+> **Last Updated:** 2026-07-14
 
 ---
+
+## [1.5.1] - 2026-07-14
+
+- **OnlyFiles Vaults**: Create and independently unlock multiple encrypted vaults in private app storage, with visible vault names and automatic locking whenever Arcile leaves the foreground.
+- **Encrypted Browser**: Browse, create, rename, and delete folders and files entirely inside a vault, with authenticated encrypted names, hierarchy, metadata, and file content.
+- **Private Imports**: Copy files or complete folders into a vault through a cancellable foreground import that removes incomplete data and locks its operation-only session when finished.
+- **Secure Media**: View encrypted images and seek through large encrypted videos without decrypting whole files to disk or memory.
 
 ## [1.5.0] - 2026-07-13
 

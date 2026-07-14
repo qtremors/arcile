@@ -84,6 +84,9 @@ internal fun SettingsScreen(
                 SettingsPluginSection(onOpen = navigationActions.navigateToPlugins)
             }
             item {
+                SettingsOnlyFilesSection(onOpen = navigationActions.navigateToOnlyFiles)
+            }
+            item {
                 SettingsStorageSection(
                     cache = state.externalCache,
                     onOpenStorageManagement = navigationActions.openStorageManagement,

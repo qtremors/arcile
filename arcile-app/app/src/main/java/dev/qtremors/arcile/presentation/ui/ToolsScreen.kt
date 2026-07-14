@@ -42,6 +42,7 @@ fun ToolsScreen(
     onNavigateToCleaner: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToActivity: () -> Unit,
+    onNavigateToOnlyFiles: () -> Unit,
     homeUtilityIds: Set<String>,
     onUtilityHomeVisibilityChange: (String, Boolean) -> Unit
 ) {
@@ -91,6 +92,7 @@ fun ToolsScreen(
                                 UtilityAction.Cleaner -> onNavigateToCleaner()
                                 UtilityAction.Trash -> onNavigateToTrash()
                                 UtilityAction.Activity -> onNavigateToActivity()
+                                UtilityAction.OnlyFiles -> onNavigateToOnlyFiles()
                                 UtilityAction.None -> Unit
                             }
                         }

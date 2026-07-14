@@ -417,6 +417,7 @@ internal fun HomeScreen(
                                                     UtilityAction.Trash -> navigationIntents.navigateToTrash()
                                                     UtilityAction.Cleaner -> navigationIntents.navigateToCleaner()
                                                     UtilityAction.Activity -> navigationIntents.navigateToActivity()
+                                                    UtilityAction.OnlyFiles -> navigationIntents.navigateToOnlyFiles()
                                                     UtilityAction.None -> Unit
                                                 }
                                             }

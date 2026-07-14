@@ -24,6 +24,7 @@ sealed interface HomeDestination {
     data class StorageDashboard(val volumeId: String?) : HomeDestination
     data object Cleaner : HomeDestination
     data object ActivityLog : HomeDestination
+    data object OnlyFiles : HomeDestination
     data class ShareRecentFile(val path: String, val context: List<FileModel>) : HomeDestination
 }
 
@@ -53,7 +54,8 @@ fun HomeRoute(
             navigateToExternalFolder = { onDestination(HomeDestination.ExternalFolder(it)) },
             openStorageDashboard = { onDestination(HomeDestination.StorageDashboard(it)) },
             navigateToCleaner = { onDestination(HomeDestination.Cleaner) },
-            navigateToActivity = { onDestination(HomeDestination.ActivityLog) }
+            navigateToActivity = { onDestination(HomeDestination.ActivityLog) },
+            navigateToOnlyFiles = { onDestination(HomeDestination.OnlyFiles) }
         ),
         contentIntents = HomeContentIntents(
             refresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },

@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.feature.activitylog.registerActivityLogRoute
 import dev.qtremors.arcile.feature.plugins.registerPluginsRoute
+import dev.qtremors.arcile.feature.onlyfiles.registerOnlyFilesRoute
 import dev.qtremors.arcile.feature.quickaccess.registerQuickAccessRoute
 import dev.qtremors.arcile.feature.settings.SettingsDestination
 import dev.qtremors.arcile.feature.settings.registerSettingsRoute
@@ -38,9 +39,17 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                     launchSingleTop = true
                 }
             },
-            onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) }
+            onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
+            onNavigateToOnlyFiles = { navController.navigate(AppRoutes.OnlyFiles) }
         )
     }
+    registerOnlyFilesRoute(
+        enterTransition = transitions.utilityEnter,
+        exitTransition = transitions.utilityExit,
+        popEnterTransition = transitions.utilityPopEnter,
+        popExitTransition = transitions.utilityPopExit,
+        onNavigateBack = { navController.popBackStack() }
+    )
     registerActivityLogRoute(
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
@@ -72,6 +81,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                 }
                 SettingsDestination.Plugins -> navController.navigate(AppRoutes.Plugins)
                 SettingsDestination.About -> navController.navigate(AppRoutes.About)
+                SettingsDestination.OnlyFiles -> navController.navigate(AppRoutes.OnlyFiles)
             }
         },
         onRestartApp = onRestartApp

@@ -57,6 +57,7 @@ internal fun SettingsRoute(
             navigateBack = onNavigateBack,
             openStorageManagement = { onDestination(SettingsDestination.StorageManagement) },
             navigateToPlugins = { onDestination(SettingsDestination.Plugins) },
+            navigateToOnlyFiles = { onDestination(SettingsDestination.OnlyFiles) },
             navigateToAbout = { onDestination(SettingsDestination.About) }
         ),
         preferenceActions = SettingsPreferenceActions(

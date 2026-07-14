@@ -17,7 +17,8 @@ internal data class HomeNavigationIntents(
     val navigateToExternalFolder: (String) -> Unit,
     val openStorageDashboard: (String?) -> Unit,
     val navigateToCleaner: () -> Unit,
-    val navigateToActivity: () -> Unit
+    val navigateToActivity: () -> Unit,
+    val navigateToOnlyFiles: () -> Unit
 )
 
 internal data class HomeContentIntents(

@@ -4,5 +4,6 @@ internal data class SettingsNavigationActions(
     val navigateBack: () -> Unit,
     val openStorageManagement: () -> Unit,
     val navigateToPlugins: () -> Unit,
+    val navigateToOnlyFiles: () -> Unit,
     val navigateToAbout: () -> Unit
 )

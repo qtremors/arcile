@@ -1,0 +1,32 @@
+<resources>
+    <string name="onlyfiles_title">OnlyFiles</string>
+    <string name="onlyfiles_create">Create vault</string>
+    <string name="onlyfiles_empty">Create your first encrypted vault.</string>
+    <string name="onlyfiles_create_title">New encrypted vault</string>
+    <string name="onlyfiles_name">Vault name</string>
+    <string name="onlyfiles_password">Password</string>
+    <string name="onlyfiles_confirm_password">Confirm password</string>
+    <string name="onlyfiles_short_password">A short password is easier to guess. You can continue, but a longer unique password is safer.</string>
+    <string name="onlyfiles_password_mismatch">Passwords do not match.</string>
+    <string name="onlyfiles_uninstall_warning">This vault is stored in Arcile’s private app storage. Uninstalling Arcile permanently removes it.</string>
+    <string name="onlyfiles_cancel">Cancel</string>
+    <string name="onlyfiles_unlock">Unlock</string>
+    <string name="onlyfiles_lock">Lock</string>
+    <string name="onlyfiles_lock_all">Lock all</string>
+    <string name="onlyfiles_show_password">Show password</string>
+    <string name="onlyfiles_hide_password">Hide password</string>
+    <string name="onlyfiles_import_files">Import files</string>
+    <string name="onlyfiles_import_folder">Import folder</string>
+    <string name="onlyfiles_new_folder">New folder</string>
+    <string name="onlyfiles_folder_name">Folder name</string>
+    <string name="onlyfiles_rename">Rename</string>
+    <string name="onlyfiles_delete">Delete</string>
+    <string name="onlyfiles_delete_confirm">Delete %1$s and everything inside it? This cannot be undone.</string>
+    <string name="onlyfiles_empty_folder">This folder is empty.</string>
+    <string name="onlyfiles_back">Back</string>
+    <string name="onlyfiles_more">More</string>
+    <string name="onlyfiles_close">Close</string>
+    <string name="onlyfiles_importing">Importing %1$d of %2$d</string>
+    <string name="onlyfiles_cancel_import">Cancel import</string>
+    <string name="onlyfiles_error_image">This image could not be decrypted or decoded.</string>
+</resources>

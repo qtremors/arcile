@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -35,6 +36,21 @@ internal fun SettingsPluginSection(onOpen: () -> Unit) {
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
+            },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onOpen)
+        )
+    }
+}
+
+@Composable
+internal fun SettingsOnlyFilesSection(onOpen: () -> Unit) {
+    SettingsSection(title = stringResource(R.string.onlyfiles_settings_section)) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.tool_onlyfiles)) },
+            supportingContent = { Text(stringResource(R.string.onlyfiles_settings_description)) },
+            leadingContent = {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             },
             colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
             modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onOpen)
