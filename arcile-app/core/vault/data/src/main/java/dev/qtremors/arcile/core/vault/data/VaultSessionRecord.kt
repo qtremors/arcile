@@ -3,11 +3,11 @@ package dev.qtremors.arcile.core.vault.data
 import dev.qtremors.arcile.core.vault.crypto.VaultIndex
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import kotlinx.coroutines.sync.Mutex
-import java.io.File
+import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryAccess
 
 internal class VaultSessionRecord(
     val id: VaultId,
-    val directory: File,
+    val directory: VaultDirectoryAccess,
     val masterKey: ByteArray,
     var index: VaultIndex
 ) {

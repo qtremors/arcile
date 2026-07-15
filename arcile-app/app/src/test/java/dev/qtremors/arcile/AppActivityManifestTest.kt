@@ -65,6 +65,19 @@ class AppActivityManifestTest {
     }
 
     @Test
+    fun `standalone video viewer resolves valid video view intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/video")
+        val target = resolveStandaloneVideoTarget(
+            context,
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "video/mp4")
+        )
+
+        assertEquals(uri, target?.uri)
+        assertEquals("video/mp4", target?.mimeType)
+    }
+
+    @Test
     fun `manifest exposes standalone image viewer in separate process`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val matches = context.packageManager.queryIntentActivities(

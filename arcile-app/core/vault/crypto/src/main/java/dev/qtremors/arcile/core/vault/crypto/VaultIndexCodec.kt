@@ -31,26 +31,36 @@ class VaultIndexCodec(
     private val json: Json = Json { ignoreUnknownKeys = false; encodeDefaults = true }
 ) {
     fun create(vaultDirectory: File, vaultId: VaultId, vaultName: String, masterKey: ByteArray) {
+        create(FileVaultDirectory(vaultDirectory), vaultId, vaultName, masterKey)
+    }
+
+    fun create(vaultDirectory: VaultDirectoryAccess, vaultId: VaultId, vaultName: String, masterKey: ByteArray) {
         write(vaultDirectory, vaultId, masterKey, VaultIndex(0L, vaultName, emptyList()))
     }
 
-    fun read(vaultDirectory: File, vaultId: VaultId, masterKey: ByteArray): VaultIndex {
+    fun read(vaultDirectory: File, vaultId: VaultId, masterKey: ByteArray): VaultIndex =
+        read(FileVaultDirectory(vaultDirectory), vaultId, masterKey)
+
+    fun read(vaultDirectory: VaultDirectoryAccess, vaultId: VaultId, masterKey: ByteArray): VaultIndex {
         val valid = listOf(SLOT_A, SLOT_B).mapNotNull { name ->
-            val file = File(vaultDirectory, name)
-            if (!file.isFile) return@mapNotNull null
-            runCatching { decode(file.readBytes(), vaultId, masterKey) }.getOrNull()
+            if (!vaultDirectory.exists(name)) return@mapNotNull null
+            runCatching { decode(vaultDirectory.readBytes(name), vaultId, masterKey) }.getOrNull()
         }
         return valid.maxByOrNull(VaultIndex::generation)
             ?: throw VaultFailure.IntegrityFailed("Vault directory metadata is missing or damaged")
     }
 
     fun write(vaultDirectory: File, vaultId: VaultId, masterKey: ByteArray, index: VaultIndex) {
+        write(FileVaultDirectory(vaultDirectory), vaultId, masterKey, index)
+    }
+
+    fun write(vaultDirectory: VaultDirectoryAccess, vaultId: VaultId, masterKey: ByteArray, index: VaultIndex) {
         require(index.generation >= 0L)
         require(index.vaultName.isNotBlank())
         val targetName = if (index.generation % 2L == 0L) SLOT_A else SLOT_B
-        atomicWrite(File(vaultDirectory, targetName), encode(index, vaultId, masterKey))
+        vaultDirectory.writeAtomic(targetName, encode(index, vaultId, masterKey))
 
-        val verified = decode(File(vaultDirectory, targetName).readBytes(), vaultId, masterKey)
+        val verified = decode(vaultDirectory.readBytes(targetName), vaultId, masterKey)
         if (verified != index) {
             throw VaultFailure.IntegrityFailed("Vault metadata verification failed after writing")
         }

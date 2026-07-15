@@ -112,7 +112,8 @@ internal class AppNavigationActions(
     }
 
     fun openManagedTrashFile(file: FileModel, surroundingFiles: List<FileModel>) {
-        if (FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Images) {
+        val category = FileCategories.getCategoryForFile(file.extension, file.mimeType)
+        if (category == FileCategories.Images) {
             val images = (surroundingFiles + file).distinctBy(FileModel::absolutePath).filter {
                 !it.isDirectory &&
                     FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images
@@ -127,6 +128,8 @@ internal class AppNavigationActions(
                 contextFiles = images,
                 managedTrash = true
             )
+        } else if (category == FileCategories.Videos) {
+            openVideoViewer(file.absolutePath, managedTrash = true)
         } else {
             openManagedTrashFileExternally(file, forceChooser = false)
         }
@@ -204,7 +207,50 @@ internal class AppNavigationActions(
                     selectedPaths,
                     surroundingFiles
                 )
+                is AppFileOpenResolution.ViewVideo -> openVideoViewer(resolution.path)
                 is AppFileOpenResolution.External -> onOpenFile(resolution.path)
+            }
+        }
+    }
+
+    private fun openVideoViewer(path: String, managedTrash: Boolean = false) {
+        navController.navigate(AppRoutes.VideoViewer(path, managedTrash))
+    }
+
+    fun shareVideo(path: String, managedTrash: Boolean) {
+        coroutineScope.launch {
+            ShareHelper.shareFileReferences(
+                context,
+                listOf(
+                    ExternalFileAccessHelper.ExternalFileReference(
+                        path = path,
+                        allowManagedTrashPayload = managedTrash
+                    )
+                )
+            )
+        }
+    }
+
+    fun openVideoWith(path: String, managedTrash: Boolean) {
+        if (!managedTrash) {
+            onOpenFileWith(path)
+            return
+        }
+        coroutineScope.launch {
+            runCatching {
+                val intent = ExternalFileAccessHelper.createOpenIntent(
+                    context,
+                    ExternalFileAccessHelper.ExternalFileReference(
+                        path = path,
+                        allowManagedTrashPayload = true
+                    )
+                )
+                context.startActivity(Intent.createChooser(intent, path.substringAfterLast('/')))
+            }.onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                reportError(
+                    UiText.StringResource(R.string.cannot_open_file, listOf(error.localizedMessage.orEmpty()))
+                )
             }
         }
     }

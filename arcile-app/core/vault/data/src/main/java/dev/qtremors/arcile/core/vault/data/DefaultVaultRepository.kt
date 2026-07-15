@@ -1,12 +1,11 @@
 package dev.qtremors.arcile.core.vault.data
 
-import android.content.ContentResolver
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultFileCodec
+import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
 import dev.qtremors.arcile.core.vault.crypto.VaultIndex
 import dev.qtremors.arcile.core.vault.crypto.VaultIndexCodec
 import dev.qtremors.arcile.core.vault.crypto.VaultIndexEntry
@@ -29,7 +28,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -48,9 +46,13 @@ class DefaultVaultRepository @Inject constructor(
     private val fileCodec = VaultFileCodec()
     private val vaultRoot = File(context.noBackupFilesDir, ROOT_DIRECTORY)
     private val sessions = ConcurrentHashMap<String, VaultSessionRecord>()
-    private val locations = ConcurrentHashMap<String, File>()
+    private val locations = ConcurrentHashMap<String, VaultLocationRecord>()
     private val importReservations = ConcurrentHashMap<String, VaultId>()
     private val lifecycleMutex = Mutex()
+    private val locationRegistry = VaultLocationRegistry(context)
+    private val importEngine = VaultImportEngine(context)
+    private val externalManager = VaultExternalManager(locationRegistry)
+    private val appPrivateManager = VaultAppPrivateManager(vaultRoot)
 
     private val _vaults = MutableStateFlow<List<VaultSummary>>(emptyList())
     override val vaults: StateFlow<List<VaultSummary>> = _vaults.asStateFlow()
@@ -66,13 +68,16 @@ class DefaultVaultRepository @Inject constructor(
 
     override suspend fun refreshVaults() = withContext(dispatchers.io) {
         vaultRoot.mkdirs()
-        val summaries = vaultRoot.listFiles()
+        val appPrivate = vaultRoot.listFiles()
             .orEmpty()
             .asSequence()
             .filter { it.isDirectory && !it.name.startsWith(STAGING_PREFIX) }
             .mapNotNull { directory ->
                 manifestCodec.readPublic(directory).getOrNull()?.let { manifest ->
-                    locations[manifest.id.value] = directory
+                    locations[manifest.id.value] = VaultLocationRecord(
+                        FileVaultDirectory(directory),
+                        VaultLocationKind.APP_PRIVATE
+                    )
                     VaultSummary(
                         id = manifest.id,
                         name = manifest.publicName,
@@ -82,10 +87,46 @@ class DefaultVaultRepository @Inject constructor(
                     )
                 }
             }
-            .sortedBy { it.name.lowercase() }
             .toList()
-        val liveIds = summaries.mapTo(mutableSetOf()) { it.id.value }
+        val appPrivateIds = appPrivate.mapTo(mutableSetOf()) { it.id.value }
+        val unavailableIds = mutableSetOf<VaultId>()
+        val external = locationRegistry.load().mapNotNull { pointer ->
+            val access = FileVaultDirectory(File(pointer.path))
+            val pointerId = runCatching { VaultId.of(pointer.vaultId) }.getOrNull() ?: return@mapNotNull null
+            if (pointerId.value in appPrivateIds) return@mapNotNull null
+            runCatching {
+                val manifest = manifestCodec.readPublic(access).getOrThrow()
+                require(manifest.id == pointerId) { "Vault identity changed" }
+                    locations[manifest.id.value] = VaultLocationRecord(
+                        access,
+                        VaultLocationKind.USER_FOLDER
+                    )
+                    locationRegistry.put(
+                        pointer.copy(cachedName = manifest.publicName, cachedCreatedAtMillis = manifest.createdAtMillis)
+                    )
+                    VaultSummary(
+                        id = manifest.id,
+                        name = manifest.publicName,
+                        locationKind = VaultLocationKind.USER_FOLDER,
+                        createdAtMillis = manifest.createdAtMillis,
+                        isUnlocked = sessions.containsKey(manifest.id.value)
+                    )
+                }.getOrElse {
+                    unavailableIds += pointerId
+                    VaultSummary(
+                        id = pointerId,
+                        name = pointer.cachedName,
+                        locationKind = VaultLocationKind.USER_FOLDER,
+                        createdAtMillis = pointer.cachedCreatedAtMillis,
+                        isUnlocked = false,
+                        isAvailable = false
+                    )
+                }
+        }
+        val summaries = (appPrivate + external).distinctBy { it.id }.sortedBy { it.name.lowercase() }
+        val liveIds = summaries.filter(VaultSummary::isAvailable).mapTo(mutableSetOf()) { it.id.value }
         locations.keys.removeIf { it !in liveIds }
+        unavailableIds.forEach(::requestLock)
         _vaults.value = summaries
         publishUnlockedIds()
     }
@@ -93,58 +134,74 @@ class DefaultVaultRepository @Inject constructor(
     override suspend fun createAppPrivateVault(name: String, password: CharArray): Result<VaultId> =
         withContext(dispatchers.io) {
             lifecycleMutex.withLock {
-            val cleanName = try {
-                validateVaultName(name)
-            } catch (error: Throwable) {
-                password.fill('\u0000')
-                return@withLock Result.failure(error)
-            }
-            vaultRoot.mkdirs()
-            val target = File(vaultRoot, cleanName)
-            if (target.exists() || vaultRoot.listFiles().orEmpty().any { it.name.equals(cleanName, ignoreCase = true) }) {
-                password.fill('\u0000')
-                return@withLock Result.failure(VaultFailure.NameConflict(cleanName))
-            }
-
-            val staging = File(vaultRoot, "$STAGING_PREFIX${UUID.randomUUID()}")
-            val id = VaultId.of(UUID.randomUUID().toString())
-            val masterKey = VaultCryptography.randomBytes(VaultCryptography.KEY_SIZE_BYTES)
-            var openedMasterKey: ByteArray? = null
-            try {
-                check(staging.mkdir()) { "Unable to create vault staging directory" }
-                check(File(staging, OBJECTS_DIRECTORY).mkdir()) { "Unable to create vault object directory" }
-                manifestCodec.create(
-                    vaultDirectory = staging,
-                    id = id,
-                    publicName = cleanName,
-                    createdAtMillis = System.currentTimeMillis(),
-                    password = password,
-                    masterKey = masterKey
-                )
-                indexCodec.create(staging, id, cleanName, masterKey)
-
-                val verifiedManifest = manifestCodec.open(staging, password).getOrThrow()
-                openedMasterKey = verifiedManifest.masterKey
-                val verifiedIndex = indexCodec.read(staging, id, openedMasterKey)
-                require(verifiedIndex.vaultName == cleanName)
-                moveDirectory(staging, target)
-
-                locations[id.value] = target
-                sessions[id.value] = VaultSessionRecord(id, target, openedMasterKey, verifiedIndex)
-                openedMasterKey = null
-                refreshVaults()
-                Result.success(id)
-            } catch (error: Throwable) {
-                staging.deleteRecursively()
-                if (error is CancellationException) throw error
-                Result.failure(error)
-            } finally {
-                masterKey.fill(0)
-                openedMasterKey?.fill(0)
-                password.fill('\u0000')
-            }
+                try {
+                    val created = appPrivateManager.create(name, password)
+                    locations[created.id.value] = VaultLocationRecord(created.access, VaultLocationKind.APP_PRIVATE)
+                    sessions[created.id.value] = VaultSessionRecord(
+                        created.id,
+                        created.access,
+                        created.masterKey,
+                        created.index
+                    )
+                    refreshVaults()
+                    Result.success(created.id)
+                } catch (error: Throwable) {
+                    password.fill('\u0000')
+                    if (error is CancellationException) throw error
+                    Result.failure(error)
+                }
             }
         }
+
+    override suspend fun createUserFolderVault(
+        path: String,
+        name: String,
+        password: CharArray
+    ): Result<VaultId> = withContext(dispatchers.io) {
+        lifecycleMutex.withLock {
+            try {
+                val created = externalManager.create(path, name, password)
+                val key = requireNotNull(created.masterKey)
+                val index = requireNotNull(created.index)
+                locations[created.id.value] = VaultLocationRecord(
+                    created.access,
+                    VaultLocationKind.USER_FOLDER
+                )
+                sessions[created.id.value] = VaultSessionRecord(created.id, created.access, key, index)
+                refreshVaults()
+                Result.success(created.id)
+            } catch (error: Throwable) {
+                password.fill('\u0000')
+                if (error is CancellationException) throw error
+                Result.failure(error)
+            }
+        }
+    }
+
+    override suspend fun attachExistingVault(path: String): Result<VaultId> = withContext(dispatchers.io) {
+        lifecycleMutex.withLock {
+            try {
+                val attached = externalManager.attach(path)
+                val current = locations[attached.id.value]
+                if (current?.kind == VaultLocationKind.APP_PRIVATE) {
+                    throw VaultFailure.Unavailable("A different vault with this identity is already registered")
+                }
+                if (sessions.containsKey(attached.id.value) && current?.access?.stableId != attached.access.stableId) {
+                    throw VaultFailure.Unavailable("Lock this vault before reconnecting a different folder")
+                }
+                externalManager.register(attached)
+                locations[attached.id.value] = VaultLocationRecord(
+                    attached.access,
+                    VaultLocationKind.USER_FOLDER
+                )
+                refreshVaults()
+                Result.success(attached.id)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Result.failure(error)
+            }
+        }
+    }
 
     override suspend fun unlock(vaultId: VaultId, password: CharArray): Result<Unit> =
         withContext(dispatchers.io) {
@@ -165,11 +222,11 @@ class DefaultVaultRepository @Inject constructor(
 
             var masterKey: ByteArray? = null
             try {
-                val opened = manifestCodec.open(directory, password).getOrThrow()
+                val opened = manifestCodec.open(directory.access, password).getOrThrow()
                 require(opened.id == vaultId) { "Vault identity does not match its registration" }
                 masterKey = opened.masterKey
-                val index = indexCodec.read(directory, vaultId, masterKey)
-                sessions[vaultId.value] = VaultSessionRecord(vaultId, directory, masterKey, index)
+                val index = indexCodec.read(directory.access, vaultId, masterKey)
+                sessions[vaultId.value] = VaultSessionRecord(vaultId, directory.access, masterKey, index)
                 masterKey = null
                 refreshVaults()
                 Result.success(Unit)
@@ -271,7 +328,7 @@ class DefaultVaultRepository @Inject constructor(
         }
         persist(session, session.index.entries - removed.toSet())
         removed.mapNotNull(VaultIndexEntry::objectName).forEach { objectName ->
-            File(session.directory, "$OBJECTS_DIRECTORY/$objectName").delete()
+                session.directory.delete("$OBJECTS_DIRECTORY/$objectName")
         }
     }
 
@@ -310,7 +367,8 @@ class DefaultVaultRepository @Inject constructor(
                 ?: throw VaultFailure.InvalidPath("File is unavailable")
             val objectName = requireNotNull(entry.objectName)
             val delegate = fileCodec.open(
-                File(session.directory, "$OBJECTS_DIRECTORY/$objectName"),
+                session.directory,
+                "$OBJECTS_DIRECTORY/$objectName",
                 vaultId,
                 session.masterKey
             )
@@ -349,71 +407,7 @@ class DefaultVaultRepository @Inject constructor(
         val session = sessions[vaultId.value]
             ?: return@withContext Result.failure(VaultFailure.Locked(vaultId))
         try {
-            session.mutationMutex.withLock {
-                requireDirectory(session.index, destination)
-                val sources = VaultUriTreeReader(context.contentResolver).collect(sourceUris)
-                val files = sources.filterNot(VaultImportSource::isDirectory)
-                val totalBytes = files.mapNotNull { it.sizeBytes }.takeIf { it.size == files.size }?.sum()
-                var completed = 0
-                var copied = 0L
-                sources.forEach { source ->
-                    val desiredParent = source.relativeParent.fold(destination) { path, segment ->
-                        val desired = path.resolve(segment)
-                        val existing = session.index.entries.firstOrNull {
-                            it.path.equals(desired.value, ignoreCase = true)
-                        }
-                        if (existing == null) {
-                            val directoryEntry = VaultIndexEntry(
-                                id = UUID.randomUUID().toString(),
-                                path = desired.value,
-                                objectName = null,
-                                sizeBytes = 0L,
-                                modifiedAtMillis = source.modifiedAtMillis ?: System.currentTimeMillis(),
-                                isDirectory = true,
-                                mimeType = null
-                            )
-                            persist(session, session.index.entries + directoryEntry)
-                        } else if (!existing.isDirectory) {
-                            throw VaultFailure.PathConflict(desired)
-                        }
-                        desired
-                    }
-                    if (source.isDirectory) return@forEach
-                    val target = uniqueImportPath(session.index, desiredParent, source.name)
-                    val objectName = "${UUID.randomUUID()}.off"
-                    val part = File(session.directory, "$OBJECTS_DIRECTORY/.$objectName.part")
-                    val finalObject = File(session.directory, "$OBJECTS_DIRECTORY/$objectName")
-                    val input = context.contentResolver.openInputStream(source.uri)
-                        ?: throw VaultFailure.ImportUnavailable("Unable to read ${source.name}")
-                    val startCopied = copied
-                    var indexed = false
-                    try {
-                        val writeResult = input.use { stream ->
-                            fileCodec.write(part, vaultId, session.masterKey, stream) { itemBytes ->
-                                onProgress(completed, files.size, startCopied + itemBytes, totalBytes, source.name)
-                            }
-                        }
-                        moveFile(part, finalObject)
-                        val entry = VaultIndexEntry(
-                            id = writeResult.fileId,
-                            path = target.value,
-                            objectName = objectName,
-                            sizeBytes = writeResult.sizeBytes,
-                            modifiedAtMillis = source.modifiedAtMillis ?: System.currentTimeMillis(),
-                            isDirectory = false,
-                            mimeType = source.mimeType
-                        )
-                        persist(session, session.index.entries + entry)
-                        indexed = true
-                        completed++
-                        copied += writeResult.sizeBytes
-                        onProgress(completed, files.size, copied, totalBytes, source.name)
-                    } finally {
-                        part.delete()
-                        if (!indexed) finalObject.delete()
-                    }
-                }
-            }
+            importEngine.import(session, destination, sourceUris, onProgress)
             Result.success(Unit)
         } catch (error: Throwable) {
             if (error is CancellationException) throw error

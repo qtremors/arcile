@@ -35,6 +35,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core:navigation:api"))
+    implementation(project(":core:storage:domain"))
     implementation(project(":core:vault:domain"))
     implementation(project(":core:ui"))
 
@@ -53,8 +54,6 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.ui)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

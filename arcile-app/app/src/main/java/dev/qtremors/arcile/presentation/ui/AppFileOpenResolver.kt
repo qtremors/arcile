@@ -54,6 +54,7 @@ internal class AppFileOpenResolver(
                     .distinct()
                     .toList()
             )
+            extension in FileCategories.Videos.extensions -> AppFileOpenResolution.ViewVideo(path)
             else -> AppFileOpenResolution.External(path)
         }
     }

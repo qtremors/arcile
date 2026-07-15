@@ -45,6 +45,10 @@ object AppRoutes {
         val returnToBrowserPage: Boolean = false,
         val managedTrash: Boolean = false
     )
+    @Serializable data class VideoViewer(
+        val path: String,
+        val managedTrash: Boolean = false
+    )
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner
     @Serializable object StorageManagement

@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.1
+> **Version:** 1.5.2
 > **Last Updated:** 2026-07-14
 
 ---
+
+## [1.5.2] - 2026-07-14
+
+- **Hardened Vault Format**: OnlyFiles now uses bounded Argon2id password protection, separated encryption domains, redundant authenticated headers, crash-safe password-envelope replacement, immutable 256 KiB chunked objects, and paged encrypted directory metadata.
+- **Portable Vault Foundations**: Vault locations now use opaque volume-relative identities and encrypted media can be read through bounded random access without whole-file plaintext copies.
+- **Unified Video Opening**: Browser, Recents, Trash, and external video intents now enter the same Arcile video-viewing flow.
+- **Stable Recent Previews**: Cached Home carousel thumbnails remain visible when cards leave and re-enter the viewport.
 
 ## [1.5.1] - 2026-07-14
 

@@ -5,6 +5,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultId
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import java.nio.file.Files
 
@@ -67,5 +69,32 @@ class VaultManifestCodecTest {
         val failure = codec.open(directory, "correct".toCharArray()).exceptionOrNull()
         assertTrue(failure is VaultFailure.AuthenticationFailed)
         directory.deleteRecursively()
+    }
+
+    @Test
+    fun `password change replaces only envelopes and survives interrupted publication`() {
+        val directory = Files.createTempDirectory("onlyfiles-password-change").toFile()
+        val access = FileVaultDirectory(directory)
+        val codec = VaultManifestCodec()
+        val master = ByteArray(32) { (it * 2).toByte() }
+        codec.create(access, VaultId.of("vault-id"), "Private", 42L, "old".toCharArray(), master)
+        codec.changePassword(access, "old".toCharArray(), "new".toCharArray()).getOrThrow()
+
+        assertTrue(codec.open(access, "old".toCharArray()).exceptionOrNull() is VaultFailure.AuthenticationFailed)
+        val opened = codec.open(access, "new".toCharArray()).getOrThrow()
+        assertArrayEquals(master, opened.masterKey)
+        assertFalse(access.exists(VaultManifestCodec.COMMIT_FILE))
+    }
+
+    @Test
+    fun `hostile KDF cost is rejected without password work`() {
+        val directory = Files.createTempDirectory("onlyfiles-kdf-bounds").toFile()
+        val codec = VaultManifestCodec()
+        codec.create(directory, VaultId.of("vault-id"), "Private", 42L, "correct".toCharArray(), ByteArray(32))
+        listOf(VaultManifestCodec.PRIMARY_FILE, VaultManifestCodec.BACKUP_FILE).forEach { name ->
+            val file = java.io.File(directory, name)
+            file.writeText(file.readText().replace("\"memoryKiB\":65536", "\"memoryKiB\":2147483647"))
+        }
+        assertTrue(codec.open(directory, "correct".toCharArray()).exceptionOrNull() is VaultFailure.UnsafeKdfParameters)
     }
 }

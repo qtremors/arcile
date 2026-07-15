@@ -24,5 +24,6 @@ class FileOpenActivity : Activity() {
 internal fun resolveStandaloneViewerActivity(context: Context, intent: Intent): Class<out Activity>? =
     when {
         resolveStandaloneImageTarget(context, intent) != null -> ImageViewerActivity::class.java
+        resolveStandaloneVideoTarget(context, intent) != null -> VideoViewerActivity::class.java
         else -> null
     }

@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
+import dev.qtremors.arcile.feature.videoplayer.registerVideoViewerRoute
 import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
 import dev.qtremors.arcile.feature.storageusage.StorageDashboardDestination
 import dev.qtremors.arcile.feature.storageusage.registerStorageDashboardRoute
@@ -109,6 +110,15 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onNavigateBack = { navController.popBackStack() },
         onShareFile = actions::shareViewerFile,
         onOpenFileWith = actions::openViewerFileWith
+    )
+    registerVideoViewerRoute(
+        enterTransition = transitions.utilityEnter,
+        exitTransition = transitions.utilityExit,
+        popEnterTransition = transitions.utilityPopEnter,
+        popExitTransition = transitions.utilityPopExit,
+        onNavigateBack = { navController.popBackStack() },
+        onShare = actions::shareVideo,
+        onOpenWith = actions::openVideoWith
     )
     registerArchiveViewerRoute(
         enterTransition = transitions.detailEnter,

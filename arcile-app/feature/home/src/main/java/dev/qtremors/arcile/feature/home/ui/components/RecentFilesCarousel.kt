@@ -149,6 +149,7 @@ internal fun RecentFileCarouselItem(
             .size(thumbnailSizePx)
             .precision(Precision.INEXACT)
             .memoryCacheKey(thumbnailCacheKey)
+            .placeholderMemoryCacheKey(thumbnailCacheKey)
             .diskCacheKey(thumbnailCacheKey)
             .memoryCachePolicy(CachePolicy.ENABLED)
             .diskCachePolicy(CachePolicy.ENABLED)

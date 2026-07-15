@@ -55,6 +55,11 @@ dependencies {
     implementation(libs.androidx.exifinterface)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.material.kolor)
+    implementation(libs.androidx.lifecycle.runtime.compose)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
 
     testImplementation(project(":core:testing"))
     testImplementation(project(":core:ui:testing"))

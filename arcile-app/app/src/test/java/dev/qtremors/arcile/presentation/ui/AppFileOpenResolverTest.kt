@@ -80,6 +80,13 @@ class AppFileOpenResolverTest {
     }
 
     @Test
+    fun `video resolves to Arcile video viewer`() = runTest {
+        val result = resolver().resolve("/storage/movie.mp4", emptyList())
+
+        assertEquals(AppFileOpenResolution.ViewVideo("/storage/movie.mp4"), result)
+    }
+
+    @Test
     fun `known metadata is forwarded to plugin gateway`() = runTest {
         var request: Triple<String, String?, String>? = null
         val resolver = AppFileOpenResolver(

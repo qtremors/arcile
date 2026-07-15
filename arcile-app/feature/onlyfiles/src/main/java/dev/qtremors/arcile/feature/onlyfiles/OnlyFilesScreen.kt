@@ -97,9 +97,9 @@ internal fun OnlyFilesRoute(
         }
         viewModel.finishImportSelection(listOfNotNull(uri?.toString()))
     }
-
     BackHandler {
-        if (!viewModel.navigateUp()) onNavigateBack()
+        if (state.folderPicker != null) viewModel.navigateVaultFolderUp()
+        else if (!viewModel.navigateUp()) onNavigateBack()
     }
 
     OnlyFilesScreen(
@@ -165,8 +165,13 @@ private fun OnlyFilesScreen(
                         IconButton(onClick = viewModel::lockCurrent) {
                             Icon(Icons.Default.Lock, stringResource(R.string.onlyfiles_lock))
                         }
-                    } else if (state.vaults.any(VaultSummary::isUnlocked)) {
-                        TextButton(onClick = viewModel::lockAll) { Text(stringResource(R.string.onlyfiles_lock_all)) }
+                    } else {
+                        TextButton(onClick = viewModel::beginAttachVault) {
+                            Text(stringResource(R.string.onlyfiles_add_existing))
+                        }
+                        if (state.vaults.any(VaultSummary::isUnlocked)) {
+                            TextButton(onClick = viewModel::lockAll) { Text(stringResource(R.string.onlyfiles_lock_all)) }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -215,9 +220,13 @@ private fun OnlyFilesScreen(
     if (showCreate) {
         CreateVaultDialog(
             onDismiss = { showCreate = false },
-            onCreate = { name, password ->
+            onCreateAppPrivate = { name, password ->
                 showCreate = false
-                viewModel.createVault(name, password)
+                viewModel.createAppPrivateVault(name, password)
+            },
+            onChooseFolder = { name, password ->
+                showCreate = false
+                viewModel.beginFolderVaultCreation(name, password)
             }
         )
     }
@@ -257,6 +266,15 @@ private fun OnlyFilesScreen(
             }
         )
     }
+    state.folderPicker?.let { picker ->
+        VaultFolderPickerDialog(
+            state = picker,
+            onOpen = viewModel::openVaultFolder,
+            onUp = viewModel::navigateVaultFolderUp,
+            onChoose = viewModel::chooseVaultFolder,
+            onDismiss = viewModel::cancelVaultFolderPicker
+        )
+    }
 }
 
 @Composable
@@ -279,7 +297,17 @@ private fun VaultList(
                         Column(Modifier.weight(1f)) {
                             Text(vault.name, style = MaterialTheme.typography.titleMedium)
                             Text(
-                                DateFormat.getDateInstance().format(vault.createdAtMillis),
+                                if (vault.isAvailable) {
+                                    stringResource(
+                                        if (vault.locationKind == dev.qtremors.arcile.core.vault.domain.VaultLocationKind.USER_FOLDER) {
+                                            R.string.onlyfiles_user_folder
+                                        } else {
+                                            R.string.onlyfiles_app_storage
+                                        }
+                                    ) + " · " + DateFormat.getDateInstance().format(vault.createdAtMillis)
+                                } else {
+                                    stringResource(R.string.onlyfiles_folder_unavailable)
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -363,48 +391,6 @@ private fun VaultBrowser(
 }
 
 @Composable
-private fun CreateVaultDialog(onDismiss: () -> Unit, onCreate: (String, String) -> Unit) {
-    var name by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var confirm by remember { mutableStateOf("") }
-    var reveal by remember { mutableStateOf(false) }
-    val mismatch = confirm.isNotEmpty() && password != confirm
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.onlyfiles_create_title)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(stringResource(R.string.onlyfiles_uninstall_warning), style = MaterialTheme.typography.bodySmall)
-                OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.onlyfiles_name)) }, singleLine = true)
-                PasswordField(password, { password = it }, reveal, { reveal = !reveal })
-                OutlinedTextField(
-                    confirm,
-                    { confirm = it },
-                    label = { Text(stringResource(R.string.onlyfiles_confirm_password)) },
-                    visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    isError = mismatch,
-                    singleLine = true
-                )
-                if (mismatch) Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
-                if (password.isNotEmpty() && password.length < 12) {
-                    Text(stringResource(R.string.onlyfiles_short_password), color = MaterialTheme.colorScheme.tertiary)
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { onCreate(name.trim(), password) },
-                enabled = name.isNotBlank() && password.isNotEmpty() && confirm.isNotEmpty() && password == confirm
-            ) {
-                Text(stringResource(R.string.onlyfiles_create))
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
-    )
-}
-
-@Composable
 private fun PasswordDialog(title: String, actionLabel: String, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
     var password by remember { mutableStateOf("") }
     var reveal by remember { mutableStateOf(false) }
@@ -418,7 +404,7 @@ private fun PasswordDialog(title: String, actionLabel: String, onDismiss: () -> 
 }
 
 @Composable
-private fun PasswordField(value: String, onValueChange: (String) -> Unit, reveal: Boolean, onReveal: () -> Unit) {
+internal fun PasswordField(value: String, onValueChange: (String) -> Unit, reveal: Boolean, onReveal: () -> Unit) {
     OutlinedTextField(
         value,
         onValueChange,

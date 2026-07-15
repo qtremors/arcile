@@ -3,6 +3,9 @@ package dev.qtremors.arcile.feature.onlyfiles
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultImportEvent
@@ -27,6 +30,7 @@ internal data class OnlyFilesUiState(
     val nodes: List<VaultNode> = emptyList(),
     val viewer: VaultNode? = null,
     val activeImports: Map<VaultId, VaultImportState> = emptyMap(),
+    val folderPicker: VaultFolderPickerState? = null,
     val busy: Boolean = false,
     val message: String? = null
 ) {
@@ -37,7 +41,9 @@ internal data class OnlyFilesUiState(
 @HiltViewModel
 internal class OnlyFilesViewModel @Inject constructor(
     private val repository: VaultRepository,
-    private val importCoordinator: VaultImportCoordinator
+    private val importCoordinator: VaultImportCoordinator,
+    private val destinationBrowser: SaveDestinationBrowser,
+    private val volumeRepository: VolumeRepository
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
@@ -45,6 +51,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     private var selectionLease: VaultSessionLease? = null
     private var selectionVaultId: VaultId? = null
     private var selectionDestination: VaultPath = VaultPath.Root
+    private var pendingFolderVault: PendingFolderVault? = null
+    private var folderPickerVolumes: List<StorageVolume> = emptyList()
 
     init {
         viewModelScope.launch {
@@ -77,6 +85,12 @@ internal class OnlyFilesViewModel @Inject constructor(
                     }
                     is VaultImportEvent.Cancelled -> _state.update { it.copy(message = "Import cancelled") }
                     is VaultImportEvent.Failed -> _state.update { it.copy(message = event.message) }
+                    is VaultImportEvent.Partial -> {
+                        _state.update {
+                            it.copy(message = "Imported ${event.result.completed.size}; ${event.result.failed.size} failed")
+                        }
+                        if (_state.value.selectedVaultId == event.vaultId) reload()
+                    }
                     is VaultImportEvent.Started,
                     is VaultImportEvent.Progress -> Unit
                 }
@@ -85,12 +99,83 @@ internal class OnlyFilesViewModel @Inject constructor(
         viewModelScope.launch { repository.refreshVaults() }
     }
 
-    fun createVault(name: String, password: String) = runBusy {
+    fun createAppPrivateVault(name: String, password: String) = runBusy {
         repository.createAppPrivateVault(name, password.toCharArray()).fold(
             onSuccess = { id ->
                 _state.update { it.copy(selectedVaultId = id, path = VaultPath.Root, nodes = emptyList()) }
                 reload()
             },
+            onFailure = ::showError
+        )
+    }
+
+    fun beginFolderVaultCreation(name: String, password: String) {
+        if (_state.value.busy) return
+        clearPendingFolderVault()
+        pendingFolderVault = PendingFolderVault(name, password.toCharArray())
+        openFolderPicker(VaultFolderPickerMode.CREATE)
+    }
+
+    fun beginAttachVault() {
+        clearPendingFolderVault()
+        openFolderPicker(VaultFolderPickerMode.ATTACH)
+    }
+
+    fun chooseVaultFolder() {
+        val picker = _state.value.folderPicker ?: return
+        val path = picker.current?.path ?: return
+        _state.update { it.copy(folderPicker = null) }
+        if (picker.mode == VaultFolderPickerMode.ATTACH) {
+            attachExistingVault(path)
+        } else {
+            finishFolderVaultCreation(path)
+        }
+    }
+
+    fun cancelVaultFolderPicker() {
+        _state.update { it.copy(folderPicker = null) }
+        clearPendingFolderVault()
+    }
+
+    fun openVaultFolder(path: String) = loadFolderPickerPath(path)
+
+    fun navigateVaultFolderUp() {
+        val picker = _state.value.folderPicker ?: return
+        val current = picker.current ?: run {
+            cancelVaultFolderPicker()
+            return
+        }
+        viewModelScope.launch {
+            destinationBrowser.parent(current.path, folderPickerVolumes).fold(
+                onSuccess = { parent ->
+                    if (parent == null) showFolderPickerRoot(picker.mode) else loadFolderPickerPath(parent.path)
+                },
+                onFailure = ::showError
+            )
+        }
+    }
+
+    private fun finishFolderVaultCreation(path: String) {
+        val pending = pendingFolderVault
+        pendingFolderVault = null
+        if (pending == null) {
+            pending?.password?.fill('\u0000')
+            return
+        }
+        runBusy {
+            repository.createUserFolderVault(path, pending.name, pending.password).fold(
+                onSuccess = { id ->
+                    _state.update { it.copy(selectedVaultId = id, path = VaultPath.Root, nodes = emptyList()) }
+                    reload()
+                },
+                onFailure = ::showError
+            )
+        }
+    }
+
+    private fun attachExistingVault(path: String) = runBusy {
+        repository.attachExistingVault(path).fold(
+            onSuccess = { _state.update { it.copy(message = "Vault added. Enter its password to unlock it.") } },
             onFailure = ::showError
         )
     }
@@ -106,6 +191,10 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun openVault(vault: VaultSummary): Boolean {
+        if (!vault.isAvailable) {
+            _state.update { it.copy(message = "This vault folder is unavailable. Add the folder again to reconnect it.") }
+            return true
+        }
         if (!vault.isUnlocked) return false
         _state.update { it.copy(selectedVaultId = vault.id, path = VaultPath.Root, viewer = null) }
         reload()
@@ -243,10 +332,69 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     override fun onCleared() {
         cancelImportSelection()
+        clearPendingFolderVault()
         super.onCleared()
+    }
+
+    private fun clearPendingFolderVault() {
+        pendingFolderVault?.password?.fill('\u0000')
+        pendingFolderVault = null
+    }
+
+    private fun openFolderPicker(mode: VaultFolderPickerMode) {
+        viewModelScope.launch {
+            _state.update { it.copy(folderPicker = VaultFolderPickerState(mode = mode, isLoading = true)) }
+            volumeRepository.getStorageVolumes().fold(
+                onSuccess = { volumes ->
+                    folderPickerVolumes = volumes
+                    showFolderPickerRoot(mode)
+                },
+                onFailure = {
+                    cancelVaultFolderPicker()
+                    showError(it)
+                }
+            )
+        }
+    }
+
+    private suspend fun showFolderPickerRoot(mode: VaultFolderPickerMode) {
+        val roots = folderPickerVolumes.mapNotNull { volume ->
+            destinationBrowser.resolve(volume.path, folderPickerVolumes).getOrNull()
+        }
+        _state.update { it.copy(folderPicker = VaultFolderPickerState(mode = mode, entries = roots)) }
+    }
+
+    private fun loadFolderPickerPath(path: String) {
+        val mode = _state.value.folderPicker?.mode ?: return
+        viewModelScope.launch {
+            _state.update { current ->
+                current.copy(folderPicker = current.folderPicker?.copy(isLoading = true))
+            }
+            val current = destinationBrowser.resolve(path, folderPickerVolumes).getOrElse {
+                _state.update { state -> state.copy(folderPicker = state.folderPicker?.copy(isLoading = false)) }
+                showError(it)
+                return@launch
+            } ?: run {
+                _state.update { state -> state.copy(folderPicker = state.folderPicker?.copy(isLoading = false)) }
+                return@launch
+            }
+            destinationBrowser.children(path, folderPickerVolumes).fold(
+                onSuccess = { children ->
+                    _state.update {
+                        it.copy(folderPicker = VaultFolderPickerState(mode, current, children, isLoading = false))
+                    }
+                },
+                onFailure = {
+                    _state.update { state -> state.copy(folderPicker = state.folderPicker?.copy(isLoading = false)) }
+                    showError(it)
+                }
+            )
+        }
     }
 
     private companion object {
         const val MAX_IMAGE_BYTES = 128L * 1024L * 1024L
     }
+
+    private data class PendingFolderVault(val name: String, val password: CharArray)
 }

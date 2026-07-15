@@ -1,4 +1,5 @@
 <resources>
+    <string name="video_playback_failed">This video could not be played.</string>
     <string name="app_name">Arcile</string>
     
     <!-- General -->

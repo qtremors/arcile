@@ -4,13 +4,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.Closeable
 
-interface VaultSeekableReader : Closeable {
-    val sizeBytes: Long
-
-    /** Reads up to [length] bytes at [position], or returns -1 at end of file. */
-    fun readAt(position: Long, target: ByteArray, offset: Int, length: Int): Int
-}
-
 interface VaultSessionLease : Closeable
 
 interface VaultRepository {
@@ -19,6 +12,8 @@ interface VaultRepository {
 
     suspend fun refreshVaults()
     suspend fun createAppPrivateVault(name: String, password: CharArray): Result<VaultId>
+    suspend fun createUserFolderVault(path: String, name: String, password: CharArray): Result<VaultId>
+    suspend fun attachExistingVault(path: String): Result<VaultId>
     suspend fun unlock(vaultId: VaultId, password: CharArray): Result<Unit>
     suspend fun lock(vaultId: VaultId)
     suspend fun lockAll()
