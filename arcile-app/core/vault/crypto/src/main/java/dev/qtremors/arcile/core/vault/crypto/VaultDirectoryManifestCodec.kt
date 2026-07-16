@@ -177,13 +177,47 @@ class VaultDirectoryManifestCodec(
 
     /** Caller publishes only after its transaction commit marker is durable. */
     fun publish(directory: VaultDirectoryAccess, prepared: PreparedVaultManifest) {
+        stagePages(directory, prepared)
+        publishRoot(directory, prepared)
+    }
+
+    fun stagePages(directory: VaultDirectoryAccess, prepared: PreparedVaultManifest) {
         prepared.pages.forEach { page ->
             require(!directory.exists(page.relativePath)) { "Manifest pages are immutable" }
             directory.writeAtomic(page.relativePath, page.bytes)
             require(directory.readBytes(page.relativePath).contentEquals(page.bytes))
         }
+    }
+
+    fun publishRoot(directory: VaultDirectoryAccess, prepared: PreparedVaultManifest) {
         directory.writeAtomic(prepared.rootRelativePath, prepared.rootBytes)
         require(directory.readBytes(prepared.rootRelativePath).contentEquals(prepared.rootBytes))
+    }
+
+    fun verifyPrepared(
+        directory: VaultDirectoryAccess,
+        vaultId: VaultId,
+        prepared: PreparedVaultManifest,
+        directoryKey: ByteArray
+    ) {
+        val root = decodeRoot(prepared.rootBytes, vaultId, prepared.directoryId, directoryKey)
+        require(root.generation == prepared.generation)
+        require(root.pageObjectIds == prepared.pages.map { it.objectId })
+        val entries = mutableListOf<VaultManifestEntry>()
+        prepared.pages.forEachIndexed { index, page ->
+            require(directory.readBytes(page.relativePath).contentEquals(page.bytes))
+            entries += decodePage(
+                page.bytes,
+                vaultId,
+                prepared.directoryId,
+                prepared.generation,
+                index,
+                page.objectId,
+                directoryKey
+            )
+        }
+        require(entries.size.toLong() == root.entryCount)
+        validateEntries(entries)
     }
 
     fun read(
@@ -213,6 +247,20 @@ class VaultDirectoryManifestCodec(
         validateEntries(entries)
         return VaultDirectorySnapshot(directoryId, root.generation, entries, root.pageObjectIds)
     }
+
+    /** Page objects referenced by either authenticated root slot, including the fallback generation. */
+    fun referencedPageObjectIds(
+        directory: VaultDirectoryAccess,
+        vaultId: VaultId,
+        directoryId: DirectoryId,
+        directoryKey: ByteArray
+    ): Set<VaultObjectId> = listOf(rootSlot(directoryId, 0L), rootSlot(directoryId, 1L))
+        .mapNotNull { path ->
+            if (!directory.exists(path)) null else runCatching {
+                decodeRoot(directory.readBytes(path), vaultId, directoryId, directoryKey)
+            }.getOrNull()
+        }
+        .flatMapTo(mutableSetOf()) { it.pageObjectIds }
 
     private fun decodeRoot(
         bytes: ByteArray,

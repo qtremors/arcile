@@ -399,9 +399,9 @@ private data class HeaderCommitDocument(
     val header: String
 )
 
-internal fun ByteArray.toBase64(): String = Base64.getEncoder().encodeToString(this)
+fun ByteArray.toBase64(): String = Base64.getEncoder().encodeToString(this)
 
-internal fun String.fromBase64(maximumSize: Int, minimumSize: Int = maximumSize): ByteArray {
+fun String.fromBase64(maximumSize: Int, minimumSize: Int = maximumSize): ByteArray {
     require(length <= ((maximumSize + 2) / 3) * 4 + 4) { "Encoded value is too large" }
     return try {
         Base64.getDecoder().decode(this).also { require(it.size in minimumSize..maximumSize) }

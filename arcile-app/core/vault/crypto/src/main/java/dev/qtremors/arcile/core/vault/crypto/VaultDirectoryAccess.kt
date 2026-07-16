@@ -7,12 +7,14 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.io.FileOutputStream
+import java.security.MessageDigest
 
 interface VaultRandomAccess : Closeable {
     var position: Long
     val length: Long
     fun setLength(value: Long)
     fun readFully(target: ByteArray)
+    fun read(target: ByteArray, offset: Int, length: Int): Int
     fun readInt(): Int
     fun readLong(): Long
     fun write(source: ByteArray)
@@ -30,7 +32,15 @@ interface VaultDirectoryAccess {
     fun openRandom(relativePath: String, writable: Boolean): VaultRandomAccess
     fun delete(relativePath: String): Boolean
     fun rename(fromRelativePath: String, toName: String): Boolean
+    fun listFiles(relativeDirectory: String): List<VaultPhysicalEntry>
 }
+
+data class VaultPhysicalEntry(
+    val relativePath: String,
+    val isDirectory: Boolean,
+    val length: Long,
+    val modifiedAtMillis: Long
+)
 
 class FileVaultDirectory(val directory: File) : VaultDirectoryAccess {
     override val stableId: String get() = directory.canonicalPath
@@ -67,6 +77,19 @@ class FileVaultDirectory(val directory: File) : VaultDirectoryAccess {
         }
     }
 
+    override fun listFiles(relativeDirectory: String): List<VaultPhysicalEntry> {
+        val base = resolve(relativeDirectory)
+        if (!base.isDirectory) return emptyList()
+        return base.walkTopDown().drop(1).map { file ->
+            VaultPhysicalEntry(
+                relativePath = file.relativeTo(directory).invariantSeparatorsPath,
+                isDirectory = file.isDirectory,
+                length = if (file.isFile) file.length() else 0L,
+                modifiedAtMillis = file.lastModified()
+            )
+        }.toList()
+    }
+
     private fun resolve(relativePath: String): File {
         val normalized = relativePath.replace('\\', '/').trim('/')
         require(normalized.isNotBlank())
@@ -85,6 +108,7 @@ private class FileVaultRandomAccess(file: File, writable: Boolean) : VaultRandom
     override val length: Long get() = delegate.length()
     override fun setLength(value: Long) = delegate.setLength(value)
     override fun readFully(target: ByteArray) = delegate.readFully(target)
+    override fun read(target: ByteArray, offset: Int, length: Int): Int = delegate.read(target, offset, length)
     override fun readInt(): Int = delegate.readInt()
     override fun readLong(): Long = delegate.readLong()
     override fun write(source: ByteArray) = delegate.write(source)
@@ -92,6 +116,22 @@ private class FileVaultRandomAccess(file: File, writable: Boolean) : VaultRandom
     override fun writeLong(value: Long) = delegate.writeLong(value)
     override fun sync() = delegate.fd.sync()
     override fun close() = delegate.close()
+}
+
+fun VaultDirectoryAccess.sha256(relativePath: String): ByteArray {
+    val digest = MessageDigest.getInstance("SHA-256")
+    val buffer = ByteArray(256 * 1024)
+    openRandom(relativePath, writable = false).use { input ->
+        input.position = 0L
+        while (true) {
+            val count = input.read(buffer, 0, buffer.size)
+            if (count < 0) break
+            if (count == 0) continue
+            digest.update(buffer, 0, count)
+        }
+    }
+    buffer.fill(0)
+    return digest.digest()
 }
 
 internal fun atomicWrite(target: File, bytes: ByteArray) {

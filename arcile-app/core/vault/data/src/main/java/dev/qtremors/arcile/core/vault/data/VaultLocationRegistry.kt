@@ -18,7 +18,8 @@ internal data class ExternalVaultPointer(
     val vaultId: String,
     val path: String,
     val cachedName: String,
-    val cachedCreatedAtMillis: Long
+    val cachedCreatedAtMillis: Long,
+    val headerFingerprint: String = ""
 )
 
 internal class VaultLocationRegistry(context: Context) {

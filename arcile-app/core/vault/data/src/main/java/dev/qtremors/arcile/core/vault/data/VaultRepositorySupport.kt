@@ -1,10 +1,7 @@
 package dev.qtremors.arcile.core.vault.data
 
-import dev.qtremors.arcile.core.vault.crypto.VaultIndex
-import dev.qtremors.arcile.core.vault.crypto.VaultIndexEntry
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
-import dev.qtremors.arcile.core.vault.domain.VaultNode
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.vault.domain.VaultSessionLease
@@ -16,35 +13,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 internal const val ROOT_DIRECTORY = "onlyfiles"
 internal const val OBJECTS_DIRECTORY = "objects"
+internal const val MANIFESTS_DIRECTORY = "manifests"
+internal const val TRANSACTIONS_DIRECTORY = "transactions"
 internal const val STAGING_PREFIX = ".creating-"
-
-internal fun requireDirectory(index: VaultIndex, path: VaultPath) {
-    if (path.isRoot) return
-    if (index.entries.none { it.path == path.value && it.isDirectory }) {
-        throw VaultFailure.InvalidPath("Destination folder is unavailable")
-    }
-}
-
-internal fun ensureAvailable(index: VaultIndex, path: VaultPath) {
-    if (index.entries.any { it.path.equals(path.value, ignoreCase = true) }) {
-        throw VaultFailure.PathConflict(path)
-    }
-}
-
-internal fun uniqueImportPath(index: VaultIndex, parent: VaultPath, rawName: String): VaultPath {
-    val name = safeImportName(rawName)
-    var candidate = parent.resolve(name)
-    if (index.entries.none { it.path.equals(candidate.value, ignoreCase = true) }) return candidate
-    val extension = name.substringAfterLast('.', "").takeIf { '.' in name }
-    val base = if (extension == null) name else name.dropLast(extension.length + 1)
-    var number = 1
-    while (true) {
-        val nextName = if (extension == null) "$base ($number)" else "$base ($number).$extension"
-        candidate = parent.resolve(nextName)
-        if (index.entries.none { it.path.equals(candidate.value, ignoreCase = true) }) return candidate
-        number++
-    }
-}
 
 internal fun validateVaultName(name: String): String {
     val trimmed = name.trim()
@@ -57,9 +28,10 @@ internal fun validateVaultName(name: String): String {
     return trimmed
 }
 
-private fun safeImportName(name: String): String {
-    val sanitized = name.replace('/', '_').replace('\\', '_').replace('\u0000', '_').trim()
-    return sanitized.takeIf { it.isNotBlank() && it != "." && it != ".." } ?: "Imported file"
+internal fun createVaultDirectories(access: dev.qtremors.arcile.core.vault.crypto.VaultDirectoryAccess) {
+    check(access.createDirectory(OBJECTS_DIRECTORY)) { "Unable to create vault object directory" }
+    check(access.createDirectory(MANIFESTS_DIRECTORY)) { "Unable to create vault manifest directory" }
+    check(access.createDirectory(TRANSACTIONS_DIRECTORY)) { "Unable to create vault transaction directory" }
 }
 
 internal fun cleanupInterruptedArtifacts(vaultRoot: File) {
@@ -69,7 +41,6 @@ internal fun cleanupInterruptedArtifacts(vaultRoot: File) {
 }
 
 internal fun moveDirectory(source: File, destination: File) = moveAtomicallyWhenSupported(source, destination)
-internal fun moveFile(source: File, destination: File) = moveAtomicallyWhenSupported(source, destination)
 
 private fun moveAtomicallyWhenSupported(source: File, destination: File) {
     try {
@@ -93,7 +64,8 @@ internal class VaultSessionLeaseImpl(
 
 internal class VaultLeasedReader(
     private val delegate: VaultSeekableReader,
-    private val lease: VaultSessionLease
+    private val lease: VaultSessionLease,
+    private val onClosed: (VaultLeasedReader) -> Unit = {}
 ) : VaultSeekableReader {
     override val sizeBytes: Long get() = delegate.sizeBytes
     private val closed = AtomicBoolean(false)
@@ -103,16 +75,11 @@ internal class VaultLeasedReader(
         if (closed.compareAndSet(false, true)) try {
             delegate.close()
         } finally {
-            lease.close()
+            try {
+                lease.close()
+            } finally {
+                onClosed(this)
+            }
         }
     }
 }
-
-internal fun VaultIndexEntry.toNode(): VaultNode = VaultNode(
-    id = id,
-    path = VaultPath.of(path),
-    sizeBytes = sizeBytes,
-    modifiedAtMillis = modifiedAtMillis,
-    isDirectory = isDirectory,
-    mimeType = mimeType
-)

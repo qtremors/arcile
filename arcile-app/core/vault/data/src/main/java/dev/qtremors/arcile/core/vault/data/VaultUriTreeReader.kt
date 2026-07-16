@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultName
 
 internal data class VaultImportSource(
     val uri: Uri,
@@ -105,8 +106,11 @@ internal class VaultUriTreeReader(
     )
 
     private fun safeName(value: String): String {
-        val sanitized = value.replace('/', '_').replace('\\', '_').replace('\u0000', '_').trim()
-        return sanitized.takeIf { it.isNotBlank() && it != "." && it != ".." } ?: "Imported item"
+        return try {
+            VaultName.of(value).value
+        } catch (error: IllegalArgumentException) {
+            throw VaultFailure.InvalidName(error.message ?: "Imported item has an unsafe name", error)
+        }
     }
 
     private data class DocumentRow(

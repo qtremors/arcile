@@ -108,7 +108,13 @@ class DefaultVaultImportCoordinator @Inject constructor(
         tokens.remove(vaultId.value)
         _activeImports.update { it - vaultId }
         result.fold(
-            onSuccess = { _events.tryEmit(VaultImportEvent.Completed(vaultId)) },
+            onSuccess = { batch ->
+                if (batch.items.all { it.outcome == dev.qtremors.arcile.core.vault.domain.VaultItemOutcome.COMPLETED }) {
+                    _events.tryEmit(VaultImportEvent.Completed(vaultId))
+                } else {
+                    _events.tryEmit(VaultImportEvent.Partial(vaultId, batch))
+                }
+            },
             onFailure = { error ->
                 if (error is CancellationException) {
                     _events.tryEmit(VaultImportEvent.Cancelled(vaultId))

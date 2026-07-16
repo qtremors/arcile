@@ -49,7 +49,7 @@ class VaultExternalManagerTest {
         val failure = runCatching {
             manager.create(directory.path, "Replacement", replacementPassword)
         }.exceptionOrNull()
-        assertTrue(failure is VaultFailure.NameConflict)
+        assertTrue(failure is VaultFailure.FolderNotEmpty)
         assertTrue(replacementPassword.all { it == '\u0000' })
         assertEquals("Portable", VaultManifestCodec().readPublic(directory).getOrThrow().publicName)
     }

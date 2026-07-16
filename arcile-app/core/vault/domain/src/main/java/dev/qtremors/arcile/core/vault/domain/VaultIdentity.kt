@@ -70,7 +70,8 @@ data class VaultNodeRef(
     val vaultId: VaultId,
     val nodeId: NodeId,
     val parentId: DirectoryId,
-    val capabilities: VaultNodeCapabilities
+    val capabilities: VaultNodeCapabilities,
+    val directoryId: DirectoryId? = null
 ) {
     /** Safe opaque identity for StorageNodeRef.backendIdentity and navigation queues. */
     val backendIdentity: String get() = "${vaultId.value}:${nodeId.value}"

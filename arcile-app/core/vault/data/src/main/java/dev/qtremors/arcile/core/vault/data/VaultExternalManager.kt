@@ -2,26 +2,25 @@ package dev.qtremors.arcile.core.vault.data
 
 import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
-import dev.qtremors.arcile.core.vault.crypto.VaultIndex
-import dev.qtremors.arcile.core.vault.crypto.VaultIndexCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryManifestCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
 import dev.qtremors.arcile.core.vault.crypto.VaultManifestCodec
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import java.io.File
-import java.util.UUID
 
 internal data class OpenExternalVault(
     val id: VaultId,
     val access: FileVaultDirectory,
     val name: String,
     val createdAtMillis: Long,
-    val masterKey: ByteArray? = null,
-    val index: VaultIndex? = null
+    val headerFingerprint: String,
+    val masterSecret: ByteArray? = null
 )
 
 internal class VaultExternalManager(private val registry: VaultLocationRegistry) {
-    private val manifestCodec = VaultManifestCodec()
-    private val indexCodec = VaultIndexCodec()
+    private val headerCodec = VaultManifestCodec()
+    private val directoryCodec = VaultDirectoryManifestCodec()
 
     fun create(path: String, name: String, password: CharArray): OpenExternalVault = try {
         createVault(path, name, password)
@@ -30,62 +29,77 @@ internal class VaultExternalManager(private val registry: VaultLocationRegistry)
     }
 
     private fun createVault(path: String, name: String, password: CharArray): OpenExternalVault {
-        val cleanName = validateVaultName(name)
+        val label = validateVaultName(name)
         val access = portableDirectory(path)
-        val reserved = reservedNames()
-        if (reserved.any(access::exists)) {
-            val existingName = manifestCodec.readPublic(access).getOrNull()?.publicName
-            throw if (existingName != null) VaultFailure.NameConflict(existingName)
-            else VaultFailure.Unavailable("The selected folder contains incomplete vault data")
-        }
+        if (access.directory.listFiles().orEmpty().isNotEmpty()) throw VaultFailure.FolderNotEmpty()
 
-        val id = VaultId.of(UUID.randomUUID().toString())
+        val id = VaultId.random()
         val createdAt = System.currentTimeMillis()
-        val masterKey = VaultCryptography.randomBytes(VaultCryptography.KEY_SIZE_BYTES)
-        var openedKey: ByteArray? = null
+        val masterSecret = VaultCryptography.randomBytes(VaultCryptography.KEY_SIZE_BYTES)
+        var openedSecret: ByteArray? = null
         try {
-            check(access.createDirectory(OBJECTS_DIRECTORY)) { "Unable to create the vault object directory" }
-            manifestCodec.create(access, id, cleanName, createdAt, password, masterKey)
-            indexCodec.create(access, id, cleanName, masterKey)
-            val opened = manifestCodec.open(access, password).getOrThrow()
-            openedKey = opened.masterKey
-            val index = indexCodec.read(access, id, openedKey)
-            require(index.vaultName == cleanName)
-            register(id, access.directory, cleanName, createdAt)
-            return OpenExternalVault(id, access, cleanName, createdAt, openedKey, index).also { openedKey = null }
+            createVaultDirectories(access)
+            headerCodec.create(access, id, label, createdAt, password, masterSecret)
+            val rootKey = VaultCryptography.deriveDomainKey(masterSecret, id, VaultKeyDomain.ROOT_DIRECTORY)
+            try {
+                directoryCodec.createRoot(access, id, VaultSessionRecord.ROOT_DIRECTORY_ID, rootKey)
+            } finally {
+                rootKey.fill(0)
+            }
+            val opened = headerCodec.open(access, password).getOrThrow()
+            openedSecret = opened.masterKey
+            verifyRoot(access, id, openedSecret)
+            val result = OpenExternalVault(
+                id,
+                access,
+                label,
+                createdAt,
+                opened.headerFingerprint,
+                openedSecret
+            ).also { openedSecret = null }
+            register(result)
+            return result
         } catch (error: Throwable) {
-            reserved.forEach { runCatching { access.delete(it) } }
+            access.directory.listFiles().orEmpty().forEach(File::deleteRecursively)
             throw error
         } finally {
-            masterKey.fill(0)
-            openedKey?.fill(0)
+            masterSecret.fill(0)
+            openedSecret?.fill(0)
         }
     }
 
     fun attach(path: String): OpenExternalVault {
         val access = portableDirectory(path)
-        val manifest = manifestCodec.readPublic(access).getOrElse {
-            throw VaultFailure.Unavailable("The selected folder is not an OnlyFiles vault")
+        val manifest = headerCodec.readPublic(access).getOrElse {
+            throw VaultFailure.Unavailable("The selected folder is not an OnlyFiles vault", it)
         }
-        if (!access.exists(OBJECTS_DIRECTORY) ||
-            (!access.exists(VaultIndexCodec.SLOT_A) && !access.exists(VaultIndexCodec.SLOT_B))
+        if (!access.exists(OBJECTS_DIRECTORY) || !access.exists(MANIFESTS_DIRECTORY) ||
+            (!access.exists(VaultDirectoryManifestCodec.rootSlot(VaultSessionRecord.ROOT_DIRECTORY_ID, 0L)) &&
+                !access.exists(VaultDirectoryManifestCodec.rootSlot(VaultSessionRecord.ROOT_DIRECTORY_ID, 1L)))
         ) {
             throw VaultFailure.IntegrityFailed("The selected vault is incomplete")
         }
-        return OpenExternalVault(manifest.id, access, manifest.publicName, manifest.createdAtMillis)
+        return OpenExternalVault(
+            manifest.id,
+            access,
+            manifest.publicName,
+            manifest.createdAtMillis,
+            manifest.headerFingerprint
+        )
     }
 
     fun register(vault: OpenExternalVault) {
-        register(vault.id, vault.access.directory, vault.name, vault.createdAtMillis)
-    }
-
-    private fun register(id: VaultId, directory: File, name: String, createdAtMillis: Long) {
+        val existing = registry.find(vault.id)
+        if (existing != null && File(existing.path).canonicalPath != vault.access.directory.canonicalPath) {
+            throw VaultFailure.DuplicateVault(vault.id)
+        }
         registry.put(
             ExternalVaultPointer(
-                vaultId = id.value,
-                path = directory.canonicalPath,
-                cachedName = name,
-                cachedCreatedAtMillis = createdAtMillis
+                vaultId = vault.id.value,
+                path = vault.access.directory.canonicalPath,
+                cachedName = vault.name,
+                cachedCreatedAtMillis = vault.createdAtMillis,
+                headerFingerprint = vault.headerFingerprint
             )
         )
     }
@@ -98,11 +112,12 @@ internal class VaultExternalManager(private val registry: VaultLocationRegistry)
         return FileVaultDirectory(directory)
     }
 
-    private fun reservedNames() = listOf(
-        VaultManifestCodec.PRIMARY_FILE,
-        VaultManifestCodec.BACKUP_FILE,
-        VaultIndexCodec.SLOT_A,
-        VaultIndexCodec.SLOT_B,
-        OBJECTS_DIRECTORY
-    )
+    private fun verifyRoot(access: FileVaultDirectory, id: VaultId, secret: ByteArray) {
+        val rootKey = VaultCryptography.deriveDomainKey(secret, id, VaultKeyDomain.ROOT_DIRECTORY)
+        try {
+            directoryCodec.read(access, id, VaultSessionRecord.ROOT_DIRECTORY_ID, rootKey)
+        } finally {
+            rootKey.fill(0)
+        }
+    }
 }

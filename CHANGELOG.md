@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.2
+> **Version:** 1.5.3
 > **Last Updated:** 2026-07-14
 
 ---
+
+## [1.5.3] - 2026-07-14
+
+- **Atomic Vault Changes**: OnlyFiles mutations and imports now commit through recoverable generation transactions, so interruption exposes either the complete previous state or the complete replacement.
+- **Scalable Encrypted Browsing**: Vault folders now use stable opaque IDs and paged per-directory metadata instead of a global path index, with normalized case-insensitive names, sorting, recursive search, and empty-file creation.
+- **Independent Transfer Leases**: Started imports keep a bounded operation key lease while foreground vault access locks immediately and closes interactive readers.
+- **Vault Health Checks**: Quick and full verification now detect damaged headers, manifests, references, file chunks, pending transactions, missing objects, and safely cleanable encrypted orphans.
 
 ## [1.5.2] - 2026-07-14
 

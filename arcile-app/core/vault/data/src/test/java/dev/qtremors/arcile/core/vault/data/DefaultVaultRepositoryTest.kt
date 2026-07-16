@@ -5,6 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultPath
+import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
+import dev.qtremors.arcile.core.vault.domain.VaultListOptions
+import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
+import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -81,7 +85,7 @@ class DefaultVaultRepositoryTest {
     }
 
     @Test
-    fun `creation never overwrites an existing vault location`() = runTest {
+    fun `app private vaults with the same visible label remain independent`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val scope = CoroutineScope(SupervisorJob() + dispatcher)
         val repository = DefaultVaultRepository(
@@ -89,10 +93,49 @@ class DefaultVaultRepositoryTest {
             ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
             scope
         )
-        repository.createAppPrivateVault("Private", "one".toCharArray()).getOrThrow()
-        val failure = repository.createAppPrivateVault("private", "two".toCharArray()).exceptionOrNull()
-        assertTrue(failure is VaultFailure.NameConflict)
-        assertEquals(1, repository.vaults.value.size)
+        val first = repository.createAppPrivateVault("Private", "one".toCharArray()).getOrThrow()
+        val second = repository.createAppPrivateVault("private", "two".toCharArray()).getOrThrow()
+        assertEquals(2, repository.vaults.value.size)
+        assertTrue(first != second)
+        scope.cancel()
+    }
+
+    @Test
+    fun `stable id file system and health checks cover encrypted objects`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context,
+            ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            scope
+        )
+        val vaultId = repository.createAppPrivateVault("Stable", "password".toCharArray()).getOrThrow()
+        val folder = repository.createDirectory(vaultId, VaultSessionRecord.ROOT_DIRECTORY_ID, "Folder").getOrThrow()
+        val folderId = requireNotNull(folder.ref.directoryId)
+        val empty = repository.createEmptyFile(vaultId, folderId, "empty.txt", "text/plain").getOrThrow()
+
+        assertEquals(listOf("Folder"), repository.listDirectory(vaultId, VaultSessionRecord.ROOT_DIRECTORY_ID, VaultListOptions()).getOrThrow().items.map { it.name })
+        assertEquals(listOf("empty.txt"), repository.listDirectory(vaultId, folderId, VaultListOptions()).getOrThrow().items.map { it.name })
+        assertEquals("empty.txt", repository.metadata(empty.ref).getOrThrow().name)
+        repository.openReader(empty.ref).getOrThrow().use { assertEquals(0L, it.sizeBytes) }
+        val search = repository.search(
+            vaultId,
+            VaultSessionRecord.ROOT_DIRECTORY_ID,
+            VaultSearchQuery("empty", recursive = true)
+        ).getOrThrow()
+        assertEquals(listOf("empty.txt"), search.items.map { it.metadata.name })
+
+        assertTrue(repository.verify(vaultId, VaultHealthMode.QUICK).getOrThrow().isHealthy)
+        assertTrue(repository.verify(vaultId, VaultHealthMode.FULL).getOrThrow().isHealthy)
+
+        val orphan = VaultObjectId.of("f".repeat(64))
+        val orphanFile = File(context.noBackupFilesDir, "$ROOT_DIRECTORY/${vaultId.value}/${orphan.shardedPath()}")
+        orphanFile.parentFile?.mkdirs()
+        orphanFile.writeBytes(byteArrayOf(1, 2, 3))
+        val damaged = repository.verify(vaultId, VaultHealthMode.QUICK).getOrThrow()
+        assertTrue(orphan in damaged.orphanObjectIds)
+        assertEquals(1, repository.cleanupOrphans(vaultId, setOf(orphan)).getOrThrow())
+        assertFalse(orphanFile.exists())
         scope.cancel()
     }
 }
