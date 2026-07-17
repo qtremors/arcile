@@ -3,15 +3,20 @@ package dev.qtremors.arcile.core.vault.data
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
 import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
+import dev.qtremors.arcile.core.vault.domain.VaultCreationRequest
+import dev.qtremors.arcile.core.vault.domain.VaultLocation
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
@@ -50,7 +55,8 @@ class DefaultVaultRepositoryTest {
         val repository = DefaultVaultRepository(
             context,
             ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
-            scope
+            scope,
+            testPortableResolver()
         )
 
         val firstPassword = "first password".toCharArray()
@@ -91,7 +97,8 @@ class DefaultVaultRepositoryTest {
         val repository = DefaultVaultRepository(
             context,
             ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
-            scope
+            scope,
+            testPortableResolver()
         )
         val first = repository.createAppPrivateVault("Private", "one".toCharArray()).getOrThrow()
         val second = repository.createAppPrivateVault("private", "two".toCharArray()).getOrThrow()
@@ -107,7 +114,8 @@ class DefaultVaultRepositoryTest {
         val repository = DefaultVaultRepository(
             context,
             ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
-            scope
+            scope,
+            testPortableResolver()
         )
         val vaultId = repository.createAppPrivateVault("Stable", "password".toCharArray()).getOrThrow()
         val folder = repository.createDirectory(vaultId, VaultSessionRecord.ROOT_DIRECTORY_ID, "Folder").getOrThrow()
@@ -138,4 +146,89 @@ class DefaultVaultRepositoryTest {
         assertFalse(orphanFile.exists())
         scope.cancel()
     }
+
+    @Test
+    fun `weak passwords require confirmation and password changes are atomic`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context,
+            ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            scope,
+            testPortableResolver()
+        )
+
+        val rejected = "short".toCharArray()
+        val createFailure = repository.create(
+            VaultCreationRequest("Rejected", rejected, VaultLocation.AppPrivate("new"), false)
+        ).exceptionOrNull()
+        assertTrue(createFailure is VaultFailure.WeakPasswordConfirmationRequired)
+        assertTrue(rejected.all { it == '\u0000' })
+
+        val original = "Correct-Horse-7".toCharArray()
+        val vaultId = repository.create(
+            VaultCreationRequest("Rotating", original, VaultLocation.AppPrivate("new"), false)
+        ).getOrThrow()
+        val current = "Correct-Horse-7".toCharArray()
+        val weakReplacement = "tiny".toCharArray()
+        assertTrue(
+            repository.changePassword(vaultId, current, weakReplacement, false).exceptionOrNull()
+                is VaultFailure.WeakPasswordConfirmationRequired
+        )
+        assertTrue(current.all { it == '\u0000' })
+        assertTrue(weakReplacement.all { it == '\u0000' })
+
+        repository.changePassword(
+            vaultId,
+            "Correct-Horse-7".toCharArray(),
+            "Even-Better-Password-8".toCharArray(),
+            false
+        ).getOrThrow()
+        repository.lock(vaultId)
+        assertTrue(repository.unlock(vaultId, "Correct-Horse-7".toCharArray()).isFailure)
+        repository.unlock(vaultId, "Even-Better-Password-8".toCharArray()).getOrThrow()
+        scope.cancel()
+    }
+
+    @Test
+    fun `destructive deletion requires the exact public label`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context,
+            ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            scope,
+            testPortableResolver()
+        )
+        val id = repository.createAppPrivateVault("Delete me", "password".toCharArray()).getOrThrow()
+        assertTrue(
+            repository.deletePermanently(id, "delete me").exceptionOrNull()
+                is VaultFailure.DestructiveConfirmationRequired
+        )
+        assertEquals(1, repository.list().size)
+        repository.deletePermanently(id, "Delete me").getOrThrow()
+        assertTrue(repository.list().isEmpty())
+        scope.cancel()
+    }
 }
+
+private fun testPortableResolver(): VaultPortableLocationResolver = VaultPortableLocationResolver(
+    object : VolumeRepository {
+        private val root = File(requireNotNull(System.getProperty("java.io.tmpdir")))
+        private val volume = StorageVolume(
+            id = "test",
+            storageKey = "test",
+            name = "Test",
+            path = root.path,
+            totalBytes = root.totalSpace,
+            freeBytes = root.freeSpace,
+            isPrimary = true,
+            isRemovable = false
+        )
+
+        override fun observeStorageVolumes() = MutableStateFlow(listOf(volume))
+        override suspend fun getStorageVolumes() = Result.success(listOf(volume))
+        override suspend fun getVolumeForPath(path: String) = Result.success(volume)
+        override fun getStandardFolders(): Map<String, String?> = emptyMap()
+    }
+)

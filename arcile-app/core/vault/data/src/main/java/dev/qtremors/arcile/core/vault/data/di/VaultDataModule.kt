@@ -10,6 +10,11 @@ import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultHealthService
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
+import dev.qtremors.arcile.core.vault.domain.VaultCatalog
+import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
+import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
+import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
+import dev.qtremors.arcile.core.vault.data.DefaultVaultExternalAccessManager
 import javax.inject.Singleton
 
 @Module
@@ -30,4 +35,22 @@ abstract class VaultDataModule {
     @Binds
     @Singleton
     abstract fun bindVaultFileSystem(implementation: DefaultVaultRepository): VaultFileSystem
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultCatalog(implementation: DefaultVaultRepository): VaultCatalog
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultSessionManager(implementation: DefaultVaultRepository): VaultSessionManager
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultTransferCoordinator(implementation: DefaultVaultRepository): VaultTransferCoordinator
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultExternalAccessManager(
+        implementation: DefaultVaultExternalAccessManager
+    ): VaultExternalAccessManager
 }

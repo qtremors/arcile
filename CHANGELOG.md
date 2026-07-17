@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.3
+> **Version:** 1.5.4
 > **Last Updated:** 2026-07-14
 
 ---
+
+## [1.5.4] - 2026-07-14
+
+- **Reliable Portable Vaults**: Registrations now follow stable storage-volume identities across remount paths, preserve missing removable vaults, and detect missing, damaged, or replaced folders without recreating them.
+- **Complete Vault Transfers**: Same-vault and cross-vault copy and move operations are serialized safely, commit each selected item atomically, support replace, keep-both, skip, and directory-merge conflicts, and roll back cancelled work.
+- **Stronger Session Security**: Password strength confirmation, atomic password rotation, Android Keystore-backed biometric challenges, and independent transfer and external-access sessions keep foreground locking immediate.
+- **Private External Access**: Share and Open With grants use opaque expiring read-only streams directly from encrypted objects, survive an interactive lock, support revocation, and create no plaintext staging files.
 
 ## [1.5.3] - 2026-07-14
 

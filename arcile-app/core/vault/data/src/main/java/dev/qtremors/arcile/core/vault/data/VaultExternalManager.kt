@@ -7,7 +7,7 @@ import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
 import dev.qtremors.arcile.core.vault.crypto.VaultManifestCodec
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
-import java.io.File
+import dev.qtremors.arcile.core.vault.domain.VaultLocation
 
 internal data class OpenExternalVault(
     val id: VaultId,
@@ -15,6 +15,7 @@ internal data class OpenExternalVault(
     val name: String,
     val createdAtMillis: Long,
     val headerFingerprint: String,
+    val location: VaultLocation.Portable,
     val masterSecret: ByteArray? = null
 )
 
@@ -22,15 +23,15 @@ internal class VaultExternalManager(private val registry: VaultLocationRegistry)
     private val headerCodec = VaultManifestCodec()
     private val directoryCodec = VaultDirectoryManifestCodec()
 
-    fun create(path: String, name: String, password: CharArray): OpenExternalVault = try {
-        createVault(path, name, password)
+    fun create(target: ResolvedPortableVault, name: String, password: CharArray): OpenExternalVault = try {
+        createVault(target, name, password)
     } finally {
         password.fill('\u0000')
     }
 
-    private fun createVault(path: String, name: String, password: CharArray): OpenExternalVault {
+    private fun createVault(target: ResolvedPortableVault, name: String, password: CharArray): OpenExternalVault {
         val label = validateVaultName(name)
-        val access = portableDirectory(path)
+        val access = target.access
         if (access.directory.listFiles().orEmpty().isNotEmpty()) throw VaultFailure.FolderNotEmpty()
 
         val id = VaultId.random()
@@ -55,12 +56,13 @@ internal class VaultExternalManager(private val registry: VaultLocationRegistry)
                 label,
                 createdAt,
                 opened.headerFingerprint,
+                target.location,
                 openedSecret
             ).also { openedSecret = null }
             register(result)
             return result
         } catch (error: Throwable) {
-            access.directory.listFiles().orEmpty().forEach(File::deleteRecursively)
+            access.directory.listFiles().orEmpty().forEach { it.deleteRecursively() }
             throw error
         } finally {
             masterSecret.fill(0)
@@ -68,8 +70,8 @@ internal class VaultExternalManager(private val registry: VaultLocationRegistry)
         }
     }
 
-    fun attach(path: String): OpenExternalVault {
-        val access = portableDirectory(path)
+    fun attach(target: ResolvedPortableVault): OpenExternalVault {
+        val access = target.access
         val manifest = headerCodec.readPublic(access).getOrElse {
             throw VaultFailure.Unavailable("The selected folder is not an OnlyFiles vault", it)
         }
@@ -84,32 +86,24 @@ internal class VaultExternalManager(private val registry: VaultLocationRegistry)
             access,
             manifest.publicName,
             manifest.createdAtMillis,
-            manifest.headerFingerprint
+            manifest.headerFingerprint,
+            target.location
         )
     }
 
     fun register(vault: OpenExternalVault) {
         val existing = registry.find(vault.id)
-        if (existing != null && File(existing.path).canonicalPath != vault.access.directory.canonicalPath) {
-            throw VaultFailure.DuplicateVault(vault.id)
-        }
+        if (existing != null) throw VaultFailure.DuplicateVault(vault.id)
         registry.put(
             ExternalVaultPointer(
                 vaultId = vault.id.value,
-                path = vault.access.directory.canonicalPath,
+                volumeId = vault.location.volumeId,
+                relativePath = vault.location.relativePath,
                 cachedName = vault.name,
                 cachedCreatedAtMillis = vault.createdAtMillis,
                 headerFingerprint = vault.headerFingerprint
             )
         )
-    }
-
-    private fun portableDirectory(path: String): FileVaultDirectory {
-        val directory = File(path).canonicalFile
-        if (!directory.isDirectory || !directory.canRead() || !directory.canWrite()) {
-            throw VaultFailure.Unavailable("The selected folder is unavailable or read-only")
-        }
-        return FileVaultDirectory(directory)
     }
 
     private fun verifyRoot(access: FileVaultDirectory, id: VaultId, secret: ByteArray) {

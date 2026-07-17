@@ -27,8 +27,23 @@ interface VaultSessionManager {
         newPassword: CharArray,
         weakPasswordConfirmed: Boolean
     ): Result<Unit>
-    suspend fun enrollBiometric(vaultId: VaultId, password: CharArray): Result<Unit>
+    suspend fun prepareBiometricEnrollment(vaultId: VaultId, password: CharArray): Result<VaultBiometricChallenge>
+    suspend fun prepareBiometricUnlock(vaultId: VaultId): Result<VaultBiometricChallenge>
     suspend fun removeBiometric(vaultId: VaultId): Result<Unit>
+}
+
+enum class VaultBiometricPurpose { ENROLL, UNLOCK }
+
+/**
+ * One-shot, in-memory bridge to the platform BIOMETRIC_STRONG prompt. The platform object is an
+ * android.hardware.biometrics.BiometricPrompt.CryptoObject on Android and must never be persisted.
+ */
+interface VaultBiometricChallenge : Closeable {
+    val vaultId: VaultId
+    val purpose: VaultBiometricPurpose
+    val platformCryptoObject: Any
+    val isClosed: Boolean
+    suspend fun completeAfterAuthentication(): Result<Unit>
 }
 
 interface VaultSeekableReader : Closeable {
@@ -159,4 +174,28 @@ interface VaultHealthService {
     suspend fun verify(vaultId: VaultId, mode: VaultHealthMode): Result<VaultHealthReport>
     suspend fun cleanupOrphans(vaultId: VaultId, confirmedObjectIds: Set<VaultObjectId>): Result<Int>
     suspend fun recoverTransactions(vaultId: VaultId): Result<Unit>
+}
+
+data class VaultExternalGrant(
+    val token: String,
+    val contentUri: String,
+    val displayName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val expiresAtMillis: Long
+)
+
+data class VaultGrantedContent(
+    val displayName: String,
+    val mimeType: String,
+    val sizeBytes: Long,
+    val reader: VaultSeekableReader
+)
+
+interface VaultExternalAccessManager {
+    fun issue(ref: VaultNodeRef, lifetimeMillis: Long = 10 * 60 * 1000L): Result<VaultExternalGrant>
+    fun activeGrants(): List<VaultExternalGrant>
+    fun revoke(token: String): Boolean
+    fun revokeAll()
+    fun openGrantedContent(token: String): Result<VaultGrantedContent>
 }

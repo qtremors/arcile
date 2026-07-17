@@ -17,6 +17,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultLocationKind
+import dev.qtremors.arcile.core.vault.domain.VaultLocation
+import dev.qtremors.arcile.core.vault.domain.VaultAvailability
 import dev.qtremors.arcile.core.vault.domain.VaultName
 import dev.qtremors.arcile.core.vault.domain.VaultNode
 import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
@@ -32,6 +34,23 @@ import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultHealthService
 import dev.qtremors.arcile.core.vault.domain.VaultHealthSeverity
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
+import dev.qtremors.arcile.core.vault.domain.VaultCatalog
+import dev.qtremors.arcile.core.vault.domain.VaultCreationRequest
+import dev.qtremors.arcile.core.vault.domain.VaultAttachmentRequest
+import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
+import dev.qtremors.arcile.core.vault.domain.VaultUnlockOptions
+import dev.qtremors.arcile.core.vault.domain.VaultLeasePurpose
+import dev.qtremors.arcile.core.vault.domain.VaultKeyLease
+import dev.qtremors.arcile.core.vault.domain.VaultPasswordPolicy
+import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
+import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
+import dev.qtremors.arcile.core.vault.domain.VaultTransferAction
+import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
+import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
+import dev.qtremors.arcile.core.vault.domain.VaultItemResult
+import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
+import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
+import dev.qtremors.arcile.core.vault.domain.VaultBiometricPurpose
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
 import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
@@ -44,6 +63,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
@@ -61,12 +82,15 @@ import javax.inject.Singleton
 class DefaultVaultRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val dispatchers: ArcileDispatchers,
-    @param:ApplicationScope private val applicationScope: CoroutineScope
-) : VaultRepository, VaultHealthService, VaultFileSystem {
+    @param:ApplicationScope private val applicationScope: CoroutineScope,
+    private val portableLocationResolver: VaultPortableLocationResolver
+) : VaultRepository, VaultHealthService, VaultFileSystem, VaultCatalog, VaultSessionManager, VaultTransferCoordinator {
     private val headerCodec = VaultManifestCodec()
     private val directoryCodec = VaultDirectoryManifestCodec()
     private val fileCodec = VaultFileCodec()
     private val transactionManager = VaultTransactionManager(directoryCodec)
+    private val transferEngine = VaultTransferEngine(directoryCodec, fileCodec, transactionManager)
+    private val transferMutex = Mutex()
     private val vaultRoot = File(context.noBackupFilesDir, ROOT_DIRECTORY)
     private val sessions = ConcurrentHashMap<String, VaultSessionRecord>()
     private val locations = ConcurrentHashMap<String, VaultLocationRecord>()
@@ -76,16 +100,377 @@ class DefaultVaultRepository @Inject constructor(
     private val importEngine = VaultImportEngine(context, directoryCodec, fileCodec, transactionManager)
     private val externalManager = VaultExternalManager(locationRegistry)
     private val appPrivateManager = VaultAppPrivateManager(vaultRoot)
+    private val biometricStore = VaultBiometricStore(context)
 
     private val _vaults = MutableStateFlow<List<VaultSummary>>(emptyList())
     override val vaults: StateFlow<List<VaultSummary>> = _vaults.asStateFlow()
     private val _unlockedVaultIds = MutableStateFlow<Set<VaultId>>(emptySet())
     override val unlockedVaultIds: StateFlow<Set<VaultId>> = _unlockedVaultIds.asStateFlow()
+    private val transferProgress = MutableSharedFlow<VaultTransferProgress>(extraBufferCapacity = 64)
+    override val progress: Flow<VaultTransferProgress> = transferProgress
 
     init {
         applicationScope.launch(dispatchers.io) {
             cleanupInterruptedArtifacts(vaultRoot)
             refreshVaults()
+        }
+    }
+
+    override suspend fun list(): List<VaultSummary> = vaults.value
+
+    override suspend fun refresh() = refreshVaults()
+
+    override suspend fun create(request: VaultCreationRequest): Result<VaultId> {
+        return try {
+            VaultPasswordPolicy.requireAccepted(request.password, request.weakPasswordConfirmed)
+            when (val location = request.location) {
+                is VaultLocation.AppPrivate -> createAppPrivateVault(request.label, request.password)
+                is VaultLocation.Portable -> {
+                    val pointer = ExternalVaultPointer(
+                        vaultId = "pending",
+                        volumeId = location.volumeId,
+                        relativePath = location.relativePath,
+                        cachedName = request.label,
+                        cachedCreatedAtMillis = 0L
+                    )
+                    val target = portableLocationResolver.resolve(pointer)
+                    createUserFolderVault(target.access.directory.path, request.label, request.password)
+                }
+            }
+        } catch (error: Throwable) {
+            request.password.fill('\u0000')
+            if (error is CancellationException) throw error
+            Result.failure(error)
+        }
+    }
+
+    override suspend fun attach(request: VaultAttachmentRequest): Result<VaultId> = withContext(dispatchers.io) {
+        lifecycleMutex.withLock {
+            var openedSecret: ByteArray? = null
+            try {
+                val target = portableLocationResolver.resolve(
+                    ExternalVaultPointer(
+                        vaultId = "pending",
+                        volumeId = request.volumeId,
+                        relativePath = request.relativePath,
+                        cachedName = "",
+                        cachedCreatedAtMillis = 0L
+                    )
+                )
+                val attached = externalManager.attach(target)
+                if (locations.containsKey(attached.id.value) || locationRegistry.find(attached.id) != null) {
+                    throw VaultFailure.DuplicateVault(attached.id)
+                }
+                openedSecret = headerCodec.open(attached.access, request.password).getOrThrow().masterKey
+                externalManager.register(attached)
+                locations[attached.id.value] = VaultLocationRecord(
+                    attached.access,
+                    VaultLocationKind.PORTABLE,
+                    attached.location
+                )
+                refreshVaults()
+                Result.success(attached.id)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Result.failure(error)
+            } finally {
+                openedSecret?.fill(0)
+                request.password.fill('\u0000')
+            }
+        }
+    }
+
+    override suspend fun removeRegistration(vaultId: VaultId): Result<Unit> = withContext(dispatchers.io) {
+        lifecycleMutex.withLock {
+            catchingCancellation {
+                val location = locations[vaultId.value]
+                    ?: locationRegistry.find(vaultId)?.let { portableLocationResolver.resolve(it) }?.let {
+                        VaultLocationRecord(it.access, VaultLocationKind.PORTABLE, it.location)
+                    }
+                    ?: throw VaultFailure.NotFound(vaultId)
+                if (location.kind != VaultLocationKind.PORTABLE) {
+                    throw VaultFailure.Unavailable("App-private vaults cannot be removed without deleting their data")
+                }
+                if (importReservations.containsKey(vaultId.value)) throw VaultFailure.OperationInProgress()
+                requestLock(vaultId)
+                biometricStore.remove(vaultId)
+                locationRegistry.remove(vaultId)
+                locations.remove(vaultId.value)
+                refreshVaults()
+            }
+        }
+    }
+
+    override suspend fun deletePermanently(vaultId: VaultId, confirmation: String): Result<Unit> =
+        withContext(dispatchers.io) {
+            lifecycleMutex.withLock {
+                catchingCancellation {
+                    val summary = vaults.value.firstOrNull { it.id == vaultId } ?: throw VaultFailure.NotFound(vaultId)
+                    if (confirmation != summary.name) throw VaultFailure.DestructiveConfirmationRequired()
+                    if (importReservations.containsKey(vaultId.value)) throw VaultFailure.OperationInProgress()
+                    val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
+                    val publicHeader = headerCodec.readPublic(location.access).getOrThrow()
+                    if (publicHeader.id != vaultId) throw VaultFailure.StaleRegistration()
+                    requestLock(vaultId)
+                    biometricStore.remove(vaultId)
+                    when (location.kind) {
+                        VaultLocationKind.APP_PRIVATE -> (location.access as FileVaultDirectory).directory.deleteRecursively()
+                        VaultLocationKind.PORTABLE,
+                        VaultLocationKind.USER_FOLDER -> {
+                            val directory = (location.access as FileVaultDirectory).directory
+                            directory.listFiles().orEmpty().forEach { it.deleteRecursively() }
+                            locationRegistry.remove(vaultId)
+                        }
+                    }
+                    locations.remove(vaultId.value)
+                    refreshVaults()
+                }
+            }
+        }
+
+    override suspend fun unlock(vaultId: VaultId, options: VaultUnlockOptions): Result<Unit> {
+        val password = options.password
+            ?: return Result.failure(VaultFailure.AuthenticationFailed())
+        return unlock(vaultId, password)
+    }
+
+    override suspend fun lockInteractive(vaultId: VaultId) = lock(vaultId)
+
+    override suspend fun lockAllInteractive() = lockAll()
+
+    override fun acquireLease(vaultId: VaultId, purpose: VaultLeasePurpose): Result<VaultKeyLease> =
+        holdSession(vaultId).map { VaultKeyLeaseImpl(vaultId, purpose, it) }
+
+    override suspend fun changePassword(
+        vaultId: VaultId,
+        currentPassword: CharArray,
+        newPassword: CharArray,
+        weakPasswordConfirmed: Boolean
+    ): Result<Unit> = withContext(dispatchers.io) {
+        lifecycleMutex.withLock {
+            try {
+                VaultPasswordPolicy.requireAccepted(newPassword, weakPasswordConfirmed)
+                val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
+                val fingerprint = headerCodec.changePassword(location.access, currentPassword, newPassword).getOrThrow()
+                val pointer = locationRegistry.find(vaultId)
+                if (pointer != null) locationRegistry.put(pointer.copy(headerFingerprint = fingerprint, path = null))
+                refreshVaults()
+                Result.success(Unit)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Result.failure(error)
+            } finally {
+                currentPassword.fill('\u0000')
+                newPassword.fill('\u0000')
+            }
+        }
+    }
+
+    override suspend fun prepareBiometricEnrollment(
+        vaultId: VaultId,
+        password: CharArray
+    ): Result<VaultBiometricChallenge> {
+        var masterSecret: ByteArray? = null
+        return try {
+            val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
+            val opened = headerCodec.open(location.access, password).getOrThrow()
+            if (opened.id != vaultId) throw VaultFailure.StaleRegistration()
+            masterSecret = opened.masterKey
+            val cipher = biometricStore.prepareEnrollment(vaultId)
+            val ownedSecret = masterSecret
+            masterSecret = null
+            Result.success(
+                VaultBiometricChallengeImpl(
+                    vaultId,
+                    VaultBiometricPurpose.ENROLL,
+                    biometricStore.cryptoObject(cipher),
+                    ownedSecret
+                ) {
+                    biometricStore.finishEnrollment(vaultId, cipher, ownedSecret)
+                }
+            )
+        } catch (error: Throwable) {
+            Result.failure(error)
+        } finally {
+            masterSecret?.fill(0)
+            password.fill('\u0000')
+        }
+    }
+
+    override suspend fun prepareBiometricUnlock(vaultId: VaultId): Result<VaultBiometricChallenge> = try {
+        if (sessions.containsKey(vaultId.value)) throw VaultFailure.Unavailable("Vault is already unlocked")
+        val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
+        val cipher = biometricStore.prepareUnlock(vaultId)
+        Result.success(
+            VaultBiometricChallengeImpl(
+                vaultId,
+                VaultBiometricPurpose.UNLOCK,
+                biometricStore.cryptoObject(cipher)
+            ) {
+                var secret: ByteArray? = null
+                try {
+                    secret = biometricStore.finishUnlock(vaultId, cipher)
+                    transactionManager.recover(location.access, vaultId, secret)
+                    val candidate = VaultSessionRecord(vaultId, location.access, secret)
+                    candidate.root().let { root ->
+                        try {
+                            candidate.readDirectory(root).clearProtectedKeys()
+                        } finally {
+                            root.key.fill(0)
+                        }
+                    }
+                    synchronized(sessions) {
+                        sessions.put(vaultId.value, candidate)?.destroy()
+                    }
+                    secret = null
+                    publishUnlockedIds()
+                    _vaults.value = _vaults.value.map {
+                        if (it.id == vaultId) it.copy(isUnlocked = true) else it
+                    }
+                } catch (error: Throwable) {
+                    if (error is VaultFailure.BiometricInvalidated) biometricStore.remove(vaultId)
+                    throw error
+                } finally {
+                    secret?.fill(0)
+                }
+            }
+        )
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }
+
+    override suspend fun removeBiometric(vaultId: VaultId): Result<Unit> = withContext(dispatchers.io) {
+        runCatching {
+            biometricStore.remove(vaultId)
+            Unit
+        }
+    }
+
+    override suspend fun copyWithinVault(
+        sources: List<VaultNodeRef>,
+        destination: DirectoryId,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        val vaultId = sources.firstOrNull()?.vaultId ?: return VaultBatchResult(emptyList())
+        require(sources.all { it.vaultId == vaultId })
+        return runTransfer(
+            VaultTransferAction.COPY,
+            sources,
+            listOf(vaultId),
+            cancellation
+        ) { sessionsById, source ->
+            transferEngine.copyOne(
+                requireNotNull(sessionsById[source.vaultId]), source,
+                requireNotNull(sessionsById[vaultId]), destination, conflicts, cancellation
+            )
+        }
+    }
+
+    override suspend fun moveWithinVault(
+        sources: List<VaultNodeRef>,
+        destination: DirectoryId,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        val vaultId = sources.firstOrNull()?.vaultId ?: return VaultBatchResult(emptyList())
+        require(sources.all { it.vaultId == vaultId })
+        return runTransfer(
+            VaultTransferAction.MOVE,
+            sources,
+            listOf(vaultId),
+            cancellation
+        ) { sessionsById, source ->
+            transferEngine.moveOneWithinVault(
+                requireNotNull(sessionsById[vaultId]), source, destination, conflicts, cancellation
+            )
+        }
+    }
+
+    override suspend fun transferAcrossVaults(
+        sources: List<VaultNodeRef>,
+        destinationVault: VaultId,
+        destination: DirectoryId,
+        move: Boolean,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        require(sources.all { it.vaultId != destinationVault })
+        val vaultIds = (sources.map(VaultNodeRef::vaultId) + destinationVault).distinct()
+        return runTransfer(
+            if (move) VaultTransferAction.MOVE else VaultTransferAction.COPY,
+            sources,
+            vaultIds,
+            cancellation
+        ) { sessionsById, source ->
+            val copied = transferEngine.copyOne(
+                requireNotNull(sessionsById[source.vaultId]), source,
+                requireNotNull(sessionsById[destinationVault]), destination, conflicts, cancellation
+            )
+            if (move && copied.outcome == VaultItemOutcome.COMPLETED) {
+                transferEngine.deleteOne(requireNotNull(sessionsById[source.vaultId]), source)
+            }
+            copied
+        }
+    }
+
+    private suspend fun runTransfer(
+        action: VaultTransferAction,
+        sources: List<VaultNodeRef>,
+        vaultIds: List<VaultId>,
+        cancellation: VaultCancellationSignal,
+        operation: suspend (Map<VaultId, VaultSessionRecord>, VaultNodeRef) -> VaultItemResult
+    ): VaultBatchResult = withContext(dispatchers.io) {
+        transferMutex.withLock {
+            val operationSessions = mutableMapOf<VaultId, VaultSessionRecord>()
+            val locked = mutableListOf<Mutex>()
+            try {
+                vaultIds.distinct().forEach { id ->
+                    val interactive = sessions[id.value] ?: throw VaultFailure.Locked(id)
+                    operationSessions[id] = interactive.copyForOperation()
+                }
+                operationSessions.entries.sortedBy { it.key.value }.forEach { (_, session) ->
+                    session.mutationMutex.lock()
+                    locked += session.mutationMutex
+                }
+                val results = mutableListOf<VaultItemResult>()
+                for ((index, source) in sources.withIndex()) {
+                    if (cancellation.isCancelled()) {
+                        results += sources.drop(index).map {
+                            VaultItemResult(
+                                "${it.vaultId.value}:${it.nodeId.value}",
+                                "",
+                                VaultItemOutcome.ROLLED_BACK,
+                                VaultFailure.Cancelled()
+                            )
+                        }
+                        break
+                    }
+                    transferProgress.emit(
+                        VaultTransferProgress(action, null, index, sources.size, 0L, null)
+                    )
+                    val result = try {
+                        operation(operationSessions, source)
+                    } catch (error: Throwable) {
+                        if (error is CancellationException) throw error
+                        VaultItemResult(
+                            "${source.vaultId.value}:${source.nodeId.value}",
+                            "",
+                            if (error is VaultFailure.Cancelled) VaultItemOutcome.ROLLED_BACK else VaultItemOutcome.FAILED,
+                            error as? VaultFailure ?: VaultFailure.Unavailable("Vault transfer failed", error)
+                        )
+                    }
+                    results += result
+                    transferProgress.emit(
+                        VaultTransferProgress(action, result.displayName, index + 1, sources.size, 0L, null)
+                    )
+                    if (result.failure is VaultFailure.Cancelled) break
+                }
+                VaultBatchResult(results)
+            } finally {
+                locked.asReversed().forEach(Mutex::unlock)
+                operationSessions.values.forEach(VaultSessionRecord::destroy)
+            }
         }
     }
 
@@ -95,7 +480,11 @@ class DefaultVaultRepository @Inject constructor(
             .filter { it.isDirectory && !it.name.startsWith(STAGING_PREFIX) }
             .mapNotNull { directory ->
                 headerCodec.readPublic(directory).getOrNull()?.let { header ->
-                    locations[header.id.value] = VaultLocationRecord(FileVaultDirectory(directory), VaultLocationKind.APP_PRIVATE)
+                    locations[header.id.value] = VaultLocationRecord(
+                        FileVaultDirectory(directory),
+                        VaultLocationKind.APP_PRIVATE,
+                        VaultLocation.AppPrivate(directory.name)
+                    )
                     VaultSummary(
                         id = header.id,
                         name = header.publicName,
@@ -111,13 +500,20 @@ class DefaultVaultRepository @Inject constructor(
         val portable = locationRegistry.load().mapNotNull { pointer ->
             val pointerId = runCatching { VaultId.of(pointer.vaultId) }.getOrNull() ?: return@mapNotNull null
             if (pointerId.value in privateIds) return@mapNotNull null
-            val access = FileVaultDirectory(File(pointer.path))
             runCatching {
+                val resolved = portableLocationResolver.resolve(pointer)
+                val access = resolved.access
                 val header = headerCodec.readPublic(access).getOrThrow()
                 if (header.id != pointerId) throw VaultFailure.StaleRegistration()
-                locations[header.id.value] = VaultLocationRecord(access, VaultLocationKind.PORTABLE)
+                if (pointer.headerFingerprint.isNotBlank() && pointer.headerFingerprint != header.headerFingerprint) {
+                    throw VaultFailure.StaleRegistration()
+                }
+                locations[header.id.value] = VaultLocationRecord(access, VaultLocationKind.PORTABLE, resolved.location)
                 locationRegistry.put(
-                    pointer.copy(
+                    ExternalVaultPointer(
+                        vaultId = pointer.vaultId,
+                        volumeId = resolved.location.volumeId,
+                        relativePath = resolved.location.relativePath,
                         cachedName = header.publicName,
                         cachedCreatedAtMillis = header.createdAtMillis,
                         headerFingerprint = header.headerFingerprint
@@ -140,10 +536,11 @@ class DefaultVaultRepository @Inject constructor(
                     createdAtMillis = pointer.cachedCreatedAtMillis,
                     isUnlocked = false,
                     isAvailable = false,
-                    availability = if (failure is VaultFailure.StaleRegistration) {
-                        dev.qtremors.arcile.core.vault.domain.VaultAvailability.STALE_REGISTRATION
-                    } else {
-                        dev.qtremors.arcile.core.vault.domain.VaultAvailability.VOLUME_MISSING
+                    availability = when (failure) {
+                        is VaultFailure.RemovableStorageMissing -> VaultAvailability.VOLUME_MISSING
+                        is VaultFailure.StaleRegistration -> VaultAvailability.STALE_REGISTRATION
+                        is VaultFailure.IntegrityFailed -> VaultAvailability.DAMAGED_HEADER
+                        else -> VaultAvailability.FOLDER_MISSING
                     },
                     headerFingerprint = pointer.headerFingerprint
                 )
@@ -162,7 +559,11 @@ class DefaultVaultRepository @Inject constructor(
             lifecycleMutex.withLock {
                 catchingCancellation {
                     val created = appPrivateManager.create(name, password)
-                    locations[created.id.value] = VaultLocationRecord(created.access, VaultLocationKind.APP_PRIVATE)
+                    locations[created.id.value] = VaultLocationRecord(
+                        created.access,
+                        VaultLocationKind.APP_PRIVATE,
+                        VaultLocation.AppPrivate(created.access.directory.name)
+                    )
                     sessions[created.id.value] = VaultSessionRecord(created.id, created.access, created.masterSecret)
                     refreshVaults()
                     created.id
@@ -174,9 +575,14 @@ class DefaultVaultRepository @Inject constructor(
         withContext(dispatchers.io) {
             lifecycleMutex.withLock {
                 catchingCancellation {
-                    val created = externalManager.create(path, name, password)
+                    val target = portableLocationResolver.identify(path)
+                    val created = externalManager.create(target, name, password)
                     val secret = requireNotNull(created.masterSecret)
-                    locations[created.id.value] = VaultLocationRecord(created.access, VaultLocationKind.PORTABLE)
+                    locations[created.id.value] = VaultLocationRecord(
+                        created.access,
+                        VaultLocationKind.PORTABLE,
+                        created.location
+                    )
                     sessions[created.id.value] = VaultSessionRecord(created.id, created.access, secret)
                     refreshVaults()
                     created.id
@@ -187,12 +593,17 @@ class DefaultVaultRepository @Inject constructor(
     override suspend fun attachExistingVault(path: String): Result<VaultId> = withContext(dispatchers.io) {
         lifecycleMutex.withLock {
             catchingCancellation {
-                val attached = externalManager.attach(path)
+                val target = portableLocationResolver.identify(path)
+                val attached = externalManager.attach(target)
                 if (locations.containsKey(attached.id.value) || locationRegistry.find(attached.id) != null) {
                     throw VaultFailure.DuplicateVault(attached.id)
                 }
                 externalManager.register(attached)
-                locations[attached.id.value] = VaultLocationRecord(attached.access, VaultLocationKind.PORTABLE)
+                locations[attached.id.value] = VaultLocationRecord(
+                    attached.access,
+                    VaultLocationKind.PORTABLE,
+                    attached.location
+                )
                 refreshVaults()
                 attached.id
             }
@@ -734,6 +1145,24 @@ class DefaultVaultRepository @Inject constructor(
         importReservations[token] = operation
         selectionLease?.close()
         return token
+    }
+
+    internal fun createExternalAccessSession(ref: VaultNodeRef): Pair<VaultSessionRecord, VaultNodeMetadata> {
+        val interactive = sessions[ref.vaultId.value] ?: throw VaultFailure.Locked(ref.vaultId)
+        val operation = interactive.copyForOperation()
+        return try {
+            val (parent, snapshot, entry) = resolveStableEntry(operation, ref)
+            try {
+                operation to entry.toMetadata(operation.id, parent.id)
+            } finally {
+                entry.protectedKey.fill(0)
+                snapshot.clearProtectedKeys()
+                parent.key.fill(0)
+            }
+        } catch (error: Throwable) {
+            operation.destroy()
+            throw error
+        }
     }
 
     internal fun releaseImportReservation(token: String) {

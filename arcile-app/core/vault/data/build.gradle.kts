@@ -31,6 +31,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core:runtime"))
+    implementation(project(":core:storage:domain"))
     implementation(project(":core:vault:domain"))
     implementation(project(":core:vault:crypto"))
     implementation(project(":core:ui"))

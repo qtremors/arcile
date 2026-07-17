@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.vault.crypto.VaultManifestCodec
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultLocation
+import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -40,14 +42,15 @@ class VaultExternalManagerTest {
     @Test
     fun `portable vault creates attaches and never overwrites its folder`() {
         val password = "portable secret".toCharArray()
-        val created = manager.create(directory.path, "Portable", password)
+        val target = ResolvedPortableVault(VaultLocation.Portable("test", "portable-vault-test"), FileVaultDirectory(directory))
+        val created = manager.create(target, "Portable", password)
         assertTrue(password.all { it == '\u0000' })
         assertEquals("Portable", VaultManifestCodec().readPublic(directory).getOrThrow().publicName)
-        assertEquals(created.id, manager.attach(directory.path).id)
+        assertEquals(created.id, manager.attach(target).id)
 
         val replacementPassword = "replacement".toCharArray()
         val failure = runCatching {
-            manager.create(directory.path, "Replacement", replacementPassword)
+            manager.create(target, "Replacement", replacementPassword)
         }.exceptionOrNull()
         assertTrue(failure is VaultFailure.FolderNotEmpty)
         assertTrue(replacementPassword.all { it == '\u0000' })

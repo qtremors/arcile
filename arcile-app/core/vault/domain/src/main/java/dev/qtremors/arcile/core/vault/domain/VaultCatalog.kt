@@ -54,7 +54,7 @@ data class VaultAttachmentRequest(
 
 interface VaultCatalog {
     suspend fun list(): List<VaultSummary>
-    suspend fun refresh(): List<VaultSummary>
+    suspend fun refresh()
     suspend fun create(request: VaultCreationRequest): Result<VaultId>
     suspend fun attach(request: VaultAttachmentRequest): Result<VaultId>
     suspend fun removeRegistration(vaultId: VaultId): Result<Unit>

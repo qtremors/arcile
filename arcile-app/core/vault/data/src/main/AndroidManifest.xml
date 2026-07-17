@@ -4,5 +4,10 @@
             android:name="dev.qtremors.arcile.core.vault.data.VaultImportService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <provider
+            android:name="dev.qtremors.arcile.core.vault.data.VaultExternalContentProvider"
+            android:authorities="${applicationId}.onlyfiles.external"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>

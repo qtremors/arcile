@@ -5,6 +5,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.vault.domain.VaultSessionLease
+import dev.qtremors.arcile.core.vault.domain.VaultKeyLease
+import dev.qtremors.arcile.core.vault.domain.VaultLeasePurpose
 import java.io.File
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
@@ -59,6 +61,18 @@ internal class VaultSessionLeaseImpl(
     fun detachToReservation(): Boolean = closed.compareAndSet(false, true)
     override fun close() {
         if (closed.compareAndSet(false, true)) release(session)
+    }
+}
+
+internal class VaultKeyLeaseImpl(
+    override val vaultId: VaultId,
+    override val purpose: VaultLeasePurpose,
+    private val delegate: VaultSessionLease
+) : VaultKeyLease {
+    private val closed = AtomicBoolean(false)
+    override val isClosed: Boolean get() = closed.get()
+    override fun close() {
+        if (closed.compareAndSet(false, true)) delegate.close()
     }
 }
 

@@ -32,9 +32,9 @@ internal class VaultSessionRecord(
     val id: VaultId,
     val directory: VaultDirectoryAccess,
     val masterSecret: ByteArray,
-    private val manifestCodec: VaultDirectoryManifestCodec = VaultDirectoryManifestCodec()
+    private val manifestCodec: VaultDirectoryManifestCodec = VaultDirectoryManifestCodec(),
+    val mutationMutex: Mutex = Mutex()
 ) {
-    val mutationMutex = Mutex()
     var holdCount: Int = 0
     var lockRequested: Boolean = false
     private val directoryKeys = ConcurrentHashMap<String, ByteArray>()
@@ -159,6 +159,7 @@ internal class VaultSessionRecord(
     }
 
     fun destroy() {
+        synchronized(this) { lockRequested = true }
         activeReaders.toList().forEach { runCatching { it.close() } }
         activeReaders.clear()
         masterSecret.fill(0)
@@ -176,7 +177,7 @@ internal class VaultSessionRecord(
 
     fun copyForOperation(): VaultSessionRecord = synchronized(this) {
         check(!lockRequested) { "Interactive vault session is closing" }
-        VaultSessionRecord(id, directory, masterSecret.copyOf(), manifestCodec)
+        VaultSessionRecord(id, directory, masterSecret.copyOf(), manifestCodec, mutationMutex)
     }
 
     companion object {
