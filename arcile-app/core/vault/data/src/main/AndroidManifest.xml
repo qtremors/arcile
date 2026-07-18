@@ -9,5 +9,8 @@
             android:authorities="${applicationId}.onlyfiles.external"
             android:exported="false"
             android:grantUriPermissions="true" />
+        <receiver
+            android:name="dev.qtremors.arcile.core.vault.data.VaultExternalGrantReceiver"
+            android:exported="false" />
     </application>
 </manifest>

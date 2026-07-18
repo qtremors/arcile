@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -24,27 +24,41 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -70,48 +84,62 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import dev.qtremors.arcile.core.vault.domain.VaultNode
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.ui.lists.FileGrid
+import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
+import dev.qtremors.arcile.core.ui.lists.FileList
+import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
+import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
+import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
+import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
+import dev.qtremors.arcile.core.vault.domain.VaultImportState
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
+import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import java.text.DateFormat
+
+internal enum class CreateItemKind { FOLDER, FILE }
+internal enum class ExternalAction { SHARE, OPEN_WITH }
 
 @Composable
 internal fun OnlyFilesRoute(
     onNavigateBack: () -> Unit,
+    onPlayVideo: (VideoPlaybackSession) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val filesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         }
         viewModel.finishImportSelection(uris.map(Uri::toString))
     }
     val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        if (uri != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
+        uri?.let {
+            runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         }
         viewModel.finishImportSelection(listOfNotNull(uri?.toString()))
     }
     BackHandler {
-        if (state.folderPicker != null) viewModel.navigateVaultFolderUp()
-        else if (!viewModel.navigateUp()) onNavigateBack()
+        when {
+            state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
+            state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
+            state.searchQuery.isNotEmpty() -> viewModel.updateSearch("")
+            state.folderPicker != null -> viewModel.navigateVaultFolderUp()
+            !viewModel.navigateUp() -> onNavigateBack()
+        }
     }
-
     OnlyFilesScreen(
         state = state,
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
-        onImportFiles = {
-            if (viewModel.beginImportSelection()) filesLauncher.launch(arrayOf("*/*"))
-        },
-        onImportFolder = {
-            if (viewModel.beginImportSelection()) folderLauncher.launch(null)
-        }
+        onPlayVideo = onPlayVideo,
+        onImportFiles = { if (viewModel.beginImportSelection()) filesLauncher.launch(arrayOf("*/*")) },
+        onImportFolder = { if (viewModel.beginImportSelection()) folderLauncher.launch(null) }
     )
 }
 
@@ -121,66 +149,150 @@ private fun OnlyFilesScreen(
     state: OnlyFilesUiState,
     viewModel: OnlyFilesViewModel,
     onNavigateBack: () -> Unit,
+    onPlayVideo: (VideoPlaybackSession) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit
 ) {
+    val context = LocalContext.current
     val snackbarHost = remember { SnackbarHostState() }
-    var showCreate by remember { mutableStateOf(false) }
+    var showCreateVault by remember { mutableStateOf(false) }
     var unlockVault by remember { mutableStateOf<VaultSummary?>(null) }
-    var folderDialog by remember { mutableStateOf(false) }
-    var actionNode by remember { mutableStateOf<VaultNode?>(null) }
+    var createItem by remember { mutableStateOf<CreateItemKind?>(null) }
+    var renameNode by remember { mutableStateOf<VaultNodeMetadata?>(null) }
+    var deleteNodes by remember { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
+    var showSort by remember { mutableStateOf(false) }
+    var showOverflow by remember { mutableStateOf(false) }
+    var externalRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
 
     LaunchedEffect(state.message) {
-        state.message?.let {
-            snackbarHost.showSnackbar(it)
-            viewModel.clearMessage()
-        }
+        state.message?.let { snackbarHost.showSnackbar(it); viewModel.clearMessage() }
     }
 
     state.viewer?.let { node ->
-        ViewerScreen(state, node, viewModel, viewModel::navigateUp)
+        ViewerScreen(node, viewModel, viewModel::navigateUp)
         return
     }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
-            TopAppBar(
-                title = { Text(state.selectedVault?.name ?: stringResource(R.string.onlyfiles_title)) },
-                navigationIcon = {
-                    IconButton(onClick = {
-                        if (!viewModel.navigateUp()) onNavigateBack()
-                    }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.onlyfiles_back))
-                    }
-                },
-                actions = {
-                    if (state.selectedVault != null) {
-                        IconButton(onClick = onImportFiles) {
-                            Icon(Icons.Default.UploadFile, stringResource(R.string.onlyfiles_import_files))
+            Column {
+                if (state.selectedNodeIds.isNotEmpty()) {
+                    SelectionTopBar(
+                        state,
+                        viewModel,
+                        onRename = { renameNode = state.selectedNodes.singleOrNull() },
+                        onDelete = { deleteNodes = state.selectedNodes },
+                        onShare = { externalRequest = ExternalAction.SHARE to state.selectedNodes },
+                        onOpenWith = {
+                            state.selectedNodes.singleOrNull()?.takeUnless(VaultNodeMetadata::isDirectory)?.let {
+                                externalRequest = ExternalAction.OPEN_WITH to listOf(it)
+                            }
                         }
-                        IconButton(onClick = { folderDialog = true }) {
-                            Icon(Icons.Default.CreateNewFolder, stringResource(R.string.onlyfiles_new_folder))
-                        }
-                        IconButton(onClick = viewModel::lockCurrent) {
-                            Icon(Icons.Default.Lock, stringResource(R.string.onlyfiles_lock))
-                        }
-                    } else {
-                        TextButton(onClick = viewModel::beginAttachVault) {
-                            Text(stringResource(R.string.onlyfiles_add_existing))
-                        }
-                        if (state.vaults.any(VaultSummary::isUnlocked)) {
-                            TextButton(onClick = viewModel::lockAll) { Text(stringResource(R.string.onlyfiles_lock_all)) }
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-            )
+                    )
+                } else {
+                    TopAppBar(
+                        title = { Text(state.selectedVault?.name ?: stringResource(R.string.onlyfiles_title)) },
+                        navigationIcon = {
+                            IconButton(onClick = { if (!viewModel.navigateUp()) onNavigateBack() }) {
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.onlyfiles_back))
+                            }
+                        },
+                        actions = {
+                            if (state.selectedVault != null) {
+                                IconButton(onClick = viewModel::toggleLayout) {
+                                    Icon(
+                                        if (state.layout == OnlyFilesLayout.LIST) Icons.Default.GridView else Icons.Default.ViewList,
+                                        stringResource(R.string.onlyfiles_change_layout)
+                                    )
+                                }
+                                IconButton(onClick = { showSort = true }) {
+                                    Icon(Icons.Default.Sort, stringResource(R.string.onlyfiles_sort))
+                                }
+                                IconButton(onClick = { showOverflow = true }) {
+                                    Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
+                                }
+                                DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.onlyfiles_refresh)) },
+                                        leadingIcon = { Icon(Icons.Default.Refresh, null) },
+                                        onClick = { showOverflow = false; viewModel.refresh() }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.onlyfiles_import_files)) },
+                                        leadingIcon = { Icon(Icons.Default.UploadFile, null) },
+                                        onClick = { showOverflow = false; onImportFiles() }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.onlyfiles_import_folder)) },
+                                        leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) },
+                                        onClick = { showOverflow = false; onImportFolder() }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.onlyfiles_health_check)) },
+                                        leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
+                                        onClick = { showOverflow = false; viewModel.verifyHealth(VaultHealthMode.QUICK) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.onlyfiles_lock)) },
+                                        leadingIcon = { Icon(Icons.Default.Lock, null) },
+                                        onClick = { showOverflow = false; viewModel.lockCurrent() }
+                                    )
+                                }
+                            } else {
+                                TextButton(onClick = viewModel::beginAttachVault) {
+                                    Text(stringResource(R.string.onlyfiles_add_existing))
+                                }
+                                if (state.vaults.any(VaultSummary::isUnlocked)) {
+                                    TextButton(onClick = viewModel::lockAll) { Text(stringResource(R.string.onlyfiles_lock_all)) }
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+                    )
+                }
+                if (state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
+                    SearchRow(state, viewModel)
+                }
+            }
         },
         floatingActionButton = {
-            if (state.selectedVault == null) {
-                FloatingActionButton(onClick = { showCreate = true }) {
-                    Icon(Icons.Default.Add, stringResource(R.string.onlyfiles_create))
+            FloatingActionButton(onClick = {
+                if (state.selectedVault == null) showCreateVault = true else createItem = CreateItemKind.FOLDER
+            }) {
+                Icon(Icons.Default.Add, stringResource(if (state.selectedVault == null) R.string.onlyfiles_create else R.string.onlyfiles_new_item))
+            }
+        },
+        bottomBar = {
+            Column {
+                state.clipboard?.let { clipboard ->
+                    Surface(tonalElevation = 4.dp) {
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.onlyfiles_clipboard_count, clipboard.sources.size),
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = viewModel::clearClipboard) { Text(stringResource(R.string.onlyfiles_clear)) }
+                            Button(onClick = viewModel::paste, enabled = !state.busy) { Text(stringResource(R.string.onlyfiles_paste)) }
+                        }
+                    }
+                }
+                state.transferProgress?.let { progress ->
+                    Surface(tonalElevation = 6.dp) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                            LinearProgressIndicator(
+                                progress = { progress.completedTopLevelItems.toFloat() / progress.totalTopLevelItems.coerceAtLeast(1) },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(progress.currentName ?: stringResource(R.string.onlyfiles_processing), Modifier.weight(1f), maxLines = 1)
+                                TextButton(onClick = viewModel::cancelTransfer) { Text(stringResource(R.string.onlyfiles_cancel)) }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -188,282 +300,155 @@ private fun OnlyFilesScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (state.selectedVault == null) {
                 VaultList(
-                    vaults = state.vaults,
-                    imports = state.activeImports,
-                    onOpen = { vault -> if (!viewModel.openVault(vault)) unlockVault = vault },
+                    state.vaults,
+                    state.activeImports,
+                    onOpen = { if (!viewModel.openVault(it)) unlockVault = it },
                     onCancelImport = viewModel::cancelImport
                 )
                 if (state.vaults.isEmpty()) {
-                    Text(
-                        stringResource(R.string.onlyfiles_empty),
-                        modifier = Modifier.align(Alignment.Center),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Text(stringResource(R.string.onlyfiles_empty), Modifier.align(Alignment.Center))
                 }
             } else {
                 VaultBrowser(
-                    nodes = state.nodes,
-                    onOpen = viewModel::open,
-                    onMore = { actionNode = it },
+                    state = state,
+                    onOpen = { node ->
+                        val vaultId = state.selectedVaultId
+                        if (node.isViewableVideo() && vaultId != null) {
+                            onPlayVideo(createVaultVideoPlaybackSession(state.displayedNodes, vaultId, node, viewModel::openReader))
+                        } else viewModel.open(node)
+                    },
+                    onToggleSelection = viewModel::toggleSelection,
+                    onSelectRange = viewModel::selectRange,
+                    onLoadMore = viewModel::loadNextPage,
                     onImportFiles = onImportFiles,
                     onImportFolder = onImportFolder
                 )
             }
-            if (state.busy) {
-                Surface(color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f), modifier = Modifier.fillMaxSize()) {
+            if (state.busy && state.transferProgress == null && state.pendingConflict == null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f),
+                    modifier = Modifier.fillMaxSize()
+                ) {
                     Box(contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 }
             }
         }
     }
 
-    if (showCreate) {
-        CreateVaultDialog(
-            onDismiss = { showCreate = false },
-            onCreateAppPrivate = { name, password ->
-                showCreate = false
-                viewModel.createAppPrivateVault(name, password)
-            },
-            onChooseFolder = { name, password ->
-                showCreate = false
-                viewModel.beginFolderVaultCreation(name, password)
-            }
-        )
-    }
+    if (showCreateVault) CreateVaultDialog(
+        onDismiss = { showCreateVault = false },
+        onCreateAppPrivate = { name, password -> showCreateVault = false; viewModel.createAppPrivateVault(name, password) },
+        onChooseFolder = { name, password -> showCreateVault = false; viewModel.beginFolderVaultCreation(name, password) }
+    )
     unlockVault?.let { vault ->
-        PasswordDialog(
-            title = vault.name,
-            actionLabel = stringResource(R.string.onlyfiles_unlock),
-            onDismiss = { unlockVault = null },
-            onSubmit = { password ->
-                unlockVault = null
-                viewModel.unlock(vault.id, password)
+        PasswordDialog(vault.name, stringResource(R.string.onlyfiles_unlock), { unlockVault = null }) {
+            unlockVault = null; viewModel.unlock(vault.id, it)
+        }
+    }
+    createItem?.let { kind ->
+        CreateItemDialog(
+            initialKind = kind,
+            onDismiss = { createItem = null },
+            onCreate = { selectedKind, name ->
+                createItem = null
+                if (selectedKind == CreateItemKind.FOLDER) viewModel.createFolder(name) else viewModel.createEmptyFile(name)
             }
         )
     }
-    if (folderDialog) {
-        NameDialog(
-            title = stringResource(R.string.onlyfiles_new_folder),
-            initial = "",
-            onDismiss = { folderDialog = false },
-            onSubmit = {
-                folderDialog = false
-                viewModel.createFolder(it)
-            }
+    renameNode?.let { node ->
+        NameDialog(stringResource(R.string.onlyfiles_rename), node.name, { renameNode = null }) {
+            renameNode = null; viewModel.rename(node, it)
+        }
+    }
+    if (deleteNodes.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { deleteNodes = emptyList() },
+            title = { Text(stringResource(R.string.onlyfiles_delete)) },
+            text = { Text(stringResource(R.string.onlyfiles_delete_many_confirm, deleteNodes.size)) },
+            confirmButton = { Button(onClick = { val nodes = deleteNodes; deleteNodes = emptyList(); viewModel.delete(nodes) }) { Text(stringResource(R.string.onlyfiles_delete)) } },
+            dismissButton = { TextButton(onClick = { deleteNodes = emptyList() }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
         )
     }
-    actionNode?.let { node ->
-        ItemActionDialog(
-            node = node,
-            onDismiss = { actionNode = null },
-            onRename = { newName ->
-                actionNode = null
-                viewModel.rename(node, newName)
+    if (showSort) SortDialog(state, onDismiss = { showSort = false }) { field, direction ->
+        showSort = false; viewModel.setSort(field, direction)
+    }
+    state.properties.takeIf(List<VaultNodeMetadata>::isNotEmpty)?.let { PropertiesDialog(it, viewModel::dismissProperties) }
+    state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
+    state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
+    externalRequest?.let { (action, nodes) ->
+        AlertDialog(
+            onDismissRequest = { externalRequest = null },
+            title = { Text(stringResource(if (action == ExternalAction.SHARE) R.string.onlyfiles_share else R.string.onlyfiles_open_with)) },
+            text = { Text(stringResource(R.string.onlyfiles_external_warning)) },
+            confirmButton = {
+                Button(onClick = {
+                    externalRequest = null
+                    viewModel.issueExternalAccess(nodes) { grants ->
+                        runCatching { launchExternalIntent(context, action, grants) }
+                            .onFailure { viewModel.revokeExternalAccess(grants) }
+                    }
+                }) { Text(stringResource(R.string.onlyfiles_continue)) }
             },
-            onDelete = {
-                actionNode = null
-                viewModel.delete(node)
-            }
+            dismissButton = { TextButton(onClick = { externalRequest = null }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
         )
     }
     state.folderPicker?.let { picker ->
         VaultFolderPickerDialog(
-            state = picker,
-            onOpen = viewModel::openVaultFolder,
-            onUp = viewModel::navigateVaultFolderUp,
-            onChoose = viewModel::chooseVaultFolder,
-            onDismiss = viewModel::cancelVaultFolderPicker
+            picker,
+            viewModel::openVaultFolder,
+            viewModel::navigateVaultFolderUp,
+            viewModel::chooseVaultFolder,
+            viewModel::cancelVaultFolderPicker
         )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VaultList(
-    vaults: List<VaultSummary>,
-    imports: Map<dev.qtremors.arcile.core.vault.domain.VaultId, dev.qtremors.arcile.core.vault.domain.VaultImportState>,
-    onOpen: (VaultSummary) -> Unit,
-    onCancelImport: (dev.qtremors.arcile.core.vault.domain.VaultId) -> Unit
+private fun SelectionTopBar(
+    state: OnlyFilesUiState,
+    viewModel: OnlyFilesViewModel,
+    onRename: () -> Unit,
+    onDelete: () -> Unit,
+    onShare: () -> Unit,
+    onOpenWith: () -> Unit
 ) {
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(vaults, key = { it.id.value }) { vault ->
-            Surface(
-                modifier = Modifier.fillMaxWidth().clickable { onOpen(vault) },
-                shape = RoundedCornerShape(20.dp),
-                tonalElevation = 2.dp
-            ) {
-                Column(Modifier.padding(18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Icon(if (vault.isUnlocked) Icons.Outlined.FolderOpen else Icons.Outlined.Lock, null)
-                        Column(Modifier.weight(1f)) {
-                            Text(vault.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                if (vault.isAvailable) {
-                                    stringResource(
-                                        if (vault.locationKind == dev.qtremors.arcile.core.vault.domain.VaultLocationKind.USER_FOLDER) {
-                                            R.string.onlyfiles_user_folder
-                                        } else {
-                                            R.string.onlyfiles_app_storage
-                                        }
-                                    ) + " · " + DateFormat.getDateInstance().format(vault.createdAtMillis)
-                                } else {
-                                    stringResource(R.string.onlyfiles_folder_unavailable)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    imports[vault.id]?.let { import ->
-                        Spacer(Modifier.height(12.dp))
-                        val progress = import.progress
-                        val totalBytes = progress?.totalBytes
-                        if (totalBytes != null && totalBytes > 0L) {
-                            LinearProgressIndicator(
-                                progress = { progress.bytesCopied.toFloat() / totalBytes.toFloat() },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        } else {
-                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                        }
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                stringResource(
-                                    R.string.onlyfiles_importing,
-                                    progress?.completedItems ?: 0,
-                                    progress?.totalItems ?: 0
-                                ),
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                            TextButton(onClick = { onCancelImport(vault.id) }, enabled = !import.isCancelling) {
-                                Text(stringResource(R.string.onlyfiles_cancel_import))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun VaultBrowser(
-    nodes: List<VaultNode>,
-    onOpen: (VaultNode) -> Unit,
-    onMore: (VaultNode) -> Unit,
-    onImportFiles: () -> Unit,
-    onImportFolder: () -> Unit
-) {
-    if (nodes.isEmpty()) {
-        Column(
-            Modifier.fillMaxSize().padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(stringResource(R.string.onlyfiles_empty_folder))
-            Spacer(Modifier.height(16.dp))
-            FilledTonalButton(onClick = onImportFiles) { Text(stringResource(R.string.onlyfiles_import_files)) }
-            TextButton(onClick = onImportFolder) { Text(stringResource(R.string.onlyfiles_import_folder)) }
-        }
-        return
-    }
-    LazyColumn(contentPadding = PaddingValues(vertical = 8.dp)) {
-        items(nodes, key = VaultNode::id) { node ->
-            Row(
-                Modifier.fillMaxWidth().clickable { onOpen(node) }.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Icon(nodeIcon(node), null, modifier = Modifier.size(30.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(node.name, maxLines = 1)
-                    if (!node.isDirectory) {
-                        Text(formatBytes(node.sizeBytes), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-                IconButton(onClick = { onMore(node) }) {
-                    Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
-                }
-            }
-            HorizontalDivider(Modifier.padding(start = 62.dp))
-        }
-    }
-}
-
-@Composable
-private fun PasswordDialog(title: String, actionLabel: String, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
-    var password by remember { mutableStateOf("") }
-    var reveal by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { PasswordField(password, { password = it }, reveal, { reveal = !reveal }) },
-        confirmButton = { Button(onClick = { onSubmit(password) }, enabled = password.isNotEmpty()) { Text(actionLabel) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
-    )
-}
-
-@Composable
-internal fun PasswordField(value: String, onValueChange: (String) -> Unit, reveal: Boolean, onReveal: () -> Unit) {
-    OutlinedTextField(
-        value,
-        onValueChange,
-        label = { Text(stringResource(R.string.onlyfiles_password)) },
-        visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        trailingIcon = {
-            IconButton(onClick = onReveal) {
-                Icon(
-                    if (reveal) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                    stringResource(if (reveal) R.string.onlyfiles_hide_password else R.string.onlyfiles_show_password)
+    var more by remember { mutableStateOf(false) }
+    TopAppBar(
+        title = { Text(stringResource(R.string.onlyfiles_selected_count, state.selectedNodeIds.size)) },
+        navigationIcon = { IconButton(onClick = viewModel::clearSelection) { Icon(Icons.Default.Close, stringResource(R.string.onlyfiles_close)) } },
+        actions = {
+            IconButton(onClick = viewModel::selectAll) { Icon(Icons.Default.SelectAll, stringResource(R.string.onlyfiles_select_all)) }
+            IconButton(onClick = { viewModel.copy(state.selectedNodes) }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.onlyfiles_copy)) }
+            IconButton(onClick = { viewModel.move(state.selectedNodes) }) { Icon(Icons.Default.ContentCut, stringResource(R.string.onlyfiles_move)) }
+            IconButton(onClick = onShare) { Icon(Icons.Default.Share, stringResource(R.string.onlyfiles_share)) }
+            IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more)) }
+            DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_rename)) },
+                    enabled = state.selectedNodes.size == 1,
+                    onClick = { more = false; onRename() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_open_with)) },
+                    enabled = state.selectedNodes.singleOrNull()?.isDirectory == false,
+                    onClick = { more = false; onOpenWith() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_invert_selection)) },
+                    onClick = { more = false; viewModel.invertSelection() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_properties)) },
+                    leadingIcon = { Icon(Icons.Default.Info, null) },
+                    onClick = { more = false; viewModel.showProperties(state.selectedNodes) }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_delete)) },
+                    leadingIcon = { Icon(Icons.Default.Delete, null) },
+                    onClick = { more = false; onDelete() }
                 )
             }
-        },
-        singleLine = true
+        }
     )
-}
-
-@Composable
-private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
-    var value by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = { OutlinedTextField(value, { value = it }, singleLine = true) },
-        confirmButton = { Button(onClick = { onSubmit(value.trim()) }, enabled = value.isNotBlank()) { Text(title) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
-    )
-}
-
-@Composable
-private fun ItemActionDialog(node: VaultNode, onDismiss: () -> Unit, onRename: (String) -> Unit, onDelete: () -> Unit) {
-    var renaming by remember { mutableStateOf(false) }
-    var deleting by remember { mutableStateOf(false) }
-    when {
-        renaming -> NameDialog(stringResource(R.string.onlyfiles_rename), node.name, onDismiss, onRename)
-        deleting -> AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(stringResource(R.string.onlyfiles_delete)) },
-            text = { Text(stringResource(R.string.onlyfiles_delete_confirm, node.name)) },
-            confirmButton = { Button(onClick = onDelete) { Text(stringResource(R.string.onlyfiles_delete)) } },
-            dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
-        )
-        else -> AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text(node.name) },
-            text = {
-                Column {
-                    TextButton(onClick = { renaming = true }) {
-                        Icon(Icons.Default.CreateNewFolder, null)
-                        Text(stringResource(R.string.onlyfiles_rename), Modifier.padding(start = 8.dp))
-                    }
-                    TextButton(onClick = { deleting = true }) {
-                        Icon(Icons.Default.Delete, null)
-                        Text(stringResource(R.string.onlyfiles_delete), Modifier.padding(start = 8.dp))
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_close)) } }
-        )
-    }
 }

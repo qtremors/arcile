@@ -14,6 +14,7 @@ import dev.qtremors.arcile.feature.settings.registerSettingsRoute
 import dev.qtremors.arcile.feature.storagecleaner.registerStorageCleanerRoute
 import dev.qtremors.arcile.feature.storageusage.registerStorageManagementRoute
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
 
 internal fun NavGraphBuilder.registerUtilityRoutes(
     navController: NavHostController,
@@ -48,7 +49,10 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
-        onNavigateBack = { navController.popBackStack() }
+        onNavigateBack = { navController.popBackStack() },
+        onPlayVideo = { session ->
+            navController.navigate(AppRoutes.VideoViewer(GlobalVideoPlaybackSessions.register(session)))
+        }
     )
     registerActivityLogRoute(
         enterTransition = transitions.utilityEnter,

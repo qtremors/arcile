@@ -197,5 +197,6 @@ interface VaultExternalAccessManager {
     fun activeGrants(): List<VaultExternalGrant>
     fun revoke(token: String): Boolean
     fun revokeAll()
-    fun openGrantedContent(token: String): Result<VaultGrantedContent>
+    fun describe(token: String): Result<VaultExternalGrant>
+    fun openGrantedContent(token: String, consumerUid: Int): Result<VaultGrantedContent>
 }

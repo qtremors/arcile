@@ -54,7 +54,7 @@ class AppRoutesTest {
         assertEquals(recent, json.decodeFromString<AppRoutes.RecentFiles>(json.encodeToString(recent)))
         assertEquals(dashboard, json.decodeFromString<AppRoutes.StorageDashboard>(json.encodeToString(dashboard)))
         assertEquals(browserImageViewer, json.decodeFromString<AppRoutes.ImageViewer>(json.encodeToString(browserImageViewer)))
-        val videoViewer = AppRoutes.VideoViewer("/storage/movie.mp4", managedTrash = true)
+        val videoViewer = AppRoutes.VideoViewer("opaque-session-token")
         assertEquals(videoViewer, json.decodeFromString<AppRoutes.VideoViewer>(json.encodeToString(videoViewer)))
         assertEquals(externalBrowserEntry, json.decodeFromString<AppRoutes.Main>(json.encodeToString(externalBrowserEntry)))
     }

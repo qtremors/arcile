@@ -1,7 +1,12 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import dev.qtremors.arcile.core.vault.domain.VaultNode
-import dev.qtremors.arcile.core.vault.domain.VaultPath
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
+import dev.qtremors.arcile.core.vault.domain.NodeId
+import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
+import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -25,12 +30,15 @@ class OnlyFilesFormattingTest {
         assertEquals("1.5 GB", formatBytes(3L * 1024L * 1024L * 1024L / 2L))
     }
 
-    private fun node(name: String, mimeType: String?) = VaultNode(
-        id = name,
-        path = VaultPath.of(name),
+    private fun node(name: String, mimeType: String?) = VaultNodeMetadata(
+        ref = VaultNodeRef(
+            VaultId.of("vault"), NodeId.of(name), DirectoryId.Root, VaultNodeCapabilities()
+        ),
+        name = name,
+        kind = VaultNodeKind.FILE,
         sizeBytes = 0L,
         modifiedAtMillis = 0L,
-        isDirectory = false,
+        revision = 1L,
         mimeType = mimeType
     )
 }

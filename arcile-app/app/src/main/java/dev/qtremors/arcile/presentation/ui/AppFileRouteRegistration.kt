@@ -116,9 +116,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
-        onNavigateBack = { navController.popBackStack() },
-        onShare = actions::shareVideo,
-        onOpenWith = actions::openVideoWith
+        onNavigateBack = { navController.popBackStack() }
     )
     registerArchiveViewerRoute(
         enterTransition = transitions.detailEnter,

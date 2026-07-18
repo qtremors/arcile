@@ -1,0 +1,9 @@
+<resources>
+    <string name="onlyfiles_external_channel">OnlyFiles external access</string>
+    <string name="onlyfiles_external_active">External vault access is active</string>
+    <string name="onlyfiles_external_revoke">Revoke</string>
+    <plurals name="onlyfiles_external_count">
+        <item quantity="one">%d encrypted file grant is active</item>
+        <item quantity="other">%d encrypted file grants are active</item>
+    </plurals>
+</resources>

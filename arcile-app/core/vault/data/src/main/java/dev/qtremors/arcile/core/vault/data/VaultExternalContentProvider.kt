@@ -6,14 +6,20 @@ import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.os.Binder
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.ProxyFileDescriptorCallback
+import android.os.storage.StorageManager
 import android.provider.OpenableColumns
+import android.system.ErrnoException
+import android.system.OsConstants
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
 import java.io.FileNotFoundException
-import java.util.concurrent.Executors
 
 class VaultExternalContentProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -25,15 +31,14 @@ class VaultExternalContentProvider : ContentProvider() {
         selectionArgs: Array<out String>?,
         sortOrder: String?
     ): Cursor {
-        val content = manager().openGrantedContent(token(uri)).getOrElse { throw FileNotFoundException() }
-        content.reader.close()
+        val grant = manager().describe(token(uri)).getOrElse { throw FileNotFoundException() }
         val columns = projection?.takeIf(Array<out String>::isNotEmpty)
             ?: arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE)
         return MatrixCursor(columns).apply {
             val row: Array<Any?> = columns.map<String, Any?> {
                 when (it) {
-                    OpenableColumns.DISPLAY_NAME -> content.displayName
-                    OpenableColumns.SIZE -> content.sizeBytes
+                    OpenableColumns.DISPLAY_NAME -> grant.displayName
+                    OpenableColumns.SIZE -> grant.sizeBytes
                     else -> null
                 }
             }.toTypedArray()
@@ -41,30 +46,45 @@ class VaultExternalContentProvider : ContentProvider() {
         }
     }
 
-    override fun getType(uri: Uri): String = manager().openGrantedContent(token(uri)).fold(
-        onSuccess = { it.reader.close(); it.mimeType },
+    override fun getType(uri: Uri): String = manager().describe(token(uri)).fold(
+        onSuccess = { it.mimeType },
         onFailure = { throw FileNotFoundException() }
     )
 
     override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
         if (mode != "r") throw SecurityException("OnlyFiles grants are read-only")
-        val content = manager().openGrantedContent(token(uri)).getOrElse { throw FileNotFoundException() }
-        val pipe = ParcelFileDescriptor.createPipe()
-        executor.execute {
-            content.reader.use { reader ->
-                ParcelFileDescriptor.AutoCloseOutputStream(pipe[1]).use { output ->
-                    val buffer = ByteArray(256 * 1024)
-                    var position = 0L
-                    while (position < reader.sizeBytes) {
-                        val count = reader.readAt(position, buffer, 0, minOf(buffer.size.toLong(), reader.sizeBytes - position).toInt())
-                        if (count <= 0) throw FileNotFoundException("Encrypted file ended unexpectedly")
-                        output.write(buffer, 0, count)
-                        position += count
+        val content = manager().openGrantedContent(token(uri), Binder.getCallingUid())
+            .getOrElse { throw FileNotFoundException() }
+        val callback = object : ProxyFileDescriptorCallback() {
+            override fun onGetSize(): Long = content.reader.sizeBytes
+
+            override fun onRead(offset: Long, size: Int, data: ByteArray): Int = try {
+                if (offset >= content.reader.sizeBytes) 0 else {
+                    val requested = minOf(size.toLong(), content.reader.sizeBytes - offset).toInt()
+                    content.reader.readAt(offset, data, 0, requested).also {
+                        if (it <= 0 && requested > 0) throw ErrnoException("read", OsConstants.EIO)
                     }
                 }
+            } catch (error: ErrnoException) {
+                throw error
+            } catch (_: Exception) {
+                throw ErrnoException("read", OsConstants.EIO)
+            }
+
+            override fun onRelease() {
+                content.reader.close()
             }
         }
-        return pipe[0]
+        return try {
+            requireNotNull(context).getSystemService(StorageManager::class.java).openProxyFileDescriptor(
+                ParcelFileDescriptor.MODE_READ_ONLY,
+                callback,
+                Handler(proxyThread.looper)
+            )
+        } catch (error: Exception) {
+            content.reader.close()
+            throw FileNotFoundException(error.message)
+        }
     }
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = throw UnsupportedOperationException()
@@ -91,8 +111,6 @@ class VaultExternalContentProvider : ContentProvider() {
     }
 
     private companion object {
-        val executor = Executors.newCachedThreadPool { runnable ->
-            Thread(runnable, "onlyfiles-external-read").apply { isDaemon = true }
-        }
+        val proxyThread = HandlerThread("onlyfiles-external-read").apply { start() }
     }
 }

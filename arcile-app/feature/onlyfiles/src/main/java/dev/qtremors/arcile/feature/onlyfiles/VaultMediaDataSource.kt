@@ -6,15 +6,13 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSourceException
 import androidx.media3.datasource.DataSpec
-import dev.qtremors.arcile.core.vault.domain.VaultId
-import dev.qtremors.arcile.core.vault.domain.VaultPath
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 
 @OptIn(UnstableApi::class)
 internal class VaultMediaDataSource(
-    private val vaultId: VaultId,
-    private val path: VaultPath,
-    private val openReader: (VaultId, VaultPath) -> Result<VaultSeekableReader>
+    private val refsByOpaqueId: Map<String, VaultNodeRef>,
+    private val openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
 ) : BaseDataSource(true) {
     private var reader: VaultSeekableReader? = null
     private var position = 0L
@@ -22,8 +20,15 @@ internal class VaultMediaDataSource(
     private var openedUri: Uri? = null
 
     override fun open(dataSpec: DataSpec): Long {
+        close()
         transferInitializing(dataSpec)
-        val opened = openReader(vaultId, path).getOrElse { throw DataSourceException(it, 2000) }
+        if (dataSpec.uri.scheme != "onlyfiles" || dataSpec.uri.authority != "playback") {
+            throw DataSourceException(IllegalArgumentException("Unsupported playback source"), 2000)
+        }
+        val opaqueId = dataSpec.uri.lastPathSegment
+        val ref = opaqueId?.let(refsByOpaqueId::get)
+            ?: throw DataSourceException(IllegalArgumentException("Unknown playback item"), 2000)
+        val opened = openReader(ref).getOrElse { throw DataSourceException(it, 2000) }
         if (dataSpec.position > opened.sizeBytes) {
             opened.close()
             throw DataSourceException(DataSourceException.POSITION_OUT_OF_RANGE)
@@ -45,7 +50,9 @@ internal class VaultMediaDataSource(
         if (remaining == 0L) return C.RESULT_END_OF_INPUT
         val count = minOf(length.toLong(), remaining).toInt()
         val read = requireNotNull(reader).readAt(position, buffer, offset, count)
-        if (read <= 0) return C.RESULT_END_OF_INPUT
+        if (read <= 0) {
+            throw DataSourceException(IllegalStateException("Encrypted object ended before its declared size"), 2000)
+        }
         position += read
         remaining -= read
         bytesTransferred(read)

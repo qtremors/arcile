@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.4
+> **Version:** 1.5.5
 > **Last Updated:** 2026-07-14
 
 ---
+
+## [1.5.5] - 2026-07-14
+
+- **Daily Vault Browsing**: OnlyFiles now uses stable opaque item identities with paged list/grid browsing, sorting, current-folder or recursive search, range and bulk selection, properties, empty-file creation, and permanent multi-delete.
+- **Vault Clipboard**: Memory-only copy and move supports same-vault and cross-vault destinations, cancellation, progress, and keep-both, replace, skip, or directory-merge conflict decisions.
+- **Global Video Player**: Browser, Recents, Trash, external opening, and OnlyFiles now share an immersive queue player with lifecycle-safe position retention, seeking, tracks, subtitles, speed, repeat, resize, buffering, completion, and retry states without path-bearing routes.
+- **Controlled Media Access**: Vault images use bounds-first sampled decoding, while single-consumer external grants provide seekable encrypted streams, persistent revocation controls, 30-second post-close revocation, and a 12-hour maximum.
 
 ## [1.5.4] - 2026-07-14
 

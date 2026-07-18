@@ -14,6 +14,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -63,19 +65,37 @@ class VaultExternalAccessManagerTest {
         val file = repository.createEmptyFile(
             vaultId, VaultSessionRecord.ROOT_DIRECTORY_ID, "private-name.txt", "text/plain"
         ).getOrThrow()
-        val manager = DefaultVaultExternalAccessManager(context, repository)
+        val manager = DefaultVaultExternalAccessManager(context, repository, scope)
         val grant = manager.issue(file.ref, 60_000L).getOrThrow()
+        val expiring = manager.issue(file.ref, DefaultVaultExternalAccessManager.MAX_LIFETIME_MILLIS).getOrThrow()
         assertFalse(grant.contentUri.contains("private-name"))
         assertEquals(64, grant.token.length)
 
         repository.lock(vaultId)
-        manager.openGrantedContent(grant.token).getOrThrow().reader.use {
+        manager.openGrantedContent(grant.token, consumerUid = 1001).getOrThrow().reader.use {
             assertEquals(0L, it.sizeBytes)
         }
-        assertEquals(listOf(grant), manager.activeGrants())
+        assertTrue(grant in manager.activeGrants())
         assertTrue(manager.revoke(grant.token))
-        assertTrue(manager.openGrantedContent(grant.token).exceptionOrNull() is VaultFailure.ExternalGrantExpired)
+        assertTrue(manager.openGrantedContent(grant.token, consumerUid = 1001).exceptionOrNull() is VaultFailure.ExternalGrantExpired)
+        assertEquals(listOf(expiring), manager.activeGrants())
+
+        assertEquals(expiring, manager.describe(expiring.token).getOrThrow())
+        val reader = manager.openGrantedContent(expiring.token, consumerUid = 2001).getOrThrow().reader
+        assertTrue(
+            manager.openGrantedContent(expiring.token, consumerUid = 2002).exceptionOrNull()
+                is VaultFailure.ExternalGrantConsumerMismatch
+        )
+        reader.close()
+        advanceTimeBy(DefaultVaultExternalAccessManager.REVOKE_AFTER_CLOSE_MILLIS - 1)
+        runCurrent()
+        assertEquals(listOf(expiring), manager.activeGrants())
+        advanceTimeBy(1)
+        runCurrent()
         assertTrue(manager.activeGrants().isEmpty())
+        assertTrue(
+            manager.issue(file.ref, DefaultVaultExternalAccessManager.MAX_LIFETIME_MILLIS + 1).isFailure
+        )
         scope.cancel()
     }
 }

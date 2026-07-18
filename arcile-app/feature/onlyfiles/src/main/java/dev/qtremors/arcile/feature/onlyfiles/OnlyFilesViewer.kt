@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import android.graphics.BitmapFactory
-import android.net.Uri
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,26 +17,25 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
-import androidx.media3.datasource.DataSource
-import dev.qtremors.arcile.core.ui.ArcileVideoPlayer
+import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
+import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
-import dev.qtremors.arcile.core.vault.domain.VaultNode
-import dev.qtremors.arcile.core.vault.domain.VaultPath
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @Composable
 internal fun ViewerScreen(
-    state: OnlyFilesUiState,
-    node: VaultNode,
+    node: VaultNodeMetadata,
     viewModel: OnlyFilesViewModel,
     onBack: () -> Unit
 ) {
@@ -55,55 +53,61 @@ internal fun ViewerScreen(
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-            when {
-                node.isViewableImage() -> VaultImage(node, viewModel)
-                node.isViewableVideo() -> {
-                    val vaultId = state.selectedVaultId
-                    if (vaultId != null) VaultVideo(vaultId, node, viewModel::openReader)
-                }
-            }
+            if (node.isViewableImage()) VaultImage(node, viewModel::openReader)
         }
     }
 }
 
 @Composable
-private fun VaultImage(node: VaultNode, viewModel: OnlyFilesViewModel) {
-    val decoded by produceState<Result<androidx.compose.ui.graphics.ImageBitmap?>?>(null, node.id) {
-        value = viewModel.readViewerImage(node).mapCatching { bytes ->
-            try {
-                withContext(Dispatchers.Default) {
-                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-                }
-            } finally {
-                bytes.fill(0)
-            }
-        }
+private fun VaultImage(
+    node: VaultNodeMetadata,
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
+) {
+    val configuration = LocalConfiguration.current
+    val density = LocalDensity.current
+    val targetWidth = with(density) { configuration.screenWidthDp.dp.roundToPx() }.coerceAtLeast(1)
+    val targetHeight = with(density) { configuration.screenHeightDp.dp.roundToPx() }.coerceAtLeast(1)
+    val decoded by produceState<Result<Bitmap?>?>(null, node.ref.nodeId, node.revision, targetWidth, targetHeight) {
+        value = decodeSampledVaultImageOnWorker(node.ref, targetWidth, targetHeight, openReader)
     }
     when {
         decoded == null -> CircularProgressIndicator()
         decoded?.getOrNull() == null -> Text(stringResource(R.string.onlyfiles_error_image))
-        else -> Image(requireNotNull(decoded?.getOrNull()), node.name, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        else -> Image(
+            requireNotNull(decoded?.getOrNull()).asImageBitmap(),
+            node.name,
+            Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit
+        )
     }
 }
 
-@Composable
-private fun VaultVideo(
+internal fun createVaultVideoPlaybackSession(
+    nodes: List<VaultNodeMetadata>,
     vaultId: VaultId,
-    node: VaultNode,
-    openReader: (VaultId, VaultPath) -> Result<VaultSeekableReader>
-) {
-    val factory = remember(vaultId, node.id) {
-        DataSource.Factory { VaultMediaDataSource(vaultId, node.path, openReader) }
-    }
-    val mediaItem = remember(vaultId, node.id) {
-        MediaItem.Builder()
-            .setUri("onlyfiles://${vaultId.value}/${Uri.encode(node.path.value)}")
-            .setMimeType(node.mimeType)
-            .build()
-    }
-    ArcileVideoPlayer(
-        mediaItem = mediaItem,
-        modifier = Modifier.fillMaxSize(),
-        dataSourceFactory = factory
+    selectedNode: VaultNodeMetadata,
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
+) : VideoPlaybackSession {
+    val queue = nodes.filter(VaultNodeMetadata::isViewableVideo).takeIf { selectedNode in it }
+        ?: listOf(selectedNode)
+    val refsByOpaqueId = queue.associate { it.ref.nodeId.value to it.ref }
+    return VideoPlaybackSession(
+        items = queue.map { node ->
+            VideoPlaybackItem(
+                mediaItem = MediaItem.Builder()
+                    .setUri("onlyfiles://playback/${node.ref.nodeId.value}")
+                    .setMediaId(node.ref.nodeId.value)
+                    .setMimeType(node.mimeType)
+                    .build(),
+                title = node.name
+            )
+        },
+        startIndex = queue.indexOf(selectedNode).coerceAtLeast(0),
+        dataSourceFactory = androidx.media3.datasource.DataSource.Factory {
+            VaultMediaDataSource(refsByOpaqueId, openReader)
+        },
+        securityScopeId = vaultSecurityScope(vaultId)
     )
 }
+
+internal fun vaultSecurityScope(vaultId: VaultId): String = "vault:${vaultId.value}"

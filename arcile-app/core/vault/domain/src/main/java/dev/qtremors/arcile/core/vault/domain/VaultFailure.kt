@@ -37,6 +37,7 @@ sealed class VaultFailure(message: String, cause: Throwable? = null) : Exception
         VaultFailure("File size $sizeBytes exceeds the in-memory viewing limit $maximumBytes")
     class ImportUnavailable(message: String, cause: Throwable? = null) : VaultFailure(message, cause)
     class ExternalGrantExpired : VaultFailure("External access has expired")
+    class ExternalGrantConsumerMismatch : VaultFailure("External access belongs to another application")
     class DestructiveConfirmationRequired : VaultFailure("Vault deletion confirmation does not match")
     class OperationInProgress : VaultFailure("A vault operation is still in progress")
 }

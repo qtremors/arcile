@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.ui
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -20,10 +21,15 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
+import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
+import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.media3.common.MediaItem
+import java.io.File
 
 @Stable
 internal class AppNavigationActions(
@@ -129,7 +135,7 @@ internal class AppNavigationActions(
                 managedTrash = true
             )
         } else if (category == FileCategories.Videos) {
-            openVideoViewer(file.absolutePath, managedTrash = true)
+            openVideoViewer(file.absolutePath, managedTrash = true, surroundingFiles = surroundingFiles)
         } else {
             openManagedTrashFileExternally(file, forceChooser = false)
         }
@@ -207,14 +213,48 @@ internal class AppNavigationActions(
                     selectedPaths,
                     surroundingFiles
                 )
-                is AppFileOpenResolution.ViewVideo -> openVideoViewer(resolution.path)
+                is AppFileOpenResolution.ViewVideo -> openVideoViewer(resolution.path, surroundingFiles = surroundingFiles)
                 is AppFileOpenResolution.External -> onOpenFile(resolution.path)
             }
         }
     }
 
-    private fun openVideoViewer(path: String, managedTrash: Boolean = false) {
-        navController.navigate(AppRoutes.VideoViewer(path, managedTrash))
+    private fun openVideoViewer(
+        path: String,
+        managedTrash: Boolean = false,
+        surroundingFiles: List<FileModel> = emptyList()
+    ) {
+        val queue = surroundingFiles
+            .asSequence()
+            .filterNot(FileModel::isDirectory)
+            .filter { FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Videos }
+            .distinctBy(FileModel::absolutePath)
+            .toList()
+            .takeIf { candidates -> candidates.any { it.absolutePath == path } }
+            ?: listOf(
+                FileModel(
+                    absolutePath = path,
+                    name = File(path).name,
+                    isDirectory = false,
+                    size = File(path).length(),
+                    lastModified = File(path).lastModified()
+                )
+            )
+        val items = queue.mapIndexed { index, file ->
+            VideoPlaybackItem(
+                mediaItem = MediaItem.Builder()
+                    .setUri(Uri.fromFile(File(file.absolutePath)))
+                    .setMimeType(file.mimeType)
+                    .setMediaId(index.toString())
+                    .build(),
+                title = file.name,
+                onShare = { shareVideo(file.absolutePath, managedTrash) },
+                onOpenWith = { openVideoWith(file.absolutePath, managedTrash) }
+            )
+        }
+        val startIndex = queue.indexOfFirst { it.absolutePath == path }.coerceAtLeast(0)
+        val token = GlobalVideoPlaybackSessions.register(VideoPlaybackSession(items, startIndex))
+        navController.navigate(AppRoutes.VideoViewer(token))
     }
 
     fun shareVideo(path: String, managedTrash: Boolean) {

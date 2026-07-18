@@ -29,6 +29,7 @@ value class DirectoryId private constructor(val value: String) : Comparable<Dire
     override fun compareTo(other: DirectoryId): Int = value.compareTo(other.value)
 
     companion object {
+        val Root = DirectoryId("root")
         fun of(value: String) = DirectoryId(requireOpaqueIdentifier("Directory id", value))
         fun random() = DirectoryId(UUID.randomUUID().toString())
     }
