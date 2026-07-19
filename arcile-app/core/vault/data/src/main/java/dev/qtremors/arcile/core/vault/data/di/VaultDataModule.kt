@@ -15,6 +15,12 @@ import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
 import dev.qtremors.arcile.core.vault.data.DefaultVaultExternalAccessManager
+import dev.qtremors.arcile.core.vault.data.DefaultVaultSecurityPreferences
+import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
+import dev.qtremors.arcile.core.vault.data.DefaultVaultThumbnailCache
+import dev.qtremors.arcile.core.vault.domain.VaultThumbnailCache
+import dev.qtremors.arcile.core.vault.data.DefaultVaultBoundaryTransferCoordinator
+import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
 import javax.inject.Singleton
 
 @Module
@@ -53,4 +59,20 @@ abstract class VaultDataModule {
     abstract fun bindVaultExternalAccessManager(
         implementation: DefaultVaultExternalAccessManager
     ): VaultExternalAccessManager
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultSecurityPreferences(
+        implementation: DefaultVaultSecurityPreferences
+    ): VaultSecurityPreferences
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultThumbnailCache(implementation: DefaultVaultThumbnailCache): VaultThumbnailCache
+
+    @Binds
+    @Singleton
+    abstract fun bindVaultBoundaryTransferCoordinator(
+        implementation: DefaultVaultBoundaryTransferCoordinator
+    ): VaultBoundaryTransferCoordinator
 }

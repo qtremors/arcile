@@ -111,6 +111,7 @@ internal fun OnlyFilesRoute(
     viewModel: OnlyFilesViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    VaultSecureWindowEffect(state.selectedVaultId != null && state.screenshotProtectionEnabled)
     val context = LocalContext.current
     val filesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
         uris.forEach { uri ->
@@ -123,6 +124,22 @@ internal fun OnlyFilesRoute(
             runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
         }
         viewModel.finishImportSelection(listOfNotNull(uri?.toString()))
+    }
+    var pendingBoundaryTransfer by remember {
+        mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null)
+    }
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val request = pendingBoundaryTransfer
+        pendingBoundaryTransfer = null
+        if (uri != null && request != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                )
+            }
+            viewModel.export(request.first, uri.toString(), request.second)
+        }
     }
     BackHandler {
         when {
@@ -139,7 +156,11 @@ internal fun OnlyFilesRoute(
         onNavigateBack = onNavigateBack,
         onPlayVideo = onPlayVideo,
         onImportFiles = { if (viewModel.beginImportSelection()) filesLauncher.launch(arrayOf("*/*")) },
-        onImportFolder = { if (viewModel.beginImportSelection()) folderLauncher.launch(null) }
+        onImportFolder = { if (viewModel.beginImportSelection()) folderLauncher.launch(null) },
+        onBoundaryTransfer = { nodes, move ->
+            pendingBoundaryTransfer = nodes to move
+            exportLauncher.launch(null)
+        }
     )
 }
 
@@ -151,7 +172,8 @@ private fun OnlyFilesScreen(
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     onImportFiles: () -> Unit,
-    onImportFolder: () -> Unit
+    onImportFolder: () -> Unit,
+    onBoundaryTransfer: (List<VaultNodeMetadata>, Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val snackbarHost = remember { SnackbarHostState() }
@@ -163,6 +185,8 @@ private fun OnlyFilesScreen(
     var showSort by remember { mutableStateOf(false) }
     var showOverflow by remember { mutableStateOf(false) }
     var externalRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
+    var fallbackRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
+    var boundaryRequest by remember { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
 
     LaunchedEffect(state.message) {
         state.message?.let { snackbarHost.showSnackbar(it); viewModel.clearMessage() }
@@ -188,7 +212,9 @@ private fun OnlyFilesScreen(
                             state.selectedNodes.singleOrNull()?.takeUnless(VaultNodeMetadata::isDirectory)?.let {
                                 externalRequest = ExternalAction.OPEN_WITH to listOf(it)
                             }
-                        }
+                        },
+                        onExport = { boundaryRequest = state.selectedNodes to false },
+                        onMoveOut = { boundaryRequest = state.selectedNodes to true }
                     )
                 } else {
                     TopAppBar(
@@ -212,33 +238,11 @@ private fun OnlyFilesScreen(
                                 IconButton(onClick = { showOverflow = true }) {
                                     Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
                                 }
-                                DropdownMenu(expanded = showOverflow, onDismissRequest = { showOverflow = false }) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.onlyfiles_refresh)) },
-                                        leadingIcon = { Icon(Icons.Default.Refresh, null) },
-                                        onClick = { showOverflow = false; viewModel.refresh() }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.onlyfiles_import_files)) },
-                                        leadingIcon = { Icon(Icons.Default.UploadFile, null) },
-                                        onClick = { showOverflow = false; onImportFiles() }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.onlyfiles_import_folder)) },
-                                        leadingIcon = { Icon(Icons.Default.CreateNewFolder, null) },
-                                        onClick = { showOverflow = false; onImportFolder() }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.onlyfiles_health_check)) },
-                                        leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
-                                        onClick = { showOverflow = false; viewModel.verifyHealth(VaultHealthMode.QUICK) }
-                                    )
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.onlyfiles_lock)) },
-                                        leadingIcon = { Icon(Icons.Default.Lock, null) },
-                                        onClick = { showOverflow = false; viewModel.lockCurrent() }
-                                    )
-                                }
+                                /* Vault administration stays memory-only and outside navigation arguments. */
+                                VaultActionsMenu(
+                                    showOverflow, requireNotNull(state.selectedVault), viewModel,
+                                    { showOverflow = false }, viewModel::refresh, onImportFiles, onImportFolder
+                                )
                             } else {
                                 TextButton(onClick = viewModel::beginAttachVault) {
                                     Text(stringResource(R.string.onlyfiles_add_existing))
@@ -341,9 +345,7 @@ private fun OnlyFilesScreen(
         onChooseFolder = { name, password -> showCreateVault = false; viewModel.beginFolderVaultCreation(name, password) }
     )
     unlockVault?.let { vault ->
-        PasswordDialog(vault.name, stringResource(R.string.onlyfiles_unlock), { unlockVault = null }) {
-            unlockVault = null; viewModel.unlock(vault.id, it)
-        }
+        VaultUnlockDialog(vault, viewModel) { unlockVault = null }
     }
     createItem?.let { kind ->
         CreateItemDialog(
@@ -389,7 +391,64 @@ private fun OnlyFilesScreen(
                     }
                 }) { Text(stringResource(R.string.onlyfiles_continue)) }
             },
-            dismissButton = { TextButton(onClick = { externalRequest = null }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        fallbackRequest = externalRequest
+                        externalRequest = null
+                    }) { Text(stringResource(R.string.onlyfiles_compatibility_copy)) }
+                    TextButton(onClick = { externalRequest = null }) {
+                        Text(stringResource(R.string.onlyfiles_cancel))
+                    }
+                }
+            }
+        )
+    }
+    fallbackRequest?.let { (action, nodes) ->
+        AlertDialog(
+            onDismissRequest = { fallbackRequest = null },
+            title = { Text(stringResource(R.string.onlyfiles_compatibility_copy)) },
+            text = { Text(stringResource(R.string.onlyfiles_compatibility_copy_warning)) },
+            confirmButton = {
+                Button(onClick = {
+                    fallbackRequest = null
+                    viewModel.issuePlaintextFallbackAccess(nodes) { grants ->
+                        runCatching { launchExternalIntent(context, action, grants) }
+                            .onFailure { viewModel.revokeExternalAccess(grants) }
+                    }
+                }) { Text(stringResource(R.string.onlyfiles_create_copy)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { fallbackRequest = null }) {
+                    Text(stringResource(R.string.onlyfiles_cancel))
+                }
+            }
+        )
+    }
+    boundaryRequest?.let { (nodes, move) ->
+        AlertDialog(
+            onDismissRequest = { boundaryRequest = null },
+            title = {
+                Text(stringResource(if (move) R.string.onlyfiles_move_out else R.string.onlyfiles_export))
+            },
+            text = {
+                Text(
+                    stringResource(
+                        if (move) R.string.onlyfiles_move_out_warning else R.string.onlyfiles_export_warning
+                    )
+                )
+            },
+            confirmButton = {
+                Button(onClick = {
+                    boundaryRequest = null
+                    onBoundaryTransfer(nodes, move)
+                }) { Text(stringResource(R.string.onlyfiles_choose_destination)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { boundaryRequest = null }) {
+                    Text(stringResource(R.string.onlyfiles_cancel))
+                }
+            }
         )
     }
     state.folderPicker?.let { picker ->
@@ -411,7 +470,9 @@ private fun SelectionTopBar(
     onRename: () -> Unit,
     onDelete: () -> Unit,
     onShare: () -> Unit,
-    onOpenWith: () -> Unit
+    onOpenWith: () -> Unit,
+    onExport: () -> Unit,
+    onMoveOut: () -> Unit
 ) {
     var more by remember { mutableStateOf(false) }
     TopAppBar(
@@ -433,6 +494,14 @@ private fun SelectionTopBar(
                     text = { Text(stringResource(R.string.onlyfiles_open_with)) },
                     enabled = state.selectedNodes.singleOrNull()?.isDirectory == false,
                     onClick = { more = false; onOpenWith() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_export)) },
+                    onClick = { more = false; onExport() }
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_move_out)) },
+                    onClick = { more = false; onMoveOut() }
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.onlyfiles_invert_selection)) },

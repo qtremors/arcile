@@ -22,6 +22,12 @@ import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.vault.domain.VaultSessionLease
+import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
+import dev.qtremors.arcile.core.vault.domain.VaultCatalog
+import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
+import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
+import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
+import dev.qtremors.arcile.core.ui.security.SensitiveMemory
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
@@ -42,7 +48,11 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val externalAccessManager: VaultExternalAccessManager,
     private val healthService: VaultHealthService,
     private val destinationBrowser: SaveDestinationBrowser,
-    private val volumeRepository: VolumeRepository
+    private val volumeRepository: VolumeRepository,
+    private val securityPreferences: VaultSecurityPreferences,
+    private val catalog: VaultCatalog,
+    private val sessionManager: VaultSessionManager,
+    private val boundaryTransferCoordinator: VaultBoundaryTransferCoordinator
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
@@ -59,6 +69,17 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val browser by lazy { OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError) }
     private val transfers by lazy {
         OnlyFilesTransferController(transferCoordinator, _state, viewModelScope, ::reload)
+    }
+    private val administration by lazy {
+        OnlyFilesAdministrationController(
+            catalog, sessionManager, _state, viewModelScope, ::runBusy, ::showError, ::selectVault
+        )
+    }
+    private val boundary by lazy {
+        OnlyFilesBoundaryController(boundaryTransferCoordinator, _state, viewModelScope, ::reload)
+    }
+    private val externalAccess by lazy {
+        OnlyFilesExternalAccessController(externalAccessManager, viewModelScope, ::showError)
     }
 
     init {
@@ -101,7 +122,15 @@ internal class OnlyFilesViewModel @Inject constructor(
         viewModelScope.launch {
             transferCoordinator.progress.collect { progress -> _state.update { it.copy(transferProgress = progress) } }
         }
+        viewModelScope.launch {
+            boundaryTransferCoordinator.progress.collect { progress -> _state.update { it.copy(transferProgress = progress) } }
+        }
         viewModelScope.launch { repository.refreshVaults() }
+        viewModelScope.launch {
+            securityPreferences.settings.collect { settings ->
+                _state.update { it.copy(screenshotProtectionEnabled = settings.screenshotProtectionEnabled) }
+            }
+        }
     }
 
     fun createAppPrivateVault(name: String, password: String) = runBusy {
@@ -175,6 +204,16 @@ internal class OnlyFilesViewModel @Inject constructor(
         return true
     }
 
+    fun navigateViewer(offset: Int) {
+        if (offset == 0) return
+        val snapshot = _state.value
+        val current = snapshot.viewer ?: return
+        val siblings = snapshot.displayedNodes.filter(VaultNodeMetadata::isViewableImage)
+        val index = siblings.indexOfFirst { it.ref.nodeId == current.ref.nodeId }
+        val destination = index.takeIf { it >= 0 }?.plus(offset)?.takeIf { it in siblings.indices } ?: return
+        _state.update { it.copy(viewer = siblings[destination]) }
+    }
+
     fun refresh() = browser.refresh()
     fun loadNextPage() = browser.loadNextPage()
     fun setSort(field: VaultSortField, direction: VaultSortDirection) = browser.setSort(field, direction)
@@ -220,6 +259,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         _state.update {
             it.copy(
                 selectedNodeIds = emptySet(),
+                viewer = it.viewer?.takeUnless { viewer -> nodes.any { node -> node.ref.nodeId == viewer.ref.nodeId } },
                 message = if (failed == 0) "$completed item(s) permanently deleted" else "$completed deleted; $failed failed"
             )
         }
@@ -234,31 +274,25 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun clearClipboard() = _state.update { it.copy(clipboard = null) }
 
     fun paste() = transfers.paste()
-    fun cancelTransfer() = transfers.cancel()
-    fun resolveConflict(decision: VaultConflictDecision, applyToAll: Boolean) = transfers.resolveConflict(decision, applyToAll)
+    fun cancelTransfer() { transfers.cancel(); boundary.cancel() }
+    fun resolveConflict(decision: VaultConflictDecision, applyToAll: Boolean) {
+        transfers.resolveConflict(decision, applyToAll); boundary.resolve(decision, applyToAll)
+    }
+    fun export(nodes: List<VaultNodeMetadata>, destinationTreeUri: String, move: Boolean) =
+        boundary.start(nodes, destinationTreeUri, move)
 
     fun issueExternalAccess(
         nodes: List<VaultNodeMetadata>,
         onReady: (List<VaultExternalGrant>) -> Unit
-    ) {
-        val files = nodes.filterNot(VaultNodeMetadata::isDirectory)
-        if (files.isEmpty()) return
-        viewModelScope.launch {
-            val issued = mutableListOf<VaultExternalGrant>()
-            for (node in files) {
-                val grant = externalAccessManager.issue(node.ref).getOrElse { error ->
-                    issued.forEach { externalAccessManager.revoke(it.token) }
-                    showError(error)
-                    return@launch
-                }
-                issued += grant
-            }
-            onReady(issued)
-        }
-    }
+    ) = externalAccess.issue(nodes, plaintextFallback = false, onReady)
+
+    fun issuePlaintextFallbackAccess(
+        nodes: List<VaultNodeMetadata>,
+        onReady: (List<VaultExternalGrant>) -> Unit
+    ) = externalAccess.issue(nodes, plaintextFallback = true, onReady)
 
     fun revokeExternalAccess(grants: List<VaultExternalGrant>) {
-        grants.forEach { externalAccessManager.revoke(it.token) }
+        externalAccess.revoke(grants)
     }
 
     fun verifyHealth(mode: VaultHealthMode) {
@@ -273,15 +307,28 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     fun dismissHealthReport() = _state.update { it.copy(healthReport = null) }
 
+    fun changePassword(current: String, replacement: String, weakConfirmed: Boolean) =
+        administration.changePassword(current, replacement, weakConfirmed)
+    fun prepareBiometricEnrollment(password: String, onReady: (VaultBiometricChallenge) -> Unit) =
+        administration.prepareBiometricEnrollment(password, onReady)
+    fun prepareBiometricUnlock(vaultId: VaultId, onReady: (VaultBiometricChallenge) -> Unit) =
+        administration.prepareBiometricUnlock(vaultId, onReady)
+    fun biometricCompleted(vaultId: VaultId) = administration.biometricCompleted(vaultId)
+    fun removeBiometric() = administration.removeBiometric()
+    fun removeRegistration() = administration.removeRegistration()
+    fun deleteVault(confirmation: String) = administration.deleteVault(confirmation)
+
     fun lockCurrent() {
         val id = _state.value.selectedVaultId ?: return
         GlobalVideoPlaybackSessions.removeSecurityScope(vaultSecurityScope(id))
+        SensitiveMemory.clear()
         clearSensitiveUiState()
         viewModelScope.launch { repository.lock(id) }
     }
 
     fun lockAll() {
         _state.value.vaults.forEach { GlobalVideoPlaybackSessions.removeSecurityScope(vaultSecurityScope(it.id)) }
+        SensitiveMemory.clear()
         clearSensitiveUiState()
         viewModelScope.launch { repository.lockAll() }
     }
@@ -349,6 +396,7 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     private fun clearSensitiveUiState() {
         transfers.clear()
+        boundary.clear()
         browser.cancel()
         cancelImportSelection()
         _state.update {
@@ -387,6 +435,7 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     override fun onCleared() {
         transfers.clear()
+        boundary.clear()
         cancelImportSelection()
         folderPicker.clear()
         super.onCleared()

@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.5
+> **Version:** 1.5.6
 > **Last Updated:** 2026-07-14
 
 ---
+
+## [1.5.6] - 2026-07-14
+
+- **Protected Vault Presentation**: OnlyFiles blocks capture by default, supports encrypted revision-keyed image and video thumbnails, clears decrypted previews on lock, and provides global controls for screen protection and thumbnail-cache clearing.
+- **Complete Vault Administration**: Per-vault actions now cover password changes, strong-biometric enrollment or removal with password fallback, quick and full health checks, portable registration removal, locking, and explicitly confirmed permanent deletion.
+- **Verified Plaintext Boundaries**: Guarded export and move-out stage complete document-tree results, verify file contents, publish conflict-safe replacements, and delete encrypted sources only after success.
+- **Compatibility and Disclosure**: Apps that cannot stream can receive a separately confirmed, space-checked private plaintext copy with UID binding and automatic cleanup; Settings and Arcile documentation now explain the unaudited security model and recovery limits.
 
 ## [1.5.5] - 2026-07-14
 

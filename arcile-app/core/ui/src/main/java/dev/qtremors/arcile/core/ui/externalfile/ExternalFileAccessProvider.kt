@@ -6,11 +6,15 @@ import android.content.Context
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.os.Binder
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import java.io.File
 import java.io.FileNotFoundException
+import java.util.concurrent.ConcurrentHashMap
 
 class ExternalFileAccessProvider : ContentProvider() {
     override fun onCreate(): Boolean = true
@@ -50,7 +54,25 @@ class ExternalFileAccessProvider : ContentProvider() {
         if (mode != "r") throw SecurityException("External handoffs are read-only")
         val file = fileFor(uri)
         if (!file.isFile) throw FileNotFoundException(uri.toString())
-        return ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+        val key = observerKey(requireNotNull(context), file)
+        val observer = accessObservers[key]
+        if (observer != null && !observer.onOpen(Binder.getCallingUid())) {
+            throw SecurityException("This private handoff belongs to another application")
+        }
+        return try {
+            if (observer == null) {
+                ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            } else {
+                ParcelFileDescriptor.open(
+                    file,
+                    ParcelFileDescriptor.MODE_READ_ONLY,
+                    Handler(Looper.getMainLooper())
+                ) { observer.onClose() }
+            }
+        } catch (error: Throwable) {
+            observer?.onClose()
+            throw error
+        }
     }
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = throw UnsupportedOperationException()
@@ -70,6 +92,12 @@ class ExternalFileAccessProvider : ContentProvider() {
 
     companion object {
         private const val STAGING_ROOT = "external_access"
+        private val accessObservers = ConcurrentHashMap<String, AccessObserver>()
+
+        data class AccessObserver(
+            val onOpen: (consumerUid: Int) -> Boolean,
+            val onClose: () -> Unit
+        )
 
         fun authority(context: Context): String =
             "${context.packageName}.externalfileaccess"
@@ -90,5 +118,26 @@ class ExternalFileAccessProvider : ContentProvider() {
                 .encodedPath(relativePath.split('/').joinToString("/") { Uri.encode(it) })
                 .build()
         }
+
+        fun registerAccessObserver(context: Context, uri: Uri, observer: AccessObserver) {
+            val file = fileFromUri(context, uri)
+            accessObservers[observerKey(context, file)] = observer
+        }
+
+        fun unregisterAccessObserver(context: Context, uri: Uri) {
+            val file = fileFromUri(context, uri)
+            accessObservers.remove(observerKey(context, file))
+        }
+
+        private fun fileFromUri(context: Context, uri: Uri): File {
+            require(uri.authority == authority(context)) { "Unexpected handoff authority" }
+            val root = stagingRoot(context)
+            val file = File(root, uri.pathSegments.joinToString(File.separator)).canonicalFile
+            require(file == root || file.path.startsWith(root.path + File.separator)) { "Handoff path escapes cache" }
+            return file
+        }
+
+        private fun observerKey(context: Context, file: File): String =
+            file.canonicalFile.relativeTo(stagingRoot(context)).invariantSeparatorsPath
     }
 }

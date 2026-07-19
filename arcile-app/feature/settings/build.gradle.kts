@@ -38,6 +38,7 @@ dependencies {
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))
+    implementation(project(":core:vault:domain"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

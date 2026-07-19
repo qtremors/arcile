@@ -148,6 +148,17 @@ interface VaultTransferCoordinator {
     ): VaultBatchResult
 }
 
+interface VaultBoundaryTransferCoordinator {
+    val progress: Flow<VaultTransferProgress>
+    suspend fun exportToDocumentTree(
+        sources: List<VaultNodeRef>,
+        destinationTreeUri: String,
+        move: Boolean,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult
+}
+
 enum class VaultHealthMode { QUICK, FULL }
 enum class VaultHealthSeverity { INFO, WARNING, ERROR }
 
@@ -194,6 +205,10 @@ data class VaultGrantedContent(
 
 interface VaultExternalAccessManager {
     fun issue(ref: VaultNodeRef, lifetimeMillis: Long = 10 * 60 * 1000L): Result<VaultExternalGrant>
+    suspend fun issuePlaintextFallback(
+        ref: VaultNodeRef,
+        lifetimeMillis: Long = 10 * 60 * 1000L
+    ): Result<VaultExternalGrant>
     fun activeGrants(): List<VaultExternalGrant>
     fun revoke(token: String): Boolean
     fun revokeAll()

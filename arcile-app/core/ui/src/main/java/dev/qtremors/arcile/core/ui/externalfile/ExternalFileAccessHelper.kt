@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
+import android.os.StatFs
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
@@ -12,6 +13,8 @@ import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.FileOutputStream
+import java.io.OutputStream
 import java.util.UUID
 import kotlin.jvm.JvmName
 
@@ -19,10 +22,12 @@ object ExternalFileAccessHelper {
     private const val STAGING_ROOT = "external_access"
     private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
+    private const val VAULT_FALLBACK_STAGING = "onlyfiles_fallback"
     private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
     private const val MAX_CACHE_AGE_MS = 6L * 60 * 60 * 1000 // 6 hours
     private const val MAX_SHARE_FILE_BYTES = 256L * 1024 * 1024 // 256MB
     private const val MAX_SHARE_BATCH_BYTES = 750L * 1024 * 1024 // 750MB
+    private const val FALLBACK_FREE_SPACE_RESERVE_BYTES = 8L * 1024 * 1024
 
     data class StagingCacheStats(
         val fileCount: Int,
@@ -34,6 +39,11 @@ object ExternalFileAccessHelper {
         val mimeType: String,
         val displayName: String,
         val sizeBytes: Long
+    )
+
+    data class PrivatePlaintextFallback(
+        val id: String,
+        val target: ShareTarget
     )
 
     data class ExternalFileReference(
@@ -107,6 +117,62 @@ object ExternalFileAccessHelper {
     fun clearStagingArea(context: Context): StagingCacheStats {
         File(context.cacheDir, STAGING_ROOT).deleteRecursively()
         return getStagingCacheStats(context)
+    }
+
+    fun clearPrivatePlaintextFallbacks(context: Context) {
+        File(context.cacheDir, "$STAGING_ROOT${File.separator}$VAULT_FALLBACK_STAGING").deleteRecursively()
+    }
+
+    fun deletePrivatePlaintextFallback(context: Context, id: String): Boolean {
+        if (!id.matches(Regex("[0-9a-f]{64}"))) return false
+        val root = File(context.cacheDir, "$STAGING_ROOT${File.separator}$VAULT_FALLBACK_STAGING").canonicalFile
+        val target = File(root, id).canonicalFile
+        if (target.parentFile != root) return false
+        return !target.exists() || target.deleteRecursively()
+    }
+
+    suspend fun createPrivatePlaintextFallback(
+        context: Context,
+        displayName: String,
+        mimeType: String,
+        declaredSizeBytes: Long,
+        writePlaintext: (OutputStream) -> Unit
+    ): PrivatePlaintextFallback = withContext(Dispatchers.IO) {
+        require(declaredSizeBytes >= 0L) { "Invalid plaintext size" }
+        val available = StatFs(context.cacheDir.absolutePath).availableBytes
+        require(declaredSizeBytes <= available - FALLBACK_FREE_SPACE_RESERVE_BYTES) {
+            "There is not enough private storage for a compatibility copy"
+        }
+        val id = ByteArray(32).also(java.security.SecureRandom()::nextBytes)
+            .joinToString("") { "%02x".format(it.toInt() and 0xff) }
+        val directory = File(
+            context.cacheDir,
+            "$STAGING_ROOT${File.separator}$VAULT_FALLBACK_STAGING${File.separator}$id"
+        )
+        check(directory.mkdirs()) { "Unable to create private compatibility storage" }
+        val finalFile = File(directory, sanitizeDisplayName(displayName))
+        val partial = File(directory, ".partial")
+        try {
+            FileOutputStream(partial).use { output ->
+                writePlaintext(output)
+                output.flush()
+                output.fd.sync()
+            }
+            require(partial.length() == declaredSizeBytes) { "Compatibility copy length changed" }
+            check(partial.renameTo(finalFile)) { "Unable to publish compatibility copy" }
+            PrivatePlaintextFallback(
+                id,
+                ShareTarget(
+                    uri = createStagedContentUri(context, finalFile),
+                    mimeType = mimeType,
+                    displayName = displayName,
+                    sizeBytes = declaredSizeBytes
+                )
+            )
+        } catch (error: Throwable) {
+            directory.deleteRecursively()
+            throw error
+        }
     }
 
     fun getStagingCacheStats(context: Context): StagingCacheStats {

@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.VaultThumbnailRequest
 import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileList
@@ -96,7 +97,17 @@ internal fun VaultBrowser(
         return
     }
     Column(Modifier.fillMaxSize()) {
-        val presentation = FileItemPresentation(showThumbnails = false, showDetails = true)
+        val presentation = FileItemPresentation(
+            showThumbnails = true,
+            showDetails = true,
+            thumbnailData = { file, size ->
+                byOpaquePath[file.absolutePath]?.takeIf { it.isViewableImage() || it.isViewableVideo() }?.let { node ->
+                    VaultThumbnailRequest(
+                        node.ref.vaultId.value, node.ref.nodeId.value, node.ref.parentId.value, node.revision, size
+                    )
+                }
+            }
+        )
         val open: (String) -> Unit = { path -> byOpaquePath[path]?.let(onOpen) }
         val toggle: (String) -> Unit = { path -> byOpaquePath[path]?.ref?.nodeId?.value?.let(onToggleSelection) }
         val range: (List<String>) -> Unit = { paths -> onSelectRange(paths.mapNotNull { byOpaquePath[it]?.ref?.nodeId?.value }) }

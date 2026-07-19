@@ -36,10 +36,12 @@ dependencies {
     implementation(project(":core:vault:crypto"))
     implementation(project(":core:ui"))
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

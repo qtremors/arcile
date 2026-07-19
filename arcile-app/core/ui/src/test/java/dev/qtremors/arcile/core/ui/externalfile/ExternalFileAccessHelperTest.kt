@@ -24,6 +24,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowEnvironment
+import org.robolectric.shadows.ShadowStatFs
 import java.io.File
 import java.io.RandomAccessFile
 
@@ -424,6 +425,56 @@ class ExternalFileAccessHelperTest {
             )
         )
         assertEquals("image/jpeg", openIntent.type)
+    }
+
+    @Test
+    fun `private plaintext fallback is exact private and recoverably cleared`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+        ShadowStatFs.registerStats(context.cacheDir.absolutePath, 100_000, 100_000, 100_000)
+        val payload = ByteArray(300_000) { (it % 251).toByte() }
+
+        val fallback = ExternalFileAccessHelper.createPrivatePlaintextFallback(
+            context,
+            "private name.bin",
+            "application/octet-stream",
+            payload.size.toLong()
+        ) { output -> output.write(payload) }
+
+        assertEquals(64, fallback.id.length)
+        assertEquals(ExternalFileAccessProvider.authority(context), fallback.target.uri.authority)
+        val staged = File(
+            ExternalFileAccessProvider.stagingRoot(context),
+            fallback.target.uri.pathSegments.joinToString(File.separator)
+        )
+        assertTrue(staged.canonicalPath.startsWith(context.cacheDir.canonicalPath + File.separator))
+        assertTrue(staged.readBytes().contentEquals(payload))
+
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+        assertFalse(staged.exists())
+    }
+
+    @Test
+    fun `private plaintext fallback rolls back length mismatch`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+        ShadowStatFs.registerStats(context.cacheDir.absolutePath, 100_000, 100_000, 100_000)
+
+        try {
+            ExternalFileAccessHelper.createPrivatePlaintextFallback(
+                context,
+                "short.bin",
+                "application/octet-stream",
+                10L
+            ) { output -> output.write(byteArrayOf(1, 2, 3)) }
+            fail("Expected mismatched plaintext length to be rejected")
+        } catch (expected: IllegalArgumentException) {
+            assertTrue(expected.message.orEmpty().contains("length"))
+        }
+
+        val fallbackRoot = File(context.cacheDir, "external_access/onlyfiles_fallback")
+        assertEquals(0, fallbackRoot.walkTopDown().count { it.isFile })
+        assertFalse(ExternalFileAccessHelper.deletePrivatePlaintextFallback(context, "../escape"))
     }
 
     private fun mediaStoreCursor(

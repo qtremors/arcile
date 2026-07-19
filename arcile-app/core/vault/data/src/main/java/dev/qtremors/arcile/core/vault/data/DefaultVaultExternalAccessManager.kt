@@ -7,8 +7,11 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import android.net.Uri
+import android.os.Process
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessProvider
 import dev.qtremors.arcile.core.vault.crypto.VaultFileCodec
 import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
@@ -22,7 +25,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
@@ -36,6 +41,7 @@ class DefaultVaultExternalAccessManager @Inject constructor(
     @param:ApplicationScope private val applicationScope: CoroutineScope
 ) : VaultExternalAccessManager {
     private val grants = ConcurrentHashMap<String, GrantRecord>()
+    private val fallbacks = ConcurrentHashMap<String, FallbackRecord>()
     private val random = SecureRandom()
     private val fileCodec = VaultFileCodec()
 
@@ -66,7 +72,80 @@ class DefaultVaultExternalAccessManager @Inject constructor(
 
     override fun activeGrants(): List<VaultExternalGrant> {
         cleanupExpired()
-        return grants.values.map(GrantRecord::public).sortedBy(VaultExternalGrant::expiresAtMillis)
+        return (grants.values.map(GrantRecord::public) + fallbacks.values.map(FallbackRecord::public))
+            .sortedBy(VaultExternalGrant::expiresAtMillis)
+    }
+
+    override suspend fun issuePlaintextFallback(
+        ref: VaultNodeRef,
+        lifetimeMillis: Long
+    ): Result<VaultExternalGrant> = runCatching {
+        require(lifetimeMillis in MIN_LIFETIME_MILLIS..MAX_LIFETIME_MILLIS)
+        cleanupExpired()
+        val streamGrant = issue(ref, lifetimeMillis).getOrThrow()
+        var fallback: ExternalFileAccessHelper.PrivatePlaintextFallback? = null
+        var fallbackToken: String? = null
+        try {
+            val content = openGrantedContent(streamGrant.token, Process.myUid()).getOrThrow()
+            val job = currentCoroutineContext()[Job]
+            content.reader.use { reader ->
+                fallback = ExternalFileAccessHelper.createPrivatePlaintextFallback(
+                    context,
+                    content.displayName,
+                    content.mimeType,
+                    content.sizeBytes
+                ) { output ->
+                    val buffer = ByteArray(PLAINTEXT_COPY_BUFFER_SIZE)
+                    try {
+                        var position = 0L
+                        while (position < reader.sizeBytes) {
+                            job?.ensureActive()
+                            val count = reader.readAt(
+                                position,
+                                buffer,
+                                0,
+                                minOf(buffer.size.toLong(), reader.sizeBytes - position).toInt()
+                            )
+                            if (count <= 0) throw VaultFailure.SourceChanged()
+                            output.write(buffer, 0, count)
+                            position += count
+                        }
+                    } finally {
+                        buffer.fill(0)
+                    }
+                }
+            }
+            revoke(streamGrant.token)
+            val staged = requireNotNull(fallback)
+            var token: String
+            do token = randomToken() while (grants.containsKey(token) || fallbacks.containsKey(token))
+            fallbackToken = token
+            val public = VaultExternalGrant(
+                token = token,
+                contentUri = staged.target.uri.toString(),
+                displayName = staged.target.displayName,
+                mimeType = staged.target.mimeType,
+                sizeBytes = staged.target.sizeBytes,
+                expiresAtMillis = streamGrant.expiresAtMillis
+            )
+            val record = FallbackRecord(public, staged.id)
+            fallbacks[token] = record
+            ExternalFileAccessProvider.registerAccessObserver(
+                context,
+                staged.target.uri,
+                ExternalFileAccessProvider.Companion.AccessObserver(
+                    onOpen = { uid -> fallbackOpened(record, uid) },
+                    onClose = { fallbackClosed(record) }
+                )
+            )
+            updateNotification()
+            public
+        } catch (error: Throwable) {
+            revoke(streamGrant.token)
+            fallbackToken?.let(::revoke)
+                ?: fallback?.let { ExternalFileAccessHelper.deletePrivatePlaintextFallback(context, it.id) }
+            throw error
+        }
     }
 
     override fun revoke(token: String): Boolean = grants.remove(token)?.let {
@@ -74,15 +153,22 @@ class DefaultVaultExternalAccessManager @Inject constructor(
         it.session.destroy()
         updateNotification()
         true
+    } ?: fallbacks.remove(token)?.let { record ->
+        synchronized(record) { record.autoRevoke?.cancel() }
+        val uri = Uri.parse(record.public.contentUri)
+        runCatching { ExternalFileAccessProvider.unregisterAccessObserver(context, uri) }
+        ExternalFileAccessHelper.deletePrivatePlaintextFallback(context, record.fallbackId)
+        updateNotification()
+        true
     } ?: false
 
     override fun revokeAll() {
-        grants.keys.toList().forEach(::revoke)
+        (grants.keys + fallbacks.keys).toList().forEach(::revoke)
     }
 
     override fun describe(token: String): Result<VaultExternalGrant> {
         cleanupExpired()
-        return grants[token]?.public?.let(Result.Companion::success)
+        return (grants[token]?.public ?: fallbacks[token]?.public)?.let(Result.Companion::success)
             ?: Result.failure(VaultFailure.ExternalGrantExpired())
     }
 
@@ -143,6 +229,7 @@ class DefaultVaultExternalAccessManager @Inject constructor(
     private fun cleanupExpired() {
         val now = System.currentTimeMillis()
         grants.values.filter { it.public.expiresAtMillis <= now }.forEach { revoke(it.public.token) }
+        fallbacks.values.filter { it.public.expiresAtMillis <= now }.forEach { revoke(it.public.token) }
     }
 
     private fun randomToken(): String {
@@ -154,6 +241,15 @@ class DefaultVaultExternalAccessManager @Inject constructor(
         val public: VaultExternalGrant,
         val ref: VaultNodeRef,
         val session: VaultSessionRecord
+    ) {
+        val openReaders = AtomicInteger(0)
+        val consumerUid = AtomicInteger(UNCLAIMED_UID)
+        var autoRevoke: Job? = null
+    }
+
+    private class FallbackRecord(
+        val public: VaultExternalGrant,
+        val fallbackId: String
     ) {
         val openReaders = AtomicInteger(0)
         val consumerUid = AtomicInteger(UNCLAIMED_UID)
@@ -195,9 +291,41 @@ class DefaultVaultExternalAccessManager @Inject constructor(
         }
     }
 
+    private fun fallbackOpened(record: FallbackRecord, consumerUid: Int): Boolean = synchronized(record) {
+        if (fallbacks[record.public.token] !== record ||
+            record.public.expiresAtMillis <= System.currentTimeMillis()
+        ) {
+            applicationScope.launch { revoke(record.public.token) }
+            return@synchronized false
+        }
+        val claimed = record.consumerUid.get()
+        if (claimed != UNCLAIMED_UID && claimed != consumerUid) return@synchronized false
+        record.consumerUid.compareAndSet(UNCLAIMED_UID, consumerUid)
+        record.autoRevoke?.cancel()
+        record.autoRevoke = null
+        record.openReaders.incrementAndGet()
+        true
+    }
+
+    private fun fallbackClosed(record: FallbackRecord) {
+        synchronized(record) {
+            val remaining = record.openReaders.updateAndGet { maxOf(0, it - 1) }
+            if (remaining != 0 || fallbacks[record.public.token] !== record) return
+            record.autoRevoke?.cancel()
+            record.autoRevoke = applicationScope.launch {
+                delay(REVOKE_AFTER_CLOSE_MILLIS)
+                synchronized(record) {
+                    if (record.openReaders.get() != 0) return@launch
+                }
+                revoke(record.public.token)
+            }
+        }
+    }
+
     private fun updateNotification() {
         val manager = context.getSystemService(NotificationManager::class.java)
-        if (grants.isEmpty()) {
+        val activeCount = grants.size + fallbacks.size
+        if (activeCount == 0) {
             manager.cancel(NOTIFICATION_ID)
             return
         }
@@ -214,7 +342,7 @@ class DefaultVaultExternalAccessManager @Inject constructor(
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_onlyfiles_notification)
             .setContentTitle(context.getString(R.string.onlyfiles_external_active))
-            .setContentText(context.resources.getQuantityString(R.plurals.onlyfiles_external_count, grants.size, grants.size))
+            .setContentText(context.resources.getQuantityString(R.plurals.onlyfiles_external_count, activeCount, activeCount))
             .setOngoing(true)
             .setSilent(true)
             .addAction(0, context.getString(R.string.onlyfiles_external_revoke), revoke)
@@ -229,6 +357,7 @@ class DefaultVaultExternalAccessManager @Inject constructor(
         const val CHANNEL_ID = "onlyfiles_external_access"
         const val NOTIFICATION_ID = 0x0F11E5
         private const val UNCLAIMED_UID = -1
+        private const val PLAINTEXT_COPY_BUFFER_SIZE = 256 * 1024
         fun authority(context: Context): String = "${context.packageName}.onlyfiles.external"
     }
 }
