@@ -370,7 +370,9 @@ internal fun HomeScreen(
                         )
                     }
 
-                    val displayedHomeUtilities = HomeUtilityCatalog.filter { it.id in state.homeUtilityIds }
+                    val displayedHomeUtilities = state.homeUtilityIds.mapNotNull { id ->
+                        HomeUtilityCatalog.firstOrNull { it.id == id }
+                    }
                     item {
                         Row(
                             modifier = Modifier
@@ -410,8 +412,7 @@ internal fun HomeScreen(
                                         ToolCard(
                                             ToolItem(
                                                 stringResource(definition.nameRes),
-                                                definition.icon,
-                                                isImplemented = definition.isImplemented
+                                                definition.icon
                                             ),
                                             onClick = {
                                                 when (definition.action) {
@@ -419,7 +420,6 @@ internal fun HomeScreen(
                                                     UtilityAction.Cleaner -> navigationIntents.navigateToCleaner()
                                                     UtilityAction.Activity -> navigationIntents.navigateToActivity()
                                                     UtilityAction.OnlyFiles -> navigationIntents.navigateToOnlyFiles()
-                                                    UtilityAction.None -> Unit
                                                 }
                                             }
                                         )

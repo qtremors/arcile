@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.onlyfiles
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -32,6 +31,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.core.net.toUri
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
@@ -130,9 +130,32 @@ internal fun HealthDialog(report: VaultHealthReport, onDismiss: () -> Unit) {
     )
 }
 
+@Composable
+internal fun BoundaryTransferDialog(
+    move: Boolean,
+    onDismiss: () -> Unit,
+    onChooseDestination: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(if (move) R.string.onlyfiles_move_out else R.string.onlyfiles_export)) },
+        text = {
+            Text(stringResource(if (move) R.string.onlyfiles_move_out_warning else R.string.onlyfiles_export_warning))
+        },
+        confirmButton = {
+            Button(onClick = onChooseDestination) {
+                Text(stringResource(R.string.onlyfiles_choose_destination))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        }
+    )
+}
+
 internal fun launchExternalIntent(context: Context, action: ExternalAction, grants: List<VaultExternalGrant>) {
     require(grants.isNotEmpty())
-    val uris = ArrayList(grants.map { Uri.parse(it.contentUri) })
+    val uris = ArrayList(grants.map { it.contentUri.toUri() })
     val intent = when {
         action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW).setDataAndType(uris.single(), grants.single().mimeType)
         grants.size == 1 -> Intent(Intent.ACTION_SEND).setType(grants.single().mimeType).putExtra(Intent.EXTRA_STREAM, uris.single())

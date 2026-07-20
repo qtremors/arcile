@@ -39,6 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -52,6 +55,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.RepeatModeUtil
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
@@ -62,10 +66,11 @@ import kotlin.math.max
 import kotlin.math.min
 
 @Composable
+@androidx.annotation.OptIn(UnstableApi::class)
 internal fun GlobalVideoPlayer(
     mediaItems: List<MediaItem>,
-    startIndex: Int = 0,
     modifier: Modifier = Modifier,
+    startIndex: Int = 0,
     dataSourceFactory: DataSource.Factory? = null,
     autoPlay: Boolean = true,
     resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -137,11 +142,14 @@ internal fun GlobalVideoPlayer(
                                 val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
                                 player.seekTo(min(duration, max(0L, player.currentPosition + delta)))
                                 seekFeedback = if (forward) "+10 seconds" else "−10 seconds"
-                                announceForAccessibility(seekFeedback)
                                 return true
                             }
                         })
-                        setOnTouchListener { _, event -> detector.onTouchEvent(event); false }
+                        setOnTouchListener { touchedView, event ->
+                            detector.onTouchEvent(event)
+                            if (event.actionMasked == MotionEvent.ACTION_UP) touchedView.performClick()
+                            false
+                        }
                     }
                 },
                 update = {
@@ -186,7 +194,10 @@ internal fun GlobalVideoPlayer(
                 feedback,
                 color = Color.White,
                 style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.background(Color.Black.copy(alpha = 0.65f)).padding(12.dp)
+                modifier = Modifier
+                    .semantics { liveRegion = LiveRegionMode.Assertive }
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .padding(12.dp)
             )
             DisposableEffect(feedback) {
                 val callback = Runnable { seekFeedback = null }
@@ -198,6 +209,7 @@ internal fun GlobalVideoPlayer(
 }
 
 @Composable
+@androidx.annotation.OptIn(UnstableApi::class)
 internal fun GlobalVideoViewer(
     session: VideoPlaybackSession,
     onNavigateBack: () -> Unit,

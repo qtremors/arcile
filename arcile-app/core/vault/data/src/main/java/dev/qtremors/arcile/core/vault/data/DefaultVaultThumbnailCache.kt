@@ -34,7 +34,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 @Singleton
-class DefaultVaultThumbnailCache @Inject constructor(
+internal class DefaultVaultThumbnailCache @Inject constructor(
     @ApplicationContext context: Context,
     private val repository: DefaultVaultRepository
 ) : VaultThumbnailCache {

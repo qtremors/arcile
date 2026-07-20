@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -13,7 +15,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -56,25 +57,35 @@ class UtilityPreferencesRepositoryTest {
 
         val ids = repository.homeUtilityIds.first()
 
-        assertTrue("trash" in ids)
-        assertTrue("cleaner" in ids)
+        assertEquals(listOf("trash", "cleaner"), ids)
     }
 
     @Test
     fun `home utility ids persist updates`() = runBlocking {
         val repository = UtilityPreferencesRepository(context, dataStore)
 
-        repository.setHomeUtilityIds(setOf("trash", "activity"))
+        repository.setHomeUtilityIds(listOf("activity", "trash", "onlyfiles"))
 
-        assertTrue(repository.homeUtilityIds.first() == setOf("trash", "activity"))
+        assertEquals(listOf("activity", "trash", "onlyfiles"), repository.homeUtilityIds.first())
     }
 
     @Test
     fun `home utility ids discard stale cleaner sub tools`() = runBlocking {
         val repository = UtilityPreferencesRepository(context, dataStore)
 
-        repository.setHomeUtilityIds(setOf("trash", "cleaner", "large", "duplicates", "analyze"))
+        repository.setHomeUtilityIds(listOf("trash", "cleaner", "large", "duplicates", "analyze", "trash"))
 
-        assertEquals(setOf("trash", "cleaner"), repository.homeUtilityIds.first())
+        assertEquals(listOf("trash", "cleaner"), repository.homeUtilityIds.first())
+    }
+
+    @Test
+    fun `legacy unordered utility ids migrate in catalog order`() = runBlocking {
+        dataStore.edit { preferences ->
+            preferences[stringSetPreferencesKey("home_utility_ids")] = setOf("onlyfiles", "trash", "unknown")
+        }
+
+        val ids = UtilityPreferencesRepository(context, dataStore).homeUtilityIds.first()
+
+        assertEquals(listOf("trash", "onlyfiles"), ids)
     }
 }

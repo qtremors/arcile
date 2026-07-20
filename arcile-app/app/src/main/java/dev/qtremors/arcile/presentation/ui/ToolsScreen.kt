@@ -1,41 +1,29 @@
 package dev.qtremors.arcile.presentation.ui
 
-import dev.qtremors.arcile.core.ui.utilities.ArcileUtilityCatalog
-import dev.qtremors.arcile.core.ui.utilities.UtilityAction
-
-import dev.qtremors.arcile.core.ui.ToolItem
-import dev.qtremors.arcile.core.ui.ToolCard
-import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
-
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
-import dev.qtremors.arcile.core.ui.theme.spacing
-import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.ui.utilities.ArcileUtilityCatalog
+import dev.qtremors.arcile.core.ui.utilities.UtilityAction
+import dev.qtremors.arcile.core.ui.utilities.UtilityDefinition
 
-
-/**
- * Utilities grid screen listing planned and implemented tools.
- *
- * Currently only the Trash Bin tool is functional. All other tool cards are marked as
- * "Coming Soon" and are not clickable. See TASKS.md F4 for the UX issue around
- * non-interactive cards being visually identical to actionable ones.
- *
- * @param onNavigateBack Called when the user navigates back.
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ToolsScreen(
     onNavigateBack: () -> Unit,
@@ -43,89 +31,105 @@ fun ToolsScreen(
     onNavigateToTrash: () -> Unit,
     onNavigateToActivity: () -> Unit,
     onNavigateToOnlyFiles: () -> Unit,
-    homeUtilityIds: Set<String>,
-    onUtilityHomeVisibilityChange: (String, Boolean) -> Unit
+    homeUtilityIds: List<String>,
+    onUtilityHomeVisibilityChange: (String, Boolean) -> Unit,
+    onMoveUtility: (String, Int) -> Unit
 ) {
+    val selectedDefinitions = homeUtilityIds.mapNotNull { id ->
+        ArcileUtilityCatalog.firstOrNull { it.id == id }
+    }
+    val displayed = selectedDefinitions + ArcileUtilityCatalog.filterNot { it.id in homeUtilityIds }
+    fun open(definition: UtilityDefinition) = when (definition.action) {
+        UtilityAction.Cleaner -> onNavigateToCleaner()
+        UtilityAction.Trash -> onNavigateToTrash()
+        UtilityAction.Activity -> onNavigateToActivity()
+        UtilityAction.OnlyFiles -> onNavigateToOnlyFiles()
+    }
+
     ArcileScreenScaffold(
         topBar = {
-            @OptIn(ExperimentalMaterial3Api::class)
-            TopAppBar(
+            LargeTopAppBar(
                 title = { Text(stringResource(R.string.tools_title)) },
                 navigationIcon = {
                     Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(androidx.compose.foundation.shape.CircleShape)
-                            .bounceClickable { onNavigateBack() },
+                        Modifier.size(48.dp).clip(CircleShape).bounceClickable(onClick = onNavigateBack),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back))
                     }
                 }
             )
         }
     ) { padding ->
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(top = padding.calculateTopPadding())
-                .padding(horizontal = 8.dp),
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
             contentPadding = PaddingValues(
-                top = 8.dp,
-                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+                start = MaterialTheme.spacing.screenGutter,
+                end = MaterialTheme.spacing.screenGutter,
+                top = MaterialTheme.spacing.small,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                    MaterialTheme.spacing.screenGutter
             ),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
         ) {
-            items(ArcileUtilityCatalog, key = { it.id }) { definition ->
-                val tool = ToolItem(
-                    name = stringResource(definition.nameRes),
-                    icon = definition.icon,
-                    isImplemented = definition.isImplemented
+            item {
+                Text(
+                    stringResource(R.string.tools_home_description),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                 )
-                Box {
-                    ToolCard(
-                        item = tool,
-                        onClick = {
-                            when (definition.action) {
-                                UtilityAction.Cleaner -> onNavigateToCleaner()
-                                UtilityAction.Trash -> onNavigateToTrash()
-                                UtilityAction.Activity -> onNavigateToActivity()
-                                UtilityAction.OnlyFiles -> onNavigateToOnlyFiles()
-                                UtilityAction.None -> Unit
-                            }
-                        }
-                    )
-                    if (definition.showOnHome) {
-                        val isShownOnHome = definition.id in homeUtilityIds
+            }
+            items(displayed, key = UtilityDefinition::id) { definition ->
+                val homeIndex = homeUtilityIds.indexOf(definition.id)
+                val shown = homeIndex >= 0
+                Surface(
+                    onClick = { open(definition) },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = if (shown) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerLow,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
                         Surface(
-                            shape = androidx.compose.foundation.shape.CircleShape,
-                            color = if (isShownOnHome) {
-                                MaterialTheme.colorScheme.primaryContainer
-                            } else {
-                                MaterialTheme.colorScheme.surfaceContainerHighest
-                            },
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .padding(8.dp)
-                                .size(36.dp)
-                                .clip(androidx.compose.foundation.shape.CircleShape)
-                                .bounceClickable { onUtilityHomeVisibilityChange(definition.id, !isShownOnHome) }
+                            shape = CircleShape,
+                            color = if (shown) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.secondaryContainer
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (isShownOnHome) Icons.Default.Home else Icons.Outlined.Home,
-                                    contentDescription = stringResource(R.string.quick_access_show_on_home),
-                                    tint = if (isShownOnHome) {
-                                        MaterialTheme.colorScheme.onPrimaryContainer
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    },
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                            Icon(
+                                definition.icon,
+                                contentDescription = null,
+                                modifier = Modifier.padding(12.dp).size(26.dp),
+                                tint = if (shown) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         }
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(definition.nameRes), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                stringResource(if (shown) R.string.tools_visible_on_home else R.string.tools_hidden_from_home),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (shown) {
+                            IconButton(
+                                onClick = { onMoveUtility(definition.id, -1) },
+                                enabled = homeIndex > 0
+                            ) { Icon(Icons.Default.ArrowUpward, stringResource(R.string.tools_move_up)) }
+                            IconButton(
+                                onClick = { onMoveUtility(definition.id, 1) },
+                                enabled = homeIndex < homeUtilityIds.lastIndex
+                            ) { Icon(Icons.Default.ArrowDownward, stringResource(R.string.tools_move_down)) }
+                        }
+                        Switch(
+                            checked = shown,
+                            onCheckedChange = { onUtilityHomeVisibilityChange(definition.id, it) }
+                        )
                     }
                 }
             }

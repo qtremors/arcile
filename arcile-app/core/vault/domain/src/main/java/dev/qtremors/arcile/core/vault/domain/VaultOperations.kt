@@ -150,13 +150,19 @@ interface VaultTransferCoordinator {
 
 interface VaultBoundaryTransferCoordinator {
     val progress: Flow<VaultTransferProgress>
-    suspend fun exportToDocumentTree(
-        sources: List<VaultNodeRef>,
-        destinationTreeUri: String,
+    fun prepareExport(sources: List<VaultNodeRef>): Result<VaultBoundaryTransferReservation>
+    suspend fun exportToDestination(
+        reservation: VaultBoundaryTransferReservation,
+        destinationPath: String,
         move: Boolean,
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult
+}
+
+interface VaultBoundaryTransferReservation : Closeable {
+    val sources: List<VaultNodeRef>
+    val isClosed: Boolean
 }
 
 enum class VaultHealthMode { QUICK, FULL }

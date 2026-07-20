@@ -6,6 +6,12 @@ import java.io.Closeable
 
 interface VaultSessionLease : Closeable
 
+interface VaultImportReservation : Closeable {
+    val vaultId: VaultId
+    val destination: VaultPath
+    val isClosed: Boolean
+}
+
 interface VaultRepository {
     val vaults: StateFlow<List<VaultSummary>>
     val unlockedVaultIds: StateFlow<Set<VaultId>>
@@ -31,11 +37,10 @@ interface VaultImportCoordinator {
     val activeImports: StateFlow<Map<VaultId, VaultImportState>>
     val events: Flow<VaultImportEvent>
 
-    fun startImport(
+    fun prepareImport(
         vaultId: VaultId,
-        destination: VaultPath,
-        sourceUris: List<String>,
-        selectionLease: VaultSessionLease? = null
-    ): Boolean
+        destination: VaultPath
+    ): Result<VaultImportReservation>
+    fun startImport(reservation: VaultImportReservation, sourceUris: List<String>): Boolean
     fun cancelImport(vaultId: VaultId)
 }

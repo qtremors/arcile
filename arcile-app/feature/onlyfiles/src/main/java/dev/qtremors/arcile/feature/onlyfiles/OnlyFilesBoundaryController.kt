@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
+import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferReservation
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
@@ -21,12 +22,29 @@ internal class OnlyFilesBoundaryController(
     private val reload: () -> Unit
 ) {
     private var cancellation: AtomicBoolean? = null
+    private var reservation: VaultBoundaryTransferReservation? = null
     private var answer: CompletableDeferred<Pair<VaultConflictDecision, Boolean>>? = null
     private var requestId = 100_000L
 
-    fun start(nodes: List<VaultNodeMetadata>, destinationTreeUri: String, move: Boolean) {
+    fun prepare(nodes: List<VaultNodeMetadata>): Boolean {
+        cancelSelection()
         val sources = nodes.map(VaultNodeMetadata::ref).distinctBy { it.backendIdentity }
-        if (sources.isEmpty() || state.value.busy) return
+        if (sources.isEmpty() || state.value.busy) return false
+        val prepared = coordinator.prepareExport(sources).getOrElse {
+            state.update { current -> current.copy(message = it.message ?: "Unable to prepare export") }
+            return false
+        }
+        reservation = prepared
+        return true
+    }
+
+    fun start(destinationPath: String, move: Boolean) {
+        val prepared = reservation ?: return
+        reservation = null
+        if (state.value.busy) {
+            prepared.close()
+            return
+        }
         val cancelled = AtomicBoolean(false)
         cancellation = cancelled
         scope.launch {
@@ -36,7 +54,7 @@ internal class OnlyFilesBoundaryController(
                 applyAll ?: awaitDecision(conflict).also { if (it.second) applyAll = it.first }.first
             }
             val result = try {
-                coordinator.exportToDocumentTree(sources, destinationTreeUri, move, conflicts, VaultCancellationSignal(cancelled::get))
+                coordinator.exportToDestination(prepared, destinationPath, move, conflicts, VaultCancellationSignal(cancelled::get))
             } finally {
                 cancellation = null
                 answer?.cancel(); answer = null
@@ -50,6 +68,11 @@ internal class OnlyFilesBoundaryController(
         }
     }
 
+    fun cancelSelection() {
+        reservation?.close()
+        reservation = null
+    }
+
     fun cancel() {
         cancellation?.set(true)
         answer?.complete(VaultConflictDecision.SKIP to true)
@@ -60,6 +83,7 @@ internal class OnlyFilesBoundaryController(
     }
 
     fun clear() {
+        cancelSelection()
         cancellation?.set(true)
         answer?.cancel(); answer = null
     }

@@ -4,8 +4,6 @@ import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,6 +21,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -39,9 +39,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material.icons.filled.UploadFile
-import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
@@ -58,15 +56,14 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -77,6 +74,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -91,6 +89,10 @@ import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
+import dev.qtremors.arcile.core.ui.menus.ExpandableFabMenu
+import dev.qtremors.arcile.core.ui.menus.FabMenuItem
+import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.SearchTopBar
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
@@ -112,40 +114,12 @@ internal fun OnlyFilesRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     VaultSecureWindowEffect(state.selectedVaultId != null && state.screenshotProtectionEnabled)
-    val context = LocalContext.current
-    val filesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
-        uris.forEach { uri ->
-            runCatching { context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        }
-        viewModel.finishImportSelection(uris.map(Uri::toString))
-    }
-    val folderLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        uri?.let {
-            runCatching { context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
-        }
-        viewModel.finishImportSelection(listOfNotNull(uri?.toString()))
-    }
-    var pendingBoundaryTransfer by remember {
-        mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null)
-    }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
-        val request = pendingBoundaryTransfer
-        pendingBoundaryTransfer = null
-        if (uri != null && request != null) {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                )
-            }
-            viewModel.export(request.first, uri.toString(), request.second)
-        }
-    }
     BackHandler {
         when {
             state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
             state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
             state.searchQuery.isNotEmpty() -> viewModel.updateSearch("")
+            state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
             !viewModel.navigateUp() -> onNavigateBack()
         }
@@ -155,12 +129,9 @@ internal fun OnlyFilesRoute(
         viewModel = viewModel,
         onNavigateBack = onNavigateBack,
         onPlayVideo = onPlayVideo,
-        onImportFiles = { if (viewModel.beginImportSelection()) filesLauncher.launch(arrayOf("*/*")) },
-        onImportFolder = { if (viewModel.beginImportSelection()) folderLauncher.launch(null) },
-        onBoundaryTransfer = { nodes, move ->
-            pendingBoundaryTransfer = nodes to move
-            exportLauncher.launch(null)
-        }
+        onImportFiles = viewModel::beginLocalFileImport,
+        onImportFolder = viewModel::beginLocalFolderImport,
+        onBoundaryTransfer = viewModel::beginLocalExport
     )
 }
 
@@ -187,6 +158,13 @@ private fun OnlyFilesScreen(
     var externalRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
     var fallbackRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
     var boundaryRequest by remember { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
+    var fabExpanded by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+
+    BackHandler(enabled = showSearch) {
+        showSearch = false
+        viewModel.updateSearch("")
+    }
 
     LaunchedEffect(state.message) {
         state.message?.let { snackbarHost.showSnackbar(it); viewModel.clearMessage() }
@@ -197,10 +175,18 @@ private fun OnlyFilesScreen(
         return
     }
 
-    Scaffold(
+    ArcileScreenScaffold(
         snackbarHost = { SnackbarHost(snackbarHost) },
         topBar = {
-            Column {
+            if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
+                SearchTopBar(
+                    query = state.searchQuery,
+                    onQueryChange = viewModel::updateSearch,
+                    onClose = { showSearch = false; viewModel.updateSearch("") },
+                    onFilterClick = viewModel::toggleRecursiveSearch,
+                    placeholder = stringResource(R.string.onlyfiles_search)
+                )
+            } else Column {
                 if (state.selectedNodeIds.isNotEmpty()) {
                     SelectionTopBar(
                         state,
@@ -217,8 +203,19 @@ private fun OnlyFilesScreen(
                         onMoveOut = { boundaryRequest = state.selectedNodes to true }
                     )
                 } else {
-                    TopAppBar(
-                        title = { Text(state.selectedVault?.name ?: stringResource(R.string.onlyfiles_title)) },
+                    LargeTopAppBar(
+                        title = {
+                            Column {
+                                Text(state.selectedVault?.name ?: stringResource(R.string.onlyfiles_title))
+                                if (state.selectedVault != null) {
+                                    Text(
+                                        state.currentDirectory?.name?.takeIf(String::isNotBlank) ?: "/",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        },
                         navigationIcon = {
                             IconButton(onClick = { if (!viewModel.navigateUp()) onNavigateBack() }) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.onlyfiles_back))
@@ -226,14 +223,17 @@ private fun OnlyFilesScreen(
                         },
                         actions = {
                             if (state.selectedVault != null) {
+                                IconButton(onClick = { showSearch = true }) {
+                                    Icon(Icons.Default.Search, stringResource(R.string.onlyfiles_search))
+                                }
                                 IconButton(onClick = viewModel::toggleLayout) {
                                     Icon(
-                                        if (state.layout == OnlyFilesLayout.LIST) Icons.Default.GridView else Icons.Default.ViewList,
+                                        if (state.layout == OnlyFilesLayout.LIST) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
                                         stringResource(R.string.onlyfiles_change_layout)
                                     )
                                 }
                                 IconButton(onClick = { showSort = true }) {
-                                    Icon(Icons.Default.Sort, stringResource(R.string.onlyfiles_sort))
+                                    Icon(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.onlyfiles_sort))
                                 }
                                 IconButton(onClick = { showOverflow = true }) {
                                     Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
@@ -244,9 +244,6 @@ private fun OnlyFilesScreen(
                                     { showOverflow = false }, viewModel::refresh, onImportFiles, onImportFolder
                                 )
                             } else {
-                                TextButton(onClick = viewModel::beginAttachVault) {
-                                    Text(stringResource(R.string.onlyfiles_add_existing))
-                                }
                                 if (state.vaults.any(VaultSummary::isUnlocked)) {
                                     TextButton(onClick = viewModel::lockAll) { Text(stringResource(R.string.onlyfiles_lock_all)) }
                                 }
@@ -255,17 +252,39 @@ private fun OnlyFilesScreen(
                         colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
                     )
                 }
-                if (state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
-                    SearchRow(state, viewModel)
-                }
             }
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                if (state.selectedVault == null) showCreateVault = true else createItem = CreateItemKind.FOLDER
-            }) {
-                Icon(Icons.Default.Add, stringResource(if (state.selectedVault == null) R.string.onlyfiles_create else R.string.onlyfiles_new_item))
-            }
+            ExpandableFabMenu(
+                isExpanded = fabExpanded,
+                onToggleExpand = { fabExpanded = !fabExpanded },
+                fabIconRotation = if (fabExpanded) 45f else 0f,
+                items = if (state.selectedVault == null) {
+                    listOf(
+                        FabMenuItem(stringResource(R.string.onlyfiles_create), Icons.Default.Lock, onClick = {
+                            fabExpanded = false; showCreateVault = true
+                        }),
+                        FabMenuItem(stringResource(R.string.onlyfiles_add_existing), Icons.Outlined.FolderOpen, onClick = {
+                            fabExpanded = false; viewModel.beginAttachVault()
+                        })
+                    )
+                } else {
+                    listOf(
+                        FabMenuItem(stringResource(R.string.onlyfiles_import_files), Icons.Default.UploadFile, onClick = {
+                            fabExpanded = false; onImportFiles()
+                        }),
+                        FabMenuItem(stringResource(R.string.onlyfiles_import_folder), Icons.Outlined.FolderOpen, onClick = {
+                            fabExpanded = false; onImportFolder()
+                        }),
+                        FabMenuItem(stringResource(R.string.onlyfiles_new_folder), Icons.Default.CreateNewFolder, onClick = {
+                            fabExpanded = false; createItem = CreateItemKind.FOLDER
+                        }),
+                        FabMenuItem(stringResource(R.string.onlyfiles_new_item), Icons.Default.Description, onClick = {
+                            fabExpanded = false; createItem = CreateItemKind.FILE
+                        })
+                    )
+                }
+            )
         },
         bottomBar = {
             Column {
@@ -276,7 +295,11 @@ private fun OnlyFilesScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                stringResource(R.string.onlyfiles_clipboard_count, clipboard.sources.size),
+                                pluralStringResource(
+                                    R.plurals.onlyfiles_clipboard_count,
+                                    clipboard.sources.size,
+                                    clipboard.sources.size
+                                ),
                                 modifier = Modifier.weight(1f)
                             )
                             TextButton(onClick = viewModel::clearClipboard) { Text(stringResource(R.string.onlyfiles_clear)) }
@@ -310,7 +333,26 @@ private fun OnlyFilesScreen(
                     onCancelImport = viewModel::cancelImport
                 )
                 if (state.vaults.isEmpty()) {
-                    Text(stringResource(R.string.onlyfiles_empty), Modifier.align(Alignment.Center))
+                    Surface(
+                        modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                        shape = RoundedCornerShape(32.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                    ) {
+                        Column(
+                            Modifier.padding(horizontal = 32.dp, vertical = 40.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Text(stringResource(R.string.onlyfiles_empty), style = MaterialTheme.typography.titleMedium)
+                            Button(onClick = { showCreateVault = true }) {
+                                Text(stringResource(R.string.onlyfiles_create))
+                            }
+                            TextButton(onClick = viewModel::beginAttachVault) {
+                                Text(stringResource(R.string.onlyfiles_add_existing))
+                            }
+                        }
+                    }
                 }
             } else {
                 VaultBrowser(
@@ -366,7 +408,13 @@ private fun OnlyFilesScreen(
         AlertDialog(
             onDismissRequest = { deleteNodes = emptyList() },
             title = { Text(stringResource(R.string.onlyfiles_delete)) },
-            text = { Text(stringResource(R.string.onlyfiles_delete_many_confirm, deleteNodes.size)) },
+            text = {
+                Text(pluralStringResource(
+                    R.plurals.onlyfiles_delete_many_confirm,
+                    deleteNodes.size,
+                    deleteNodes.size
+                ))
+            },
             confirmButton = { Button(onClick = { val nodes = deleteNodes; deleteNodes = emptyList(); viewModel.delete(nodes) }) { Text(stringResource(R.string.onlyfiles_delete)) } },
             dismissButton = { TextButton(onClick = { deleteNodes = emptyList() }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
         )
@@ -426,98 +474,14 @@ private fun OnlyFilesScreen(
         )
     }
     boundaryRequest?.let { (nodes, move) ->
-        AlertDialog(
-            onDismissRequest = { boundaryRequest = null },
-            title = {
-                Text(stringResource(if (move) R.string.onlyfiles_move_out else R.string.onlyfiles_export))
-            },
-            text = {
-                Text(
-                    stringResource(
-                        if (move) R.string.onlyfiles_move_out_warning else R.string.onlyfiles_export_warning
-                    )
-                )
-            },
-            confirmButton = {
-                Button(onClick = {
-                    boundaryRequest = null
-                    onBoundaryTransfer(nodes, move)
-                }) { Text(stringResource(R.string.onlyfiles_choose_destination)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { boundaryRequest = null }) {
-                    Text(stringResource(R.string.onlyfiles_cancel))
-                }
+        BoundaryTransferDialog(
+            move = move,
+            onDismiss = { boundaryRequest = null },
+            onChooseDestination = {
+                boundaryRequest = null
+                onBoundaryTransfer(nodes, move)
             }
         )
     }
-    state.folderPicker?.let { picker ->
-        VaultFolderPickerDialog(
-            picker,
-            viewModel::openVaultFolder,
-            viewModel::navigateVaultFolderUp,
-            viewModel::chooseVaultFolder,
-            viewModel::cancelVaultFolderPicker
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SelectionTopBar(
-    state: OnlyFilesUiState,
-    viewModel: OnlyFilesViewModel,
-    onRename: () -> Unit,
-    onDelete: () -> Unit,
-    onShare: () -> Unit,
-    onOpenWith: () -> Unit,
-    onExport: () -> Unit,
-    onMoveOut: () -> Unit
-) {
-    var more by remember { mutableStateOf(false) }
-    TopAppBar(
-        title = { Text(stringResource(R.string.onlyfiles_selected_count, state.selectedNodeIds.size)) },
-        navigationIcon = { IconButton(onClick = viewModel::clearSelection) { Icon(Icons.Default.Close, stringResource(R.string.onlyfiles_close)) } },
-        actions = {
-            IconButton(onClick = viewModel::selectAll) { Icon(Icons.Default.SelectAll, stringResource(R.string.onlyfiles_select_all)) }
-            IconButton(onClick = { viewModel.copy(state.selectedNodes) }) { Icon(Icons.Default.ContentCopy, stringResource(R.string.onlyfiles_copy)) }
-            IconButton(onClick = { viewModel.move(state.selectedNodes) }) { Icon(Icons.Default.ContentCut, stringResource(R.string.onlyfiles_move)) }
-            IconButton(onClick = onShare) { Icon(Icons.Default.Share, stringResource(R.string.onlyfiles_share)) }
-            IconButton(onClick = { more = true }) { Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more)) }
-            DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_rename)) },
-                    enabled = state.selectedNodes.size == 1,
-                    onClick = { more = false; onRename() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_open_with)) },
-                    enabled = state.selectedNodes.singleOrNull()?.isDirectory == false,
-                    onClick = { more = false; onOpenWith() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_export)) },
-                    onClick = { more = false; onExport() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_move_out)) },
-                    onClick = { more = false; onMoveOut() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_invert_selection)) },
-                    onClick = { more = false; viewModel.invertSelection() }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_properties)) },
-                    leadingIcon = { Icon(Icons.Default.Info, null) },
-                    onClick = { more = false; viewModel.showProperties(state.selectedNodes) }
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_delete)) },
-                    leadingIcon = { Icon(Icons.Default.Delete, null) },
-                    onClick = { more = false; onDelete() }
-                )
-            }
-        }
-    )
+    OnlyFilesPickerDialogs(state, viewModel)
 }

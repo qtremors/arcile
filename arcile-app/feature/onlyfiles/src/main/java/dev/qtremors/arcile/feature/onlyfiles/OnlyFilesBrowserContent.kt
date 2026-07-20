@@ -14,15 +14,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -47,24 +44,6 @@ import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import java.text.DateFormat
 
 @Composable
-internal fun SearchRow(state: OnlyFilesUiState, viewModel: OnlyFilesViewModel) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(
-            state.searchQuery,
-            viewModel::updateSearch,
-            modifier = Modifier.weight(1f),
-            leadingIcon = { Icon(Icons.Default.Search, null) },
-            placeholder = { Text(stringResource(R.string.onlyfiles_search)) },
-            singleLine = true
-        )
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Checkbox(state.recursiveSearch, onCheckedChange = { viewModel.toggleRecursiveSearch() })
-            Text(stringResource(R.string.onlyfiles_subfolders), style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
 internal fun VaultBrowser(
     state: OnlyFilesUiState,
     onOpen: (VaultNodeMetadata) -> Unit,
@@ -82,17 +61,29 @@ internal fun VaultBrowser(
         byOpaquePath[model.absolutePath]?.ref?.nodeId?.value in state.selectedNodeIds
     }.map(FileModel::absolutePath).toSet()
     if (models.isEmpty() && !state.isSearching) {
-        Column(
+        Surface(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            shape = RoundedCornerShape(32.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerLow
+        ) {
+          Column(
             Modifier.fillMaxSize().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Icon(
+                Icons.Outlined.FolderOpen,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Spacer(Modifier.height(12.dp))
             Text(stringResource(if (state.searchQuery.isBlank()) R.string.onlyfiles_empty_folder else R.string.onlyfiles_no_results))
             if (state.searchQuery.isBlank()) {
                 Spacer(Modifier.height(16.dp))
                 FilledTonalButton(onClick = onImportFiles) { Text(stringResource(R.string.onlyfiles_import_files)) }
                 TextButton(onClick = onImportFolder) { Text(stringResource(R.string.onlyfiles_import_folder)) }
             }
+          }
         }
         return
     }
@@ -162,11 +153,26 @@ internal fun VaultList(
         items(vaults, key = { it.id.value }) { vault ->
             Surface(
                 modifier = Modifier.fillMaxWidth().clickable { onOpen(vault) },
-                shape = RoundedCornerShape(20.dp), tonalElevation = 2.dp
+                shape = RoundedCornerShape(28.dp),
+                color = if (vault.isUnlocked) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = if (vault.isUnlocked) 1.dp else 0.dp
             ) {
-                Column(Modifier.padding(18.dp)) {
+                Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Icon(if (vault.isUnlocked) Icons.Outlined.FolderOpen else Icons.Outlined.Lock, null)
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = if (vault.isUnlocked) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Icon(
+                                if (vault.isUnlocked) Icons.Outlined.FolderOpen else Icons.Outlined.Lock,
+                                null,
+                                Modifier.padding(12.dp),
+                                tint = if (vault.isUnlocked) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        }
                         Column(Modifier.weight(1f)) {
                             Text(vault.name, style = MaterialTheme.typography.titleMedium)
                             Text(

@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
+import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
@@ -16,7 +18,8 @@ internal class OnlyFilesBrowserController(
     private val fileSystem: VaultFileSystem,
     private val state: MutableStateFlow<OnlyFilesUiState>,
     private val scope: CoroutineScope,
-    private val showError: (Throwable) -> Unit
+    private val showError: (Throwable) -> Unit,
+    private val runBusy: ((suspend () -> Unit) -> Unit)
 ) {
     private var searchJob: Job? = null
 
@@ -60,6 +63,41 @@ internal class OnlyFilesBrowserController(
     fun cancel() {
         searchJob?.cancel()
         searchJob = null
+    }
+
+    fun createFolder(name: String) = currentMutation { vaultId, directoryId ->
+        fileSystem.createDirectory(vaultId, directoryId, name)
+    }
+
+    fun createEmptyFile(name: String) = currentMutation { vaultId, directoryId ->
+        fileSystem.createEmptyFile(vaultId, directoryId, name)
+    }
+
+    fun rename(node: VaultNodeMetadata, name: String) = runBusy {
+        fileSystem.rename(node.ref, name).fold(onSuccess = { reload() }, onFailure = showError)
+    }
+
+    fun delete(nodes: List<VaultNodeMetadata>) = runBusy {
+        var completed = 0
+        var failed = 0
+        nodes.distinctBy { it.ref.nodeId }.forEach { node ->
+            fileSystem.deletePermanently(node.ref).fold({ completed++ }, { failed++ })
+        }
+        state.update {
+            it.copy(
+                selectedNodeIds = emptySet(),
+                viewer = it.viewer?.takeUnless { viewer -> nodes.any { node -> node.ref.nodeId == viewer.ref.nodeId } },
+                message = if (failed == 0) "$completed item(s) permanently deleted" else "$completed deleted; $failed failed"
+            )
+        }
+        reload()
+    }
+
+    private fun currentMutation(block: suspend (VaultId, dev.qtremors.arcile.core.vault.domain.DirectoryId) -> Result<*>) {
+        val snapshot = state.value
+        val vaultId = snapshot.selectedVaultId ?: return
+        val directoryId = snapshot.currentDirectory?.id ?: return
+        runBusy { block(vaultId, directoryId).fold(onSuccess = { reload() }, onFailure = showError) }
     }
 
     private fun loadDirectoryPage(pageToken: String?, append: Boolean) {

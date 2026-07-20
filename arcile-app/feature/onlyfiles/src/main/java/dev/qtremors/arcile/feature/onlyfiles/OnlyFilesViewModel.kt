@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
+import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
@@ -15,13 +16,11 @@ import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultHealthService
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
-import dev.qtremors.arcile.core.vault.domain.VaultImportEvent
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
-import dev.qtremors.arcile.core.vault.domain.VaultSessionLease
 import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
 import dev.qtremors.arcile.core.vault.domain.VaultCatalog
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
@@ -48,6 +47,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val externalAccessManager: VaultExternalAccessManager,
     private val healthService: VaultHealthService,
     private val destinationBrowser: SaveDestinationBrowser,
+    private val localFileBrowser: FileBrowserRepository,
     private val volumeRepository: VolumeRepository,
     private val securityPreferences: VaultSecurityPreferences,
     private val catalog: VaultCatalog,
@@ -57,16 +57,15 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
 
-    private var selectionLease: VaultSessionLease? = null
-    private var selectionVaultId: VaultId? = null
-    private var selectionDestination: VaultPath = VaultPath.Root
     private val folderPicker by lazy {
         OnlyFilesFolderPickerController(
             repository, destinationBrowser, volumeRepository, _state, viewModelScope,
             ::runBusy, ::showError, ::selectVault
         )
     }
-    private val browser by lazy { OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError) }
+    private val browser by lazy {
+        OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError, ::runBusy)
+    }
     private val transfers by lazy {
         OnlyFilesTransferController(transferCoordinator, _state, viewModelScope, ::reload)
     }
@@ -80,6 +79,15 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
     private val externalAccess by lazy {
         OnlyFilesExternalAccessController(externalAccessManager, viewModelScope, ::showError)
+    }
+    private val imports = OnlyFilesImportController(
+        importCoordinator, _state, viewModelScope, ::showError, ::reload
+    )
+    private val localPicker by lazy {
+        OnlyFilesLocalPickerController(
+            localFileBrowser, destinationBrowser, volumeRepository, _state, viewModelScope,
+            ::showError, ::importLocalPaths, ::exportLocal
+        )
     }
 
     init {
@@ -99,23 +107,6 @@ internal class OnlyFilesViewModel @Inject constructor(
                             vaults.any { it.id == clipboard.sources.firstOrNull()?.vaultId && it.isUnlocked }
                         }
                     )
-                }
-            }
-        }
-        viewModelScope.launch {
-            importCoordinator.activeImports.collect { imports -> _state.update { it.copy(activeImports = imports) } }
-        }
-        viewModelScope.launch {
-            importCoordinator.events.collect { event ->
-                when (event) {
-                    is VaultImportEvent.Completed -> finishImportMessage(event.vaultId, "Import complete")
-                    is VaultImportEvent.Cancelled -> _state.update { it.copy(message = "Import cancelled") }
-                    is VaultImportEvent.Failed -> _state.update { it.copy(message = event.message) }
-                    is VaultImportEvent.Partial -> finishImportMessage(
-                        event.vaultId,
-                        "Imported ${event.result.completed.size}; ${event.result.failed.size} failed"
-                    )
-                    is VaultImportEvent.Started, is VaultImportEvent.Progress -> Unit
                 }
             }
         }
@@ -145,6 +136,14 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun cancelVaultFolderPicker() = folderPicker.cancel()
     fun openVaultFolder(path: String) = folderPicker.openPath(path)
     fun navigateVaultFolderUp() = folderPicker.navigateUp()
+    fun beginLocalFileImport() = localPicker.openImportFiles()
+    fun beginLocalFolderImport() = localPicker.openImportFolder()
+    fun beginLocalExport(nodes: List<VaultNodeMetadata>, move: Boolean) = localPicker.openExport(nodes, move)
+    fun openLocalPickerDirectory(path: String) = localPicker.openDirectory(path)
+    fun toggleLocalPickerFile(path: String) = localPicker.toggleFile(path)
+    fun chooseLocalPicker() = localPicker.choose()
+    fun navigateLocalPickerUp() = localPicker.up()
+    fun cancelLocalPicker() = localPicker.cancel()
 
     fun unlock(vaultId: VaultId, password: String) = runBusy {
         repository.unlock(vaultId, password.toCharArray()).fold(
@@ -238,33 +237,10 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
     fun clearSelection() = _state.update { it.copy(selectedNodeIds = emptySet()) }
 
-    fun createFolder(name: String) = currentMutation { vaultId, directoryId ->
-        fileSystem.createDirectory(vaultId, directoryId, name)
-    }
-
-    fun createEmptyFile(name: String) = currentMutation { vaultId, directoryId ->
-        fileSystem.createEmptyFile(vaultId, directoryId, name)
-    }
-
-    fun rename(node: VaultNodeMetadata, name: String) = runBusy {
-        fileSystem.rename(node.ref, name).fold(onSuccess = { reload() }, onFailure = ::showError)
-    }
-
-    fun delete(nodes: List<VaultNodeMetadata>) = runBusy {
-        var completed = 0
-        var failed = 0
-        nodes.distinctBy { it.ref.nodeId }.forEach { node ->
-            fileSystem.deletePermanently(node.ref).fold({ completed++ }, { failed++ })
-        }
-        _state.update {
-            it.copy(
-                selectedNodeIds = emptySet(),
-                viewer = it.viewer?.takeUnless { viewer -> nodes.any { node -> node.ref.nodeId == viewer.ref.nodeId } },
-                message = if (failed == 0) "$completed item(s) permanently deleted" else "$completed deleted; $failed failed"
-            )
-        }
-        reload()
-    }
+    fun createFolder(name: String) = browser.createFolder(name)
+    fun createEmptyFile(name: String) = browser.createEmptyFile(name)
+    fun rename(node: VaultNodeMetadata, name: String) = browser.rename(node, name)
+    fun delete(nodes: List<VaultNodeMetadata>) = browser.delete(nodes)
 
     fun showProperties(nodes: List<VaultNodeMetadata>) = _state.update { it.copy(properties = nodes) }
     fun dismissProperties() = _state.update { it.copy(properties = emptyList()) }
@@ -278,8 +254,19 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun resolveConflict(decision: VaultConflictDecision, applyToAll: Boolean) {
         transfers.resolveConflict(decision, applyToAll); boundary.resolve(decision, applyToAll)
     }
-    fun export(nodes: List<VaultNodeMetadata>, destinationTreeUri: String, move: Boolean) =
-        boundary.start(nodes, destinationTreeUri, move)
+    fun beginExportSelection(nodes: List<VaultNodeMetadata>): Boolean = boundary.prepare(nodes)
+    fun finishExportSelection(destinationPath: String?, move: Boolean) {
+        if (destinationPath == null) boundary.cancelSelection()
+        else boundary.start(destinationPath, move)
+    }
+
+    private fun importLocalPaths(paths: List<String>) {
+        if (imports.begin()) imports.finishSelection(paths)
+    }
+
+    private fun exportLocal(nodes: List<VaultNodeMetadata>, destinationPath: String, move: Boolean) {
+        if (boundary.prepare(nodes)) boundary.start(destinationPath, move)
+    }
 
     fun issueExternalAccess(
         nodes: List<VaultNodeMetadata>,
@@ -333,40 +320,10 @@ internal class OnlyFilesViewModel @Inject constructor(
         viewModelScope.launch { repository.lockAll() }
     }
 
-    fun beginImportSelection(): Boolean {
-        cancelImportSelection()
-        val state = _state.value
-        val id = state.selectedVaultId ?: return false
-        val lease = repository.holdSession(id).getOrElse { showError(it); return false }
-        selectionLease = lease
-        selectionVaultId = id
-        selectionDestination = state.currentDirectory?.path ?: VaultPath.Root
-        return true
-    }
-
-    fun finishImportSelection(sourceUris: List<String>) {
-        val lease = selectionLease
-        val id = selectionVaultId
-        val destination = selectionDestination
-        selectionLease = null
-        selectionVaultId = null
-        if (sourceUris.isEmpty() || lease == null || id == null) {
-            lease?.close()
-            return
-        }
-        if (!importCoordinator.startImport(id, destination, sourceUris, lease)) {
-            lease.close()
-            _state.update { it.copy(message = "Another import is already running") }
-        }
-    }
-
-    fun cancelImportSelection() {
-        selectionLease?.close()
-        selectionLease = null
-        selectionVaultId = null
-    }
-
-    fun cancelImport(vaultId: VaultId) = importCoordinator.cancelImport(vaultId)
+    fun beginImportSelection(): Boolean = imports.begin()
+    fun finishImportSelection(sourceUris: List<String>) = imports.finishSelection(sourceUris)
+    fun cancelImportSelection() = imports.cancelSelection()
+    fun cancelImport(vaultId: VaultId) = imports.cancel(vaultId)
     fun clearMessage() = _state.update { it.copy(message = null) }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader> = fileSystem.openReader(ref)
 
@@ -386,13 +343,6 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     private fun reload() = browser.reload()
-
-    private fun currentMutation(block: suspend (VaultId, DirectoryId) -> Result<*>) {
-        val snapshot = _state.value
-        val id = snapshot.selectedVaultId ?: return
-        val directory = snapshot.currentDirectory?.id ?: return
-        runBusy { block(id, directory).fold(onSuccess = { reload() }, onFailure = ::showError) }
-    }
 
     private fun clearSensitiveUiState() {
         transfers.clear()
@@ -414,11 +364,6 @@ internal class OnlyFilesViewModel @Inject constructor(
                 healthReport = null
             )
         }
-    }
-
-    private fun finishImportMessage(vaultId: VaultId, message: String) {
-        _state.update { it.copy(message = message) }
-        if (_state.value.selectedVaultId == vaultId) reload()
     }
 
     private fun runBusy(block: suspend () -> Unit) {

@@ -23,6 +23,7 @@ internal fun ToolsRoute(
         onNavigateToActivity = onNavigateToActivity,
         onNavigateToOnlyFiles = onNavigateToOnlyFiles,
         homeUtilityIds = homeUtilityIds,
-        onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome
+        onUtilityHomeVisibilityChange = viewModel::setUtilityShownOnHome,
+        onMoveUtility = viewModel::moveUtility
     )
 }

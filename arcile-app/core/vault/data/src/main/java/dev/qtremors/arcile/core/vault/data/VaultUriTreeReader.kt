@@ -6,6 +6,8 @@ import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultName
+import java.io.File
+import java.util.ArrayDeque
 
 internal data class VaultImportSource(
     val uri: Uri,
@@ -23,10 +25,56 @@ internal class VaultUriTreeReader(
     fun collect(uriStrings: List<String>): List<VaultImportSource> {
         require(uriStrings.isNotEmpty()) { "At least one import source is required" }
         return uriStrings.flatMap { value ->
+            val localFile = File(value)
             val uri = Uri.parse(value)
-            if (DocumentsContract.isTreeUri(uri)) collectTree(uri) else listOf(readSingle(uri))
+            when {
+                localFile.isAbsolute -> collectLocalFile(localFile)
+                uri.scheme == ContentResolver.SCHEME_FILE -> collectLocalFile(
+                    File(requireNotNull(uri.path) { "Local import path is missing" })
+                )
+                DocumentsContract.isTreeUri(uri) -> collectTree(uri)
+                else -> listOf(readSingle(uri))
+            }
         }
     }
+
+    private fun collectLocalFile(root: File): List<VaultImportSource> {
+        if (!root.exists()) throw VaultFailure.ImportUnavailable("Selected item is unavailable")
+        if (!root.isDirectory) return listOf(root.toLocalSource(emptyList()))
+        val rootName = safeName(root.name)
+        val output = mutableListOf<VaultImportSource>()
+        val pending = ArrayDeque<Pair<File, List<String>>>()
+        val visited = mutableSetOf<String>()
+        pending += root to listOf(rootName)
+        while (pending.isNotEmpty()) {
+            val (directory, relativePath) = pending.removeLast()
+            val identity = runCatching { directory.canonicalPath }.getOrElse {
+                throw VaultFailure.ImportUnavailable("Unable to resolve ${directory.name}", it)
+            }
+            if (!visited.add(identity)) continue
+            output += directory.toLocalSource(relativePath)
+            val children = directory.listFiles()
+                ?: throw VaultFailure.ImportUnavailable("Unable to enumerate ${directory.name}")
+            children.sortedBy(File::getName).asReversed().forEach { child ->
+                val name = safeName(child.name)
+                if (child.isDirectory) pending += child to (relativePath + name)
+                else output += child.toLocalSource(relativePath)
+            }
+        }
+        return output
+    }
+
+    private fun File.toLocalSource(relativeParent: List<String>) = VaultImportSource(
+        uri = Uri.fromFile(this),
+        name = safeName(name),
+        relativeParent = relativeParent,
+        isDirectory = isDirectory,
+        sizeBytes = takeUnless(File::isDirectory)?.length(),
+        modifiedAtMillis = lastModified().takeIf { it >= 0L },
+        mimeType = takeUnless(File::isDirectory)?.let {
+            resolver.getType(Uri.fromFile(it))
+        }
+    )
 
     private fun collectTree(treeUri: Uri): List<VaultImportSource> {
         val rootDocumentId = DocumentsContract.getTreeDocumentId(treeUri)

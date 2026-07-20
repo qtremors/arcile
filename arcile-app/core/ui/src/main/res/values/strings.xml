@@ -234,6 +234,11 @@
     <string name="file_type_generic">FILE</string>
     <string name="unknown_folder">Unknown</string>
     <string name="utilities">Utilities</string>
+    <string name="tools_home_description">Choose which utilities appear on Home. Use the arrows to set their order.</string>
+    <string name="tools_visible_on_home">Shown on Home</string>
+    <string name="tools_hidden_from_home">Hidden from Home</string>
+    <string name="tools_move_up">Move up</string>
+    <string name="tools_move_down">Move down</string>
     <string name="show_all">Show All</string>
     <string name="recent_files">Recent Files</string>
     <string name="see_all">See All</string>

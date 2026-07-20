@@ -8,9 +8,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -31,12 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
@@ -69,7 +69,7 @@ internal fun ViewerScreen(
                 actions = {
                     IconButton(onClick = { showInfo = true }) { Icon(Icons.Default.Info, stringResource(R.string.onlyfiles_properties)) }
                     IconButton(onClick = { externalAction = ExternalAction.SHARE }) { Icon(Icons.Default.Share, stringResource(R.string.onlyfiles_share)) }
-                    IconButton(onClick = { externalAction = ExternalAction.OPEN_WITH }) { Icon(Icons.Default.OpenInNew, stringResource(R.string.onlyfiles_open_with)) }
+                    IconButton(onClick = { externalAction = ExternalAction.OPEN_WITH }) { Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.onlyfiles_open_with)) }
                     IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.Delete, stringResource(R.string.onlyfiles_delete)) }
                 }
             )
@@ -92,7 +92,7 @@ internal fun ViewerScreen(
     )
     if (confirmDelete) AlertDialog(
         onDismissRequest = { confirmDelete = false }, title = { Text(stringResource(R.string.onlyfiles_delete)) },
-        text = { Text(stringResource(R.string.onlyfiles_delete_many_confirm, 1)) },
+        text = { Text(pluralStringResource(R.plurals.onlyfiles_delete_many_confirm, 1, 1)) },
         confirmButton = { Button(onClick = { confirmDelete = false; viewModel.delete(listOf(node)) }) { Text(stringResource(R.string.onlyfiles_delete)) } },
         dismissButton = { Button(onClick = { confirmDelete = false }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
     )
@@ -136,10 +136,9 @@ private fun VaultImage(
     node: VaultNodeMetadata,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
 ) {
-    val configuration = LocalConfiguration.current
-    val density = LocalDensity.current
-    val targetWidth = with(density) { configuration.screenWidthDp.dp.roundToPx() }.coerceAtLeast(1)
-    val targetHeight = with(density) { configuration.screenHeightDp.dp.roundToPx() }.coerceAtLeast(1)
+    val windowSize = LocalWindowInfo.current.containerSize
+    val targetWidth = windowSize.width.coerceAtLeast(1)
+    val targetHeight = windowSize.height.coerceAtLeast(1)
     val decoded by produceState<Result<Bitmap?>?>(null, node.ref.nodeId, node.revision, targetWidth, targetHeight) {
         value = decodeSampledVaultImageOnWorker(node.ref, targetWidth, targetHeight, openReader)
     }
@@ -155,6 +154,7 @@ private fun VaultImage(
     }
 }
 
+@androidx.annotation.OptIn(UnstableApi::class)
 internal fun createVaultVideoPlaybackSession(
     nodes: List<VaultNodeMetadata>,
     vaultId: VaultId,

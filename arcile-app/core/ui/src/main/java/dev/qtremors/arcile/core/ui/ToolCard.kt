@@ -29,7 +29,7 @@ import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-data class ToolItem(val name: String, val icon: ImageVector, val isImplemented: Boolean = false)
+data class ToolItem(val name: String, val icon: ImageVector)
 
 @Composable
 fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
@@ -47,7 +47,6 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
 
     Surface(
         onClick = onClick,
-        enabled = item.isImplemented,
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainer,
         interactionSource = interactionSource,
@@ -56,7 +55,6 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-                alpha = if (item.isImplemented) 1f else 0.6f
             }
     ) {
         Column(
@@ -79,14 +77,6 @@ fun ToolCard(item: ToolItem, onClick: () -> Unit = {}) {
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
-            if (!item.isImplemented) {
-                Text(
-                    text = "Soon",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
-                    textAlign = TextAlign.Center
-                )
-            }
         }
     }
 }

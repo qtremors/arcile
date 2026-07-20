@@ -25,34 +25,34 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class VaultDataModule {
+internal abstract class VaultDataModule {
     @Binds
     @Singleton
-    abstract fun bindVaultRepository(implementation: DefaultVaultRepository): VaultRepository
+    internal abstract fun bindVaultRepository(implementation: DefaultVaultRepository): VaultRepository
 
     @Binds
     @Singleton
-    abstract fun bindVaultImportCoordinator(implementation: DefaultVaultImportCoordinator): VaultImportCoordinator
+    internal abstract fun bindVaultImportCoordinator(implementation: DefaultVaultImportCoordinator): VaultImportCoordinator
 
     @Binds
     @Singleton
-    abstract fun bindVaultHealthService(implementation: DefaultVaultRepository): VaultHealthService
+    internal abstract fun bindVaultHealthService(implementation: DefaultVaultRepository): VaultHealthService
 
     @Binds
     @Singleton
-    abstract fun bindVaultFileSystem(implementation: DefaultVaultRepository): VaultFileSystem
+    internal abstract fun bindVaultFileSystem(implementation: DefaultVaultRepository): VaultFileSystem
 
     @Binds
     @Singleton
-    abstract fun bindVaultCatalog(implementation: DefaultVaultRepository): VaultCatalog
+    internal abstract fun bindVaultCatalog(implementation: DefaultVaultRepository): VaultCatalog
 
     @Binds
     @Singleton
-    abstract fun bindVaultSessionManager(implementation: DefaultVaultRepository): VaultSessionManager
+    internal abstract fun bindVaultSessionManager(implementation: DefaultVaultRepository): VaultSessionManager
 
     @Binds
     @Singleton
-    abstract fun bindVaultTransferCoordinator(implementation: DefaultVaultRepository): VaultTransferCoordinator
+    internal abstract fun bindVaultTransferCoordinator(implementation: DefaultVaultRepository): VaultTransferCoordinator
 
     @Binds
     @Singleton

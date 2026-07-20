@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import android.net.Uri
 import androidx.media3.common.C
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.BaseDataSource
 import androidx.media3.datasource.DataSourceException
@@ -9,7 +10,7 @@ import androidx.media3.datasource.DataSpec
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 internal class VaultMediaDataSource(
     private val refsByOpaqueId: Map<String, VaultNodeRef>,
     private val openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
@@ -31,7 +32,7 @@ internal class VaultMediaDataSource(
         val opened = openReader(ref).getOrElse { throw DataSourceException(it, 2000) }
         if (dataSpec.position > opened.sizeBytes) {
             opened.close()
-            throw DataSourceException(DataSourceException.POSITION_OUT_OF_RANGE)
+            throw DataSourceException(PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
         }
         reader = opened
         position = dataSpec.position

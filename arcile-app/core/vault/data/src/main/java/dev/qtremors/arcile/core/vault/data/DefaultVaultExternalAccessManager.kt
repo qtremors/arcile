@@ -35,7 +35,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class DefaultVaultExternalAccessManager @Inject constructor(
+internal class DefaultVaultExternalAccessManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val repository: DefaultVaultRepository,
     @param:ApplicationScope private val applicationScope: CoroutineScope

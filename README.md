@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Arcile.png" alt="Arcile Logo" width="120"/>
+  <img src="assets/Arcile.svg" alt="Arcile Logo" width="120"/>
 </p>
 
 <h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>

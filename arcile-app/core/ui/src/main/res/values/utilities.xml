@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="tool_ftp">FTP Server</string>
     <string name="tool_analyze">Analyze Storage</string>
     <string name="tool_clean">Clean Junk</string>
     <string name="tool_duplicates">Duplicates</string>
     <string name="tool_large">Large Files</string>
-    <string name="tool_manager">App Manager</string>
     <string name="tool_onlyfiles">OnlyFiles</string>
     <string name="onlyfiles_import_notification_channel">OnlyFiles imports</string>
     <string name="onlyfiles_import_notification_title">Importing into OnlyFiles</string>
@@ -23,5 +21,4 @@
     <string name="onlyfiles_security_disclosure_title">OnlyFiles security disclosure</string>
     <string name="onlyfiles_unaudited_short">Arcile’s vault format has not received an independent security audit.</string>
     <string name="onlyfiles_security_disclosure">OnlyFiles uses authenticated encryption and memory-hard password derivation, but this implementation has not received an independent security audit. Vault presence, encrypted object counts, approximate sizes, and filesystem timestamps remain observable. App-private vaults are deleted with app data. Back up portable vaults only while locked. External access temporarily exposes selected plaintext to the receiving app until revoked or expired.</string>
-    <string name="tool_share">Network Share</string>
 </resources>

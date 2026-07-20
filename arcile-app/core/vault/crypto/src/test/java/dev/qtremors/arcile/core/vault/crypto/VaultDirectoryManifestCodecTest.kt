@@ -55,6 +55,33 @@ class VaultDirectoryManifestCodecTest {
         assertThrows(Exception::class.java) { codec.read(directory, vaultId, directoryId, key) }
     }
 
+    @Test
+    fun `paged manifests handle ten thousand siblings and one hundred thousand total entries`() {
+        val directory = FileVaultDirectory(Files.createTempDirectory("manifest-stress").toFile())
+        val codec = VaultDirectoryManifestCodec()
+        val crowdedEntries = (0 until 10_000).map(::fileEntry)
+        val crowded = codec.prepare(vaultId, directoryId, key, 1L, crowdedEntries)
+
+        assertEquals(40, crowded.pages.size)
+        codec.publish(directory, crowded)
+        assertEquals(10_000, codec.read(directory, vaultId, directoryId, key).entries.size)
+
+        var totalEntries = crowdedEntries.size
+        repeat(90) { directoryIndex ->
+            val entries = (0 until 1_000).map(::fileEntry)
+            val prepared = codec.prepare(
+                vaultId,
+                DirectoryId.of("stress-directory-$directoryIndex"),
+                key,
+                1L,
+                entries
+            )
+            assertEquals(4, prepared.pages.size)
+            totalEntries += entries.size
+        }
+        assertEquals(100_000, totalEntries)
+    }
+
     private fun fileEntry(index: Int, name: String = "file-${index.toString().padStart(4, '0')}.bin") =
         VaultManifestEntry(
             nodeId = NodeId.of("node-$index"),

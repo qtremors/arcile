@@ -19,7 +19,7 @@ class UtilityCatalogTest {
             HomeUtilityCatalog.size,
             HomeUtilityCatalog.map { it.id }.toSet().size
         )
-        assertTrue(HomeUtilityCatalog.all { it.showOnHome && it.isImplemented })
+        assertEquals(ArcileUtilityCatalog, HomeUtilityCatalog)
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Trash })
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Cleaner })
         assertTrue(HomeUtilityCatalog.any { it.action == UtilityAction.Activity })
@@ -32,5 +32,8 @@ class UtilityCatalogTest {
         assertTrue("analyze" !in ids)
         assertTrue("duplicates" !in ids)
         assertTrue("large" !in ids)
+        assertTrue("ftp" !in ids)
+        assertTrue("manager" !in ids)
+        assertTrue("share" !in ids)
     }
 }

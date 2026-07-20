@@ -405,10 +405,10 @@ class HomeViewModelTest {
         assertTrue("trash" in viewModel.state.value.homeUtilityIds)
         assertTrue("cleaner" in viewModel.state.value.homeUtilityIds)
 
-        utilityStore.setHomeUtilityIds(setOf("trash"))
+        utilityStore.setHomeUtilityIds(listOf("trash"))
         advanceUntilIdle()
 
-        assertEquals(setOf("trash"), viewModel.state.value.homeUtilityIds)
+        assertEquals(listOf("trash"), viewModel.state.value.homeUtilityIds)
     }
 
     @Test
@@ -444,11 +444,11 @@ private class HomeFakeStorageClassificationStore(
 }
 
 private class HomeFakeUtilityPreferencesStore : UtilityPreferencesStore {
-    private val ids = MutableStateFlow(setOf("trash", "cleaner"))
+    private val ids = MutableStateFlow(listOf("trash", "cleaner"))
 
     override val homeUtilityIds = ids.asStateFlow()
 
-    override suspend fun setHomeUtilityIds(ids: Set<String>) {
+    override suspend fun setHomeUtilityIds(ids: List<String>) {
         this.ids.value = ids
     }
 }

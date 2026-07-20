@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="500"
+     height="500"
+     viewBox="0 0 500 500"
+     fill="none"
+     role="img"
+     aria-labelledby="arcile-title arcile-description">
+  <title id="arcile-title">Arcile logo</title>
+  <desc id="arcile-description">A layered blue folder mark with a folded front panel and a white-edged corner cutout.</desc>
+
+  <defs>
+    <linearGradient id="tab-fill" x1="145" y1="33" x2="145" y2="106" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#10C9F8"/>
+      <stop offset="0.16" stop-color="#0087FA"/>
+      <stop offset="0.43" stop-color="#0258FA"/>
+      <stop offset="0.78" stop-color="#014AF8"/>
+      <stop offset="1" stop-color="#028EF2"/>
+    </linearGradient>
+
+    <linearGradient id="rear-fill" x1="246" y1="106" x2="246" y2="244" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#061BC3"/>
+      <stop offset="0.4" stop-color="#0528D1"/>
+      <stop offset="0.72" stop-color="#023DDF"/>
+      <stop offset="0.9" stop-color="#087AF4"/>
+      <stop offset="1" stop-color="#08BDF2"/>
+    </linearGradient>
+
+    <linearGradient id="rear-fold" x1="338" y1="106" x2="338" y2="171" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0758FB"/>
+      <stop offset="0.55" stop-color="#0150F8"/>
+      <stop offset="1" stop-color="#0B9EF5"/>
+    </linearGradient>
+
+    <linearGradient id="spine-fill" x1="29" y1="278" x2="105" y2="278" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0ABBEF"/>
+      <stop offset="0.14" stop-color="#0187F3"/>
+      <stop offset="0.42" stop-color="#014DF8"/>
+      <stop offset="0.67" stop-color="#014CF9"/>
+      <stop offset="0.86" stop-color="#0276F8"/>
+      <stop offset="1" stop-color="#08B9F4"/>
+    </linearGradient>
+
+    <linearGradient id="spine-ends" x1="67" y1="106" x2="67" y2="450" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0BC5F4" stop-opacity="0.9"/>
+      <stop offset="0.12" stop-color="#0874F8" stop-opacity="0"/>
+      <stop offset="0.86" stop-color="#0874F8" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0BC5F4" stop-opacity="0.9"/>
+    </linearGradient>
+
+    <linearGradient id="front-fill" x1="310" y1="211" x2="310" y2="449" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0878F8"/>
+      <stop offset="0.17" stop-color="#0635D9"/>
+      <stop offset="0.43" stop-color="#0529D0"/>
+      <stop offset="0.72" stop-color="#0428CF"/>
+      <stop offset="0.9" stop-color="#042EDC"/>
+      <stop offset="1" stop-color="#0754F8"/>
+    </linearGradient>
+
+    <linearGradient id="front-sheen" x1="146" y1="331" x2="475" y2="331" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#08BDF4" stop-opacity="0.5"/>
+      <stop offset="0.3" stop-color="#025CF4" stop-opacity="0.08"/>
+      <stop offset="0.72" stop-color="#0026CA" stop-opacity="0"/>
+      <stop offset="1" stop-color="#0066FA" stop-opacity="0.58"/>
+    </linearGradient>
+
+    <linearGradient id="corner-fold" x1="223" y1="217" x2="223" y2="318" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#12C8F4"/>
+      <stop offset="0.28" stop-color="#08B7F4"/>
+      <stop offset="0.65" stop-color="#037AF5"/>
+      <stop offset="1" stop-color="#0356F5"/>
+    </linearGradient>
+
+    <linearGradient id="flap-fill" x1="314" y1="171" x2="314" y2="243" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#087AFA"/>
+      <stop offset="0.2" stop-color="#035BFA"/>
+      <stop offset="0.55" stop-color="#014BF9"/>
+      <stop offset="0.84" stop-color="#0148F4"/>
+      <stop offset="1" stop-color="#063AD8"/>
+    </linearGradient>
+
+    <linearGradient id="flap-edge" x1="154" y1="207" x2="475" y2="207" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16C6F2"/>
+      <stop offset="0.18" stop-color="#087AF8"/>
+      <stop offset="0.8" stop-color="#0755F5"/>
+      <stop offset="1" stop-color="#35D5F6"/>
+    </linearGradient>
+
+  </defs>
+
+  <!-- Rear tab -->
+  <path d="M70 33H181C197.5 33 210.7 40.5 220.8 53.6L261 106H69C46.9 106 29 91.1 29 69.5C29 48.5 46 33 70 33Z"
+        fill="url(#tab-fill)"
+        stroke="#76EAF7"
+        stroke-opacity="0.32"
+        stroke-width="1"/>
+
+  <!-- Rear folder shell -->
+  <path d="M68 106H387C408 106 425 123 425 144V244H68V106Z"
+        fill="url(#rear-fill)"
+        stroke="#68DCEB"
+        stroke-opacity="0.2"
+        stroke-width="1"/>
+  <path d="M251 106H387C408 106 425 123 425 144V171H308L251 106Z"
+        fill="url(#rear-fold)"/>
+
+  <!-- Rounded left spine -->
+  <rect x="29" y="106" width="76" height="344" rx="38"
+        fill="url(#spine-fill)"
+        stroke="#72EAF6"
+        stroke-opacity="0.45"
+        stroke-width="1"/>
+  <rect x="29.5" y="106.5" width="75" height="343" rx="37.5"
+        fill="url(#spine-ends)"/>
+
+  <!-- Front folder panel and rounded corner cutout -->
+  <g>
+    <path d="M176 207H437C458 207 475 224 475 245V384C475 420 446 449 410 449H363C354.5 449 347.2 446 341.2 440L153.8 252.5C148.1 246.8 145 239.2 145 231.2C145 217.6 158.3 207 176 207Z M361 393H416.5C419 393 421 391 421 388.5V326A4 4 0 0 1 429 326V388.5C429 395.4 423.4 401 416.5 401H361A4 4 0 0 1 361 393Z"
+          fill="url(#front-fill)"
+          fill-rule="evenodd"
+          stroke="#75E2F2"
+          stroke-opacity="0.34"
+          stroke-width="1"/>
+    <path d="M176 207H437C458 207 475 224 475 245V384C475 420 446 449 410 449H363C354.5 449 347.2 446 341.2 440L153.8 252.5C148.1 246.8 145 239.2 145 231.2C145 217.6 158.3 207 176 207Z M361 393H416.5C419 393 421 391 421 388.5V326A4 4 0 0 1 429 326V388.5C429 395.4 423.4 401 416.5 401H361A4 4 0 0 1 361 393Z"
+          fill="url(#front-sheen)"
+          fill-rule="evenodd"/>
+
+    <!-- Cyan folded corner beneath the front flap -->
+    <path d="M151 215C146.2 224.8 146.1 236.2 153.8 245.7L225.8 317.8L299.5 243H179C162.4 243 149 231 149 215H151Z"
+          fill="url(#corner-fold)"/>
+
+    <!-- Front rounded flap -->
+    <rect x="154" y="171" width="321" height="72" rx="36"
+          fill="url(#flap-fill)"
+          stroke="url(#flap-edge)"
+          stroke-opacity="0.48"
+          stroke-width="1.25"/>
+    <path d="M190 242.2H439C458.3 242.2 474 226.5 474 207.2"
+          stroke="#21C8F3"
+          stroke-opacity="0.32"
+          stroke-width="2"
+          stroke-linecap="round"/>
+
+    <!-- Closed even-odd rings stay intact when imported as an Android VectorDrawable. -->
+    <path d="M361 385.5H413.5V326A11.5 11.5 0 0 1 436.5 326V388.5C436.5 399.5 427.5 408.5 416.5 408.5H361A11.5 11.5 0 0 1 361 385.5Z M361 393H416.5C419 393 421 391 421 388.5V326A4 4 0 0 1 429 326V388.5C429 395.4 423.4 401 416.5 401H361A4 4 0 0 1 361 393Z"
+          fill="#17116D"
+          fill-opacity="0.55"
+          fill-rule="evenodd"/>
+    <path d="M361 388.5H416.5V326A8.5 8.5 0 0 1 433.5 326V388.5C433.5 397.9 425.9 405.5 416.5 405.5H361A8.5 8.5 0 0 1 361 388.5Z M361 393H416.5C419 393 421 391 421 388.5V326A4 4 0 0 1 429 326V388.5C429 395.4 423.4 401 416.5 401H361A4 4 0 0 1 361 393Z"
+          fill="#FFFFF5"
+          fill-rule="evenodd"/>
+  </g>
+</svg>

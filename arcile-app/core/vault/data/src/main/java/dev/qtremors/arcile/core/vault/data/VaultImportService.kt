@@ -25,7 +25,7 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class VaultImportService : Service() {
-    @Inject lateinit var coordinator: DefaultVaultImportCoordinator
+    @Inject internal lateinit var coordinator: DefaultVaultImportCoordinator
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val jobs = ConcurrentHashMap<String, Job>()

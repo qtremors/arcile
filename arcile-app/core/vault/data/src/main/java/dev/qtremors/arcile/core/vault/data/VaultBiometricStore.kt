@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
 import android.content.Context
-import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyPermanentlyInvalidatedException
@@ -36,7 +35,7 @@ internal class VaultBiometricStore(context: Context) {
                 .setRandomizedEncryptionRequired(true)
                 .setUserAuthenticationRequired(true)
                 .setInvalidatedByBiometricEnrollment(true)
-                .setUserAuthenticationParameters(0, BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG)
                 .build()
         )
         val key = generator.generateKey()

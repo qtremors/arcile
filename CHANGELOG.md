@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.6
-> **Last Updated:** 2026-07-14
+> **Version:** 1.5.7
+> **Last Updated:** 2026-07-15
 
 ---
+
+## [1.5.7] - 2026-07-15
+
+- **Native Vault Transfers**: File/folder import and export or move-out now use Arcile's own storage browsers end to end; the obsolete parallel document-tree exporter has been removed.
+- **Arcile-Aligned OnlyFiles UI**: The vault library and mounted browser now use Arcile scaffolding, large/search/selection app bars, file layouts, spacing, shapes, and clearer locked/open actions instead of a separate visual language.
+- **Useful Utilities Only**: Utilities now lists only implemented destinations—Trash, Cleaner, Activity Log, and OnlyFiles—with placeholder FTP, App Manager, and Network Share entries removed.
+- **Custom Home Utilities**: Users can choose which implemented utilities appear on Home and reorder them, with ordered preference migration and stale-entry cleanup.
+- **Deep Transfer Reliability**: Native export, merge, cancellation, and move-out handle deeply nested folders without recursive stack growth, clean private staging data on failure, and remove encrypted sources only after publication.
+- **Large Vault Confidence**: Authenticated directory paging is now stress-verified with 10,000 siblings in one folder and 100,000 entries across a vault while retaining the 256-entry page bound.
 
 ## [1.5.6] - 2026-07-14
 

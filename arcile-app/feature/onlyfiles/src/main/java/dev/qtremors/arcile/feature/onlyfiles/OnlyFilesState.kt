@@ -44,6 +44,7 @@ internal data class OnlyFilesUiState(
     val healthReport: VaultHealthReport? = null,
     val activeImports: Map<VaultId, VaultImportState> = emptyMap(),
     val folderPicker: VaultFolderPickerState? = null,
+    val localPicker: OnlyFilesLocalPickerState? = null,
     val screenshotProtectionEnabled: Boolean = true,
     val busy: Boolean = false,
     val message: String? = null

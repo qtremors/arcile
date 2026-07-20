@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.5.0 | **Last Updated:** 2026-07-13
+**Version:** 1.5.7 | **Last Updated:** 2026-07-15
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -15,6 +15,8 @@
 - [Core Concepts](#core-concepts)
 - [Navigation & State](#navigation--state)
 - [Storage & File Operations](#storage--file-operations)
+- [OnlyFiles Vault System](#onlyfiles-vault-system)
+- [Global Media Sources & Video Player](#global-media-sources--video-player)
 - [Room Cache Database](#room-cache-database)
 - [Archive System](#archive-system)
 - [Trash System](#trash-system)
@@ -53,6 +55,11 @@ graph TD
     G --> J["FileTransferEngine + Conflict Detector"]
     D --> L["FolderStatsStore"]
     D --> M["MutationFinalizer"]
+    C --> N["VaultRepository contracts"]
+    N --> O["Vault catalog + sessions + transactions"]
+    O --> P["Vault crypto codecs"]
+    B --> Q["Opaque VideoPlaybackSession"]
+    Q --> R["Global Video Player"]
 ```
 
 ### Key Architectural Decisions
@@ -67,12 +74,14 @@ graph TD
 | **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
 | **Room Database Caching** | Cache metadata, aggregate folder sizes, categories, and thumbnail listings are persisted in a local Room database to prevent repeated, expensive disk scans. |
 | **Intent-based Plugins** | Optional heavyweight viewers run as separately installed, same-signer APKs and communicate through versioned explicit intents and temporary read-only content URI grants. |
+| **Encrypted Vault Boundary** | OnlyFiles keeps vault catalog, authenticated sessions, transactions, cryptography, and external plaintext grants behind neutral `core:vault:*` contracts. Presentation code never handles vault keys or raw storage layout. |
+| **Opaque Media Sessions** | The global video route carries only an in-memory session token. Source paths, content URIs, vault references, queues, and cleanup ownership remain outside navigation state. |
 
 ---
 
 ## Project Structure
 
-Arcile's codebase is divided into **28 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
+Arcile's codebase is divided into **33 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
 
 ```text
 arcile/
@@ -94,6 +103,10 @@ arcile/
 │   │   ├── storage/
 │   │   │   ├── domain/                          # Focused storage contracts, models, path helpers
 │   │   │   └── data/                            # Focused repositories, Room, MediaStore, filesystem engines
+│   │   ├── vault/
+│   │   │   ├── domain/                          # Opaque IDs, vault/session/transfer contracts, failures
+│   │   │   ├── crypto/                          # Versioned codecs, key derivation, authenticated encryption
+│   │   │   └── data/                            # Catalog, transactions, recovery, imports, grants, health checks
 │   │   ├── testing/                             # Shared repository and operation fakes
 │   │   └── ui/
 │   │       ├── testing/                         # Shared Compose test infrastructure
@@ -106,13 +119,15 @@ arcile/
 │   │   ├── imagegallery/                        # Independent Gallery and Viewer routes
 │   │   ├── import/                              # Save-to-Arcile share target
 │   │   ├── onboarding/                          # First-run setup and permission guidance
+│   │   ├── onlyfiles/                           # Encrypted-vault presentation and media adapters
 │   │   ├── plugins/                             # Installed/available plugin management UI
 │   │   ├── quickaccess/                         # Local shortcuts and SAF bookmarks
 │   │   ├── recentfiles/                         # Recent-file timeline and actions
 │   │   ├── settings/                            # Preferences, backup, cache controls
 │   │   ├── storagecleaner/                      # Cleaner scans and cleanup workflows
 │   │   ├── storageusage/                        # Dashboard, management, sunburst map
-│   │   └── trash/                               # Trash listing, restore, permanent deletion
+│   │   ├── trash/                               # Trash listing, restore, permanent deletion
+│   │   └── videoplayer/                         # Global video route, activity, controls, playback queue
 │   ├── plugin-api/                              # Stable dependency-light intent contract
 │   └── plugin-ui/                               # Stateless UI shared with plugin APKs
 ├── docs/                                        # Landing page website files
@@ -174,12 +189,14 @@ The navigation endpoints are modeled as serializable classes/objects under the `
 - `AppRoutes.Explorer(path, category, volumeId, restorePersistentLocation)`
 - `AppRoutes.Tools`
 - `AppRoutes.ActivityLog`
+- `AppRoutes.OnlyFiles`
 - `AppRoutes.Settings`
 - `AppRoutes.Plugins`
 - `AppRoutes.Trash`
 - `AppRoutes.RecentFiles(volumeId)`
 - `AppRoutes.ImageGallery(volumeId)`
 - `AppRoutes.ImageViewer(initialPath, albumPath, searchQuery, volumeId, returnToBrowserPage)`
+- `AppRoutes.VideoViewer(sessionToken)`
 - `AppRoutes.StorageDashboard(volumeId)`
 - `AppRoutes.StorageCleaner`
 - `AppRoutes.StorageManagement`
@@ -220,6 +237,67 @@ To prevent accidental data loss, file conflict resolution runs *before* operatio
 1. `detectCopyConflicts` performs a high-speed top-level name comparison in the destination directory to identify collisions before starting heavy recursive jobs.
 2. The user resolves conflicts in the `PasteConflictDialog` with options to **Replace**, **Keep Both**, or **Skip** (supports batch application).
 3. `FileConflictNameGenerator` resolves Keep Both options into stable name modifications (e.g. `image (1).png`).
+
+---
+
+## OnlyFiles Vault System
+
+OnlyFiles is an encrypted virtual filesystem, not a hidden ordinary folder. Its implementation is divided by responsibility:
+
+| Module | Ownership |
+|--------|-----------|
+| `core:vault:domain` | Opaque vault/node/session IDs, repository and transfer contracts, sort/page models, health results, and typed failures. |
+| `core:vault:crypto` | Public-header and encrypted-manifest codecs, password derivation, key wrapping, authenticated object streams, and format compatibility tests. |
+| `core:vault:data` | Catalog discovery, authenticated sessions, transactions, crash recovery, import/export, portable-vault access, thumbnail encryption, grants, and health checks. |
+| `feature:onlyfiles` | Vault picker/browser/viewer UI, biometric prompt, selection, transfers, administration, and adapters for images and media playback. |
+
+### Identity, Storage, and Sessions
+
+- UI and navigation use stable opaque IDs. Vault paths, object names, keys, and portable-volume roots must not be put in routes, saved state, logs, or analytics.
+- App-private vaults live under app-controlled no-backup storage. Portable vaults are discovered from a managed volume-relative root and remain usable across reinstall only when their recovery material is available.
+- Unlocking creates a bounded in-memory interactive mount. Session keys are cleared on lock, timeout, background policy, vault deletion, or storage loss. Open readers hold explicit leases so an active stream cannot be invalidated midway through a legitimate read.
+- Normal import and export use Arcile's `FileBrowserRepository`, storage volumes, and `SaveDestinationBrowser` directly. Content-URI reading exists only for genuine external-provider imports; it must never replace the native file-manager flow. Every transfer uses a one-shot in-memory reservation and a separate bounded transfer lease, so leaving the mounted browser does not expose keys through navigation or saved state.
+- A vault-scoped transaction lock serializes manifest changes. Cross-vault transfers acquire locks in stable UUID order to avoid deadlocks.
+- Each mutation stages encrypted objects and a replacement manifest, verifies the staged generation, atomically publishes it, and then removes superseded objects. Startup recovery completes or rolls back interrupted transactions deterministically.
+- Directory manifests are paged and authenticated. Implementations must stream objects and traverse directory trees iteratively so large sibling sets and deeply nested trees do not exhaust memory or the call stack.
+
+### Plaintext Boundary
+
+Plaintext may leave the vault only through an explicit user action:
+
+- **Export** decrypts into a directory chosen with Arcile's native destination browser. It writes through private sibling staging names, verifies the staged result, publishes atomically where the filesystem permits, and removes incomplete staging data on failure or cancellation.
+- **Move out** follows the same publish-and-verify sequence and deletes encrypted source nodes only after every destination has been committed successfully.
+- **Open/share with another app** uses short-lived, read-only content URI grants. Revocation, expiry, session lock, and process cleanup close the grant and release its reader lease.
+- **In-app viewing** streams decrypted bytes through random-access adapters. It must not create a plaintext cache fallback. Thumbnails are encrypted at rest and invalidated with their vault identity.
+
+The versioned file layout, cryptographic domains, recovery behavior, leakage disclosure, and compatibility rules are specified in [`arcile-app/docs/ONLYFILES_FORMAT_AND_SECURITY.md`](arcile-app/docs/ONLYFILES_FORMAT_AND_SECURITY.md). Treat that document and the golden-vector tests as the format contract; never change persisted bytes implicitly.
+
+### Product Flow and UI Ownership
+
+OnlyFiles follows a vault-first flow rather than presenting encrypted storage as another ordinary Browser directory:
+
+1. **Vault library:** Show the user's registered volumes with clear locked, unlocked, missing, and damaged state. Creating a portable vault first chooses its location through Arcile's own volume/directory browser, then collects vault credentials.
+2. **Mount:** Selecting a locked vault requests authentication; selecting an unlocked vault enters its virtual root. The mount is an authenticated in-memory session, not a filesystem path.
+3. **Vault browser:** Reuse Arcile screen scaffolding, large app bars, search chrome, list/grid file components, spacing, shapes, and selection behavior. Vault-relative breadcrumbs may be displayed, but backing storage paths must remain opaque.
+4. **Import:** `Import files` and `Import folder` open the Arcile local picker, allow multi-selection where appropriate, then encrypt the selected local tree into the current vault directory.
+5. **Export or move out:** The user selects vault nodes, chooses an Arcile local destination, resolves conflicts, and receives verified plaintext output. Move-out removes encrypted sources only after all selected output is published successfully.
+6. **Lock:** Back navigation, explicit lock, background policy, timeout, storage loss, or deletion closes the interactive mount and clears decrypted UI state.
+
+Do not introduce `ACTION_OPEN_DOCUMENT_TREE` or a parallel `DocumentsProvider` exporter for these normal flows. Arcile already owns direct local-storage discovery and access; Android picker support belongs only at an actual external-provider boundary.
+
+---
+
+## Global Media Sources & Video Player
+
+`feature:videoplayer` owns one Media3-based player for Browser, Recents, Trash, external intents, and OnlyFiles. Producers create a neutral `VideoPlaybackSession` in `core:ui`, register it in `GlobalVideoPlaybackSessions`, and navigate with `AppRoutes.VideoViewer(sessionToken)`. The token is process-local and opaque; the route never serializes a filesystem path, URI, vault ID, or queue.
+
+- A session supplies the current item, ordered queue, display metadata, a Media3 `DataSource.Factory`, and optional share/open cleanup callbacks.
+- Browser-family sources use local/content adapters. OnlyFiles supplies a vault-backed random-access data source that owns and releases a vault reader lease for the lifetime of each open stream.
+- `GlobalVideoViewer` owns queue navigation, lifecycle pause/resume behavior, seeking, orientation, playback speed, tracks/subtitles, system bars, accessibility feedback, error presentation, and resource release.
+- `VideoViewerActivity` handles standalone `ACTION_VIEW` video intents through the same player. Its library manifest inherits the application theme and must not reference app-module resources.
+- Removing or replacing a playback session must run its cleanup callback. Playback queues and positions are not persisted as history, and an expired process-local token must fail closed with a recoverable UI state.
+
+Feature modules must not depend on `feature:videoplayer`; they emit or provide neutral playback sessions, and the app shell performs route mapping. This preserves feature independence while keeping player behavior identical across every source.
 
 ---
 
@@ -501,6 +579,15 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - **Scroll Preservation:** When returning from sub-screens (e.g., returning to the Browser from the Image Viewer, or to the Gallery from a photo), the list/grid scroll position (index and pixel offset) is preserved.
 - **Gesture Blocking:** Categories or specific path-scoped navigations temporarily disable the main horizontal pager's swipe actions (`userScrollEnabled = false`) to prevent accidental transitions while browsing files.
 - **App Risk Mapping:** In the Storage Cleaner, package names are mapped to user-friendly local application icons (e.g., resolving WhatsApp package to its recognizable icon) and risk badges, rather than listing raw package labels.
+- **Visual Continuity:** Product areas must compose `ArcileScreenScaffold`, shared top/search bars, theme spacing, semantic typography, Arcile file rows/grids, and the established container shapes before adding feature-specific UI. A security boundary may change behavior; it is not a reason to invent a separate visual language.
+
+### Utilities Catalog and Home Customization
+
+- `ArcileUtilityCatalog` in `core:ui` is the single source of truth for Utilities and Home shortcuts. A catalog entry is allowed only when its route and primary workflow are implemented; placeholders, disabled cards, and "Soon" actions do not belong in the production catalog.
+- The current implemented utilities are Trash, Storage Cleaner, Activity Log, and OnlyFiles. The Tools screen navigates to those same destinations and contains no duplicate feature definitions.
+- `UtilityPreferencesStore` persists an **ordered list** of utility IDs. The repository filters unknown IDs, removes duplicates, preserves user order, and migrates the former unordered `home_utility_ids` set into deterministic catalog order.
+- The Tools screen lets users show or hide each implemented utility on Home. Move-up and move-down actions reorder only the visible group; Home projects the catalog through that saved list, so rendered order exactly matches the preference.
+- Adding a utility requires its route, catalog entry, navigation mapping, user-facing strings, and catalog/preference/Home tests in the same change. Removing a route requires removing its catalog entry so stale preferences are ignored safely.
 
 ### 5. Material 3 Expressive APIs & Typography Guidelines
 - **`ExperimentalMaterial3ExpressiveApi` Coverage:** This API tag is opted-in across features to access next-generation components, including:
@@ -530,7 +617,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - **Controllers:** Navigation, selection, search, clipboard, conflicts, mutations, operations, reveal, archive, properties, and transient feedback have focused owners. Cross-domain transitions remain coordinated through the Browser owner rather than controllers mutating one another.
 
 ### 2. Home (`feature/home`)
-- Owns dashboard state, recent-file presentation, category shortcuts, and neutral navigation destinations.
+- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, and neutral navigation destinations. It consumes utility IDs from `UtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
 
 ### 3. Gallery and Viewer (`feature/imagegallery`)
 - `ImageGalleryViewModel` owns albums, timelines, filters, selection, and gallery presentation.
@@ -571,6 +658,14 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 ### 14. Onboarding (`feature/onboarding`)
 - Owns first-run permission guidance, persisted completion state, and automatic completion when required access is already available.
 
+### 15. OnlyFiles (`feature/onlyfiles`)
+- Owns the vault-library → authenticate/mount → rooted-browser → lock lifecycle, biometric interaction, import/export/move picker reservations, selection, vault administration, and vault-backed media adapters.
+- Uses Arcile's native local file and save-destination browsers for normal transfers and shared Arcile UI primitives for its library, mounted browser, search, and selection chrome.
+- Delegates all storage layout, cryptography, transaction, recovery, session, and grant policy to `core:vault:*` contracts.
+
+### 16. Video Player (`feature/videoplayer`)
+- Owns the global Media3 viewer route and standalone video Activity. It consumes neutral, opaque playback sessions and does not depend on producer features.
+
 ---
 
 ## Naming Conventions
@@ -610,8 +705,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 150 |
-| **Version Name** | `1.5.0` |
+| **Version Code** | 157 |
+| **Version Name** | `1.5.7` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -625,6 +720,7 @@ Arcile uses clear, descriptive names to ensure readability.
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+<uses-permission android:name="android.permission.USE_BIOMETRIC" />
 <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 ```
@@ -642,6 +738,9 @@ Arcile uses clear, descriptive names to ensure readability.
 5. **No Telemetry:** The app has no network access, preventing data leaks.
 6. **Room Database Security:** Caches exclude user keys and access credentials.
 7. **Scoped Deletions:** OTG/temporary storage deletes files permanently instead of moving them to trash folders.
+8. **Vault Key Lifetime:** OnlyFiles derives or unwraps keys only during authenticated unlock, holds them in bounded in-memory sessions, and clears them on lock, timeout, deletion, or storage loss. Biometric wrapping requires strong biometric authentication.
+9. **Encrypted Presentation Data:** Vault thumbnails and manifests remain authenticated and encrypted at rest. Secure vault presentation applies `FLAG_SECURE` to block screenshots and non-secure display capture.
+10. **Controlled Vault Egress:** Export, move-out, and external open/share are the only plaintext boundaries. They use verified publication or short-lived read-only grants and clean staging data on cancellation and failure.
 
 ---
 
@@ -682,6 +781,9 @@ Arcile uses **JVM unit, Robolectric, architecture-boundary, build-logic, and ins
 # Release-oriented non-device verification
 ./gradlew :app:lintDebug checkProductionStrings :app:verifyArcileBuildConventions
 
+# Complete release gate after cross-module or vault/player changes
+./gradlew testDebugUnitTest lintDebug assembleDebug assembleRelease
+
 # Architecture boundaries only
 ./gradlew :app:testDebugUnitTest --tests dev.qtremors.arcile.ArchitectureBoundaryTest
 
@@ -709,6 +811,9 @@ Use module-scoped tasks when iterating on a focused area:
 ./gradlew :core:presentation:testDebugUnitTest
 ./gradlew :core:navigation:api:test
 ./gradlew :core:operation:android:testDebugUnitTest
+./gradlew :core:vault:domain:test
+./gradlew :core:vault:crypto:test
+./gradlew :core:vault:data:testDebugUnitTest
 
 # Feature modules
 ./gradlew :feature:browser:testDebugUnitTest
@@ -725,6 +830,8 @@ Use module-scoped tasks when iterating on a focused area:
 ./gradlew :feature:activitylog:testDebugUnitTest
 ./gradlew :feature:plugins:testDebugUnitTest
 ./gradlew :feature:import:testDebugUnitTest
+./gradlew :feature:onlyfiles:testDebugUnitTest
+./gradlew :feature:videoplayer:testDebugUnitTest
 ./gradlew :plugin-api:testDebugUnitTest
 
 # Instrumented tests for modules that define androidTest sources
@@ -733,6 +840,8 @@ Use module-scoped tasks when iterating on a focused area:
 ```
 
 Pure Kotlin/JVM modules use `test`; Android modules use `testDebugUnitTest` for local unit/Robolectric tests and `connectedDebugAndroidTest` for instrumented tests.
+
+Vault changes require crypto golden vectors, transaction/recovery tests, deep-tree transfer tests, cancellation cleanup, move-after-publish behavior, and large-manifest stress coverage. Player changes require source-adapter, opaque-session lifecycle, queue, accessibility, and lint verification. Test cancellation and removable-storage loss explicitly; success-only tests are insufficient for either boundary.
 
 ---
 
@@ -749,8 +858,8 @@ To package Arcile:
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.5.0-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.5.0.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.5.7-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.5.7.apk`
 
 ---
 
@@ -775,6 +884,8 @@ When reviewing code changes, ensure:
 6. **Platform Boundaries:** Feature ViewModels must not use `Context`, `Dispatchers.IO`, concrete storage implementations, or direct filesystem policy. Feature composables must not inspect existence, permissions, traversal, or canonical paths.
 7. **Hard Limits:** Production files remain at or below 500 lines, ViewModels at or below 400 lines, and public composables at or below 15 parameters. The architecture suite has no grandfathered size baselines.
 8. **Focused Verification:** Run affected module tests while iterating; run architecture, lint, strings, and build-convention gates at release milestones.
+9. **Vault Correctness:** Persisted vault mutations must use transactions, deterministic recovery, authenticated manifests, bounded sessions, reader leases, and streaming/iterative traversal. No feature code may bypass these contracts.
+10. **Media Privacy:** Global player routes contain only opaque session tokens. Every source adapter must release files, descriptors, grants, and vault leases when playback ends or the session is discarded.
 
 ---
 
@@ -783,6 +894,10 @@ When reviewing code changes, ensure:
 - **Onboarding loops:** Check DataStore preferences state loading in `MainActivity` (ensure the 2-second timeout is not tripped).
 - **Missing files:** Run a MediaStore sync via `MutationFinalizer` after making file mutations.
 - **Archive errors:** Verify password credentials and check for path safety violations.
+- **OnlyFiles remains locked or unavailable:** Check biometric capability, session timeout, portable-volume identity, catalog health, and recovery status. Do not work around the failure by reading vault storage directly.
+- **OnlyFiles transfer is interrupted:** Reopen the vault to trigger recovery, inspect the typed health result, and confirm SAF staging documents were removed before retrying.
+- **Video token expired:** Reopen the video from its source to register a new process-local playback session. Tokens intentionally do not survive process death.
+- **Vault video stops after locking:** This is expected after the active reader lease closes; unlock the vault and start a new playback session.
 - **Build configuration errors:** Ensure Android SDK 37 is installed via the Android SDK Manager.
 
 ---
@@ -793,6 +908,9 @@ When reviewing code changes, ensure:
 - **Version alignment:** Bump versions only when explicitly requested. Keep project/build versions identical and derive the integer code by removing dots (`1.5.0` → `150`).
 - **Architecture direction:** Treat the current boundaries as guardrails, not a reason for speculative abstraction. Prefer features, measurable improvements, and concrete bug fixes unless a guard exposes a real ownership problem.
 - **Archive handlers:** Keep extraction path validation intact for all archive formats.
+- **Vault format:** Update the format/security specification and compatibility tests with every persisted-format change. Never reuse an authenticated-data domain or silently reinterpret an existing version.
+- **Vault backups:** Portable vaults should be copied only while locked; a live multi-file copy is not an atomic snapshot.
+- **Library isolation:** Feature-library manifests and resources must not reference app-owned themes or drawables. The app module supplies application-level styling at merge time.
 
 ---
 

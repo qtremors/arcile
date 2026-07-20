@@ -8,9 +8,9 @@ import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultImportEvent
 import dev.qtremors.arcile.core.vault.domain.VaultImportProgress
+import dev.qtremors.arcile.core.vault.domain.VaultImportReservation
 import dev.qtremors.arcile.core.vault.domain.VaultImportState
 import dev.qtremors.arcile.core.vault.domain.VaultPath
-import dev.qtremors.arcile.core.vault.domain.VaultSessionLease
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -20,11 +20,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
-class DefaultVaultImportCoordinator @Inject constructor(
+internal class DefaultVaultImportCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val repository: DefaultVaultRepository
 ) : VaultImportCoordinator {
@@ -34,20 +35,30 @@ class DefaultVaultImportCoordinator @Inject constructor(
     private val _events = MutableSharedFlow<VaultImportEvent>(extraBufferCapacity = 32)
     override val events: Flow<VaultImportEvent> = _events.asSharedFlow()
 
-    override fun startImport(
+    override fun prepareImport(
         vaultId: VaultId,
-        destination: VaultPath,
-        sourceUris: List<String>,
-        selectionLease: VaultSessionLease?
-    ): Boolean {
+        destination: VaultPath
+    ): Result<VaultImportReservation> {
+        if (_activeImports.value.isNotEmpty()) {
+            return Result.failure(IllegalStateException("Another import is already running"))
+        }
+        val token = repository.reserveImport(vaultId)
+            ?: return Result.failure(IllegalStateException("Unlock the vault before importing"))
+        return Result.success(ImportReservation(vaultId, destination, token, repository))
+    }
+
+    override fun startImport(reservation: VaultImportReservation, sourceUris: List<String>): Boolean {
+        val prepared = reservation as? ImportReservation ?: run {
+            reservation.close()
+            return false
+        }
         if (sourceUris.isEmpty() || _activeImports.value.isNotEmpty()) {
-            selectionLease?.close()
+            prepared.close()
             return false
         }
-        val token = repository.reserveImport(vaultId, selectionLease) ?: run {
-            selectionLease?.close()
-            return false
-        }
+        val token = prepared.consume() ?: return false
+        val vaultId = prepared.vaultId
+        val destination = prepared.destination
         tokens[vaultId.value] = token
         _activeImports.update { it + (vaultId to VaultImportState(vaultId)) }
         _events.tryEmit(VaultImportEvent.Started(vaultId))
@@ -68,6 +79,22 @@ class DefaultVaultImportCoordinator @Inject constructor(
             _activeImports.update { it - vaultId }
             _events.tryEmit(VaultImportEvent.Failed(vaultId, error.message ?: "Unable to start import"))
             false
+        }
+    }
+
+    private class ImportReservation(
+        override val vaultId: VaultId,
+        override val destination: VaultPath,
+        private val token: String,
+        private val repository: DefaultVaultRepository
+    ) : VaultImportReservation {
+        private val closed = AtomicBoolean(false)
+        override val isClosed: Boolean get() = closed.get()
+
+        fun consume(): String? = token.takeIf { closed.compareAndSet(false, true) }
+
+        override fun close() {
+            if (closed.compareAndSet(false, true)) repository.releaseImportReservation(token)
         }
     }
 

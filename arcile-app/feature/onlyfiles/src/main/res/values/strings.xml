@@ -62,11 +62,17 @@
     <string name="onlyfiles_delete_vault">Permanently delete vault</string>
     <string name="onlyfiles_delete_vault_confirm">This permanently deletes encrypted vault data. Type “%1$s” to confirm.</string>
     <string name="onlyfiles_new_item">New item</string>
-    <string name="onlyfiles_clipboard_count">%1$d vault item(s) on clipboard</string>
+    <plurals name="onlyfiles_clipboard_count">
+        <item quantity="one">%1$d vault item on clipboard</item>
+        <item quantity="other">%1$d vault items on clipboard</item>
+    </plurals>
     <string name="onlyfiles_clear">Clear</string>
     <string name="onlyfiles_paste">Paste</string>
     <string name="onlyfiles_processing">Processing vault items…</string>
-    <string name="onlyfiles_delete_many_confirm">Permanently delete %1$d item(s) and all contents? This cannot be undone.</string>
+    <plurals name="onlyfiles_delete_many_confirm">
+        <item quantity="one">Permanently delete %1$d item and all contents? This cannot be undone.</item>
+        <item quantity="other">Permanently delete %1$d items and all contents? This cannot be undone.</item>
+    </plurals>
     <string name="onlyfiles_share">Share</string>
     <string name="onlyfiles_open_with">Open with</string>
     <string name="onlyfiles_export">Export plaintext copy</string>
@@ -79,7 +85,10 @@
     <string name="onlyfiles_compatibility_copy_warning">Use this only if the receiving app cannot read streamed access. Arcile will create a temporary plaintext copy in private app storage after checking available space. It is deleted after use, revocation, expiration, cancellation, or the next app start.</string>
     <string name="onlyfiles_create_copy">Create temporary copy</string>
     <string name="onlyfiles_continue">Continue</string>
-    <string name="onlyfiles_selected_count">%1$d selected</string>
+    <plurals name="onlyfiles_selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="onlyfiles_select_all">Select all</string>
     <string name="onlyfiles_invert_selection">Invert selection</string>
     <string name="onlyfiles_copy">Copy</string>
