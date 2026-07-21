@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +25,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationDirectory
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 
 internal enum class VaultFolderPickerMode { CREATE, ATTACH }
 
@@ -73,7 +74,10 @@ internal fun VaultFolderPickerDialog(
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                         items(state.entries, key = { it.path }) { directory ->
                             Row(
-                                Modifier.fillMaxWidth().clickable { onOpen(directory.path) }.padding(vertical = 12.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .bounceClickable { onOpen(directory.path) }
+                                    .padding(vertical = 12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
@@ -86,7 +90,13 @@ internal fun VaultFolderPickerDialog(
             }
         },
         confirmButton = {
-            Button(onClick = onChoose, enabled = state.current?.canSave == true && !state.isLoading) {
+            val enabled = state.current?.canSave == true && !state.isLoading
+            Button(
+                onClick = onChoose,
+                enabled = enabled,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(enabled = enabled) { onChoose() }
+            ) {
                 Text(
                     stringResource(
                         if (state.mode == VaultFolderPickerMode.CREATE) {
@@ -98,6 +108,14 @@ internal fun VaultFolderPickerDialog(
                 )
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable { onDismiss() }
+            ) {
+                Text(stringResource(R.string.onlyfiles_cancel))
+            }
+        }
     )
 }

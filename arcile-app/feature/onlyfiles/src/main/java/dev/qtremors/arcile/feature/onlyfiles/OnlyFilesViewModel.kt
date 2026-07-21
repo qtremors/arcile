@@ -190,7 +190,13 @@ internal class OnlyFilesViewModel @Inject constructor(
             _state.update { it.copy(viewer = null) }
             return true
         }
-        if (current.directoryStack.size <= 1) return false
+        if (current.directoryStack.size <= 1) {
+            if (current.selectedVaultId != null) {
+                clearSensitiveUiState()
+                return true
+            }
+            return false
+        }
         _state.update {
             it.copy(
                 directoryStack = it.directoryStack.dropLast(1),
@@ -219,6 +225,9 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     fun toggleLayout() = _state.update {
         it.copy(layout = if (it.layout == OnlyFilesLayout.LIST) OnlyFilesLayout.GRID else OnlyFilesLayout.LIST)
+    }
+    fun setLayout(layout: OnlyFilesLayout) = _state.update {
+        it.copy(layout = layout)
     }
 
     fun updateSearch(query: String) = browser.updateSearch(query)

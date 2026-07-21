@@ -1,15 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.7
-> **Last Updated:** 2026-07-15
+> **Version:** 1.5.8
+> **Last Updated:** 2026-07-19
 
 ---
+
+## [1.5.8] - 2026-07-19
+
+- **Direct Biometric Unlock on Cards**: Locked vault list cards enrolled with biometrics now display an interactive primary-colored fingerprint icon. Tapping the fingerprint directly invokes the biometric authentication dialog to unlock the vault, skipping the password prompt.
+- **Biometric Prompt Context Visibility**: Modified vault unlock dialogs to dynamically query local enrollment status, completely hiding the "Use Biometrics" trigger option if biometrics have not been configured for the vault.
+- **Expressive Loading and Progress Controls**: Replaced legacy flat linear and circular progress loaders with premium Material 3 Expressive shape-morphing `LoadingIndicator` components. Cleaned up empty bottom bar layout slots in `OnlyFilesScreen` to prevent reserved spaces and divider lines when clipboard or transfer states are null.
+- **Precise Back Gesture Handling**: Refined the `BackHandler` logic to capture back navigation at the root folder level inside vaults, cleanly deselecting and closing the vault session to return to the library screen instead of popping the entire OnlyFiles navigation stack and returning to the home screen.
 
 ## [1.5.7] - 2026-07-15
 
 - **Native Vault Transfers**: File/folder import and export or move-out now use Arcile's own storage browsers end to end; the obsolete parallel document-tree exporter has been removed.
-- **Arcile-Aligned OnlyFiles UI**: The vault library and mounted browser now use Arcile scaffolding, large/search/selection app bars, file layouts, spacing, shapes, and clearer locked/open actions instead of a separate visual language.
+- **Arcile-Aligned OnlyFiles UI**: The vault library and mounted browser now use Arcile scaffolding, large/search/selection app bars, file layouts, spacing, shapes, and clearer locked/open actions instead of a separate visual language. This includes deep integration of Material 3 Expressive UI/UX elements, such as bouncy circular action wrappers, position-aware grouped dropdown items, bottom sheet sort controls, custom segmented rows, expressive switches, and transparent overlay media bars. A consolidated conditional back-gestures handler resolves back-stack popping issues to prevent premature exits to the home screen.
 - **Useful Utilities Only**: Utilities now lists only implemented destinations—Trash, Cleaner, Activity Log, and OnlyFiles—with placeholder FTP, App Manager, and Network Share entries removed.
 - **Custom Home Utilities**: Users can choose which implemented utilities appear on Home and reorder them, with ordered preference migration and stale-entry cleanup.
 - **Deep Transfer Reliability**: Native export, merge, cancellation, and move-out handle deeply nested folders without recursive stack growth, clean private staging data on failure, and remove encrypted sources only after publication.

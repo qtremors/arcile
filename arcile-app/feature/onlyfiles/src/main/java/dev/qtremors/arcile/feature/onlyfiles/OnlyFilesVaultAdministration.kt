@@ -7,8 +7,16 @@ import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
 import androidx.activity.ComponentActivity
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.Fingerprint
@@ -18,10 +26,9 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,14 +37,26 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultLocationKind
 import dev.qtremors.arcile.core.vault.domain.VaultPasswordPolicy
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.launch
 
 @Composable
@@ -45,10 +64,7 @@ internal fun VaultActionsMenu(
     expanded: Boolean,
     vault: VaultSummary,
     viewModel: OnlyFilesViewModel,
-    onDismiss: () -> Unit,
-    onRefresh: () -> Unit,
-    onImportFiles: () -> Unit,
-    onImportFolder: () -> Unit
+    onDismiss: () -> Unit
 ) {
     var changePassword by remember { mutableStateOf(false) }
     var enrollBiometric by remember { mutableStateOf(false) }
@@ -58,45 +74,91 @@ internal fun VaultActionsMenu(
     val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
 
-    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
-        DropdownMenuItem(text = { Text(stringResource(R.string.onlyfiles_refresh)) }, onClick = { closeAnd(onRefresh) })
-        DropdownMenuItem(text = { Text(stringResource(R.string.onlyfiles_import_files)) }, onClick = { closeAnd(onImportFiles) })
-        DropdownMenuItem(text = { Text(stringResource(R.string.onlyfiles_import_folder)) }, onClick = { closeAnd(onImportFolder) })
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_quick_health_check)) },
-            leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
-            onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.QUICK) } }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_full_health_check)) },
-            leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
-            onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.FULL) } }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_change_password)) },
-            leadingIcon = { Icon(Icons.Default.Key, null) }, onClick = { closeAnd { changePassword = true } }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_enable_biometric)) },
-            leadingIcon = { Icon(Icons.Default.Fingerprint, null) }, onClick = { closeAnd { enrollBiometric = true } }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_remove_biometric)) },
-            leadingIcon = { Icon(Icons.Default.Fingerprint, null) }, onClick = { closeAnd { confirmRemoveBiometric = true } }
-        )
-        if (vault.locationKind != VaultLocationKind.APP_PRIVATE) DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_remove_registration)) },
-            leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, null) },
-            onClick = { closeAnd { confirmRemoveRegistration = true } }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_delete_vault)) },
-            leadingIcon = { Icon(Icons.Default.DeleteForever, null) }, onClick = { closeAnd { confirmDelete = true } }
-        )
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.onlyfiles_lock)) },
-            leadingIcon = { Icon(Icons.Default.Lock, null) }, onClick = { closeAnd(viewModel::lockCurrent) }
-        )
+    val menuActions = remember(vault) {
+        mutableListOf<@Composable () -> Unit>().apply {
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_quick_health_check)) },
+                    leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
+                    onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.QUICK) } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_full_health_check)) },
+                    leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
+                    onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.FULL) } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_change_password)) },
+                    leadingIcon = { Icon(Icons.Default.Key, null) },
+                    onClick = { closeAnd { changePassword = true } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_enable_biometric)) },
+                    leadingIcon = { Icon(Icons.Default.Fingerprint, null) },
+                    onClick = { closeAnd { enrollBiometric = true } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_remove_biometric)) },
+                    leadingIcon = { Icon(Icons.Default.Fingerprint, null) },
+                    onClick = { closeAnd { confirmRemoveBiometric = true } }
+                )
+            }
+            if (vault.locationKind != VaultLocationKind.APP_PRIVATE) {
+                add {
+                    ArcileDropdownMenuItem(
+                        text = { Text(stringResource(R.string.onlyfiles_remove_registration)) },
+                        leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, null) },
+                        onClick = { closeAnd { confirmRemoveRegistration = true } }
+                    )
+                }
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_delete_vault)) },
+                    leadingIcon = { Icon(Icons.Default.DeleteForever, null) },
+                    onClick = { closeAnd { confirmDelete = true } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_lock)) },
+                    leadingIcon = { Icon(Icons.Default.Lock, null) },
+                    onClick = { closeAnd(viewModel::lockCurrent) }
+                )
+            }
+        }
+    }
+
+    DropdownMenu(
+        shape = MaterialTheme.shapes.extraLarge,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        expanded = expanded,
+        onDismissRequest = onDismiss
+    ) {
+        menuActions.forEachIndexed { index, action ->
+            val shape = when {
+                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
+                index == 0 -> MaterialTheme.shapes.menuGroupFirst
+                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
+                else -> MaterialTheme.shapes.menuGroupMiddle
+            }
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 8.dp, vertical = 2.dp)
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            ) {
+                action()
+            }
+        }
     }
 
     if (changePassword) ChangeVaultPasswordDialog(
@@ -132,22 +194,53 @@ internal fun VaultActionsMenu(
 internal fun VaultUnlockDialog(vault: VaultSummary, viewModel: OnlyFilesViewModel, onDismiss: () -> Unit) {
     val context = LocalContext.current
     var password by remember { mutableStateOf("") }
+    val biometricEnrolled = remember(vault.id) {
+        val root = java.io.File(context.noBackupFilesDir, "onlyfiles-biometric")
+        java.io.File(root, "${vault.id.value}.bio").exists()
+    }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(vault.name) },
         text = { PasswordField(password, { password = it }, false, {}) },
-        confirmButton = { Button(onClick = { onDismiss(); viewModel.unlock(vault.id, password) }, enabled = password.isNotEmpty()) {
-            Text(stringResource(R.string.onlyfiles_unlock))
-        } },
-        dismissButton = { Row {
-            TextButton(onClick = {
-                viewModel.prepareBiometricUnlock(vault.id) { challenge ->
-                    val activity = context.findActivity() ?: run { challenge.close(); return@prepareBiometricUnlock }
-                    showBiometricPrompt(activity, challenge) { result ->
-                        if (result.isSuccess) { onDismiss(); viewModel.biometricCompleted(vault.id) }
-                    }
+        confirmButton = {
+            Button(
+                onClick = { onDismiss(); viewModel.unlock(vault.id, password) },
+                enabled = password.isNotEmpty(),
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(enabled = password.isNotEmpty()) {
+                    onDismiss()
+                    viewModel.unlock(vault.id, password)
                 }
-            }) { Text(stringResource(R.string.onlyfiles_use_biometric)) }
-            TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }
+            ) {
+                Text(stringResource(R.string.onlyfiles_unlock))
+            }
+        },
+        dismissButton = { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (biometricEnrolled) {
+                TextButton(
+                    onClick = {
+                        viewModel.prepareBiometricUnlock(vault.id) { challenge ->
+                            val activity = context.findActivity() ?: run { challenge.close(); return@prepareBiometricUnlock }
+                            showBiometricPrompt(activity, challenge) { result ->
+                                if (result.isSuccess) { onDismiss(); viewModel.biometricCompleted(vault.id) }
+                            }
+                        }
+                    },
+                    shape = ExpressiveShapes.medium,
+                    modifier = Modifier.bounceClickable {
+                        viewModel.prepareBiometricUnlock(vault.id) { challenge ->
+                            val activity = context.findActivity() ?: run { challenge.close(); return@prepareBiometricUnlock }
+                            showBiometricPrompt(activity, challenge) { result ->
+                                if (result.isSuccess) { onDismiss(); viewModel.biometricCompleted(vault.id) }
+                            }
+                        }
+                    }
+                ) { Text(stringResource(R.string.onlyfiles_use_biometric)) }
+            }
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
         } }
     )
 }
@@ -159,17 +252,63 @@ private fun ChangeVaultPasswordDialog(onDismiss: () -> Unit, onSubmit: (String, 
     val weak = replacement.isNotEmpty() && VaultPasswordPolicy.isWeak(replacement.toCharArray())
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_change_password)) },
-        text = { Column {
-            OutlinedTextField(current, { current = it }, label = { Text(stringResource(R.string.onlyfiles_current_password)) })
-            OutlinedTextField(replacement, { replacement = it }, label = { Text(stringResource(R.string.onlyfiles_new_password)) })
-            OutlinedTextField(repeated, { repeated = it }, label = { Text(stringResource(R.string.onlyfiles_repeat_password)) })
-            if (weak) Row { Checkbox(weakConfirmed, { weakConfirmed = it }); Text(stringResource(R.string.onlyfiles_weak_password_confirm)) }
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = current,
+                onValueChange = { current = it },
+                label = { Text(stringResource(R.string.onlyfiles_current_password)) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = replacement,
+                onValueChange = { replacement = it },
+                label = { Text(stringResource(R.string.onlyfiles_new_password)) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.fillMaxWidth()
+            )
+            OutlinedTextField(
+                value = repeated,
+                onValueChange = { repeated = it },
+                label = { Text(stringResource(R.string.onlyfiles_repeat_password)) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.fillMaxWidth()
+            )
+            if (weak) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(MaterialTheme.shapes.medium)
+                        .bounceClickable { weakConfirmed = !weakConfirmed }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = stringResource(R.string.onlyfiles_weak_password_confirm),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f)
+                    )
+                    ExpressiveSwitch(checked = weakConfirmed, onCheckedChange = { weakConfirmed = it })
+                }
+            }
         } },
-        confirmButton = { Button(
-            onClick = { onSubmit(current, replacement, weakConfirmed) },
-            enabled = current.isNotEmpty() && replacement.isNotEmpty() && replacement == repeated && (!weak || weakConfirmed)
-        ) { Text(stringResource(R.string.onlyfiles_change_password)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+        confirmButton = {
+            val enabled = current.isNotEmpty() && replacement.isNotEmpty() && replacement == repeated && (!weak || weakConfirmed)
+            Button(
+                onClick = { onSubmit(current, replacement, weakConfirmed) },
+                enabled = enabled,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(enabled = enabled) { onSubmit(current, replacement, weakConfirmed) }
+            ) { Text(stringResource(R.string.onlyfiles_change_password)) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        }
     )
 }
 
@@ -178,12 +317,32 @@ private fun DeleteVaultDialog(name: String, onDismiss: () -> Unit, onDelete: (St
     var confirmation by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_delete_vault)) },
-        text = { Column {
+        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.onlyfiles_delete_vault_confirm, name))
-            OutlinedTextField(confirmation, { confirmation = it }, label = { Text(name) })
+            OutlinedTextField(
+                value = confirmation,
+                onValueChange = { confirmation = it },
+                label = { Text(name) },
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.fillMaxWidth()
+            )
         } },
-        confirmButton = { Button(onClick = { onDelete(confirmation) }, enabled = confirmation == name) { Text(stringResource(R.string.onlyfiles_delete)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+        confirmButton = {
+            val enabled = confirmation == name
+            Button(
+                onClick = { onDelete(confirmation) },
+                enabled = enabled,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(enabled = enabled) { onDelete(confirmation) }
+            ) { Text(stringResource(R.string.onlyfiles_delete)) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        }
     )
 }
 
@@ -191,12 +350,24 @@ private fun DeleteVaultDialog(name: String, onDismiss: () -> Unit, onDelete: (St
 private fun ConfirmationDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(title) }, text = { Text(message) },
-        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.onlyfiles_continue)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable { onConfirm() }
+            ) { Text(stringResource(R.string.onlyfiles_continue)) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onDismiss)
+            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        }
     )
 }
 
-private fun showBiometricPrompt(activity: Activity, challenge: VaultBiometricChallenge, onComplete: (Result<Unit>) -> Unit) {
+internal fun showBiometricPrompt(activity: Activity, challenge: VaultBiometricChallenge, onComplete: (Result<Unit>) -> Unit) {
     val crypto = challenge.platformCryptoObject as? BiometricPrompt.CryptoObject
     if (crypto == null) {
         challenge.close(); onComplete(Result.failure(IllegalStateException("Biometric challenge is unavailable"))); return
@@ -221,7 +392,7 @@ private fun showBiometricPrompt(activity: Activity, challenge: VaultBiometricCha
     })
 }
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null

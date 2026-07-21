@@ -48,6 +48,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -93,7 +95,19 @@ import dev.qtremors.arcile.core.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.core.ui.menus.FabMenuItem
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.SplitButtonGroup
+import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
+import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultImportState
@@ -114,16 +128,6 @@ internal fun OnlyFilesRoute(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     VaultSecureWindowEffect(state.selectedVaultId != null && state.screenshotProtectionEnabled)
-    BackHandler {
-        when {
-            state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
-            state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
-            state.searchQuery.isNotEmpty() -> viewModel.updateSearch("")
-            state.localPicker != null -> viewModel.navigateLocalPickerUp()
-            state.folderPicker != null -> viewModel.navigateVaultFolderUp()
-            !viewModel.navigateUp() -> onNavigateBack()
-        }
-    }
     OnlyFilesScreen(
         state = state,
         viewModel = viewModel,
@@ -135,7 +139,7 @@ internal fun OnlyFilesRoute(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun OnlyFilesScreen(
     state: OnlyFilesUiState,
@@ -161,9 +165,29 @@ private fun OnlyFilesScreen(
     var fabExpanded by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
 
-    BackHandler(enabled = showSearch) {
-        showSearch = false
-        viewModel.updateSearch("")
+    val backHandlerEnabled = state.pendingConflict != null ||
+            state.selectedNodeIds.isNotEmpty() ||
+            showSearch ||
+            state.searchQuery.isNotEmpty() ||
+            state.localPicker != null ||
+            state.folderPicker != null ||
+            state.viewer != null ||
+            state.selectedVault != null
+
+    BackHandler(enabled = backHandlerEnabled) {
+        when {
+            state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
+            state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
+            showSearch -> {
+                showSearch = false
+                viewModel.updateSearch("")
+            }
+            state.searchQuery.isNotEmpty() -> viewModel.updateSearch("")
+            state.localPicker != null -> viewModel.navigateLocalPickerUp()
+            state.folderPicker != null -> viewModel.navigateVaultFolderUp()
+            state.viewer != null -> viewModel.navigateUp()
+            state.selectedVault != null -> viewModel.navigateUp()
+        }
     }
 
     LaunchedEffect(state.message) {
@@ -217,35 +241,68 @@ private fun OnlyFilesScreen(
                             }
                         },
                         navigationIcon = {
-                            IconButton(onClick = { if (!viewModel.navigateUp()) onNavigateBack() }) {
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .bounceClickable { if (!viewModel.navigateUp()) onNavigateBack() },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.onlyfiles_back))
                             }
                         },
                         actions = {
                             if (state.selectedVault != null) {
-                                IconButton(onClick = { showSearch = true }) {
-                                    Icon(Icons.Default.Search, stringResource(R.string.onlyfiles_search))
-                                }
-                                IconButton(onClick = viewModel::toggleLayout) {
-                                    Icon(
-                                        if (state.layout == OnlyFilesLayout.LIST) Icons.Default.GridView else Icons.AutoMirrored.Filled.ViewList,
-                                        stringResource(R.string.onlyfiles_change_layout)
+                                val topActions = remember {
+                                    listOf(
+                                        ToolbarAction(
+                                            icon = Icons.Default.Search,
+                                            contentDescription = context.getString(R.string.onlyfiles_search),
+                                            onClick = { showSearch = true }
+                                        ),
+                                        ToolbarAction(
+                                            icon = Icons.AutoMirrored.Filled.Sort,
+                                            contentDescription = context.getString(R.string.onlyfiles_sort),
+                                            onClick = { showSort = true }
+                                        )
                                     )
                                 }
-                                IconButton(onClick = { showSort = true }) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.onlyfiles_sort))
+                                SplitButtonGroup(actions = topActions)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                        .bounceClickable { viewModel.refresh() },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Refresh, stringResource(R.string.onlyfiles_refresh))
                                 }
-                                IconButton(onClick = { showOverflow = true }) {
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                        .bounceClickable { showOverflow = true },
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
                                 }
                                 /* Vault administration stays memory-only and outside navigation arguments. */
                                 VaultActionsMenu(
-                                    showOverflow, requireNotNull(state.selectedVault), viewModel,
-                                    { showOverflow = false }, viewModel::refresh, onImportFiles, onImportFolder
+                                    expanded = showOverflow,
+                                    vault = requireNotNull(state.selectedVault),
+                                    viewModel = viewModel,
+                                    onDismiss = { showOverflow = false }
                                 )
                             } else {
                                 if (state.vaults.any(VaultSummary::isUnlocked)) {
-                                    TextButton(onClick = viewModel::lockAll) { Text(stringResource(R.string.onlyfiles_lock_all)) }
+                                    TextButton(
+                                        onClick = viewModel::lockAll,
+                                        modifier = Modifier.bounceClickable { viewModel.lockAll() }
+                                    ) { Text(stringResource(R.string.onlyfiles_lock_all)) }
                                 }
                             }
                         },
@@ -287,36 +344,70 @@ private fun OnlyFilesScreen(
             )
         },
         bottomBar = {
-            Column {
-                state.clipboard?.let { clipboard ->
-                    Surface(tonalElevation = 4.dp) {
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+            if (state.clipboard != null || state.transferProgress != null) {
+                Column {
+                    state.clipboard?.let { clipboard ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = 4.dp
                         ) {
-                            Text(
-                                pluralStringResource(
-                                    R.plurals.onlyfiles_clipboard_count,
-                                    clipboard.sources.size,
-                                    clipboard.sources.size
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
-                            TextButton(onClick = viewModel::clearClipboard) { Text(stringResource(R.string.onlyfiles_clear)) }
-                            Button(onClick = viewModel::paste, enabled = !state.busy) { Text(stringResource(R.string.onlyfiles_paste)) }
+                            Row(
+                                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    pluralStringResource(
+                                        R.plurals.onlyfiles_clipboard_count,
+                                        clipboard.sources.size,
+                                        clipboard.sources.size
+                                    ),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                TextButton(
+                                    onClick = viewModel::clearClipboard,
+                                    modifier = Modifier.bounceClickable { viewModel.clearClipboard() }
+                                ) { Text(stringResource(R.string.onlyfiles_clear)) }
+                                Spacer(Modifier.width(8.dp))
+                                Button(
+                                    onClick = viewModel::paste,
+                                    enabled = !state.busy,
+                                    shape = ExpressiveShapes.medium,
+                                    modifier = Modifier.bounceClickable(enabled = !state.busy) { viewModel.paste() }
+                                ) { Text(stringResource(R.string.onlyfiles_paste)) }
+                            }
                         }
                     }
-                }
-                state.transferProgress?.let { progress ->
-                    Surface(tonalElevation = 6.dp) {
-                        Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                            LinearProgressIndicator(
-                                progress = { progress.completedTopLevelItems.toFloat() / progress.totalTopLevelItems.coerceAtLeast(1) },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(progress.currentName ?: stringResource(R.string.onlyfiles_processing), Modifier.weight(1f), maxLines = 1)
-                                TextButton(onClick = viewModel::cancelTransfer) { Text(stringResource(R.string.onlyfiles_cancel)) }
+                    state.transferProgress?.let { progress ->
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            tonalElevation = 6.dp
+                        ) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                LinearProgressIndicator(
+                                    progress = { progress.completedTopLevelItems.toFloat() / progress.totalTopLevelItems.coerceAtLeast(1) },
+                                    modifier = Modifier.fillMaxWidth().clip(CircleShape)
+                                )
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        progress.currentName ?: stringResource(R.string.onlyfiles_processing),
+                                        Modifier.weight(1f),
+                                        maxLines = 1,
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    TextButton(
+                                        onClick = viewModel::cancelTransfer,
+                                        modifier = Modifier.bounceClickable { viewModel.cancelTransfer() }
+                                    ) { Text(stringResource(R.string.onlyfiles_cancel)) }
+                                }
                             }
                         }
                     }
@@ -327,32 +418,48 @@ private fun OnlyFilesScreen(
         Box(Modifier.fillMaxSize().padding(padding)) {
             if (state.selectedVault == null) {
                 VaultList(
-                    state.vaults,
-                    state.activeImports,
+                    vaults = state.vaults,
+                    imports = state.activeImports,
                     onOpen = { if (!viewModel.openVault(it)) unlockVault = it },
+                    onUnlockBiometric = { vault ->
+                        viewModel.prepareBiometricUnlock(vault.id) { challenge ->
+                            val activity = context.findActivity() ?: run { challenge.close(); return@prepareBiometricUnlock }
+                            showBiometricPrompt(activity, challenge) { result ->
+                                if (result.isSuccess) {
+                                    viewModel.biometricCompleted(vault.id)
+                                }
+                            }
+                        }
+                    },
                     onCancelImport = viewModel::cancelImport
                 )
                 if (state.vaults.isEmpty()) {
-                    Surface(
+                    EmptyState(
                         modifier = Modifier.align(Alignment.Center).padding(24.dp),
-                        shape = RoundedCornerShape(32.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow
-                    ) {
-                        Column(
-                            Modifier.padding(horizontal = 32.dp, vertical = 40.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                            Text(stringResource(R.string.onlyfiles_empty), style = MaterialTheme.typography.titleMedium)
-                            Button(onClick = { showCreateVault = true }) {
-                                Text(stringResource(R.string.onlyfiles_create))
-                            }
-                            TextButton(onClick = viewModel::beginAttachVault) {
-                                Text(stringResource(R.string.onlyfiles_add_existing))
+                        variant = EmptyStateVariant.Folder,
+                        icon = Icons.Default.Lock,
+                        title = stringResource(R.string.onlyfiles_empty),
+                        description = "",
+                        action = {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Button(
+                                    onClick = { showCreateVault = true },
+                                    modifier = Modifier.bounceClickable { showCreateVault = true }
+                                ) {
+                                    Text(stringResource(R.string.onlyfiles_create))
+                                }
+                                TextButton(
+                                    onClick = viewModel::beginAttachVault,
+                                    modifier = Modifier.bounceClickable { viewModel.beginAttachVault() }
+                                ) {
+                                    Text(stringResource(R.string.onlyfiles_add_existing))
+                                }
                             }
                         }
-                    }
+                    )
                 }
             } else {
                 VaultBrowser(
@@ -375,7 +482,7 @@ private fun OnlyFilesScreen(
                     color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f),
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    Box(contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    Box(contentAlignment = Alignment.Center) { LoadingIndicator() }
                 }
             }
         }
@@ -419,9 +526,11 @@ private fun OnlyFilesScreen(
             dismissButton = { TextButton(onClick = { deleteNodes = emptyList() }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
         )
     }
-    if (showSort) SortDialog(state, onDismiss = { showSort = false }) { field, direction ->
+    if (showSort) SortDialog(state, onDismiss = { showSort = false }, onSort = { field, direction ->
         showSort = false; viewModel.setSort(field, direction)
-    }
+    }, onLayoutChange = { layout ->
+        viewModel.setLayout(layout)
+    })
     state.properties.takeIf(List<VaultNodeMetadata>::isNotEmpty)?.let { PropertiesDialog(it, viewModel::dismissProperties) }
     state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
     state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
