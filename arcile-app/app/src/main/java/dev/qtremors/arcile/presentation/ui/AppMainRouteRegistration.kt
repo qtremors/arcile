@@ -50,8 +50,8 @@ private fun handleHomeDestination(
             destination.context
         )
         is HomeDestination.BrowseCategory -> {
-            if (destination.name == FileCategories.Images.name) {
-                navController.navigate(AppRoutes.ImageGallery()) {
+            if (isGalleryCategory(destination.name)) {
+                navController.navigate(AppRoutes.ImageGallery(categoryName = destination.name)) {
                     popUpTo<AppRoutes.Main> { saveState = true }
                     launchSingleTop = true
                 }

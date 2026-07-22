@@ -307,7 +307,11 @@ private class RecordingGalleryRepository : ImageGalleryRepository {
     val invalidateRequests = mutableListOf<List<String>>()
     var loadCalls = 0
 
-    override suspend fun loadImages(volumeId: String?, forceRefresh: Boolean): ImageGallerySnapshot {
+    override suspend fun loadImages(
+        volumeId: String?,
+        forceRefresh: Boolean,
+        categoryName: String
+    ): ImageGallerySnapshot {
         loadCalls += 1
         return ImageGallerySnapshot(
             files = emptyList(),

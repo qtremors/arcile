@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -184,8 +185,11 @@ private fun GalleryNavigationOrClipboardBar(
     ) {
         TabItem(
             selected = currentTab == GalleryTab.PHOTOS,
-            label = stringResource(R.string.image_gallery_tab_photos),
-            icon = Icons.Default.Image,
+            label = stringResource(
+                if (state.isVideoGallery) R.string.video_gallery_tab_videos
+                else R.string.image_gallery_tab_photos
+            ),
+            icon = if (state.isVideoGallery) Icons.Default.VideoLibrary else Icons.Default.Image,
             onClick = onSelectPhotos
         )
         TabItem(

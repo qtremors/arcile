@@ -159,12 +159,19 @@ internal fun ImageViewerScreen(
         return
     }
 
-    val restoredPage = viewerInitialPageForSession(
-        initialPath = initialPath,
-        viewerSessionInitialPath = state.viewerSessionInitialPath,
-        viewerCurrentPath = state.viewerCurrentPath,
-        viewerContext = viewerContext
-    )
+    val restoredPage = remember(
+        initialPath,
+        state.viewerSessionInitialPath,
+        state.viewerCurrentPath,
+        viewerContext
+    ) {
+        viewerInitialPageForSession(
+            initialPath = initialPath,
+            viewerSessionInitialPath = state.viewerSessionInitialPath,
+            viewerCurrentPath = state.viewerCurrentPath,
+            viewerContext = viewerContext
+        )
+    }
     val pagerState = rememberPagerState(
         initialPage = restoredPage,
         pageCount = { displayedFiles.size }
@@ -177,7 +184,9 @@ internal fun ImageViewerScreen(
         }
     }
 
-    val displayedPaths = displayedFiles.map(FileModel::absolutePath)
+    val displayedPaths = remember(displayedFiles) {
+        displayedFiles.map(FileModel::absolutePath)
+    }
     LaunchedEffect(displayedPaths) {
         if (displayedFiles.isEmpty()) return@LaunchedEffect
         val anchoredPath = state.viewerCurrentPath ?: initialPath
@@ -231,8 +240,10 @@ internal fun ImageViewerScreen(
             LaunchedEffect(currentPath, state.isRefreshing, state.viewerMetadataRevision) {
                 val file = currentFile ?: return@LaunchedEffect
                 if (!state.isRefreshing && metadataCache[file.absolutePath] == null) {
-                    metadataCache[file.absolutePath] =
+                    metadataCache.putBoundedViewerEntry(
+                        file.absolutePath,
                         viewModel.readImageMetadata(file.absolutePath, file.mimeType)
+                    )
                 }
             }
 
@@ -279,11 +290,10 @@ internal fun ImageViewerScreen(
                             showMetadataSheet &&
                             isCurrentPage
                         ) {
-                            val data = viewModel.readImageMetadata(
-                                file.absolutePath,
-                                file.mimeType
-                            )
-                            metadataCache[file.absolutePath] = data
+                            val data = metadataCache[file.absolutePath]
+                                ?: viewModel.readImageMetadata(file.absolutePath, file.mimeType).also {
+                                    metadataCache.putBoundedViewerEntry(file.absolutePath, it)
+                                }
                             metadata = data
                         }
                     }

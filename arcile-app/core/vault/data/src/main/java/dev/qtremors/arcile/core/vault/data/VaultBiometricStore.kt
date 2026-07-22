@@ -83,6 +83,8 @@ internal class VaultBiometricStore(context: Context) {
         removeKey(vaultId)
     }
 
+    fun hasEnrollment(vaultId: VaultId): Boolean = record(vaultId).isFile
+
     fun cryptoObject(cipher: Cipher): BiometricPrompt.CryptoObject = BiometricPrompt.CryptoObject(cipher)
 
     private fun read(vaultId: VaultId): EnrollmentRecord {

@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.8
-> **Last Updated:** 2026-07-19
+> **Version:** 1.5.9
+> **Last Updated:** 2026-07-22
 
 ---
+
+## [1.5.9] - 2026-07-22
+
+- **Immersive Video Viewer**: Matched the Image Viewer with sibling paging, thumbnail navigation, swipe-up properties, predictive back, favorites, selection, sharing, and deletion controls; stabilized thumbnail playback with one lifecycle-aware player, reliable page/seek state, and conflict-free gestures.
+- **Video Gallery Category**: Replaced the generic Videos category list with Arcile's gallery experience, including Videos/Albums tabs, timeline grouping, search, view and sort controls, selection actions, video thumbnails, and play affordances.
+- **Large Video Gallery Launch Fix**: Prevented video opens from freezing on large galleries by indexing playback sources once, preparing only the selected video, and loading sibling media lazily as the viewer page changes.
+- **Video Viewer Edge-Case Reliability**: Preserved gallery selection and return position, kept paused videos paused and the progress bar stable while paging, restored replay and fit/zoom/fill controls, removed deleted pages immediately, and made Trash/vault playback safely read-only with source-aware share and open actions.
+- **Gallery Resource Hardening**: Reduced image gesture and video progress-update overhead, bounded viewer and gallery caches, reused image metadata, and lowered retained thumbnail memory for smoother large-library browsing.
+- **OnlyFiles Responsiveness**: Moved biometric enrollment checks out of composable UI filesystem work and split the vault screen into focused components without changing its workflow.
 
 ## [1.5.8] - 2026-07-19
 

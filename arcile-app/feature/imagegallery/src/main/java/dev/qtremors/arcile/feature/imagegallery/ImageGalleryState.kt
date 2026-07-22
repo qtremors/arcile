@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
@@ -27,6 +28,7 @@ import kotlinx.collections.immutable.toPersistentSet
 
 internal data class ImageGalleryState(
     val volumeId: String? = null,
+    val categoryName: String = FileCategories.Images.name,
     val files: PersistentList<FileModel> = persistentListOf(),
     val displayedFiles: PersistentList<FileModel> = persistentListOf(),
     val albums: PersistentList<ImageGalleryAlbum> = persistentListOf(),
@@ -61,6 +63,7 @@ internal data class ImageGalleryState(
     val viewerReturnPath: String? = null,
     val fileActions: ImageGalleryFileActionState = ImageGalleryFileActionState()
 ) {
+    val isVideoGallery: Boolean get() = categoryName == FileCategories.Videos.name
     val selectedFiles: PersistentSet<String> get() = fileActions.selectedFiles
     val showTrashConfirmation: Boolean get() = fileActions.showTrashConfirmation
     val showPermanentDeleteConfirmation: Boolean get() = fileActions.showPermanentDeleteConfirmation

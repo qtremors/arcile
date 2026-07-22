@@ -202,6 +202,7 @@ class VaultBoundaryTransferCoordinatorTest {
         override suspend fun prepareBiometricEnrollment(vaultId: VaultId, password: CharArray) =
             unsupported<VaultBiometricChallenge>()
         override suspend fun prepareBiometricUnlock(vaultId: VaultId) = unsupported<VaultBiometricChallenge>()
+        override suspend fun hasBiometricEnrollment(vaultId: VaultId) = false
         override suspend fun removeBiometric(vaultId: VaultId) = unsupported<Unit>()
 
         private fun <T> unsupported(): Result<T> = Result.failure(UnsupportedOperationException())

@@ -83,7 +83,34 @@ class AppFileOpenResolverTest {
     fun `video resolves to Arcile video viewer`() = runTest {
         val result = resolver().resolve("/storage/movie.mp4", emptyList())
 
-        assertEquals(AppFileOpenResolution.ViewVideo("/storage/movie.mp4"), result)
+        assertEquals(
+            AppFileOpenResolution.ViewVideo(
+                path = "/storage/movie.mp4",
+                contextPaths = emptyList()
+            ),
+            result
+        )
+    }
+
+    @Test
+    fun `video resolution keeps only unique video context paths`() = runTest {
+        val files = listOf(
+            file("/storage/a.mp4", "mp4", "video/mp4"),
+            file("/storage/folder", "", null, isDirectory = true),
+            file("/storage/readme.txt", "txt", "text/plain"),
+            file("/storage/a.mp4", "mp4", "video/mp4"),
+            file("/storage/b.mkv", "mkv", "video/x-matroska")
+        )
+
+        val result = resolver().resolve("/storage/a.mp4", files)
+
+        assertEquals(
+            AppFileOpenResolution.ViewVideo(
+                path = "/storage/a.mp4",
+                contextPaths = listOf("/storage/a.mp4", "/storage/b.mkv")
+            ),
+            result
+        )
     }
 
     @Test

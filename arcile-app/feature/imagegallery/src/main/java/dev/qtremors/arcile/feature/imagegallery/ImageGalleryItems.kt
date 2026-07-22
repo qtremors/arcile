@@ -4,6 +4,7 @@ package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.activity.compose.PredictiveBackHandler
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -100,9 +101,11 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -197,6 +200,9 @@ internal fun GalleryImageItem(
     val formatter = rememberDateTimeFormatter()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file) { ThumbnailKey.from(file) }
+    val isVideo = remember(file.extension, file.mimeType) {
+        FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Videos
+    }
 
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 0.92f else 1.0f,
@@ -232,6 +238,7 @@ internal fun GalleryImageItem(
                         thumbnailPolicy = thumbnailPolicy,
                         modifier = Modifier.fillMaxSize()
                     )
+                    if (isVideo) GalleryVideoPlayBadge(Modifier.align(Alignment.Center))
 
                     if (isSelected) {
                         Box(
@@ -259,6 +266,7 @@ internal fun GalleryImageItem(
                     }
                     if (isSelectionMode) {
                         GalleryOpenImageAction(
+                            isVideo = isVideo,
                             modifier = Modifier
                                 .align(Alignment.BottomEnd)
                                 .padding(8.dp),
@@ -315,6 +323,7 @@ internal fun GalleryImageItem(
                 thumbnailPolicy = thumbnailPolicy,
                 modifier = Modifier.fillMaxSize()
             )
+            if (isVideo) GalleryVideoPlayBadge(Modifier.align(Alignment.Center))
 
             if (isSelected) {
                 Box(
@@ -342,6 +351,7 @@ internal fun GalleryImageItem(
             }
             if (isSelectionMode) {
                 GalleryOpenImageAction(
+                    isVideo = isVideo,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(8.dp),
@@ -362,6 +372,9 @@ internal fun GalleryThumbnail(
     val context = LocalContext.current
     val density = LocalDensity.current
     var showPlaceholder by remember(file.absolutePath, file.size, file.lastModified) { mutableStateOf(true) }
+    val isVideo = remember(file.extension, file.mimeType) {
+        FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Videos
+    }
     BoxWithConstraints(
         modifier = modifier.background(MaterialTheme.colorScheme.surface),
         contentAlignment = Alignment.Center
@@ -402,7 +415,7 @@ internal fun GalleryThumbnail(
         }
         if (showPlaceholder) {
             Icon(
-                imageVector = Icons.Default.Image,
+                imageVector = if (isVideo) Icons.Default.VideoLibrary else Icons.Default.Image,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
@@ -433,6 +446,7 @@ internal fun GalleryThumbnail(
 internal fun GalleryOpenImageAction(
     modifier: Modifier,
     onClick: () -> Unit,
+    isVideo: Boolean = false,
     size: androidx.compose.ui.unit.Dp = 34.dp,
     iconSize: androidx.compose.ui.unit.Dp = 20.dp
 ) {
@@ -448,8 +462,28 @@ internal fun GalleryOpenImageAction(
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = stringResource(R.string.open_image),
+                contentDescription = stringResource(
+                    if (isVideo) R.string.open_video else R.string.open_image
+                ),
                 modifier = Modifier.size(iconSize)
+            )
+        }
+    }
+}
+
+@Composable
+private fun GalleryVideoPlayBadge(modifier: Modifier = Modifier) {
+    Surface(
+        shape = CircleShape,
+        color = Color.Black.copy(alpha = 0.58f),
+        contentColor = Color.White,
+        modifier = modifier.size(42.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = null,
+                modifier = Modifier.size(26.dp)
             )
         }
     }

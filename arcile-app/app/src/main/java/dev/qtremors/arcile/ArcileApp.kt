@@ -88,7 +88,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.33)
+                    .maxSizePercent(0.25)
                     .build()
             }
             .diskCache {

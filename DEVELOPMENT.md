@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.5.8 | **Last Updated:** 2026-07-19
+**Version:** 1.5.9 | **Last Updated:** 2026-07-22
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -705,8 +705,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 158 |
-| **Version Name** | `1.5.8` |
+| **Version Code** | 159 |
+| **Version Name** | `1.5.9` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -858,8 +858,8 @@ To package Arcile:
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.5.8-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.5.8.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.5.9-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.5.9.apk`
 
 ---
 

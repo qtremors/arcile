@@ -158,6 +158,16 @@ internal fun viewerPageAfterDatasetChange(
     return currentPathIndex.takeIf { it >= 0 } ?: currentPage.coerceIn(files.indices)
 }
 
+private const val MAX_VIEWER_METADATA_ENTRIES = 64
+
+internal fun <K, V> MutableMap<K, V>.putBoundedViewerEntry(
+    key: K,
+    value: V
+) {
+    if (key !in this && size >= MAX_VIEWER_METADATA_ENTRIES) keys.firstOrNull()?.let(::remove)
+    this[key] = value
+}
+
 internal fun viewerThumbnailScrollAction(
     previousIndex: Int?,
     targetIndex: Int,

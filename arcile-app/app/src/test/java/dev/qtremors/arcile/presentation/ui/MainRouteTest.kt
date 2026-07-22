@@ -4,9 +4,18 @@ import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.navigation.AppRoutes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MainRouteTest {
+
+    @Test
+    fun `images and videos use media galleries while other categories use browser`() {
+        assertTrue(isGalleryCategory("Images"))
+        assertTrue(isGalleryCategory("Videos"))
+        assertFalse(isGalleryCategory("Audio"))
+    }
 
     @Test
     fun `fresh main entry starts on home`() {

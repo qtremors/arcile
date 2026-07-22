@@ -41,6 +41,7 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 @Composable
 internal fun GalleryViewOptionsDialog(
     currentTab: GalleryTab,
+    isVideoGallery: Boolean,
     photosPresentation: FileListingPreferences,
     albumPresentation: FileListingPreferences,
     isAspectRatio: Boolean,
@@ -84,7 +85,10 @@ internal fun GalleryViewOptionsDialog(
             ) {
                 Text(
                     text = if (currentTab == GalleryTab.PHOTOS) {
-                        stringResource(R.string.image_gallery_view_sort_title)
+                        stringResource(
+                            if (isVideoGallery) R.string.video_gallery_view_sort_title
+                            else R.string.image_gallery_view_sort_title
+                        )
                     } else {
                         "View and sort albums"
                     },
@@ -97,6 +101,7 @@ internal fun GalleryViewOptionsDialog(
                         aspectRatio = aspectRatio,
                         grouping = draftGrouping,
                         showDetails = details,
+                        isVideoGallery = isVideoGallery,
                         availableWidth = this@BoxWithConstraints.maxWidth,
                         onPreferencesChange = { photos = it },
                         onAspectRatioChange = { aspectRatio = it },

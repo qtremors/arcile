@@ -213,7 +213,11 @@ internal class AppNavigationActions(
                     selectedPaths,
                     surroundingFiles
                 )
-                is AppFileOpenResolution.ViewVideo -> openVideoViewer(resolution.path, surroundingFiles = surroundingFiles)
+                is AppFileOpenResolution.ViewVideo -> openVideoViewer(
+                    path = resolution.path,
+                    surroundingFiles = surroundingFiles,
+                    selectedPaths = selectedPaths
+                )
                 is AppFileOpenResolution.External -> onOpenFile(resolution.path)
             }
         }
@@ -222,7 +226,8 @@ internal class AppNavigationActions(
     private fun openVideoViewer(
         path: String,
         managedTrash: Boolean = false,
-        surroundingFiles: List<FileModel> = emptyList()
+        surroundingFiles: List<FileModel> = emptyList(),
+        selectedPaths: Set<String> = emptySet()
     ) {
         val queue = surroundingFiles
             .asSequence()
@@ -240,20 +245,25 @@ internal class AppNavigationActions(
                     lastModified = File(path).lastModified()
                 )
             )
-        val items = queue.mapIndexed { index, file ->
-            VideoPlaybackItem(
-                mediaItem = MediaItem.Builder()
-                    .setUri(Uri.fromFile(File(file.absolutePath)))
-                    .setMimeType(file.mimeType)
-                    .setMediaId(index.toString())
-                    .build(),
-                title = file.name,
-                onShare = { shareVideo(file.absolutePath, managedTrash) },
-                onOpenWith = { openVideoWith(file.absolutePath, managedTrash) }
+        val selectedFile = queue.first { it.absolutePath == path }
+        val selectedItem = VideoPlaybackItem(
+            mediaItem = MediaItem.Builder()
+                .setUri(Uri.fromFile(File(selectedFile.absolutePath)))
+                .setMimeType(selectedFile.mimeType)
+                .setMediaId(selectedFile.absolutePath)
+                .build(),
+            title = selectedFile.name,
+            onShare = { shareVideo(selectedFile.absolutePath, managedTrash) },
+            onOpenWith = { openVideoWith(selectedFile.absolutePath, managedTrash) }
+        )
+        val token = GlobalVideoPlaybackSessions.register(
+            VideoPlaybackSession(
+                items = listOf(selectedItem),
+                files = queue,
+                initialSelectedPaths = selectedPaths,
+                managedTrash = managedTrash
             )
-        }
-        val startIndex = queue.indexOfFirst { it.absolutePath == path }.coerceAtLeast(0)
-        val token = GlobalVideoPlaybackSessions.register(VideoPlaybackSession(items, startIndex))
+        )
         navController.navigate(AppRoutes.VideoViewer(token))
     }
 

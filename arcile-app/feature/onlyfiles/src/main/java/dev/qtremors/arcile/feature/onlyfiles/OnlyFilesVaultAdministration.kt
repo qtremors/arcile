@@ -191,13 +191,14 @@ internal fun VaultActionsMenu(
 }
 
 @Composable
-internal fun VaultUnlockDialog(vault: VaultSummary, viewModel: OnlyFilesViewModel, onDismiss: () -> Unit) {
+internal fun VaultUnlockDialog(
+    vault: VaultSummary,
+    biometricEnrolled: Boolean,
+    viewModel: OnlyFilesViewModel,
+    onDismiss: () -> Unit
+) {
     val context = LocalContext.current
     var password by remember { mutableStateOf("") }
-    val biometricEnrolled = remember(vault.id) {
-        val root = java.io.File(context.noBackupFilesDir, "onlyfiles-biometric")
-        java.io.File(root, "${vault.id.value}.bio").exists()
-    }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(vault.name) },
         text = { PasswordField(password, { password = it }, false, {}) },

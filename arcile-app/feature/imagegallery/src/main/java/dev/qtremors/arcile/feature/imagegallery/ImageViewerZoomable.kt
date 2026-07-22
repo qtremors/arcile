@@ -87,7 +87,8 @@ import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
@@ -118,6 +119,15 @@ internal fun ZoomableImageViewer(
     val scale = remember { Animatable(1f) }
     val offsetX = remember { Animatable(0f) }
     val offsetY = remember { Animatable(0f) }
+    val pointerTransform = remember { MutableStateFlow(ViewerPointerTransform()) }
+
+    LaunchedEffect(pointerTransform) {
+        pointerTransform.collect { transform ->
+            scale.snapTo(transform.scale)
+            offsetX.snapTo(transform.offset.x)
+            offsetY.snapTo(transform.offset.y)
+        }
+    }
 
     // Visual rotation degree transition
     val animatedRotation by animateFloatAsState(
@@ -131,6 +141,7 @@ internal fun ZoomableImageViewer(
 
     // Reset offsets and scales when the file changes
     LaunchedEffect(file) {
+        pointerTransform.value = ViewerPointerTransform()
         scale.snapTo(1f)
         offsetX.snapTo(0f)
         offsetY.snapTo(0f)
@@ -153,8 +164,6 @@ internal fun ZoomableImageViewer(
                 val doubleTapTimeout = 300L
                 var lastTapTime = 0L
                 var lastTapPosition = Offset.Zero
-                var transformJob: Job? = null
-
                 fun fittedContentSize() = viewerFittedContentSize(
                     viewportWidth = size.width.toFloat(),
                     viewportHeight = size.height.toFloat(),
@@ -201,13 +210,10 @@ internal fun ZoomableImageViewer(
                             )
                             gestureScale = constrainedScale
                             gestureOffset = nextOffset
-                            transformJob?.cancel()
-                            transformJob = coroutineScope.launch {
-                                scale.snapTo(constrainedScale)
-                                offsetX.snapTo(nextOffset.x)
-                                offsetY.snapTo(nextOffset.y)
+                            pointerTransform.value = ViewerPointerTransform(constrainedScale, nextOffset)
+                            if ((oldScale > 1.05f) != (constrainedScale > 1.05f)) {
+                                onScaleChanged(constrainedScale)
                             }
-                            onScaleChanged(constrainedScale)
                         } else if (pointers.size == 1 && !isMultiTouch) {
                             val change = pointers[0]
                             if (change.pressed) {
@@ -227,15 +233,14 @@ internal fun ZoomableImageViewer(
                                 }
                                 
                                 if (dragStarted) {
-                                    if (scale.value > 1.05f) {
+                                    if (gestureScale > 1.05f) {
                                         change.consume()
                                         val contentSize = fittedContentSize()
-                                        coroutineScope.launch {
-                                            val maxX = viewerPanLimit(scale.value, contentSize.width, size.width.toFloat())
-                                            val maxY = viewerPanLimit(scale.value, contentSize.height, size.height.toFloat())
-                                            
-                                            val targetX = offsetX.value + delta.x
-                                            val targetY = offsetY.value + delta.y
+                                        val maxX = viewerPanLimit(gestureScale, contentSize.width, size.width.toFloat())
+                                        val maxY = viewerPanLimit(gestureScale, contentSize.height, size.height.toFloat())
+
+                                        val targetX = gestureOffset.x + delta.x
+                                        val targetY = gestureOffset.y + delta.y
                                             
                                             val newX = if (targetX < -maxX) {
                                                 -maxX - (-maxX - targetX) * 0.4f
@@ -253,16 +258,13 @@ internal fun ZoomableImageViewer(
                                                 targetY
                                             }
                                             
-                                            offsetX.snapTo(newX)
-                                            offsetY.snapTo(newY)
-                                        }
+                                        gestureOffset = Offset(newX, newY)
+                                        pointerTransform.value = ViewerPointerTransform(gestureScale, gestureOffset)
                                     } else {
                                         if (dragDirection == DragDirection.VERTICAL) {
                                             change.consume()
-                                            coroutineScope.launch {
-                                                offsetY.snapTo(offsetY.value + delta.y)
-                                                offsetX.snapTo(offsetX.value + delta.x * 0.3f)
-                                            }
+                                            gestureOffset += Offset(delta.x * 0.3f, delta.y)
+                                            pointerTransform.value = ViewerPointerTransform(gestureScale, gestureOffset)
                                         }
                                     }
                                 }
@@ -271,7 +273,7 @@ internal fun ZoomableImageViewer(
                     }
                     
                     val releaseTime = System.currentTimeMillis()
-                    val dragY = offsetY.value
+                    val dragY = gestureOffset.y
                     
                     if (!isMultiTouch && !dragStarted && (releaseTime - downTime) < 300L) {
                         val timeDiff = releaseTime - lastTapTime
@@ -325,9 +327,9 @@ internal fun ZoomableImageViewer(
                                 }
                             }
                         }
-                    } else if (isMultiTouch || scale.value > 1.05f) {
+                    } else if (isMultiTouch || gestureScale > 1.05f) {
                         coroutineScope.launch {
-                            val targetScale = viewerReleaseScale(scale.value)
+                            val targetScale = viewerReleaseScale(gestureScale)
                             if (scale.value != targetScale) {
                                 launch { scale.animateTo(targetScale, spring(stiffness = Spring.StiffnessMedium)) }
                                 onScaleChanged(targetScale)
@@ -447,4 +449,9 @@ internal fun formatFileSize(size: Long): String {
 internal enum class DragDirection {
     VERTICAL, HORIZONTAL
 }
+
+private data class ViewerPointerTransform(
+    val scale: Float = 1f,
+    val offset: Offset = Offset.Zero
+)
 

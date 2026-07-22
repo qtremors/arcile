@@ -44,13 +44,25 @@ internal class OnlyFilesAdministrationController(
     fun biometricCompleted(vaultId: VaultId) {
         selectVault(vaultId)
         state.update { it.copy(message = "Biometric authentication complete") }
+        scope.launch {
+            if (sessions.hasBiometricEnrollment(vaultId)) {
+                state.update { it.copy(biometricVaultIds = it.biometricVaultIds + vaultId) }
+            }
+        }
     }
 
     fun removeBiometric() {
         val vaultId = state.value.selectedVaultId ?: return
         runBusy {
             sessions.removeBiometric(vaultId).fold(
-                onSuccess = { state.update { it.copy(message = "Biometric unlock removed") } },
+                onSuccess = {
+                    state.update {
+                        it.copy(
+                            biometricVaultIds = it.biometricVaultIds - vaultId,
+                            message = "Biometric unlock removed"
+                        )
+                    }
+                },
                 onFailure = showError
             )
         }

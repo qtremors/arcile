@@ -32,8 +32,13 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onDestination = { destination ->
             when (destination) {
                 is StorageDashboardDestination.Category -> {
-                    if (destination.name == FileCategories.Images.name) {
-                        navController.navigate(AppRoutes.ImageGallery(destination.volumeId))
+                    if (isGalleryCategory(destination.name)) {
+                        navController.navigate(
+                            AppRoutes.ImageGallery(
+                                volumeId = destination.volumeId,
+                                categoryName = destination.name
+                            )
+                        )
                     } else {
                         actions.navigateToBrowser(
                             AppRoutes.Main(
@@ -112,11 +117,14 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onOpenFileWith = actions::openViewerFileWith
     )
     registerVideoViewerRoute(
+        navController = navController,
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
-        onNavigateBack = { navController.popBackStack() }
+        onNavigateBack = { navController.popBackStack() },
+        onShareFile = actions::shareViewerFile,
+        onOpenFileWith = actions::openViewerFileWith
     )
     registerArchiveViewerRoute(
         enterTransition = transitions.detailEnter,

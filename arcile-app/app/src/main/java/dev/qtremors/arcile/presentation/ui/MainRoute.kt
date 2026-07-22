@@ -56,7 +56,7 @@ internal fun MainRoute(
                             BrowserEntry.Path(destination.path)
                         )
                         is HomeDestination.BrowseCategory -> {
-                            if (destination.name == FileCategories.Images.name) {
+                            if (isGalleryCategory(destination.name)) {
                                 onHomeDestination(destination)
                             } else {
                                 coordinator.requestBrowser(BrowserEntry.Category(destination.name))
@@ -84,6 +84,9 @@ internal fun MainRoute(
         }
     }
 }
+
+internal fun isGalleryCategory(categoryName: String): Boolean =
+    categoryName == FileCategories.Images.name || categoryName == FileCategories.Videos.name
 
 internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRequest? {
     if (initialPage != BROWSER_PAGE) return null

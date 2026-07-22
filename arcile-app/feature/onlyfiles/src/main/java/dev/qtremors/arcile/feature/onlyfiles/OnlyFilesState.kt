@@ -43,6 +43,7 @@ internal data class OnlyFilesUiState(
     val transferProgress: VaultTransferProgress? = null,
     val healthReport: VaultHealthReport? = null,
     val activeImports: Map<VaultId, VaultImportState> = emptyMap(),
+    val biometricVaultIds: Set<VaultId> = emptySet(),
     val folderPicker: VaultFolderPickerState? = null,
     val localPicker: OnlyFilesLocalPickerState? = null,
     val screenshotProtectionEnabled: Boolean = true,

@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.ui.video
 
 import androidx.media3.common.MediaItem
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
@@ -58,6 +59,32 @@ class VideoPlaybackSessionStoreTest {
         assertThrows(IllegalArgumentException::class.java) {
             VideoPlaybackSession(listOf(VideoPlaybackItem(MediaItem.EMPTY, "video")), startIndex = 1)
         }
+    }
+
+    @Test
+    fun `session allows a larger pager context than its eager playback queue`() {
+        val item = VideoPlaybackItem(MediaItem.EMPTY, "selected")
+        val context = listOf(
+            FileModel(name = "selected.mp4", absolutePath = "/videos/selected.mp4"),
+            FileModel(name = "sibling.mp4", absolutePath = "/videos/sibling.mp4")
+        )
+
+        val session = VideoPlaybackSession(items = listOf(item), files = context)
+
+        assertEquals(1, session.items.size)
+        assertEquals(2, session.files?.size)
+    }
+
+    @Test
+    fun `session retains gallery selection and managed trash context`() {
+        val session = VideoPlaybackSession(
+            items = listOf(VideoPlaybackItem(MediaItem.EMPTY, "selected")),
+            initialSelectedPaths = setOf("/videos/selected.mp4"),
+            managedTrash = true
+        )
+
+        assertEquals(setOf("/videos/selected.mp4"), session.initialSelectedPaths)
+        assertEquals(true, session.managedTrash)
     }
 
     @Test

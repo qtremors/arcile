@@ -12,6 +12,9 @@ internal sealed interface AppFileOpenResolution {
         val path: String,
         val contextPaths: List<String>
     ) : AppFileOpenResolution
-    data class ViewVideo(val path: String) : AppFileOpenResolution
+    data class ViewVideo(
+        val path: String,
+        val contextPaths: List<String>
+    ) : AppFileOpenResolution
     data class External(val path: String) : AppFileOpenResolution
 }

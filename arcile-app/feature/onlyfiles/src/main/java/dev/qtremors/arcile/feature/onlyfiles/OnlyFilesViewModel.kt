@@ -93,10 +93,13 @@ internal class OnlyFilesViewModel @Inject constructor(
     init {
         viewModelScope.launch {
             repository.vaults.collect { vaults ->
+                val biometricVaultIds = vaults.filter { sessionManager.hasBiometricEnrollment(it.id) }
+                    .mapTo(linkedSetOf(), VaultSummary::id)
                 _state.update { current ->
                     val selectedStillUnlocked = vaults.any { it.id == current.selectedVaultId && it.isUnlocked }
                     current.copy(
                         vaults = vaults,
+                        biometricVaultIds = biometricVaultIds,
                         selectedVaultId = current.selectedVaultId.takeIf { selectedStillUnlocked },
                         directoryStack = current.directoryStack.takeIf { selectedStillUnlocked }.orEmpty(),
                         nodes = current.nodes.takeIf { selectedStillUnlocked }.orEmpty(),
@@ -394,5 +397,4 @@ internal class OnlyFilesViewModel @Inject constructor(
         folderPicker.clear()
         super.onCleared()
     }
-
 }

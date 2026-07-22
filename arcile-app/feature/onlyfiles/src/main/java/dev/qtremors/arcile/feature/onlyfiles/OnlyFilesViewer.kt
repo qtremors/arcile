@@ -340,7 +340,8 @@ internal fun createVaultVideoPlaybackSession(
         dataSourceFactory = androidx.media3.datasource.DataSource.Factory {
             VaultMediaDataSource(refsByOpaqueId, openReader)
         },
-        securityScopeId = vaultSecurityScope(vaultId)
+        securityScopeId = vaultSecurityScope(vaultId),
+        files = queue.map { it.toSharedFileModel() }
     )
 }
 

@@ -1,7 +1,10 @@
 package dev.qtremors.arcile.feature.imagegallery
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
+import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
@@ -14,7 +17,11 @@ import javax.inject.Inject
 
 internal interface ImageGalleryRepository {
     val mutationEvents: Flow<dev.qtremors.arcile.core.storage.domain.StorageMutationEvent>
-    suspend fun loadImages(volumeId: String?, forceRefresh: Boolean = false): ImageGallerySnapshot
+    suspend fun loadImages(
+        volumeId: String?,
+        forceRefresh: Boolean = false,
+        categoryName: String = FileCategories.Images.name
+    ): ImageGallerySnapshot
     fun invalidate(paths: Collection<String> = emptyList())
 }
 
@@ -34,36 +41,55 @@ internal data class ImageGalleryAlbum(
 
 internal class DefaultImageGalleryRepository @Inject constructor(
     private val imageCatalogRepository: ImageCatalogRepository,
+    private val searchRepository: SearchRepository,
     private val storageMutationNotifier: StorageMutationNotifier,
     private val dispatchers: ArcileDispatchers
 ) : ImageGalleryRepository {
     private val snapshotLock = Any()
-    private val snapshots = LinkedHashMap<String, ImageGallerySnapshot>()
+    private val snapshots = LinkedHashMap<String, ImageGallerySnapshot>(8, 0.75f, true)
 
     override val mutationEvents = storageMutationNotifier.events
 
-    override suspend fun loadImages(volumeId: String?, forceRefresh: Boolean): ImageGallerySnapshot {
-        val key = volumeId.orEmpty()
+    override suspend fun loadImages(
+        volumeId: String?,
+        forceRefresh: Boolean,
+        categoryName: String
+    ): ImageGallerySnapshot {
+        val key = "${categoryName.lowercase()}:${volumeId.orEmpty()}"
         val cached = synchronized(snapshotLock) { snapshots[key] }
         if (cached != null && !forceRefresh) return cached.copy(isStale = false)
 
-        val catalog = imageCatalogRepository.loadImages(volumeId, forceRefresh).getOrThrow()
+        val imageCatalog = if (categoryName == FileCategories.Images.name) {
+            imageCatalogRepository.loadImages(volumeId, forceRefresh).getOrThrow()
+        } else {
+            null
+        }
+        val categoryFiles = imageCatalog?.items?.map { it.file }
+            ?: searchRepository.getFilesByCategory(
+                StorageScope.Category(volumeId?.takeIf(String::isNotBlank), categoryName),
+                categoryName
+            ).getOrThrow()
         val snapshot = withContext(dispatchers.default) {
-            val files = catalog.items
-                .map { it.file }
+            val files = categoryFiles
                 .distinctBy { it.absolutePath }
                 .sortedByDescending { it.lastModified }
-            val aspectRatios = catalog.items
-                .mapNotNull { item -> item.aspectRatio?.let { item.file.absolutePath to it } }
-                .toMap()
+            val aspectRatios = imageCatalog?.items
+                ?.mapNotNull { item -> item.aspectRatio?.let { item.file.absolutePath to it } }
+                ?.toMap()
+                .orEmpty()
             ImageGallerySnapshot(
                 files = files,
                 albums = buildImageGalleryAlbums(files),
                 aspectRatios = aspectRatios,
-                isStale = catalog.isStale
+                isStale = imageCatalog?.isStale == true
             )
         }
-        synchronized(snapshotLock) { snapshots[key] = snapshot }
+        synchronized(snapshotLock) {
+            snapshots[key] = snapshot
+            while (snapshots.size > MAX_SNAPSHOT_CACHE_ENTRIES) {
+                snapshots.entries.iterator().run { next(); remove() }
+            }
+        }
         return snapshot
     }
 
@@ -88,6 +114,9 @@ internal class DefaultImageGalleryRepository @Inject constructor(
         }
     }
 
+    private companion object {
+        const val MAX_SNAPSHOT_CACHE_ENTRIES = 8
+    }
 }
 
 internal fun buildImageGalleryAlbums(files: List<FileModel>): List<ImageGalleryAlbum> {

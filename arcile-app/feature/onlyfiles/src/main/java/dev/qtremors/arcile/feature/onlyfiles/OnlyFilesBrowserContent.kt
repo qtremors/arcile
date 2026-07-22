@@ -33,11 +33,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Fingerprint
-import java.io.File
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
@@ -154,7 +152,7 @@ internal fun VaultBrowser(
     }
 }
 
-private fun VaultNodeMetadata.toSharedFileModel(): FileModel {
+internal fun VaultNodeMetadata.toSharedFileModel(): FileModel {
     val capabilities = StorageNodeCapabilities(
         canRead = ref.capabilities.canRead,
         canWrite = ref.capabilities.canRename,
@@ -177,6 +175,7 @@ private fun VaultNodeMetadata.toSharedFileModel(): FileModel {
 internal fun VaultList(
     vaults: List<VaultSummary>,
     imports: Map<VaultId, VaultImportState>,
+    biometricVaultIds: Set<VaultId>,
     onOpen: (VaultSummary) -> Unit,
     onUnlockBiometric: (VaultSummary) -> Unit,
     onCancelImport: (VaultId) -> Unit
@@ -190,11 +189,7 @@ internal fun VaultList(
                 else MaterialTheme.colorScheme.surfaceContainerLow,
                 tonalElevation = if (vault.isUnlocked) 1.dp else 0.dp
             ) {
-                val context = LocalContext.current
-                val biometricEnrolled = remember(vault.id) {
-                    val root = File(context.noBackupFilesDir, "onlyfiles-biometric")
-                    File(root, "${vault.id.value}.bio").exists()
-                }
+                val biometricEnrolled = vault.id in biometricVaultIds
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         Surface(

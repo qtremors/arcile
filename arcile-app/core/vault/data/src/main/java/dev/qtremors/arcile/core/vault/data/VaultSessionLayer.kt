@@ -23,6 +23,9 @@ internal abstract class VaultSessionLayer(
     override suspend fun lockInteractive(vaultId: VaultId) = lock(vaultId)
     override suspend fun lockAllInteractive() = lockAll()
 
+    override suspend fun hasBiometricEnrollment(vaultId: VaultId): Boolean =
+        withContext(dispatchers.io) { runCatching { biometricStore.hasEnrollment(vaultId) }.getOrDefault(false) }
+
     override fun acquireLease(vaultId: VaultId, purpose: VaultLeasePurpose): Result<VaultKeyLease> =
         holdSession(vaultId).map { VaultKeyLeaseImpl(vaultId, purpose, it) }
 

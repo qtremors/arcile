@@ -46,7 +46,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
         val viewModel = hiltViewModel<ImageGalleryViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val viewerReturnPath by backStackEntry.savedStateHandle
-            .getStateFlow<String?>(VIEWER_RETURN_PATH_KEY, null)
+            .getStateFlow<String?>(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY, null)
             .collectAsStateWithLifecycle()
         val viewerReturnSelectionPaths by backStackEntry.savedStateHandle
             .getStateFlow<ArrayList<String>?>(
@@ -58,7 +58,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
         LaunchedEffect(viewerReturnPath) {
             viewerReturnPath?.let { path ->
                 viewModel.setViewerReturnPath(path)
-                backStackEntry.savedStateHandle.remove<String>(VIEWER_RETURN_PATH_KEY)
+                backStackEntry.savedStateHandle.remove<String>(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY)
             }
         }
         LaunchedEffect(viewerReturnSelectionPaths) {
@@ -198,7 +198,7 @@ fun NavGraphBuilder.registerImageViewerRoute(
             viewModel.state.value.viewerCurrentPath?.let { path ->
                 navController.previousBackStackEntry
                     ?.savedStateHandle
-                    ?.set(VIEWER_RETURN_PATH_KEY, path)
+                    ?.set(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY, path)
             }
             if (initialSelectionPaths.isNotEmpty()) {
                 navController.previousBackStackEntry
@@ -251,5 +251,3 @@ private fun viewerContextFiles(
         )
     }.distinctBy(FileModel::absolutePath)
 }
-
-private const val VIEWER_RETURN_PATH_KEY = "image_viewer.return_path"

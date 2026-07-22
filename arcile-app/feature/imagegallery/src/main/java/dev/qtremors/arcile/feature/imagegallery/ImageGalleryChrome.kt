@@ -103,6 +103,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
@@ -250,7 +251,13 @@ internal fun FloatingGalleryTopBar(
                     decorationBox = { innerTextField ->
                         if (state.searchQuery.isEmpty()) {
                             Text(
-                                text = stringResource(R.string.image_gallery_search_placeholder),
+                                text = stringResource(
+                                    if (state.isVideoGallery) {
+                                        R.string.video_gallery_search_placeholder
+                                    } else {
+                                        R.string.image_gallery_search_placeholder
+                                    }
+                                ),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
@@ -356,7 +363,8 @@ internal fun FloatingGalleryTopBar(
                 ) {
                     val menuActions = remember(
                         state.imageGalleryDefaultTab,
-                        state.displayedFiles.isNotEmpty()
+                        state.displayedFiles.isNotEmpty(),
+                        state.isVideoGallery
                     ) {
                         mutableListOf<@Composable () -> Unit>().apply {
                             ImageGalleryDefaultTab.entries.forEach { tab ->
@@ -366,7 +374,11 @@ internal fun FloatingGalleryTopBar(
                                             Text(
                                                 text = stringResource(
                                                     when (tab) {
-                                                        ImageGalleryDefaultTab.PHOTOS -> R.string.image_gallery_open_to_photos
+                                                        ImageGalleryDefaultTab.PHOTOS -> if (state.isVideoGallery) {
+                                                            R.string.video_gallery_open_to_videos
+                                                        } else {
+                                                            R.string.image_gallery_open_to_photos
+                                                        }
                                                         ImageGalleryDefaultTab.ALBUMS -> R.string.image_gallery_open_to_albums
                                                     }
                                                 ),
@@ -377,7 +389,11 @@ internal fun FloatingGalleryTopBar(
                                         leadingIcon = {
                                             Icon(
                                                 imageVector = when (tab) {
-                                                    ImageGalleryDefaultTab.PHOTOS -> Icons.Default.Image
+                                                    ImageGalleryDefaultTab.PHOTOS -> if (state.isVideoGallery) {
+                                                        Icons.Default.VideoLibrary
+                                                    } else {
+                                                        Icons.Default.Image
+                                                    }
                                                     ImageGalleryDefaultTab.ALBUMS -> Icons.Default.Folder
                                                 },
                                                 contentDescription = null

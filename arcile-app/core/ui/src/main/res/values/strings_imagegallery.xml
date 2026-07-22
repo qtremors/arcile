@@ -70,4 +70,25 @@
     <string name="image_gallery_section_albums">Albums</string>
     <string name="image_gallery_action_pin_album">Pin Album</string>
     <string name="image_gallery_action_unpin_album">Unpin Album</string>
+    <string name="video_gallery_search_placeholder">Search videos</string>
+    <string name="video_gallery_empty_title">No videos found</string>
+    <string name="video_gallery_empty_description">Videos indexed by Android will appear here.</string>
+    <string name="video_gallery_view_sort_title">View and sort videos</string>
+    <string name="video_gallery_show_file_details_description">Turn off for a clean video-only gallery.</string>
+    <string name="video_gallery_open_to_videos">Open to Videos</string>
+    <string name="video_gallery_tab_videos">Videos</string>
+    <string name="open_video">Open video</string>
+    <string name="video_player_play">Play</string>
+    <string name="video_player_pause">Pause</string>
+    <string name="video_player_retry">Retry</string>
+    <string name="video_player_content_description">Video player: %1$s</string>
+    <string name="video_player_playback_failed">Video playback failed</string>
+    <string name="video_player_seek_forward">+10 seconds</string>
+    <string name="video_player_seek_backward">−10 seconds</string>
+    <string name="video_player_resize_fit">Resize: fit</string>
+    <string name="video_player_resize_zoom">Resize: zoom</string>
+    <string name="video_player_resize_fill">Resize: fill</string>
+    <string name="video_gallery_metadata_duration">Duration</string>
+    <string name="select_video">Select video</string>
+    <string name="deselect_video">Deselect video</string>
 </resources>

@@ -29,6 +29,7 @@ interface VaultSessionManager {
     ): Result<Unit>
     suspend fun prepareBiometricEnrollment(vaultId: VaultId, password: CharArray): Result<VaultBiometricChallenge>
     suspend fun prepareBiometricUnlock(vaultId: VaultId): Result<VaultBiometricChallenge>
+    suspend fun hasBiometricEnrollment(vaultId: VaultId): Boolean
     suspend fun removeBiometric(vaultId: VaultId): Result<Unit>
 }
 

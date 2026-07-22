@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.ui.video
 
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DataSource
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import java.util.UUID
 
 data class VideoPlaybackItem(
@@ -15,7 +16,13 @@ data class VideoPlaybackSession(
     val items: List<VideoPlaybackItem>,
     val startIndex: Int = 0,
     val dataSourceFactory: DataSource.Factory? = null,
-    val securityScopeId: String? = null
+    val securityScopeId: String? = null,
+    /** Optional pager context; it may contain more files than the eagerly prepared media items. */
+    val files: List<FileModel>? = null,
+    /** Selection inherited from a gallery so the viewer can return any changes. */
+    val initialSelectedPaths: Set<String> = emptySet(),
+    /** Managed-trash media is shareable/openable but must remain read-only in the viewer. */
+    val managedTrash: Boolean = false
 ) {
     init {
         require(items.isNotEmpty())
