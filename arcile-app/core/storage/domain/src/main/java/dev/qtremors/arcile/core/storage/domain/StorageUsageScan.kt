@@ -3,9 +3,8 @@ package dev.qtremors.arcile.core.storage.domain
 @Immutable
 data class StorageUsageScanLimits(
     val maxDepth: Int = 6,
-    val maxNodes: Int = 6_000,
     val maxChildrenPerFolder: Int = 48,
-    val minChildShare: Float = 0.004f
+    val minChildShare: Float = 0.0f
 )
 
 @Immutable

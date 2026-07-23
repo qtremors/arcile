@@ -54,6 +54,17 @@ internal class AppFileOpenResolver(
                     .distinct()
                     .toList()
             )
+            extension in FileCategories.Videos.extensions -> AppFileOpenResolution.ViewVideo(
+                path = path,
+                contextPaths = surroundingFiles.asSequence()
+                    .filterNot(FileModel::isDirectory)
+                    .filter {
+                        FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Videos
+                    }
+                    .map(FileModel::absolutePath)
+                    .distinct()
+                    .toList()
+            )
             else -> AppFileOpenResolution.External(path)
         }
     }

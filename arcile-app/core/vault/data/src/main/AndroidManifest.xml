@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <service
+            android:name="dev.qtremors.arcile.core.vault.data.VaultImportService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+        <provider
+            android:name="dev.qtremors.arcile.core.vault.data.VaultExternalContentProvider"
+            android:authorities="${applicationId}.onlyfiles.external"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+        <receiver
+            android:name="dev.qtremors.arcile.core.vault.data.VaultExternalGrantReceiver"
+            android:exported="false" />
+    </application>
+</manifest>

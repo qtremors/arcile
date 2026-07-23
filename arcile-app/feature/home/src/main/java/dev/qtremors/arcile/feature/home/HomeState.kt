@@ -14,10 +14,8 @@ import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.presentation.filterAndSortFiles
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
-import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
-import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 
 @Immutable
@@ -50,7 +48,7 @@ internal data class HomeState(
     val showClassificationPrompt: Boolean = false,
     val todayStart: Long = 0L,
     val displayState: HomeDisplayState = HomeDisplayState(),
-    val homeUtilityIds: PersistentSet<String> = persistentSetOf("trash", "cleaner")
+    val homeUtilityIds: PersistentList<String> = persistentListOf("trash", "cleaner")
 )
 
 internal fun HomeState.withUpdatedDisplayState(): HomeState {

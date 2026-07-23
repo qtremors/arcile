@@ -4,13 +4,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
 interface UtilityPreferencesStore {
-    val homeUtilityIds: Flow<Set<String>>
+    val homeUtilityIds: Flow<List<String>>
 
-    suspend fun setHomeUtilityIds(ids: Set<String>)
+    suspend fun setHomeUtilityIds(ids: List<String>)
 }
 
 object NoOpUtilityPreferencesStore : UtilityPreferencesStore {
-    override val homeUtilityIds: Flow<Set<String>> = flowOf(setOf("trash", "cleaner"))
+    override val homeUtilityIds: Flow<List<String>> = flowOf(listOf("trash", "cleaner"))
 
-    override suspend fun setHomeUtilityIds(ids: Set<String>) = Unit
+    override suspend fun setHomeUtilityIds(ids: List<String>) = Unit
 }

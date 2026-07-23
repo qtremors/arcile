@@ -76,44 +76,59 @@ class StorageUsageScannerTest {
         ).loadedState()
 
         assertEquals(4, loaded.root.children.size)
-        assertEquals("Other small items", loaded.root.children.last().name)
-        assertEquals(StorageUsageNodeKind.Grouped, loaded.root.children.last().kind)
+        val grouped = loaded.root.children.single { it.kind == StorageUsageNodeKind.Grouped }
+        assertEquals("Other small items", grouped.name)
     }
 
     @Test
-    fun `scanner marks scan partial when node limit is reached`() = runTest {
-        val root = temporaryFolder.newFolder("limited")
-        repeat(20) { index ->
-            File(root, "file-$index.bin").writeBytes(ByteArray(1))
+    fun `scanner counts every entry independently of the child display limit`() = runTest {
+        val root = temporaryFolder.newFolder("unbounded")
+        repeat(75) { index ->
+            File(root, "file-$index.bin").createNewFile()
         }
 
         val loaded = scanner.scanStorageUsage(
             root.absolutePath,
-            StorageUsageScanLimits(maxNodes = 5, maxChildrenPerFolder = 20)
+            StorageUsageScanLimits(maxChildrenPerFolder = 20)
         ).loadedState()
 
-        assertEquals(StorageUsageScanStatus.Partial, loaded.root.status)
-        assertTrue(loaded.root.children.size < 20)
+        assertEquals(75, loaded.root.childCount)
+        assertEquals(StorageUsageScanStatus.Ready, loaded.root.status)
     }
 
     @Test
-    fun `scanner does not run fallback traversal after reaching scan budget`() = runTest {
-        val root = temporaryFolder.newFolder("bounded")
-        var current = root
-        repeat(40) { depth ->
-            current = File(current, "level-$depth").apply { mkdirs() }
-            repeat(20) { index ->
-                File(current, "file-$index.bin").writeBytes(ByteArray(1))
-            }
+    fun `scanner retains every immediate folder beyond the child display limit`() = runTest {
+        val root = temporaryFolder.newFolder("folders")
+        repeat(60) { index ->
+            val folder = File(root, "folder-$index").apply { mkdirs() }
+            File(folder, "file.bin").writeBytes(ByteArray(index + 1))
         }
 
         val loaded = scanner.scanStorageUsage(
             root.absolutePath,
-            StorageUsageScanLimits(maxDepth = 2, maxNodes = 8, maxChildrenPerFolder = 100)
+            StorageUsageScanLimits(maxChildrenPerFolder = 10)
         ).loadedState()
 
+        assertEquals(60, loaded.root.childCount)
+        assertEquals(60, loaded.root.children.count { it.kind == StorageUsageNodeKind.Folder })
+    }
+
+    @Test
+    fun `scanner calculates exact sizes below retained tree depth`() = runTest {
+        val root = temporaryFolder.newFolder("bounded-depth")
+        val first = File(root, "first").apply { mkdirs() }
+        val second = File(first, "second").apply { mkdirs() }
+        File(second, "payload.bin").writeBytes(ByteArray(37))
+
+        val loaded = scanner.scanStorageUsage(
+            root.absolutePath,
+            StorageUsageScanLimits(maxDepth = 1, maxChildrenPerFolder = 100)
+        ).loadedState()
+
+        assertEquals(37L, loaded.root.sizeBytes)
+        assertEquals(37L, loaded.root.children.single().sizeBytes)
         assertEquals(StorageUsageScanStatus.Partial, loaded.root.status)
-        assertTrue(countReturnedNodes(loaded.root) <= 8)
+        assertTrue(loaded.root.children.single().children.isEmpty())
     }
 
     @Test
@@ -133,7 +148,4 @@ class StorageUsageScannerTest {
         }
         return requireNotNull(loaded)
     }
-
-    private fun countReturnedNodes(node: dev.qtremors.arcile.core.storage.domain.StorageUsageNode): Int =
-        1 + node.children.sumOf(::countReturnedNodes)
 }

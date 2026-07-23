@@ -2,12 +2,14 @@ package dev.qtremors.arcile.core.ui
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ArcileStateView(
     modifier: Modifier = Modifier,
@@ -22,7 +24,7 @@ fun ArcileStateView(
 ) {
     Box(modifier = modifier.fillMaxSize()) {
         if (isLoading) {
-            CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            LoadingIndicator(modifier = Modifier.align(Alignment.Center))
         } else if (isEmpty) {
             EmptyState(
                 modifier = Modifier.align(Alignment.Center),

@@ -91,6 +91,7 @@ internal fun ImageGalleryDialogs(
     if (showPresentationSheet) {
         GalleryViewOptionsDialog(
             currentTab = currentTab,
+            isVideoGallery = state.isVideoGallery,
             photosPresentation = state.presentation,
             albumPresentation = state.albumPresentation,
             isAspectRatio = state.isAspectRatio,

@@ -47,7 +47,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ModalBottomSheet
@@ -156,6 +156,16 @@ internal fun viewerPageAfterDatasetChange(
     if (files.isEmpty()) return 0
     val currentPathIndex = files.indexOfFirst { it.absolutePath == currentPath }
     return currentPathIndex.takeIf { it >= 0 } ?: currentPage.coerceIn(files.indices)
+}
+
+private const val MAX_VIEWER_METADATA_ENTRIES = 64
+
+internal fun <K, V> MutableMap<K, V>.putBoundedViewerEntry(
+    key: K,
+    value: V
+) {
+    if (key !in this && size >= MAX_VIEWER_METADATA_ENTRIES) keys.firstOrNull()?.let(::remove)
+    this[key] = value
 }
 
 internal fun viewerThumbnailScrollAction(

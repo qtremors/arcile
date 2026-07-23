@@ -26,6 +26,18 @@ import java.util.TimeZone
 @Config(sdk = [35])
 class ImageGalleryStateTest {
     @Test
+    fun `viewer metadata cache evicts its oldest entry at the session limit`() {
+        val cache = linkedMapOf<Int, String>()
+        repeat(64) { cache.putBoundedViewerEntry(it, "metadata-$it") }
+
+        cache.putBoundedViewerEntry(64, "metadata-64")
+
+        assertEquals(64, cache.size)
+        assertTrue(0 !in cache)
+        assertEquals("metadata-64", cache[64])
+    }
+
+    @Test
     fun `default state is ready for image gallery first load`() {
         val state = ImageGalleryState(volumeId = "primary")
 

@@ -22,7 +22,7 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
 @Composable
-internal fun ExpressiveSelectorCard(
+fun ExpressiveSelectorCard(
     selected: Boolean,
     onClick: () -> Unit,
     icon: ImageVector,

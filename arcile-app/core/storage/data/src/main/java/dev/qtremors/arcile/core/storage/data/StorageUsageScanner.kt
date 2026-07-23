@@ -135,23 +135,6 @@ class DefaultStorageUsageScanner @Inject constructor(
             )
         }
 
-        if (depth >= limits.maxDepth || progress.scannedNodes >= limits.maxNodes) {
-            val childCount = try {
-                file.listFiles()?.count { it.name != ".thumbnails" } ?: 0
-            } catch (error: Exception) {
-                error.rethrowIfCancellation()
-                0
-            }
-            return StorageUsageNode(
-                name = file.name.ifBlank { file.absolutePath },
-                path = file.absolutePath,
-                sizeBytes = 0L,
-                kind = StorageUsageNodeKind.Folder,
-                childCount = childCount,
-                status = StorageUsageScanStatus.Partial
-            )
-        }
-
         val listedChildren = try {
             file.listFiles()
         } catch (error: Exception) {
@@ -171,33 +154,36 @@ class DefaultStorageUsageScanner @Inject constructor(
             )
         }
 
-        val childNodes = mutableListOf<StorageUsageNode>()
+        val retainChildren = depth < limits.maxDepth
+        val childNodes = if (retainChildren) mutableListOf<StorageUsageNode>() else null
+        var totalBytes = 0L
         var status = StorageUsageScanStatus.Ready
         for (child in children) {
-            if (progress.scannedNodes >= limits.maxNodes) {
-                status = StorageUsageScanStatus.Partial
-                break
-            }
             val childNode = scanFile(child, depth + 1, limits, progress, publishProgress)
+            totalBytes += childNode.sizeBytes
             if (childNode.status != StorageUsageScanStatus.Ready) {
                 status = StorageUsageScanStatus.Partial
             }
-            childNodes += childNode
+            childNodes?.add(childNode)
         }
 
-        val sortedChildren = groupSmallChildren(
-            children = childNodes.sortedByDescending { it.sizeBytes },
-            parentPath = file.absolutePath,
-            limits = limits
-        )
-        val totalBytes = childNodes.sumOf { it.sizeBytes }
+        val sortedChildren = childNodes?.let {
+            groupSmallChildren(
+                children = it.sortedByDescending(StorageUsageNode::sizeBytes),
+                parentPath = file.absolutePath,
+                limits = limits
+            )
+        }.orEmpty()
+        if (!retainChildren && children.isNotEmpty()) {
+            status = StorageUsageScanStatus.Partial
+        }
 
         return StorageUsageNode(
             name = file.name.ifBlank { file.absolutePath },
             path = file.absolutePath,
             sizeBytes = totalBytes,
             kind = StorageUsageNodeKind.Folder,
-            childCount = childNodes.size,
+            childCount = children.size,
             status = status,
             children = sortedChildren
         )
@@ -209,14 +195,22 @@ class DefaultStorageUsageScanner @Inject constructor(
         limits: StorageUsageScanLimits
     ): List<StorageUsageNode> {
         if (children.size <= limits.maxChildrenPerFolder) return children
-        val total = children.sumOf { it.sizeBytes }.coerceAtLeast(1L)
-        val visible = children.take(limits.maxChildrenPerFolder).filter { child ->
-            child.sizeBytes.toFloat() / total.toFloat() >= limits.minChildShare
+        val folders = children.filter { it.kind == StorageUsageNodeKind.Folder }
+        val files = children.filterNot { it.kind == StorageUsageNodeKind.Folder }
+        val availableFileSlots = (limits.maxChildrenPerFolder - folders.size).coerceAtLeast(0)
+        val visibleFiles = if (limits.minChildShare > 0.0f) {
+            val total = children.sumOf { it.sizeBytes }.coerceAtLeast(1L)
+            files.take(availableFileSlots).filter { child ->
+                child.sizeBytes.toFloat() / total.toFloat() >= limits.minChildShare
+            }
+        } else {
+            files.take(availableFileSlots)
         }
-        val grouped = children.drop(visible.size)
-        if (grouped.isEmpty()) return visible
+        val visibleFilePaths = visibleFiles.mapTo(mutableSetOf(), StorageUsageNode::path)
+        val grouped = files.filterNot { it.path in visibleFilePaths }
+        if (grouped.isEmpty()) return (folders + visibleFiles).sortedByDescending(StorageUsageNode::sizeBytes)
 
-        return visible + StorageUsageNode(
+        return (folders + visibleFiles + StorageUsageNode(
             name = GROUPED_NODE_NAME,
             path = "$parentPath/$GROUPED_NODE_NAME",
             sizeBytes = grouped.sumOf { it.sizeBytes },
@@ -227,7 +221,7 @@ class DefaultStorageUsageScanner @Inject constructor(
             } else {
                 StorageUsageScanStatus.Ready
             }
-        )
+        )).sortedByDescending(StorageUsageNode::sizeBytes)
     }
 
     private fun safeLength(file: File): Long =

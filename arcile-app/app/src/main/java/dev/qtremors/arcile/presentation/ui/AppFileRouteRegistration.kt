@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
+import dev.qtremors.arcile.feature.videoplayer.registerVideoViewerRoute
 import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
 import dev.qtremors.arcile.feature.storageusage.StorageDashboardDestination
 import dev.qtremors.arcile.feature.storageusage.registerStorageDashboardRoute
@@ -31,8 +32,13 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onDestination = { destination ->
             when (destination) {
                 is StorageDashboardDestination.Category -> {
-                    if (destination.name == FileCategories.Images.name) {
-                        navController.navigate(AppRoutes.ImageGallery(destination.volumeId))
+                    if (isGalleryCategory(destination.name)) {
+                        navController.navigate(
+                            AppRoutes.ImageGallery(
+                                volumeId = destination.volumeId,
+                                categoryName = destination.name
+                            )
+                        )
                     } else {
                         actions.navigateToBrowser(
                             AppRoutes.Main(
@@ -101,6 +107,16 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onFeedback = onFeedback
     )
     registerImageViewerRoute(
+        navController = navController,
+        enterTransition = transitions.utilityEnter,
+        exitTransition = transitions.utilityExit,
+        popEnterTransition = transitions.utilityPopEnter,
+        popExitTransition = transitions.utilityPopExit,
+        onNavigateBack = { navController.popBackStack() },
+        onShareFile = actions::shareViewerFile,
+        onOpenFileWith = actions::openViewerFileWith
+    )
+    registerVideoViewerRoute(
         navController = navController,
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,

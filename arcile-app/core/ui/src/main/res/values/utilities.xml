@@ -1,11 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="tool_ftp">FTP Server</string>
     <string name="tool_analyze">Analyze Storage</string>
     <string name="tool_clean">Clean Junk</string>
     <string name="tool_duplicates">Duplicates</string>
     <string name="tool_large">Large Files</string>
-    <string name="tool_manager">App Manager</string>
     <string name="tool_onlyfiles">OnlyFiles</string>
-    <string name="tool_share">Network Share</string>
+    <string name="onlyfiles_import_notification_channel">OnlyFiles imports</string>
+    <string name="onlyfiles_import_notification_title">Importing into OnlyFiles</string>
+    <string name="onlyfiles_import_notification_preparing">Preparing encrypted import</string>
+    <string name="onlyfiles_import_notification_progress">Encrypted %1$d of %2$d files</string>
+    <string name="onlyfiles_settings_section">Privacy</string>
+    <string name="onlyfiles_settings_description">Open and manage your encrypted vaults</string>
+    <string name="onlyfiles_screenshot_protection">Protect unlocked vault screens</string>
+    <string name="onlyfiles_screenshot_protection_description">Block screenshots and screen recording while a vault is unlocked. Enabled by default.</string>
+    <string name="onlyfiles_encrypted_thumbnail_cache">Encrypted vault thumbnails</string>
+    <string name="onlyfiles_encrypted_thumbnail_cache_stats">%1$d files • %2$s</string>
+    <string name="onlyfiles_active_external_access">Active external access</string>
+    <string name="onlyfiles_active_external_access_count">%1$d active grant(s)</string>
+    <string name="onlyfiles_revoke_all">Revoke all</string>
+    <string name="onlyfiles_security_disclosure_title">OnlyFiles security disclosure</string>
+    <string name="onlyfiles_unaudited_short">Arcile’s vault format has not received an independent security audit.</string>
+    <string name="onlyfiles_security_disclosure">OnlyFiles uses authenticated encryption and memory-hard password derivation, but this implementation has not received an independent security audit. Vault presence, encrypted object counts, approximate sizes, and filesystem timestamps remain observable. App-private vaults are deleted with app data. Back up portable vaults only while locked. External access temporarily exposes selected plaintext to the receiving app until revoked or expired.</string>
 </resources>

@@ -6,13 +6,16 @@ import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.Switch
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,6 +25,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.settings.PreferencesBackupUiState
 import dev.qtremors.arcile.core.ui.settings.SettingsSection
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.feature.settings.VaultSecurityUiState
+import dev.qtremors.arcile.core.presentation.formatFileSize
 
 @Composable
 internal fun SettingsPluginSection(onOpen: () -> Unit) {
@@ -43,6 +48,59 @@ internal fun SettingsPluginSection(onOpen: () -> Unit) {
 }
 
 @Composable
+internal fun SettingsOnlyFilesSection(
+    state: VaultSecurityUiState,
+    onOpen: () -> Unit,
+    actions: SettingsVaultActions
+) {
+    SettingsSection(title = stringResource(R.string.onlyfiles_settings_section)) {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.tool_onlyfiles)) },
+            supportingContent = { Text(stringResource(R.string.onlyfiles_settings_description)) },
+            leadingContent = {
+                Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = onOpen)
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.onlyfiles_screenshot_protection)) },
+            supportingContent = { Text(stringResource(R.string.onlyfiles_screenshot_protection_description)) },
+            trailingContent = {
+                Switch(state.screenshotProtectionEnabled, actions.setScreenshotProtection)
+            },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.onlyfiles_encrypted_thumbnail_cache)) },
+            supportingContent = {
+                Text(stringResource(R.string.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, formatFileSize(state.encryptedThumbnailBytes)))
+            },
+            trailingContent = { Text(stringResource(R.string.settings_clear_thumbnail_cache)) },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(enabled = !state.isBusy, onClick = actions.clearEncryptedThumbnails)
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.onlyfiles_active_external_access)) },
+            supportingContent = { Text(stringResource(R.string.onlyfiles_active_external_access_count, state.activeExternalGrants)) },
+            trailingContent = { Text(stringResource(R.string.onlyfiles_revoke_all)) },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(
+                enabled = state.activeExternalGrants > 0,
+                onClick = actions.revokeAllExternalAccess
+            )
+        )
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.onlyfiles_security_disclosure_title)) },
+            supportingContent = { Text(stringResource(R.string.onlyfiles_unaudited_short)) },
+            colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent),
+            modifier = Modifier.clip(MaterialTheme.shapes.medium).bounceClickable(onClick = actions.showDisclosure)
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
 internal fun SettingsBackupSection(
     state: PreferencesBackupUiState,
     onExport: () -> Unit,
@@ -62,9 +120,8 @@ internal fun SettingsBackupSection(
             },
             trailingContent = {
                 if (!enabled) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(2.dp),
-                        strokeWidth = 2.dp
+                    LoadingIndicator(
+                        modifier = Modifier.padding(2.dp)
                     )
                 }
             },

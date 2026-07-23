@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.theme.ThemeState
@@ -14,6 +13,16 @@ import dev.qtremors.arcile.feature.settings.ui.SettingsPreferenceActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsScreen
 import dev.qtremors.arcile.feature.settings.ui.SettingsScreenState
 import dev.qtremors.arcile.feature.settings.ui.SettingsStorageActions
+import dev.qtremors.arcile.feature.settings.ui.SettingsVaultActions
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.core.ui.R
 
 @Composable
 internal fun SettingsRoute(
@@ -27,6 +36,15 @@ internal fun SettingsRoute(
     val preferences by viewModel.browserPreferences.collectAsStateWithLifecycle()
     val backupState by viewModel.backupState.collectAsStateWithLifecycle()
     val externalCache by viewModel.externalCache.collectAsStateWithLifecycle()
+    val vaultSecurity by viewModel.vaultSecurity.collectAsStateWithLifecycle()
+    var showVaultDisclosure by remember { mutableStateOf(false) }
+
+    if (showVaultDisclosure) AlertDialog(
+        onDismissRequest = { showVaultDisclosure = false },
+        title = { Text(stringResource(R.string.onlyfiles_security_disclosure_title)) },
+        text = { Text(stringResource(R.string.onlyfiles_security_disclosure)) },
+        confirmButton = { TextButton(onClick = { showVaultDisclosure = false }) { Text(stringResource(R.string.ok)) } }
+    )
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -51,12 +69,14 @@ internal fun SettingsRoute(
             theme = currentThemeState,
             preferences = preferences,
             backup = backupState,
-            externalCache = externalCache
+            externalCache = externalCache,
+            vaultSecurity = vaultSecurity
         ),
         navigationActions = SettingsNavigationActions(
             navigateBack = onNavigateBack,
             openStorageManagement = { onDestination(SettingsDestination.StorageManagement) },
             navigateToPlugins = { onDestination(SettingsDestination.Plugins) },
+            navigateToOnlyFiles = { onDestination(SettingsDestination.OnlyFiles) },
             navigateToAbout = { onDestination(SettingsDestination.About) }
         ),
         preferenceActions = SettingsPreferenceActions(
@@ -75,6 +95,12 @@ internal fun SettingsRoute(
         ),
         storageActions = SettingsStorageActions(
             clearExternalCache = viewModel::clearExternalCache
+        ),
+        vaultActions = SettingsVaultActions(
+            setScreenshotProtection = viewModel::setScreenshotProtection,
+            clearEncryptedThumbnails = viewModel::clearVaultThumbnails,
+            revokeAllExternalAccess = viewModel::revokeAllVaultExternalAccess,
+            showDisclosure = { showVaultDisclosure = true }
         )
     )
 }

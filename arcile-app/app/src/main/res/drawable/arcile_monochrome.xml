@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="500dp"
+    android:height="500dp"
+    android:viewportWidth="500"
+    android:viewportHeight="500">
+
+    <!-- Separated shapes preserve Arcile's layers after the launcher applies one tint. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M70,33H181C197.5,33 210.7,40.5 220.8,53.6L258,102H69C46.9,102 29,89.1 29,69.5C29,48.5 46,33 70,33Z" />
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M111,110H387C408,110 425,127 425,148V244H111V110ZM190,166H440A41,41 0,0 1,481 207A41,41 0,0 1,440 248H190A41,41 0,0 1,149 207A41,41 0,0 1,190 166Z" />
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M67,110A38,38 0,0 1,105 148V412A38,38 0,0 1,67 450A38,38 0,0 1,29 412V148A38,38 0,0 1,67 110Z" />
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:fillType="evenOdd"
+        android:pathData="M179,250H475V384C475,420 446,449 410,449H363C354.5,449 347.2,446 341.2,440L153.8,252.5C152.9,251.6 152.1,250.8 151.4,250H179ZM158,248H305L226,326L158,248ZM361,390H416.5C418.4,390 420,388.4 420,386.5V326A7,7 0,0 1,434 326V388.5C434,397.1 427.1,404 418.5,404H361A7,7 0,0 1,361 390Z" />
+
+    <path
+        android:fillAlpha="0.58"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M170,255H286L226,313L170,255Z" />
+
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M187,174H442A33,33 0,0 1,475 207A33,33 0,0 1,442 240H187A33,33 0,0 1,154 207A33,33 0,0 1,187 174Z" />
+</vector>

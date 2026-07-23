@@ -1,10 +1,85 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.0
-> **Last Updated:** 2026-07-13
+> **Version:** 1.6.0
+> **Last Updated:** 2026-07-23
 
 ---
+
+## [1.6.0] - 2026-07-23
+
+- **Storage Usage Map**: Added capacity-aware rings, complete folder accounting, instant cached drill-down, theme-adaptive colors, and clearer touch interactions.
+- **Trash Experience**: Improved previews and item actions, added confirmed one-item restore, and retained safe recovery when original metadata is unavailable.
+- **Browser Reliability**: Prevented category and breadcrumb crashes with very large folder sets, polished the folder selector, and added a hidden-files toggle to the Browser menu.
+- **Interface Polish**: Unified expressive loading states and aligned video thumbnail navigation with the image viewer.
+
+
+## [1.5.9] - 2026-07-22
+
+- **Immersive Video Viewer**: Matched the Image Viewer with sibling paging, thumbnail navigation, swipe-up properties, predictive back, favorites, selection, sharing, and deletion controls; stabilized thumbnail playback with one lifecycle-aware player, reliable page/seek state, and conflict-free gestures.
+- **Video Gallery Category**: Replaced the generic Videos category list with Arcile's gallery experience, including Videos/Albums tabs, timeline grouping, search, view and sort controls, selection actions, video thumbnails, and play affordances.
+- **Large Video Gallery Launch Fix**: Prevented video opens from freezing on large galleries by indexing playback sources once, preparing only the selected video, and loading sibling media lazily as the viewer page changes.
+- **Video Viewer Edge-Case Reliability**: Preserved gallery selection and return position, kept paused videos paused and the progress bar stable while paging, restored replay and fit/zoom/fill controls, removed deleted pages immediately, and made Trash/vault playback safely read-only with source-aware share and open actions.
+- **Gallery Resource Hardening**: Reduced image gesture and video progress-update overhead, bounded viewer and gallery caches, reused image metadata, and lowered retained thumbnail memory for smoother large-library browsing.
+- **OnlyFiles Responsiveness**: Moved biometric enrollment checks out of composable UI filesystem work and split the vault screen into focused components without changing its workflow.
+
+## [1.5.8] - 2026-07-19
+
+- **Direct Biometric Unlock on Cards**: Locked vault list cards enrolled with biometrics now display an interactive primary-colored fingerprint icon. Tapping the fingerprint directly invokes the biometric authentication dialog to unlock the vault, skipping the password prompt.
+- **Biometric Prompt Context Visibility**: Modified vault unlock dialogs to dynamically query local enrollment status, completely hiding the "Use Biometrics" trigger option if biometrics have not been configured for the vault.
+- **Expressive Loading and Progress Controls**: Replaced legacy flat linear and circular progress loaders with premium Material 3 Expressive shape-morphing `LoadingIndicator` components. Cleaned up empty bottom bar layout slots in `OnlyFilesScreen` to prevent reserved spaces and divider lines when clipboard or transfer states are null.
+- **Precise Back Gesture Handling**: Refined the `BackHandler` logic to capture back navigation at the root folder level inside vaults, cleanly deselecting and closing the vault session to return to the library screen instead of popping the entire OnlyFiles navigation stack and returning to the home screen.
+
+## [1.5.7] - 2026-07-15
+
+- **Native Vault Transfers**: File/folder import and export or move-out now use Arcile's own storage browsers end to end; the obsolete parallel document-tree exporter has been removed.
+- **Arcile-Aligned OnlyFiles UI**: The vault library and mounted browser now use Arcile scaffolding, large/search/selection app bars, file layouts, spacing, shapes, and clearer locked/open actions instead of a separate visual language. This includes deep integration of Material 3 Expressive UI/UX elements, such as bouncy circular action wrappers, position-aware grouped dropdown items, bottom sheet sort controls, custom segmented rows, expressive switches, and transparent overlay media bars. A consolidated conditional back-gestures handler resolves back-stack popping issues to prevent premature exits to the home screen.
+- **Useful Utilities Only**: Utilities now lists only implemented destinations—Trash, Cleaner, Activity Log, and OnlyFiles—with placeholder FTP, App Manager, and Network Share entries removed.
+- **Custom Home Utilities**: Users can choose which implemented utilities appear on Home and reorder them, with ordered preference migration and stale-entry cleanup.
+- **Deep Transfer Reliability**: Native export, merge, cancellation, and move-out handle deeply nested folders without recursive stack growth, clean private staging data on failure, and remove encrypted sources only after publication.
+- **Large Vault Confidence**: Authenticated directory paging is now stress-verified with 10,000 siblings in one folder and 100,000 entries across a vault while retaining the 256-entry page bound.
+
+## [1.5.6] - 2026-07-14
+
+- **Protected Vault Presentation**: OnlyFiles blocks capture by default, supports encrypted revision-keyed image and video thumbnails, clears decrypted previews on lock, and provides global controls for screen protection and thumbnail-cache clearing.
+- **Complete Vault Administration**: Per-vault actions now cover password changes, strong-biometric enrollment or removal with password fallback, quick and full health checks, portable registration removal, locking, and explicitly confirmed permanent deletion.
+- **Verified Plaintext Boundaries**: Guarded export and move-out stage complete document-tree results, verify file contents, publish conflict-safe replacements, and delete encrypted sources only after success.
+- **Compatibility and Disclosure**: Apps that cannot stream can receive a separately confirmed, space-checked private plaintext copy with UID binding and automatic cleanup; Settings and Arcile documentation now explain the unaudited security model and recovery limits.
+
+## [1.5.5] - 2026-07-14
+
+- **Daily Vault Browsing**: OnlyFiles now uses stable opaque item identities with paged list/grid browsing, sorting, current-folder or recursive search, range and bulk selection, properties, empty-file creation, and permanent multi-delete.
+- **Vault Clipboard**: Memory-only copy and move supports same-vault and cross-vault destinations, cancellation, progress, and keep-both, replace, skip, or directory-merge conflict decisions.
+- **Global Video Player**: Browser, Recents, Trash, external opening, and OnlyFiles now share an immersive queue player with lifecycle-safe position retention, seeking, tracks, subtitles, speed, repeat, resize, buffering, completion, and retry states without path-bearing routes.
+- **Controlled Media Access**: Vault images use bounds-first sampled decoding, while single-consumer external grants provide seekable encrypted streams, persistent revocation controls, 30-second post-close revocation, and a 12-hour maximum.
+
+## [1.5.4] - 2026-07-14
+
+- **Reliable Portable Vaults**: Registrations now follow stable storage-volume identities across remount paths, preserve missing removable vaults, and detect missing, damaged, or replaced folders without recreating them.
+- **Complete Vault Transfers**: Same-vault and cross-vault copy and move operations are serialized safely, commit each selected item atomically, support replace, keep-both, skip, and directory-merge conflicts, and roll back cancelled work.
+- **Stronger Session Security**: Password strength confirmation, atomic password rotation, Android Keystore-backed biometric challenges, and independent transfer and external-access sessions keep foreground locking immediate.
+- **Private External Access**: Share and Open With grants use opaque expiring read-only streams directly from encrypted objects, survive an interactive lock, support revocation, and create no plaintext staging files.
+
+## [1.5.3] - 2026-07-14
+
+- **Atomic Vault Changes**: OnlyFiles mutations and imports now commit through recoverable generation transactions, so interruption exposes either the complete previous state or the complete replacement.
+- **Scalable Encrypted Browsing**: Vault folders now use stable opaque IDs and paged per-directory metadata instead of a global path index, with normalized case-insensitive names, sorting, recursive search, and empty-file creation.
+- **Independent Transfer Leases**: Started imports keep a bounded operation key lease while foreground vault access locks immediately and closes interactive readers.
+- **Vault Health Checks**: Quick and full verification now detect damaged headers, manifests, references, file chunks, pending transactions, missing objects, and safely cleanable encrypted orphans.
+
+## [1.5.2] - 2026-07-14
+
+- **Hardened Vault Format**: OnlyFiles now uses bounded Argon2id password protection, separated encryption domains, redundant authenticated headers, crash-safe password-envelope replacement, immutable 256 KiB chunked objects, and paged encrypted directory metadata.
+- **Portable Vault Foundations**: Vault locations now use opaque volume-relative identities and encrypted media can be read through bounded random access without whole-file plaintext copies.
+- **Unified Video Opening**: Browser, Recents, Trash, and external video intents now enter the same Arcile video-viewing flow.
+- **Stable Recent Previews**: Cached Home carousel thumbnails remain visible when cards leave and re-enter the viewport.
+
+## [1.5.1] - 2026-07-14
+
+- **OnlyFiles Vaults**: Create and independently unlock multiple encrypted vaults in private app storage, with visible vault names and automatic locking whenever Arcile leaves the foreground.
+- **Encrypted Browser**: Browse, create, rename, and delete folders and files entirely inside a vault, with authenticated encrypted names, hierarchy, metadata, and file content.
+- **Private Imports**: Copy files or complete folders into a vault through a cancellable foreground import that removes incomplete data and locks its operation-only session when finished.
+- **Secure Media**: View encrypted images and seek through large encrypted videos without decrypting whole files to disk or memory.
 
 ## [1.5.0] - 2026-07-13
 
@@ -434,7 +509,7 @@ Arcile v1.0.0 is the first stable release and the first release outside the beta
 - **Material 3 Expressive System:** Stabilized dynamic themes, custom palettes, Tokyo Night and Dracula presets, expressive shapes, tactile press feedback, and spring-based navigation transitions.
 - **Recent Files Experience:** Added expressive carousel previews, chronological Recent Files lists, date grouping, audio/video/PDF/APK thumbnail improvements, and bounded thumbnail sizing.
 - **Storage Cleaner:** Added scan flows for large files, old downloads, obsolete APKs, videos, duplicate candidates, and conservative junk/cache groups, with Trash-safe cleanup for indexed storage.
-- **Storage Usage Map:** Added a bounded Filelight-style radial usage map with breadcrumb drill-in, selected item details, and direct browser navigation.
+- **Storage Usage Map:** Added a bounded radial usage map with path navigation, selected item details, and direct browser navigation.
 - **Accessibility & Haptics:** Improved TalkBack semantics, selection announcements, content descriptions, touch targets, haptic feedback, reduced-motion handling, double-line filenames, and marquee controls.
 - **Loading & Layout Polish:** Added shimmer states, smoother category/grid movement, stable directory paging, better snackbar placement, and reduced stale UI feedback across navigation.
 

@@ -75,6 +75,7 @@ fun NavGraphBuilder.registerTrashRoute(
             ),
             restoreActions = TrashRestoreActions(
                 restoreSelected = viewModel::restoreSelectedTrash,
+                restoreItem = viewModel::restoreTrashItem,
                 dismissDestinationPicker = viewModel::dismissDestinationPicker,
                 restoreToDestination = viewModel::restoreToDestination,
                 undoLastRestore = viewModel::undoLastRestore,

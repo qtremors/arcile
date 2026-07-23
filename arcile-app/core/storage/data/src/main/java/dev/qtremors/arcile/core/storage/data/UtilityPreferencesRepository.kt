@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringSetPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
@@ -29,10 +30,11 @@ class UtilityPreferencesRepository(
     )
 ) : UtilityPreferencesStore {
     private val HOME_UTILITY_IDS_KEY = stringSetPreferencesKey("home_utility_ids")
-    private val defaultHomeUtilityIds = setOf("trash", "cleaner")
-    private val allowedHomeUtilityIds = defaultHomeUtilityIds + "activity"
+    private val HOME_UTILITY_ORDER_KEY = stringPreferencesKey("home_utility_order")
+    private val defaultHomeUtilityIds = listOf("trash", "cleaner")
+    private val allowedHomeUtilityIds = listOf("trash", "cleaner", "activity", "onlyfiles")
 
-    override val homeUtilityIds: Flow<Set<String>> = dataStore.data
+    override val homeUtilityIds: Flow<List<String>> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
                 emit(emptyPreferences())
@@ -40,15 +42,22 @@ class UtilityPreferencesRepository(
                 throw exception
             }
         }
-        .map { prefs -> sanitizeHomeUtilityIds(prefs[HOME_UTILITY_IDS_KEY] ?: defaultHomeUtilityIds) }
+        .map { prefs ->
+            val ordered = prefs[HOME_UTILITY_ORDER_KEY]?.split(',')
+            val legacy = prefs[HOME_UTILITY_IDS_KEY]
+            sanitizeHomeUtilityIds(ordered ?: legacy?.let { ids ->
+                allowedHomeUtilityIds.filter(ids::contains)
+            } ?: defaultHomeUtilityIds)
+        }
         .flowOn(dispatchers.io)
 
-    override suspend fun setHomeUtilityIds(ids: Set<String>) {
+    override suspend fun setHomeUtilityIds(ids: List<String>) {
         dataStore.edit { prefs ->
-            prefs[HOME_UTILITY_IDS_KEY] = sanitizeHomeUtilityIds(ids)
+            prefs[HOME_UTILITY_ORDER_KEY] = sanitizeHomeUtilityIds(ids).joinToString(",")
+            prefs.remove(HOME_UTILITY_IDS_KEY)
         }
     }
 
-    private fun sanitizeHomeUtilityIds(ids: Set<String>): Set<String> =
-        ids.filterTo(linkedSetOf()) { it in allowedHomeUtilityIds }
+    private fun sanitizeHomeUtilityIds(ids: List<String>): List<String> =
+        ids.filter { it in allowedHomeUtilityIds }.distinct()
 }

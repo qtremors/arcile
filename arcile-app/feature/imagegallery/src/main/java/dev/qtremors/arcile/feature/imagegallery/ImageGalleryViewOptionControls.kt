@@ -37,6 +37,7 @@ internal fun GalleryPhotosViewOptions(
     aspectRatio: Boolean,
     grouping: ImageGalleryGrouping,
     showDetails: Boolean,
+    isVideoGallery: Boolean,
     availableWidth: Dp,
     onPreferencesChange: (FileListingPreferences) -> Unit,
     onAspectRatioChange: (Boolean) -> Unit,
@@ -52,7 +53,7 @@ internal fun GalleryPhotosViewOptions(
         availableWidth = availableWidth,
         onPreferencesChange = onPreferencesChange
     )
-    if (preferences.viewMode == FileViewMode.GRID) {
+    if (preferences.viewMode == FileViewMode.GRID && !isVideoGallery) {
         GalleryAspectRatioSection(
             aspectRatio = aspectRatio,
             onAspectRatioChange = onAspectRatioChange
@@ -63,7 +64,7 @@ internal fun GalleryPhotosViewOptions(
         onSortChange = { onPreferencesChange(preferences.copy(sortOption = it)) }
     )
     GalleryGroupingSection(grouping, onGroupingChange)
-    GalleryDetailsSection(showDetails, onShowDetailsChange)
+    GalleryDetailsSection(showDetails, isVideoGallery, onShowDetailsChange)
 }
 
 @Composable
@@ -272,6 +273,7 @@ private fun GalleryGroupingSection(
 @Composable
 private fun GalleryDetailsSection(
     showDetails: Boolean,
+    isVideoGallery: Boolean,
     onShowDetailsChange: (Boolean) -> Unit
 ) {
     Row(
@@ -285,7 +287,10 @@ private fun GalleryDetailsSection(
                 style = MaterialTheme.typography.bodyMedium
             )
             Text(
-                text = stringResource(R.string.image_gallery_show_file_details_description),
+                text = stringResource(
+                    if (isVideoGallery) R.string.video_gallery_show_file_details_description
+                    else R.string.image_gallery_show_file_details_description
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

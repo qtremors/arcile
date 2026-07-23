@@ -255,6 +255,50 @@ class TrashViewModelTest {
     }
 
     @Test
+    fun `restoreTrashItem restores only the requested item`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle().apply {
+            trashFilesResult = Result.success(
+                listOf(
+                    trashItem("1", "Photo.jpg"),
+                    trashItem("2", "Notes.txt")
+                )
+            )
+        }
+        val viewModel = TrashViewModel(
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
+        )
+
+        advanceUntilIdle()
+        viewModel.toggleSelection("2")
+        viewModel.restoreTrashItem("1")
+        advanceUntilIdle()
+
+        assertEquals(listOf("1"), repository.restoreFromTrashRequests.single().trashIds)
+        assertEquals(setOf("2"), viewModel.state.value.selectedFiles)
+    }
+
+    @Test
+    fun `restoreTrashItem sends recovered item to destination picker`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle().apply {
+            trashFilesResult = Result.success(
+                listOf(trashItem("1", "Recovered Item (1)", TrashRestoreStatus.RECOVERED_ITEM))
+            )
+        }
+        val viewModel = TrashViewModel(
+            trashRepository = repository.trashRepository,
+            volumeRepository = repository.volumeRepository
+        )
+
+        advanceUntilIdle()
+        viewModel.restoreTrashItem("1")
+
+        assertTrue(viewModel.state.value.showDestinationPicker)
+        assertEquals(listOf("1"), viewModel.state.value.selectedTrashIdsForDestination)
+        assertTrue(repository.restoreFromTrashRequests.isEmpty())
+    }
+
+    @Test
     fun `filter exposes restore status groups`() = runTest(mainDispatcherRule.dispatcher) {
         val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(

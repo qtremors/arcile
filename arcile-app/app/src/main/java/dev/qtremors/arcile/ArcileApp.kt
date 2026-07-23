@@ -25,7 +25,16 @@ import dev.qtremors.arcile.core.ui.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
+import dev.qtremors.arcile.core.vault.domain.VaultRepository
+import dev.qtremors.arcile.core.vault.domain.VaultThumbnailCache
+import dev.qtremors.arcile.core.vault.data.VaultThumbnailFetcher
 import javax.inject.Inject
+import coil.Coil
+import dev.qtremors.arcile.core.ui.security.SensitiveMemory
+import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 
 @HiltAndroidApp
 class ArcileApp : Application(), ImageLoaderFactory {
@@ -44,9 +53,23 @@ class ArcileApp : Application(), ImageLoaderFactory {
     @Inject
     lateinit var storageCacheInvalidationObserver: StorageCacheInvalidationObserver
 
+    @Inject
+    lateinit var vaultRepository: VaultRepository
+
+    @Inject
+    lateinit var vaultThumbnailCache: VaultThumbnailCache
+
     override fun onCreate() {
         super.onCreate()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(this)
         storageCacheInvalidationObserver.register()
+        SensitiveMemory.clearDelegate = { Coil.imageLoader(this).memoryCache?.clear() }
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStop(owner: LifecycleOwner) {
+                SensitiveMemory.clear()
+                applicationScope.launch { vaultRepository.lockAll() }
+            }
+        })
         GlobalThumbnailStatePersistence.delegate = RoomThumbnailStatePersistence(
             thumbnailCacheStore = thumbnailCacheStore,
             applicationScope = applicationScope
@@ -65,7 +88,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    .maxSizePercent(0.33)
+                    .maxSizePercent(0.25)
                     .build()
             }
             .diskCache {
@@ -88,6 +111,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
                 add(AudioAlbumArtFetcher.Factory())
                 add(AudioAlbumArtFetcher.KeyFactory())
                 add(ArchiveEntryImageFetcher.Factory())
+                add(VaultThumbnailFetcher.Factory(vaultThumbnailCache))
             }
             .crossfade(true)
             .build()

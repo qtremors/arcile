@@ -38,6 +38,10 @@
             <option value="$PROJECT_DIR$/core/testing" />
             <option value="$PROJECT_DIR$/core/ui" />
             <option value="$PROJECT_DIR$/core/ui/testing" />
+            <option value="$PROJECT_DIR$/core/vault" />
+            <option value="$PROJECT_DIR$/core/vault/crypto" />
+            <option value="$PROJECT_DIR$/core/vault/data" />
+            <option value="$PROJECT_DIR$/core/vault/domain" />
             <option value="$PROJECT_DIR$/feature" />
             <option value="$PROJECT_DIR$/feature/activitylog" />
             <option value="$PROJECT_DIR$/feature/archive" />
@@ -46,6 +50,7 @@
             <option value="$PROJECT_DIR$/feature/imagegallery" />
             <option value="$PROJECT_DIR$/feature/import" />
             <option value="$PROJECT_DIR$/feature/onboarding" />
+            <option value="$PROJECT_DIR$/feature/onlyfiles" />
             <option value="$PROJECT_DIR$/feature/plugins" />
             <option value="$PROJECT_DIR$/feature/quickaccess" />
             <option value="$PROJECT_DIR$/feature/recentfiles" />
@@ -53,6 +58,7 @@
             <option value="$PROJECT_DIR$/feature/storagecleaner" />
             <option value="$PROJECT_DIR$/feature/storageusage" />
             <option value="$PROJECT_DIR$/feature/trash" />
+            <option value="$PROJECT_DIR$/feature/videoplayer" />
             <option value="$PROJECT_DIR$/plugin-api" />
             <option value="$PROJECT_DIR$/plugin-ui" />
           </set>

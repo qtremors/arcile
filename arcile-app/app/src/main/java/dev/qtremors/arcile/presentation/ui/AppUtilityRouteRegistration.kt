@@ -7,12 +7,14 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.feature.activitylog.registerActivityLogRoute
 import dev.qtremors.arcile.feature.plugins.registerPluginsRoute
+import dev.qtremors.arcile.feature.onlyfiles.registerOnlyFilesRoute
 import dev.qtremors.arcile.feature.quickaccess.registerQuickAccessRoute
 import dev.qtremors.arcile.feature.settings.SettingsDestination
 import dev.qtremors.arcile.feature.settings.registerSettingsRoute
 import dev.qtremors.arcile.feature.storagecleaner.registerStorageCleanerRoute
 import dev.qtremors.arcile.feature.storageusage.registerStorageManagementRoute
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
 
 internal fun NavGraphBuilder.registerUtilityRoutes(
     navController: NavHostController,
@@ -38,9 +40,20 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                     launchSingleTop = true
                 }
             },
-            onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) }
+            onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
+            onNavigateToOnlyFiles = { navController.navigate(AppRoutes.OnlyFiles) }
         )
     }
+    registerOnlyFilesRoute(
+        enterTransition = transitions.utilityEnter,
+        exitTransition = transitions.utilityExit,
+        popEnterTransition = transitions.utilityPopEnter,
+        popExitTransition = transitions.utilityPopExit,
+        onNavigateBack = { navController.popBackStack() },
+        onPlayVideo = { session ->
+            navController.navigate(AppRoutes.VideoViewer(GlobalVideoPlaybackSessions.register(session)))
+        }
+    )
     registerActivityLogRoute(
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
@@ -72,6 +85,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                 }
                 SettingsDestination.Plugins -> navController.navigate(AppRoutes.Plugins)
                 SettingsDestination.About -> navController.navigate(AppRoutes.About)
+                SettingsDestination.OnlyFiles -> navController.navigate(AppRoutes.OnlyFiles)
             }
         },
         onRestartApp = onRestartApp

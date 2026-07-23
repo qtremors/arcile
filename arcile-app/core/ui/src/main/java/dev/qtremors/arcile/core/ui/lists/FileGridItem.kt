@@ -252,8 +252,10 @@ private fun FileGridPreview(
                 sizeBytes = file.size,
                 lastModifiedMillis = file.lastModified
             )
-            val cacheKey = archiveData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey
-            val data = row.thumbnailRequestData(archiveData)
+            val suppliedData = presentation.thumbnailData?.invoke(file, row.thumbnailSizePx)
+            val cacheKey = (suppliedData as? dev.qtremors.arcile.core.storage.domain.SensitiveThumbnailRequest)?.memoryCacheKey
+                ?: archiveData?.cacheKey ?: row.thumbnailKey.variantKey(row.thumbnailSizePx).cacheKey
+            val data = suppliedData ?: row.thumbnailRequestData(archiveData)
             val request = remember(data, cacheKey, row.thumbnailSizePx) {
                 buildThumbnailImageRequest(context, data, cacheKey, row.thumbnailSizePx)
             }

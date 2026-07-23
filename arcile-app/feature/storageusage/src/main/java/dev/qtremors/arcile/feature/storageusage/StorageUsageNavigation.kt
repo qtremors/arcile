@@ -59,8 +59,10 @@ fun NavGraphBuilder.registerStorageDashboardRoute(
             onSelectUsageNode = usageViewModel::selectNode,
             onDrillIntoUsageNode = usageViewModel::drillInto,
             onUsageBreadcrumbClick = usageViewModel::navigateToBreadcrumb,
+            onResetUsageOverview = usageViewModel::resetToOverview,
             onRefreshUsage = { usageViewModel.refresh() }
         )
+
     }
 }
 

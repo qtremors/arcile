@@ -96,7 +96,7 @@ class StorageUsageSnapshotStore @Inject constructor(
     }
 
     private fun key(rootPath: String, limits: StorageUsageScanLimits): String =
-        "usage:${File(rootPath).absolutePath}:${limits.maxDepth}:${limits.maxNodes}:${limits.maxChildrenPerFolder}:${limits.minChildShare}"
+        "usage:${File(rootPath).absolutePath}:${limits.maxDepth}:${limits.maxChildrenPerFolder}:${limits.minChildShare}"
 }
 
 @Singleton

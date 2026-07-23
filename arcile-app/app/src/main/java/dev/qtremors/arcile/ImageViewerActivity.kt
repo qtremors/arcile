@@ -124,7 +124,7 @@ internal fun resolveStandaloneImageTarget(context: Context, intent: Intent): Sta
     }
 }
 
-private fun mimeTypeForUri(uri: Uri): String? =
+internal fun mimeTypeForUri(uri: Uri): String? =
     MimeTypeMap.getSingleton()
         .getMimeTypeFromExtension(uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase().orEmpty())
 
@@ -132,7 +132,7 @@ private fun uriLooksLikeImage(uri: Uri): Boolean =
     uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in
         setOf("jpg", "jpeg", "png", "webp", "heic", "heif", "gif", "bmp", "avif")
 
-private fun <T> queryOpenableColumn(
+internal fun <T> queryOpenableColumn(
     context: Context,
     uri: Uri,
     column: String,

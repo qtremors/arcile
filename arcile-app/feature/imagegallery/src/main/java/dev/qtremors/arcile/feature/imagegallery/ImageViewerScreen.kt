@@ -32,7 +32,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,7 +74,7 @@ internal enum class ViewerBackAction {
     ExitViewer
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ImageViewerScreen(
     initialPath: String,
@@ -99,8 +100,6 @@ internal fun ImageViewerScreen(
     val haptics = rememberArcileHaptics()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
     val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
-
-
 
     var backProgress by remember { mutableStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
@@ -147,7 +146,7 @@ internal fun ImageViewerScreen(
             contentAlignment = Alignment.Center
         ) {
             if (state.isLoading) {
-                CircularProgressIndicator(color = Color.White)
+                LoadingIndicator(color = Color.White)
             } else {
                 Text(
                     text = stringResource(R.string.no_results_found),
@@ -159,12 +158,19 @@ internal fun ImageViewerScreen(
         return
     }
 
-    val restoredPage = viewerInitialPageForSession(
-        initialPath = initialPath,
-        viewerSessionInitialPath = state.viewerSessionInitialPath,
-        viewerCurrentPath = state.viewerCurrentPath,
-        viewerContext = viewerContext
-    )
+    val restoredPage = remember(
+        initialPath,
+        state.viewerSessionInitialPath,
+        state.viewerCurrentPath,
+        viewerContext
+    ) {
+        viewerInitialPageForSession(
+            initialPath = initialPath,
+            viewerSessionInitialPath = state.viewerSessionInitialPath,
+            viewerCurrentPath = state.viewerCurrentPath,
+            viewerContext = viewerContext
+        )
+    }
     val pagerState = rememberPagerState(
         initialPage = restoredPage,
         pageCount = { displayedFiles.size }
@@ -177,7 +183,9 @@ internal fun ImageViewerScreen(
         }
     }
 
-    val displayedPaths = displayedFiles.map(FileModel::absolutePath)
+    val displayedPaths = remember(displayedFiles) {
+        displayedFiles.map(FileModel::absolutePath)
+    }
     LaunchedEffect(displayedPaths) {
         if (displayedFiles.isEmpty()) return@LaunchedEffect
         val anchoredPath = state.viewerCurrentPath ?: initialPath
@@ -231,8 +239,10 @@ internal fun ImageViewerScreen(
             LaunchedEffect(currentPath, state.isRefreshing, state.viewerMetadataRevision) {
                 val file = currentFile ?: return@LaunchedEffect
                 if (!state.isRefreshing && metadataCache[file.absolutePath] == null) {
-                    metadataCache[file.absolutePath] =
+                    metadataCache.putBoundedViewerEntry(
+                        file.absolutePath,
                         viewModel.readImageMetadata(file.absolutePath, file.mimeType)
+                    )
                 }
             }
 
@@ -279,11 +289,10 @@ internal fun ImageViewerScreen(
                             showMetadataSheet &&
                             isCurrentPage
                         ) {
-                            val data = viewModel.readImageMetadata(
-                                file.absolutePath,
-                                file.mimeType
-                            )
-                            metadataCache[file.absolutePath] = data
+                            val data = metadataCache[file.absolutePath]
+                                ?: viewModel.readImageMetadata(file.absolutePath, file.mimeType).also {
+                                    metadataCache.putBoundedViewerEntry(file.absolutePath, it)
+                                }
                             metadata = data
                         }
                     }

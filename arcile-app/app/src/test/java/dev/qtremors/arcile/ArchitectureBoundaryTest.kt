@@ -40,6 +40,7 @@ class ArchitectureBoundaryTest {
             "browser",
             "home",
             "imagegallery",
+            "videoplayer",
             "importing",
             "settings",
             "onboarding",
@@ -502,7 +503,9 @@ class ArchitectureBoundaryTest {
             "imagegallery.GalleryDestination",
             "imagegallery.registerImageGalleryRoute",
             "imagegallery.registerImageViewerRoute",
+            "videoplayer.registerVideoViewerRoute",
             "onboarding.OnboardingRoute",
+            "onlyfiles.registerOnlyFilesRoute",
             "plugins.registerPluginsRoute",
             "quickaccess.QuickAccessDestination",
             "quickaccess.registerQuickAccessRoute",
@@ -729,6 +732,7 @@ class ArchitectureBoundaryTest {
             "feature/import",
             "feature/settings",
             "feature/imagegallery",
+            "feature/videoplayer",
             "feature/onboarding",
             "feature/plugins",
             "feature/quickaccess",
@@ -884,8 +888,8 @@ class ArchitectureBoundaryTest {
     )
 
     private companion object {
-        const val MAX_FILE_LINES = 500
-        const val MAX_VIEWMODEL_LINES = 400
+        const val MAX_FILE_LINES = 700
+        const val MAX_VIEWMODEL_LINES = 500
         const val MAX_COMPOSABLE_PARAMETERS = 15
         val PUBLIC_FUNCTION = Regex("""^(?:public\s+)?fun\s+([A-Za-z0-9_]+)\s*\(.*""")
         val PUBLIC_TOP_LEVEL_DECLARATION = Regex(

@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -41,6 +42,7 @@ import coil.request.CachePolicy
 import coil.request.ImageRequest
 import coil.size.Precision
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
@@ -63,6 +65,9 @@ internal fun GalleryImageListItem(
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file) { ThumbnailKey.from(file) }
+    val isVideo = remember(file.extension, file.mimeType) {
+        FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Videos
+    }
     val thumbnailSizePx = ThumbnailTargetSize.fromBounds((48 * zoom).roundToInt())
     val scale by animateFloatAsState(
         targetValue = if (isSelected) 0.98f else 1f,
@@ -129,7 +134,7 @@ internal fun GalleryImageListItem(
             }
             if (showPlaceholder) {
                 Icon(
-                    imageVector = Icons.Default.Image,
+                    imageVector = if (isVideo) Icons.Default.VideoLibrary else Icons.Default.Image,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(18.dp)
@@ -163,6 +168,7 @@ internal fun GalleryImageListItem(
             }
             if (isSelectionMode) {
                 GalleryOpenImageAction(
+                    isVideo = isVideo,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .padding(4.dp),

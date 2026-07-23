@@ -61,7 +61,8 @@ class HomeScreenTest {
         navigateToExternalFolder = {},
         openStorageDashboard = {},
         navigateToCleaner = {},
-        navigateToActivity = {}
+        navigateToActivity = {},
+        navigateToOnlyFiles = {}
     )
 
     private fun testContentIntents() = HomeContentIntents(

@@ -219,6 +219,7 @@ internal fun HomeScreen(
                         .size(thumbnailSizePx)
                         .precision(Precision.INEXACT)
                         .memoryCacheKey(thumbnailCacheKey)
+                        .placeholderMemoryCacheKey(thumbnailCacheKey)
                         .diskCacheKey(thumbnailCacheKey)
                         .memoryCachePolicy(CachePolicy.ENABLED)
                         .diskCachePolicy(CachePolicy.ENABLED)
@@ -369,7 +370,9 @@ internal fun HomeScreen(
                         )
                     }
 
-                    val displayedHomeUtilities = HomeUtilityCatalog.filter { it.id in state.homeUtilityIds }
+                    val displayedHomeUtilities = state.homeUtilityIds.mapNotNull { id ->
+                        HomeUtilityCatalog.firstOrNull { it.id == id }
+                    }
                     item {
                         Row(
                             modifier = Modifier
@@ -409,15 +412,14 @@ internal fun HomeScreen(
                                         ToolCard(
                                             ToolItem(
                                                 stringResource(definition.nameRes),
-                                                definition.icon,
-                                                isImplemented = definition.isImplemented
+                                                definition.icon
                                             ),
                                             onClick = {
                                                 when (definition.action) {
                                                     UtilityAction.Trash -> navigationIntents.navigateToTrash()
                                                     UtilityAction.Cleaner -> navigationIntents.navigateToCleaner()
                                                     UtilityAction.Activity -> navigationIntents.navigateToActivity()
-                                                    UtilityAction.None -> Unit
+                                                    UtilityAction.OnlyFiles -> navigationIntents.navigateToOnlyFiles()
                                                 }
                                             }
                                         )

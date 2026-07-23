@@ -14,6 +14,7 @@ import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
@@ -48,7 +49,10 @@ internal class ImageGalleryViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(
         ImageGalleryState(
-            volumeId = savedStateHandle.get<String>("volumeId")?.takeIf(String::isNotBlank)
+            volumeId = savedStateHandle.get<String>("volumeId")?.takeIf(String::isNotBlank),
+            categoryName = savedStateHandle.get<String>("categoryName")
+                ?.takeIf { it == FileCategories.Images.name || it == FileCategories.Videos.name }
+                ?: FileCategories.Images.name
         )
     )
     val state: StateFlow<ImageGalleryState> = _state.asStateFlow()
@@ -123,6 +127,7 @@ internal class ImageGalleryViewModel @Inject constructor(
 
     fun loadImages(forceRefresh: Boolean = true, silent: Boolean = false) {
         val volumeId = state.value.volumeId
+        val categoryName = state.value.categoryName
         _state.update {
             it.copy(
                 isLoading = !silent && it.files.isEmpty(),
@@ -131,7 +136,13 @@ internal class ImageGalleryViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            runCatching { repository.loadImages(volumeId, forceRefresh) }
+            runCatching {
+                repository.loadImages(
+                    volumeId = volumeId,
+                    forceRefresh = forceRefresh,
+                    categoryName = categoryName
+                )
+            }
                 .onSuccess { snapshot ->
                     _state.update {
                         it.copy(

@@ -94,7 +94,13 @@ data class StorageNodeCapabilities(
     val canWrite: Boolean = true,
     val canDelete: Boolean = true,
     val canTrash: Boolean = false,
-    val canArchive: Boolean = true
+    val canArchive: Boolean = true,
+    val canRename: Boolean = canWrite,
+    val canCopy: Boolean = canRead,
+    val canMove: Boolean = canWrite,
+    val canExport: Boolean = canRead,
+    val canShare: Boolean = canRead,
+    val canOpenWith: Boolean = canRead
 )
 
 @Immutable
@@ -110,6 +116,7 @@ data class StorageNodeRef(
     companion object {
         const val LOCAL_BACKEND_ID = "local"
         const val MEDIA_STORE_BACKEND_ID = "mediastore"
+        const val ONLYFILES_BACKEND_ID = "onlyfiles"
 
         fun local(
             path: String,
@@ -155,6 +162,32 @@ data class StorageNodeRef(
                     ?: CanonicalStorageIdentity.of(identity),
                 capabilities = capabilities,
                 contentUri = contentUri,
+                backendIdentity = identity
+            )
+        }
+
+        /** Creates a path-free reference whose visible path contains opaque identifiers only. */
+        fun vault(
+            vaultId: String,
+            nodeId: String,
+            capabilities: StorageNodeCapabilities = StorageNodeCapabilities(
+                canRead = true,
+                canWrite = true,
+                canDelete = true,
+                canTrash = false,
+                canArchive = false
+            )
+        ): StorageNodeRef {
+            require(vaultId.isNotBlank() && nodeId.isNotBlank())
+            require(vaultId.none { it == '/' || it == '\\' || it == '\u0000' })
+            require(nodeId.none { it == '/' || it == '\\' || it == '\u0000' })
+            val identity = "$vaultId:$nodeId"
+            val opaquePath = StorageNodePath.of("/.onlyfiles/$vaultId/$nodeId")
+            return StorageNodeRef(
+                backendId = ONLYFILES_BACKEND_ID,
+                displayPath = opaquePath,
+                canonicalIdentity = CanonicalStorageIdentity.of("onlyfiles:$identity"),
+                capabilities = capabilities,
                 backendIdentity = identity
             )
         }

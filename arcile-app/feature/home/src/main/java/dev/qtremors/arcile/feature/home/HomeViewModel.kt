@@ -28,7 +28,6 @@ import dev.qtremors.arcile.core.presentation.UiText
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
-import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -110,7 +109,7 @@ internal class HomeViewModel @Inject constructor(
 
         viewModelScope.launch {
             utilityPreferencesStore.homeUtilityIds.collectLatest { ids ->
-                _state.update { it.copy(homeUtilityIds = ids.toPersistentSet()) }
+                _state.update { it.copy(homeUtilityIds = ids.toPersistentList()) }
             }
         }
 

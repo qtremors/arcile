@@ -187,8 +187,14 @@ internal fun ImageGalleryContent(
             state.files.isEmpty() && state.searchQuery.isBlank() -> {
                 EmptyState(
                     variant = EmptyStateVariant.Search,
-                    title = stringResource(R.string.image_gallery_empty_title),
-                    description = stringResource(R.string.image_gallery_empty_description),
+                    title = stringResource(
+                        if (state.isVideoGallery) R.string.video_gallery_empty_title
+                        else R.string.image_gallery_empty_title
+                    ),
+                    description = stringResource(
+                        if (state.isVideoGallery) R.string.video_gallery_empty_description
+                        else R.string.image_gallery_empty_description
+                    ),
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -201,8 +207,9 @@ internal fun ImageGalleryContent(
                 )
             }
             else -> {
+                val useAspectRatioGrid = state.isAspectRatio && !state.isVideoGallery
                 val scrollbarState = when {
-                    state.presentation.viewMode == FileViewMode.GRID && state.isAspectRatio -> {
+                    state.presentation.viewMode == FileViewMode.GRID && useAspectRatioGrid -> {
                         val staggeredGridState = rememberSaveable(
                             albumScrollKey,
                             saver = LazyStaggeredGridState.Saver
@@ -247,7 +254,7 @@ internal fun ImageGalleryContent(
 
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (state.presentation.viewMode == FileViewMode.GRID) {
-                        if (state.isAspectRatio) {
+                        if (useAspectRatioGrid) {
                             val staggeredGridState = (scrollbarState as LazyStaggeredGridScrollbarState).state
                             LazyVerticalStaggeredGrid(
                                 columns = StaggeredGridCells.Adaptive(minSize = gridMinCellSize.dp),

@@ -4,7 +4,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
@@ -21,6 +22,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.settings.SettingsSection
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SettingsStorageSection(
     cache: SettingsExternalCacheState,
@@ -62,9 +64,8 @@ internal fun SettingsStorageSection(
             },
             trailingContent = {
                 if (cache.isBusy) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(24.dp),
-                        strokeWidth = 2.dp
+                    LoadingIndicator(
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             },
