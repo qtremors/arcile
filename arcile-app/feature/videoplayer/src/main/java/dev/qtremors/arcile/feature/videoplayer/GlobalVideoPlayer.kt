@@ -19,7 +19,8 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -39,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -61,11 +63,13 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import kotlin.math.max
 import kotlin.math.min
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @androidx.annotation.OptIn(UnstableApi::class)
 internal fun GlobalVideoPlayer(
     mediaItems: List<MediaItem>,
@@ -79,6 +83,12 @@ internal fun GlobalVideoPlayer(
     require(mediaItems.isNotEmpty())
     require(startIndex in mediaItems.indices)
     val context = LocalContext.current
+    val playerDescription = stringResource(R.string.video_player_content_description_generic)
+    val replayLabel = stringResource(R.string.video_player_replay)
+    val retryLabel = stringResource(R.string.video_player_retry)
+    val playbackFailedLabel = stringResource(R.string.video_player_playback_failed)
+    val seekForwardLabel = stringResource(R.string.video_player_seek_forward)
+    val seekBackwardLabel = stringResource(R.string.video_player_seek_backward)
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
     val active = lifecycle.isAtLeast(Lifecycle.State.STARTED)
     var savedIndex by rememberSaveable(mediaItems) { mutableIntStateOf(startIndex) }
@@ -133,7 +143,7 @@ internal fun GlobalVideoPlayer(
                         setShowNextButton(true)
                         setRepeatToggleModes(RepeatModeUtil.REPEAT_TOGGLE_MODE_ONE or RepeatModeUtil.REPEAT_TOGGLE_MODE_ALL)
                         this.resizeMode = resizeMode
-                        contentDescription = "Video player"
+                        contentDescription = playerDescription
                         val detector = GestureDetector(viewContext, object : GestureDetector.SimpleOnGestureListener() {
                             override fun onDown(event: MotionEvent): Boolean = true
                             override fun onDoubleTap(event: MotionEvent): Boolean {
@@ -141,7 +151,7 @@ internal fun GlobalVideoPlayer(
                                 val delta = if (forward) DOUBLE_TAP_SEEK_MILLIS else -DOUBLE_TAP_SEEK_MILLIS
                                 val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
                                 player.seekTo(min(duration, max(0L, player.currentPosition + delta)))
-                                seekFeedback = if (forward) "+10 seconds" else "−10 seconds"
+                                seekFeedback = if (forward) seekForwardLabel else seekBackwardLabel
                                 return true
                             }
                         })
@@ -159,15 +169,15 @@ internal fun GlobalVideoPlayer(
                 modifier = Modifier.fillMaxSize()
             )
             if (playbackState == Player.STATE_BUFFERING) {
-                CircularProgressIndicator(color = Color.White)
+                LoadingIndicator(color = Color.White)
             }
             if (playbackState == Player.STATE_ENDED) {
                 TextButton(onClick = {
                     player.seekTo(player.currentMediaItemIndex.coerceAtLeast(0), 0L)
                     player.play()
                 }) {
-                    Icon(Icons.Default.Replay, "Replay", tint = Color.White)
-                    Text("Replay", color = Color.White, modifier = Modifier.padding(start = 8.dp))
+                    Icon(Icons.Default.Replay, replayLabel, tint = Color.White)
+                    Text(replayLabel, color = Color.White, modifier = Modifier.padding(start = 8.dp))
                 }
             }
             playbackError?.let { error ->
@@ -176,7 +186,7 @@ internal fun GlobalVideoPlayer(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        error.localizedMessage ?: "Video playback failed",
+                        error.localizedMessage ?: playbackFailedLabel,
                         color = Color.White,
                         style = MaterialTheme.typography.bodyLarge,
                         modifier = Modifier.weight(1f, fill = false)
@@ -185,7 +195,7 @@ internal fun GlobalVideoPlayer(
                         playbackError = null
                         player.prepare()
                         player.play()
-                    }) { Text("Retry", color = Color.White) }
+                    }) { Text(retryLabel, color = Color.White) }
                 }
             }
         }

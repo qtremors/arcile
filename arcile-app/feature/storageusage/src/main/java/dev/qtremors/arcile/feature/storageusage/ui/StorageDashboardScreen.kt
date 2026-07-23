@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -87,8 +88,10 @@ internal fun StorageDashboardScreen(
     onSelectUsageNode: (StorageUsageNode) -> Unit,
     onDrillIntoUsageNode: (StorageUsageNode) -> Unit,
     onUsageBreadcrumbClick: (Int) -> Unit,
+    onResetUsageOverview: () -> Unit,
     onRefreshUsage: () -> Unit
 ) {
+
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
     val allVolumes = state.allStorageVolumes
     val selectedVolume = selectedVolumeId?.let { requestedId ->
@@ -172,6 +175,16 @@ internal fun StorageDashboardScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
+                actions = {
+                    if (selectedTabIndex == 1) {
+                        IconButton(onClick = onRefreshUsage) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = stringResource(R.string.refresh)
+                            )
+                        }
+                    }
+                },
                 scrollBehavior = scrollBehavior
             )
         }
@@ -228,26 +241,19 @@ internal fun StorageDashboardScreen(
                         }
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                            top = 12.dp,
-                            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
-                        )
-                    ) {
-                        item {
-                            StorageUsageMap(
-                                state = usageState,
-                                onSelectNode = onSelectUsageNode,
-                                onDrillInto = onDrillIntoUsageNode,
-                                onBreadcrumbClick = onUsageBreadcrumbClick,
-                                onOpenPath = onOpenPath,
-                                onOpenFile = onOpenFile,
-                                onRefresh = onRefreshUsage,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
-                    }
+                    StorageUsageMap(
+                        state = usageState,
+                        onSelectNode = onSelectUsageNode,
+                        onDrillInto = onDrillIntoUsageNode,
+                        onBreadcrumbClick = onUsageBreadcrumbClick,
+                        onResetToOverview = onResetUsageOverview,
+                        onOpenPath = onOpenPath,
+                        onOpenFile = onOpenFile,
+                        onRefresh = onRefreshUsage,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(top = 12.dp)
+                    )
                 }
             }
         }

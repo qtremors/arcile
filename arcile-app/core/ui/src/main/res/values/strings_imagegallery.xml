@@ -81,6 +81,8 @@
     <string name="video_player_play">Play</string>
     <string name="video_player_pause">Pause</string>
     <string name="video_player_retry">Retry</string>
+    <string name="video_player_replay">Replay</string>
+    <string name="video_player_content_description_generic">Video player</string>
     <string name="video_player_content_description">Video player: %1$s</string>
     <string name="video_player_playback_failed">Video playback failed</string>
     <string name="video_player_seek_forward">+10 seconds</string>

@@ -26,6 +26,27 @@ class BrowserViewModelNavigationSearchTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `hidden files can be toggled from the browser`() = runTest(mainDispatcherRule.dispatcher) {
+        val preferences = FakeFilePreferencesStore(
+            BrowserPreferences(showHiddenFiles = false)
+        )
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(),
+            browserPreferencesRepository = preferences,
+            savedStateHandle = SavedStateHandle()
+        )
+
+        advanceUntilIdle()
+        assertFalse(viewModel.uiState.value.showHiddenFiles)
+
+        viewModel.toggleHiddenFiles()
+        advanceUntilIdle()
+
+        assertEquals(true, preferences.lastUpdatedShowHiddenFiles)
+        assertTrue(viewModel.uiState.value.showHiddenFiles)
+    }
+
+    @Test
     fun `multiple volumes open volume root screen with stored root sort option`() = runTest(mainDispatcherRule.dispatcher) {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)

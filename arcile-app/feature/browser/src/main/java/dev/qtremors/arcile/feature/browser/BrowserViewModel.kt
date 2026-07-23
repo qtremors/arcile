@@ -158,6 +158,12 @@ internal class BrowserViewModel @Inject constructor(
     fun updateBrowserSearchQuery(query: String) = searchController.updateQuery(query)
     fun updateSearchFilters(filters: SearchFilters) = searchController.updateFilters(filters)
     fun toggleSearchFilterMenu(visible: Boolean) = searchController.setFilterMenuVisible(visible)
+    fun toggleHiddenFiles() {
+        val show = !navigationController.state.value.showHiddenFiles
+        viewModelScope.launch {
+            browserPreferencesRepository.updateShowHiddenFiles(show)
+        }
+    }
     fun updateBrowserPresentation(
         presentation: FileListingPreferences,
         applyToSubfolders: Boolean

@@ -1,95 +1,20 @@
 package dev.qtremors.arcile.feature.storageusage.ui
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.OpenInNew
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.key
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.Spring
-import androidx.compose.ui.graphics.graphicsLayer
-import dev.qtremors.arcile.core.ui.theme.ArcileMotion
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalLocale
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.CustomAccessibilityAction
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.customActions
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.R
+import androidx.compose.ui.graphics.lerp
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
-import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
-import dev.qtremors.arcile.feature.storageusage.StorageUsageUiState
-import dev.qtremors.arcile.core.ui.EmptyState
-import dev.qtremors.arcile.core.ui.EmptyStateVariant
-import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.core.ui.theme.titleMediumBold
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.hypot
+import kotlin.math.max
 import kotlin.math.min
 
-private const val MAX_SUNBURST_DEPTH = 3
-private const val MAX_SUNBURST_SEGMENTS = 160
-private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
-
+private const val MAX_SUNBURST_DEPTH = 5
+private const val MAX_SUNBURST_SEGMENTS = 240
+private const val MAX_SUNBURST_CHILDREN_PER_NODE = 24
 
 internal data class RingSegment(
     val node: StorageUsageNode,
@@ -100,6 +25,18 @@ internal data class RingSegment(
     val color: Color
 )
 
+internal fun calculateRingSizeLimits(
+    totalSize: Long,
+    ringWidth: Float,
+    visibleDepth: Int
+): List<Long> {
+    if (visibleDepth <= 0 || ringWidth <= 0f) return List(visibleDepth + 1) { 0L }
+    val circumferenceFactor = PI * 4.0 * ringWidth
+    return List(visibleDepth + 1) { depth ->
+        (totalSize.toDouble() / (circumferenceFactor * (depth + 1))).toLong().coerceAtLeast(0L)
+    }
+}
+
 internal fun buildSegments(
     root: StorageUsageNode,
     colors: List<Color>,
@@ -107,25 +44,74 @@ internal fun buildSegments(
     ringWidth: Float,
     maxDepth: Int,
     maxSegments: Int,
-    maxChildrenPerNode: Int
+    maxChildrenPerNode: Int,
+    zoomScale: Float = 1f,
+    volumeTotalBytes: Long = 0L,
+    volumeFreeBytes: Long = 0L,
+    isVolumeRoot: Boolean = true
 ): List<RingSegment> {
     val segments = mutableListOf<RingSegment>()
-    fun visit(node: StorageUsageNode, depth: Int, start: Float, sweep: Float) {
-        if (depth > maxDepth || node.children.isEmpty() || segments.size >= maxSegments) return
-        val childTotal = node.children.sumOf { it.sizeBytes }.coerceAtLeast(1L)
-        val visibleChildBudget = min(maxChildrenPerNode, maxSegments - segments.size).coerceAtLeast(0)
+    val palette = colors.ifEmpty { listOf(Color.Gray) }
+    val neutralColor = palette.last()
+    val accentColors = palette.dropLast(1).ifEmpty { palette }
+    val effectiveMaxSegments = (maxSegments * zoomScale.coerceIn(1f, 2.5f))
+        .toInt()
+        .coerceIn(maxSegments, 500)
+    val effectiveMaxChildren = (maxChildrenPerNode * zoomScale.coerceIn(1f, 2f))
+        .toInt()
+        .coerceIn(maxChildrenPerNode, 48)
+    val minSweepThreshold = (0.35f / zoomScale.coerceIn(1f, 4f)).coerceAtLeast(0.04f)
+    val ringSizeLimits = calculateRingSizeLimits(root.sizeBytes, ringWidth, maxDepth)
+
+    fun segmentColor(
+        child: StorageUsageNode,
+        depth: Int,
+        branchColor: Color
+    ): Color {
+        val depthBlend = ((depth - 1) * 0.1f).coerceIn(0f, 0.35f)
+        val depthColor = lerp(branchColor, neutralColor, depthBlend)
+        return when (child.kind) {
+            StorageUsageNodeKind.Folder -> depthColor
+            StorageUsageNodeKind.File -> lerp(depthColor, neutralColor, 0.58f)
+            StorageUsageNodeKind.Grouped -> lerp(depthColor, neutralColor, 0.78f)
+        }
+    }
+
+    fun buildSubtree(
+        node: StorageUsageNode,
+        depth: Int,
+        startAngle: Float,
+        parentSweep: Float,
+        inheritedColor: Color
+    ) {
+        if (depth > maxDepth || node.children.isEmpty() || segments.size >= effectiveMaxSegments) return
+
+        val visibleChildBudget = min(
+            effectiveMaxChildren,
+            effectiveMaxSegments - segments.size
+        ).coerceAtLeast(0)
         if (visibleChildBudget == 0) return
-        val visibleChildren = node.children.take(visibleChildBudget)
-        val hiddenChildren = node.children.drop(visibleChildBudget)
+
+        val limitForDepth = ringSizeLimits.getOrElse(depth) { 0L }
+        val filteredChildren = if (zoomScale > 1.2f || depth <= 2) {
+            node.children
+        } else {
+            node.children.filter { child ->
+                child.sizeBytes >= limitForDepth || child.kind == StorageUsageNodeKind.Folder
+            }
+        }
+        val visibleChildren = filteredChildren.take(visibleChildBudget)
+        val hiddenChildren = filteredChildren.drop(visibleChildBudget) +
+            (node.children - filteredChildren.toSet())
         val chartChildren = if (hiddenChildren.isEmpty()) {
             visibleChildren
         } else {
             visibleChildren + StorageUsageNode(
                 name = "Other small items",
                 path = "${node.path}/Other small items",
-                sizeBytes = hiddenChildren.sumOf { it.sizeBytes },
+                sizeBytes = hiddenChildren.sumOf(StorageUsageNode::sizeBytes),
                 kind = StorageUsageNodeKind.Grouped,
-                childCount = hiddenChildren.sumOf { kotlin.math.max(1, it.childCount) },
+                childCount = hiddenChildren.sumOf { max(1, it.childCount) },
                 status = if (hiddenChildren.any { it.status != StorageUsageScanStatus.Ready }) {
                     StorageUsageScanStatus.Partial
                 } else {
@@ -133,29 +119,112 @@ internal fun buildSegments(
                 }
             )
         }
-        var childStart = start
+
+        val totalSize = chartChildren.sumOf(StorageUsageNode::sizeBytes).coerceAtLeast(1L)
+        var currentAngle = startAngle
         chartChildren.forEachIndexed { index, child ->
-            if (segments.size >= maxSegments) return@forEachIndexed
-            val childSweep = (sweep * (child.sizeBytes.toFloat() / childTotal.toFloat())).coerceAtLeast(0.4f)
-            val inner = centerRadius + (depth - 1) * ringWidth
-            val outer = inner + ringWidth
-            val color = colors[(index + depth) % colors.size]
-                .copy(alpha = (0.98f - depth * 0.08f).coerceAtLeast(0.62f))
-            segments += RingSegment(child, childStart, childSweep, inner, outer, color)
-            if (child.kind != StorageUsageNodeKind.Grouped) {
-                visit(child, depth + 1, childStart, childSweep)
+            if (segments.size >= effectiveMaxSegments) return@forEachIndexed
+
+            val childSweep = parentSweep * (child.sizeBytes.toDouble() / totalSize.toDouble()).toFloat()
+            if (childSweep < minSweepThreshold && depth > 2) {
+                currentAngle += childSweep
+                return@forEachIndexed
             }
-            childStart += childSweep
+
+            val branchColor = if (depth <= 2) {
+                accentColors[index % accentColors.size]
+            } else {
+                inheritedColor
+            }
+            val innerRadius = centerRadius + (depth - 1) * ringWidth
+            segments += RingSegment(
+                node = child,
+                startAngle = currentAngle,
+                sweepAngle = childSweep,
+                innerRadius = innerRadius,
+                outerRadius = innerRadius + ringWidth,
+                color = segmentColor(child, depth, branchColor)
+            )
+
+            if (child.kind == StorageUsageNodeKind.Folder) {
+                buildSubtree(
+                    node = child,
+                    depth = depth + 1,
+                    startAngle = currentAngle,
+                    parentSweep = childSweep,
+                    inheritedColor = branchColor
+                )
+            }
+            currentAngle += childSweep
         }
     }
-    visit(root, depth = 1, start = -90f, sweep = 360f)
+
+    if (isVolumeRoot && volumeTotalBytes > 0L) {
+        val totalCapacity = volumeTotalBytes.toDouble()
+        val freeBytes = volumeFreeBytes.coerceIn(0L, volumeTotalBytes)
+        val usedBytes = (volumeTotalBytes - freeBytes).coerceAtLeast(0L)
+        val accessibleBytes = root.sizeBytes.coerceIn(0L, usedBytes)
+        val systemBytes = (usedBytes - accessibleBytes).coerceAtLeast(0L)
+        val accessibleSweep = (360f * accessibleBytes.toDouble() / totalCapacity).toFloat()
+        val systemSweep = (360f * systemBytes.toDouble() / totalCapacity).toFloat()
+        val innerRadius = centerRadius
+        val outerRadius = centerRadius + ringWidth
+        var angleCursor = -90f
+
+        if (accessibleBytes > 0L) {
+            val rootColor = accentColors.first()
+            segments += RingSegment(
+                node = root,
+                startAngle = angleCursor,
+                sweepAngle = accessibleSweep,
+                innerRadius = innerRadius,
+                outerRadius = outerRadius,
+                color = rootColor
+            )
+            buildSubtree(
+                node = root,
+                depth = 2,
+                startAngle = angleCursor,
+                parentSweep = accessibleSweep,
+                inheritedColor = rootColor
+            )
+            angleCursor += accessibleSweep
+        }
+
+        if (systemBytes > 0L) {
+            segments += RingSegment(
+                node = StorageUsageNode(
+                    name = "System & Other",
+                    path = "${root.path}/__system_other__",
+                    sizeBytes = systemBytes,
+                    kind = StorageUsageNodeKind.Grouped,
+                    childCount = 0,
+                    status = StorageUsageScanStatus.Ready
+                ),
+                startAngle = angleCursor,
+                sweepAngle = systemSweep,
+                innerRadius = innerRadius,
+                outerRadius = outerRadius,
+                color = neutralColor
+            )
+        }
+    } else {
+        buildSubtree(
+            node = root,
+            depth = 1,
+            startAngle = -90f,
+            parentSweep = 360f,
+            inheritedColor = accentColors.first()
+        )
+    }
+
     return segments
 }
 
 internal fun boundedStorageUsageSunburstSegmentCount(root: StorageUsageNode): Int =
     buildSegments(
         root = root,
-        colors = listOf(Color.Red, Color.Green, Color.Blue),
+        colors = listOf(Color.Red, Color.Green, Color.Blue, Color.Gray),
         centerRadius = 10f,
         ringWidth = 10f,
         maxDepth = MAX_SUNBURST_DEPTH,
@@ -178,10 +247,14 @@ internal fun findSegmentAt(
     val dx = offset.x - center.x
     val dy = offset.y - center.y
     val radius = hypot(dx, dy)
-    val angle = normalizeAngle((atan2(dy, dx) * 180f / PI.toFloat()))
+    val angle = normalizeAngle(atan2(dy, dx) * 180f / PI.toFloat())
     return segments
-        .filter { radius >= it.innerRadius && radius <= it.outerRadius && angleInSweep(angle, it.startAngle, it.sweepAngle) }
-        .maxByOrNull { it.innerRadius }
+        .filter {
+            radius >= it.innerRadius &&
+                radius <= it.outerRadius &&
+                angleInSweep(angle, it.startAngle, it.sweepAngle)
+        }
+        .maxByOrNull(RingSegment::innerRadius)
 }
 
 internal fun angleInSweep(angle: Float, startAngle: Float, sweepAngle: Float): Boolean {

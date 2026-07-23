@@ -33,8 +33,13 @@ internal data class StorageUsageUiState(
     val selectedNode: StorageUsageNode? = null,
     val breadcrumbs: List<StorageUsageNode> = emptyList(),
     val unavailableVolume: StorageVolume? = null,
-    val error: UiText? = null
-)
+    val error: UiText? = null,
+    val isDrilledDown: Boolean = false
+) {
+    val volumeTotalBytes: Long get() = rootVolume?.totalBytes ?: 0L
+    val volumeFreeBytes: Long get() = rootVolume?.freeBytes ?: 0L
+}
+
 
 @HiltViewModel
 internal class StorageUsageViewModel @Inject constructor(
@@ -48,8 +53,14 @@ internal class StorageUsageViewModel @Inject constructor(
     val state: StateFlow<StorageUsageUiState> = _state.asStateFlow()
 
     private var scanJob: Job? = null
+    private var isInitialScanTriggered = false
 
     init {
+        observeVolumeChanges()
+    }
+
+
+    private fun observeVolumeChanges() {
         viewModelScope.launch {
             bulkFileOperationCoordinator.events.collect { event ->
                 val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
@@ -66,6 +77,7 @@ internal class StorageUsageViewModel @Inject constructor(
             }
         }
     }
+
 
     fun load(selectedVolumeId: String?) {
         if (_state.value.selectedVolumeId == selectedVolumeId && _state.value.scanState !is StorageUsageScanState.Idle) {
@@ -132,7 +144,8 @@ internal class StorageUsageViewModel @Inject constructor(
                             scanState = scanState,
                             currentRoot = scanState.root,
                             selectedNode = scanState.root,
-                            breadcrumbs = listOf(scanState.root)
+                            breadcrumbs = listOf(scanState.root),
+                            isDrilledDown = false
                         )
                         else -> current.copy(scanState = scanState)
                     }
@@ -154,7 +167,8 @@ internal class StorageUsageViewModel @Inject constructor(
             it.copy(
                 currentRoot = node,
                 selectedNode = node,
-                breadcrumbs = appendBreadcrumb(it.breadcrumbs, node)
+                breadcrumbs = appendBreadcrumb(it.breadcrumbs, node),
+                isDrilledDown = true
             )
         }
     }
@@ -166,10 +180,24 @@ internal class StorageUsageViewModel @Inject constructor(
             it.copy(
                 currentRoot = node,
                 selectedNode = node,
-                breadcrumbs = breadcrumbs.take(index + 1)
+                breadcrumbs = breadcrumbs.take(index + 1),
+                isDrilledDown = true
             )
         }
     }
+
+    fun resetToOverview() {
+        val root = _state.value.breadcrumbs.firstOrNull() ?: return
+        _state.update {
+            it.copy(
+                currentRoot = root,
+                selectedNode = root,
+                breadcrumbs = listOf(root),
+                isDrilledDown = false
+            )
+        }
+    }
+
 
     fun cancelScan() {
         scanJob?.cancel()

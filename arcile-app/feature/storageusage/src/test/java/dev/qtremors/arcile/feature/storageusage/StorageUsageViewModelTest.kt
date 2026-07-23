@@ -21,6 +21,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -146,6 +147,15 @@ class StorageUsageViewModelTest {
         viewModel.drillInto(child)
         assertEquals(child.path, viewModel.state.value.currentRoot?.path)
         assertEquals(2, viewModel.state.value.breadcrumbs.size)
+
+        viewModel.navigateToBreadcrumb(0)
+        assertEquals(expectedNode.path, viewModel.state.value.currentRoot?.path)
+        assertEquals(1, viewModel.state.value.breadcrumbs.size)
+        assertTrue(viewModel.state.value.isDrilledDown)
+
+        viewModel.resetToOverview()
+        assertEquals(expectedNode.path, viewModel.state.value.currentRoot?.path)
+        assertFalse(viewModel.state.value.isDrilledDown)
     }
 
     @Test

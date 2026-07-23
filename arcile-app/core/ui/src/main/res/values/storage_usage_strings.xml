@@ -5,15 +5,10 @@
     <string name="storage_usage_map_scan_progress">%1$d items • %2$s found</string>
     <string name="storage_usage_map_error_title">Could not scan storage</string>
     <string name="storage_usage_map_error_description">Try refreshing, or open the folder in the browser.</string>
-    <string name="storage_usage_map_size">Size</string>
-    <string name="storage_usage_map_share">Share</string>
-    <string name="storage_usage_map_items">Items</string>
-    <string name="storage_usage_map_scan_partial">Some folders could not be read, so this total may be partial.</string>
-    <string name="storage_usage_map_scan_partial_live">Scan is still running, so this total may change.</string>
-    <string name="storage_usage_map_drill_in">Drill in</string>
     <string name="storage_usage_map_chart_description">Storage usage chart for %1$s</string>
     <string name="storage_usage_map_selected_state">%1$s selected, %2$s, %3$d items</string>
     <string name="storage_usage_map_select_segment">Select %1$s</string>
+    <string name="storage_usage_map_reset_overview">Reset storage overview</string>
     <string name="storage_usage_map_segments_heading">Storage segments</string>
     <string name="storage_usage_map_segment_description">%1$s, %2$s, %3$d items</string>
 </resources>

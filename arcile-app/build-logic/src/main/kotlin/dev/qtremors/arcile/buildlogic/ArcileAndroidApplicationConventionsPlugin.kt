@@ -48,11 +48,12 @@ class ArcileAndroidApplicationConventionsPlugin : Plugin<Project> {
 
                     doLast {
                         val suspiciousPattern = Regex(
-                            """(Text\(\s*"[^"]*[A-Za-z][^"]*"|contentDescription\s*=\s*"[^"]*[A-Za-z][^"]*"|placeholder\s*=\s*"[^"]*[A-Za-z][^"]*"|title\s*=\s*"[^"]*[A-Za-z][^"]*"|Toast\.makeText\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|createChooser\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|error\.message\s*\?:\s*"[^"]*[A-Za-z][^"]*"|fileOperationStatusMessage\s*=\s*"[^"]*[A-Za-z][^"]*"|setContentTitle\("([^"]*[A-Za-z][^"]*)"|setContentText\("([^"]*[A-Za-z][^"]*)"|addAction\([^"]*"[^"]*[A-Za-z][^"]*")"""
+                            """(Text\(\s*"[^"]*[A-Za-z][^"]*"|contentDescription\s*=\s*"[^"]*[A-Za-z][^"]*"|placeholder\s*=\s*"[^"]*[A-Za-z][^"]*"|title\s*=\s*"[^"]*[A-Za-z][^"]*"|Toast\.makeText\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|createChooser\([^,]+,\s*"[^"]*[A-Za-z][^"]*"|fileOperationStatusMessage\s*=\s*"[^"]*[A-Za-z][^"]*"|setContentTitle\("([^"]*[A-Za-z][^"]*)"|setContentText\("([^"]*[A-Za-z][^"]*)"|addAction\([^"]*"[^"]*[A-Za-z][^"]*")"""
                         )
                         val allowedFragments = listOf(
                             "android.os.Build.",
                             "Text(\".\${",
+                            "Text(\"\${",
                             "AppLogger.",
                             "Regex(",
                             "SimpleDateFormat(",

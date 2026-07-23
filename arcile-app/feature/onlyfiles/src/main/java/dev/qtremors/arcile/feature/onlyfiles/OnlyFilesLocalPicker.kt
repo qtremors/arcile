@@ -31,6 +31,7 @@ internal data class OnlyFilesLocalPickerState(
     val isLoading: Boolean = false
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun OnlyFilesLocalPickerDialog(
     state: OnlyFilesLocalPickerState,
@@ -59,7 +60,7 @@ internal fun OnlyFilesLocalPickerDialog(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 state.current?.let { Text(it.path, maxLines = 2, overflow = TextOverflow.Ellipsis) }
                 if (state.isLoading) Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) {
-                    CircularProgressIndicator()
+                    LoadingIndicator()
                 } else LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
                     items(state.entries, key = FileModel::absolutePath) { file ->
                         val itemClick: () -> Unit = {

@@ -13,7 +13,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -37,6 +38,7 @@ internal data class VaultFolderPickerState(
     val isLoading: Boolean = false
 )
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun VaultFolderPickerDialog(
     state: VaultFolderPickerState,
@@ -68,7 +70,7 @@ internal fun VaultFolderPickerDialog(
                 }
                 if (state.isLoading) {
                     Row(Modifier.fillMaxWidth().padding(24.dp), horizontalArrangement = Arrangement.Center) {
-                        CircularProgressIndicator()
+                        LoadingIndicator()
                     }
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {

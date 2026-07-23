@@ -25,7 +25,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -87,6 +88,7 @@ import kotlin.math.min
 private const val DOUBLE_TAP_SEEK_MILLIS = 10_000L
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal fun VideoPlayerItemView(
     player: Player,
@@ -149,7 +151,7 @@ internal fun VideoPlayerItemView(
             )
 
             if (isBuffering) {
-                CircularProgressIndicator(color = Color.White)
+                LoadingIndicator(color = Color.White)
             }
 
             playbackError?.let { error ->

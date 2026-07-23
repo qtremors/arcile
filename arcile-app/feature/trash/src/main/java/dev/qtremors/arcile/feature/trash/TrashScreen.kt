@@ -114,6 +114,7 @@ internal fun TrashScreen(
     val onOpenFileWith = fileActions.openWith
     val onShareSelected = fileActions.shareSelected
     val onRestoreSelected = restoreActions.restoreSelected
+    val onRestoreItem = restoreActions.restoreItem
     val onDismissDestinationPicker = restoreActions.dismissDestinationPicker
     val onRestoreToDestination = restoreActions.restoreToDestination
     val onUndoLastRestore = restoreActions.undoLastRestore
@@ -142,6 +143,7 @@ internal fun TrashScreen(
     }
 
     var showEmptyTrashConfirmation by rememberSaveable { mutableStateOf(false) }
+    var pendingRestoreItemId by rememberSaveable { mutableStateOf<String?>(null) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotBlank()) }
 
     LaunchedEffect(state.feedbackError) {
@@ -308,9 +310,6 @@ internal fun TrashScreen(
                     onFilterChange = onFilterChange
                 )
             }
-            if (!isSelectionMode && !showSearchBar && state.trashFiles.isNotEmpty()) {
-                TrashInfoCard()
-            }
 
             if (onRefresh != null) {
                 val pullRefreshState = rememberPullToRefreshState()
@@ -332,7 +331,8 @@ internal fun TrashScreen(
                         showSearchBar = showSearchBar,
                         bottomContentPadding = bottomContentPadding,
                         onToggleSelection = onToggleSelection,
-                        onOpenFile = onOpenFile
+                        onOpenFile = onOpenFile,
+                        onRequestRestore = { pendingRestoreItemId = it }
                     )
                 }
             } else {
@@ -343,7 +343,8 @@ internal fun TrashScreen(
                         showSearchBar = showSearchBar,
                         bottomContentPadding = bottomContentPadding,
                         onToggleSelection = onToggleSelection,
-                        onOpenFile = onOpenFile
+                        onOpenFile = onOpenFile,
+                        onRequestRestore = { pendingRestoreItemId = it }
                     )
                 }
             }
@@ -375,6 +376,17 @@ internal fun TrashScreen(
                 onConfirm = {
                     showEmptyTrashConfirmation = false
                     onEmptyTrash()
+                }
+            )
+        }
+
+        state.trashFiles.firstOrNull { it.id == pendingRestoreItemId }?.let { item ->
+            RestoreItemDialog(
+                item = item,
+                onDismiss = { pendingRestoreItemId = null },
+                onConfirm = {
+                    pendingRestoreItemId = null
+                    onRestoreItem(item.id)
                 }
             )
         }

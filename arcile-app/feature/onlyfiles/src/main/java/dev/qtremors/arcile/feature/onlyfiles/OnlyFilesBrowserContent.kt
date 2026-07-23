@@ -229,7 +229,7 @@ internal fun VaultList(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Fingerprint,
-                                    contentDescription = "Biometric Enabled",
+                                    contentDescription = stringResource(R.string.onlyfiles_biometric_enabled),
                                     tint = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.size(20.dp)
                                 )

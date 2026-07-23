@@ -26,7 +26,8 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -292,6 +293,7 @@ internal fun ViewerScreen(
     ) }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun VaultImage(
     node: VaultNodeMetadata,
@@ -304,7 +306,7 @@ private fun VaultImage(
         value = decodeSampledVaultImageOnWorker(node.ref, targetWidth, targetHeight, openReader)
     }
     when {
-        decoded == null -> CircularProgressIndicator()
+        decoded == null -> LoadingIndicator()
         decoded?.getOrNull() == null -> Text(stringResource(R.string.onlyfiles_error_image))
         else -> Image(
             requireNotNull(decoded?.getOrNull()).asImageBitmap(),

@@ -24,10 +24,12 @@
     <string name="trash_sort_original_folder">Original folder</string>
     <string name="trash_original_location">%1$s • %2$s</string>
     <string name="trash_original_unavailable">Original location unavailable</string>
-    <string name="trash_status_can_restore">Restore</string>
-    <string name="trash_status_conflict">Rename</string>
-    <string name="trash_status_needs_destination">Choose folder</string>
-    <string name="trash_status_recovered">Recovered</string>
+    <string name="trash_open_preview">Open %1$s</string>
+    <string name="trash_restore_item_action">Restore %1$s</string>
+    <string name="trash_restore_item_title">Restore “%1$s”?</string>
+    <string name="trash_restore_original_description">This item will be restored to its original folder.</string>
+    <string name="trash_restore_rename_description">An item with the same name exists in the original folder. The restored item will be renamed.</string>
+    <string name="trash_restore_destination_description">You’ll choose a folder for this item because its original location is unavailable.</string>
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>
@@ -119,8 +121,6 @@
     <string name="delete_irreversible_warning">Irreversible: files cannot be restored from Arcile Trash.</string>
     <string name="move_to_trash">Move to Trash</string>
     <string name="undo">Undo</string>
-    <string name="trash_info_title">About Trash Bin</string>
-    <string name="trash_info_description">Items deleted from internal storage or SD cards are moved here. They are stored locally on each volume in a hidden .arcile folder.</string>
     <string name="sort_by_date">Sort by Deletion Date</string>
     <string name="delete_permanently">Delete Permanently</string>
     <string name="select_all">Select All</string>

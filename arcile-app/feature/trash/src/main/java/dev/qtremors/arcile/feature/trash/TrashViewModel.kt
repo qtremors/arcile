@@ -101,10 +101,18 @@ internal class TrashViewModel @Inject constructor(
     }
 
     fun restoreSelectedTrash() {
+        restoreTrashItems(_state.value.selectedFiles.toList())
+    }
+
+    fun restoreTrashItem(trashId: String) {
+        restoreTrashItems(listOf(trashId))
+    }
+
+    private fun restoreTrashItems(requestedTrashIds: List<String>) {
         clearPendingAuthorization()
-        val selectedTrashIds = _state.value.selectedFiles.toList()
+        val selectedTrashIds = requestedTrashIds.distinct()
         if (selectedTrashIds.isEmpty()) return
-        val selectedItems = _state.value.trashFiles.filter { it.id in selectedTrashIds }
+        val selectedItems = _state.value.trashFiles.filter { it.id in requestedTrashIds }
         val undoPaths = selectedItems.mapNotNull { it.originalPath.takeIf(String::isNotBlank) }
         val hasDestinationRequiredItems = selectedItems.any {
             it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||
@@ -126,11 +134,20 @@ internal class TrashViewModel @Inject constructor(
         viewModelScope.launch {
             trashRepository.restoreFromTrash(selectedTrashIds).onSuccess {
                 val message = restoreSummaryMessage(selectedTrashIds.size, conflictCount)
-                clearSelection()
-                _state.update { it.copy(snackbarMessage = message, pendingRestoreUndoPaths = undoPaths) }
+                _state.update {
+                    it.copy(
+                        selectedFiles = it.selectedFiles - selectedTrashIds.toSet(),
+                        snackbarMessage = message,
+                        pendingRestoreUndoPaths = undoPaths
+                    )
+                }
                 loadTrashFiles()
             }.onAuthorizationRequired { requirement ->
-                requestNativeAuthorization(requirement, TrashAuthorizationAction.RESTORE)
+                requestNativeAuthorization(
+                    requirement = requirement,
+                    action = TrashAuthorizationAction.RESTORE,
+                    restoreIds = selectedTrashIds
+                )
             }.onFailure { error ->
                 when (error) {
                     is DestinationRequiredException -> {
@@ -283,7 +300,13 @@ internal class TrashViewModel @Inject constructor(
             return
         }
         when (action) {
-            TrashAuthorizationAction.RESTORE -> restoreSelectedTrash()
+            TrashAuthorizationAction.RESTORE -> {
+                if (restoreIds.isNotEmpty()) {
+                    restoreTrashItems(restoreIds)
+                } else {
+                    restoreSelectedTrash()
+                }
+            }
             TrashAuthorizationAction.RESTORE_TO_DESTINATION -> {
                 if (destinationPath != null && restoreIds.isNotEmpty()) {
                     restoreToDestination(restoreIds, destinationPath)

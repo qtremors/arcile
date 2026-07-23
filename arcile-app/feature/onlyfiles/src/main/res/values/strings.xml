@@ -23,6 +23,7 @@
     <string name="onlyfiles_unlock">Unlock</string>
     <string name="onlyfiles_lock">Lock</string>
     <string name="onlyfiles_lock_all">Lock all</string>
+    <string name="onlyfiles_biometric_enabled">Biometric unlock enabled</string>
     <string name="onlyfiles_show_password">Show password</string>
     <string name="onlyfiles_hide_password">Hide password</string>
     <string name="onlyfiles_import_files">Import files</string>

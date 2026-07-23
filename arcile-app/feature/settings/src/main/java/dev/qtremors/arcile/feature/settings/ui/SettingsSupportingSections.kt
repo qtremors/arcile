@@ -7,7 +7,8 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -98,6 +99,7 @@ internal fun SettingsOnlyFilesSection(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SettingsBackupSection(
     state: PreferencesBackupUiState,
@@ -118,9 +120,8 @@ internal fun SettingsBackupSection(
             },
             trailingContent = {
                 if (!enabled) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.padding(2.dp),
-                        strokeWidth = 2.dp
+                    LoadingIndicator(
+                        modifier = Modifier.padding(2.dp)
                     )
                 }
             },

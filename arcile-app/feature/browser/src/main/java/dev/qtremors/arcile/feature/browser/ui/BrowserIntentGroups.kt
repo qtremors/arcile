@@ -14,7 +14,8 @@ internal data class BrowserNavigationIntents(
     val onNavigateTo: (String) -> Unit,
     val onOpenFile: (String) -> Unit,
     val onRefresh: () -> Unit,
-    val onSelectFolderTab: (String?) -> Unit
+    val onSelectFolderTab: (String?) -> Unit,
+    val onToggleHiddenFiles: () -> Unit = {}
 )
 
 @Stable

@@ -29,6 +29,7 @@ internal fun BrowserTopBars(
     selectionIntents: BrowserSelectionIntents,
     mutationIntents: BrowserMutationIntents,
     clipboardIntents: BrowserClipboardIntents,
+    onToggleHiddenFiles: () -> Unit,
     onBackClick: () -> Unit,
     onSelectionChanged: () -> Unit,
     onShowPinnedSnackbar: (String) -> Unit
@@ -82,6 +83,8 @@ internal fun BrowserTopBars(
                     !state.isCategoryScreen &&
                     state.currentPath.isNotEmpty() &&
                     state.archiveContext == null,
+                showHiddenFilesAction = state.archiveContext == null,
+                areHiddenFilesShown = state.showHiddenFiles,
                 isGridView = state.browserViewMode == FileViewMode.GRID
             ),
             scrollBehavior = scrollBehavior,
@@ -116,6 +119,7 @@ internal fun BrowserTopBars(
                         selectionIntents.onInvertSelection(displayedFiles.map { it.absolutePath })
                     }
                     TopBarAction.Properties -> selectionIntents.onOpenProperties()
+                    TopBarAction.ToggleHiddenFiles -> onToggleHiddenFiles()
                     else -> Unit
                 }
                 }

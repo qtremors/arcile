@@ -17,4 +17,5 @@ sealed class TopBarAction {
     data object InvertSelection : TopBarAction()
     data object PinToQuickAccess : TopBarAction()
     data object Properties : TopBarAction()
+    data object ToggleHiddenFiles : TopBarAction()
 }

@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.5.9
-> **Last Updated:** 2026-07-22
+> **Version:** 1.6.0
+> **Last Updated:** 2026-07-23
 
 ---
+
+## [1.6.0] - 2026-07-23
+
+- **Storage Usage Map**: Added capacity-aware rings, complete folder accounting, instant cached drill-down, theme-adaptive colors, and clearer touch interactions.
+- **Trash Experience**: Improved previews and item actions, added confirmed one-item restore, and retained safe recovery when original metadata is unavailable.
+- **Browser Reliability**: Prevented category and breadcrumb crashes with very large folder sets, polished the folder selector, and added a hidden-files toggle to the Browser menu.
+- **Interface Polish**: Unified expressive loading states and aligned video thumbnail navigation with the image viewer.
+
 
 ## [1.5.9] - 2026-07-22
 
@@ -501,7 +509,7 @@ Arcile v1.0.0 is the first stable release and the first release outside the beta
 - **Material 3 Expressive System:** Stabilized dynamic themes, custom palettes, Tokyo Night and Dracula presets, expressive shapes, tactile press feedback, and spring-based navigation transitions.
 - **Recent Files Experience:** Added expressive carousel previews, chronological Recent Files lists, date grouping, audio/video/PDF/APK thumbnail improvements, and bounded thumbnail sizing.
 - **Storage Cleaner:** Added scan flows for large files, old downloads, obsolete APKs, videos, duplicate candidates, and conservative junk/cache groups, with Trash-safe cleanup for indexed storage.
-- **Storage Usage Map:** Added a bounded Filelight-style radial usage map with breadcrumb drill-in, selected item details, and direct browser navigation.
+- **Storage Usage Map:** Added a bounded radial usage map with path navigation, selected item details, and direct browser navigation.
 - **Accessibility & Haptics:** Improved TalkBack semantics, selection announcements, content descriptions, touch targets, haptic feedback, reduced-motion handling, double-line filenames, and marquee controls.
 - **Loading & Layout Polish:** Added shimmer states, smoother category/grid movement, stable directory paging, better snackbar placement, and reduced stale UI feedback across navigation.
 

@@ -15,6 +15,30 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class VideoViewerPlaybackTest {
     @Test
+    fun `thumbnail scrolling matches image viewer animation rules`() {
+        assertEquals(
+            ViewerThumbnailScrollAction.Jump,
+            viewerThumbnailScrollAction(previousPage = null, currentPage = 400)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.Animate,
+            viewerThumbnailScrollAction(previousPage = 20, currentPage = 21)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.Jump,
+            viewerThumbnailScrollAction(previousPage = 10, currentPage = 200)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.None,
+            viewerThumbnailScrollAction(previousPage = 20, currentPage = 20)
+        )
+        assertEquals(
+            ViewerThumbnailScrollAction.None,
+            viewerThumbnailScrollAction(previousPage = 20, currentPage = -1)
+        )
+    }
+
+    @Test
     fun `viewer session cache stays bounded and preserves replacements`() {
         val cache = linkedMapOf<Int, Long>()
         repeat(3) { cache.putBounded(it, it.toLong(), maxEntries = 3) }

@@ -8,6 +8,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
@@ -21,6 +22,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.height
@@ -80,6 +83,8 @@ data class ArcileTopBarOptions(
     val showPinAction: Boolean = false,
     val showSettingsMenuAction: Boolean = false,
     val showAboutAction: Boolean = false,
+    val showHiddenFilesAction: Boolean = false,
+    val areHiddenFilesShown: Boolean = false,
     val isGridView: Boolean = false
 )
 
@@ -111,6 +116,8 @@ fun ArcileTopBar(
     val showPinAction = options.showPinAction
     val showSettingsMenuAction = options.showSettingsMenuAction
     val showAboutAction = options.showAboutAction
+    val showHiddenFilesAction = options.showHiddenFilesAction
+    val areHiddenFilesShown = options.areHiddenFilesShown
     val isGridView = options.isGridView
     val onBackClick = actions.onBackClick
     val onSettingsClick = actions.onSettingsClick
@@ -265,7 +272,16 @@ fun ArcileTopBar(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
-                            val menuActions = remember(showNewFolderAction, showPinAction, showSettingsMenuAction, showAboutAction, showGridViewAction, isGridView) {
+                            val menuActions = remember(
+                                showNewFolderAction,
+                                showPinAction,
+                                showSettingsMenuAction,
+                                showAboutAction,
+                                showHiddenFilesAction,
+                                areHiddenFilesShown,
+                                showGridViewAction,
+                                isGridView
+                            ) {
                                 mutableListOf<@Composable () -> Unit>().apply {
                                     if (showNewFolderAction) {
                                         add {
@@ -311,6 +327,37 @@ fun ArcileTopBar(
                                                 onClick = {
                                                     showMenu = false
                                                     onActionSelected(TopBarAction.About)
+                                                }
+                                            )
+                                        }
+                                    }
+                                    if (showHiddenFilesAction) {
+                                        add {
+                                            ArcileDropdownMenuItem(
+                                                text = { Text(stringResource(R.string.settings_show_hidden_files)) },
+                                                leadingIcon = {
+                                                    Icon(
+                                                        if (areHiddenFilesShown) {
+                                                            Icons.Default.Visibility
+                                                        } else {
+                                                            Icons.Default.VisibilityOff
+                                                        },
+                                                        contentDescription = null
+                                                    )
+                                                },
+                                                trailingIcon = if (areHiddenFilesShown) {
+                                                    {
+                                                        Icon(
+                                                            Icons.Default.Check,
+                                                            contentDescription = stringResource(R.string.selected)
+                                                        )
+                                                    }
+                                                } else {
+                                                    null
+                                                },
+                                                onClick = {
+                                                    showMenu = false
+                                                    onActionSelected(TopBarAction.ToggleHiddenFiles)
                                                 }
                                             )
                                         }

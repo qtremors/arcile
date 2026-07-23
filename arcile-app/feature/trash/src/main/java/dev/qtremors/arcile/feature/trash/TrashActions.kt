@@ -23,6 +23,7 @@ internal data class TrashFileActions(
 
 internal data class TrashRestoreActions(
     val restoreSelected: () -> Unit,
+    val restoreItem: (String) -> Unit,
     val dismissDestinationPicker: () -> Unit,
     val restoreToDestination: (List<String>, String) -> Unit,
     val undoLastRestore: () -> Unit,

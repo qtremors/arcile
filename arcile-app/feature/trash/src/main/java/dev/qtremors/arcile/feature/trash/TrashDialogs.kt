@@ -20,9 +20,47 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.TrashMetadata
+import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
+
+@Composable
+internal fun RestoreItemDialog(
+    item: TrashMetadata,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val description = when (item.restoreStatus) {
+        TrashRestoreStatus.ORIGINAL_AVAILABLE ->
+            stringResource(R.string.trash_restore_original_description)
+        TrashRestoreStatus.ORIGINAL_CONFLICT_RENAME ->
+            stringResource(R.string.trash_restore_rename_description)
+        TrashRestoreStatus.DESTINATION_REQUIRED,
+        TrashRestoreStatus.RECOVERED_ITEM ->
+            stringResource(R.string.trash_restore_destination_description)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(stringResource(R.string.trash_restore_item_title, item.fileModel.name))
+        },
+        text = { Text(description) },
+        confirmButton = {
+            DialogTextButton(
+                text = stringResource(R.string.restore),
+                onClick = onConfirm
+            )
+        },
+        dismissButton = {
+            DialogTextButton(
+                text = stringResource(R.string.cancel),
+                onClick = onDismiss
+            )
+        }
+    )
+}
 
 @Composable
 internal fun RestoreDestinationDialog(

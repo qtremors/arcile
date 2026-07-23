@@ -32,7 +32,8 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,7 +74,7 @@ internal enum class ViewerBackAction {
     ExitViewer
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ImageViewerScreen(
     initialPath: String,
@@ -99,8 +100,6 @@ internal fun ImageViewerScreen(
     val haptics = rememberArcileHaptics()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
     val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
-
-
 
     var backProgress by remember { mutableStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
@@ -147,7 +146,7 @@ internal fun ImageViewerScreen(
             contentAlignment = Alignment.Center
         ) {
             if (state.isLoading) {
-                CircularProgressIndicator(color = Color.White)
+                LoadingIndicator(color = Color.White)
             } else {
                 Text(
                     text = stringResource(R.string.no_results_found),

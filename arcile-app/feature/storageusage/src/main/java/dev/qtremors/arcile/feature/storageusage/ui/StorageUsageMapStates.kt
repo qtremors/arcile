@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -16,14 +15,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -89,28 +90,36 @@ private const val MAX_SUNBURST_DEPTH = 3
 private const val MAX_SUNBURST_SEGMENTS = 160
 private const val MAX_SUNBURST_CHILDREN_PER_NODE = 18
 
-
 @Composable
 internal fun StorageUsageBreadcrumbs(
     breadcrumbs: List<StorageUsageNode>,
     onBreadcrumbClick: (Int) -> Unit
 ) {
-    val scrollState = rememberScrollState()
-    Row(
+    LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .horizontalScroll(scrollState)
             .padding(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        breadcrumbs.forEachIndexed { index, node ->
+        itemsIndexed(
+            items = breadcrumbs,
+            key = { index, node -> "${node.path}:$index" }
+        ) { index, node ->
+            val displayName = if (
+                index == 0 &&
+                (node.name == "0" || node.path.endsWith("/0"))
+            ) {
+                stringResource(R.string.internal_storage)
+            } else {
+                node.name
+            }
             ExpressiveFilterChip(
                 selected = false,
                 onClick = { onBreadcrumbClick(index) },
                 label = {
                     Text(
-                        text = node.name,
+                        text = displayName,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -127,6 +136,7 @@ internal fun StorageUsageBreadcrumbs(
     }
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
     Surface(
@@ -141,7 +151,7 @@ internal fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            CircularProgressIndicator()
+            LoadingIndicator()
             Text(
                 text = stringResource(R.string.storage_usage_map_scanning),
                 style = MaterialTheme.typography.titleMediumBold

@@ -337,6 +337,7 @@ internal fun BrowserScreen(
                     selectionIntents = intents.selection,
                     mutationIntents = intents.mutation,
                     clipboardIntents = intents.clipboard,
+                    onToggleHiddenFiles = intents.navigation.onToggleHiddenFiles,
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
                     onShowPinnedSnackbar = { label ->

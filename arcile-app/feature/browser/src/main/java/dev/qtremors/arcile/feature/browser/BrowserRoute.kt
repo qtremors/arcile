@@ -186,7 +186,8 @@ fun BrowserRoute(
                 }
             },
             onRefresh = { viewModel.refresh(pullToRefresh = true) },
-            onSelectFolderTab = viewModel::selectFolderTab
+            onSelectFolderTab = viewModel::selectFolderTab,
+            onToggleHiddenFiles = viewModel::toggleHiddenFiles
         ),
         selection = BrowserSelectionIntents(
             onToggleSelection = viewModel::toggleSelection,

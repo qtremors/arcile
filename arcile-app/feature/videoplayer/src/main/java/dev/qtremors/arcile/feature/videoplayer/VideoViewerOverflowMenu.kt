@@ -226,10 +226,19 @@ private fun ViewerOverflowMenuItem(
 // ──────────────────────────────────────────────────────────────
 internal enum class ViewerThumbnailScrollAction { Jump, Animate, None }
 
-internal fun viewerThumbnailScrollAction(previousPage: Int?, currentPage: Int): ViewerThumbnailScrollAction {
-    if (previousPage == null) return ViewerThumbnailScrollAction.Jump
-    if (previousPage == currentPage) return ViewerThumbnailScrollAction.None
-    return ViewerThumbnailScrollAction.Animate
+internal fun viewerThumbnailScrollAction(
+    previousPage: Int?,
+    currentPage: Int,
+    maxAnimatedDistance: Int = 12
+): ViewerThumbnailScrollAction {
+    if (currentPage < 0) return ViewerThumbnailScrollAction.None
+    val previous = previousPage ?: return ViewerThumbnailScrollAction.Jump
+    if (previous == currentPage) return ViewerThumbnailScrollAction.None
+    return if (kotlin.math.abs(currentPage - previous) <= maxAnimatedDistance) {
+        ViewerThumbnailScrollAction.Animate
+    } else {
+        ViewerThumbnailScrollAction.Jump
+    }
 }
 
 internal fun formatPlaybackTime(timeMs: Long): String {

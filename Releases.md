@@ -1,15 +1,47 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.5.0
-> **Last Updated:** 2026-07-13
+> **Version:** 1.6.0
+> **Last Updated:** 2026-07-23
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.6.0](#v160) | 2026-07-23 | Encrypted OnlyFiles vaults, native video browsing and playback, visual storage insights, and refined Trash interactions |
 | [v1.5.0](#v150) | 2026-07-13 | Independent feature ownership, safer file workflows, viewer and sharing reliability, plugin distribution, and navigation fixes |
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v1.6.0
+
+**Release Date:** July 23, 2026
+
+**Previous public release:** v1.5.0
+
+**Development range included:** v1.5.1 through v1.6.0
+
+Arcile v1.6.0 adds encrypted OnlyFiles vaults and a complete native video experience, then refines storage analysis, Trash, loading states, and media navigation across the app.
+
+## What's New Since v1.5.0
+
+### OnlyFiles Vaults
+- **Private and portable vaults:** Create multiple encrypted vaults in app-private storage or Arcile-managed folders on internal, SD-card, and USB storage.
+- **Daily file workflows:** Browse, search, sort, select, copy, move, import, export, share, and open encrypted content through guarded, cancellable operations.
+- **Protected access and recovery:** Use optional biometric unlock, automatic foreground locking, screen-capture protection, encrypted media previews, health checks, and recoverable atomic changes.
+- **Documented boundaries:** Vault cryptography, plaintext handoffs, backup guidance, and recovery limits are described in the [OnlyFiles format and security guide](arcile-app/docs/ONLYFILES_FORMAT_AND_SECURITY.md). OnlyFiles remains unaudited software.
+
+### Native Video Experience
+- **Video gallery:** Browse videos and albums with search, timeline grouping, sorting, view controls, selection actions, and stable thumbnails.
+- **Shared native viewer:** Browser, Recents, Trash, external opens, and OnlyFiles use one Media3 viewer with sibling paging, seeking, tracks, subtitles, speed, repeat, resize, favorites, sharing, and source-aware file actions.
+- **Large-library reliability:** Playback loads the selected item first and resolves neighboring media lazily for responsive opening and navigation.
+
+### Storage, Trash, and Interface
+- **Capacity-aware storage map:** Visual rings distinguish free space, system data, and accessible files, include complete folder accounting, and reuse scanned sizes for instant drill-down.
+- **Clearer map navigation:** The responsive, theme-adaptive map and grouped list share highlighting, touch-shaped feedback, accessible path navigation, and direct reset behavior.
+- **Focused Trash actions:** Media previews open directly, filenames expose applicable actions, and single-item restore uses a clear confirmation while preserving safe recovery behavior.
+- **Consistent motion:** Expressive loading states and video thumbnail transitions now align with the rest of Arcile.
 
 ---
 

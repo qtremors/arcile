@@ -25,7 +25,8 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Replay
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -92,6 +93,7 @@ internal enum class VideoViewerBackAction {
     ExitViewer
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun VideoViewerScreen(
     session: VideoPlaybackSession,
@@ -175,7 +177,7 @@ internal fun VideoViewerScreen(
             contentAlignment = Alignment.Center
         ) {
             if (!state.isInitialized || state.isLoading) {
-                CircularProgressIndicator(color = Color.White)
+                LoadingIndicator(color = Color.White)
             } else {
                 Text(
                     text = stringResource(R.string.no_results_found),

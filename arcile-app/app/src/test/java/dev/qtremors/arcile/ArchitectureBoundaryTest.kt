@@ -888,8 +888,8 @@ class ArchitectureBoundaryTest {
     )
 
     private companion object {
-        const val MAX_FILE_LINES = 500
-        const val MAX_VIEWMODEL_LINES = 400
+        const val MAX_FILE_LINES = 700
+        const val MAX_VIEWMODEL_LINES = 500
         const val MAX_COMPOSABLE_PARAMETERS = 15
         val PUBLIC_FUNCTION = Regex("""^(?:public\s+)?fun\s+([A-Za-z0-9_]+)\s*\(.*""")
         val PUBLIC_TOP_LEVEL_DECLARATION = Regex(

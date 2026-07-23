@@ -7,7 +7,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,11 +21,12 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
@@ -133,13 +133,15 @@ internal fun ArchiveContextHeader(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        Row(
+        LazyRow(
             modifier = Modifier
-                .fillMaxWidth()
-                .horizontalScroll(rememberScrollState()),
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            breadcrumbs.forEach { (label, path) ->
+            itemsIndexed(
+                items = breadcrumbs,
+                key = { index, (_, path) -> path ?: "root:$index" }
+            ) { _, (label, path) ->
                 ExpressiveFilterChip(
                     selected = path == currentPrefix,
                     onClick = { if (path != null) onOpenFolder(path) },

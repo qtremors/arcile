@@ -2,13 +2,16 @@ package dev.qtremors.arcile.core.ui
 import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
 
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,11 +36,7 @@ fun Breadcrumbs(
     storageVolumes: List<dev.qtremors.arcile.core.storage.domain.StorageVolume>,
     onPathSegmentClick: (String) -> Unit
 ) {
-    val scrollState = rememberScrollState()
-
-    LaunchedEffect(currentPath) {
-        scrollState.animateScrollTo(scrollState.maxValue)
-    }
+    val listState = rememberLazyListState()
 
     val currentVolume = remember(currentPath, storageVolumes) {
         storageVolumes.find { volume ->
@@ -56,56 +55,71 @@ fun Breadcrumbs(
     }
 
     val segments = relativePath.split("/").filter { it.isNotEmpty() }
+    val segmentPaths = remember(segments, volumeRootPath) {
+        var builtPath = volumeRootPath
+        segments.map { segment ->
+            builtPath += if (builtPath.endsWith("/")) segment else "/$segment"
+            segment to builtPath
+        }
+    }
 
-    Row(
+    LaunchedEffect(currentPath, segmentPaths.size) {
+        listState.scrollToItem(segmentPaths.size + 1)
+    }
+
+    LazyRow(
+        state = listState,
         modifier = Modifier
-            .horizontalScroll(scrollState)
-            .height(48.dp)
-            .padding(horizontal = 16.dp),
+            .fillMaxWidth()
+            .height(48.dp),
+        contentPadding = PaddingValues(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // volume root segment
-        val isAtRoot = segments.isEmpty() && volumeRootPath.isNotEmpty()
-        Text(
-            text = volumeName,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = if (isAtRoot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-            modifier = Modifier
-                .padding(horizontal = 4.dp, vertical = 2.dp)
-                .clip(CircleShape)
-                .bounceClickable(enabled = !isAtRoot && volumeRootPath.isNotEmpty()) {
-                    onPathSegmentClick(volumeRootPath)
-                }
-        )
-
-        var currentBuiltPath = volumeRootPath
-        segments.forEachIndexed { index, segment ->
-            currentBuiltPath += if (currentBuiltPath.endsWith("/")) segment else "/$segment"
-            val isLast = index == segments.size - 1
-            val segmentPath = currentBuiltPath
-
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = stringResource(R.string.action_navigate_to),
-                modifier = Modifier.padding(horizontal = 2.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-            )
-
+        item(key = "volume:$volumeRootPath") {
+            val isAtRoot = segmentPaths.isEmpty() && volumeRootPath.isNotEmpty()
             Text(
-                text = segment,
+                text = volumeName,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                color = if (isAtRoot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier
                     .padding(horizontal = 4.dp, vertical = 2.dp)
                     .clip(CircleShape)
-                    .bounceClickable(enabled = !isLast) {
-                        onPathSegmentClick(segmentPath)
+                    .bounceClickable(enabled = !isAtRoot && volumeRootPath.isNotEmpty()) {
+                        onPathSegmentClick(volumeRootPath)
                     }
             )
         }
 
-        Spacer(modifier = Modifier.width(16.dp))
+        itemsIndexed(
+            items = segmentPaths,
+            key = { _, item -> item.second }
+        ) { index, (segment, segmentPath) ->
+            Box(contentAlignment = Alignment.CenterStart) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = stringResource(R.string.action_navigate_to),
+                    modifier = Modifier.padding(horizontal = 2.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                )
+                val isLast = index == segmentPaths.lastIndex
+                Text(
+                    text = segment,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = if (isLast) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                    modifier = Modifier
+                        .padding(start = 28.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)
+                        .clip(CircleShape)
+                        .bounceClickable(enabled = !isLast) {
+                            onPathSegmentClick(segmentPath)
+                        }
+                )
+            }
+        }
+
+        item(key = "end-spacer") {
+            Spacer(modifier = Modifier.width(16.dp))
+        }
     }
 }
