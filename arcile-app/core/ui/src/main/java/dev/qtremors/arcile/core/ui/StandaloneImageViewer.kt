@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -246,49 +247,70 @@ fun StandaloneImageViewer(
                         ),
                         containerColor = Color.Black.copy(alpha = 0.5f),
                         contentColor = Color.White,
-                        height = 56.dp,
-                        minWidth = 64.dp,
-                        iconSize = 28.dp
+                        height = 48.dp,
+                        minWidth = 48.dp,
+                        iconSize = 24.dp
                     )
                     Spacer(Modifier.weight(1f))
                     Box {
                         var menuVisible by remember { mutableStateOf(false) }
+                        val haptics = rememberArcileHaptics()
                         Surface(
-                            onClick = { menuVisible = true },
+                            onClick = {
+                                haptics.selectionStart()
+                                menuVisible = true
+                            },
                             shape = CircleShape,
                             color = Color.Black.copy(alpha = 0.5f),
-                            modifier = Modifier.size(56.dp)
+                            modifier = Modifier
+                                .size(48.dp)
+                                .bounceClickable(
+                                    onClick = {
+                                        haptics.selectionStart()
+                                        menuVisible = true
+                                    }
+                                )
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options), tint = Color.White)
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options), tint = Color.White, modifier = Modifier.size(24.dp))
                             }
                         }
-                        DropdownMenu(expanded = menuVisible, onDismissRequest = { menuVisible = false }) {
-                            ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.action_info)) },
-                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                onClick = {
-                                    menuVisible = false
-                                    metadataVisible = true
+                        ArcileDropdownMenu(
+                            expanded = menuVisible,
+                            onDismissRequest = { menuVisible = false },
+                            items = listOf(
+                                {
+                                    ArcileDropdownMenuItem(
+                                        text = { Text(stringResource(R.string.action_info)) },
+                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                        onClick = {
+                                            menuVisible = false
+                                            metadataVisible = true
+                                        }
+                                    )
+                                },
+                                {
+                                    ArcileDropdownMenuItem(
+                                        text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                                        onClick = {
+                                            menuVisible = false
+                                            onOpenWith()
+                                        }
+                                    )
+                                },
+                                {
+                                    ArcileDropdownMenuItem(
+                                        text = { Text(stringResource(R.string.share)) },
+                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                        onClick = {
+                                            menuVisible = false
+                                            onShare()
+                                        }
+                                    )
                                 }
                             )
-                            ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.image_gallery_open_with)) },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                                onClick = {
-                                    menuVisible = false
-                                    onOpenWith()
-                                }
-                            )
-                            ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.share)) },
-                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                onClick = {
-                                    menuVisible = false
-                                    onShare()
-                                }
-                            )
-                        }
+                        )
                     }
                 }
             }

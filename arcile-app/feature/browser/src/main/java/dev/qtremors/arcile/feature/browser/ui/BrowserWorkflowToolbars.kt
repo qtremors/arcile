@@ -224,87 +224,69 @@ internal fun BrowserSelectionToolbar(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     shadowElevation = 4.dp,
                     tonalElevation = 4.dp,
-                    modifier = Modifier.size(56.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.MoreVert,
                             contentDescription = stringResource(R.string.action_more_options),
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }
-                DropdownMenu(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    expanded = showSelectionMenu,
-                    onDismissRequest = { showSelectionMenu = false }
+                val menuActions = remember(
+                    selectionIntents.onShareSelected,
+                    state.selectedFiles,
+                    isArchiveSelection
                 ) {
-                    val menuActions = remember(
-                        selectionIntents.onShareSelected,
-                        state.selectedFiles,
-                        isArchiveSelection
-                    ) {
-                        mutableListOf<@Composable () -> Unit>().apply {
-                            if (!isArchiveSelection) add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.archive_compress_zip)) },
-                                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        dialogVisibility.showCreateArchiveDialog = true
-                                    }
-                                )
-                            }
-                            if (selectedArchive) add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.archive_extract_here)) },
-                                    leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        dialogVisibility.showExtractArchiveDialog = true
-                                    }
-                                )
-                            }
-                            if (!isArchiveSelection) add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.share)) },
-                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        selectionIntents.onShareSelected()
-                                    }
-                                )
-                            }
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.properties_title)) },
-                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                    onClick = {
-                                        showSelectionMenu = false
-                                        selectionIntents.onOpenProperties()
-                                    }
-                                )
-                            }
+                    mutableListOf<@Composable () -> Unit>().apply {
+                        if (!isArchiveSelection) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.archive_compress_zip)) },
+                                leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    dialogVisibility.showCreateArchiveDialog = true
+                                }
+                            )
                         }
-                    }
-                    menuActions.forEachIndexed { index, action ->
-                        val shape = when {
-                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                            index == menuActions.lastIndex -> MaterialTheme.shapes.menuGroupLast
-                            else -> MaterialTheme.shapes.menuGroupMiddle
+                        if (selectedArchive) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.archive_extract_here)) },
+                                leadingIcon = { Icon(Icons.Default.Unarchive, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    dialogVisibility.showExtractArchiveDialog = true
+                                }
+                            )
                         }
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                                .clip(shape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        ) {
-                            action()
+                        if (!isArchiveSelection) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.share)) },
+                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    selectionIntents.onShareSelected()
+                                }
+                            )
+                        }
+                        add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.properties_title)) },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    selectionIntents.onOpenProperties()
+                                }
+                            )
                         }
                     }
                 }
+                dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+                    expanded = showSelectionMenu,
+                    onDismissRequest = { showSelectionMenu = false },
+                    items = menuActions
+                )
             }
         }
     )

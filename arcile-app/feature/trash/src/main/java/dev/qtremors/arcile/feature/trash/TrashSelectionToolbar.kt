@@ -108,54 +108,58 @@ private fun TrashSelectionMoreMenu(
             shape = CircleShape,
             color = MaterialTheme.colorScheme.primaryContainer,
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier.size(48.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = stringResource(R.string.action_more_options),
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        val menuActions = buildList<@Composable () -> Unit> {
             val singleFile = selectedItems.singleOrNull()?.takeUnless { it.isDirectory }
             if (singleFile != null) {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.open)) },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                    },
-                    onClick = {
-                        expanded = false
-                        actions.open(singleFile)
-                    }
-                )
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.image_gallery_open_with)) },
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                    },
-                    onClick = {
-                        expanded = false
-                        actions.openWith(singleFile)
-                    }
-                )
+                add {
+                    ArcileDropdownMenuItem(
+                        text = { Text(stringResource(R.string.open)) },
+                        leadingIcon = {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            actions.open(singleFile)
+                        }
+                    )
+                }
+                add {
+                    ArcileDropdownMenuItem(
+                        text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                        leadingIcon = {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            actions.openWith(singleFile)
+                        }
+                    )
+                }
             }
             if (selectedItems.isNotEmpty() && selectedItems.none(FileModel::isDirectory)) {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.share)) },
-                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        actions.share()
-                    }
-                )
+                add {
+                    ArcileDropdownMenuItem(
+                        text = { Text(stringResource(R.string.share)) },
+                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                        onClick = {
+                            expanded = false
+                            actions.share()
+                        }
+                    )
+                }
             }
-            ArcileDropdownMenuItem(
+            add {
+                ArcileDropdownMenuItem(
                     text = { Text(stringResource(R.string.properties_title)) },
                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                     onClick = {
@@ -163,6 +167,13 @@ private fun TrashSelectionMoreMenu(
                         actions.openProperties()
                     }
                 )
+            }
         }
+
+        dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            items = menuActions
+        )
     }
 }

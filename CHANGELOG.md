@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.0
+> **Version:** 1.6.1
 > **Last Updated:** 2026-07-23
 
 ---
+
+## [1.6.1] - 2026-07-23
+
+- **Expressive Controls**: Unified dropdown styling, standardized split actions and standalone overflow controls at `48.dp`, brought Settings, Quick Access, About, and Licenses lists onto Material 3 Expressive segmented groups, and updated Browser overflow toggle items to use active container highlights and dynamic leading state icons instead of redundant trailing checkmarks.
+- **Expressive Accent Color Picker**: Redesigned the Accent Color Selector and Bottom Sheet with Material Design 3 Expressive UI/UX features, including interactive live component theme previews, spring-animated shape morphing swatches, dynamic halo borders, and categorized color palettes.
+- **Plugins Empty State**: Replaced unavailable “Coming soon” plugin rows with a focused empty state until plugins are installed or available.
 
 ## [1.6.0] - 2026-07-23
 

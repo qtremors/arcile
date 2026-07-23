@@ -150,7 +150,6 @@ internal fun BoxScope.ImageGalleryBottomBar(
         }
     }
 }
-
 @Composable
 private fun GalleryNavigationOrClipboardBar(
     state: ImageGalleryState,
@@ -277,8 +276,8 @@ private fun GallerySelectionActionsBar(
                 actions = mainActions,
                 containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                 contentColor = MaterialTheme.colorScheme.onSurface,
-                height = 56.dp,
-                minWidth = 56.dp,
+                height = 48.dp,
+                minWidth = 48.dp,
                 iconSize = 24.dp
             )
             GallerySelectionMoreMenu(
@@ -305,103 +304,72 @@ private fun GallerySelectionMoreMenu(
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             shadowElevation = 4.dp,
             tonalElevation = 4.dp,
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier.size(48.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = stringResource(R.string.action_more_options),
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
-        DropdownMenu(
-            shape = MaterialTheme.shapes.extraLarge,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer,
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            val menuActions = buildList<@Composable () -> Unit> {
-                add {
-                    GalleryMenuItem(
-                        text = stringResource(R.string.archive_compress_zip),
-                        icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            fileActions.createZipFromSelection()
-                        }
-                    )
-                }
-                if (
-                    state.selectedFiles.size == 1 &&
-                    state.selectedAlbumPath != null &&
-                    state.selectedAlbumPath != "__favorites__"
-                ) {
-                    add {
-                        GalleryMenuItem(
-                            text = stringResource(R.string.image_gallery_set_as_cover),
-                            icon = { Icon(Icons.Default.Image, contentDescription = null) },
-                            onClick = {
-                                expanded = false
-                                fileActions.setAlbumCover(
-                                    state.selectedAlbumPath,
-                                    state.selectedFiles.first()
-                                )
-                                selectionActions.clear()
-                            }
-                        )
+        val menuActions = buildList<@Composable () -> Unit> {
+            add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.archive_compress_zip),
+                    leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        fileActions.createZipFromSelection()
                     }
-                }
+                )
+            }
+            if (
+                state.selectedFiles.size == 1 &&
+                state.selectedAlbumPath != null &&
+                state.selectedAlbumPath != "__favorites__"
+            ) {
                 add {
-                    GalleryMenuItem(
-                        text = stringResource(R.string.share),
-                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.image_gallery_set_as_cover),
+                        leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
                         onClick = {
                             expanded = false
-                            selectionActions.share()
-                        }
-                    )
-                }
-                add {
-                    GalleryMenuItem(
-                        text = stringResource(R.string.properties_title),
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            selectionActions.openProperties()
+                            fileActions.setAlbumCover(
+                                state.selectedAlbumPath,
+                                state.selectedFiles.first()
+                            )
+                            selectionActions.clear()
                         }
                     )
                 }
             }
-            menuActions.forEachIndexed { index, action ->
-                val shape = when {
-                    menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                    index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                    index == menuActions.lastIndex -> MaterialTheme.shapes.menuGroupLast
-                    else -> MaterialTheme.shapes.menuGroupMiddle
-                }
-                Box(
-                    modifier = Modifier
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                        .clip(shape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                ) {
-                    action()
-                }
+            add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.share),
+                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        selectionActions.share()
+                    }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.properties_title),
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        selectionActions.openProperties()
+                    }
+                )
             }
         }
+        dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            items = menuActions
+        )
     }
-}
-
-@Composable
-private fun GalleryMenuItem(
-    text: String,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit
-) {
-    ArcileDropdownMenuItem(
-        text = { Text(text) },
-        leadingIcon = icon,
-        onClick = onClick
-    )
 }

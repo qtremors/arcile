@@ -59,13 +59,13 @@ internal fun FloatingGallerySelectionTopBar(
             .height(56.dp)
     ) {
         Surface(
-            shape = RoundedCornerShape(24.dp),
+            shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             tonalElevation = 6.dp,
             shadowElevation = 6.dp,
             modifier = Modifier
-                .height(48.dp)
+                .height(56.dp)
                 .align(Alignment.CenterStart)
         ) {
             Row(
@@ -111,7 +111,7 @@ internal fun FloatingGallerySelectionTopBar(
             tonalElevation = 6.dp,
             shadowElevation = 6.dp,
             modifier = Modifier
-                .height(48.dp)
+                .height(56.dp)
                 .align(Alignment.CenterEnd)
         ) {
             Row(

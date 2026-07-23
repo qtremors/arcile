@@ -169,29 +169,11 @@ internal fun SelectionTopBar(
                 Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
             }
 
-            DropdownMenu(
-                shape = MaterialTheme.shapes.extraLarge,
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
                 expanded = more,
-                onDismissRequest = { more = false }
-            ) {
-                menuActions.forEachIndexed { index, action ->
-                    val shape = when {
-                        menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                        index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                        index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                        else -> MaterialTheme.shapes.menuGroupMiddle
-                    }
-                    Box(
-                        modifier = Modifier
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
-                            .clip(shape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                    ) {
-                        action()
-                    }
-                }
-            }
+                onDismissRequest = { more = false },
+                items = menuActions
+            )
         },
         colors = TopAppBarDefaults.largeTopAppBarColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer,

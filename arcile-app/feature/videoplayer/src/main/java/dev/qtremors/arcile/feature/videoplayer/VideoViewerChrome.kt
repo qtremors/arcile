@@ -447,9 +447,9 @@ internal fun VideoViewerBottomChrome(
                     actions = toolbarActions,
                     containerColor = Color.Black.copy(alpha = 0.5f),
                     contentColor = Color.White,
-                    height = 56.dp,
-                    minWidth = if (selectionModeEnabled) 52.dp else 64.dp,
-                    iconSize = 28.dp
+                    height = 48.dp,
+                    minWidth = 48.dp,
+                    iconSize = 24.dp
                 )
 
                 VideoViewerOverflowMenu(

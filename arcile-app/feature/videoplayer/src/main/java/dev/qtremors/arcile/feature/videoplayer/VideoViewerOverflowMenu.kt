@@ -14,10 +14,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -69,7 +67,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
@@ -92,6 +89,9 @@ import java.util.Locale
 // Overflow Menu – matches ImageViewerOverflowMenu exactly:
 // CircleShape 56dp button + shaped dropdown items
 // ──────────────────────────────────────────────────────────────
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+
 @Composable
 internal fun VideoViewerOverflowMenu(
     currentFile: FileModel?,
@@ -104,121 +104,91 @@ internal fun VideoViewerOverflowMenu(
     var expanded by remember { mutableStateOf(false) }
     val hasActions = !readOnly || canOpenWith || canShare
 
+    val haptics = rememberArcileHaptics()
     if (!hasActions) return
 
     Box {
         Surface(
-            onClick = { expanded = true },
+            onClick = {
+                haptics.selectionStart()
+                expanded = true
+            },
             shape = CircleShape,
             color = Color.Black.copy(alpha = 0.5f),
-            modifier = Modifier.size(56.dp)
+            modifier = Modifier
+                .size(48.dp)
+                .bounceClickable(
+                    onClick = {
+                        haptics.selectionStart()
+                        expanded = true
+                    }
+                )
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
                     imageVector = Icons.Default.MoreVert,
                     contentDescription = stringResource(R.string.action_more_options),
                     tint = Color.White,
-                    modifier = Modifier.size(28.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
         }
 
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            shape = MaterialTheme.shapes.extraLarge,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-            modifier = Modifier.width(200.dp)
-        ) {
-            val menuActions = buildList<@Composable () -> Unit> {
-                add {
-                    ViewerOverflowMenuItem(
-                        text = stringResource(
-                            when (resizeModeIndex) {
-                                0 -> R.string.video_player_resize_fit
-                                1 -> R.string.video_player_resize_zoom
-                                else -> R.string.video_player_resize_fill
-                            }
-                        ),
-                        icon = { Icon(Icons.Default.AspectRatio, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            actions.onResizeModeToggle()
+        val menuActions = buildList<@Composable () -> Unit> {
+            add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(
+                        when (resizeModeIndex) {
+                            0 -> R.string.video_player_resize_fit
+                            1 -> R.string.video_player_resize_zoom
+                            else -> R.string.video_player_resize_fill
                         }
-                    )
-                }
-                if (!readOnly) add {
-                    ViewerOverflowMenuItem(
-                        text = stringResource(R.string.action_info),
-                        icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            currentFile?.let { actions.onShowMetadata(it.absolutePath) }
-                        }
-                    )
-                }
-                if (canOpenWith) add {
-                    ViewerOverflowMenuItem(
-                        text = stringResource(R.string.image_gallery_open_with),
-                        icon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            currentFile?.let(actions.onOpenWith)
-                        }
-                    )
-                }
-                if (canShare) add {
-                    ViewerOverflowMenuItem(
-                        text = stringResource(R.string.share),
-                        icon = { Icon(Icons.Default.Share, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            currentFile?.let(actions.onShare)
-                        }
-                    )
-                }
+                    ),
+                    leadingIcon = { Icon(Icons.Default.AspectRatio, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        actions.onResizeModeToggle()
+                    }
+                )
             }
-
-            menuActions.forEachIndexed { index, action ->
-                val shape = when {
-                    menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                    index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                    index == menuActions.lastIndex -> MaterialTheme.shapes.menuGroupLast
-                    else -> MaterialTheme.shapes.menuGroupMiddle
-                }
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                        .clip(shape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                ) {
-                    action()
-                }
+            if (!readOnly) add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.action_info),
+                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        currentFile?.let { actions.onShowMetadata(it.absolutePath) }
+                    }
+                )
+            }
+            if (canOpenWith) add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.image_gallery_open_with),
+                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        currentFile?.let(actions.onOpenWith)
+                    }
+                )
+            }
+            if (canShare) add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.share),
+                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                    onClick = {
+                        expanded = false
+                        currentFile?.let(actions.onShare)
+                    }
+                )
             }
         }
-    }
-}
 
-@Composable
-private fun ViewerOverflowMenuItem(
-    text: String,
-    icon: @Composable () -> Unit,
-    onClick: () -> Unit
-) {
-    ArcileDropdownMenuItem(
-        text = {
-            Text(
-                text = text,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        },
-        leadingIcon = icon,
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-    )
+        dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            items = menuActions
+        )
+    }
 }
 
 // ──────────────────────────────────────────────────────────────

@@ -117,8 +117,8 @@ internal fun GalleryClipboardOperationToolbar(
             actions = toolbarActions,
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            height = 56.dp,
-            minWidth = 56.dp,
+            height = 48.dp,
+            minWidth = 48.dp,
             iconSize = 24.dp
         )
     }

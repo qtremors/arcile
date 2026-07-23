@@ -388,32 +388,33 @@ private fun AlbumGridItem(
         }
 
         if (showMenu && album.path != null) {
-            DropdownMenu(
+            dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
                 expanded = showMenu,
-                onDismissRequest = { showMenu = false }
-            ) {
-                ArcileDropdownMenuItem(
-                    text = {
-                        Text(
-                            text = if (isPinned) {
-                                stringResource(R.string.image_gallery_action_unpin_album)
-                            } else {
-                                stringResource(R.string.image_gallery_action_pin_album)
-                            }
-                        )
-                    },
-                    onClick = {
-                        onTogglePinnedAlbum(album.path)
-                        showMenu = false
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.PushPin,
-                            contentDescription = null
-                        )
-                    }
-                )
-            }
+                onDismissRequest = { showMenu = false },
+                items = listOf {
+                    ArcileDropdownMenuItem(
+                        text = {
+                            Text(
+                                text = if (isPinned) {
+                                    stringResource(R.string.image_gallery_action_unpin_album)
+                                } else {
+                                    stringResource(R.string.image_gallery_action_pin_album)
+                                }
+                            )
+                        },
+                        onClick = {
+                            onTogglePinnedAlbum(album.path)
+                            showMenu = false
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.PushPin,
+                                contentDescription = null
+                            )
+                        }
+                    )
+                }
+            )
         }
     }
 }

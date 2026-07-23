@@ -1,61 +1,55 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.shape.CircleShape
-import dev.qtremors.arcile.core.ui.theme.spacing
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
+import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.core.ui.ArcileSectionHeader
-import dev.qtremors.arcile.core.ui.ArcileListSurface
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.settings.SettingsSection
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes
+import dev.qtremors.arcile.core.ui.theme.spacing
 
-// ──────────────────────────────────────────────────────
-// Data model for a third-party library entry
-// ──────────────────────────────────────────────────────
 private data class LibraryInfo(
     val name: String,
     val license: String,
     val url: String
 )
 
-// ──────────────────────────────────────────────────────
-// Runtime dependencies used by this application
-// ──────────────────────────────────────────────────────
 private val libraries = listOf(
     LibraryInfo("AndroidX Core KTX", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/core"),
     LibraryInfo("AndroidX Activity Compose", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/activity"),
@@ -77,7 +71,7 @@ private val libraries = listOf(
     LibraryInfo("Tukaani XZ 1.10", "Public domain", "https://tukaani.org/xz/java.html")
 )
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun LicensesScreen(
     onNavigateBack: () -> Unit
@@ -118,46 +112,48 @@ fun LicensesScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // ── License notice ──
             item {
-                ArcileListSurface {
-                    Text(
-                        text = stringResource(R.string.licenses_notice),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(16.dp)
+                SegmentedListItem(
+                    onClick = {},
+                    shapes = expressiveSegmentedShapes(index = 0, count = 1),
+                    content = {
+                        Text(
+                            text = stringResource(R.string.licenses_notice),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    },
+                    colors = ListItemDefaults.segmentedColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
                     )
-                }
+                )
             }
 
-            // ── Library list ──
             item {
-                Column {
-                    ArcileSectionHeader(text = stringResource(R.string.licenses_section_libraries))
-                    ArcileListSurface {
-                        libraries.forEachIndexed { index, lib ->
-                            ListItem(
-                                headlineContent = { Text(lib.name) },
-                                supportingContent = { Text(lib.license) },
-                                trailingContent = {
+                SettingsSection(title = stringResource(R.string.licenses_section_libraries)) {
+                    libraries.forEachIndexed { index, lib ->
+                        SegmentedListItem(
+                            onClick = { uriHandler.openUri(lib.url) },
+                            shapes = expressiveSegmentedShapes(index = index, count = libraries.size),
+                            content = { Text(lib.name) },
+                            supportingContent = { Text(lib.license) },
+                            trailingContent = {
+                                Box(
+                                    modifier = Modifier.fillMaxHeight(),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
                                         Icons.AutoMirrored.Filled.OpenInNew,
                                         contentDescription = null,
                                         modifier = Modifier.size(16.dp)
                                     )
-                                },
-                                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-                                modifier = Modifier
-                                    .clip(ExpressiveShapes.medium)
-                                    .bounceClickable { uriHandler.openUri(lib.url) }
-                            )
-                            if (index < libraries.lastIndex) {
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(horizontal = 16.dp),
-                                    color = MaterialTheme.colorScheme.outlineVariant
-                                )
-                            }
-                        }
+                                }
+                            },
+                            colors = ListItemDefaults.segmentedColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainer
+                            ),
+                            modifier = Modifier.height(IntrinsicSize.Min)
+                        )
                     }
                 }
             }

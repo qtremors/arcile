@@ -137,29 +137,11 @@ internal fun VaultActionsMenu(
         }
     }
 
-    DropdownMenu(
-        shape = MaterialTheme.shapes.extraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
         expanded = expanded,
-        onDismissRequest = onDismiss
-    ) {
-        menuActions.forEachIndexed { index, action ->
-            val shape = when {
-                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                else -> MaterialTheme.shapes.menuGroupMiddle
-            }
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            ) {
-                action()
-            }
-        }
-    }
+        onDismissRequest = onDismiss,
+        items = menuActions
+    )
 
     if (changePassword) ChangeVaultPasswordDialog(
         { changePassword = false }
