@@ -14,7 +14,7 @@
     <string name="model_viewer_background_black">Black</string>
     <string name="section_plugins">Plugins</string>
     <string name="plugins_title">Plugins</string>
-    <string name="plugins_settings_description">Manage optional Arcile viewers.</string>
+    <string name="plugins_settings_description">Manage installed Arcile plugins.</string>
     <string name="plugins_available">Arcile plugins</string>
     <string name="plugin_missing_title">%1$s Plugin is not installed</string>
     <string name="plugin_missing_message">Install the %1$s plugin from GitHub Releases?</string>

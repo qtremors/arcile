@@ -63,7 +63,7 @@ interface ScrollbarState {
     suspend fun scrollBy(value: Float): Float
 }
 
-class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
+data class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
     override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
@@ -98,7 +98,7 @@ class LazyListScrollbarState(val state: LazyListState) : ScrollbarState {
     override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
 
-class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
+data class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
     override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
@@ -144,7 +144,7 @@ class LazyGridScrollbarState(val state: LazyGridState) : ScrollbarState {
     override suspend fun scrollBy(value: Float): Float = state.scrollBy(value)
 }
 
-class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : ScrollbarState {
+data class LazyStaggeredGridScrollbarState(val state: LazyStaggeredGridState) : ScrollbarState {
     override val firstVisibleItemIndex: Int get() = state.firstVisibleItemIndex
     override val totalItemsCount: Int get() = state.layoutInfo.totalItemsCount
     override val firstVisibleItemScrollOffset: Int get() = state.firstVisibleItemScrollOffset
@@ -198,7 +198,7 @@ fun ArcileFastScrollbar(
     var isDragging by remember { mutableStateOf(false) }
     var isPressed by remember { mutableStateOf(false) }
     var dragPositionFraction by remember { mutableFloatStateOf(0f) }
-    val pendingTarget = remember(scrollbarState) {
+    val pendingTarget = remember {
         MutableSharedFlow<Int>(
             extraBufferCapacity = 1,
             onBufferOverflow = BufferOverflow.DROP_OLDEST
@@ -215,8 +215,14 @@ fun ArcileFastScrollbar(
     var previousFraction by remember { mutableFloatStateOf(activeFraction) }
     var motionDirection by remember { mutableIntStateOf(1) }
 
+    LaunchedEffect(scrollFraction, isDragging) {
+        if (!isDragging) {
+            dragPositionFraction = scrollFraction
+        }
+    }
+
     LaunchedEffect(scrollbarState) {
-        pendingTarget.collectLatest { index ->
+        pendingTarget.collect { index ->
             scrollbarState.scrollToItem(index)
         }
     }
@@ -266,7 +272,7 @@ fun ArcileFastScrollbar(
 
     BoxWithConstraints(
         modifier = modifier
-            .width(32.dp)
+            .width(48.dp)
             .padding(contentPadding)
             .graphicsLayer { alpha = scrollbarAlphaState.value }
             .testTag("arcile_fast_scrollbar")
@@ -288,60 +294,62 @@ fun ArcileFastScrollbar(
             pendingTarget.tryEmit(scrollbarState.indexForFraction(fraction))
         }
 
-        val dragModifier = if (isInteractive) {
-            Modifier
-                .pointerInput(totalItems) {
-                    detectDragGestures(
-                        onDragStart = { offset ->
-                            isDragging = true
-                            isPressed = true
-                            val thumbHeightPx = thumbHeight.toPx()
-                            val handleTop = activeFraction * (size.height - thumbHeightPx).coerceAtLeast(1f)
-                            grabOffsetPx = if (offset.y in handleTop..(handleTop + thumbHeightPx)) {
-                                offset.y - handleTop
-                            } else {
-                                thumbHeightPx / 2f
-                            }
-                            updateFromTouch(offset.y, size.height.toFloat(), thumbHeightPx)
-                        },
-                        onDragEnd = {
-                            isDragging = false
-                            isPressed = false
-                        },
-                        onDragCancel = {
-                            isDragging = false
-                            isPressed = false
-                        },
-                        onDrag = { change, _ ->
-                            change.consume()
-                            updateFromTouch(change.position.y, size.height.toFloat(), thumbHeight.toPx())
+        val dragModifier = Modifier
+            .pointerInput(totalItems) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        isPressed = true
+                        val thumbHeightPx = thumbHeight.toPx()
+                        val handleTop = activeFraction * (size.height - thumbHeightPx).coerceAtLeast(1f)
+                        grabOffsetPx = if (offset.y in handleTop..(handleTop + thumbHeightPx)) {
+                            offset.y - handleTop
+                        } else {
+                            thumbHeightPx / 2f
                         }
-                    )
-                }
-                .pointerInput(totalItems) {
-                    detectTapGestures(
-                        onPress = {
-                            isPressed = true
-                            try {
-                                awaitRelease()
-                            } finally {
-                                isPressed = false
+                        updateFromTouch(offset.y, size.height.toFloat(), thumbHeightPx)
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        isPressed = false
+                    },
+                    onDragCancel = {
+                        isDragging = false
+                        isPressed = false
+                    },
+                    onDrag = { change, _ ->
+                        change.consume()
+                        updateFromTouch(change.position.y, size.height.toFloat(), thumbHeight.toPx())
+                    }
+                )
+            }
+            .then(
+                if (isInteractive) {
+                    Modifier.pointerInput(totalItems) {
+                        detectTapGestures(
+                            onPress = {
+                                isPressed = true
+                                try {
+                                    awaitRelease()
+                                } finally {
+                                    isPressed = false
+                                }
+                            },
+                            onTap = { offset ->
+                                grabOffsetPx = thumbHeight.toPx() / 2f
+                                updateFromTouch(offset.y, size.height.toFloat(), thumbHeight.toPx())
                             }
-                        },
-                        onTap = { offset ->
-                            grabOffsetPx = thumbHeight.toPx() / 2f
-                            updateFromTouch(offset.y, size.height.toFloat(), thumbHeight.toPx())
-                        }
-                    )
+                        )
+                    }
+                } else {
+                    Modifier
                 }
-        } else {
-            Modifier
-        }
+            )
 
         Box(
             modifier = Modifier
                 .fillMaxHeight()
-                .width(32.dp)
+                .width(48.dp)
                 .align(Alignment.CenterEnd)
                 .then(dragModifier)
         ) {
@@ -358,10 +366,12 @@ fun ArcileFastScrollbar(
                 )
             }
 
+            val currentThumbWidth = if (isDirectInteraction) 8.dp else 6.dp
+
             Box(
                 modifier = Modifier
                     .offset(y = thumbOffset)
-                    .size(width = 6.dp, height = thumbHeight)
+                    .size(width = currentThumbWidth, height = thumbHeight)
                     .align(Alignment.TopEnd)
                     .background(thumbColor, RoundedCornerShape(50))
                     .graphicsLayer {

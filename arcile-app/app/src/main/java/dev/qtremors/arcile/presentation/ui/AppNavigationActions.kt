@@ -44,6 +44,9 @@ internal class AppNavigationActions(
     var pluginPrompt by mutableStateOf<PluginFileResolution?>(null)
         private set
 
+    var apkInstallTarget by mutableStateOf<AppFileOpenResolution.InstallApk?>(null)
+        private set
+
     val destinationMappers = AppDestinationMappers(
         navigateToBrowser = ::navigateToBrowser,
         openPath = ::openPath,
@@ -53,6 +56,11 @@ internal class AppNavigationActions(
 
     fun dismissPluginPrompt() {
         pluginPrompt = null
+    }
+
+    fun dismissApkInstaller() {
+        apkInstallTarget = null
+        dev.qtremors.arcile.core.operation.android.apk.PackageInstallerEngine.resetState()
     }
 
     fun navigateToBrowser(route: AppRoutes.Main) {
@@ -218,6 +226,7 @@ internal class AppNavigationActions(
                     surroundingFiles = surroundingFiles,
                     selectedPaths = selectedPaths
                 )
+                is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution
                 is AppFileOpenResolution.External -> onOpenFile(resolution.path)
             }
         }

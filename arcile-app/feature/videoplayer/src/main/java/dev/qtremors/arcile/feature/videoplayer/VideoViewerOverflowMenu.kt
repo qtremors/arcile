@@ -78,19 +78,14 @@ import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.core.ui.theme.menuGroupLast
-import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
-import kotlinx.coroutines.launch
-import java.util.Locale
 
 // ──────────────────────────────────────────────────────────────
 // Overflow Menu – matches ImageViewerOverflowMenu exactly:
 // CircleShape 56dp button + shaped dropdown items
 // ──────────────────────────────────────────────────────────────
-import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
+
+import androidx.compose.material.icons.filled.VideoLibrary
+import java.util.Locale
 
 @Composable
 internal fun VideoViewerOverflowMenu(
@@ -98,11 +93,11 @@ internal fun VideoViewerOverflowMenu(
     readOnly: Boolean,
     canOpenWith: Boolean,
     canShare: Boolean,
-    resizeModeIndex: Int,
+    showThumbnails: Boolean = true,
     actions: VideoViewerChromeActions
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val hasActions = !readOnly || canOpenWith || canShare
+    val hasActions = true
 
     val haptics = rememberArcileHaptics()
     if (!hasActions) return
@@ -137,17 +132,11 @@ internal fun VideoViewerOverflowMenu(
         val menuActions = buildList<@Composable () -> Unit> {
             add {
                 ArcileDropdownMenuItem(
-                    text = stringResource(
-                        when (resizeModeIndex) {
-                            0 -> R.string.video_player_resize_fit
-                            1 -> R.string.video_player_resize_zoom
-                            else -> R.string.video_player_resize_fill
-                        }
-                    ),
-                    leadingIcon = { Icon(Icons.Default.AspectRatio, contentDescription = null) },
+                    text = stringResource(if (showThumbnails) R.string.video_player_hide_thumbnails else R.string.video_player_show_thumbnails),
+                    leadingIcon = { Icon(Icons.Default.VideoLibrary, contentDescription = null) },
                     onClick = {
                         expanded = false
-                        actions.onResizeModeToggle()
+                        actions.onToggleThumbnails()
                     }
                 )
             }

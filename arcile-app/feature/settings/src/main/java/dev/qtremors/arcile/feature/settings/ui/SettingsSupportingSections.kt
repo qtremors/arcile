@@ -30,8 +30,6 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.settings.PreferencesBackupUiState
 import dev.qtremors.arcile.core.ui.settings.SettingsSection
-import dev.qtremors.arcile.feature.settings.VaultSecurityUiState
-import dev.qtremors.arcile.core.presentation.formatFileSize
 
 @Composable
 internal fun SettingsPluginSection(onOpen: () -> Unit) {
@@ -61,115 +59,7 @@ internal fun SettingsPluginSection(onOpen: () -> Unit) {
     }
 }
 
-@Composable
-internal fun SettingsOnlyFilesSection(
-    state: VaultSecurityUiState,
-    onOpen: () -> Unit,
-    actions: SettingsVaultActions
-) {
-    SettingsSection(title = stringResource(R.string.onlyfiles_settings_section)) {
-        SegmentedListItem(
-            onClick = onOpen,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 5),
-            content = { Text(stringResource(R.string.tool_onlyfiles)) },
-            supportingContent = { Text(stringResource(R.string.onlyfiles_settings_description)) },
-            leadingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Lock, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-        SegmentedListItem(
-            onClick = { actions.setScreenshotProtection(!state.screenshotProtectionEnabled) },
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 5),
-            content = { Text(stringResource(R.string.onlyfiles_screenshot_protection)) },
-            supportingContent = { Text(stringResource(R.string.onlyfiles_screenshot_protection_description)) },
-            trailingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Switch(state.screenshotProtectionEnabled, actions.setScreenshotProtection)
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-        SegmentedListItem(
-            onClick = { if (!state.isBusy) actions.clearEncryptedThumbnails() },
-            enabled = !state.isBusy,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 2, count = 5),
-            content = { Text(stringResource(R.string.onlyfiles_encrypted_thumbnail_cache)) },
-            supportingContent = {
-                Text(stringResource(R.string.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, formatFileSize(state.encryptedThumbnailBytes)))
-            },
-            trailingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    FilledTonalButton(
-                        onClick = { if (!state.isBusy) actions.clearEncryptedThumbnails() },
-                        enabled = !state.isBusy
-                    ) {
-                        Text(stringResource(R.string.settings_clear_thumbnail_cache))
-                    }
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-        SegmentedListItem(
-            onClick = {
-                if (state.activeExternalGrants > 0) actions.revokeAllExternalAccess()
-            },
-            enabled = state.activeExternalGrants > 0,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 3, count = 5),
-            content = { Text(stringResource(R.string.onlyfiles_active_external_access)) },
-            supportingContent = { Text(stringResource(R.string.onlyfiles_active_external_access_count, state.activeExternalGrants)) },
-            trailingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    FilledTonalButton(
-                        onClick = {
-                            if (state.activeExternalGrants > 0) actions.revokeAllExternalAccess()
-                        },
-                        enabled = state.activeExternalGrants > 0
-                    ) {
-                        Text(stringResource(R.string.onlyfiles_revoke_all))
-                    }
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-        SegmentedListItem(
-            onClick = actions.showDisclosure,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 4, count = 5),
-            content = { Text(stringResource(R.string.onlyfiles_security_disclosure_title)) },
-            supportingContent = { Text(stringResource(R.string.onlyfiles_unaudited_short)) },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-    }
-}
+
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable

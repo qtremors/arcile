@@ -339,13 +339,28 @@ internal class DefaultVaultExternalAccessManager @Inject constructor(
             revokeIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+        val contentIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launchIntent ->
+            launchIntent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            PendingIntent.getActivity(
+                context,
+                0,
+                launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_onlyfiles_notification)
             .setContentTitle(context.getString(R.string.onlyfiles_external_active))
             .setContentText(context.resources.getQuantityString(R.plurals.onlyfiles_external_count, activeCount, activeCount))
             .setOngoing(true)
             .setSilent(true)
-            .addAction(0, context.getString(R.string.onlyfiles_external_revoke), revoke)
+            .setCategory(NotificationCompat.CATEGORY_SERVICE)
+            .setColor(BRAND_ACCENT_COLOR)
+            .addAction(R.drawable.ic_cancel, context.getString(R.string.onlyfiles_external_revoke), revoke)
+            .apply {
+                contentIntent?.let { setContentIntent(it) }
+            }
             .build()
         manager.notify(NOTIFICATION_ID, notification)
     }
@@ -358,6 +373,7 @@ internal class DefaultVaultExternalAccessManager @Inject constructor(
         const val NOTIFICATION_ID = 0x0F11E5
         private const val UNCLAIMED_UID = -1
         private const val PLAINTEXT_COPY_BUFFER_SIZE = 256 * 1024
+        private const val BRAND_ACCENT_COLOR = 0xFF0878F8.toInt()
         fun authority(context: Context): String = "${context.packageName}.onlyfiles.external"
     }
 }

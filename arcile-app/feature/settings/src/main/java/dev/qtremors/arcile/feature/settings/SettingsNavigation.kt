@@ -13,7 +13,6 @@ sealed interface SettingsDestination {
     data object StorageManagement : SettingsDestination
     data object Plugins : SettingsDestination
     data object About : SettingsDestination
-    data object OnlyFiles : SettingsDestination
 }
 
 fun NavGraphBuilder.registerSettingsRoute(

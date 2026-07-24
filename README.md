@@ -9,7 +9,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Version-1.6.0-blueviolet" alt="Version">
+  <img src="https://img.shields.io/github/v/release/qtremors/arcile?label=Release&color=blueviolet" alt="Release">
+  <img src="https://img.shields.io/github/downloads/qtremors/arcile/total?label=Total%20Downloads&color=0969da" alt="Total Downloads">
+  <img src="https://img.shields.io/github/downloads/qtremors/arcile/latest/total?label=Latest%20Release&color=2da44e" alt="Latest Release Downloads">
   <img src="https://img.shields.io/badge/Kotlin-2.2.10-7F52FF?logo=kotlin" alt="Kotlin">
   <img src="https://img.shields.io/badge/Compose_BOM-2026.05.00-4285F4?logo=jetpackcompose" alt="Compose BOM">
   <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">

@@ -114,6 +114,16 @@ class AppFileOpenResolverTest {
     }
 
     @Test
+    fun `apk and split apk files resolve to InstallApk resolution`() = runTest {
+        val apkTypes = listOf("apk", "apks", "xapk", "apkm")
+        for (ext in apkTypes) {
+            val path = "/storage/app.$ext"
+            val result = resolver().resolve(path, emptyList())
+            assertEquals(AppFileOpenResolution.InstallApk(path), result)
+        }
+    }
+
+    @Test
     fun `known metadata is forwarded to plugin gateway`() = runTest {
         var request: Triple<String, String?, String>? = null
         val resolver = AppFileOpenResolver(

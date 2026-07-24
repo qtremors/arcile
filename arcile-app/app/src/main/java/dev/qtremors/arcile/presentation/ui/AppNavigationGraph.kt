@@ -31,6 +31,11 @@ fun AppNavigationGraph(
         onDismiss = actions::dismissPluginPrompt
     )
 
+    AppApkInstallerDialog(
+        target = actions.apkInstallTarget,
+        onDismiss = actions::dismissApkInstaller
+    )
+
     NavHost(
         navController = navController,
         startDestination = AppRoutes.Main(),

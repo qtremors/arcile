@@ -47,6 +47,14 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.SegmentedListItem
+import androidx.compose.material3.Switch
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
@@ -480,5 +488,135 @@ internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, o
                 modifier = Modifier.bounceClickable(onClick = onDismiss)
             ) { Text(stringResource(R.string.onlyfiles_cancel)) }
         }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun OnlyFilesSettingsSheet(
+    state: OnlyFilesUiState,
+    onDismiss: () -> Unit,
+    onSetScreenshotProtection: (Boolean) -> Unit,
+    onClearThumbnails: () -> Unit,
+    onRevokeExternalAccess: () -> Unit,
+    onShowDisclosure: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = MaterialTheme.shapes.sheet
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section),
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SegmentedListItem(
+                    onClick = { onSetScreenshotProtection(!state.screenshotProtectionEnabled) },
+                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 4),
+                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_screenshot_protection)) },
+                    supportingContent = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_screenshot_protection_description)) },
+                    trailingContent = {
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Switch(state.screenshotProtectionEnabled, onSetScreenshotProtection)
+                        }
+                    },
+                    colors = ListItemDefaults.segmentedColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    modifier = Modifier.height(IntrinsicSize.Min)
+                )
+
+                SegmentedListItem(
+                    onClick = { if (!state.isSettingsBusy) onClearThumbnails() },
+                    enabled = !state.isSettingsBusy,
+                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 4),
+                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache)) },
+                    supportingContent = {
+                        Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, formatBytes(state.encryptedThumbnailBytes)))
+                    },
+                    trailingContent = {
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            FilledTonalButton(
+                                onClick = { if (!state.isSettingsBusy) onClearThumbnails() },
+                                enabled = !state.isSettingsBusy
+                            ) {
+                                Text(stringResource(dev.qtremors.arcile.core.ui.R.string.settings_clear_thumbnail_cache))
+                            }
+                        }
+                    },
+                    colors = ListItemDefaults.segmentedColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    modifier = Modifier.height(IntrinsicSize.Min)
+                )
+
+                SegmentedListItem(
+                    onClick = {
+                        if (state.activeExternalGrants > 0) onRevokeExternalAccess()
+                    },
+                    enabled = state.activeExternalGrants > 0,
+                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 2, count = 4),
+                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_active_external_access)) },
+                    supportingContent = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_active_external_access_count, state.activeExternalGrants)) },
+                    trailingContent = {
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            FilledTonalButton(
+                                onClick = {
+                                    if (state.activeExternalGrants > 0) onRevokeExternalAccess()
+                                },
+                                enabled = state.activeExternalGrants > 0
+                            ) {
+                                Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_revoke_all))
+                            }
+                        }
+                    },
+                    colors = ListItemDefaults.segmentedColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    modifier = Modifier.height(IntrinsicSize.Min)
+                )
+
+                SegmentedListItem(
+                    onClick = onShowDisclosure,
+                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 3, count = 4),
+                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_security_disclosure_title)) },
+                    supportingContent = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_unaudited_short)) },
+                    colors = ListItemDefaults.segmentedColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    ),
+                    modifier = Modifier.height(IntrinsicSize.Min)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun OnlyFilesSecurityDisclosureDialog(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_security_disclosure_title)) },
+        text = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_security_disclosure)) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
     )
 }

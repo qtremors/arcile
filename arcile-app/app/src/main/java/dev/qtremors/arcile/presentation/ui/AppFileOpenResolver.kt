@@ -41,6 +41,9 @@ internal class AppFileOpenResolver(
     ): AppFileOpenResolution {
         val archiveFormat = ArchiveFormat.fromPath(path)
         return when {
+            extension in FileCategories.APKs.extensions -> AppFileOpenResolution.InstallApk(
+                path = path
+            )
             archiveFormat?.canBrowse == true -> AppFileOpenResolution.BrowseArchive(path)
             archiveFormat != null -> AppFileOpenResolution.UnsupportedArchive
             extension in FileCategories.Images.extensions -> AppFileOpenResolution.ViewImage(

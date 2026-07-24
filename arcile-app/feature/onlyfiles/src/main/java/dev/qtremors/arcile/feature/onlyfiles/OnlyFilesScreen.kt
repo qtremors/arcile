@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -299,11 +300,24 @@ private fun OnlyFilesScreen(
                                     onDismiss = { showOverflow = false }
                                 )
                             } else {
-                                if (state.vaults.any(VaultSummary::isUnlocked)) {
-                                    TextButton(
-                                        onClick = viewModel::lockAll,
-                                        modifier = Modifier.bounceClickable { viewModel.lockAll() }
-                                    ) { Text(stringResource(R.string.onlyfiles_lock_all)) }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (state.vaults.any(VaultSummary::isUnlocked)) {
+                                        TextButton(
+                                            onClick = viewModel::lockAll,
+                                            modifier = Modifier.bounceClickable { viewModel.lockAll() }
+                                        ) { Text(stringResource(R.string.onlyfiles_lock_all)) }
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(CircleShape)
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                            .bounceClickable(onClick = viewModel::openSettings),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(Icons.Default.Settings, stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section))
+                                    }
                                 }
                             }
                         },
@@ -469,5 +483,16 @@ private fun OnlyFilesScreen(
             }
         )
     }
+    if (state.showSettingsDialog) OnlyFilesSettingsSheet(
+        state = state,
+        onDismiss = viewModel::closeSettings,
+        onSetScreenshotProtection = viewModel::setScreenshotProtection,
+        onClearThumbnails = viewModel::clearVaultThumbnails,
+        onRevokeExternalAccess = viewModel::revokeAllVaultExternalAccess,
+        onShowDisclosure = viewModel::openSecurityDisclosure
+    )
+    if (state.showSecurityDisclosure) OnlyFilesSecurityDisclosureDialog(
+        onDismiss = viewModel::closeSecurityDisclosure
+    )
     OnlyFilesPickerDialogs(state, viewModel)
 }

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.RemoveCircleOutline
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -125,6 +126,13 @@ internal fun VaultActionsMenu(
                     text = { Text(stringResource(R.string.onlyfiles_delete_vault)) },
                     leadingIcon = { Icon(Icons.Default.DeleteForever, null) },
                     onClick = { closeAnd { confirmDelete = true } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section)) },
+                    leadingIcon = { Icon(Icons.Default.Settings, null) },
+                    onClick = { closeAnd(viewModel::openSettings) }
                 )
             }
             add {

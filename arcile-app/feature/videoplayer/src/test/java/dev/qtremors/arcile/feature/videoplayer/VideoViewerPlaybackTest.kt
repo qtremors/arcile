@@ -180,6 +180,18 @@ class VideoViewerPlaybackTest {
         assertEquals(0, context.initialPage)
     }
 
+    @Test
+    fun `video player surface splits into left center and right gesture zones`() {
+        val width = 900f
+        assertEquals(GestureZone.LEFT, videoPlayerGestureZone(100f, width))
+        assertEquals(GestureZone.LEFT, videoPlayerGestureZone(299f, width))
+        assertEquals(GestureZone.CENTER, videoPlayerGestureZone(300f, width))
+        assertEquals(GestureZone.CENTER, videoPlayerGestureZone(450f, width))
+        assertEquals(GestureZone.CENTER, videoPlayerGestureZone(599f, width))
+        assertEquals(GestureZone.RIGHT, videoPlayerGestureZone(600f, width))
+        assertEquals(GestureZone.RIGHT, videoPlayerGestureZone(850f, width))
+    }
+
     private fun videoFile(path: String) = FileModel(
         name = path.substringAfterLast('/'),
         absolutePath = path,

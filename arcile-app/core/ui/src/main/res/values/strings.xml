@@ -52,6 +52,8 @@
     <string name="image_gallery_metadata_file_information">File Information</string>
     <string name="image_gallery_metadata_camera_exif">Camera &amp; EXIF</string>
     <string name="image_gallery_metadata_location">Location</string>
+    <string name="video_player_hide_thumbnails">Hide thumbnails</string>
+    <string name="video_player_show_thumbnails">Show thumbnails</string>
     
     <!-- Dialogs -->
     <string name="action_create">Create</string>

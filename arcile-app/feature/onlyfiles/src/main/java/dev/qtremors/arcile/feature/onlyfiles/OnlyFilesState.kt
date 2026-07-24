@@ -47,6 +47,12 @@ internal data class OnlyFilesUiState(
     val folderPicker: VaultFolderPickerState? = null,
     val localPicker: OnlyFilesLocalPickerState? = null,
     val screenshotProtectionEnabled: Boolean = true,
+    val encryptedThumbnailFiles: Int = 0,
+    val encryptedThumbnailBytes: Long = 0L,
+    val activeExternalGrants: Int = 0,
+    val isSettingsBusy: Boolean = false,
+    val showSettingsDialog: Boolean = false,
+    val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
     val message: String? = null
 ) {

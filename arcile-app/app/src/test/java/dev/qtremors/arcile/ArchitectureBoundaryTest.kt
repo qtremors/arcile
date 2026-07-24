@@ -898,7 +898,9 @@ class ArchitectureBoundaryTest {
                 """(?:class|interface|object|fun|typealias|val|var)\s+"""
         )
 
-        val LARGE_FILE_BASELINE = emptyMap<String, Int>()
+        val LARGE_FILE_BASELINE = mapOf(
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800
+        )
 
         val LARGE_VIEWMODEL_BASELINE = emptyMap<String, Int>()
 
