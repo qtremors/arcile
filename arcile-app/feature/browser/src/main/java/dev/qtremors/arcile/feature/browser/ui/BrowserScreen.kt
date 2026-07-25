@@ -74,7 +74,8 @@ internal fun BrowserScreen(
     intents: BrowserIntents,
     scroll: BrowserScrollBindings,
     onFeedback: (ArcileFeedbackEvent) -> Unit,
-    isRouteVisible: Boolean = true
+    isRouteVisible: Boolean = true,
+    batchRenameHistory: List<String> = emptyList()
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
@@ -434,6 +435,7 @@ internal fun BrowserScreen(
         mutationIntents = intents.mutation,
         searchIntents = intents.search,
         clipboardIntents = intents.clipboard,
-        archiveIntents = intents.archive
+        archiveIntents = intents.archive,
+        batchRenameHistory = batchRenameHistory
     )
 }

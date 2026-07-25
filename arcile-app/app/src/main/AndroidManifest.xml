@@ -112,7 +112,7 @@
 
         <receiver
             android:name="dev.qtremors.arcile.apk.ApkInstallStatusReceiver"
-            android:exported="true" />
+            android:exported="false" />
 
     </application>
 

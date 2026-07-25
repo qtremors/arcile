@@ -21,4 +21,6 @@ interface FileMutationRepository {
             BatchMutationResult(succeededPaths = paths)
         }
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
+    suspend fun batchRenameFiles(renames: List<Pair<String, String>>): Result<List<Pair<String, String>>> =
+        Result.success(emptyList())
 }

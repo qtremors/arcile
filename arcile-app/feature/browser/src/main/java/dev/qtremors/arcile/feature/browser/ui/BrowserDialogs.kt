@@ -18,6 +18,7 @@ import dev.qtremors.arcile.core.ui.dialogs.CreateFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.BatchRenameDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 
@@ -30,7 +31,8 @@ internal fun BrowserDialogs(
     mutationIntents: BrowserMutationIntents,
     searchIntents: BrowserSearchIntents,
     clipboardIntents: BrowserClipboardIntents,
-    archiveIntents: BrowserArchiveIntents
+    archiveIntents: BrowserArchiveIntents,
+    batchRenameHistory: List<String> = emptyList()
 ) {
     if (state.isSearchFilterMenuVisible) {
         SearchFiltersSheet(
@@ -163,6 +165,26 @@ internal fun BrowserDialogs(
                 dialogVisibility.showRenameDialog = false
             },
             existingNames = state.displayState.existingNames
+        )
+    }
+
+    if (dialogVisibility.showRenameDialog && state.selectedFiles.size > 1) {
+        val selectedModels = state.files
+            .filter { file -> state.selectedFiles.contains(file.absolutePath) }
+        BatchRenameDialog(
+            files = selectedModels,
+            onDismiss = {
+                dialogVisibility.showRenameDialog = false
+                selectionIntents.onClearSelection()
+            },
+            onConfirm = { renames ->
+                mutationIntents.onBatchRenameFiles(renames)
+                dialogVisibility.showRenameDialog = false
+            },
+            existingFolderNames = state.displayState.existingNames,
+            searchHistory = batchRenameHistory,
+            onSaveFindQuery = mutationIntents.onSaveBatchRenameFindQuery,
+            onRemoveHistoryItem = mutationIntents.onRemoveBatchRenameHistoryItem
         )
     }
 

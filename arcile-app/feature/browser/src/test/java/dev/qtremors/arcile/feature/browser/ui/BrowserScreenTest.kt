@@ -718,7 +718,9 @@ private fun BrowserScreen(
                 onTogglePermanentDelete,
                 onToggleShred = {},
                 onDismissDeleteConfirmation,
-                onRenameFile
+                onRenameFile,
+                onBatchRenameFiles = { _ -> },
+                onSaveBatchRenameFindQuery = {}
             ),
             search = BrowserSearchIntents(
                 onSearchQueryChange,

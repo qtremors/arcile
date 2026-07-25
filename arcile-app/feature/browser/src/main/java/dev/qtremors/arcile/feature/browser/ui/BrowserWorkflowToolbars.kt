@@ -202,7 +202,7 @@ internal fun BrowserSelectionToolbar(
             tint = MaterialTheme.colorScheme.error,
             onClick = mutationIntents.onRequestDeleteSelected
         )
-        if (state.selectedFiles.size == 1) {
+        if (state.selectedFiles.isNotEmpty()) {
             mainActions += ToolbarAction(
                 icon = Icons.Default.Edit,
                 contentDescription = stringResource(R.string.action_rename),

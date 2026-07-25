@@ -84,6 +84,7 @@ fun BrowserRoute(
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val initializationState by viewModel.initializationState.collectAsStateWithLifecycle()
+    val batchRenameHistory by viewModel.batchRenameHistory.collectAsStateWithLifecycle()
     val state = uiState
     val scope = rememberCoroutineScope()
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -220,7 +221,10 @@ fun BrowserRoute(
             onTogglePermanentDelete = viewModel::togglePermanentDelete,
             onToggleShred = viewModel::toggleShred,
             onDismissDeleteConfirmation = viewModel::dismissDeleteConfirmation,
-            onRenameFile = viewModel::renameFile
+            onRenameFile = viewModel::renameFile,
+            onBatchRenameFiles = viewModel::batchRenameFiles,
+            onSaveBatchRenameFindQuery = viewModel::saveBatchRenameFindQuery,
+            onRemoveBatchRenameHistoryItem = viewModel::removeBatchRenameHistoryItem
         ),
         search = BrowserSearchIntents(
             onSearchQueryChange = viewModel::updateBrowserSearchQuery,
@@ -298,7 +302,8 @@ fun BrowserRoute(
                     onConsumePendingReveal = viewModel::consumeOpenedFileReveal
                 ),
                 onFeedback = onFeedback,
-                isRouteVisible = isVisible
+                isRouteVisible = isVisible,
+                batchRenameHistory = batchRenameHistory
             )
         } else {
             BrowserInitializationSurface(

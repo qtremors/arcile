@@ -41,8 +41,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.core.ui.ArcileExposedDropdownMenu
+import dev.qtremors.arcile.core.ui.ArcileCardDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ArcileCardExposedDropdownMenu
 import dev.qtremors.arcile.core.ui.keyboardInputField
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -205,12 +205,12 @@ internal fun ArchiveDropdown(
                 .fillMaxWidth()
                 .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
         )
-        ArcileExposedDropdownMenu(
+        ArcileCardExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
             items = options.map { option ->
                 {
-                    ArcileDropdownMenuItem(
+                    ArcileCardDropdownMenuItem(
                         text = { Text(option) },
                         onClick = {
                             onOptionSelected(option)

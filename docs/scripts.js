@@ -102,16 +102,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// Fetch Live GitHub Stats
+// Fetch Live GitHub Stats & Latest Release
 async function fetchGitHubStats() {
     try {
-        const response = await fetch('https://api.github.com/repos/qtremors/arcile');
-        if (!response.ok) return;
-        const data = await response.json();
-        
-        if (data.stargazers_count !== undefined) {
-            document.getElementById('gh-stars').innerText = data.stargazers_count;
-            document.getElementById('gh-forks').innerText = data.forks_count;
+        const repoRes = await fetch('https://api.github.com/repos/qtremors/arcile');
+        if (repoRes.ok) {
+            const data = await repoRes.json();
+            if (data.stargazers_count !== undefined) {
+                const starsEl = document.getElementById('gh-stars');
+                const forksEl = document.getElementById('gh-forks');
+                if (starsEl) starsEl.innerText = data.stargazers_count;
+                if (forksEl) forksEl.innerText = data.forks_count;
+            }
+        }
+
+        const releaseRes = await fetch('https://api.github.com/repos/qtremors/arcile/releases/latest');
+        if (releaseRes.ok) {
+            const release = await releaseRes.json();
+            if (release.tag_name) {
+                document.querySelectorAll('.download-btn-text').forEach(el => {
+                    el.innerText = `Download ${release.tag_name}`;
+                });
+            }
+
+            let latestDownloads = 0;
+            if (release.assets && Array.isArray(release.assets)) {
+                release.assets.forEach(asset => {
+                    latestDownloads += asset.download_count || 0;
+                });
+            }
+            const downloadsEl = document.getElementById('gh-downloads');
+            if (downloadsEl && latestDownloads > 0) {
+                downloadsEl.innerText = latestDownloads;
+            }
         }
     } catch (error) {
         console.error('Error fetching GitHub stats:', error);

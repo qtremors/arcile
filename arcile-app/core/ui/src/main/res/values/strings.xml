@@ -58,6 +58,26 @@
     <!-- Dialogs -->
     <string name="action_create">Create</string>
     <string name="title_create_folder">Create Folder</string>
+    <string name="title_batch_rename">Batch Rename (%1$d items)</string>
+    <string name="label_find">Find text</string>
+    <string name="label_replace_with">Replace with</string>
+    <string name="option_regex">Regex</string>
+    <string name="action_remove_history">Remove from history</string>
+    <string name="option_match_case">Match Case</string>
+    <string name="option_enumerate">Enumerate</string>
+    <string name="scope_name_only">Name</string>
+    <string name="scope_extension_only">Extension</string>
+    <string name="scope_both">Both</string>
+    <string name="case_none">Normal</string>
+    <string name="case_uppercase">UPPER</string>
+    <string name="case_lowercase">lower</string>
+    <string name="case_title_case">Title</string>
+    <string name="header_live_preview">Live Preview</string>
+    <string name="error_duplicate_in_batch">Duplicate in batch</string>
+    <string name="error_exists_on_disk">Target file already exists</string>
+    <string name="error_invalid_chars">Invalid characters</string>
+    <string name="error_empty_name">Empty file name</string>
+    <string name="action_apply_rename">Apply Rename</string>
     <string name="label_folder_name">Folder Name</string>
     <string name="title_create_file">Create File</string>
     <string name="label_file_name_example">File Name (e.g., text.txt)</string>

@@ -88,4 +88,16 @@ class UtilityPreferencesRepositoryTest {
 
         assertEquals(listOf("trash", "onlyfiles"), ids)
     }
+
+    @Test
+    fun `batch rename history removes only the selected query`() = runBlocking {
+        val repository = UtilityPreferencesRepository(context, dataStore)
+        repository.addBatchRenameHistory("first")
+        repository.addBatchRenameHistory("second")
+        repository.addBatchRenameHistory("third")
+
+        repository.removeBatchRenameHistory("second")
+
+        assertEquals(listOf("third", "first"), repository.batchRenameHistory.first())
+    }
 }

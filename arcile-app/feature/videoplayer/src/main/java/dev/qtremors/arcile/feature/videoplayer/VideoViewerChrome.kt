@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -56,6 +57,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -63,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -81,6 +84,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
@@ -203,6 +208,48 @@ internal fun VideoViewerBottomChrome(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
+    val context = LocalContext.current
+    val thumbnailEntries = remember(context, files) {
+        files.associate { file ->
+            val thumbnailKey = ThumbnailKey.from(file)
+            val cacheKey = thumbnailKey.variantKey(VIDEO_STRIP_THUMBNAIL_SIZE_PX).cacheKey
+            file.absolutePath to VideoStripThumbnailEntry(
+                cacheKey = cacheKey,
+                request = buildThumbnailImageRequest(
+                    context = context,
+                    data = thumbnailKey,
+                    cacheKey = cacheKey,
+                    sizePx = VIDEO_STRIP_THUMBNAIL_SIZE_PX,
+                    useMemoryCachePlaceholder = true
+                )
+            )
+        }
+    }
+    val thumbnailPainterCache = remember { VideoStripLoadedValueCache<Painter>() }
+    val thumbnailListState = rememberLazyListState()
+    var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
+    var thumbnailStripWasVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(visible, showThumbnails, currentPage, files) {
+        if (!visible || !showThumbnails) {
+            thumbnailStripWasVisible = false
+            return@LaunchedEffect
+        }
+        if (files.isNotEmpty() && currentPage in files.indices) {
+            val scrollAction = if (thumbnailStripWasVisible) {
+                viewerThumbnailScrollAction(previousThumbnailPage, currentPage)
+            } else {
+                ViewerThumbnailScrollAction.Jump
+            }
+            when (scrollAction) {
+                ViewerThumbnailScrollAction.Jump -> thumbnailListState.scrollToItem(currentPage)
+                ViewerThumbnailScrollAction.Animate -> thumbnailListState.animateScrollToItem(currentPage)
+                ViewerThumbnailScrollAction.None -> Unit
+            }
+            previousThumbnailPage = currentPage
+            thumbnailStripWasVisible = true
+        }
+    }
 
     AnimatedVisibility(
         visible = visible,
@@ -217,19 +264,6 @@ internal fun VideoViewerBottomChrome(
         ) {
             // 1. Thumbnail carousel – identical to image viewer
             if (showThumbnails) {
-                val lazyListState = rememberLazyListState()
-                var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
-                LaunchedEffect(currentPage) {
-                    if (files.isNotEmpty() && currentPage in files.indices) {
-                        when (viewerThumbnailScrollAction(previousThumbnailPage, currentPage)) {
-                            ViewerThumbnailScrollAction.Jump -> lazyListState.scrollToItem(currentPage)
-                            ViewerThumbnailScrollAction.Animate -> lazyListState.animateScrollToItem(currentPage)
-                            ViewerThumbnailScrollAction.None -> Unit
-                        }
-                        previousThumbnailPage = currentPage
-                    }
-                }
-
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -239,7 +273,7 @@ internal fun VideoViewerBottomChrome(
                     val thumbnailWidth = 28.dp
                     val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
                     LazyRow(
-                        state = lazyListState,
+                        state = thumbnailListState,
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
@@ -291,15 +325,31 @@ internal fun VideoViewerBottomChrome(
                                         coroutineScope.launch { actions.onPageSelected(index) }
                                     }
                             ) {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(LocalContext.current)
-                                        .data(file.absolutePath)
-                                        .crossfade(false)
-                                        .build(),
-                                    contentDescription = null,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                val thumbnailEntry = thumbnailEntries[file.absolutePath]
+                                val loadedPainter = thumbnailEntry?.let {
+                                    thumbnailPainterCache[it.cacheKey]
+                                }
+                                if (loadedPainter != null) {
+                                    Image(
+                                        painter = loadedPainter,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else if (thumbnailEntry != null) {
+                                    AsyncImage(
+                                        model = thumbnailEntry.request,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        onSuccess = { result ->
+                                            thumbnailPainterCache.put(
+                                                thumbnailEntry.cacheKey,
+                                                result.painter
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
                             }
                         }
                     }
@@ -496,5 +546,38 @@ internal fun VideoViewerBottomChrome(
                 )
             }
         }
+    }
+}
+
+private const val VIDEO_STRIP_THUMBNAIL_SIZE_PX = 128
+private const val VIDEO_STRIP_PAINTER_CACHE_SIZE = 64
+
+private data class VideoStripThumbnailEntry(
+    val cacheKey: String,
+    val request: ImageRequest
+)
+
+internal class VideoStripLoadedValueCache<T>(
+    private val maxEntries: Int = VIDEO_STRIP_PAINTER_CACHE_SIZE
+) {
+    init {
+        require(maxEntries > 0)
+    }
+
+    private val values = mutableStateMapOf<String, T>()
+    private val insertionOrder = ArrayDeque<String>()
+
+    operator fun get(cacheKey: String): T? = values[cacheKey]
+
+    fun put(cacheKey: String, value: T) {
+        if (values.containsKey(cacheKey)) {
+            values[cacheKey] = value
+            return
+        }
+        while (insertionOrder.size >= maxEntries) {
+            values.remove(insertionOrder.removeFirst())
+        }
+        insertionOrder.addLast(cacheKey)
+        values[cacheKey] = value
     }
 }

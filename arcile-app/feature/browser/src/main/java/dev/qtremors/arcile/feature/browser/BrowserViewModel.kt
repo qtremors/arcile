@@ -26,9 +26,11 @@ import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictOwner
 import dev.qtremors.arcile.feature.browser.delegate.openArchive
 import dev.qtremors.arcile.feature.browser.delegate.submitArchivePassword
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 @HiltViewModel
@@ -45,8 +47,29 @@ internal class BrowserViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
     private val bulkFileCoordinator: BulkFileOperationCoordinator,
-    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
+    private val utilityPreferencesStore: dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore = dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
 ) : ViewModel() {
+    val batchRenameHistory: StateFlow<List<String>> = utilityPreferencesStore.batchRenameHistory
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun saveBatchRenameFindQuery(query: String) {
+        viewModelScope.launch {
+            utilityPreferencesStore.addBatchRenameHistory(query)
+        }
+    }
+
+    fun clearBatchRenameHistory() {
+        viewModelScope.launch {
+            utilityPreferencesStore.clearBatchRenameHistory()
+        }
+    }
+
+    fun removeBatchRenameHistoryItem(query: String) {
+        viewModelScope.launch {
+            utilityPreferencesStore.removeBatchRenameHistory(query)
+        }
+    }
     private val scrollPositionStore = BrowserScrollPositionStore(savedStateHandle)
     private val controllers = createBrowserControllerGraph(
         scope = viewModelScope,
@@ -228,6 +251,8 @@ internal class BrowserViewModel @Inject constructor(
     fun handleAuthorizationUnavailable(requestId: String) =
         operationController.handleAuthorizationUnavailable(requestId)
     fun renameFile(path: String, newName: String) = mutationController.rename(path, newName)
+    fun batchRenameFiles(renames: List<Pair<dev.qtremors.arcile.core.storage.domain.FileModel, String>>) =
+        mutationController.batchRename(renames)
     fun clearError() {
         searchController.clearError()
         controllers.transient.clearError()

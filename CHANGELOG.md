@@ -1,15 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.2
+> **Version:** 1.6.3
 > **Last Updated:** 2026-07-25
 
 ---
 
+## [1.6.3] - 2026-07-25
+
+- **PowerRename**: Added batch search and replace, Regex, case changes, numbering, live conflict previews, Undo, safe rollback, and Arcile-styled history with per-item removal and preset menus.
+- **Interface Polish**: Improved dropdown contrast and elevation across dialogs and cards.
+
 ## [1.6.2] - 2026-07-25
 
-- **Interactive Video Viewer**: Added 3-zone gesture controls for double-tap seeking, volume/brightness vertical drags, and metadata sheets; integrated 3-second controls auto-hide, 1:1 real-time drag-to-dismiss with responsive dimming, HUD fill bars and vector indicators, primary toolbar fit/fill toggles, persistent thumbnail strip preferences, and navigation lifecycle guards.
-- **APK and Split Install APK Support**: Added native package parsing and installation for single `.apk` files and split APK containers (`.apks`, `.xapk`, `.apkm`, and multi-select APK splits) using Android's `PackageInstaller` API, featuring package metadata inspection with version code display, top status badge chips, plain-English error sanitization, proactive downgrade prevention with system settings guidance, automatic permission grant detection on resume, Material 3 Expressive `LinearWavyProgressIndicator` with 64KB byte streaming, un-containerized clean app icons, responsive single/double action button layouts with vector icons, and package visibility launcher fallbacks.
+- **Interactive Video Viewer**: Added gesture controls, metadata, auto-hiding playback controls, drag-to-dismiss, resize modes, configuration-safe playback, and a stable cached thumbnail strip.
+- **APK and Split Install Support**: Added secure installation for APKs and complete compatible split sets from `.apks`, `.xapk`, `.apkm`, or multi-selection, with metadata previews, downgrade guidance, progress, cancellation cleanup, and reliable status handling.
 - **Fast Scrollbar Enhancements**: Synchronized real-time scrollbar drag positions across browser and gallery views, expanded thumb reachability region to 48dp with intentional drag-to-wake activation to eliminate accidental triggers, and added responsive touch feedback.
 - **OnlyFiles In-Module Settings**: Relocated vault security options, thumbnail cache management, grant revocations, and security disclosures directly into the OnlyFiles module app bar and vault headers.
 - **Official System Notifications**: Standardized background file operations, vault imports, and active external grants with Arcile's official monochrome brand icon, tap-to-open content intents, progress notification categories, and dedicated action drawables.

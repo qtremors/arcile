@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.videoplayer
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,13 +36,6 @@ fun NavGraphBuilder.registerVideoViewerRoute(
     ) { entry ->
         val route = entry.toRoute<AppRoutes.VideoViewer>()
         val session = remember(route.sessionToken) { GlobalVideoPlaybackSessions.resolve(route.sessionToken) }
-        
-        DisposableEffect(route.sessionToken) {
-            onDispose {
-                GlobalVideoPlaybackSessions.remove(route.sessionToken)
-            }
-        }
-
         if (session == null) {
             LaunchedEffect(route.sessionToken) { onNavigateBack() }
         } else {
@@ -92,6 +84,7 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                                 ArrayList(viewModel.state.value.selectedFiles)
                             )
                     }
+                    GlobalVideoPlaybackSessions.remove(route.sessionToken)
                     onNavigateBack()
                 }
             }
