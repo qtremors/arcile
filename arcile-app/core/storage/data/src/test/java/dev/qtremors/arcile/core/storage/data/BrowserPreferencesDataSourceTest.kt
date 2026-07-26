@@ -70,6 +70,8 @@ class BrowserPreferencesDataSourceTest {
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
         assertEquals(FileViewMode.LIST, preferences.globalPresentation.viewMode)
         assertEquals(FileViewMode.GRID, preferences.albumPresentation.viewMode)
+        assertEquals(FileSortOption.DATE_NEWEST, preferences.audioPresentation.sortOption)
+        assertEquals(FileViewMode.LIST, preferences.audioPresentation.viewMode)
         assertEquals(FileListingPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)

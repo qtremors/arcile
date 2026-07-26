@@ -7,6 +7,7 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.storage.data.BrowserPreferencesDataSource
+import dev.qtremors.arcile.core.storage.data.DefaultAudioLibraryPreferencesStore
 import dev.qtremors.arcile.core.storage.data.DefaultBrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.data.DefaultGalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.data.DefaultRecentFilesPreferencesStore
@@ -17,6 +18,7 @@ import dev.qtremors.arcile.core.storage.data.QuickAccessPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.StorageCleanerPreferencesRepository
 import dev.qtremors.arcile.core.storage.data.UtilityPreferencesRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
@@ -59,6 +61,11 @@ object BrowserPrefsModule {
     fun provideGalleryPreferencesStore(
         dataSource: BrowserPreferencesDataSource
     ): GalleryPreferencesStore = DefaultGalleryPreferencesStore(dataSource)
+
+    @Provides
+    fun provideAudioLibraryPreferencesStore(
+        dataSource: BrowserPreferencesDataSource
+    ): AudioLibraryPreferencesStore = DefaultAudioLibraryPreferencesStore(dataSource)
 
     @Provides
     fun provideSaveDestinationPreferencesStore(

@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.4
+> **Version:** 1.6.5
 > **Last Updated:** 2026-07-26
 
 ---
+
+## [1.6.5] - 2026-07-26
+
+- **Audio Library Foundation**: Added device-audio discovery, independent Audio preferences, artwork and grouping models, saved list and grid presentation options, and focused preference and presentation coverage.
 
 ## [1.6.4] - 2026-07-26
 

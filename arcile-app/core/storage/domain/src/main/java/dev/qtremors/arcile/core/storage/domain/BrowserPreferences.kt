@@ -17,6 +17,11 @@ enum class ImageGalleryDefaultTab {
     ALBUMS
 }
 
+enum class AudioLibraryDefaultTab {
+    AUDIO,
+    FOLDERS
+}
+
 data class FileListingPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
     val viewMode: FileViewMode = DEFAULT_VIEW_MODE,
@@ -57,6 +62,19 @@ data class BrowserPreferences(
     val imageGallerySectioned: Boolean = false,
     val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
     val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
+    val audioPresentation: FileListingPreferences = FileListingPreferences(
+        sortOption = FileSortOption.DATE_NEWEST,
+        viewMode = FileViewMode.LIST,
+        gridMinCellSize = 136f
+    ),
+    val audioFolderPresentation: FileListingPreferences = FileListingPreferences(
+        sortOption = FileSortOption.DATE_NEWEST,
+        viewMode = FileViewMode.LIST,
+        gridMinCellSize = 160f
+    ),
+    val audioGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val audioDefaultTab: AudioLibraryDefaultTab = AudioLibraryDefaultTab.AUDIO,
+    val audioShowFileDetails: Boolean = true,
     val albumPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.GRID,

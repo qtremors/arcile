@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
@@ -40,6 +41,7 @@ class FocusedBrowserPreferencesStoresTest {
     private val locationStore by lazy { DefaultBrowserLocationPreferencesStore(dataSource) }
     private val recentStore by lazy { DefaultRecentFilesPreferencesStore(dataSource) }
     private val galleryStore by lazy { DefaultGalleryPreferencesStore(dataSource) }
+    private val audioStore by lazy { DefaultAudioLibraryPreferencesStore(dataSource) }
     private val saveStore by lazy { DefaultSaveDestinationPreferencesStore(dataSource) }
 
     @Before
@@ -148,6 +150,33 @@ class FocusedBrowserPreferencesStoresTest {
         assertEquals(setOf("/Pictures/favorite.jpg"), preferences.favoriteFiles)
         assertEquals(setOf("/Pictures/Trips"), preferences.pinnedAlbums)
         assertEquals("/Pictures/Trips/cover.jpg", preferences.albumCovers["/Pictures/Trips"])
+    }
+
+    @Test
+    fun `audio store persists category presentation and opening preferences`() = runBlocking {
+        val audioPresentation = FileListingPreferences(
+            sortOption = FileSortOption.SIZE_LARGEST,
+            viewMode = FileViewMode.GRID,
+            gridMinCellSize = 188f
+        )
+        val folderPresentation = FileListingPreferences(
+            sortOption = FileSortOption.NAME_DESC,
+            viewMode = FileViewMode.LIST,
+            listZoom = 1.2f
+        )
+
+        audioStore.updateAudioPresentation(audioPresentation)
+        audioStore.updateAudioFolderPresentation(folderPresentation)
+        audioStore.updateAudioGrouping(ImageGalleryGrouping.WEEK)
+        audioStore.updateAudioDefaultTab(AudioLibraryDefaultTab.FOLDERS)
+        audioStore.updateAudioShowFileDetails(false)
+
+        val preferences = audioStore.audioLibraryPreferencesFlow.first()
+        assertEquals(audioPresentation.normalized(), preferences.audioPresentation)
+        assertEquals(folderPresentation.normalized(), preferences.folderPresentation)
+        assertEquals(ImageGalleryGrouping.WEEK, preferences.grouping)
+        assertEquals(AudioLibraryDefaultTab.FOLDERS, preferences.defaultTab)
+        assertFalse(preferences.showFileDetails)
     }
 
     @Test
