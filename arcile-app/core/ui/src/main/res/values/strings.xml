@@ -15,6 +15,13 @@
     <string name="deselect_image">Deselect image</string>
     <string name="share">Share</string>
     <string name="done">Done</string>
+    <string name="open_app">Open App</string>
+    <string name="regex_presets">Regex Presets</string>
+    <string name="search_history">Search History</string>
+    <string name="accent_palette_warm">Warm Palette</string>
+    <string name="accent_palette_cool_vibrant">Cool &amp; Vibrant Palette</string>
+    <string name="accent_palette_nature_fresh">Nature &amp; Fresh Palette</string>
+    <string name="accent_palette_earth_neutral">Earth &amp; Neutral Palette</string>
     <!-- Accessibility & Actions -->
     <string name="action_search">Search</string>
     <string name="action_create_new">Create new</string>

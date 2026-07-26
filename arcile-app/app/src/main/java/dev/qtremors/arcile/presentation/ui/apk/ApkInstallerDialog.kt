@@ -24,11 +24,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.dialogs.Dialog
+import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.window.DialogProperties
 import androidx.core.graphics.drawable.toBitmap
 import dev.qtremors.arcile.core.operation.android.apk.ApkInstallState
@@ -410,7 +412,7 @@ fun ApkInstallerDialog(
                                     contentDescription = null,
                                     modifier = Modifier.size(18.dp)
                                 )
-                                Text("Open App")
+                                Text(stringResource(R.string.open_app))
                             }
                         }
 
@@ -452,7 +454,7 @@ fun ApkInstallerDialog(
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp)
                                     )
-                                    Text("Grant Permission")
+                                    Text(stringResource(R.string.grant_permission))
                                 }
                             }
                         }
@@ -470,7 +472,7 @@ fun ApkInstallerDialog(
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp)
                                     )
-                                    Text("Open App")
+                                    Text(stringResource(R.string.open_app))
                                 }
                             }
                         }
@@ -491,7 +493,7 @@ fun ApkInstallerDialog(
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp)
                                         )
-                                        Text("Open App")
+                                        Text(stringResource(R.string.open_app))
                                     }
                                 }
                             } else {
@@ -509,7 +511,7 @@ fun ApkInstallerDialog(
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp)
                                         )
-                                        Text("Install")
+                                        Text(stringResource(R.string.install))
                                     }
                                 }
                             }

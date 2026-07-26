@@ -199,18 +199,38 @@ internal class AudioPlaybackController @Inject constructor(
     }
 
     private fun publish(player: Player) {
+        val timeline = player.currentTimeline
+        val mediaCount = player.mediaItemCount
+        val queueIds = if (!timeline.isEmpty && player.shuffleModeEnabled) {
+            val ids = mutableListOf<String>()
+            var idx = timeline.getFirstWindowIndex(true)
+            while (idx != C.INDEX_UNSET && ids.size < mediaCount) {
+                ids.add(player.getMediaItemAt(idx).mediaId)
+                idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, true)
+            }
+            ids.ifEmpty { (0 until mediaCount).map { player.getMediaItemAt(it).mediaId } }
+        } else {
+            (0 until mediaCount).map { index ->
+                player.getMediaItemAt(index).mediaId
+            }
+        }
+        val currentId = player.currentMediaItem?.mediaId?.takeIf(String::isNotBlank)
+        val currentIndex = if (player.shuffleModeEnabled && currentId != null && queueIds.isNotEmpty()) {
+            queueIds.indexOf(currentId).takeIf { it >= 0 } ?: player.currentMediaItemIndex.coerceAtLeast(0)
+        } else {
+            player.currentMediaItemIndex.coerceAtLeast(0)
+        }
+
         _state.value = AudioPlaybackState(
             isConnected = true,
-            currentMediaId = player.currentMediaItem?.mediaId?.takeIf(String::isNotBlank),
+            currentMediaId = currentId,
             isPlaying = player.isPlaying,
             positionMs = player.currentPosition.coerceAtLeast(0L),
             durationMs = player.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L,
             hasPrevious = player.hasPreviousMediaItem(),
             hasNext = player.hasNextMediaItem(),
-            queueMediaIds = (0 until player.mediaItemCount).map { index ->
-                player.getMediaItemAt(index).mediaId
-            },
-            currentMediaIndex = player.currentMediaItemIndex.coerceAtLeast(0),
+            queueMediaIds = queueIds,
+            currentMediaIndex = currentIndex,
             repeatMode = when (player.repeatMode) {
                 Player.REPEAT_MODE_ALL -> AudioRepeatMode.ALL
                 Player.REPEAT_MODE_ONE -> AudioRepeatMode.ONE

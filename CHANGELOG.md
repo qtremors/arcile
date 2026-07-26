@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.9
+> **Version:** 1.7.0
 > **Last Updated:** 2026-07-26
 
 ---
+
+## [1.7.0] - 2026-07-26
+
+- **Refined Audio Player**: Rebuilt the mini and full player as one continuous animated surface with shared artwork motion, a persistent mini progress rail, smoother wavy seeking, balanced transport controls, adaptive spacing, a centered now-playing header, and direct queue access.
+- **Release Readiness**: Synchronized 1.7.0 metadata and release-facing documentation, published user-focused notes for the complete 1.6.1–1.7.0 development range, and refreshed production build guidance.
 
 ## [1.6.9] - 2026-07-26
 

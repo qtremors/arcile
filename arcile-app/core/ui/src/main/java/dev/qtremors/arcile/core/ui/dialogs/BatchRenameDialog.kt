@@ -219,7 +219,7 @@ fun BatchRenameDialog(
                         IconButton(onClick = { showPresetsMenu = true }) {
                             Icon(
                                 imageVector = Icons.Default.AutoAwesome,
-                                contentDescription = "Regex Presets",
+                                contentDescription = stringResource(R.string.regex_presets),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -248,7 +248,7 @@ fun BatchRenameDialog(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.History,
-                                    contentDescription = "Search History",
+                                    contentDescription = stringResource(R.string.search_history),
                                     tint = if (searchHistory.isNotEmpty()) {
                                         MaterialTheme.colorScheme.onSurfaceVariant
                                     } else {

@@ -150,6 +150,14 @@ class AudioLibraryPresentationTest {
         assertEquals("1:02:03", formatAudioDuration(3_723_000L))
     }
 
+    @Test
+    fun `playback progress handles missing duration and clamps stale positions`() {
+        assertEquals(0f, audioProgressFraction(5_000f, 0L), 0f)
+        assertEquals(0.5f, audioProgressFraction(5_000f, 10_000L), 0f)
+        assertEquals(0f, audioProgressFraction(-500f, 10_000L), 0f)
+        assertEquals(1f, audioProgressFraction(12_000f, 10_000L), 0f)
+    }
+
     private fun track(
         path: String,
         title: String,

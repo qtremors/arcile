@@ -75,7 +75,15 @@ internal fun AudioQueueSheet(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             } else {
-                LazyColumn {
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState(
+                    initialFirstVisibleItemIndex = (currentIndex - 1).coerceAtLeast(0)
+                )
+                androidx.compose.runtime.LaunchedEffect(currentIndex) {
+                    if (currentIndex in queue.indices) {
+                        listState.animateScrollToItem((currentIndex - 1).coerceAtLeast(0))
+                    }
+                }
+                LazyColumn(state = listState) {
                     itemsIndexed(
                         items = queue,
                         key = { _, track -> track.file.absolutePath }

@@ -357,7 +357,7 @@ fun AccentColorPickerSheet(
                     style = MaterialTheme.typography.titleLarge
                 )
                 TextButton(onClick = onDismiss) {
-                    Text("Done", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.done), style = MaterialTheme.typography.labelLarge)
                 }
             }
 
@@ -405,7 +405,7 @@ fun AccentColorPickerSheet(
 
             // Categorized Accent Color Swatches
             AccentCategorySection(
-                title = "Warm Palette",
+                title = stringResource(R.string.accent_palette_warm),
                 colors = listOf(
                     AccentColor.RED, AccentColor.PINK, AccentColor.DEEP_ORANGE,
                     AccentColor.ORANGE, AccentColor.AMBER, AccentColor.YELLOW
@@ -417,7 +417,7 @@ fun AccentColorPickerSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             AccentCategorySection(
-                title = "Cool & Vibrant Palette",
+                title = stringResource(R.string.accent_palette_cool_vibrant),
                 colors = listOf(
                     AccentColor.BLUE, AccentColor.LIGHT_BLUE, AccentColor.CYAN,
                     AccentColor.INDIGO, AccentColor.PURPLE, AccentColor.DEEP_PURPLE
@@ -429,7 +429,7 @@ fun AccentColorPickerSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             AccentCategorySection(
-                title = "Nature & Fresh Palette",
+                title = stringResource(R.string.accent_palette_nature_fresh),
                 colors = listOf(
                     AccentColor.TEAL, AccentColor.GREEN, AccentColor.LIGHT_GREEN, AccentColor.LIME
                 ),
@@ -440,7 +440,7 @@ fun AccentColorPickerSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             AccentCategorySection(
-                title = "Earth & Neutral Palette",
+                title = stringResource(R.string.accent_palette_earth_neutral),
                 colors = listOf(
                     AccentColor.BROWN, AccentColor.BLUE_GREY, AccentColor.GREY, AccentColor.BLACK
                 ),

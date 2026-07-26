@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.feature.audio
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -427,6 +429,7 @@ internal fun AudioSelectionTopBar(
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun AudioLibraryBottomBar(
     state: AudioLibraryState,
@@ -434,6 +437,8 @@ internal fun AudioLibraryBottomBar(
     currentTrack: AudioTrack?,
     selectedTracks: List<AudioTrack>,
     playback: AudioPlaybackState,
+    playerExpanded: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
     isChromeVisible: Boolean,
     onSelectTab: (AudioLibraryTab) -> Unit,
     onExpandPlayer: () -> Unit,
@@ -491,15 +496,25 @@ internal fun AudioLibraryBottomBar(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.widthIn(max = 600.dp)
         ) {
-            currentTrack?.let {
-                AudioMiniPlayer(
-                    track = it,
-                    playback = playback,
-                    onExpand = onExpandPlayer,
-                    onTogglePlayback = onTogglePlayback,
-                    onNext = onNext
-                )
-                Spacer(Modifier.height(8.dp))
+            AnimatedVisibility(
+                visible = currentTrack != null && !playerExpanded,
+                enter = fadeIn(),
+                exit = fadeOut()
+            ) {
+                currentTrack?.let {
+                    Column {
+                        AudioMiniPlayer(
+                            track = it,
+                            playback = playback,
+                            sharedTransitionScope = sharedTransitionScope,
+                            animatedVisibilityScope = this@AnimatedVisibility,
+                            onExpand = onExpandPlayer,
+                            onTogglePlayback = onTogglePlayback,
+                            onNext = onNext
+                        )
+                        Spacer(Modifier.height(8.dp))
+                    }
+                }
             }
             if (isSelectionMode) {
                 AudioSelectionActionsBar(

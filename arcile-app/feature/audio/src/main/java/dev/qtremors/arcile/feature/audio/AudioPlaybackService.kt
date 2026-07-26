@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -12,6 +13,7 @@ import androidx.media3.session.MediaSessionService
 internal class AudioPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
 
+    @UnstableApi
     override fun onCreate() {
         super.onCreate()
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this)

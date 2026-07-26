@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.feature.audio
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -47,76 +50,108 @@ import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun AudioMiniPlayer(
     track: AudioTrack,
     playback: AudioPlaybackState,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
     onExpand: () -> Unit,
     onTogglePlayback: () -> Unit,
     onNext: () -> Unit
 ) {
+    val containerModifier = with(sharedTransitionScope) {
+        Modifier
+            .fillMaxWidth()
+            .sharedBounds(
+                sharedContentState = rememberSharedContentState(
+                    "audio-player-container-${track.file.absolutePath}"
+                ),
+                animatedVisibilityScope = animatedVisibilityScope
+            )
+    }
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         contentColor = MaterialTheme.colorScheme.onSurface,
         tonalElevation = 4.dp,
         shadowElevation = 4.dp,
-        modifier = Modifier.fillMaxWidth()
+        modifier = containerModifier
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(68.dp)
-                .padding(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AudioArtwork(
-                track,
+        Column {
+            Row(
                 Modifier
-                    .size(56.dp)
-                    .bounceClickable(onClick = onExpand)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .bounceClickable(onClick = onExpand)
+                    .fillMaxWidth()
+                    .height(72.dp)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    track.displayTitle,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                AudioArtwork(
+                    track,
+                    with(sharedTransitionScope) {
+                        Modifier
+                            .size(56.dp)
+                            .sharedBounds(
+                                sharedContentState = rememberSharedContentState(
+                                    "audio-player-artwork-${track.file.absolutePath}"
+                                ),
+                                animatedVisibilityScope = animatedVisibilityScope
+                            )
+                            .bounceClickable(onClick = onExpand)
+                    }
                 )
-                Text(
-                    track.artist ?: stringResource(R.string.audio_unknown_artist),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                Spacer(Modifier.width(12.dp))
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .bounceClickable(onClick = onExpand)
+                ) {
+                    Text(
+                        track.displayTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        track.artist ?: stringResource(R.string.audio_unknown_artist),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                SplitButtonGroup(
+                    actions = listOf(
+                        ToolbarAction(
+                            icon = if (playback.isPlaying) {
+                                Icons.Default.Pause
+                            } else {
+                                Icons.Default.PlayArrow
+                            },
+                            contentDescription = stringResource(
+                                if (playback.isPlaying) R.string.audio_pause else R.string.audio_play
+                            ),
+                            onClick = onTogglePlayback
+                        ),
+                        ToolbarAction(
+                            icon = Icons.Default.SkipNext,
+                            contentDescription = stringResource(R.string.audio_next),
+                            onClick = onNext
+                        )
+                    ),
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    height = 48.dp,
+                    minWidth = 48.dp,
+                    iconSize = 24.dp
                 )
             }
-            SplitButtonGroup(
-                actions = listOf(
-                    ToolbarAction(
-                        icon = if (playback.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = stringResource(
-                            if (playback.isPlaying) R.string.audio_pause else R.string.audio_play
-                        ),
-                        onClick = onTogglePlayback
-                    ),
-                    ToolbarAction(
-                        icon = Icons.Default.SkipNext,
-                        contentDescription = stringResource(R.string.audio_next),
-                        onClick = onNext
-                    )
-                ),
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                height = 48.dp,
-                minWidth = 48.dp,
-                iconSize = 24.dp
+            AudioMiniPlaybackProgress(
+                positionMs = playback.positionMs,
+                durationMs = playback.durationMs.takeIf { it > 0L } ?: track.durationMs,
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }

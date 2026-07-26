@@ -53,6 +53,7 @@ Arcile is an offline Android file manager built for speed, privacy, and clean de
 ### 🎬 Built-in Media
 - **Image Gallery & Viewer**: Browse photo albums, view full-resolution images, inspect EXIF metadata, and manage favorites.
 - **Video Player**: Built-in video playback with volume/brightness gestures, double-tap seek, and subtitle support.
+- **Audio Library & Player**: Browse songs and folders, manage audio files, and listen in the background with a queue, repeat, shuffle, system media controls, and connected mini/full players.
 
 ### ⚡ Utilities
 - **APK & Split Installer**: View package details and install standard `.apk` files and split packages (`.apks`, `.xapk`, `.apkm`).
@@ -66,7 +67,7 @@ Arcile is an offline Android file manager built for speed, privacy, and clean de
 
 Arcile manages all file types on your device, including unknown or custom extensions.
 
-- **Built-in Tools**: Includes a native image viewer, video player, archive manager, and APK installer.
+- **Built-in Tools**: Includes a native image viewer, video player, audio library and player, archive manager, and APK installer.
 - **System Integration**: Open, edit, or share any format through installed Android apps.
 
 ---
@@ -98,7 +99,7 @@ Run Gradle commands from `arcile-app/` (`gradlew.bat` on Windows):
 Install debug APK via ADB:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/Arcile-1.6.4-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-1.7.0-debug.apk
 ```
 
 ### Release Signing
@@ -125,7 +126,7 @@ signing.keyPassword=your_key_password
 | **Navigation** | Navigation Compose with `kotlinx.serialization` typed routes |
 | **Storage** | `java.io.File`, `StatFs`, MediaStore, encrypted vault storage, cache-backed FileProvider handoffs, foreground service operations |
 | **Persistence** | Room cache database (`arcile-cache.db`, schema version 2) plus DataStore Preferences for theme, browser presentation, storage classification, quick access, cleaner rules, and onboarding |
-| **Media** | Coil image pipelines and Media3 native video playback |
+| **Media** | Coil image pipelines and Media3 native audio and video playback |
 | **Archives** | Apache Commons Compress, Tukaani XZ, and Zip4j |
 | **Android Support** | Android 11 or newer |
 
@@ -151,6 +152,7 @@ arcile/
 │   ├── feature/                                 # Feature-owned routes, ViewModels, screens, and workflows
 │   │   ├── activitylog/                         # Completed operation history
 │   │   ├── archive/                             # Archive creation, browsing, and extraction
+│   │   ├── audio/                               # Device audio library, file workflows, and background playback
 │   │   ├── browser/                             # File browsing, selection, clipboard, and file actions
 │   │   ├── home/                                # Storage overview, categories, pins, and recent files
 │   │   ├── imagegallery/                        # Photos, albums, viewer, favorites, and metadata

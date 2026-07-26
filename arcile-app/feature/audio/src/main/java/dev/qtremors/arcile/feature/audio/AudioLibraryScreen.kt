@@ -2,16 +2,15 @@ package dev.qtremors.arcile.feature.audio
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -34,7 +33,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -63,6 +61,7 @@ private enum class AudioBackAction {
     NAVIGATE_BACK
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun AudioLibraryScreen(
     state: AudioLibraryState,
@@ -209,11 +208,12 @@ internal fun AudioLibraryScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(nestedScrollConnection)
-    ) {
+    SharedTransitionLayout {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(nestedScrollConnection)
+        ) {
         val topPadding =
             WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 80.dp
         val bottomPadding =
@@ -343,6 +343,8 @@ internal fun AudioLibraryScreen(
             currentTrack = currentTrack,
             selectedTracks = selectedTracks,
             playback = playback,
+            playerExpanded = state.playerExpanded,
+            sharedTransitionScope = this@SharedTransitionLayout,
             isChromeVisible = isChromeVisible,
             onSelectTab = { tab ->
                 coroutineScope.launch {
@@ -387,24 +389,16 @@ internal fun AudioLibraryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .align(Alignment.Center),
-            enter = fadeIn() +
-                slideInVertically(initialOffsetY = { it / 3 }) +
-                scaleIn(
-                    initialScale = 0.86f,
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                ),
-            exit = fadeOut() +
-                slideOutVertically(targetOffsetY = { it / 3 }) +
-                scaleOut(
-                    targetScale = 0.86f,
-                    transformOrigin = TransformOrigin(0.5f, 1f)
-                )
+            enter = fadeIn(),
+            exit = fadeOut()
         ) {
             currentTrack?.let { track ->
                 AudioNowPlayingScreen(
                     track = track,
                     queue = queueTracks,
                     playback = playback,
+                    sharedTransitionScope = this@SharedTransitionLayout,
+                    animatedVisibilityScope = this@AnimatedVisibility,
                     predictiveBackEnabled = state.playerExpanded,
                     onCollapse = onCollapsePlayer,
                     onTogglePlayback = onTogglePlayback,
@@ -419,6 +413,7 @@ internal fun AudioLibraryScreen(
                     onShowContainingFolder = { onShowContainingFolder(track) }
                 )
             }
+        }
         }
     }
 
