@@ -51,14 +51,23 @@ private fun handleHomeDestination(
             destination.context
         )
         is HomeDestination.BrowseCategory -> {
-            if (isGalleryCategory(destination.name)) {
-                navController.navigate(AppRoutes.ImageGallery(categoryName = destination.name)) {
-                    popUpTo<AppRoutes.Main> { saveState = true }
-                    launchSingleTop = true
+            when {
+                isGalleryCategory(destination.name) -> {
+                    navController.navigate(AppRoutes.ImageGallery(categoryName = destination.name)) {
+                        popUpTo<AppRoutes.Main> { saveState = true }
+                        launchSingleTop = true
+                    }
                 }
-            } else {
-                navController.navigate(AppRoutes.Category(name = destination.name)) {
-                    launchSingleTop = true
+                isAudioCategory(destination.name) -> {
+                    navController.navigate(AppRoutes.AudioLibrary()) {
+                        popUpTo<AppRoutes.Main> { saveState = true }
+                        launchSingleTop = true
+                    }
+                }
+                else -> {
+                    navController.navigate(AppRoutes.Category(name = destination.name)) {
+                        launchSingleTop = true
+                    }
                 }
             }
         }

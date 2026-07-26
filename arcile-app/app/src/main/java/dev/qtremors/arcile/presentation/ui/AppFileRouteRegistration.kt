@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
+import dev.qtremors.arcile.feature.audio.registerAudioLibraryRoute
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
@@ -36,20 +37,28 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onDestination = { destination ->
             when (destination) {
                 is StorageDashboardDestination.Category -> {
-                    if (isGalleryCategory(destination.name)) {
-                        navController.navigate(
-                            AppRoutes.ImageGallery(
-                                volumeId = destination.volumeId,
-                                categoryName = destination.name
+                    when {
+                        isGalleryCategory(destination.name) -> {
+                            navController.navigate(
+                                AppRoutes.ImageGallery(
+                                    volumeId = destination.volumeId,
+                                    categoryName = destination.name
+                                )
                             )
-                        )
-                    } else {
-                        navController.navigate(
-                            AppRoutes.Category(
-                                name = destination.name,
-                                volumeId = destination.volumeId
+                        }
+                        isAudioCategory(destination.name) -> {
+                            navController.navigate(
+                                AppRoutes.AudioLibrary(volumeId = destination.volumeId)
                             )
-                        )
+                        }
+                        else -> {
+                            navController.navigate(
+                                AppRoutes.Category(
+                                    name = destination.name,
+                                    volumeId = destination.volumeId
+                                )
+                            )
+                        }
                     }
                 }
                 is StorageDashboardDestination.Path -> actions.navigateToBrowser(
@@ -134,6 +143,36 @@ internal fun NavGraphBuilder.registerFileRoutes(
             actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
         },
         onFeedback = onFeedback
+    )
+    registerAudioLibraryRoute(
+        enterTransition = transitions.utilityEnter,
+        exitTransition = transitions.utilityExit,
+        popEnterTransition = transitions.utilityPopEnter,
+        popExitTransition = transitions.utilityPopExit,
+        onNavigateBack = {
+            if (!navController.popBackStack()) {
+                navController.navigate(AppRoutes.Main()) {
+                    launchSingleTop = true
+                }
+            }
+        },
+        onShareSelected = { tracks ->
+            actions.shareKnownFilesAsync(
+                tracks.map { it.file.absolutePath },
+                tracks.map { it.file }
+            )
+        },
+        onOpenWith = { track -> actions.openFileWith(track.file.absolutePath) },
+        onShowContainingFolder = { track ->
+            val parent = track.file.absolutePath.replace('\\', '/').substringBeforeLast('/', "")
+            actions.navigateToBrowser(
+                AppRoutes.Main(
+                    initialPage = BROWSER_PAGE,
+                    path = parent,
+                    focusPath = track.file.absolutePath
+                )
+            )
+        }
     )
     registerImageViewerRoute(
         navController = navController,

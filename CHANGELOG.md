@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.7
+> **Version:** 1.6.8
 > **Last Updated:** 2026-07-26
 
 ---
+
+## [1.6.8] - 2026-07-26
+
+- **Audio Player and App Integration**: Added the Audio category route, background playback, Arcile-branded system media controls, animated mini and full-player transitions, wavy seeking, repeat and shuffle controls, swipe navigation, and an editable playback queue.
 
 ## [1.6.7] - 2026-07-26
 

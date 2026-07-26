@@ -103,6 +103,13 @@ class AppFileOpenResolverTest {
     }
 
     @Test
+    fun `audio resolves to Arcile audio player`() = runTest {
+        val result = resolver().resolve("/storage/song.mp3", emptyList())
+
+        assertEquals(AppFileOpenResolution.ViewAudio("/storage/song.mp3"), result)
+    }
+
+    @Test
     fun `external preference bypasses Arcile viewer for its file category`() = runTest {
         val resolver = AppFileOpenResolver(
             pluginGateway = PluginFileResolutionGateway { _, _, _ ->

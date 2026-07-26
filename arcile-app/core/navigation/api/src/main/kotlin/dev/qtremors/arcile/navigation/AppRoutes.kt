@@ -54,6 +54,10 @@ object AppRoutes {
         val managedTrash: Boolean = false
     )
     @Serializable data class VideoViewer(val sessionToken: String)
+    @Serializable data class AudioLibrary(
+        val volumeId: String? = null,
+        val initialPath: String? = null
+    )
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner
     @Serializable object StorageManagement

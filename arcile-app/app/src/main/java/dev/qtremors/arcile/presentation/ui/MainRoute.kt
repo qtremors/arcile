@@ -79,6 +79,9 @@ internal fun MainRoute(
 internal fun isGalleryCategory(categoryName: String): Boolean =
     categoryName == FileCategories.Images.name || categoryName == FileCategories.Videos.name
 
+internal fun isAudioCategory(categoryName: String): Boolean =
+    categoryName == FileCategories.Audio.name
+
 internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRequest? {
     if (initialPage != BROWSER_PAGE) return null
     val requestedArchivePath = archivePath

@@ -77,6 +77,7 @@ internal class AppFileOpenResolver(
                     .distinct()
                     .toList()
             )
+            extension in FileCategories.Audio.extensions -> AppFileOpenResolution.ViewAudio(path)
             else -> AppFileOpenResolution.External(path, forceChooser = true)
         }
     }

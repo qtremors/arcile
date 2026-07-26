@@ -227,6 +227,9 @@ internal class AppNavigationActions(
                     surroundingFiles = surroundingFiles,
                     selectedPaths = selectedPaths
                 )
+                is AppFileOpenResolution.ViewAudio -> navController.navigate(
+                    AppRoutes.AudioLibrary(initialPath = resolution.path)
+                )
                 is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution
                 is AppFileOpenResolution.External -> {
                     if (resolution.forceChooser) {

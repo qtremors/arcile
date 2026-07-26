@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 167
-        versionName = "1.6.7"
+        versionCode = 168
+        versionName = "1.6.8"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -125,6 +125,7 @@ dependencies {
     implementation(project(":feature:recentfiles"))
     implementation(project(":feature:imagegallery"))
     implementation(project(":feature:videoplayer"))
+    implementation(project(":feature:audio"))
     implementation(project(":feature:onboarding"))
     implementation(project(":feature:quickaccess"))
     implementation(project(":feature:storagecleaner"))
