@@ -9,13 +9,20 @@ fun buildThumbnailImageRequest(
     context: Context,
     data: Any?,
     cacheKey: String,
-    sizePx: Int
+    sizePx: Int,
+    useMemoryCachePlaceholder: Boolean = false
 ): ImageRequest {
     val sensitive = data is SensitiveThumbnailRequest
+    val memoryCacheKey = (data as? SensitiveThumbnailRequest)?.memoryCacheKey ?: cacheKey
     return ImageRequest.Builder(context)
         .data(data)
         .size(sizePx)
-        .memoryCacheKey((data as? SensitiveThumbnailRequest)?.memoryCacheKey ?: cacheKey)
+        .memoryCacheKey(memoryCacheKey)
+        .apply {
+            if (useMemoryCachePlaceholder) {
+                placeholderMemoryCacheKey(memoryCacheKey)
+            }
+        }
         .diskCacheKey(if (sensitive) null else cacheKey)
         .diskCachePolicy(if (sensitive) CachePolicy.DISABLED else CachePolicy.ENABLED)
         .memoryCachePolicy(CachePolicy.ENABLED)

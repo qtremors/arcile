@@ -127,29 +127,40 @@ internal fun DuplicateFileRow(
             .bounceClickable(onClick = onToggle).padding(vertical = 8.dp)
     ) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = selected, onCheckedChange = null)
+            Checkbox(
+                checked = selected,
+                onCheckedChange = { onToggle() },
+                modifier = Modifier.testTag("checkbox_${file.absolutePath}")
+            )
             Spacer(modifier = Modifier.width(4.dp))
             CleanerFilePreview(
                 file = file,
                 badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.clip(CircleShape).bounceClickable {
-                    if (file.isDirectory) {
-                        onOpenContainingFolder(file.absolutePath)
-                    } else {
-                        onOpenFile(file.absolutePath)
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .testTag("cleaner_thumbnail_${file.absolutePath}")
+                    .bounceClickable {
+                        if (file.isDirectory) {
+                            onOpenContainingFolder(file.absolutePath)
+                        } else {
+                            onOpenFile(file.absolutePath)
+                        }
                     }
-                }
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .testTag("cleaner_location_${file.absolutePath}")
+                    .clip(MaterialTheme.shapes.small)
+                    .bounceClickable { onOpenContainingFolder(file.absolutePath) }
+            ) {
                 Text(
                     text = cleanFilePath(file.absolutePath),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.clip(MaterialTheme.shapes.small)
-                        .bounceClickable { onOpenContainingFolder(file.absolutePath) }
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (dateString.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(2.dp))
@@ -162,18 +173,25 @@ internal fun DuplicateFileRow(
                 }
             }
         }
+
         Spacer(modifier = Modifier.height(4.dp))
         Row(
-            modifier = Modifier.fillMaxWidth().padding(start = 104.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = CleanerRowContentStart),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            CleanerRiskSummary(file = file, appContext = appContext, modifier = Modifier.weight(1f))
+            CleanerRiskSummary(
+                file = file,
+                appContext = appContext,
+                modifier = Modifier.weight(1f)
+            )
             Spacer(modifier = Modifier.width(8.dp))
             TextButton(
                 onClick = { onIgnoreFile(file.absolutePath) },
                 shape = ExpressiveShapes.medium
             ) {
-                Text(stringResource(R.string.cleaner_ignore))
+                Text(stringResource(R.string.cleaner_ignore_file))
             }
         }
     }

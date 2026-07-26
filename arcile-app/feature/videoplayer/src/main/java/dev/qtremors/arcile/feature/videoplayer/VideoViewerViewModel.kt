@@ -51,6 +51,7 @@ internal class VideoViewerViewModel @Inject constructor(
             viewerCurrentPath = savedStateHandle[KEY_CURRENT_PATH],
             viewerMetadataPath = savedStateHandle[KEY_METADATA_PATH],
             viewerUiVisible = savedStateHandle[KEY_UI_VISIBLE] ?: true,
+            showThumbnails = savedStateHandle[KEY_SHOW_THUMBNAILS] ?: persistentShowThumbnails,
             viewerEraseDialogPath = savedStateHandle[KEY_ERASE_DIALOG_PATH]
         )
     )
@@ -293,10 +294,21 @@ internal class VideoViewerViewModel @Inject constructor(
         _state.update { it.copy(viewerMetadataPath = metadataPath) }
     }
 
-    fun toggleViewerUi() {
-        val visible = !state.value.viewerUiVisible
+    fun setViewerUiVisible(visible: Boolean) {
         savedStateHandle[KEY_UI_VISIBLE] = visible
         _state.update { it.copy(viewerUiVisible = visible) }
+    }
+
+    fun toggleViewerUi() {
+        val visible = !state.value.viewerUiVisible
+        setViewerUiVisible(visible)
+    }
+
+    fun toggleThumbnails() {
+        val newShow = !state.value.showThumbnails
+        persistentShowThumbnails = newShow
+        savedStateHandle[KEY_SHOW_THUMBNAILS] = newShow
+        _state.update { it.copy(showThumbnails = newShow) }
     }
 
     fun setViewerEraseDialogPath(path: String?) {
@@ -305,6 +317,7 @@ internal class VideoViewerViewModel @Inject constructor(
     }
 
     private companion object {
+        var persistentShowThumbnails: Boolean = true
         val viewerRemovalOperationTypes = setOf(
             BulkFileOperationType.MOVE,
             BulkFileOperationType.TRASH,
@@ -315,6 +328,7 @@ internal class VideoViewerViewModel @Inject constructor(
         const val KEY_CURRENT_PATH = "video_viewer.current_path"
         const val KEY_METADATA_PATH = "video_viewer.metadata_path"
         const val KEY_UI_VISIBLE = "video_viewer.ui_visible"
+        const val KEY_SHOW_THUMBNAILS = "video_viewer.show_thumbnails"
         const val KEY_ERASE_DIALOG_PATH = "video_viewer.erase_dialog_path"
     }
 }

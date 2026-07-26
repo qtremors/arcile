@@ -17,6 +17,7 @@ import dev.qtremors.arcile.core.plugin.android.PluginManager
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.R
@@ -44,6 +45,9 @@ internal class AppNavigationActions(
     var pluginPrompt by mutableStateOf<PluginFileResolution?>(null)
         private set
 
+    var apkInstallTarget by mutableStateOf<AppFileOpenResolution.InstallApk?>(null)
+        private set
+
     val destinationMappers = AppDestinationMappers(
         navigateToBrowser = ::navigateToBrowser,
         openPath = ::openPath,
@@ -53,6 +57,11 @@ internal class AppNavigationActions(
 
     fun dismissPluginPrompt() {
         pluginPrompt = null
+    }
+
+    fun dismissApkInstaller() {
+        apkInstallTarget = null
+        dev.qtremors.arcile.core.operation.android.apk.PackageInstallerEngine.resetState()
     }
 
     fun navigateToBrowser(route: AppRoutes.Main) {
@@ -218,7 +227,17 @@ internal class AppNavigationActions(
                     surroundingFiles = surroundingFiles,
                     selectedPaths = selectedPaths
                 )
-                is AppFileOpenResolution.External -> onOpenFile(resolution.path)
+                is AppFileOpenResolution.ViewAudio -> navController.navigate(
+                    AppRoutes.AudioLibrary(initialPath = resolution.path)
+                )
+                is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution
+                is AppFileOpenResolution.External -> {
+                    if (resolution.forceChooser) {
+                        onOpenFileWith(resolution.path)
+                    } else {
+                        onOpenFile(resolution.path)
+                    }
+                }
             }
         }
     }
@@ -410,6 +429,7 @@ internal fun rememberAppNavigationActions(
     navController: NavHostController,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    fileOpenBehaviors: Map<String, FileOpenBehavior>,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ): AppNavigationActions {
     val context = LocalContext.current
@@ -420,6 +440,7 @@ internal fun rememberAppNavigationActions(
         coroutineScope,
         onOpenFile,
         onOpenFileWith,
+        fileOpenBehaviors,
         onFeedback
     ) {
         AppNavigationActions(
@@ -427,7 +448,8 @@ internal fun rememberAppNavigationActions(
             navController = navController,
             coroutineScope = coroutineScope,
             fileOpenResolver = AppFileOpenResolver(
-                InstalledPluginFileResolutionGateway(PluginManager(context))
+                pluginGateway = InstalledPluginFileResolutionGateway(PluginManager(context)),
+                fileOpenBehaviors = fileOpenBehaviors
             ),
             onOpenFile = onOpenFile,
             onOpenFileWith = onOpenFileWith,

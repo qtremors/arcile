@@ -185,6 +185,7 @@ private fun DuplicateComparePane(
                     badgeBgColor = MaterialTheme.colorScheme.surfaceContainerHigh,
                     modifier = Modifier
                         .clip(CircleShape)
+                        .testTag("cleaner_thumbnail_${file.absolutePath}")
                         .bounceClickable {
                             if (file.isDirectory) {
                                 onOpenContainingFolder(file.absolutePath)
@@ -201,7 +202,11 @@ private fun DuplicateComparePane(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .testTag("cleaner_location_${file.absolutePath}")
+                            .clip(MaterialTheme.shapes.small)
+                            .bounceClickable { onOpenContainingFolder(file.absolutePath) }
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
@@ -328,7 +333,7 @@ private fun DuplicateComparePane(
                     shape = ExpressiveShapes.medium,
                     modifier = Modifier.padding(end = 8.dp)
                 ) {
-                    Text(stringResource(R.string.cleaner_ignore))
+                    Text(stringResource(R.string.cleaner_ignore_file))
                 }
             }
         }

@@ -10,7 +10,7 @@ data class FileItemPresentation(
     val showThumbnails: Boolean = true,
     val showDetails: Boolean = true,
     val thumbnailLoadingPaused: Boolean = false,
-    val openImageFromThumbnailInSelectionMode: Boolean = false,
+    val openFileFromThumbnailInSelectionMode: Boolean = false,
     val thumbnailData: ((FileModel, Int) -> Any?)? = null
 )
 

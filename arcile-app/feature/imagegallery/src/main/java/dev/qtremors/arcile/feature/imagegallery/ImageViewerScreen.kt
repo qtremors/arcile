@@ -379,7 +379,7 @@ internal fun ImageViewerScreen(
                             haptics.selectionChanged()
                             viewModel.setViewerEraseDialogPath(null)
                         }
-                        androidx.compose.material3.AlertDialog(
+                        dev.qtremors.arcile.core.ui.dialogs.AlertDialog(
                             onDismissRequest = cancelClick,
                             title = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_title)) },
                             text = { Text(stringResource(R.string.image_gallery_metadata_erase_dialog_message)) },

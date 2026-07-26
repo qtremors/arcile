@@ -136,8 +136,6 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import kotlinx.coroutines.delay
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.core.storage.domain.isIndexed
-import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button

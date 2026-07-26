@@ -11,15 +11,13 @@ import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferences
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferences
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalStagingCache
-import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
-import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
-import dev.qtremors.arcile.core.vault.domain.VaultThumbnailCache
 import dev.qtremors.arcile.feature.settings.ui.SettingsExternalCacheState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,10 +34,7 @@ internal class SettingsViewModel @Inject constructor(
     private val recentFilesPreferencesStore: RecentFilesPreferencesStore,
     private val galleryPreferencesStore: GalleryPreferencesStore,
     private val preferencesBackupManager: PreferencesBackupGateway,
-    private val externalStagingCache: ExternalStagingCache,
-    private val vaultSecurityPreferences: VaultSecurityPreferences,
-    private val vaultThumbnailCache: VaultThumbnailCache,
-    private val vaultExternalAccessManager: VaultExternalAccessManager
+    private val externalStagingCache: ExternalStagingCache
 ) : ViewModel() {
     val browserPreferences = combine(
         browserPreferencesStore.locationPreferencesFlow,
@@ -53,50 +48,9 @@ internal class SettingsViewModel @Inject constructor(
 
     private val _externalCache = MutableStateFlow(SettingsExternalCacheState())
     val externalCache: StateFlow<SettingsExternalCacheState> = _externalCache.asStateFlow()
-    private val _vaultSecurity = MutableStateFlow(VaultSecurityUiState())
-    val vaultSecurity: StateFlow<VaultSecurityUiState> = _vaultSecurity.asStateFlow()
 
     init {
         refreshExternalCache()
-        viewModelScope.launch {
-            vaultSecurityPreferences.settings.collect { settings ->
-                _vaultSecurity.value = _vaultSecurity.value.copy(
-                    screenshotProtectionEnabled = settings.screenshotProtectionEnabled
-                )
-            }
-        }
-        refreshVaultSecurity()
-    }
-
-    fun refreshVaultSecurity() {
-        viewModelScope.launch {
-            _vaultSecurity.value = _vaultSecurity.value.copy(isBusy = true)
-            val stats = vaultThumbnailCache.stats().getOrNull()
-            _vaultSecurity.value = _vaultSecurity.value.copy(
-                encryptedThumbnailFiles = stats?.encryptedFileCount ?: 0,
-                encryptedThumbnailBytes = stats?.encryptedBytes ?: 0L,
-                activeExternalGrants = vaultExternalAccessManager.activeGrants().size,
-                isBusy = false
-            )
-        }
-    }
-
-    fun setScreenshotProtection(enabled: Boolean) {
-        viewModelScope.launch { vaultSecurityPreferences.setScreenshotProtectionEnabled(enabled) }
-    }
-
-    fun clearVaultThumbnails() {
-        if (_vaultSecurity.value.isBusy) return
-        viewModelScope.launch {
-            _vaultSecurity.value = _vaultSecurity.value.copy(isBusy = true)
-            vaultThumbnailCache.clear()
-            refreshVaultSecurity()
-        }
-    }
-
-    fun revokeAllVaultExternalAccess() {
-        vaultExternalAccessManager.revokeAll()
-        refreshVaultSecurity()
     }
 
     fun refreshExternalCache() {
@@ -163,6 +117,12 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateFileOpenBehavior(categoryName, behavior)
+        }
+    }
+
     fun exportPreferences(uri: Uri) {
         viewModelScope.launch {
             _backupState.value = PreferencesBackupUiState.Busy
@@ -213,14 +173,6 @@ internal class SettingsViewModel @Inject constructor(
     }
 }
 
-internal data class VaultSecurityUiState(
-    val screenshotProtectionEnabled: Boolean = true,
-    val encryptedThumbnailFiles: Int = 0,
-    val encryptedThumbnailBytes: Long = 0L,
-    val activeExternalGrants: Int = 0,
-    val isBusy: Boolean = true
-)
-
 internal data class SettingsPreferences(
     val browser: BrowserLocationPreferences = BrowserLocationPreferences(),
     val recentFiles: RecentFilesPreferences = RecentFilesPreferences(),
@@ -236,6 +188,8 @@ internal data class SettingsPreferences(
         get() = browser.scrollbarEnabled
     val galleryScrollbarEnabled: Boolean
         get() = gallery.scrollbarEnabled
+    val fileOpenBehaviors: Map<String, FileOpenBehavior>
+        get() = browser.fileOpenBehaviors
 }
 
 internal sealed interface PreferencesBackupUiState {

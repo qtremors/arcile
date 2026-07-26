@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.plugin.android.PluginCatalogEntry
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 import kotlinx.coroutines.test.runTest
@@ -21,7 +22,7 @@ class AppFileOpenResolverTest {
     }
 
     @Test
-    fun `missing plugin is returned as a prompt`() = runTest {
+    fun `missing Arcile plugin falls back to external chooser`() = runTest {
         val catalogEntry = PluginCatalogEntry(
             name = "TIFF Viewer",
             packageName = "dev.example.viewer",
@@ -34,7 +35,10 @@ class AppFileOpenResolverTest {
 
         val result = resolver.resolve("/storage/scan.tiff", emptyList())
 
-        assertEquals(AppFileOpenResolution.PluginPrompt(prompt), result)
+        assertEquals(
+            AppFileOpenResolution.External("/storage/scan.tiff", forceChooser = true),
+            result
+        )
     }
 
     @Test
@@ -45,10 +49,13 @@ class AppFileOpenResolverTest {
     }
 
     @Test
-    fun `unsupported archive resolves to an error outcome`() = runTest {
+    fun `unsupported archive falls back to external chooser`() = runTest {
         val result = resolver().resolve("/storage/files.rar", emptyList())
 
-        assertSame(AppFileOpenResolution.UnsupportedArchive, result)
+        assertEquals(
+            AppFileOpenResolution.External("/storage/files.rar", forceChooser = true),
+            result
+        )
     }
 
     @Test
@@ -73,10 +80,13 @@ class AppFileOpenResolverTest {
     }
 
     @Test
-    fun `ordinary file resolves to external opening`() = runTest {
+    fun `unsupported file resolves to external chooser`() = runTest {
         val result = resolver().resolve("/storage/report.pdf", emptyList())
 
-        assertEquals(AppFileOpenResolution.External("/storage/report.pdf"), result)
+        assertEquals(
+            AppFileOpenResolution.External("/storage/report.pdf", forceChooser = true),
+            result
+        )
     }
 
     @Test
@@ -88,6 +98,31 @@ class AppFileOpenResolverTest {
                 path = "/storage/movie.mp4",
                 contextPaths = emptyList()
             ),
+            result
+        )
+    }
+
+    @Test
+    fun `audio resolves to Arcile audio player`() = runTest {
+        val result = resolver().resolve("/storage/song.mp3", emptyList())
+
+        assertEquals(AppFileOpenResolution.ViewAudio("/storage/song.mp3"), result)
+    }
+
+    @Test
+    fun `external preference bypasses Arcile viewer for its file category`() = runTest {
+        val resolver = AppFileOpenResolver(
+            pluginGateway = PluginFileResolutionGateway { _, _, _ ->
+                error("External preference should bypass plugin resolution")
+            },
+            fileOpenBehaviors = mapOf("Images" to FileOpenBehavior.EXTERNAL),
+            mimeTypeForExtension = { "image/jpeg" }
+        )
+
+        val result = resolver.resolve("/storage/photo.jpg", emptyList())
+
+        assertEquals(
+            AppFileOpenResolution.External("/storage/photo.jpg", forceChooser = true),
             result
         )
     }
@@ -111,6 +146,16 @@ class AppFileOpenResolverTest {
             ),
             result
         )
+    }
+
+    @Test
+    fun `apk and split apk files resolve to InstallApk resolution`() = runTest {
+        val apkTypes = listOf("apk", "apks", "xapk", "apkm")
+        for (ext in apkTypes) {
+            val path = "/storage/app.$ext"
+            val result = resolver().resolve(path, emptyList())
+            assertEquals(AppFileOpenResolution.InstallApk(path), result)
+        }
     }
 
     @Test

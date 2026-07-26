@@ -12,6 +12,7 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
@@ -69,6 +70,8 @@ class BrowserPreferencesDataSourceTest {
         assertEquals(FileSortOption.NAME_ASC, preferences.globalPresentation.sortOption)
         assertEquals(FileViewMode.LIST, preferences.globalPresentation.viewMode)
         assertEquals(FileViewMode.GRID, preferences.albumPresentation.viewMode)
+        assertEquals(FileSortOption.DATE_NEWEST, preferences.audioPresentation.sortOption)
+        assertEquals(FileViewMode.LIST, preferences.audioPresentation.viewMode)
         assertEquals(FileListingPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
@@ -244,6 +247,18 @@ class BrowserPreferencesDataSourceTest {
         repository.updateImageGalleryDefaultTab(ImageGalleryDefaultTab.ALBUMS)
 
         assertEquals(ImageGalleryDefaultTab.ALBUMS, repository.preferencesFlow.first().imageGalleryDefaultTab)
+    }
+
+    @Test
+    fun `file opening behavior is persisted independently by category`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateFileOpenBehavior("Images", FileOpenBehavior.EXTERNAL)
+        repository.updateFileOpenBehavior("Videos", FileOpenBehavior.ARCILE)
+
+        val preferences = repository.preferencesFlow.first()
+        assertEquals(FileOpenBehavior.EXTERNAL, preferences.fileOpenBehaviors["Images"])
+        assertEquals(FileOpenBehavior.ARCILE, preferences.fileOpenBehaviors["Videos"])
     }
 
 }

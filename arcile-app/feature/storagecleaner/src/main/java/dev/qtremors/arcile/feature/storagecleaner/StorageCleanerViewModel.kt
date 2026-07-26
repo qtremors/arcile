@@ -74,6 +74,7 @@ internal class StorageCleanerViewModel @Inject constructor(
     val state: StateFlow<StorageCleanerState> = _state.asStateFlow()
 
     private var scanJob: Job? = null
+    private val pendingIgnoredPaths = mutableSetOf<String>()
 
     init {
         refreshThumbnailCache()
@@ -306,9 +307,23 @@ internal class StorageCleanerViewModel @Inject constructor(
     }
 
     fun ignorePath(path: String) {
-        if (path.isBlank()) return
+        if (path.isBlank() || !pendingIgnoredPaths.add(path)) return
+        _state.update { current ->
+            current.copy(
+                groups = current.groups.map { group ->
+                    group.copy(candidates = group.candidates.filterNot { it.absolutePath == path })
+                },
+                rules = current.rules.withIgnoredPath(path)
+            )
+        }
         viewModelScope.launch {
-            preferencesStore.ignorePath(path)
+            runCatching { preferencesStore.ignorePath(path) }
+                .onFailure { error ->
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    _state.update { it.copy(errorMessage = error.message.orEmpty()) }
+                    scan(clearMessages = false)
+                }
+            pendingIgnoredPaths.remove(path)
         }
     }
 

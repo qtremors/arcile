@@ -45,7 +45,9 @@ class PreferencesBackupManagerTest {
                 harmonizeColors = false
             )
         )
-        val utilityPrefs = File(dataStoreDir, "utility_prefs.preferences_pb")
+        val utilityPrefs = File(dataStoreDir, "utility_prefs.preferences_pb").apply {
+            writeBytes(byteArrayOf(5, 6, 7))
+        }
         val backupFile = File(context.cacheDir, "settings-backup.json").apply { delete() }
 
         val exportResult = manager.exportTo(Uri.fromFile(backupFile)).getOrThrow()
@@ -56,15 +58,15 @@ class PreferencesBackupManagerTest {
         val preview = manager.preview(Uri.fromFile(backupFile)).getOrThrow()
         val restoreResult = manager.restoreFrom(Uri.fromFile(backupFile)).getOrThrow()
 
-        assertEquals(2, exportResult.successCount)
-        assertEquals(8, preview.items.size)
-        assertEquals(8, restoreResult.successCount)
+        assertEquals(3, exportResult.successCount)
+        assertEquals(9, preview.items.size)
+        assertEquals(9, restoreResult.successCount)
         assertTrue(backupFile.readText().contains("\"browser_prefs\""))
         assertEquals(listOf(1, 2, 3, 4), browserPrefs.readBytes().map { it.toInt() })
+        assertEquals(listOf(5, 6, 7), utilityPrefs.readBytes().map { it.toInt() })
         assertEquals(ThemeMode.DARK, themePreferences.themeState.first().themeMode)
         assertEquals(AccentColor.GREEN, themePreferences.themeState.first().accentColor)
         assertEquals(false, themePreferences.themeState.first().harmonizeColors)
-        assertTrue("stores omitted from the backup should reset to defaults", !utilityPrefs.exists())
     }
 
     @Test

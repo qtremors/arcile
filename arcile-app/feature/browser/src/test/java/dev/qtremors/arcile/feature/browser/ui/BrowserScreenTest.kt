@@ -611,8 +611,9 @@ class BrowserScreenTest {
     }
 
     @Test
-    fun `selection mode non image thumbnail still toggles selection`() {
+    fun `selection mode non image thumbnail opens file directly`() {
         var toggledPath: String? = null
+        var openedPath: String? = null
         val filePath = "/storage/emulated/0/Documents/notes.txt"
 
         composeRule.setContent {
@@ -626,7 +627,7 @@ class BrowserScreenTest {
                     ),
                     onNavigateBack = {},
                     onNavigateTo = {},
-                    onOpenFile = {},
+                    onOpenFile = { openedPath = it },
                     onToggleSelection = { toggledPath = it },
                     onSelectMultiple = {},
                     onClearSelection = {},
@@ -651,7 +652,10 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onAllNodesWithContentDescription("Open image", useUnmergedTree = true).assertCountEquals(0)
+        composeRule.onNodeWithContentDescription("Open file", useUnmergedTree = true).performClick()
+        assertEquals(filePath, openedPath)
+        assertEquals(null, toggledPath)
+
         composeRule.onNodeWithText("notes.txt").performClick()
         assertEquals(filePath, toggledPath)
     }
@@ -718,7 +722,9 @@ private fun BrowserScreen(
                 onTogglePermanentDelete,
                 onToggleShred = {},
                 onDismissDeleteConfirmation,
-                onRenameFile
+                onRenameFile,
+                onBatchRenameFiles = { _ -> },
+                onSaveBatchRenameFindQuery = {}
             ),
             search = BrowserSearchIntents(
                 onSearchQueryChange,

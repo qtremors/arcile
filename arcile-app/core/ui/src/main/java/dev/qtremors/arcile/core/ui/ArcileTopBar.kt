@@ -238,7 +238,7 @@ fun ArcileTopBar(
                                 .bounceClickable { onSettingsClick() }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title))
+                                Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings_title), modifier = androidx.compose.ui.Modifier.size(24.dp))
                             }
                         }
                         Spacer(modifier = androidx.compose.ui.Modifier.width(4.dp))
@@ -261,144 +261,117 @@ fun ArcileTopBar(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.MoreVert,
-                                    contentDescription = stringResource(R.string.action_more_options)
+                                    contentDescription = stringResource(R.string.action_more_options),
+                                    modifier = androidx.compose.ui.Modifier.size(24.dp)
                                 )
                             }
                         }
-                        DropdownMenu(
-                            shape = MaterialTheme.shapes.extraLarge,
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            offset = androidx.compose.ui.unit.DpOffset(0.dp, 4.dp),
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
+                        val menuActions = remember(
+                            showNewFolderAction,
+                            showPinAction,
+                            showSettingsMenuAction,
+                            showAboutAction,
+                            showHiddenFilesAction,
+                            areHiddenFilesShown,
+                            showGridViewAction,
+                            isGridView
                         ) {
-                            val menuActions = remember(
-                                showNewFolderAction,
-                                showPinAction,
-                                showSettingsMenuAction,
-                                showAboutAction,
-                                showHiddenFilesAction,
-                                areHiddenFilesShown,
-                                showGridViewAction,
-                                isGridView
-                            ) {
-                                mutableListOf<@Composable () -> Unit>().apply {
-                                    if (showNewFolderAction) {
-                                        add {
-                                            ArcileDropdownMenuItem(
-                                                text = { Text(stringResource(R.string.new_folder)) },
-                                                leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onActionSelected(TopBarAction.NewFolder)
-                                                }
-                                            )
-                                        }
-                                    }
-                                    if (showPinAction) {
-                                        add {
-                                            ArcileDropdownMenuItem(
-                                                text = { Text(stringResource(R.string.pin_to_quick_access)) },
-                                                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onActionSelected(TopBarAction.PinToQuickAccess)
-                                                }
-                                            )
-                                        }
-                                    }
-                                    if (showSettingsMenuAction && !showSettingsIcon) {
-                                        add {
-                                            ArcileDropdownMenuItem(
-                                                text = { Text(stringResource(R.string.settings_title)) },
-                                                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onActionSelected(TopBarAction.Settings)
-                                                }
-                                            )
-                                        }
-                                    }
-                                    if (showAboutAction) {
-                                        add {
-                                            ArcileDropdownMenuItem(
-                                                text = { Text(stringResource(R.string.about_title)) },
-                                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onActionSelected(TopBarAction.About)
-                                                }
-                                            )
-                                        }
-                                    }
-                                    if (showHiddenFilesAction) {
-                                        add {
-                                            ArcileDropdownMenuItem(
-                                                text = { Text(stringResource(R.string.settings_show_hidden_files)) },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        if (areHiddenFilesShown) {
-                                                            Icons.Default.Visibility
-                                                        } else {
-                                                            Icons.Default.VisibilityOff
-                                                        },
-                                                        contentDescription = null
-                                                    )
-                                                },
-                                                trailingIcon = if (areHiddenFilesShown) {
-                                                    {
-                                                        Icon(
-                                                            Icons.Default.Check,
-                                                            contentDescription = stringResource(R.string.selected)
-                                                        )
-                                                    }
-                                                } else {
-                                                    null
-                                                },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onActionSelected(TopBarAction.ToggleHiddenFiles)
-                                                }
-                                            )
-                                        }
-                                    }
-                                    if (showGridViewAction) {
-                                        add {
-                                            ArcileDropdownMenuItem(
-                                                text = { Text(if (isGridView) stringResource(R.string.list_view) else stringResource(R.string.grid_view)) },
-                                                leadingIcon = {
-                                                    Icon(
-                                                        if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                                                        contentDescription = null
-                                                    )
-                                                },
-                                                onClick = {
-                                                    showMenu = false
-                                                    onActionSelected(TopBarAction.GridView)
-                                                }
-                                            )
-                                        }
+                            mutableListOf<@Composable () -> Unit>().apply {
+                                if (showNewFolderAction) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.new_folder)) },
+                                            leadingIcon = { Icon(Icons.Default.CreateNewFolder, contentDescription = null) },
+                                            onClick = {
+                                                showMenu = false
+                                                onActionSelected(TopBarAction.NewFolder)
+                                            }
+                                        )
                                     }
                                 }
-                            }
-
-                            menuActions.forEachIndexed { index, action ->
-                                val shape = when {
-                                    menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                                    index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                                    index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                                    else -> MaterialTheme.shapes.menuGroupMiddle
+                                if (showPinAction) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.pin_to_quick_access)) },
+                                            leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                                            onClick = {
+                                                showMenu = false
+                                                onActionSelected(TopBarAction.PinToQuickAccess)
+                                            }
+                                        )
+                                    }
                                 }
-                                Box(
-                                    modifier = androidx.compose.ui.Modifier
-                                        .padding(horizontal = 8.dp, vertical = 2.dp)
-                                        .clip(shape)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                ) {
-                                    action()
+                                if (showSettingsMenuAction && !showSettingsIcon) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.settings_title)) },
+                                            leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                                            onClick = {
+                                                showMenu = false
+                                                onActionSelected(TopBarAction.Settings)
+                                            }
+                                        )
+                                    }
+                                }
+                                if (showAboutAction) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.about_title)) },
+                                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                            onClick = {
+                                                showMenu = false
+                                                onActionSelected(TopBarAction.About)
+                                            }
+                                        )
+                                    }
+                                }
+                                if (showHiddenFilesAction) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.settings_show_hidden_files)) },
+                                            isSelected = areHiddenFilesShown,
+                                            leadingIcon = {
+                                                Icon(
+                                                    if (areHiddenFilesShown) {
+                                                        Icons.Default.Visibility
+                                                    } else {
+                                                        Icons.Default.VisibilityOff
+                                                    },
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                onActionSelected(TopBarAction.ToggleHiddenFiles)
+                                            }
+                                        )
+                                    }
+                                }
+                                if (showGridViewAction) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(if (isGridView) stringResource(R.string.list_view) else stringResource(R.string.grid_view)) },
+                                            leadingIcon = {
+                                                Icon(
+                                                    if (isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
+                                                    contentDescription = null
+                                                )
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                onActionSelected(TopBarAction.GridView)
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
+
+                        ArcileDropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            items = menuActions
+                        )
                     }
                 }
             }

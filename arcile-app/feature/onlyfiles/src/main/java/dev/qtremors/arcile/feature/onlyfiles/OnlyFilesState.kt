@@ -20,6 +20,11 @@ internal enum class VaultClipboardAction { COPY, MOVE }
 internal data class VaultDirectoryCrumb(val id: DirectoryId, val name: String, val path: VaultPath)
 internal data class VaultClipboard(val action: VaultClipboardAction, val sources: List<VaultNodeRef>)
 internal data class VaultConflictPrompt(val requestId: Long, val conflict: VaultConflict)
+internal data class OnlyFilesBatchProgress(
+    val completedItems: Int,
+    val totalItems: Int,
+    val currentName: String?
+)
 
 internal data class OnlyFilesUiState(
     val vaults: List<VaultSummary> = emptyList(),
@@ -47,7 +52,14 @@ internal data class OnlyFilesUiState(
     val folderPicker: VaultFolderPickerState? = null,
     val localPicker: OnlyFilesLocalPickerState? = null,
     val screenshotProtectionEnabled: Boolean = true,
+    val encryptedThumbnailFiles: Int = 0,
+    val encryptedThumbnailBytes: Long = 0L,
+    val activeExternalGrants: Int = 0,
+    val isSettingsBusy: Boolean = false,
+    val showSettingsDialog: Boolean = false,
+    val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
+    val batchProgress: OnlyFilesBatchProgress? = null,
     val message: String? = null
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }

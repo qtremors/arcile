@@ -4,10 +4,12 @@ import android.webkit.MimeTypeMap
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 
 internal class AppFileOpenResolver(
     private val pluginGateway: PluginFileResolutionGateway,
+    private val fileOpenBehaviors: Map<String, FileOpenBehavior> = emptyMap(),
     private val mimeTypeForExtension: (String) -> String? = {
         if (it == "glb") "model/gltf-binary"
         else MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)
@@ -24,12 +26,19 @@ internal class AppFileOpenResolver(
             ?: path.substringAfterLast('.', "").lowercase()
         val mimeType = knownFile?.mimeType?.takeIf(String::isNotBlank)
             ?: mimeTypeForExtension(extension)
+        val category = FileCategories.getCategoryForFile(extension, mimeType)
+        if (category != null && fileOpenBehaviors[category.name] == FileOpenBehavior.EXTERNAL) {
+            return AppFileOpenResolution.External(path, forceChooser = true)
+        }
 
-        return when (val plugin = pluginGateway.resolve(path, mimeType, extension)) {
+        return when (pluginGateway.resolve(path, mimeType, extension)) {
             PluginFileResolution.Launched -> AppFileOpenResolution.Handled
             is PluginFileResolution.Missing,
-            is PluginFileResolution.Incompatible -> AppFileOpenResolution.PluginPrompt(plugin)
-            is PluginFileResolution.Failed -> AppFileOpenResolution.Failed(plugin.error)
+            is PluginFileResolution.Incompatible,
+            is PluginFileResolution.Failed -> AppFileOpenResolution.External(
+                path = path,
+                forceChooser = true
+            )
             PluginFileResolution.NotApplicable -> fallbackResolution(path, extension, surroundingFiles)
         }
     }
@@ -41,8 +50,11 @@ internal class AppFileOpenResolver(
     ): AppFileOpenResolution {
         val archiveFormat = ArchiveFormat.fromPath(path)
         return when {
+            extension in FileCategories.APKs.extensions -> AppFileOpenResolution.InstallApk(
+                path = path
+            )
             archiveFormat?.canBrowse == true -> AppFileOpenResolution.BrowseArchive(path)
-            archiveFormat != null -> AppFileOpenResolution.UnsupportedArchive
+            archiveFormat != null -> AppFileOpenResolution.External(path, forceChooser = true)
             extension in FileCategories.Images.extensions -> AppFileOpenResolution.ViewImage(
                 path = path,
                 contextPaths = surroundingFiles.asSequence()
@@ -65,7 +77,8 @@ internal class AppFileOpenResolver(
                     .distinct()
                     .toList()
             )
-            else -> AppFileOpenResolution.External(path)
+            extension in FileCategories.Audio.extensions -> AppFileOpenResolution.ViewAudio(path)
+            else -> AppFileOpenResolution.External(path, forceChooser = true)
         }
     }
 }

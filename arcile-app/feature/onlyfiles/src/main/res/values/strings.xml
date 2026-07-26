@@ -32,6 +32,7 @@
     <string name="onlyfiles_folder_name">Folder name</string>
     <string name="onlyfiles_rename">Rename</string>
     <string name="onlyfiles_delete">Delete</string>
+    <string name="onlyfiles_batch_progress">%1$d of %2$d processed</string>
     <string name="onlyfiles_delete_confirm">Delete %1$s and everything inside it? This cannot be undone.</string>
     <string name="onlyfiles_empty_folder">This folder is empty.</string>
     <string name="onlyfiles_back">Back</string>

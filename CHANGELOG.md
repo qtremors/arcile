@@ -1,10 +1,66 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.0
-> **Last Updated:** 2026-07-23
+> **Version:** 1.7.0
+> **Last Updated:** 2026-07-26
 
 ---
+
+## [1.7.0] - 2026-07-26
+
+- **Refined Audio Player**: Rebuilt the mini and full player as one continuous animated surface with shared artwork motion, a persistent mini progress rail, smoother wavy seeking, balanced transport controls, adaptive spacing, a centered now-playing header, and direct queue access.
+- **Release Readiness**: Synchronized 1.7.0 metadata and release-facing documentation, published user-focused notes for the complete 1.6.1–1.7.0 development range, and refreshed production build guidance.
+
+## [1.6.9] - 2026-07-26
+
+- **Consistent Media Categories**: Aligned Audio with the Image and Video galleries through loading and error feedback, fast scrolling, complete selection actions, delete and properties dialogs, ZIP creation, clipboard inspection, and direct paste controls on folder tiles.
+
+## [1.6.8] - 2026-07-26
+
+- **Audio Player and App Integration**: Added the Audio category route, background playback, Arcile-branded system media controls, animated mini and full-player transitions, wavy seeking, repeat and shuffle controls, swipe navigation, and an editable playback queue.
+
+## [1.6.7] - 2026-07-26
+
+- **Audio Library Workflows**: Added selection-aware Audio navigation with copy, cut, paste, rename, share, Open With, containing-folder access, and surfaced mini-player and selection controls.
+
+## [1.6.6] - 2026-07-26
+
+- **Audio Browsing Interface**: Added adaptive Audio and Folders pages with compact lists, artwork-first grids, latest folder art, search, sorting, grouping, sizing, and clipboard progress controls.
+
+## [1.6.5] - 2026-07-26
+
+- **Audio Library Foundation**: Added device-audio discovery, independent Audio preferences, artwork and grouping models, saved list and grid presentation options, and focused preference and presentation coverage.
+
+## [1.6.4] - 2026-07-26
+
+- **Independent Categories and Browser Restore**: Kept category screens separate from the swipeable Browser and restored the Browser's last opened folder across launches.
+- **Complete File Actions**: Made thumbnails open files and filenames reveal their containing folders, prompt with Open With for unsupported formats, keep external-only preferences from reopening Arcile, preserve per-type behavior, and repaired folder sharing with ZIP packaging.
+- **Reliable Batch Deletion**: Added live item counts, accurate current-file details, determinate progress from the first item, and durable completion feedback to Browser and OnlyFiles batch deletes.
+- **Expressive, Adaptive UI**: Standardized modal cards for compact phones, rotation, and larger displays; rebuilt onboarding controls as compact Material 3 Expressive groups; and refined OnlyFiles feedback and predictive back.
+- **Cleaner Reliability**: Refreshed cleaner detail lists with aligned actions, immediate single-tap ignores, clearer ignored-item management and scoped exclusion rules, accurate thumbnail-cache size, and improved storage summaries without changing the cleaner landing page.
+- **Safer Archives and Complete Backups**: Continued extraction while securely skipping unsafe entries, retained archive-wide safety limits, verified Power Rename history backup, and added OnlyFiles preferences while excluding transient caches and operation state.
+- **Project Website**: Added compact, icon-led repository and download cards with total and latest release counts, animated live counters, and reduced-motion support.
+
+## [1.6.3] - 2026-07-25
+
+- **PowerRename**: Added batch search and replace, Regex, case changes, numbering, live conflict previews, Undo, safe rollback, and Arcile-styled history with per-item removal and preset menus.
+- **Interface Polish**: Improved dropdown contrast and elevation across dialogs and cards.
+
+## [1.6.2] - 2026-07-25
+
+- **Interactive Video Viewer**: Added gesture controls, metadata, auto-hiding playback controls, drag-to-dismiss, resize modes, configuration-safe playback, and a stable cached thumbnail strip.
+- **APK and Split Install Support**: Added secure installation for APKs and complete compatible split sets from `.apks`, `.xapk`, `.apkm`, or multi-selection, with metadata previews, downgrade guidance, progress, cancellation cleanup, and reliable status handling.
+- **Fast Scrollbar Enhancements**: Synchronized real-time scrollbar drag positions across browser and gallery views, expanded thumb reachability region to 48dp with intentional drag-to-wake activation to eliminate accidental triggers, and added responsive touch feedback.
+- **OnlyFiles In-Module Settings**: Relocated vault security options, thumbnail cache management, grant revocations, and security disclosures directly into the OnlyFiles module app bar and vault headers.
+- **Official System Notifications**: Standardized background file operations, vault imports, and active external grants with Arcile's official monochrome brand icon, tap-to-open content intents, progress notification categories, and dedicated action drawables.
+- **Interface Polish**: Updated plugins supporting description in Settings.
+
+
+## [1.6.1] - 2026-07-23
+
+- **Expressive Controls**: Unified dropdown styling, standardized split actions and standalone overflow controls at `48.dp`, brought Settings, Quick Access, About, and Licenses lists onto Material 3 Expressive segmented groups, and updated Browser overflow toggle items to use active container highlights and dynamic leading state icons instead of redundant trailing checkmarks.
+- **Expressive Accent Color Picker**: Redesigned the Accent Color Selector and Bottom Sheet with Material Design 3 Expressive UI/UX features, including interactive live component theme previews, spring-animated shape morphing swatches, dynamic halo borders, and categorized color palettes.
+- **Plugins Empty State**: Replaced unavailable “Coming soon” plugin rows with a focused empty state until plugins are installed or available.
 
 ## [1.6.0] - 2026-07-23
 

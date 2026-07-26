@@ -15,12 +15,22 @@ internal class SevenZipHandler(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    fun listEntries(archive: File, password: String?): List<ArchiveEntryModel> =
+    fun listEntries(
+        archive: File,
+        password: String?,
+        skipUnsafeEntries: Boolean = true
+    ): List<ArchiveEntryModel> =
         openSevenZ(archive, password).use { sevenZ ->
             val safety = ArchiveSafetyTally(safetyPolicy)
-            generateSequence { sevenZ.nextEntry }.map { entry ->
+            generateSequence { sevenZ.nextEntry }.mapNotNull { entry ->
                 val name = entry.name ?: "unnamed"
-                safety.accept(name, entry.size.coerceAtLeast(0L), null)
+                if (skipUnsafeEntries) {
+                    if (!safety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) {
+                        return@mapNotNull null
+                    }
+                } else {
+                    safety.accept(name, entry.size.coerceAtLeast(0L), null)
+                }
                 ArchiveEntryModel(
                     name = name.substringAfterLast('/'),
                     path = name.normalizeEntryName(),
@@ -44,16 +54,19 @@ internal class SevenZipHandler(
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ) {
         val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
-        val allEntries = listEntries(archive, password).filter { it.path.matchesPrefix(entryPrefix) }
+        val allEntries = listEntries(archive, password, skipUnsafeEntries = true)
+            .filter { it.path.matchesPrefix(entryPrefix) }
         val totalBytes = allEntries.sumOf { it.size }.coerceAtLeast(1L)
         var copied = 0L
         var completed = 0
+        val extractionSafety = ArchiveSafetyTally(safetyPolicy)
         openSevenZ(archive, password).use { sevenZ ->
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val entry = sevenZ.nextEntry ?: break
                 val name = (entry.name ?: "unnamed").normalizeEntryName()
                 if (!name.matchesPrefix(entryPrefix)) continue
+                if (!extractionSafety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) continue
                 val target = extractionContext.resolveTarget(destination, name, entry.isDirectory, resolutions)
                 if (target == null) {
                     completed += 1

@@ -152,6 +152,7 @@ internal class BrowserOperationController(
         when (val undo = state.value.pendingUndoAction) {
             is BrowserUndoAction.Trash -> undoLastTrashMove()
             is BrowserUndoAction.Rename -> undoRename(undo)
+            is BrowserUndoAction.BatchRename -> undoBatchRename(undo)
             is BrowserUndoAction.Created -> undoCreated(undo)
             is BrowserUndoAction.Moved -> undoMove(undo)
             null -> Unit
@@ -322,6 +323,18 @@ internal class BrowserOperationController(
                 undo.renamedPath,
                 storagePathName(undo.originalPath)
             ).onSuccess {
+                refreshAction()
+            }.onFailure(::reportStorageError)
+        }
+    }
+
+    private fun undoBatchRename(undo: BrowserUndoAction.BatchRename) {
+        update { it.copy(pendingUndoAction = null) }
+        scope.launch {
+            val reverseRenames = undo.entries.map { entry ->
+                entry.renamedPath to storagePathName(entry.originalPath)
+            }
+            fileMutationRepository.batchRenameFiles(reverseRenames).onSuccess {
                 refreshAction()
             }.onFailure(::reportStorageError)
         }

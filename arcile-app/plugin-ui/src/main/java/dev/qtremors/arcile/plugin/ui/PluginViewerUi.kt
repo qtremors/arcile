@@ -5,17 +5,20 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.MenuItemColors
+import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -27,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -104,30 +108,64 @@ fun ViewerDropdownMenuItem(
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     enabled: Boolean = true,
-    colors: MenuItemColors = MenuDefaults.itemColors(),
-    contentPadding: PaddingValues = MenuDefaults.DropdownMenuItemContentPadding,
-    shape: Shape = MaterialTheme.shapes.medium
+    contentPadding: PaddingValues = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+    shape: Shape = MaterialTheme.shapes.medium,
+    containerColor: Color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    actionModifier: @Composable (Modifier, Boolean, () -> Unit) -> Modifier = { base, isEnabled, action ->
+        base.clickable(enabled = isEnabled, onClick = action)
+    }
 ) {
-    DropdownMenuItem(
-        text = text,
-        onClick = onClick,
-        leadingIcon = leadingIcon,
-        trailingIcon = trailingIcon,
-        enabled = enabled,
-        colors = colors,
-        contentPadding = contentPadding,
-        modifier = modifier.clip(shape)
-    )
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    }
+    Surface(
+        shape = shape,
+        color = containerColor,
+        contentColor = contentColor,
+        modifier = actionModifier(
+            modifier
+                .fillMaxWidth()
+                .clip(shape),
+            enabled,
+            onClick
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 44.dp)
+                .padding(contentPadding),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
+            if (leadingIcon != null) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(22.dp)
+                ) {
+                    leadingIcon()
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                ProvideTextStyle(
+                    value = MaterialTheme.typography.titleSmall.copy(
+                        fontWeight = FontWeight.Medium,
+                        color = contentColor
+                    )
+                ) {
+                    text()
+                }
+            }
+            if (trailingIcon != null) {
+                Spacer(modifier = Modifier.width(10.dp))
+                trailingIcon()
+            }
+        }
+    }
 }
-
-val androidx.compose.material3.Shapes.viewerMenuFirst: Shape
-    get() = RoundedCornerShape(20.dp, 20.dp, 6.dp, 6.dp)
-val androidx.compose.material3.Shapes.viewerMenuMiddle: Shape
-    get() = RoundedCornerShape(6.dp)
-val androidx.compose.material3.Shapes.viewerMenuLast: Shape
-    get() = RoundedCornerShape(6.dp, 6.dp, 20.dp, 20.dp)
-val androidx.compose.material3.Shapes.viewerMenuSingle: Shape
-    get() = RoundedCornerShape(20.dp)
 
 fun formatViewerFileSize(bytes: Long): String {
     if (bytes < 1024L) return "$bytes B"

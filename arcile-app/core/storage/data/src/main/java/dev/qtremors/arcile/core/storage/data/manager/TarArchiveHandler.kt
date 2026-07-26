@@ -26,7 +26,11 @@ internal class TarArchiveHandler(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    fun listEntries(archive: File, format: ArchiveFormat): List<ArchiveEntryModel> {
+    fun listEntries(
+        archive: File,
+        format: ArchiveFormat,
+        skipUnsafeEntries: Boolean = true
+    ): List<ArchiveEntryModel> {
         if (format.isSingleStreamCompression) {
             val outputName = archive.singleStreamOutputName(format)
             ArchiveSafetyTally(safetyPolicy).accept(outputName, archive.length(), archive.length())
@@ -44,9 +48,15 @@ internal class TarArchiveHandler(
         }
         return tarInput(archive, format).use { tar ->
             val safety = ArchiveSafetyTally(safetyPolicy)
-            generateSequence { tar.nextTarEntry }.map { entry ->
+            generateSequence { tar.nextTarEntry }.mapNotNull { entry ->
                 val name = entry.name.normalizeEntryName()
-                safety.accept(name, entry.size.coerceAtLeast(0L), null)
+                if (skipUnsafeEntries) {
+                    if (!safety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) {
+                        return@mapNotNull null
+                    }
+                } else {
+                    safety.accept(name, entry.size.coerceAtLeast(0L), null)
+                }
                 ArchiveEntryModel(
                     name = name.substringAfterLast('/').ifBlank { name.trimEnd('/') },
                     path = name,
@@ -75,16 +85,19 @@ internal class TarArchiveHandler(
             extractSingleStream(archive, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, extractionContext, onProgress)
             return
         }
-        val entries = listEntries(archive, format).filter { it.path.matchesPrefix(entryPrefix) }
+        val entries = listEntries(archive, format, skipUnsafeEntries = true)
+            .filter { it.path.matchesPrefix(entryPrefix) }
         val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1L)
         var copied = 0L
         var completed = 0
+        val extractionSafety = ArchiveSafetyTally(safetyPolicy)
         tarInput(archive, format).use { tar ->
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val entry = tar.nextTarEntry ?: break
                 val name = entry.name.normalizeEntryName()
                 if (!name.matchesPrefix(entryPrefix)) continue
+                if (!extractionSafety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) continue
                 val target = extractionContext.resolveTarget(destination, name, entry.isDirectory, resolutions)
                 if (target == null) {
                     completed += 1

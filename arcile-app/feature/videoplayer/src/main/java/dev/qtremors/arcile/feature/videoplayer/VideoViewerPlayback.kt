@@ -23,6 +23,13 @@ import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material.icons.filled.FastForward
+import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -39,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -77,6 +85,19 @@ import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
+import android.app.Activity
+import android.content.Context
+import android.media.AudioManager
+import androidx.activity.ComponentActivity
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeOff
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.WbSunny
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -84,8 +105,122 @@ import coil.request.ImageRequest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 private const val DOUBLE_TAP_SEEK_MILLIS = 10_000L
+
+// Gesture compatibility section: horizontal player partitioning
+internal enum class GestureZone { LEFT, CENTER, RIGHT }
+
+internal fun videoPlayerGestureZone(x: Float, totalWidth: Float): GestureZone {
+    if (totalWidth <= 0f) return GestureZone.CENTER
+    return when {
+        x < totalWidth / 3f -> GestureZone.LEFT
+        x >= 2f * totalWidth / 3f -> GestureZone.RIGHT
+        else -> GestureZone.CENTER
+    }
+}
+// HUD feedback state for video player gesture controls
+private sealed interface GestureHudState {
+    data class Seek(val text: String, val isForward: Boolean) : GestureHudState
+    data class PlayPause(val isPlaying: Boolean) : GestureHudState
+    data class Brightness(val percentage: Int) : GestureHudState
+    data class Volume(val percentage: Int) : GestureHudState
+}
+
+@Composable
+private fun VideoPlayerGestureHud(
+    state: GestureHudState,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = Color.Black.copy(alpha = 0.75f),
+        contentColor = Color.White
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            when (state) {
+                is GestureHudState.Seek -> {
+                    Icon(
+                        imageVector = if (state.isForward) Icons.Default.FastForward else Icons.Default.FastRewind,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = state.text,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = Color.White
+                    )
+                }
+                is GestureHudState.PlayPause -> {
+                    Icon(
+                        imageVector = if (state.isPlaying) Icons.Default.PlayArrow else Icons.Default.Pause,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+                is GestureHudState.Brightness -> {
+                    Icon(
+                        imageVector = Icons.Default.WbSunny,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "${state.percentage}%",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                        LinearProgressIndicator(
+                            progress = { state.percentage / 100f },
+                            modifier = Modifier
+                                .width(70.dp)
+                                .height(4.dp),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.3f)
+                        )
+                    }
+                }
+                is GestureHudState.Volume -> {
+                    val icon = when {
+                        state.percentage == 0 -> Icons.AutoMirrored.Filled.VolumeOff
+                        state.percentage < 50 -> Icons.AutoMirrored.Filled.VolumeDown
+                        else -> Icons.AutoMirrored.Filled.VolumeUp
+                    }
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "${state.percentage}%",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = Color.White
+                        )
+                        LinearProgressIndicator(
+                            progress = { state.percentage / 100f },
+                            modifier = Modifier
+                                .width(70.dp)
+                                .height(4.dp),
+                            color = Color.White,
+                            trackColor = Color.White.copy(alpha = 0.3f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -97,13 +232,25 @@ internal fun VideoPlayerItemView(
     isBuffering: Boolean,
     playbackError: PlaybackException?,
     resizeMode: Int,
-    onTap: () -> Unit
+    onTap: () -> Unit,
+    onPlayPauseToggle: () -> Unit = {},
+    onToggleMetadata: (Boolean) -> Unit = {},
+    onDragDismiss: (Float) -> Unit = {},
+    onDragDismissEnd: () -> Unit = {}
 ) {
-    var seekFeedback by remember { mutableStateOf<String?>(null) }
+    var gestureFeedback by remember { mutableStateOf<GestureHudState?>(null) }
     val seekForwardFeedback = stringResource(R.string.video_player_seek_forward)
     val seekBackwardFeedback = stringResource(R.string.video_player_seek_backward)
     val playerDescription = stringResource(R.string.video_player_content_description, file.name)
     val playbackFailed = stringResource(R.string.video_player_playback_failed)
+
+    val context = LocalContext.current
+    val activity = remember(context) {
+        context as? ComponentActivity ?: context as? Activity
+    }
+    val audioManager = remember(context) {
+        context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
 
     if (isPageFocused) {
         var attachedView by remember(file.absolutePath) { mutableStateOf<PlayerView?>(null) }
@@ -113,6 +260,12 @@ internal fun VideoPlayerItemView(
                 attachedView = null
             }
         }
+
+        var activeDragZone by remember { mutableStateOf<GestureZone?>(null) }
+        var centerDragAccumulator by remember { mutableFloatStateOf(0f) }
+        var currentVolumeFraction by remember { mutableFloatStateOf(0f) }
+        var currentBrightnessFraction by remember { mutableFloatStateOf(0f) }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -121,11 +274,107 @@ internal fun VideoPlayerItemView(
                     detectTapGestures(
                         onTap = { onTap() },
                         onDoubleTap = { offset ->
-                            val forward = offset.x >= size.width / 2f
-                            val delta = if (forward) DOUBLE_TAP_SEEK_MILLIS else -DOUBLE_TAP_SEEK_MILLIS
-                            val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
-                            player.seekTo(min(duration, max(0L, player.currentPosition + delta)))
-                            seekFeedback = if (forward) seekForwardFeedback else seekBackwardFeedback
+                            val zone = videoPlayerGestureZone(offset.x, size.width.toFloat())
+                            when (zone) {
+                                GestureZone.LEFT -> {
+                                    val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
+                                    player.seekTo(max(0L, player.currentPosition - DOUBLE_TAP_SEEK_MILLIS))
+                                    gestureFeedback = GestureHudState.Seek(seekBackwardFeedback, isForward = false)
+                                }
+                                GestureZone.RIGHT -> {
+                                    val duration = player.duration.takeIf { it != C.TIME_UNSET } ?: Long.MAX_VALUE
+                                    player.seekTo(min(duration, max(0L, player.currentPosition + DOUBLE_TAP_SEEK_MILLIS)))
+                                    gestureFeedback = GestureHudState.Seek(seekForwardFeedback, isForward = true)
+                                }
+                                GestureZone.CENTER -> {
+                                    val wasPlaying = player.isPlaying
+                                    onPlayPauseToggle()
+                                    gestureFeedback = GestureHudState.PlayPause(!wasPlaying)
+                                }
+                            }
+                        }
+                    )
+                }
+                .pointerInput(context, activity, audioManager) {
+                    detectVerticalDragGestures(
+                        onDragStart = { startOffset ->
+                            activeDragZone = videoPlayerGestureZone(startOffset.x, size.width.toFloat())
+                            centerDragAccumulator = 0f
+
+                            audioManager?.let { am ->
+                                val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                val currentVol = am.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                currentVolumeFraction = if (maxVol > 0) currentVol.toFloat() / maxVol.toFloat() else 0f
+                            }
+                            activity?.window?.let { window ->
+                                var b = window.attributes.screenBrightness
+                                if (b < 0f) {
+                                    b = try {
+                                        android.provider.Settings.System.getInt(
+                                            context.contentResolver,
+                                            android.provider.Settings.System.SCREEN_BRIGHTNESS
+                                        ) / 255f
+                                    } catch (e: Exception) {
+                                        0.5f
+                                    }
+                                }
+                                currentBrightnessFraction = b.coerceIn(0.01f, 1f)
+                            }
+                        },
+                        onVerticalDrag = { _, dragAmount ->
+                            val zone = activeDragZone ?: return@detectVerticalDragGestures
+                            when (zone) {
+                                GestureZone.LEFT -> {
+                                    activity?.window?.let { window ->
+                                        val sensitivity = 1.2f
+                                        val delta = (-dragAmount / size.height.toFloat()) * sensitivity
+                                        currentBrightnessFraction = (currentBrightnessFraction + delta).coerceIn(0.01f, 1f)
+                                        val layoutParams = window.attributes
+                                        layoutParams.screenBrightness = currentBrightnessFraction
+                                        window.attributes = layoutParams
+                                        gestureFeedback = GestureHudState.Brightness((currentBrightnessFraction * 100).roundToInt())
+                                    }
+                                }
+                                GestureZone.RIGHT -> {
+                                    audioManager?.let { am ->
+                                        val maxVol = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                        if (maxVol > 0) {
+                                            val sensitivity = 1.2f
+                                            val delta = (-dragAmount / size.height.toFloat()) * sensitivity
+                                            currentVolumeFraction = (currentVolumeFraction + delta).coerceIn(0f, 1f)
+                                            val newVol = (currentVolumeFraction * maxVol).roundToInt().coerceIn(0, maxVol)
+                                            am.setStreamVolume(AudioManager.STREAM_MUSIC, newVol, 0)
+                                            val percent = (newVol.toFloat() / maxVol.toFloat() * 100).roundToInt()
+                                            gestureFeedback = GestureHudState.Volume(percent)
+                                        }
+                                    }
+                                }
+                                GestureZone.CENTER -> {
+                                    if (dragAmount < 0f && centerDragAccumulator <= 0f) {
+                                        centerDragAccumulator += dragAmount
+                                        val threshold = 50.dp.toPx()
+                                        if (centerDragAccumulator < -threshold) {
+                                            onToggleMetadata(true)
+                                            centerDragAccumulator = 0f
+                                        }
+                                    } else {
+                                        centerDragAccumulator = (centerDragAccumulator + dragAmount).coerceAtLeast(0f)
+                                        onDragDismiss(centerDragAccumulator)
+                                    }
+                                }
+                            }
+                        },
+                        onDragEnd = {
+                            if (activeDragZone == GestureZone.CENTER) {
+                                onDragDismissEnd()
+                            }
+                            activeDragZone = null
+                        },
+                        onDragCancel = {
+                            if (activeDragZone == GestureZone.CENTER) {
+                                onDragDismissEnd()
+                            }
+                            activeDragZone = null
                         }
                     )
                 },
@@ -183,20 +432,16 @@ internal fun VideoPlayerItemView(
                 }
             }
 
-            seekFeedback?.let { feedback ->
-                Text(
-                    feedback,
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier
-                        .semantics { liveRegion = LiveRegionMode.Assertive }
-                        .background(Color.Black.copy(alpha = 0.65f))
-                        .padding(12.dp)
+            gestureFeedback?.let { feedback ->
+                VideoPlayerGestureHud(
+                    state = feedback,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive }
                 )
                 DisposableEffect(feedback) {
-                    val callback = Runnable { seekFeedback = null }
-                    android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(callback, 700L)
-                    onDispose { android.os.Handler(android.os.Looper.getMainLooper()).removeCallbacks(callback) }
+                    val callback = Runnable { gestureFeedback = null }
+                    val handler = android.os.Handler(android.os.Looper.getMainLooper())
+                    handler.postDelayed(callback, 800L)
+                    onDispose { handler.removeCallbacks(callback) }
                 }
             }
         }

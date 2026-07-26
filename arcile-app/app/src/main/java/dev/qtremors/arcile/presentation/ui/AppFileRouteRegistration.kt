@@ -8,6 +8,11 @@ import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
+import dev.qtremors.arcile.feature.audio.registerAudioLibraryRoute
+import dev.qtremors.arcile.feature.browser.BrowserDestination
+import dev.qtremors.arcile.feature.browser.BrowserEntry
+import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
+import dev.qtremors.arcile.feature.browser.BrowserRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
 import dev.qtremors.arcile.feature.videoplayer.registerVideoViewerRoute
@@ -32,21 +37,28 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onDestination = { destination ->
             when (destination) {
                 is StorageDashboardDestination.Category -> {
-                    if (isGalleryCategory(destination.name)) {
-                        navController.navigate(
-                            AppRoutes.ImageGallery(
-                                volumeId = destination.volumeId,
-                                categoryName = destination.name
+                    when {
+                        isGalleryCategory(destination.name) -> {
+                            navController.navigate(
+                                AppRoutes.ImageGallery(
+                                    volumeId = destination.volumeId,
+                                    categoryName = destination.name
+                                )
                             )
-                        )
-                    } else {
-                        actions.navigateToBrowser(
-                            AppRoutes.Main(
-                                initialPage = BROWSER_PAGE,
-                                category = destination.name,
-                                volumeId = destination.volumeId
+                        }
+                        isAudioCategory(destination.name) -> {
+                            navController.navigate(
+                                AppRoutes.AudioLibrary(volumeId = destination.volumeId)
                             )
-                        )
+                        }
+                        else -> {
+                            navController.navigate(
+                                AppRoutes.Category(
+                                    name = destination.name,
+                                    volumeId = destination.volumeId
+                                )
+                            )
+                        }
                     }
                 }
                 is StorageDashboardDestination.Path -> actions.navigateToBrowser(
@@ -70,6 +82,31 @@ internal fun NavGraphBuilder.registerFileRoutes(
             popUpTo<AppRoutes.Main> { inclusive = true }
         }
     }
+    composable<AppRoutes.Category> { backStackEntry ->
+        val category = backStackEntry.toRoute<AppRoutes.Category>()
+        BrowserRoute(
+            entryRequest = BrowserEntryRequest(
+                id = 0L,
+                entry = BrowserEntry.Category(category.name, category.volumeId)
+            ),
+            isVisible = true,
+            hasPreviousRoute = true,
+            onStatusChange = {},
+            onDestination = { destination ->
+                when (destination) {
+                    BrowserDestination.ExitToHome,
+                    BrowserDestination.ExitToPreviousRoute -> navController.popBackStack()
+                    is BrowserDestination.OpenFile -> actions.openPathWithSurroundingImages(
+                        destination.path,
+                        destination.surroundingFiles
+                    )
+                    is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
+                }
+            },
+            onShareSelected = actions::shareKnownFiles,
+            onFeedback = onFeedback
+        )
+    }
     registerTrashRoute(
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
@@ -88,6 +125,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
         onOpenFile = actions::openPathWithSurroundingImages,
+        onOpenFileWith = actions::openFileWith,
         onShareSelected = { files ->
             actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
         },
@@ -103,6 +141,37 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onDestination = actions.destinationMappers.gallery::map,
         onShareSelected = { files ->
             actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
+        },
+        onFeedback = onFeedback
+    )
+    registerAudioLibraryRoute(
+        enterTransition = transitions.utilityEnter,
+        exitTransition = transitions.utilityExit,
+        popEnterTransition = transitions.utilityPopEnter,
+        popExitTransition = transitions.utilityPopExit,
+        onNavigateBack = {
+            if (!navController.popBackStack()) {
+                navController.navigate(AppRoutes.Main()) {
+                    launchSingleTop = true
+                }
+            }
+        },
+        onShareSelected = { tracks ->
+            actions.shareKnownFiles(
+                tracks.map { it.file.absolutePath },
+                tracks.map { it.file }
+            )
+        },
+        onOpenWith = { track -> actions.openFileWith(track.file.absolutePath) },
+        onShowContainingFolder = { track ->
+            val parent = track.file.absolutePath.replace('\\', '/').substringBeforeLast('/', "")
+            actions.navigateToBrowser(
+                AppRoutes.Main(
+                    initialPage = BROWSER_PAGE,
+                    path = parent,
+                    focusPath = track.file.absolutePath
+                )
+            )
         },
         onFeedback = onFeedback
     )

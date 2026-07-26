@@ -9,7 +9,10 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryDefaultTab
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
@@ -171,6 +174,43 @@ class BrowserPreferencesDataSource(
                 showThumbnails = true
             ).normalized()
 
+            val defaults = BrowserPreferences()
+            val audioPresentation = FileListingPreferences(
+                sortOption = parseSortOption(
+                    prefs[AUDIO_SORT_OPTION_KEY],
+                    defaults.audioPresentation.sortOption
+                ),
+                viewMode = parseViewMode(
+                    prefs[AUDIO_VIEW_MODE_KEY],
+                    defaults.audioPresentation.viewMode
+                ),
+                listZoom = prefs[AUDIO_LIST_ZOOM_KEY] ?: defaults.audioPresentation.listZoom,
+                gridMinCellSize = prefs[AUDIO_GRID_MIN_CELL_SIZE_KEY]
+                    ?: defaults.audioPresentation.gridMinCellSize,
+                showThumbnails = true
+            ).normalized()
+            val audioFolderPresentation = FileListingPreferences(
+                sortOption = parseSortOption(
+                    prefs[AUDIO_FOLDER_SORT_OPTION_KEY],
+                    defaults.audioFolderPresentation.sortOption
+                ),
+                viewMode = parseViewMode(
+                    prefs[AUDIO_FOLDER_VIEW_MODE_KEY],
+                    defaults.audioFolderPresentation.viewMode
+                ),
+                listZoom = prefs[AUDIO_FOLDER_LIST_ZOOM_KEY]
+                    ?: defaults.audioFolderPresentation.listZoom,
+                gridMinCellSize = prefs[AUDIO_FOLDER_GRID_MIN_CELL_SIZE_KEY]
+                    ?: defaults.audioFolderPresentation.gridMinCellSize,
+                showThumbnails = true
+            ).normalized()
+            val audioGrouping = ImageGalleryGrouping.entries.firstOrNull {
+                it.name == prefs[AUDIO_GROUPING_KEY]
+            } ?: defaults.audioGrouping
+            val audioDefaultTab = AudioLibraryDefaultTab.entries.firstOrNull {
+                it.name == prefs[AUDIO_DEFAULT_TAB_KEY]
+            } ?: defaults.audioDefaultTab
+
             val albumAspectRatio = prefs[ALBUM_ASPECT_RATIO_KEY]
                 ?: BrowserPreferences().albumAspectRatio
 
@@ -194,6 +234,18 @@ class BrowserPreferencesDataSource(
             } else {
                 emptyMap()
             }
+            val fileOpenBehaviors = prefs[FILE_OPEN_BEHAVIORS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+                .mapNotNull { (category, behavior) ->
+                    FileOpenBehavior.entries.firstOrNull { it.name == behavior }
+                        ?.let { category to it }
+                }
+                .toMap()
 
             BrowserPreferences(
                 globalPresentation = globalPresentation,
@@ -212,6 +264,12 @@ class BrowserPreferencesDataSource(
                     ?: BrowserPreferences().imageGallerySectioned,
                 imageGalleryGrouping = grouping,
                 imageGalleryDefaultTab = defaultTab,
+                audioPresentation = audioPresentation,
+                audioFolderPresentation = audioFolderPresentation,
+                audioGrouping = audioGrouping,
+                audioDefaultTab = audioDefaultTab,
+                audioShowFileDetails = prefs[AUDIO_SHOW_FILE_DETAILS_KEY]
+                    ?: defaults.audioShowFileDetails,
                 albumPresentation = albumPresentation,
                 albumAspectRatio = albumAspectRatio,
                 favoriteFiles = favoriteFiles,
@@ -219,6 +277,7 @@ class BrowserPreferencesDataSource(
                 albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY],
+                fileOpenBehaviors = fileOpenBehaviors,
                 defaultSaveToArcilePath = prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY],
                 browserScrollbarEnabled = prefs[BROWSER_SCROLLBAR_ENABLED_KEY]
                     ?: BrowserPreferences().browserScrollbarEnabled,
@@ -231,6 +290,7 @@ class BrowserPreferencesDataSource(
     val locationPreferencesFlow = preferencesFlow.asLocationPreferences()
     val recentFilesPreferencesFlow = preferencesFlow.asRecentFilesPreferences()
     val galleryPreferencesFlow = preferencesFlow.asGalleryPreferences()
+    val audioLibraryPreferencesFlow = preferencesFlow.map(AudioLibraryPreferences::from)
     val saveDestinationPreferencesFlow = preferencesFlow.asSaveDestinationPreferences()
 
     suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
@@ -363,6 +423,53 @@ class BrowserPreferencesDataSource(
             }
         }
         activityLogRepository?.recordFolderOpened(path, volumeId)
+    }
+
+    suspend fun updateAudioPresentation(presentation: FileListingPreferences) {
+        val normalized = presentation.normalized()
+        dataStore.edit { prefs ->
+            prefs[AUDIO_SORT_OPTION_KEY] = normalized.sortOption.name
+            prefs[AUDIO_VIEW_MODE_KEY] = normalized.viewMode.name
+            prefs[AUDIO_LIST_ZOOM_KEY] = normalized.listZoom
+            prefs[AUDIO_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+        }
+    }
+
+    suspend fun updateAudioFolderPresentation(presentation: FileListingPreferences) {
+        val normalized = presentation.normalized()
+        dataStore.edit { prefs ->
+            prefs[AUDIO_FOLDER_SORT_OPTION_KEY] = normalized.sortOption.name
+            prefs[AUDIO_FOLDER_VIEW_MODE_KEY] = normalized.viewMode.name
+            prefs[AUDIO_FOLDER_LIST_ZOOM_KEY] = normalized.listZoom
+            prefs[AUDIO_FOLDER_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+        }
+    }
+
+    suspend fun updateAudioGrouping(grouping: ImageGalleryGrouping) {
+        dataStore.edit { prefs -> prefs[AUDIO_GROUPING_KEY] = grouping.name }
+    }
+
+    suspend fun updateAudioDefaultTab(tab: AudioLibraryDefaultTab) {
+        dataStore.edit { prefs -> prefs[AUDIO_DEFAULT_TAB_KEY] = tab.name }
+    }
+
+    suspend fun updateAudioShowFileDetails(show: Boolean) {
+        dataStore.edit { prefs -> prefs[AUDIO_SHOW_FILE_DETAILS_KEY] = show }
+    }
+
+    suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
+        dataStore.edit { prefs ->
+            val current = prefs[FILE_OPEN_BEHAVIORS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            prefs[FILE_OPEN_BEHAVIORS_KEY] = Json.encodeToString(
+                current + (categoryName to behavior.name)
+            )
+        }
     }
 
     suspend fun updateDefaultSaveToArcilePath(path: String?) {

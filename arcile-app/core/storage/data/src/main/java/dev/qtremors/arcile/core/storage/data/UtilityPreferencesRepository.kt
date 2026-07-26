@@ -51,10 +51,59 @@ class UtilityPreferencesRepository(
         }
         .flowOn(dispatchers.io)
 
+    private val BATCH_RENAME_HISTORY_KEY = stringPreferencesKey("batch_rename_history")
+
+    override val batchRenameHistory: Flow<List<String>> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { prefs ->
+            val raw = prefs[BATCH_RENAME_HISTORY_KEY] ?: ""
+            if (raw.isBlank()) emptyList()
+            else raw.split("\n").filter { it.isNotBlank() }
+        }
+        .flowOn(dispatchers.io)
+
     override suspend fun setHomeUtilityIds(ids: List<String>) {
         dataStore.edit { prefs ->
             prefs[HOME_UTILITY_ORDER_KEY] = sanitizeHomeUtilityIds(ids).joinToString(",")
             prefs.remove(HOME_UTILITY_IDS_KEY)
+        }
+    }
+
+    override suspend fun addBatchRenameHistory(query: String) {
+        if (query.isBlank()) return
+        dataStore.edit { prefs ->
+            val current = (prefs[BATCH_RENAME_HISTORY_KEY] ?: "")
+                .split("\n")
+                .filter { it.isNotBlank() }
+                .toMutableList()
+            current.remove(query)
+            current.add(0, query)
+            prefs[BATCH_RENAME_HISTORY_KEY] = current.take(15).joinToString("\n")
+        }
+    }
+
+    override suspend fun removeBatchRenameHistory(query: String) {
+        dataStore.edit { prefs ->
+            val remaining = (prefs[BATCH_RENAME_HISTORY_KEY] ?: "")
+                .split("\n")
+                .filter { it.isNotBlank() && it != query }
+            if (remaining.isEmpty()) {
+                prefs.remove(BATCH_RENAME_HISTORY_KEY)
+            } else {
+                prefs[BATCH_RENAME_HISTORY_KEY] = remaining.joinToString("\n")
+            }
+        }
+    }
+
+    override suspend fun clearBatchRenameHistory() {
+        dataStore.edit { prefs ->
+            prefs.remove(BATCH_RENAME_HISTORY_KEY)
         }
     }
 

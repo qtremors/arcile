@@ -4,7 +4,10 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -63,23 +66,27 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                 )
             }
 
+            var isNavigatingBack by remember { mutableStateOf(false) }
             val readOnly = session.managedTrash || session.securityScopeId != null
             val navigateBack = {
-                viewModel.state.value.viewerCurrentPath?.let { path ->
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY, path)
+                if (!isNavigatingBack) {
+                    isNavigatingBack = true
+                    viewModel.state.value.viewerCurrentPath?.let { path ->
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY, path)
+                    }
+                    if (session.initialSelectedPaths.isNotEmpty()) {
+                        navController.previousBackStackEntry
+                            ?.savedStateHandle
+                            ?.set(
+                                AppRoutes.IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY,
+                                ArrayList(viewModel.state.value.selectedFiles)
+                            )
+                    }
+                    GlobalVideoPlaybackSessions.remove(route.sessionToken)
+                    onNavigateBack()
                 }
-                if (session.initialSelectedPaths.isNotEmpty()) {
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(
-                            AppRoutes.IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY,
-                            ArrayList(viewModel.state.value.selectedFiles)
-                        )
-                }
-                GlobalVideoPlaybackSessions.remove(route.sessionToken)
-                onNavigateBack()
             }
 
             VideoViewerScreen(

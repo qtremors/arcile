@@ -35,11 +35,7 @@ fun ClipboardContentsDialog(
     onRemoveItem: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    BasicAlertDialog(
-        onDismissRequest = onDismiss,
-        modifier = Modifier.padding(16.dp),
-        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
-    ) {
+    Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = MaterialTheme.shapes.extraLarge,
             tonalElevation = 6.dp,

@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -47,6 +48,20 @@ class VideoViewerPlaybackTest {
         cache.putBounded(3, 3L, maxEntries = 3)
 
         assertEquals(mapOf(1 to 10L, 2 to 2L, 3 to 3L), cache)
+    }
+
+    @Test
+    fun `loaded strip thumbnails survive reuse while the cache stays bounded`() {
+        val cache = VideoStripLoadedValueCache<String>(maxEntries = 2)
+        cache.put("first", "first-painter")
+        cache.put("second", "second-painter")
+
+        assertEquals("first-painter", cache["first"])
+        cache.put("third", "third-painter")
+
+        assertNull(cache["first"])
+        assertEquals("second-painter", cache["second"])
+        assertEquals("third-painter", cache["third"])
     }
 
     @Test
@@ -178,6 +193,18 @@ class VideoViewerPlaybackTest {
 
         assertTrue(context.files.isEmpty())
         assertEquals(0, context.initialPage)
+    }
+
+    @Test
+    fun `video player surface splits into left center and right gesture zones`() {
+        val width = 900f
+        assertEquals(GestureZone.LEFT, videoPlayerGestureZone(100f, width))
+        assertEquals(GestureZone.LEFT, videoPlayerGestureZone(299f, width))
+        assertEquals(GestureZone.CENTER, videoPlayerGestureZone(300f, width))
+        assertEquals(GestureZone.CENTER, videoPlayerGestureZone(450f, width))
+        assertEquals(GestureZone.CENTER, videoPlayerGestureZone(599f, width))
+        assertEquals(GestureZone.RIGHT, videoPlayerGestureZone(600f, width))
+        assertEquals(GestureZone.RIGHT, videoPlayerGestureZone(850f, width))
     }
 
     private fun videoFile(path: String) = FileModel(

@@ -147,6 +147,15 @@ class FakeFilePreferencesStore(
         preferences.value = preferences.value.copy(lastOpenedPath = path, lastOpenedVolumeId = volumeId)
     }
 
+    override suspend fun updateFileOpenBehavior(
+        categoryName: String,
+        behavior: dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+    ) {
+        preferences.value = preferences.value.copy(
+            fileOpenBehaviors = preferences.value.fileOpenBehaviors + (categoryName to behavior)
+        )
+    }
+
     override suspend fun updateDefaultSaveToArcilePath(path: String?) {
         lastUpdatedDefaultSaveToArcilePath = path
         preferences.value = preferences.value.copy(defaultSaveToArcilePath = path)

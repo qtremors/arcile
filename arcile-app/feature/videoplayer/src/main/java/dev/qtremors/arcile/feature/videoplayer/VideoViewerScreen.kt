@@ -269,6 +269,7 @@ internal fun VideoViewerScreen(
         isBackPredicting = isBackPredicting,
         backActionAtStart = backActionAtStart,
         backProgress = backProgress,
+        onNavigateBack = onNavigateBack,
         onShareFile = onShareFile,
         onOpenWith = onOpenWith
     )

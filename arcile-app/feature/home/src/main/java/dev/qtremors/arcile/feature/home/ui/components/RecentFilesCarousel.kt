@@ -301,64 +301,46 @@ internal fun RecentFileCarouselItem(
                     }
                 }
                 
-                DropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    shape = MaterialTheme.shapes.extraLarge,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                ) {
-                    val menuActions = remember(onClick, file, onNavigateToPath, onShareFile) {
-                        mutableListOf<@Composable () -> Unit>().apply {
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.open)) },
-                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                                    onClick = {
-                                        showMenu = false
-                                        onClick()
-                                    }
-                                )
-                            }
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.open_containing_folder)) },
-                                    leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
-                                    onClick = {
-                                        showMenu = false
-                                        storageParentPath(file.absolutePath)?.let(onNavigateToPath)
-                                    }
-                                )
-                            }
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.share)) },
-                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                    onClick = {
-                                        showMenu = false
-                                        onShareFile(file.absolutePath)
-                                    }
-                                )
-                            }
+                val menuActions = remember(onClick, file, onNavigateToPath, onShareFile) {
+                    mutableListOf<@Composable () -> Unit>().apply {
+                        add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.open)) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    onClick()
+                                }
+                            )
                         }
-                    }
-
-                    menuActions.forEachIndexed { index, action ->
-                        val shape = when {
-                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                            else -> MaterialTheme.shapes.menuGroupMiddle
+                        add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.open_containing_folder)) },
+                                leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    storageParentPath(file.absolutePath)?.let(onNavigateToPath)
+                                }
+                            )
                         }
-                        Box(
-                            modifier = Modifier
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                                .clip(shape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        ) {
-                            action()
+                        add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.share)) },
+                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    onShareFile(file.absolutePath)
+                                }
+                            )
                         }
                     }
                 }
+
+                dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    items = menuActions
+                )
             }
         }
     }

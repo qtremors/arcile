@@ -39,10 +39,7 @@ internal fun MainRoute(
     HorizontalPager(
         state = coordinator.pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = !(
-            coordinator.pagerState.currentPage == BROWSER_PAGE &&
-                coordinator.browserStatus.isCategoryScreen
-        ),
+        userScrollEnabled = true,
         beyondViewportPageCount = 1
     ) { page ->
         when (page) {
@@ -50,18 +47,12 @@ internal fun MainRoute(
                 onDestination = { destination ->
                     when (destination) {
                         HomeDestination.BrowseRoot -> coordinator.requestBrowser(
-                            BrowserEntry.Root(restorePersistentLocation = false)
+                            BrowserEntry.Root(restorePersistentLocation = true)
                         )
                         is HomeDestination.BrowsePath -> coordinator.requestBrowser(
                             BrowserEntry.Path(destination.path)
                         )
-                        is HomeDestination.BrowseCategory -> {
-                            if (isGalleryCategory(destination.name)) {
-                                onHomeDestination(destination)
-                            } else {
-                                coordinator.requestBrowser(BrowserEntry.Category(destination.name))
-                            }
-                        }
+                        is HomeDestination.BrowseCategory -> onHomeDestination(destination)
                         else -> onHomeDestination(destination)
                     }
                 }
@@ -87,6 +78,9 @@ internal fun MainRoute(
 
 internal fun isGalleryCategory(categoryName: String): Boolean =
     categoryName == FileCategories.Images.name || categoryName == FileCategories.Videos.name
+
+internal fun isAudioCategory(categoryName: String): Boolean =
+    categoryName == FileCategories.Audio.name
 
 internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRequest? {
     if (initialPage != BROWSER_PAGE) return null

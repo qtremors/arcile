@@ -102,19 +102,108 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 });
 
-// Fetch Live GitHub Stats
+const numberFormatter = new Intl.NumberFormat();
+const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+function animateCounter(element, target) {
+    if (!element || !Number.isFinite(target)) return;
+
+    const endValue = Math.max(0, Math.trunc(target));
+    if (reduceMotionQuery.matches || endValue === 0) {
+        element.innerText = numberFormatter.format(endValue);
+        return;
+    }
+
+    const duration = 800;
+    const startTime = performance.now();
+
+    function updateCounter(currentTime) {
+        const progress = Math.min((currentTime - startTime) / duration, 1);
+        const easedProgress = 1 - Math.pow(1 - progress, 3);
+        element.innerText = numberFormatter.format(Math.round(endValue * easedProgress));
+
+        if (progress < 1) {
+            requestAnimationFrame(updateCounter);
+        }
+    }
+
+    requestAnimationFrame(updateCounter);
+}
+
+function sumReleaseDownloads(releases) {
+    return releases.reduce((releaseTotal, release) => {
+        const assetTotal = Array.isArray(release.assets)
+            ? release.assets.reduce((total, asset) => total + (asset.download_count || 0), 0)
+            : 0;
+        return releaseTotal + assetTotal;
+    }, 0);
+}
+
+async function fetchTotalReleaseDownloads() {
+    let nextUrl = 'https://api.github.com/repos/qtremors/arcile/releases?per_page=100';
+    let totalDownloads = 0;
+
+    while (nextUrl) {
+        const response = await fetch(nextUrl);
+        if (!response.ok) throw new Error(`GitHub releases request failed: ${response.status}`);
+
+        const releases = await response.json();
+        totalDownloads += sumReleaseDownloads(releases);
+
+        const nextLink = response.headers.get('link')
+            ?.split(',')
+            .find(link => link.includes('rel="next"'));
+        nextUrl = nextLink?.match(/<([^>]+)>/)?.[1] || '';
+    }
+
+    return totalDownloads;
+}
+
+// Fetch Live GitHub Stats & Release Downloads
 async function fetchGitHubStats() {
+    const [repoResult, releaseResult, totalDownloadsResult] = await Promise.allSettled([
+        fetch('https://api.github.com/repos/qtremors/arcile'),
+        fetch('https://api.github.com/repos/qtremors/arcile/releases/latest'),
+        fetchTotalReleaseDownloads()
+    ]);
+
     try {
-        const response = await fetch('https://api.github.com/repos/qtremors/arcile');
-        if (!response.ok) return;
-        const data = await response.json();
-        
-        if (data.stargazers_count !== undefined) {
-            document.getElementById('gh-stars').innerText = data.stargazers_count;
-            document.getElementById('gh-forks').innerText = data.forks_count;
+        const repoRes = repoResult.status === 'fulfilled' ? repoResult.value : null;
+        if (repoRes?.ok) {
+            const data = await repoRes.json();
+            if (data.stargazers_count !== undefined) {
+                const starsEl = document.getElementById('gh-stars');
+                const forksEl = document.getElementById('gh-forks');
+                animateCounter(starsEl, data.stargazers_count);
+                animateCounter(forksEl, data.forks_count);
+            }
         }
     } catch (error) {
-        console.error('Error fetching GitHub stats:', error);
+        console.error('Error fetching GitHub repository stats:', error);
+    }
+
+    try {
+        const releaseRes = releaseResult.status === 'fulfilled' ? releaseResult.value : null;
+        if (releaseRes?.ok) {
+            const release = await releaseRes.json();
+            if (release.tag_name) {
+                document.querySelectorAll('.download-btn-text').forEach(el => {
+                    el.innerText = `Download ${release.tag_name}`;
+                });
+            }
+
+            const latestDownloads = sumReleaseDownloads([release]);
+            animateCounter(document.getElementById('gh-latest-downloads'), latestDownloads);
+        }
+    } catch (error) {
+        console.error('Error fetching the latest GitHub release:', error);
+    }
+
+    if (totalDownloadsResult.status === 'fulfilled') {
+        const totalDownloads = totalDownloadsResult.value;
+        animateCounter(document.getElementById('gh-total-downloads'), totalDownloads);
+    } else {
+        console.error('Error fetching total GitHub downloads:', totalDownloadsResult.reason);
     }
 }
 

@@ -195,7 +195,45 @@ internal fun OnlyFilesMainContent(
                 color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f),
                 modifier = Modifier.fillMaxSize()
             ) {
-                Box(contentAlignment = Alignment.Center) { LoadingIndicator() }
+                Box(contentAlignment = Alignment.Center) {
+                    Surface(
+                        shape = MaterialTheme.shapes.extraLarge,
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        tonalElevation = 6.dp
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            LoadingIndicator()
+                            state.batchProgress?.let { progress ->
+                                LinearProgressIndicator(
+                                    progress = {
+                                        progress.completedItems.toFloat() /
+                                            progress.totalItems.coerceAtLeast(1).toFloat()
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    stringResource(
+                                        R.string.onlyfiles_batch_progress,
+                                        progress.completedItems,
+                                        progress.totalItems
+                                    ),
+                                    style = MaterialTheme.typography.titleSmall
+                                )
+                                progress.currentName?.let {
+                                    Text(
+                                        it,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }

@@ -72,6 +72,7 @@ class FakeStorageCleanerPreferencesStore(
     initialRules: StorageCleanerRules = StorageCleanerRules()
 ) : StorageCleanerPreferencesStore {
     private val rules = MutableStateFlow(initialRules)
+    var ignoreCalls = 0
     override val rulesFlow = rules.asStateFlow()
 
     override suspend fun updateRules(rules: StorageCleanerRules) {
@@ -83,6 +84,7 @@ class FakeStorageCleanerPreferencesStore(
     }
 
     override suspend fun ignorePath(path: String) {
+        ignoreCalls++
         rules.value = rules.value.withIgnoredPath(path)
     }
 
@@ -358,6 +360,44 @@ class StorageCleanerViewModelTest {
         assertTrue(ignoredPath in viewModel.state.value.rules.ignoredPaths)
         assertTrue(fakeScanner.scannedRules.size > initialScanCount)
         assertTrue(ignoredPath in fakeScanner.scannedRules.last().ignoredPaths)
+    }
+
+    @Test
+    fun `ignore path hides the item immediately and ignores repeated taps`() = runTest(dispatcher) {
+        val root = File("internal")
+        val ignoredPath = File(root, "skip.tmp").absolutePath
+        val candidate = CleanerCandidate(
+            name = "skip.tmp",
+            absolutePath = ignoredPath,
+            size = 12L,
+            lastModified = 1L,
+            groupTypes = setOf(CleanerGroupType.Junk),
+            riskLevel = CleanerRiskLevel.Low,
+            riskReasons = emptySet()
+        )
+        fakeScanner.result = StorageCleanerResult(
+            groups = listOf(CleanerGroup(CleanerGroupType.Junk, listOf(candidate))),
+            scannedFiles = 1,
+            isPartial = false
+        )
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume("internal", root, StorageKind.INTERNAL))
+        )
+        val preferences = FakeStorageCleanerPreferencesStore()
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            preferences
+        )
+        advanceUntilIdle()
+
+        viewModel.ignorePath(ignoredPath)
+        viewModel.ignorePath(ignoredPath)
+
+        assertTrue(viewModel.state.value.group(CleanerGroupType.Junk).candidates.isEmpty())
+        advanceUntilIdle()
+        assertEquals(1, preferences.ignoreCalls)
     }
 
     @Test

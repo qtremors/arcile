@@ -7,6 +7,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.border
@@ -42,6 +43,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -55,6 +57,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -62,6 +65,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +84,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
@@ -98,7 +104,8 @@ internal data class VideoViewerChromeActions(
     val onShare: (FileModel) -> Unit,
     val onPlayPauseToggle: () -> Unit,
     val onSeek: (Long) -> Unit,
-    val onResizeModeToggle: () -> Unit
+    val onResizeModeToggle: () -> Unit,
+    val onToggleThumbnails: () -> Unit = {}
 )
 
 // ──────────────────────────────────────────────────────────────
@@ -139,24 +146,33 @@ internal fun VideoViewerTopChrome(
                         .background(Color.Black.copy(alpha = 0.5f))
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    val titleText = currentFile.name
-                    Text(
-                        text = if (titleText.isBlank()) positionText else "$positionText \u2022 $titleText",
-                        color = Color.White,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        maxLines = 1,
-                        overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                        modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                    )
-                    if (dateText.isNotEmpty() || resolutionText.isNotEmpty() || sizeText.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = listOf(resolutionText, sizeText, dateText)
-                                .filter { it.isNotBlank() }
-                                .joinToString(" \u2022 "),
-                            color = Color.White.copy(alpha = 0.7f),
-                            style = MaterialTheme.typography.bodySmall,
+                            text = currentFile.name,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = Color.White,
                             maxLines = 1,
-                            overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                            modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
+                        )
+                    }
+
+                    val detailsText = buildList {
+                        if (positionText.isNotBlank()) add(positionText)
+                        if (dateText.isNotBlank()) add(dateText)
+                        if (resolutionText.isNotBlank()) add(resolutionText)
+                        if (sizeText.isNotBlank()) add(sizeText)
+                    }.joinToString("  •  ")
+
+                    if (detailsText.isNotBlank()) {
+                        Text(
+                            text = detailsText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.75f),
+                            maxLines = 1,
                             modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                         )
                     }
@@ -186,11 +202,54 @@ internal fun VideoViewerBottomChrome(
     canOpenWith: Boolean,
     canShare: Boolean,
     resizeModeIndex: Int,
+    showThumbnails: Boolean = true,
     actions: VideoViewerChromeActions,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
+    val context = LocalContext.current
+    val thumbnailEntries = remember(context, files) {
+        files.associate { file ->
+            val thumbnailKey = ThumbnailKey.from(file)
+            val cacheKey = thumbnailKey.variantKey(VIDEO_STRIP_THUMBNAIL_SIZE_PX).cacheKey
+            file.absolutePath to VideoStripThumbnailEntry(
+                cacheKey = cacheKey,
+                request = buildThumbnailImageRequest(
+                    context = context,
+                    data = thumbnailKey,
+                    cacheKey = cacheKey,
+                    sizePx = VIDEO_STRIP_THUMBNAIL_SIZE_PX,
+                    useMemoryCachePlaceholder = true
+                )
+            )
+        }
+    }
+    val thumbnailPainterCache = remember { VideoStripLoadedValueCache<Painter>() }
+    val thumbnailListState = rememberLazyListState()
+    var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
+    var thumbnailStripWasVisible by remember { mutableStateOf(false) }
+
+    LaunchedEffect(visible, showThumbnails, currentPage, files) {
+        if (!visible || !showThumbnails) {
+            thumbnailStripWasVisible = false
+            return@LaunchedEffect
+        }
+        if (files.isNotEmpty() && currentPage in files.indices) {
+            val scrollAction = if (thumbnailStripWasVisible) {
+                viewerThumbnailScrollAction(previousThumbnailPage, currentPage)
+            } else {
+                ViewerThumbnailScrollAction.Jump
+            }
+            when (scrollAction) {
+                ViewerThumbnailScrollAction.Jump -> thumbnailListState.scrollToItem(currentPage)
+                ViewerThumbnailScrollAction.Animate -> thumbnailListState.animateScrollToItem(currentPage)
+                ViewerThumbnailScrollAction.None -> Unit
+            }
+            previousThumbnailPage = currentPage
+            thumbnailStripWasVisible = true
+        }
+    }
 
     AnimatedVisibility(
         visible = visible,
@@ -204,89 +263,94 @@ internal fun VideoViewerBottomChrome(
                 .navigationBarsPadding()
         ) {
             // 1. Thumbnail carousel – identical to image viewer
-            val lazyListState = rememberLazyListState()
-            var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
-            LaunchedEffect(currentPage) {
-                if (files.isNotEmpty() && currentPage in files.indices) {
-                    when (viewerThumbnailScrollAction(previousThumbnailPage, currentPage)) {
-                        ViewerThumbnailScrollAction.Jump -> lazyListState.scrollToItem(currentPage)
-                        ViewerThumbnailScrollAction.Animate -> lazyListState.animateScrollToItem(currentPage)
-                        ViewerThumbnailScrollAction.None -> Unit
-                    }
-                    previousThumbnailPage = currentPage
-                }
-            }
-
-            BoxWithConstraints(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(vertical = 8.dp)
-            ) {
-                val thumbnailWidth = 28.dp
-                val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
-                LazyRow(
-                    state = lazyListState,
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
-                    contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
+            if (showThumbnails) {
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(vertical = 8.dp)
                 ) {
-                    itemsIndexed(
-                        items = files,
-                        key = { _, file -> file.absolutePath }
-                    ) { index, file ->
-                        val isSelected = currentPage == index
-                        val animElevation by animateDpAsState(
-                            targetValue = if (isSelected) 6.dp else 0.dp,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
-                            ),
-                            label = "thumbnailElevation"
-                        )
-                        val animScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1f else 0.82f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
-                            ),
-                            label = "thumbnailScale"
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .width(36.dp)
-                                .height(54.dp)
-                                .zIndex(if (isSelected) 1f else 0f)
-                                .graphicsLayer {
-                                    scaleX = animScale
-                                    scaleY = animScale
-                                }
-                                .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(
-                                    width = if (isSelected) 2.dp else 0.dp,
-                                    color = if (isSelected) Color.White else Color.Transparent,
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .semantics {
-                                    contentDescription = file.name
-                                    selected = isSelected
-                                }
-                                .bounceClickable {
-                                    coroutineScope.launch { actions.onPageSelected(index) }
-                                }
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(file.absolutePath)
-                                    .crossfade(false)
-                                    .build(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
+                    val thumbnailWidth = 28.dp
+                    val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
+                    LazyRow(
+                        state = thumbnailListState,
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
+                        contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
+                    ) {
+                        itemsIndexed(
+                            items = files,
+                            key = { _, file -> file.absolutePath }
+                        ) { index, file ->
+                            val isSelected = currentPage == index
+                            val animElevation by animateDpAsState(
+                                targetValue = if (isSelected) 6.dp else 0.dp,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioNoBouncy,
+                                    stiffness = Spring.StiffnessMedium
+                                ),
+                                label = "thumbnailElevation"
                             )
+                            val animScale by animateFloatAsState(
+                                targetValue = if (isSelected) 1f else 0.82f,
+                                animationSpec = spring(
+                                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                                    stiffness = Spring.StiffnessLow
+                                ),
+                                label = "thumbnailScale"
+                            )
+
+                            Box(
+                                modifier = Modifier
+                                    .width(36.dp)
+                                    .height(54.dp)
+                                    .zIndex(if (isSelected) 1f else 0f)
+                                    .graphicsLayer {
+                                        scaleX = animScale
+                                        scaleY = animScale
+                                    }
+                                    .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .border(
+                                        width = if (isSelected) 2.dp else 0.dp,
+                                        color = if (isSelected) Color.White else Color.Transparent,
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .semantics {
+                                        contentDescription = file.name
+                                        selected = isSelected
+                                    }
+                                    .bounceClickable {
+                                        coroutineScope.launch { actions.onPageSelected(index) }
+                                    }
+                            ) {
+                                val thumbnailEntry = thumbnailEntries[file.absolutePath]
+                                val loadedPainter = thumbnailEntry?.let {
+                                    thumbnailPainterCache[it.cacheKey]
+                                }
+                                if (loadedPainter != null) {
+                                    Image(
+                                        painter = loadedPainter,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else if (thumbnailEntry != null) {
+                                    AsyncImage(
+                                        model = thumbnailEntry.request,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        onSuccess = { result ->
+                                            thumbnailPainterCache.put(
+                                                thumbnailEntry.cacheKey,
+                                                result.painter
+                                            )
+                                        },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -363,6 +427,13 @@ internal fun VideoViewerBottomChrome(
                 val deleteTint = MaterialTheme.colorScheme.error
                 val playDescription = stringResource(R.string.video_player_play)
                 val pauseDescription = stringResource(R.string.video_player_pause)
+                val resizeDescription = stringResource(
+                    when (resizeModeIndex) {
+                        0 -> R.string.video_player_resize_fit
+                        1 -> R.string.video_player_resize_zoom
+                        else -> R.string.video_player_resize_fill
+                    }
+                )
                 val toolbarActions = remember(
                     currentFile,
                     isFavorite,
@@ -376,6 +447,7 @@ internal fun VideoViewerBottomChrome(
                     isPlaying,
                     playDescription,
                     pauseDescription,
+                    resizeDescription,
                     actions
                 ) {
                     buildList {
@@ -407,6 +479,18 @@ internal fun VideoViewerBottomChrome(
                                 onClick = {
                                     haptics.selectionChanged()
                                     actions.onPlayPauseToggle()
+                                }
+                            )
+                        )
+                        // Fit/Resize screen action in main buttons
+                        add(
+                            ToolbarAction(
+                                icon = Icons.Default.AspectRatio,
+                                contentDescription = resizeDescription,
+                                tint = Color.White,
+                                onClick = {
+                                    haptics.selectionChanged()
+                                    actions.onResizeModeToggle()
                                 }
                             )
                         )
@@ -447,9 +531,9 @@ internal fun VideoViewerBottomChrome(
                     actions = toolbarActions,
                     containerColor = Color.Black.copy(alpha = 0.5f),
                     contentColor = Color.White,
-                    height = 56.dp,
-                    minWidth = if (selectionModeEnabled) 52.dp else 64.dp,
-                    iconSize = 28.dp
+                    height = 48.dp,
+                    minWidth = 48.dp,
+                    iconSize = 24.dp
                 )
 
                 VideoViewerOverflowMenu(
@@ -457,10 +541,43 @@ internal fun VideoViewerBottomChrome(
                     readOnly = readOnly,
                     canOpenWith = canOpenWith,
                     canShare = canShare,
-                    resizeModeIndex = resizeModeIndex,
+                    showThumbnails = showThumbnails,
                     actions = actions
                 )
             }
         }
+    }
+}
+
+private const val VIDEO_STRIP_THUMBNAIL_SIZE_PX = 128
+private const val VIDEO_STRIP_PAINTER_CACHE_SIZE = 64
+
+private data class VideoStripThumbnailEntry(
+    val cacheKey: String,
+    val request: ImageRequest
+)
+
+internal class VideoStripLoadedValueCache<T>(
+    private val maxEntries: Int = VIDEO_STRIP_PAINTER_CACHE_SIZE
+) {
+    init {
+        require(maxEntries > 0)
+    }
+
+    private val values = mutableStateMapOf<String, T>()
+    private val insertionOrder = ArrayDeque<String>()
+
+    operator fun get(cacheKey: String): T? = values[cacheKey]
+
+    fun put(cacheKey: String, value: T) {
+        if (values.containsKey(cacheKey)) {
+            values[cacheKey] = value
+            return
+        }
+        while (insertionOrder.size >= maxEntries) {
+            values.remove(insertionOrder.removeFirst())
+        }
+        insertionOrder.addLast(cacheKey)
+        values[cacheKey] = value
     }
 }

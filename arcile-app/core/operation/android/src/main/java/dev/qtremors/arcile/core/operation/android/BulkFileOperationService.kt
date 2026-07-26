@@ -147,12 +147,22 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(request.sourcePaths)
+                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(
+                                request.sourcePaths
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
+                            }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Permanent delete") },
                                     onFailure = { Result.failure(it) }
                                 )
-                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(request.sourcePaths)
+                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(
+                                request.sourcePaths
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
+                            }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Secure shred") },
                                     onFailure = { Result.failure(it) }
@@ -267,14 +277,29 @@ class BulkFileOperationService : Service() {
             .setContentText(content)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setColor(BRAND_ACCENT_COLOR)
             .addAction(
-                dev.qtremors.arcile.core.operation.android.R.drawable.ic_notification,
+                dev.qtremors.arcile.core.operation.android.R.drawable.ic_cancel,
                 getString(R.string.notification_action_cancel),
                 cancelPendingIntent(request)
             )
 
+        contentPendingIntent()?.let { builder.setContentIntent(it) }
+
         applyProgress(builder, progress)
         return builder.build()
+    }
+
+    private fun contentPendingIntent(): PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        launchIntent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        return PendingIntent.getActivity(
+            this,
+            0,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     private fun operationTitle(type: BulkFileOperationType): String =
@@ -410,6 +435,7 @@ class BulkFileOperationService : Service() {
         private const val CHANNEL_ID = "bulk_file_operations"
         private const val NOTIFICATION_ID = 1001
         private const val NOTIFICATION_UPDATE_THROTTLE_MS = 500L
+        private const val BRAND_ACCENT_COLOR = 0xFF0878F8.toInt()
     }
 
     private data class NotificationMetrics(

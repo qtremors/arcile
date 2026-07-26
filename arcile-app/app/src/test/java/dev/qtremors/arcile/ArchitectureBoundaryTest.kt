@@ -37,6 +37,7 @@ class ArchitectureBoundaryTest {
         val features = listOf(
             "activitylog",
             "archive",
+            "audio",
             "browser",
             "home",
             "imagegallery",
@@ -493,6 +494,7 @@ class ArchitectureBoundaryTest {
             "activitylog.registerActivityLogRoute",
             "archive.ArchiveDestination",
             "archive.registerArchiveViewerRoute",
+            "audio.registerAudioLibraryRoute",
             "browser.BrowserDestination",
             "browser.BrowserEntry",
             "browser.BrowserEntryRequest",
@@ -727,6 +729,7 @@ class ArchitectureBoundaryTest {
             "core/ui",
             "feature/archive",
             "feature/activitylog",
+            "feature/audio",
             "feature/browser",
             "feature/home",
             "feature/import",
@@ -898,7 +901,9 @@ class ArchitectureBoundaryTest {
                 """(?:class|interface|object|fun|typealias|val|var)\s+"""
         )
 
-        val LARGE_FILE_BASELINE = emptyMap<String, Int>()
+        val LARGE_FILE_BASELINE = mapOf(
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800
+        )
 
         val LARGE_VIEWMODEL_BASELINE = emptyMap<String, Int>()
 

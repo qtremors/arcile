@@ -14,8 +14,8 @@ fun ArcileSectionHeader(
 ) {
     Text(
         text = text,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(start = 8.dp, bottom = 8.dp)
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.padding(start = 4.dp, bottom = 4.dp, top = 4.dp)
     )
 }

@@ -1,16 +1,58 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.6.0
-> **Last Updated:** 2026-07-23
+> **Version:** 1.7.0
+> **Last Updated:** 2026-07-26
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.7.0](#v170) | 2026-07-26 | Complete audio library and background player, PowerRename, split APK installation, richer video controls, and consistent media workflows |
 | [v1.6.0](#v160) | 2026-07-23 | Encrypted OnlyFiles vaults, native video browsing and playback, visual storage insights, and refined Trash interactions |
 | [v1.5.0](#v150) | 2026-07-13 | Independent feature ownership, safer file workflows, viewer and sharing reliability, plugin distribution, and navigation fixes |
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v1.7.0
+
+**Release Date:** July 26, 2026
+
+**Previous public release:** v1.6.0
+
+**Development range included:** v1.6.1 through v1.7.0
+
+Arcile v1.7.0 introduces a complete device-audio experience with background playback, expands native media and package workflows, adds powerful batch renaming, and brings category screens and common file actions into closer alignment.
+
+## What's New Since v1.6.0
+
+### Audio Library & Playback
+- **Dedicated audio library:** Browse device music through Songs and Folders pages with album artwork, search, sorting, grouping, fast scrolling, and saved list or grid layouts.
+- **Complete audio file workflows:** Select tracks and folders to copy, cut, paste, rename, share, open with another app, create ZIP archives, delete, inspect properties, or reveal the containing folder.
+- **Background playback:** Keep listening outside Arcile with branded Android media controls, reliable playback state, previous/next actions, seeking, shuffle, repeat, and an editable queue.
+- **Connected mini and full players:** Move smoothly between the compact and expanded player with coordinated artwork motion, a persistent mini progress rail, wavy seeking, adaptive spacing, balanced transport controls, and direct queue access.
+- **Consistent media categories:** Audio now follows the same loading, error, selection, clipboard, deletion, properties, and folder interaction patterns used by the Image and Video galleries.
+
+### File & Package Workflows
+- **PowerRename:** Batch rename files using search and replace, regular expressions, case changes, numbering, reusable presets, conflict previews, safe rollback, and one-tap Undo.
+- **APK and split-package installation:** Inspect and install standard APKs or compatible `.apks`, `.xapk`, and `.apkm` sets with package previews, progress, cancellation cleanup, and downgrade guidance.
+- **Safer everyday operations:** Improved batch-deletion progress and completion feedback, restored the last Browser location, repaired folder sharing through ZIP packaging, and kept unsupported file handoffs predictable.
+- **Resilient archives and backups:** Unsafe archive entries are skipped without stopping valid extraction, and settings backups now include OnlyFiles preferences while excluding temporary operation data.
+
+### Media, Cleaner & Interface Polish
+- **More capable video viewing:** Added gesture controls, metadata, auto-hiding controls, drag-to-dismiss, resize modes, stable thumbnail strips, and configuration-safe playback.
+- **Cleaner review improvements:** Refined item actions, ignore rules, ignored-item management, thumbnail-cache reporting, and storage summaries.
+- **Expressive controls:** Standardized action sizing, dropdown surfaces, grouped settings, dynamic state indicators, and an interactive accent-color picker across compact and larger layouts.
+- **Faster gallery navigation:** Improved scrollbar drag synchronization, reachability, activation feedback, and large-library navigation.
+- **Clearer OnlyFiles controls:** Moved vault security, thumbnail-cache, grant-revocation, and security-disclosure actions into the OnlyFiles screen where they are easier to find.
+- **Consistent system feedback:** Standardized background operation and active-grant notifications with Arcile branding, progress states, and tap-to-open behavior.
+- **Honest plugin presentation:** Replaced unavailable placeholder rows with a focused empty state until compatible plugins are installed or available.
+- **Updated project website:** Added compact repository and download statistics with total and latest release counts.
+
+## Looking Ahead to v1.8.0
+
+The Audio category will receive another UI and UX refinement in v1.8.0, and the remaining file categories will begin receiving the same broader overhaul. This work needs additional design and verification time, so v1.8.0 will arrive a little later than the recent release cadence.
 
 ---
 

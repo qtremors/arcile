@@ -24,7 +24,8 @@ import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.RemoveCircleOutline
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Settings
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
@@ -129,6 +130,13 @@ internal fun VaultActionsMenu(
             }
             add {
                 ArcileDropdownMenuItem(
+                    text = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section)) },
+                    leadingIcon = { Icon(Icons.Default.Settings, null) },
+                    onClick = { closeAnd(viewModel::openSettings) }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
                     text = { Text(stringResource(R.string.onlyfiles_lock)) },
                     leadingIcon = { Icon(Icons.Default.Lock, null) },
                     onClick = { closeAnd(viewModel::lockCurrent) }
@@ -137,29 +145,11 @@ internal fun VaultActionsMenu(
         }
     }
 
-    DropdownMenu(
-        shape = MaterialTheme.shapes.extraLarge,
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+    dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
         expanded = expanded,
-        onDismissRequest = onDismiss
-    ) {
-        menuActions.forEachIndexed { index, action ->
-            val shape = when {
-                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                else -> MaterialTheme.shapes.menuGroupMiddle
-            }
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                    .clip(shape)
-                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            ) {
-                action()
-            }
-        }
-    }
+        onDismissRequest = onDismiss,
+        items = menuActions
+    )
 
     if (changePassword) ChangeVaultPasswordDialog(
         { changePassword = false }

@@ -218,7 +218,7 @@ internal fun FloatingGalleryTopBar(
             modifier = modifier
                 .statusBarsPadding()
                 .padding(horizontal = 16.dp, vertical = 8.dp)
-                .height(56.dp)
+                .height(48.dp)
         ) {
             Row(
                 modifier = Modifier
@@ -336,126 +336,120 @@ internal fun FloatingGalleryTopBar(
                             haptics.selectionChanged()
                             onSortClick()
                         }
-                    ),
-                    ToolbarAction(
-                        icon = Icons.Default.MoreVert,
-                        contentDescription = moreOptionsLabel,
-                        onClick = {
-                            haptics.toggleMenu()
-                            showOverflowMenu = true
-                        }
                     )
                 )
-                SplitButtonGroup(
-                    actions = topActions,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    height = 48.dp,
-                    minWidth = 48.dp,
-                    iconSize = 22.dp
-                )
-                DropdownMenu(
-                    shape = MaterialTheme.shapes.extraLarge,
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-                    expanded = showOverflowMenu,
-                    onDismissRequest = { showOverflowMenu = false },
-                    modifier = Modifier.width(260.dp)
-                ) {
-                    val menuActions = remember(
-                        state.imageGalleryDefaultTab,
-                        state.displayedFiles.isNotEmpty(),
-                        state.isVideoGallery
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SplitButtonGroup(
+                        actions = topActions,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        height = 48.dp,
+                        minWidth = 48.dp,
+                        iconSize = 24.dp
+                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .bounceClickable {
+                                haptics.toggleMenu()
+                                showOverflowMenu = true
+                            }
                     ) {
-                        mutableListOf<@Composable () -> Unit>().apply {
-                            ImageGalleryDefaultTab.entries.forEach { tab ->
-                                add {
-                                    ArcileDropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = stringResource(
-                                                    when (tab) {
-                                                        ImageGalleryDefaultTab.PHOTOS -> if (state.isVideoGallery) {
-                                                            R.string.video_gallery_open_to_videos
-                                                        } else {
-                                                            R.string.image_gallery_open_to_photos
-                                                        }
-                                                        ImageGalleryDefaultTab.ALBUMS -> R.string.image_gallery_open_to_albums
-                                                    }
-                                                ),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = when (tab) {
-                                                    ImageGalleryDefaultTab.PHOTOS -> if (state.isVideoGallery) {
-                                                        Icons.Default.VideoLibrary
-                                                    } else {
-                                                        Icons.Default.Image
-                                                    }
-                                                    ImageGalleryDefaultTab.ALBUMS -> Icons.Default.Folder
-                                                },
-                                                contentDescription = null
-                                            )
-                                        },
-                                        trailingIcon = if (state.imageGalleryDefaultTab == tab) {
-                                            {
-                                                Icon(Icons.Default.CheckCircle, contentDescription = null)
-                                            }
-                                        } else {
-                                            null
-                                        },
-                                        onClick = {
-                                            onDefaultTabChange(tab)
-                                            showOverflowMenu = false
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                    )
-                                }
-                            }
-                            if (state.displayedFiles.isNotEmpty()) {
-                                add {
-                                    ArcileDropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = stringResource(R.string.select_all),
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
-                                        onClick = {
-                                            onSelectAll()
-                                            showOverflowMenu = false
-                                        },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    menuActions.forEachIndexed { index, action ->
-                        val shape = when {
-                            menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                            index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                            index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                            else -> MaterialTheme.shapes.menuGroupMiddle
-                        }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                                .clip(shape)
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                        ) {
-                            action()
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.MoreVert,
+                                contentDescription = moreOptionsLabel,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
                     }
                 }
+                val menuActions = remember(
+                    state.imageGalleryDefaultTab,
+                    state.displayedFiles.isNotEmpty(),
+                    state.isVideoGallery
+                ) {
+                    mutableListOf<@Composable () -> Unit>().apply {
+                        ImageGalleryDefaultTab.entries.forEach { tab ->
+                            add {
+                                ArcileDropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(
+                                                when (tab) {
+                                                    ImageGalleryDefaultTab.PHOTOS -> if (state.isVideoGallery) {
+                                                        R.string.video_gallery_open_to_videos
+                                                    } else {
+                                                        R.string.image_gallery_open_to_photos
+                                                    }
+                                                    ImageGalleryDefaultTab.ALBUMS -> R.string.image_gallery_open_to_albums
+                                                }
+                                            ),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            imageVector = when (tab) {
+                                                ImageGalleryDefaultTab.PHOTOS -> if (state.isVideoGallery) {
+                                                    Icons.Default.VideoLibrary
+                                                } else {
+                                                    Icons.Default.Image
+                                                }
+                                                ImageGalleryDefaultTab.ALBUMS -> Icons.Default.Folder
+                                            },
+                                            contentDescription = null
+                                        )
+                                    },
+                                    trailingIcon = if (state.imageGalleryDefaultTab == tab) {
+                                        {
+                                            Icon(Icons.Default.CheckCircle, contentDescription = null)
+                                        }
+                                    } else {
+                                        null
+                                    },
+                                    onClick = {
+                                        onDefaultTabChange(tab)
+                                        showOverflowMenu = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                        if (state.displayedFiles.isNotEmpty()) {
+                            add {
+                                ArcileDropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            text = stringResource(R.string.select_all),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    leadingIcon = { Icon(Icons.Default.SelectAll, contentDescription = null) },
+                                    onClick = {
+                                        onSelectAll()
+                                        showOverflowMenu = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+                    expanded = showOverflowMenu,
+                    onDismissRequest = { showOverflowMenu = false },
+                    items = menuActions
+                )
             }
         }
     }

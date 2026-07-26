@@ -27,6 +27,7 @@ fun NavGraphBuilder.registerRecentFilesRoute(
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
     onOpenFile: (String, List<FileModel>) -> Unit,
+    onOpenFileWith: (String) -> Unit,
     onShareSelected: suspend (List<FileModel>) -> Boolean,
     onDestination: (RecentFilesDestination) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
@@ -61,6 +62,7 @@ fun NavGraphBuilder.registerRecentFilesRoute(
                         }
                     }
                 },
+                openWith = onOpenFileWith,
                 selectAll = viewModel::selectAll,
                 selectMultiple = viewModel::selectMultiple,
                 openProperties = viewModel::openPropertiesForSelection,

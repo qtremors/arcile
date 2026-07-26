@@ -15,7 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Delete
@@ -51,6 +51,8 @@ import dev.qtremors.arcile.core.plugin.android.PluginCatalogEntry
 import dev.qtremors.arcile.core.plugin.android.PluginManager
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
 private data class PluginRowModel(
@@ -76,12 +78,18 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val catalogRows = PluginManager.catalog.map { catalog ->
-        PluginRowModel(catalog, installed.firstOrNull { catalog.matchesPackage(it.packageName) })
+    val catalogRows = PluginManager.catalog.mapNotNull { catalog ->
+        val installedPlugin = installed.firstOrNull { catalog.matchesPackage(it.packageName) }
+        if (catalog.available || installedPlugin != null) {
+            PluginRowModel(catalog, installedPlugin)
+        } else {
+            null
+        }
     }
     val discoveredRows = installed
         .filterNot { plugin -> PluginManager.catalog.any { it.matchesPackage(plugin.packageName) } }
         .map { PluginRowModel(null, it) }
+    val rows = catalogRows + discoveredRows
 
     ArcileScreenScaffold(
         topBar = {
@@ -99,69 +107,79 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item { ArcileSectionHeader(text = stringResource(R.string.plugins_available)) }
-            items(catalogRows + discoveredRows, key = { it.installed?.packageName ?: it.catalog!!.packageName }) { row ->
-                val plugin = row.installed
-                val compatible = plugin?.compatibility == PluginCompatibility.COMPATIBLE
-                val status = when {
-                    plugin != null && compatible -> stringResource(
-                        R.string.plugin_status_installed,
-                        plugin.versionName,
-                        plugin.apiVersion
-                    )
-                    plugin != null -> stringResource(R.string.plugin_status_incompatible, plugin.apiVersion)
-                    row.catalog?.available == true -> stringResource(R.string.plugin_status_not_installed)
-                    else -> stringResource(R.string.plugin_status_coming_soon)
-                }
-                val statusIcon = when {
-                    plugin != null && compatible -> Icons.Default.CheckCircle
-                    plugin != null -> Icons.Default.Error
-                    row.catalog?.available == true -> Icons.Default.RemoveCircleOutline
-                    else -> Icons.Default.HourglassEmpty
-                }
-                ListItem(
-                    headlineContent = { Text(plugin?.name ?: row.catalog!!.name) },
-                    supportingContent = { Text(status) },
-                    leadingContent = {
-                        Icon(
-                            statusIcon,
-                            contentDescription = null,
-                            tint = if (plugin != null && !compatible) {
-                                MaterialTheme.colorScheme.error
-                            } else {
-                                MaterialTheme.colorScheme.primary
-                            }
+        if (rows.isEmpty()) {
+            EmptyState(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = padding.calculateTopPadding()),
+                variant = EmptyStateVariant.Generic,
+                icon = Icons.Default.Extension,
+                title = stringResource(R.string.plugins_empty_title),
+                description = stringResource(R.string.plugins_empty_description)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(top = padding.calculateTopPadding()),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item { ArcileSectionHeader(text = stringResource(R.string.plugins_available)) }
+                items(rows, key = { it.installed?.packageName ?: it.catalog!!.packageName }) { row ->
+                    val plugin = row.installed
+                    val compatible = plugin?.compatibility == PluginCompatibility.COMPATIBLE
+                    val status = when {
+                        plugin != null && compatible -> stringResource(
+                            R.string.plugin_status_installed,
+                            plugin.versionName,
+                            plugin.apiVersion
                         )
-                    },
-                    trailingContent = {
-                        Row {
-                            if (plugin != null) {
+                        plugin != null -> stringResource(R.string.plugin_status_incompatible, plugin.apiVersion)
+                        else -> stringResource(R.string.plugin_status_not_installed)
+                    }
+                    val statusIcon = when {
+                        plugin != null && compatible -> Icons.Default.CheckCircle
+                        plugin != null -> Icons.Default.Error
+                        else -> Icons.Default.RemoveCircleOutline
+                    }
+                    ListItem(
+                        headlineContent = { Text(plugin?.name ?: row.catalog!!.name) },
+                        supportingContent = { Text(status) },
+                        leadingContent = {
+                            Icon(
+                                statusIcon,
+                                contentDescription = null,
+                                tint = if (plugin != null && !compatible) {
+                                    MaterialTheme.colorScheme.error
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                }
+                            )
+                        },
+                        trailingContent = {
+                            Row {
+                                if (plugin != null) {
+                                    IconButton(onClick = {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_DELETE, Uri.parse("package:${plugin.packageName}"))
+                                        )
+                                    }) {
+                                        Icon(Icons.Default.Delete, stringResource(R.string.uninstall))
+                                    }
+                                } else if (row.catalog?.available == true) {
+                                    IconButton(onClick = { uriHandler.openUri(PluginManager.RELEASES_URL) }) {
+                                        Icon(Icons.Default.CloudDownload, stringResource(R.string.install))
+                                    }
+                                }
                                 IconButton(onClick = {
-                                    context.startActivity(
-                                        Intent(Intent.ACTION_DELETE, Uri.parse("package:${plugin.packageName}"))
-                                    )
+                                    uriHandler.openUri(plugin?.homepage ?: PluginManager.RELEASES_URL)
                                 }) {
-                                    Icon(Icons.Default.Delete, stringResource(R.string.uninstall))
-                                }
-                            } else if (row.catalog?.available == true) {
-                                IconButton(onClick = { uriHandler.openUri(PluginManager.RELEASES_URL) }) {
-                                    Icon(Icons.Default.CloudDownload, stringResource(R.string.install))
+                                    Icon(Icons.Default.Link, stringResource(R.string.view_github))
                                 }
                             }
-                            IconButton(onClick = {
-                                uriHandler.openUri(plugin?.homepage ?: PluginManager.RELEASES_URL)
-                            }) {
-                                Icon(Icons.Default.Link, stringResource(R.string.view_github))
-                            }
-                        }
-                    },
-                    colors = ListItemDefaults.colors(containerColor = Color.Transparent)
-                )
+                        },
+                        colors = ListItemDefaults.colors(containerColor = Color.Transparent)
+                    )
+                }
             }
         }
     }

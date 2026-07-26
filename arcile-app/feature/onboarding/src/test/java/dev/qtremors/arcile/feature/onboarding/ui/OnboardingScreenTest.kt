@@ -102,7 +102,10 @@ class OnboardingScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Storage Access (Required)").assertExists()
+        composeRule.onNodeWithText("Storage Access").assertExists()
+        composeRule.onNodeWithText("View and manage files on your device.").assertExists()
+        composeRule.onNodeWithText("Notifications").assertExists()
+        composeRule.onNodeWithText("Show progress for background file operations.").assertExists()
         composeRule.onNodeWithText("Restore from file").assertExists()
         composeRule.onNodeWithText("Theme Mode").assertExists()
         composeRule.onNodeWithText("Accent Color").assertExists()
@@ -133,7 +136,8 @@ class OnboardingScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Storage Access Granted").assertExists()
+        composeRule.onNodeWithText("Storage Access").assertExists()
+        composeRule.onNodeWithText("Granted").assertExists()
         composeRule.onNodeWithText("Enable").assertExists()
         composeRule.onNodeWithText("Finish").assertIsEnabled()
     }

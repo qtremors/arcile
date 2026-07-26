@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
@@ -90,6 +91,7 @@ internal fun RecentSelectionToolbar(
     contentPadding: PaddingValues,
     onSelectAll: () -> Unit,
     onShareSelected: () -> Unit,
+    onOpenFileWith: (String) -> Unit,
     onRequestDeleteSelected: () -> Unit,
     onOpenProperties: () -> Unit,
     onOpenContainingFolder: (String) -> Unit
@@ -130,25 +132,31 @@ internal fun RecentSelectionToolbar(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.size(56.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.MoreVert,
                                 contentDescription = stringResource(R.string.action_more_options),
-                                modifier = Modifier.size(28.dp)
+                                modifier = Modifier.size(24.dp)
                             )
                         }
                     }
-                    DropdownMenu(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        expanded = showMoreMenu,
-                        onDismissRequest = { showMoreMenu = false }
-                    ) {
-                        val menuActions = remember(onOpenProperties, selectedFiles) {
+                        val menuActions = remember(onOpenFileWith, onOpenProperties, selectedFiles) {
                             mutableListOf<@Composable () -> Unit>().apply {
                                 if (selectedFiles.size == 1) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                            leadingIcon = {
+                                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                showMoreMenu = false
+                                                onOpenFileWith(selectedFiles.first())
+                                            }
+                                        )
+                                    }
                                     add {
                                         ArcileDropdownMenuItem(
                                             text = { Text(stringResource(R.string.open_containing_folder)) },
@@ -173,23 +181,11 @@ internal fun RecentSelectionToolbar(
                             }
                         }
 
-                        menuActions.forEachIndexed { index, action ->
-                            val shape = when {
-                                menuActions.size == 1 -> MaterialTheme.shapes.menuGroupSingle
-                                index == 0 -> MaterialTheme.shapes.menuGroupFirst
-                                index == menuActions.size - 1 -> MaterialTheme.shapes.menuGroupLast
-                                else -> MaterialTheme.shapes.menuGroupMiddle
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 8.dp, vertical = 2.dp)
-                                    .clip(shape)
-                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                            ) {
-                                action()
-                            }
-                        }
-                    }
+                        dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
+                            expanded = showMoreMenu,
+                            onDismissRequest = { showMoreMenu = false },
+                            items = menuActions
+                        )
                 }
             }
         )

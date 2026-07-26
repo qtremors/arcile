@@ -20,6 +20,7 @@ import dev.qtremors.arcile.core.storage.data.DefaultClipboardRepository
 import dev.qtremors.arcile.core.storage.data.DefaultFileBrowserRepository
 import dev.qtremors.arcile.core.storage.data.DefaultFileMutationRepository
 import dev.qtremors.arcile.core.storage.data.DefaultMediaRepository
+import dev.qtremors.arcile.core.storage.data.DefaultAudioLibraryRepository
 import dev.qtremors.arcile.core.storage.data.DefaultTrashRepository
 import dev.qtremors.arcile.core.storage.data.DefaultVolumeRepository
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
@@ -57,6 +58,7 @@ import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
@@ -343,6 +345,18 @@ object StorageDataModule {
     @Provides
     @Singleton
     fun provideSearchRepository(repository: DefaultMediaRepository): SearchRepository = repository
+
+    @Provides
+    @Singleton
+    fun provideAudioLibraryRepository(
+        @ApplicationContext context: Context,
+        volumeProvider: VolumeProvider,
+        dispatchers: ArcileDispatchers
+    ): AudioLibraryRepository = DefaultAudioLibraryRepository(
+        context = context,
+        volumeProvider = volumeProvider,
+        dispatchers = dispatchers
+    )
 
     @Provides
     @Singleton

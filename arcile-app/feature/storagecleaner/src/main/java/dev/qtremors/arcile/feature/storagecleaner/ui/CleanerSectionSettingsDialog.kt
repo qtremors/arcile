@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -20,22 +20,24 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -46,6 +48,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes
 import dev.qtremors.arcile.core.ui.theme.sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -86,7 +89,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CleanerSectionSettingsDialog(
     type: CleanerGroupType,
@@ -95,6 +98,7 @@ internal fun CleanerSectionSettingsDialog(
     onReset: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val sectionName = cleanerTitle(type)
     var enabled by remember(type, rule) { mutableStateOf(rule.enabled) }
     var namePatterns by remember(type, rule) { mutableStateOf(rule.ignoredNamePatterns) }
     var pathPatterns by remember(type, rule) { mutableStateOf(rule.ignoredPathPatterns) }
@@ -109,21 +113,45 @@ internal fun CleanerSectionSettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.cleaner_section_settings)) },
+        title = {
+            Text(
+                stringResource(
+                    R.string.cleaner_section_settings_title,
+                    sectionName
+                )
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
-                    .height(420.dp)
+                    .heightIn(max = 480.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Row(
+                Text(
+                    text = stringResource(
+                        R.string.cleaner_section_settings_description,
+                        sectionName
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    shape = ExpressiveShapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
-                    Text(stringResource(R.string.cleaner_section_enabled))
-                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(R.string.cleaner_section_enabled),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    }
                 }
                 if (type == CleanerGroupType.LargeFiles) {
                     OutlinedTextField(
@@ -147,8 +175,32 @@ internal fun CleanerSectionSettingsDialog(
                         modifier = Modifier.fillMaxWidth().keyboardInputField()
                     )
                 }
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = ExpressiveShapes.medium,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = stringResource(R.string.cleaner_pattern_matching_description),
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
                 PatternEditor(
                     title = stringResource(R.string.cleaner_ignore_name_patterns),
+                    description = stringResource(R.string.cleaner_ignore_name_patterns_description),
+                    example = stringResource(R.string.cleaner_ignore_name_patterns_example),
                     patterns = namePatterns,
                     input = namePatternInput,
                     onInputChange = { namePatternInput = it },
@@ -163,6 +215,8 @@ internal fun CleanerSectionSettingsDialog(
                 )
                 PatternEditor(
                     title = stringResource(R.string.cleaner_ignore_path_patterns),
+                    description = stringResource(R.string.cleaner_ignore_path_patterns_description),
+                    example = stringResource(R.string.cleaner_ignore_path_patterns_example),
                     patterns = pathPatterns,
                     input = pathPatternInput,
                     onInputChange = { pathPatternInput = it },
@@ -215,9 +269,12 @@ internal fun CleanerSectionSettingsDialog(
     )
 }
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun PatternEditor(
     title: String,
+    description: String,
+    example: String,
     patterns: Set<String>,
     input: String,
     onInputChange: (String) -> Unit,
@@ -230,6 +287,11 @@ private fun PatternEditor(
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurface
         )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = input,
@@ -240,30 +302,45 @@ private fun PatternEditor(
                 modifier = Modifier.weight(1f).keyboardInputField()
             )
             Spacer(modifier = Modifier.width(8.dp))
-            TextButton(
+            FilledTonalButton(
                 onClick = onAdd,
+                enabled = input.trim().isNotBlank(),
                 shape = ExpressiveShapes.medium
             ) {
                 Text(stringResource(R.string.add))
             }
         }
-        patterns.sorted().forEach { pattern ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = pattern,
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                TextButton(
-                    onClick = { onRemove(pattern) },
-                    shape = ExpressiveShapes.medium
+        Text(
+            text = example,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        val sortedPatterns = patterns.sorted()
+        Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+            sortedPatterns.forEachIndexed { index, pattern ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = expressiveSegmentedShapes(index, sortedPatterns.size).shape,
+                    color = MaterialTheme.colorScheme.surfaceContainer
                 ) {
-                    Text(stringResource(R.string.remove))
+                    Row(
+                        modifier = Modifier.padding(start = 12.dp, end = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = pattern,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        TextButton(
+                            onClick = { onRemove(pattern) },
+                            shape = ExpressiveShapes.medium
+                        ) {
+                            Text(stringResource(R.string.remove))
+                        }
+                    }
                 }
             }
         }

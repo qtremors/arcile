@@ -45,6 +45,7 @@
             <option value="$PROJECT_DIR$/feature" />
             <option value="$PROJECT_DIR$/feature/activitylog" />
             <option value="$PROJECT_DIR$/feature/archive" />
+            <option value="$PROJECT_DIR$/feature/audio" />
             <option value="$PROJECT_DIR$/feature/browser" />
             <option value="$PROJECT_DIR$/feature/home" />
             <option value="$PROJECT_DIR$/feature/imagegallery" />

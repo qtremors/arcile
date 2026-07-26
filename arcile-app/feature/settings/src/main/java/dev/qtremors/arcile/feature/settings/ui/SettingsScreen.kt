@@ -36,8 +36,7 @@ internal fun SettingsScreen(
     navigationActions: SettingsNavigationActions,
     preferenceActions: SettingsPreferenceActions,
     backupActions: SettingsBackupActions,
-    storageActions: SettingsStorageActions,
-    vaultActions: SettingsVaultActions
+    storageActions: SettingsStorageActions
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     ArcileScreenScaffold(
@@ -85,13 +84,16 @@ internal fun SettingsScreen(
                 SettingsPluginSection(onOpen = navigationActions.navigateToPlugins)
             }
             item {
-                SettingsOnlyFilesSection(state.vaultSecurity, navigationActions.navigateToOnlyFiles, vaultActions)
-            }
-            item {
                 SettingsStorageSection(
                     cache = state.externalCache,
                     onOpenStorageManagement = navigationActions.openStorageManagement,
                     onClearExternalCache = storageActions.clearExternalCache
+                )
+            }
+            item {
+                SettingsFileOpeningSection(
+                    behaviors = state.preferences.fileOpenBehaviors,
+                    onBehaviorChange = preferenceActions.fileOpenBehaviorChange
                 )
             }
             item {

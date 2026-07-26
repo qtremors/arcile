@@ -22,6 +22,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
+import dev.qtremors.arcile.core.vault.domain.VaultThumbnailCache
 import dev.qtremors.arcile.core.vault.domain.VaultCatalog
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
@@ -52,7 +53,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val securityPreferences: VaultSecurityPreferences,
     private val catalog: VaultCatalog,
     private val sessionManager: VaultSessionManager,
-    private val boundaryTransferCoordinator: VaultBoundaryTransferCoordinator
+    private val boundaryTransferCoordinator: VaultBoundaryTransferCoordinator,
+    private val vaultThumbnailCache: VaultThumbnailCache
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
@@ -388,6 +390,56 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     private fun showError(error: Throwable) {
         _state.update { it.copy(message = error.message ?: "Vault operation failed") }
+    }
+
+    fun openSettings() {
+        _state.update { it.copy(showSettingsDialog = true) }
+        refreshSettings()
+    }
+
+    fun closeSettings() {
+        _state.update { it.copy(showSettingsDialog = false) }
+    }
+
+    fun openSecurityDisclosure() {
+        _state.update { it.copy(showSecurityDisclosure = true) }
+    }
+
+    fun closeSecurityDisclosure() {
+        _state.update { it.copy(showSecurityDisclosure = false) }
+    }
+
+    fun refreshSettings() {
+        viewModelScope.launch {
+            _state.update { it.copy(isSettingsBusy = true) }
+            val stats = vaultThumbnailCache.stats().getOrNull()
+            _state.update {
+                it.copy(
+                    encryptedThumbnailFiles = stats?.encryptedFileCount ?: 0,
+                    encryptedThumbnailBytes = stats?.encryptedBytes ?: 0L,
+                    activeExternalGrants = externalAccessManager.activeGrants().size,
+                    isSettingsBusy = false
+                )
+            }
+        }
+    }
+
+    fun setScreenshotProtection(enabled: Boolean) {
+        viewModelScope.launch { securityPreferences.setScreenshotProtectionEnabled(enabled) }
+    }
+
+    fun clearVaultThumbnails() {
+        if (_state.value.isSettingsBusy) return
+        viewModelScope.launch {
+            _state.update { it.copy(isSettingsBusy = true) }
+            vaultThumbnailCache.clear()
+            refreshSettings()
+        }
+    }
+
+    fun revokeAllVaultExternalAccess() {
+        externalAccessManager.revokeAll()
+        refreshSettings()
     }
 
     override fun onCleared() {

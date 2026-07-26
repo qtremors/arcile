@@ -7,12 +7,15 @@ import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R as UiR
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
+import dev.qtremors.arcile.feature.browser.RenameUndoEntry
 import dev.qtremors.arcile.core.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.core.presentation.delegate.DeleteStateCallbacks
+import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -160,6 +163,26 @@ internal class BrowserMutationController(
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
                     BrowserUndoAction.Rename(path, renamed.absolutePath)
+                )
+            }.onFailure { error ->
+                onError(
+                    error.message?.let(UiText::Dynamic)
+                        ?: UiText.StringResource(UiR.string.error_rename_file_failed)
+                )
+            }
+        }
+    }
+
+    fun batchRename(renames: List<Pair<FileModel, String>>) {
+        if (contextProvider().isArchive || renames.isEmpty()) return
+        scope.launch {
+            val targets = renames.map { it.first.absolutePath to it.second }
+            fileMutationRepository.batchRenameFiles(targets).onSuccess { completed ->
+                clearSelection()
+                val undoEntries = completed.map { RenameUndoEntry(it.first, it.second) }.toPersistentList()
+                onMutationCompleted(
+                    UiText.StringResource(UiR.string.file_operation_renamed),
+                    BrowserUndoAction.BatchRename(undoEntries)
                 )
             }.onFailure { error ->
                 onError(

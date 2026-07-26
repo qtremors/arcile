@@ -67,6 +67,7 @@ sealed interface BrowserDestination {
         val path: String,
         val surroundingFiles: List<FileModel>
     ) : BrowserDestination
+    data class OpenFileWith(val path: String) : BrowserDestination
 }
 
 @Composable
@@ -84,6 +85,7 @@ fun BrowserRoute(
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val initializationState by viewModel.initializationState.collectAsStateWithLifecycle()
+    val batchRenameHistory by viewModel.batchRenameHistory.collectAsStateWithLifecycle()
     val state = uiState
     val scope = rememberCoroutineScope()
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -205,6 +207,9 @@ fun BrowserRoute(
                     }
                 }
             },
+            onOpenSelectedWith = { path ->
+                onDestination(BrowserDestination.OpenFileWith(path))
+            },
             onOpenProperties = viewModel::openPropertiesForSelection,
             onDismissProperties = viewModel::dismissProperties,
             onInvertSelection = viewModel::invertSelection,
@@ -220,7 +225,10 @@ fun BrowserRoute(
             onTogglePermanentDelete = viewModel::togglePermanentDelete,
             onToggleShred = viewModel::toggleShred,
             onDismissDeleteConfirmation = viewModel::dismissDeleteConfirmation,
-            onRenameFile = viewModel::renameFile
+            onRenameFile = viewModel::renameFile,
+            onBatchRenameFiles = viewModel::batchRenameFiles,
+            onSaveBatchRenameFindQuery = viewModel::saveBatchRenameFindQuery,
+            onRemoveBatchRenameHistoryItem = viewModel::removeBatchRenameHistoryItem
         ),
         search = BrowserSearchIntents(
             onSearchQueryChange = viewModel::updateBrowserSearchQuery,
@@ -298,7 +306,8 @@ fun BrowserRoute(
                     onConsumePendingReveal = viewModel::consumeOpenedFileReveal
                 ),
                 onFeedback = onFeedback,
-                isRouteVisible = isVisible
+                isRouteVisible = isVisible,
+                batchRenameHistory = batchRenameHistory
             )
         } else {
             BrowserInitializationSurface(

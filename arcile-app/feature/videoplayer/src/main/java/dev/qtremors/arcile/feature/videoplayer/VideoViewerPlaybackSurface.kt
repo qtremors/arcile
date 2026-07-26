@@ -2,8 +2,11 @@ package dev.qtremors.arcile.feature.videoplayer
 
 import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,14 +106,76 @@ internal fun VideoViewerPlaybackSurface(
     isBackPredicting: Boolean,
     backActionAtStart: VideoViewerBackAction?,
     backProgress: Float,
+    onNavigateBack: () -> Unit,
     onShareFile: (FileModel) -> Unit,
     onOpenWith: (FileModel) -> Unit
 ) {
+    val dismissOffsetY = remember { Animatable(0f) }
+    val coroutineScope = rememberCoroutineScope()
+    var isDismissing by remember { mutableStateOf(false) }
+
+    val dismissPlayer: () -> Unit = {
+        if (!isDismissing) {
+            isDismissing = true
+            coroutineScope.launch {
+                dismissOffsetY.animateTo(
+                    targetValue = 2000f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+                onNavigateBack()
+            }
+        }
+    }
+
+    val onDragDismiss: (Float) -> Unit = { dragAccumulator ->
+        if (!isDismissing) {
+            coroutineScope.launch {
+                dismissOffsetY.snapTo(dragAccumulator)
+            }
+        }
+    }
+
+    val onDragDismissEnd: () -> Unit = {
+        if (!isDismissing) {
+            val currentOffset = dismissOffsetY.value
+            if (currentOffset > 250f) {
+                isDismissing = true
+                coroutineScope.launch {
+                    dismissOffsetY.animateTo(
+                        targetValue = 2000f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessMediumLow
+                        )
+                    )
+                    onNavigateBack()
+                }
+            } else {
+                coroutineScope.launch {
+                    dismissOffsetY.animateTo(
+                        targetValue = 0f,
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioLowBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        )
+                    )
+                }
+            }
+        }
+    }
+
     Surface(
         modifier = Modifier
             .fillMaxSize()
             .graphicsLayer {
-                if (isBackPredicting && backActionAtStart == VideoViewerBackAction.ExitViewer) {
+                if (dismissOffsetY.value > 0f) {
+                    translationY = dismissOffsetY.value
+                    val progress = (dismissOffsetY.value / 1500f).coerceIn(0f, 1f)
+                    alpha = 1f - (progress * 0.7f)
+                } else if (isBackPredicting && backActionAtStart == VideoViewerBackAction.ExitViewer) {
                     val scale = 1f - (backProgress * 0.08f)
                     scaleX = scale
                     scaleY = scale
@@ -238,6 +303,14 @@ internal fun VideoViewerPlaybackSurface(
                         playbackDuration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
                     }
                     kotlinx.coroutines.delay(500L)
+                }
+            }
+
+            // Auto-hide controls after 3 seconds of playing inactivity
+            LaunchedEffect(isPlaying, state.viewerUiVisible, showMetadataSheet, isDeleteDialogVisible) {
+                if (isPlaying && state.viewerUiVisible && !showMetadataSheet && !isDeleteDialogVisible) {
+                    kotlinx.coroutines.delay(3000L)
+                    viewModel.setViewerUiVisible(false)
                 }
             }
 
@@ -382,7 +455,7 @@ internal fun VideoViewerPlaybackSurface(
                     VerticalPager(
                         state = verticalPagerState,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = !readOnly,
+                        userScrollEnabled = !readOnly && verticalPagerState.currentPage == 1,
                         beyondViewportPageCount = 1,
                         flingBehavior = PagerDefaults.flingBehavior(
                             state = verticalPagerState,
@@ -397,7 +470,28 @@ internal fun VideoViewerPlaybackSurface(
                                 isBuffering = isCurrentPage && isBuffering,
                                 playbackError = playbackError.takeIf { isCurrentPage },
                                 resizeMode = resizeModes[resizeModeIndex],
-                                onTap = { viewModel.toggleViewerUi() }
+                                onTap = { viewModel.toggleViewerUi() },
+                                onPlayPauseToggle = {
+                                    if (player.isPlaying) {
+                                        player.pause()
+                                    } else {
+                                        if (playbackEnded) player.seekTo(0L)
+                                        player.play()
+                                    }
+                                },
+                                onToggleMetadata = { visible ->
+                                    if (visible) {
+                                        viewModel.setViewerMetadataVisible(file.absolutePath, visible = true)
+                                    } else {
+                                        if (state.viewerMetadataPath == file.absolutePath) {
+                                            viewModel.setViewerMetadataVisible(null, visible = false)
+                                        } else {
+                                            dismissPlayer()
+                                        }
+                                    }
+                                },
+                                onDragDismiss = onDragDismiss,
+                                onDragDismissEnd = onDragDismissEnd
                             )
                         } else {
                             Box(
@@ -469,6 +563,9 @@ internal fun VideoViewerPlaybackSurface(
                     },
                     onResizeModeToggle = {
                         resizeModeIndex = nextVideoResizeModeIndex(resizeModeIndex)
+                    },
+                    onToggleThumbnails = {
+                        viewModel.toggleThumbnails()
                     }
                 )
             }
@@ -488,6 +585,7 @@ internal fun VideoViewerPlaybackSurface(
                 canOpenWith = canOpenWith,
                 canShare = canShare,
                 resizeModeIndex = resizeModeIndex,
+                showThumbnails = state.showThumbnails,
                 actions = chromeActions,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

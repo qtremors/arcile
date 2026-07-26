@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
                     initialValue = ThemeState()
                 )
                 val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
+                val fileOpenBehaviors by viewModel.fileOpenBehaviors.collectAsStateWithLifecycle()
                 val coroutineScope = rememberCoroutineScope()
 
                 ArcileTheme(themeState = themeState) {
@@ -115,6 +116,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onOpenFile = ::openFile,
                                     onOpenFileWith = ::openFileWith,
+                                    fileOpenBehaviors = fileOpenBehaviors,
                                     onRestartApp = ::restartApp
                                 )
                             },
@@ -165,7 +167,11 @@ class MainActivity : ComponentActivity() {
                     return@launch
                 }
                 val intent = ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path)
-                val chooser = android.content.Intent.createChooser(intent, getString(R.string.image_gallery_open_with))
+                val chooser = ExternalFileAccessHelper.createExternalOpenChooser(
+                    this@MainActivity,
+                    intent,
+                    getString(R.string.image_gallery_open_with)
+                )
                 startActivity(chooser)
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e

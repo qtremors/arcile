@@ -67,9 +67,9 @@ fun FloatingSelectionToolbar(
                 SplitButtonGroup(
                     actions = actions,
                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    height = 56.dp,
-                    minWidth = 56.dp,
-                    iconSize = 28.dp
+                    height = 48.dp,
+                    minWidth = 48.dp,
+                    iconSize = 24.dp
                 )
             }
 

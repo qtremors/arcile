@@ -78,7 +78,7 @@ class VaultImportService : Service() {
             cancelIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(dev.qtremors.arcile.core.vault.data.R.drawable.ic_onlyfiles_notification)
             .setContentTitle(getString(R.string.onlyfiles_import_notification_title))
             .setContentText(
@@ -88,17 +88,33 @@ class VaultImportService : Service() {
             )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setColor(BRAND_ACCENT_COLOR)
             .setProgress(
                 progress?.totalItems ?: 0,
                 progress?.completedItems ?: 0,
                 progress == null || progress.totalItems <= 0
             )
             .addAction(
-                dev.qtremors.arcile.core.vault.data.R.drawable.ic_onlyfiles_notification,
+                dev.qtremors.arcile.core.vault.data.R.drawable.ic_cancel,
                 getString(R.string.notification_action_cancel),
                 cancelPendingIntent
             )
-            .build()
+
+        contentPendingIntent()?.let { builder.setContentIntent(it) }
+
+        return builder.build()
+    }
+
+    private fun contentPendingIntent(): PendingIntent? {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName) ?: return null
+        launchIntent.flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        return PendingIntent.getActivity(
+            this,
+            0,
+            launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 
     private fun ensureChannel() {
@@ -124,6 +140,7 @@ class VaultImportService : Service() {
         const val EXTRA_RESERVATION_TOKEN = "vault_import_token"
         const val EXTRA_SOURCE_URIS = "vault_source_uris"
         private const val CHANNEL_ID = "onlyfiles_imports"
+        private const val BRAND_ACCENT_COLOR = 0xFF0878F8.toInt()
 
         private fun notificationId(vaultId: VaultId): Int = 0x0F10 + vaultId.value.hashCode().and(0x0FFF)
     }

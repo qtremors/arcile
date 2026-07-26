@@ -15,6 +15,13 @@
     <string name="deselect_image">Deselect image</string>
     <string name="share">Share</string>
     <string name="done">Done</string>
+    <string name="open_app">Open App</string>
+    <string name="regex_presets">Regex Presets</string>
+    <string name="search_history">Search History</string>
+    <string name="accent_palette_warm">Warm Palette</string>
+    <string name="accent_palette_cool_vibrant">Cool &amp; Vibrant Palette</string>
+    <string name="accent_palette_nature_fresh">Nature &amp; Fresh Palette</string>
+    <string name="accent_palette_earth_neutral">Earth &amp; Neutral Palette</string>
     <!-- Accessibility & Actions -->
     <string name="action_search">Search</string>
     <string name="action_create_new">Create new</string>
@@ -52,10 +59,32 @@
     <string name="image_gallery_metadata_file_information">File Information</string>
     <string name="image_gallery_metadata_camera_exif">Camera &amp; EXIF</string>
     <string name="image_gallery_metadata_location">Location</string>
+    <string name="video_player_hide_thumbnails">Hide thumbnails</string>
+    <string name="video_player_show_thumbnails">Show thumbnails</string>
     
     <!-- Dialogs -->
     <string name="action_create">Create</string>
     <string name="title_create_folder">Create Folder</string>
+    <string name="title_batch_rename">Batch Rename (%1$d items)</string>
+    <string name="label_find">Find text</string>
+    <string name="label_replace_with">Replace with</string>
+    <string name="option_regex">Regex</string>
+    <string name="action_remove_history">Remove from history</string>
+    <string name="option_match_case">Match Case</string>
+    <string name="option_enumerate">Enumerate</string>
+    <string name="scope_name_only">Name</string>
+    <string name="scope_extension_only">Extension</string>
+    <string name="scope_both">Both</string>
+    <string name="case_none">Normal</string>
+    <string name="case_uppercase">UPPER</string>
+    <string name="case_lowercase">lower</string>
+    <string name="case_title_case">Title</string>
+    <string name="header_live_preview">Live Preview</string>
+    <string name="error_duplicate_in_batch">Duplicate in batch</string>
+    <string name="error_exists_on_disk">Target file already exists</string>
+    <string name="error_invalid_chars">Invalid characters</string>
+    <string name="error_empty_name">Empty file name</string>
+    <string name="action_apply_rename">Apply Rename</string>
     <string name="label_folder_name">Folder Name</string>
     <string name="title_create_file">Create File</string>
     <string name="label_file_name_example">File Name (e.g., text.txt)</string>
@@ -135,8 +164,8 @@
     <string name="settings_show_hidden_files_description">Include dotfiles and hidden folders in browser listings.</string>
     <string name="settings_browser_scrollbar">Browser scrollbar</string>
     <string name="settings_browser_scrollbar_description">Show the fast-scroll scrollbar overlay in Browser lists and grids.</string>
-    <string name="settings_gallery_scrollbar">Gallery scrollbar</string>
-    <string name="settings_gallery_scrollbar_description">Show the fast-scroll scrollbar overlay in Gallery lists and grids.</string>
+    <string name="settings_gallery_scrollbar">Media gallery scrollbar</string>
+    <string name="settings_gallery_scrollbar_description">Show the fast-scroll scrollbar overlay in Image, Video, and Audio lists and grids.</string>
     <string name="settings_home_recent_carousel_limit">Home recent files</string>
     <string name="settings_home_recent_carousel_count">Show %1$d recent files</string>
     <string name="settings_home_recent_carousel_hidden">Hidden on Home</string>
@@ -230,6 +259,7 @@
     <string name="open_containing_folder">Open containing folder</string>
     <string name="open">Open</string>
     <string name="open_image">Open image</string>
+    <string name="open_file">Open file</string>
     <string name="file_type_folder">FOLDER</string>
     <string name="file_type_generic">FILE</string>
     <string name="unknown_folder">Unknown</string>
@@ -450,4 +480,9 @@
     <string name="quick_access_home_toggle_description">%1$s %2$s</string>
     <string name="clear_date_filter">Clear date filter</string>
 
+    <string name="settings_file_opening_title">File opening</string>
+    <string name="settings_file_opening_arcile">Open in Arcile when supported</string>
+    <string name="settings_file_opening_external">Always use another app</string>
+    <string name="cleaner_detail_storage_map">Selection storage map</string>
+    <string name="cleaner_detail_storage_selected">%1$s selected of %2$s</string>
 </resources>

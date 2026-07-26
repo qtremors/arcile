@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 
@@ -28,7 +29,8 @@ internal data class BrowserSelectionIntents(
     val onDismissProperties: () -> Unit,
     val onInvertSelection: (List<String>) -> Unit,
     val onSelectAll: (List<String>) -> Unit,
-    val onPinToQuickAccess: (String, String) -> Unit
+    val onPinToQuickAccess: (String, String) -> Unit,
+    val onOpenSelectedWith: (String) -> Unit = {}
 )
 
 @Stable
@@ -41,7 +43,10 @@ internal data class BrowserMutationIntents(
     val onTogglePermanentDelete: () -> Unit,
     val onToggleShred: () -> Unit,
     val onDismissDeleteConfirmation: () -> Unit,
-    val onRenameFile: (String, String) -> Unit
+    val onRenameFile: (String, String) -> Unit,
+    val onBatchRenameFiles: (List<Pair<FileModel, String>>) -> Unit,
+    val onSaveBatchRenameFindQuery: (String) -> Unit = {},
+    val onRemoveBatchRenameHistoryItem: (String) -> Unit = {}
 )
 
 @Stable

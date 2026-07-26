@@ -85,7 +85,6 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                 }
                 SettingsDestination.Plugins -> navController.navigate(AppRoutes.Plugins)
                 SettingsDestination.About -> navController.navigate(AppRoutes.About)
-                SettingsDestination.OnlyFiles -> navController.navigate(AppRoutes.OnlyFiles)
             }
         },
         onRestartApp = onRestartApp

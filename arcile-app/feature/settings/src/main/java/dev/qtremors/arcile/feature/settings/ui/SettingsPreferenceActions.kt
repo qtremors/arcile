@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.settings.ui
 
 import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 
 internal data class SettingsPreferenceActions(
     val themeChange: (ThemeState) -> Unit,
@@ -8,5 +9,6 @@ internal data class SettingsPreferenceActions(
     val homeRecentCarouselLimitChange: (Int) -> Unit,
     val showHiddenFilesChange: (Boolean) -> Unit,
     val browserScrollbarEnabledChange: (Boolean) -> Unit,
-    val galleryScrollbarEnabledChange: (Boolean) -> Unit
+    val galleryScrollbarEnabledChange: (Boolean) -> Unit,
+    val fileOpenBehaviorChange: (String, FileOpenBehavior) -> Unit
 )

@@ -69,7 +69,7 @@ object FileCategories {
                 "mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus", "amr" -> "audio/$normalizedExt"
                 "pdf" -> "application/pdf"
                 "zip" -> "application/zip"
-                "apk" -> "application/vnd.android.package-archive"
+                "apk", "apks", "xapk", "apkm" -> "application/vnd.android.package-archive"
                 "glb" -> "model/gltf-binary"
                 else -> java.net.URLConnection.guessContentTypeFromName("file.$normalizedExt")?.lowercase()
             }

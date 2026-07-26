@@ -399,7 +399,7 @@ private fun BrowserListingContent(
                     showThumbnails = currentPresentation.showThumbnails,
                     thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null &&
                         state.activeFileOperation != null,
-                    openImageFromThumbnailInSelectionMode = state.archiveContext == null
+                    openFileFromThumbnailInSelectionMode = state.archiveContext == null
                 ),
                 modifier = Modifier.fillMaxSize(),
                 gridState = gridState,
@@ -437,7 +437,7 @@ private fun BrowserListingContent(
                     showThumbnails = currentPresentation.showThumbnails,
                     thumbnailLoadingPaused = state.activeFileOperation?.terminalStatus == null &&
                         state.activeFileOperation != null,
-                    openImageFromThumbnailInSelectionMode = state.archiveContext == null
+                    openFileFromThumbnailInSelectionMode = state.archiveContext == null
                 ),
                 modifier = Modifier.fillMaxSize(),
                 listState = listState,

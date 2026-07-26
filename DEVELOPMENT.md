@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.6.0 | **Last Updated:** 2026-07-23
+**Version:** 1.7.0 | **Last Updated:** 2026-07-26
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -81,7 +81,7 @@ graph TD
 
 ## Project Structure
 
-Arcile's codebase is divided into **33 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
+Arcile's codebase is divided into **34 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
 
 ```text
 arcile/
@@ -114,6 +114,7 @@ arcile/
 │   ├── feature/
 │   │   ├── activitylog/                         # Operation history
 │   │   ├── archive/                             # Archive viewer and extraction workflows
+│   │   ├── audio/                               # Audio library, file actions, playback service, and player UI
 │   │   ├── browser/                             # Browser route, state slices, controllers, file UI
 │   │   ├── home/                                # Home dashboard and shortcuts
 │   │   ├── imagegallery/                        # Independent Gallery and Viewer routes
@@ -298,6 +299,18 @@ Do not introduce `ACTION_OPEN_DOCUMENT_TREE` or a parallel `DocumentsProvider` e
 - Removing or replacing a playback session must run its cleanup callback. Playback queues and positions are not persisted as history, and an expired process-local token must fail closed with a recoverable UI state.
 
 Feature modules must not depend on `feature:videoplayer`; they emit or provide neutral playback sessions, and the app shell performs route mapping. This preserves feature independence while keeping player behavior identical across every source.
+
+---
+
+## Audio Library & Background Player
+
+`feature:audio` owns the Audio category from MediaStore-backed discovery through file workflows and playback. Its route presents Songs and Folders independently from Browser while reusing shared operation, clipboard, metadata, dialog, and external-file capabilities.
+
+- `AudioLibraryViewModel` owns search, sorting, grouping, presentation preferences, selection, clipboard actions, and refresh behavior without leaking state into other categories.
+- `AudioPlaybackService` owns the Media3 player and `MediaSession`, keeping playback and Android media controls available while Arcile is backgrounded.
+- `AudioPlaybackController` connects the Compose UI to the service-backed session and publishes queue, position, repeat, shuffle, and playback state.
+- Mini and full-player surfaces share transition identities inside the Audio route; queue editing and player expansion remain UI state and do not expose file paths through global navigation.
+- Playback resources and controller connections must be released with their lifecycle, while missing or removed tracks must degrade to recoverable library state.
 
 ---
 
@@ -705,8 +718,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 160 |
-| **Version Name** | `1.6.0` |
+| **Version Code** | 170 |
+| **Version Name** | `1.7.0` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -816,6 +829,7 @@ Use module-scoped tasks when iterating on a focused area:
 ./gradlew :core:vault:data:testDebugUnitTest
 
 # Feature modules
+./gradlew :feature:audio:testDebugUnitTest
 ./gradlew :feature:browser:testDebugUnitTest
 ./gradlew :feature:imagegallery:testDebugUnitTest
 ./gradlew :feature:storagecleaner:testDebugUnitTest
@@ -858,8 +872,8 @@ To package Arcile:
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.6.0-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.6.0.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.7.0-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.7.0.apk`
 
 ---
 
