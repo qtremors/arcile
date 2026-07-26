@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.5
+> **Version:** 1.6.6
 > **Last Updated:** 2026-07-26
 
 ---
+
+## [1.6.6] - 2026-07-26
+
+- **Audio Browsing Interface**: Added adaptive Audio and Folders pages with compact lists, artwork-first grids, latest folder art, search, sorting, grouping, sizing, and clipboard progress controls.
 
 ## [1.6.5] - 2026-07-26
 
