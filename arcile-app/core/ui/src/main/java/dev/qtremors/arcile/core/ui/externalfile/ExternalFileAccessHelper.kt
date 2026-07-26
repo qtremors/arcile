@@ -1,7 +1,10 @@
 package dev.qtremors.arcile.core.ui.externalfile
 
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.net.Uri
 import android.os.Environment
 import android.os.StatFs
@@ -16,6 +19,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStream
 import java.util.UUID
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
 import kotlin.jvm.JvmName
 
 object ExternalFileAccessHelper {
@@ -291,12 +296,18 @@ object ExternalFileAccessHelper {
     private fun collisionSafeNames(references: List<ExternalFileReference>): List<String> {
         val occupied = mutableSetOf<String>()
         return references.map { reference ->
-            val baseName = sanitizeDisplayName(
+            val source = reference.path.takeUnless(::isContentReference)?.let(::File)
+            val requestedName = sanitizeDisplayName(
                 reference.displayName
                     ?: reference.nodeRef?.displayPath?.absolutePath?.let(::File)?.name
                     ?: File(reference.path).name
                     ?: "File"
             )
+            val baseName = if (source?.isDirectory == true && !requestedName.endsWith(".zip", true)) {
+                "$requestedName.zip"
+            } else {
+                requestedName
+            }
             val stem = baseName.substringBeforeLast('.', baseName)
             val extension = baseName.substringAfterLast('.', missingDelimiterValue = "")
                 .takeIf { it.isNotBlank() && it != baseName }
@@ -315,7 +326,11 @@ object ExternalFileAccessHelper {
     private fun validateShareBatch(files: List<File>) {
         var totalSize = 0L
         files.forEach { file ->
-            val size = file.length()
+            val size = if (file.isDirectory) {
+                file.walkTopDown().filter(File::isFile).sumOf(File::length)
+            } else {
+                file.length()
+            }
             require(size <= MAX_SHARE_FILE_BYTES) {
                 "Share target is too large for staged handoff"
             }
@@ -328,6 +343,27 @@ object ExternalFileAccessHelper {
 
     suspend fun createOpenIntent(context: Context, path: String): Intent =
         createOpenIntent(context, ExternalFileReference(path = path))
+
+    fun createExternalOpenChooser(context: Context, target: Intent, title: CharSequence): Intent {
+        val excludedActivities = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.packageManager.getPackageInfo(
+                context.packageName,
+                PackageManager.PackageInfoFlags.of(PackageManager.GET_ACTIVITIES.toLong())
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            context.packageManager.getPackageInfo(context.packageName, PackageManager.GET_ACTIVITIES)
+        }.activities.orEmpty().map { activity ->
+            ComponentName(context.packageName, activity.name)
+        }.toTypedArray()
+
+        return Intent.createChooser(target, title).apply {
+            if (excludedActivities.isNotEmpty()) {
+                putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, excludedActivities)
+            }
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+    }
 
     suspend fun createOpenIntent(context: Context, reference: ExternalFileReference): Intent {
         val contentUri = reference.contentUri ?: reference.path.takeIf(::isContentReference)
@@ -411,20 +447,37 @@ object ExternalFileAccessHelper {
                     )
                 }
                 val file = File(reference.path)
-                val stagedFile = stageFile(
-                    context,
-                    file,
-                    batchPurpose,
-                    stagedNames[index],
-                    reference.allowManagedTrashPayload,
-                    cleanupBeforeStaging = false
-                )
+                val stagedFile = if (file.isDirectory) {
+                    stageDirectoryArchive(
+                        context = context,
+                        directory = file,
+                        purpose = batchPurpose,
+                        stagedName = stagedNames[index],
+                        allowManagedTrashPayload = reference.allowManagedTrashPayload
+                    )
+                } else {
+                    stageFile(
+                        context,
+                        file,
+                        batchPurpose,
+                        stagedNames[index],
+                        reference.allowManagedTrashPayload,
+                        cleanupBeforeStaging = false
+                    )
+                }
                 ShareTarget(
                     uri = createStagedContentUri(context, stagedFile),
-                    mimeType = reference.mimeType
-                        ?: mimeTypeForPath(reference.displayName ?: file.name),
-                    displayName = reference.displayName ?: file.name,
-                    sizeBytes = reference.sizeBytes ?: file.length()
+                    mimeType = if (file.isDirectory) {
+                        "application/zip"
+                    } else {
+                        reference.mimeType ?: mimeTypeForPath(reference.displayName ?: file.name)
+                    },
+                    displayName = if (file.isDirectory) {
+                        stagedFile.name
+                    } else {
+                        reference.displayName ?: file.name
+                    },
+                    sizeBytes = stagedFile.length()
                 )
             }
         } catch (error: Throwable) {
@@ -433,6 +486,47 @@ object ExternalFileAccessHelper {
             AppLogger.w("ExternalFileAccess", "Unable to prepare complete share selection")
             throw IllegalArgumentException("Unable to prepare every selected file for sharing", error)
         }
+    }
+
+    private fun stageDirectoryArchive(
+        context: Context,
+        directory: File,
+        purpose: String,
+        stagedName: String,
+        allowManagedTrashPayload: Boolean
+    ): File {
+        require(directory.exists() && directory.isDirectory) { "Source folder does not exist" }
+        require(isAllowedUserFile(context, directory, allowManagedTrashPayload)) {
+            "Unsupported folder path"
+        }
+        val canonicalRoot = directory.canonicalFile
+        val stagingDir = File(
+            context.cacheDir,
+            "$STAGING_ROOT${File.separator}$purpose"
+        ).apply { mkdirs() }
+        val archive = File(stagingDir, sanitizeDisplayName(stagedName))
+        ZipOutputStream(archive.outputStream().buffered()).use { zip ->
+            directory.walkTopDown().forEach { entry ->
+                val canonicalEntry = entry.canonicalFile
+                require(
+                    canonicalEntry.path == canonicalRoot.path ||
+                        canonicalEntry.path.startsWith("${canonicalRoot.path}${File.separator}")
+                ) { "Folder contains an unsupported link" }
+                val relative = canonicalEntry.relativeTo(canonicalRoot).invariantSeparatorsPath
+                val archivePath = listOf(directory.name, relative)
+                    .filter(String::isNotBlank)
+                    .joinToString("/")
+                    .let { if (entry.isDirectory) "$it/" else it }
+                if (archivePath.isBlank()) return@forEach
+                zip.putNextEntry(ZipEntry(archivePath).apply { time = entry.lastModified() })
+                if (entry.isFile) entry.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+        }
+        require(archive.length() <= MAX_SHARE_BATCH_BYTES) {
+            "Shared folder archive is too large for staged handoff"
+        }
+        return archive
     }
 
     private fun displayNameForContentUri(context: Context, uri: Uri): String? =

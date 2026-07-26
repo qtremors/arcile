@@ -65,7 +65,8 @@ internal fun SettingsRoute(
             homeRecentCarouselLimitChange = viewModel::updateHomeRecentCarouselLimit,
             showHiddenFilesChange = viewModel::updateShowHiddenFiles,
             browserScrollbarEnabledChange = viewModel::updateBrowserScrollbarEnabled,
-            galleryScrollbarEnabledChange = viewModel::updateGalleryScrollbarEnabled
+            galleryScrollbarEnabledChange = viewModel::updateGalleryScrollbarEnabled,
+            fileOpenBehaviorChange = viewModel::updateFileOpenBehavior
         ),
         backupActions = SettingsBackupActions(
             requestExport = { exportBackupLauncher.launch("arcile-settings-backup.json") },

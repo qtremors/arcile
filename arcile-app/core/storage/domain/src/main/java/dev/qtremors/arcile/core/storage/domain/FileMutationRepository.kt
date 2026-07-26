@@ -15,11 +15,35 @@ interface FileMutationRepository {
         deletePermanently(paths).map {
             BatchMutationResult(succeededPaths = paths)
         }
+    suspend fun deletePermanentlyDetailed(
+        paths: List<String>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> = deletePermanentlyDetailed(paths).onSuccess {
+        onProgress(
+            FileOperationProgress(
+                completedItems = paths.size,
+                totalItems = paths.size,
+                currentPath = paths.lastOrNull()
+            )
+        )
+    }
     suspend fun shred(paths: List<String>): Result<Unit>
     suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> =
         shred(paths).map {
             BatchMutationResult(succeededPaths = paths)
         }
+    suspend fun shredDetailed(
+        paths: List<String>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> = shredDetailed(paths).onSuccess {
+        onProgress(
+            FileOperationProgress(
+                completedItems = paths.size,
+                totalItems = paths.size,
+                currentPath = paths.lastOrNull()
+            )
+        )
+    }
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun batchRenameFiles(renames: List<Pair<String, String>>): Result<List<Pair<String, String>>> =
         Result.success(emptyList())

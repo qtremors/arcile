@@ -110,6 +110,7 @@ class RecentFilesScreenTest {
                         toggle = {},
                         clear = {},
                         share = {},
+                        openWith = {},
                         selectAll = {},
                         selectMultiple = {},
                         openProperties = {},

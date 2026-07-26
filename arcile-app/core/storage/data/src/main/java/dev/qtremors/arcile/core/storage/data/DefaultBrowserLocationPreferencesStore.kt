@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 
 class DefaultBrowserLocationPreferencesStore(
     private val dataSource: BrowserPreferencesDataSource
@@ -25,4 +26,7 @@ class DefaultBrowserLocationPreferencesStore(
 
     override suspend fun updateLastOpenedLocation(path: String, volumeId: String?) =
         dataSource.updateLastOpenedLocation(path, volumeId)
+
+    override suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) =
+        dataSource.updateFileOpenBehavior(categoryName, behavior)
 }

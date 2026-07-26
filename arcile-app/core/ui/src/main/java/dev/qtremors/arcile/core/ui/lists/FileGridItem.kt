@@ -117,7 +117,13 @@ fun FileGridItem(
 ) {
     val file = row.file
     val context = LocalContext.current
-    val openImageDescription = stringResource(R.string.open_image)
+    val openImageDescription = stringResource(
+        if (FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Images) {
+            R.string.open_image
+        } else {
+            R.string.open_file
+        }
+    )
     val doubleLineEnabled = LocalDoubleLineFilenames.current
     val marqueeEnabled = LocalMarqueeFilenames.current
     val interactionSource = remember { MutableInteractionSource() }
@@ -133,10 +139,9 @@ fun FileGridItem(
     )
     val subtitleText = row.displaySubtitle(isFolderStatsLoading)
     val itemShape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
-    val shouldOpenThumbnailInSelection = presentation.openImageFromThumbnailInSelectionMode &&
+    val shouldOpenThumbnailInSelection = presentation.openFileFromThumbnailInSelectionMode &&
         isInSelectionMode &&
-        !file.isDirectory &&
-        FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Images
+        !file.isDirectory
 
     Card(
         modifier = modifier.fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale }

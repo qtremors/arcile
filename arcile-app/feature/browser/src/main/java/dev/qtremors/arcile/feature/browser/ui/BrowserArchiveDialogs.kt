@@ -26,7 +26,7 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.FilledTonalButton
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import androidx.compose.material3.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api

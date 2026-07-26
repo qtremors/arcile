@@ -11,6 +11,7 @@ import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferences
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferences
@@ -116,6 +117,12 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateFileOpenBehavior(categoryName, behavior)
+        }
+    }
+
     fun exportPreferences(uri: Uri) {
         viewModelScope.launch {
             _backupState.value = PreferencesBackupUiState.Busy
@@ -181,6 +188,8 @@ internal data class SettingsPreferences(
         get() = browser.scrollbarEnabled
     val galleryScrollbarEnabled: Boolean
         get() = gallery.scrollbarEnabled
+    val fileOpenBehaviors: Map<String, FileOpenBehavior>
+        get() = browser.fileOpenBehaviors
 }
 
 internal sealed interface PreferencesBackupUiState {

@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.3
-> **Last Updated:** 2026-07-25
+> **Version:** 1.6.4
+> **Last Updated:** 2026-07-26
 
 ---
+
+## [1.6.4] - 2026-07-26
+
+- **Independent Categories and Browser Restore**: Kept category screens separate from the swipeable Browser and restored the Browser's last opened folder across launches.
+- **Complete File Actions**: Made thumbnails open files and filenames reveal their containing folders, prompt with Open With for unsupported formats, keep external-only preferences from reopening Arcile, preserve per-type behavior, and repaired folder sharing with ZIP packaging.
+- **Reliable Batch Deletion**: Added live item counts, accurate current-file details, determinate progress from the first item, and durable completion feedback to Browser and OnlyFiles batch deletes.
+- **Expressive, Adaptive UI**: Standardized modal cards for compact phones, rotation, and larger displays; rebuilt onboarding controls as compact Material 3 Expressive groups; and refined OnlyFiles feedback and predictive back.
+- **Cleaner Reliability**: Refreshed cleaner detail lists with aligned actions, immediate single-tap ignores, clearer ignored-item management and scoped exclusion rules, accurate thumbnail-cache size, and improved storage summaries without changing the cleaner landing page.
+- **Safer Archives and Complete Backups**: Continued extraction while securely skipping unsafe entries, retained archive-wide safety limits, verified Power Rename history backup, and added OnlyFiles preferences while excluding transient caches and operation state.
+- **Project Website**: Added compact, icon-led repository and download cards with total and latest release counts, animated live counters, and reduced-motion support.
 
 ## [1.6.3] - 2026-07-25
 

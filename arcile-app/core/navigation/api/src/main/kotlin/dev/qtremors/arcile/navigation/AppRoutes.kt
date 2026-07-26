@@ -30,6 +30,10 @@ object AppRoutes {
         val volumeId: String? = null,
         val restorePersistentLocation: Boolean = true
     )
+    @Serializable data class Category(
+        val name: String,
+        val volumeId: String? = null
+    )
     @Serializable object Tools
     @Serializable object ActivityLog
     @Serializable object OnlyFiles

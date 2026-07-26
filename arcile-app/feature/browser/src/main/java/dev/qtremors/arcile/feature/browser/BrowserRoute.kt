@@ -67,6 +67,7 @@ sealed interface BrowserDestination {
         val path: String,
         val surroundingFiles: List<FileModel>
     ) : BrowserDestination
+    data class OpenFileWith(val path: String) : BrowserDestination
 }
 
 @Composable
@@ -205,6 +206,9 @@ fun BrowserRoute(
                         viewModel.clearSelection()
                     }
                 }
+            },
+            onOpenSelectedWith = { path ->
+                onDestination(BrowserDestination.OpenFileWith(path))
             },
             onOpenProperties = viewModel::openPropertiesForSelection,
             onDismissProperties = viewModel::dismissProperties,

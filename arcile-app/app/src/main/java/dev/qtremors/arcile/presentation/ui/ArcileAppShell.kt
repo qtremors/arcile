@@ -60,6 +60,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 
 private val FeedbackAboveActionsPadding = 88.dp
 
@@ -71,6 +72,7 @@ fun ArcileAppShell(
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    fileOpenBehaviors: Map<String, FileOpenBehavior>,
     onRestartApp: () -> Unit
 ) {
     val navController = key(appLaunchContext.navigationSessionId) {
@@ -122,7 +124,7 @@ fun ArcileAppShell(
 
     LaunchedEffect(appLaunchContext.navigationSessionId, appLaunchContext.mode) {
         if (appLaunchContext.mode == AppLaunchMode.ColdLauncher) {
-            navController.navigate(AppRoutes.Main(initialPage = 0, restorePersistentLocation = false)) {
+            navController.navigate(AppRoutes.Main(initialPage = 0, restorePersistentLocation = true)) {
                 popUpTo(navController.graph.id) {
                     inclusive = true
                 }
@@ -156,6 +158,7 @@ fun ArcileAppShell(
                     onThemeChange = onThemeChange,
                     onOpenFile = onOpenFile,
                     onOpenFileWith = onOpenFileWith,
+                    fileOpenBehaviors = fileOpenBehaviors,
                     onRestartApp = onRestartApp,
                     onFeedback = emitOwnedFeedback
                 )

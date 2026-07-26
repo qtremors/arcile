@@ -98,7 +98,7 @@ Run Gradle commands from `arcile-app/` (`gradlew.bat` on Windows):
 Install debug APK via ADB:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/Arcile-1.6.3-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-1.6.4-debug.apk
 ```
 
 ### Release Signing

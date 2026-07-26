@@ -68,6 +68,7 @@ data class BrowserPreferences(
     val albumCovers: Map<String, String> = emptyMap(),
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null,
+    val fileOpenBehaviors: Map<String, FileOpenBehavior> = emptyMap(),
     val defaultSaveToArcilePath: String? = null,
     val browserScrollbarEnabled: Boolean = true,
     val galleryScrollbarEnabled: Boolean = true

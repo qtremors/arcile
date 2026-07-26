@@ -9,6 +9,7 @@ data class BrowserLocationPreferences(
     val showHiddenFiles: Boolean = true,
     val lastOpenedPath: String? = null,
     val lastOpenedVolumeId: String? = null,
+    val fileOpenBehaviors: Map<String, FileOpenBehavior> = emptyMap(),
     val scrollbarEnabled: Boolean = true
 ) {
     fun getPresentationForPath(path: String): FileListingPreferences {
@@ -47,6 +48,7 @@ data class BrowserLocationPreferences(
             showHiddenFiles = preferences.showHiddenFiles,
             lastOpenedPath = preferences.lastOpenedPath,
             lastOpenedVolumeId = preferences.lastOpenedVolumeId,
+            fileOpenBehaviors = preferences.fileOpenBehaviors,
             scrollbarEnabled = preferences.browserScrollbarEnabled
         )
     }
@@ -63,4 +65,5 @@ interface BrowserLocationPreferencesStore {
         applyToSubfolders: Boolean = false
     )
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
+    suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior)
 }

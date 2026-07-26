@@ -147,12 +147,22 @@ class BulkFileOperationService : Service() {
                                 coordinator.onOperationProgress(request, progress)
                                 updateNotification(request, progress)
                             }
-                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(request.sourcePaths)
+                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(
+                                request.sourcePaths
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
+                            }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Permanent delete") },
                                     onFailure = { Result.failure(it) }
                                 )
-                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(request.sourcePaths)
+                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(
+                                request.sourcePaths
+                            ) { progress ->
+                                coordinator.onOperationProgress(request, progress)
+                                updateNotification(request, progress)
+                            }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Secure shred") },
                                     onFailure = { Result.failure(it) }

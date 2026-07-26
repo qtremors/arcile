@@ -29,6 +29,8 @@ internal data class ArchiveCreationScan(
     val isDeterminate: Boolean get() = entries != null
 }
 
+internal class UnsafeArchiveEntryException(message: String) : IllegalArgumentException(message)
+
 internal class ArchiveExtractionContext(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
@@ -39,14 +41,18 @@ internal class ArchiveExtractionContext(
     fun resolveRequestedTarget(destination: File, rawEntryName: String): File {
         ArchiveSafetyTally(safetyPolicy).accept(rawEntryName, 0L, null)
         val normalized = rawEntryName.normalizeEntryName()
-        require(normalized.isNotBlank()) { "Archive contains an empty entry name" }
-        require(!File(normalized).isAbsolute && !normalized.startsWith("/")) { "Archive contains unsafe absolute paths" }
-        require(normalized.split('/').none { it == ".." }) { "Archive contains unsafe relative paths" }
+        if (normalized.isBlank()) throw UnsafeArchiveEntryException("Archive contains an empty entry name")
+        if (File(normalized).isAbsolute || normalized.startsWith("/")) {
+            throw UnsafeArchiveEntryException("Archive contains unsafe absolute paths")
+        }
+        if (normalized.split('/').any { it == ".." }) {
+            throw UnsafeArchiveEntryException("Archive contains unsafe relative paths")
+        }
 
         val base = destination.canonicalFile
         val requested = File(base, normalized).canonicalFile
-        require(requested.path == base.path || requested.path.startsWith(base.path + File.separator)) {
-            "Archive entry escapes the destination folder"
+        if (requested.path != base.path && !requested.path.startsWith(base.path + File.separator)) {
+            throw UnsafeArchiveEntryException("Archive entry escapes the destination folder")
         }
 
         return requested
@@ -63,7 +69,11 @@ internal class ArchiveExtractionContext(
         if (skippedDirectories.any { normalizedKey == it || normalizedKey.startsWith("$it/") }) return null
         val effectiveName = applyDirectoryAliases(normalized)
         val effectiveKey = effectiveName.trimEnd('/')
-        val requested = resolveRequestedTarget(destination, effectiveName)
+        val requested = try {
+            resolveRequestedTarget(destination, effectiveName)
+        } catch (_: UnsafeArchiveEntryException) {
+            return null
+        }
         val resolution = resolutions[normalizedKey] ?: resolutions[effectiveKey]
         val target = when {
             !requested.exists() -> requested
@@ -100,18 +110,26 @@ internal class ArchiveSafetyTally(private val safetyPolicy: ArchiveSafetyPolicy)
     private var uncompressedBytes = 0L
 
     fun accept(rawName: String, uncompressedSize: Long, compressedSize: Long?) {
-        val normalized = rawName.normalizeEntryName()
-        require(normalized.length <= safetyPolicy.maxEntryPathLength) { "Archive entry path is too long" }
-        val segments = normalized.split('/').filter { it.isNotBlank() }
-        require(segments.size <= safetyPolicy.maxNestedDepth) { "Archive nesting is too deep" }
-
         entries += 1
         require(entries <= safetyPolicy.maxEntries) { "Archive contains too many entries" }
 
-        val safeUncompressedSize = uncompressedSize.coerceAtLeast(0L)
-        uncompressedBytes = Math.addExact(uncompressedBytes, safeUncompressedSize)
-        require(uncompressedBytes <= safetyPolicy.maxUncompressedBytes) { "Archive is too large to process safely" }
+        val normalized = rawName.normalizeEntryName()
+        if (normalized.isBlank()) throw UnsafeArchiveEntryException("Archive contains an empty entry name")
+        if (File(normalized).isAbsolute || normalized.startsWith("/")) {
+            throw UnsafeArchiveEntryException("Archive contains unsafe absolute paths")
+        }
+        if (normalized.split('/').any { it == ".." }) {
+            throw UnsafeArchiveEntryException("Archive contains unsafe relative paths")
+        }
+        if (normalized.length > safetyPolicy.maxEntryPathLength) {
+            throw UnsafeArchiveEntryException("Archive entry path is too long")
+        }
+        val segments = normalized.split('/').filter { it.isNotBlank() }
+        if (segments.size > safetyPolicy.maxNestedDepth) {
+            throw UnsafeArchiveEntryException("Archive nesting is too deep")
+        }
 
+        val safeUncompressedSize = uncompressedSize.coerceAtLeast(0L)
         if (safeUncompressedSize > 0L && compressedSize != null) {
             val safeCompressedSize = compressedSize.coerceAtLeast(0L)
             val ratio = if (safeCompressedSize == 0L) {
@@ -119,9 +137,22 @@ internal class ArchiveSafetyTally(private val safetyPolicy: ArchiveSafetyPolicy)
             } else {
                 safeUncompressedSize.toDouble() / safeCompressedSize.toDouble()
             }
-            require(ratio <= safetyPolicy.maxCompressionRatio) { "Archive compression ratio is too high" }
+            if (ratio > safetyPolicy.maxCompressionRatio) {
+                throw UnsafeArchiveEntryException("Archive compression ratio is too high")
+            }
         }
+
+        uncompressedBytes = Math.addExact(uncompressedBytes, safeUncompressedSize)
+        require(uncompressedBytes <= safetyPolicy.maxUncompressedBytes) { "Archive is too large to process safely" }
     }
+
+    fun acceptForExtraction(rawName: String, uncompressedSize: Long, compressedSize: Long?): Boolean =
+        try {
+            accept(rawName, uncompressedSize, compressedSize)
+            true
+        } catch (_: UnsafeArchiveEntryException) {
+            false
+        }
 }
 
 internal fun rememberCreatedOutput(target: File, createdOutputs: MutableSet<File>) {

@@ -241,19 +241,23 @@ class ArchiveManagerTest {
     }
 
     @Test
-    fun `zip extraction rejects traversal entries`() = runTest {
+    fun `zip extraction skips traversal entries and continues`() = runTest {
         val archive = File(root, "unsafe.zip")
         ZipArchiveOutputStream(archive).use { zip ->
             zip.putArchiveEntry(ZipArchiveEntry("../evil.txt"))
             zip.write("bad".toByteArray())
+            zip.closeArchiveEntry()
+            zip.putArchiveEntry(ZipArchiveEntry("safe.txt"))
+            zip.write("good".toByteArray())
             zip.closeArchiveEntry()
         }
         val destination = File(root, "safe").apply { mkdirs() }
 
         val result = manager.extractArchive(archive.absolutePath, destination.absolutePath)
 
-        assertTrue(result.isFailure)
+        assertTrue(result.isSuccess)
         assertFalse(File(root, "evil.txt").exists())
+        assertEquals("good", File(destination, "safe.txt").readText())
     }
 
     @Test
@@ -380,7 +384,7 @@ class ArchiveManagerTest {
     }
 
     @Test
-    fun `archive extraction rejects unsafe path length nesting and size`() = runTest {
+    fun `archive extraction skips unsafe entry paths but rejects unsafe total size`() = runTest {
         val pathArchive = zipWithEntry("long-path.zip", "${"a".repeat(12)}.txt", "x")
         val nestedArchive = zipWithEntry("nested.zip", "a/b/c/d.txt", "x")
         val largeArchive = zipWithEntry("large.zip", "large.txt", "oversized")
@@ -392,24 +396,26 @@ class ArchiveManagerTest {
         val sizeResult = managerWith(ArchiveSafetyPolicy(maxUncompressedBytes = 2))
             .extractArchive(largeArchive.absolutePath, File(root, "large-out").apply { mkdirs() }.absolutePath)
 
-        assertTrue(pathResult.isFailure)
-        assertTrue(nestedResult.isFailure)
+        assertTrue(pathResult.isSuccess)
+        assertTrue(nestedResult.isSuccess)
+        assertFalse(File(root, "path-out/${"a".repeat(12)}.txt").exists())
+        assertFalse(File(root, "nested-out/a/b/c/d.txt").exists())
         assertTrue(sizeResult.isFailure)
     }
 
     @Test
-    fun `archive extraction rejects excessive compression ratio`() = runTest {
+    fun `archive extraction skips entries with excessive compression ratio`() = runTest {
         val archive = zipWithEntry("ratio.zip", "ratio.txt", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
         val strictManager = managerWith(ArchiveSafetyPolicy(maxCompressionRatio = 0.1))
 
         val result = strictManager.extractArchive(archive.absolutePath, File(root, "ratio-out").apply { mkdirs() }.absolutePath)
 
-        assertTrue(result.isFailure)
-        assertTrue(result.exceptionOrNull()?.message?.contains("compression ratio") == true)
+        assertTrue(result.isSuccess)
+        assertFalse(File(root, "ratio-out/ratio.txt").exists())
     }
 
     @Test
-    fun `failed extraction removes created partial outputs`() = runTest {
+    fun `unsafe entry does not remove safely extracted outputs`() = runTest {
         val archive = File(root, "partial.zip")
         ZipArchiveOutputStream(archive).use { zip ->
             zip.putArchiveEntry(ZipArchiveEntry("ok.txt"))
@@ -423,13 +429,13 @@ class ArchiveManagerTest {
 
         val result = manager.extractArchive(archive.absolutePath, destination.absolutePath)
 
-        assertTrue(result.isFailure)
-        assertFalse(File(destination, "ok.txt").exists())
+        assertTrue(result.isSuccess)
+        assertEquals("ok", File(destination, "ok.txt").readText())
         assertFalse(File(root, "bad.txt").exists())
     }
 
     @Test
-    fun `failed extraction restores replaced outputs`() = runTest {
+    fun `unsafe entry does not roll back safe replacements`() = runTest {
         val archive = File(root, "replace-partial.zip")
         ZipArchiveOutputStream(archive).use { zip ->
             zip.putArchiveEntry(ZipArchiveEntry("same.txt"))
@@ -448,8 +454,8 @@ class ArchiveManagerTest {
             resolutions = mapOf("same.txt" to ConflictResolution.REPLACE)
         )
 
-        assertTrue(result.isFailure)
-        assertEquals("existing", File(destination, "same.txt").readText())
+        assertTrue(result.isSuccess)
+        assertEquals("incoming", File(destination, "same.txt").readText())
         assertTrue(destination.listFiles().orEmpty().none { it.name.contains(".arcile-replace-") })
     }
 
@@ -534,7 +540,7 @@ class ArchiveManagerTest {
     }
 
     @Test
-    fun `failed nested directory replace restores old tree`() = runTest {
+    fun `unsafe entry does not roll back safe directory replacement`() = runTest {
         val archive = File(root, "dir-replace-partial.zip")
         ZipArchiveOutputStream(archive).use { zip ->
             zip.putArchiveEntry(ZipArchiveEntry("folder/"))
@@ -556,9 +562,9 @@ class ArchiveManagerTest {
             resolutions = mapOf("folder" to ConflictResolution.REPLACE)
         )
 
-        assertTrue(result.isFailure)
-        assertEquals("old", File(destination, "folder/old.txt").readText())
-        assertFalse(File(destination, "folder/new.txt").exists())
+        assertTrue(result.isSuccess)
+        assertFalse(File(destination, "folder/old.txt").exists())
+        assertEquals("incoming", File(destination, "folder/new.txt").readText())
         assertTrue(destination.listFiles().orEmpty().none { it.name.contains(".arcile-replace-") })
     }
 

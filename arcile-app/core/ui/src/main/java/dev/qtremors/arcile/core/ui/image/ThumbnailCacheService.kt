@@ -9,13 +9,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import java.nio.file.Files
-import java.nio.file.LinkOption
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
 data class ThumbnailCacheStats(
@@ -91,23 +87,7 @@ class DefaultThumbnailCacheService @Inject constructor(
     }
 
     private suspend fun diskCacheSize(): Long {
-        val root = context.imageLoader.diskCache?.directory?.toFile()
-            ?: context.cacheDir.resolve("image_cache")
-        if (!root.exists()) return 0L
-
-        var total = 0L
-        Files.walk(root.toPath()).use { paths ->
-            val iterator = paths.iterator()
-            while (iterator.hasNext()) {
-                currentCoroutineContext().ensureActive()
-                val path = iterator.next()
-                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS)) {
-                    val size = runCatching { Files.size(path) }.getOrDefault(0L).coerceAtLeast(0L)
-                    total = if (Long.MAX_VALUE - total < size) Long.MAX_VALUE else total + size
-                }
-            }
-        }
-        return total
+        return context.imageLoader.diskCache?.size?.coerceAtLeast(0L) ?: 0L
     }
 }
 

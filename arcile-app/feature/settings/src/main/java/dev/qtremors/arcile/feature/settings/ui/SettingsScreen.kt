@@ -91,6 +91,12 @@ internal fun SettingsScreen(
                 )
             }
             item {
+                SettingsFileOpeningSection(
+                    behaviors = state.preferences.fileOpenBehaviors,
+                    onBehaviorChange = preferenceActions.fileOpenBehaviorChange
+                )
+            }
+            item {
                 SettingsBackupSection(
                     state = state.backup,
                     onExport = backupActions.requestExport,

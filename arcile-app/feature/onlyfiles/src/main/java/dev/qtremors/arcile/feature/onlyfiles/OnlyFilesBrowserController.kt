@@ -78,15 +78,40 @@ internal class OnlyFilesBrowserController(
     }
 
     fun delete(nodes: List<VaultNodeMetadata>) = runBusy {
+        val distinctNodes = nodes.distinctBy { it.ref.nodeId }
         var completed = 0
         var failed = 0
-        nodes.distinctBy { it.ref.nodeId }.forEach { node ->
+        state.update {
+            it.copy(
+                batchProgress = OnlyFilesBatchProgress(0, distinctNodes.size, distinctNodes.firstOrNull()?.name)
+            )
+        }
+        distinctNodes.forEach { node ->
+            state.update {
+                it.copy(
+                    batchProgress = OnlyFilesBatchProgress(
+                        completedItems = completed + failed,
+                        totalItems = distinctNodes.size,
+                        currentName = node.name
+                    )
+                )
+            }
             fileSystem.deletePermanently(node.ref).fold({ completed++ }, { failed++ })
+            state.update {
+                it.copy(
+                    batchProgress = OnlyFilesBatchProgress(
+                        completedItems = completed + failed,
+                        totalItems = distinctNodes.size,
+                        currentName = node.name
+                    )
+                )
+            }
         }
         state.update {
             it.copy(
                 selectedNodeIds = emptySet(),
                 viewer = it.viewer?.takeUnless { viewer -> nodes.any { node -> node.ref.nodeId == viewer.ref.nodeId } },
+                batchProgress = null,
                 message = if (failed == 0) "$completed item(s) permanently deleted" else "$completed deleted; $failed failed"
             )
         }

@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 
 @Composable
 fun AppNavigationGraph(
@@ -15,6 +16,7 @@ fun AppNavigationGraph(
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    fileOpenBehaviors: Map<String, FileOpenBehavior>,
     onRestartApp: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
@@ -22,6 +24,7 @@ fun AppNavigationGraph(
         navController = navController,
         onOpenFile = onOpenFile,
         onOpenFileWith = onOpenFileWith,
+        fileOpenBehaviors = fileOpenBehaviors,
         onFeedback = onFeedback
     )
     val transitions = appNavigationTransitions(LocalReducedMotionEnabled.current)

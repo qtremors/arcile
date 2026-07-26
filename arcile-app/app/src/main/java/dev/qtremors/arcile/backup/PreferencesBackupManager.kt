@@ -206,6 +206,7 @@ class PreferencesBackupManager @Inject constructor(
         "activity_log" -> "Activity log"
         "storage_cleaner_prefs" -> "Storage Cleaner rules"
         "utility_prefs" -> "Home tools"
+        "onlyfiles_security" -> "OnlyFiles preferences"
         else -> this
     }
 
@@ -221,7 +222,8 @@ class PreferencesBackupManager @Inject constructor(
             "theme_prefs",
             "activity_log",
             "storage_cleaner_prefs",
-            "utility_prefs"
+            "utility_prefs",
+            "onlyfiles_security"
         )
     }
 }

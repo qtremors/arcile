@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
@@ -90,6 +91,7 @@ internal fun RecentSelectionToolbar(
     contentPadding: PaddingValues,
     onSelectAll: () -> Unit,
     onShareSelected: () -> Unit,
+    onOpenFileWith: (String) -> Unit,
     onRequestDeleteSelected: () -> Unit,
     onOpenProperties: () -> Unit,
     onOpenContainingFolder: (String) -> Unit
@@ -140,9 +142,21 @@ internal fun RecentSelectionToolbar(
                             )
                         }
                     }
-                        val menuActions = remember(onOpenProperties, selectedFiles) {
+                        val menuActions = remember(onOpenFileWith, onOpenProperties, selectedFiles) {
                             mutableListOf<@Composable () -> Unit>().apply {
                                 if (selectedFiles.size == 1) {
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                            leadingIcon = {
+                                                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                showMoreMenu = false
+                                                onOpenFileWith(selectedFiles.first())
+                                            }
+                                        )
+                                    }
                                     add {
                                         ArcileDropdownMenuItem(
                                             text = { Text(stringResource(R.string.open_containing_folder)) },

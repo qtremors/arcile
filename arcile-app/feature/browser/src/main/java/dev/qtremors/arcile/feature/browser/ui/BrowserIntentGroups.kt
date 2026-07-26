@@ -29,7 +29,8 @@ internal data class BrowserSelectionIntents(
     val onDismissProperties: () -> Unit,
     val onInvertSelection: (List<String>) -> Unit,
     val onSelectAll: (List<String>) -> Unit,
-    val onPinToQuickAccess: (String, String) -> Unit
+    val onPinToQuickAccess: (String, String) -> Unit,
+    val onOpenSelectedWith: (String) -> Unit = {}
 )
 
 @Stable

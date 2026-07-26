@@ -20,5 +20,8 @@ internal sealed interface AppFileOpenResolution {
         val path: String,
         val splitPaths: List<String> = emptyList()
     ) : AppFileOpenResolution
-    data class External(val path: String) : AppFileOpenResolution
+    data class External(
+        val path: String,
+        val forceChooser: Boolean = false
+    ) : AppFileOpenResolution
 }

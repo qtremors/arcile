@@ -14,6 +14,7 @@ internal data class RecentSelectionActions(
     val toggle: (String) -> Unit,
     val clear: () -> Unit,
     val share: () -> Unit,
+    val openWith: (String) -> Unit,
     val selectAll: () -> Unit,
     val selectMultiple: (List<String>) -> Unit,
     val openProperties: () -> Unit,

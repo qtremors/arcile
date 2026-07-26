@@ -27,6 +27,7 @@ import org.robolectric.shadows.ShadowEnvironment
 import org.robolectric.shadows.ShadowStatFs
 import java.io.File
 import java.io.RandomAccessFile
+import java.util.zip.ZipFile
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -255,6 +256,32 @@ class ExternalFileAccessHelperTest {
             .filter(File::isFile).map(File::getName).toList()
         assertTrue(stagedFiles.contains("photo.jpg"))
         assertTrue(stagedFiles.contains("photo (1).jpg"))
+    }
+
+    @Test
+    fun `createShareTargets packages a folder as a readable zip archive`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val root = configureExternalStorageRoot()
+        ExternalFileAccessHelper.clearStagingArea(context)
+        val folder = File(root, "Trip").apply { mkdirs() }
+        File(folder, "notes.txt").writeText("packing list")
+        File(folder, "Photos").mkdirs()
+        File(folder, "Photos/cover.jpg").writeBytes(byteArrayOf(1, 2, 3))
+
+        val target = ExternalFileAccessHelper.createShareTargets(
+            context,
+            listOf(folder.absolutePath)
+        ).single()
+        val stagedArchive = File(context.cacheDir, "external_access/share")
+            .walkTopDown()
+            .single { it.isFile && it.name == "Trip.zip" }
+
+        assertEquals("Trip.zip", target.displayName)
+        assertEquals("application/zip", target.mimeType)
+        ZipFile(stagedArchive).use { zip ->
+            assertTrue(zip.getEntry("Trip/notes.txt") != null)
+            assertTrue(zip.getEntry("Trip/Photos/cover.jpg") != null)
+        }
     }
 
     @Test

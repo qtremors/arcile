@@ -30,6 +30,7 @@ internal fun NavGraphBuilder.registerMainRoute(
                         destination.path,
                         destination.surroundingFiles
                     )
+                    is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
                     BrowserDestination.ExitToHome -> Unit
                 }
             },
@@ -53,6 +54,10 @@ private fun handleHomeDestination(
             if (isGalleryCategory(destination.name)) {
                 navController.navigate(AppRoutes.ImageGallery(categoryName = destination.name)) {
                     popUpTo<AppRoutes.Main> { saveState = true }
+                    launchSingleTop = true
+                }
+            } else {
+                navController.navigate(AppRoutes.Category(name = destination.name)) {
                     launchSingleTop = true
                 }
             }

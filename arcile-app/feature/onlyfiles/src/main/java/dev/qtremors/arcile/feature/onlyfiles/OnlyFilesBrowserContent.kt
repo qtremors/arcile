@@ -113,6 +113,7 @@ internal fun VaultBrowser(
         val presentation = FileItemPresentation(
             showThumbnails = true,
             showDetails = true,
+            openFileFromThumbnailInSelectionMode = true,
             thumbnailData = { file, size ->
                 byOpaquePath[file.absolutePath]?.takeIf { it.isViewableImage() || it.isViewableVideo() }?.let { node ->
                     VaultThumbnailRequest(

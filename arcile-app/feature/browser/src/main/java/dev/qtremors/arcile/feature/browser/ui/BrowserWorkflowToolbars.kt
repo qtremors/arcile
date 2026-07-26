@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Unarchive
@@ -236,6 +237,7 @@ internal fun BrowserSelectionToolbar(
                 }
                 val menuActions = remember(
                     selectionIntents.onShareSelected,
+                    selectionIntents.onOpenSelectedWith,
                     state.selectedFiles,
                     isArchiveSelection
                 ) {
@@ -247,6 +249,20 @@ internal fun BrowserSelectionToolbar(
                                 onClick = {
                                     showSelectionMenu = false
                                     dialogVisibility.showCreateArchiveDialog = true
+                                }
+                            )
+                        }
+                        val selectedPath = state.selectedFiles.singleOrNull()
+                        val selectedFile = selectedPath?.let { path ->
+                            state.displayState.visibleFiles.firstOrNull { it.absolutePath == path }
+                        }
+                        if (!isArchiveSelection && selectedPath != null && selectedFile?.isDirectory == false) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    selectionIntents.onOpenSelectedWith(selectedPath)
                                 }
                             )
                         }

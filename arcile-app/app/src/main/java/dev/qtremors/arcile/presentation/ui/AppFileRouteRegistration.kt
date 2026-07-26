@@ -8,6 +8,10 @@ import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
+import dev.qtremors.arcile.feature.browser.BrowserDestination
+import dev.qtremors.arcile.feature.browser.BrowserEntry
+import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
+import dev.qtremors.arcile.feature.browser.BrowserRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
 import dev.qtremors.arcile.feature.videoplayer.registerVideoViewerRoute
@@ -40,10 +44,9 @@ internal fun NavGraphBuilder.registerFileRoutes(
                             )
                         )
                     } else {
-                        actions.navigateToBrowser(
-                            AppRoutes.Main(
-                                initialPage = BROWSER_PAGE,
-                                category = destination.name,
+                        navController.navigate(
+                            AppRoutes.Category(
+                                name = destination.name,
                                 volumeId = destination.volumeId
                             )
                         )
@@ -70,6 +73,31 @@ internal fun NavGraphBuilder.registerFileRoutes(
             popUpTo<AppRoutes.Main> { inclusive = true }
         }
     }
+    composable<AppRoutes.Category> { backStackEntry ->
+        val category = backStackEntry.toRoute<AppRoutes.Category>()
+        BrowserRoute(
+            entryRequest = BrowserEntryRequest(
+                id = 0L,
+                entry = BrowserEntry.Category(category.name, category.volumeId)
+            ),
+            isVisible = true,
+            hasPreviousRoute = true,
+            onStatusChange = {},
+            onDestination = { destination ->
+                when (destination) {
+                    BrowserDestination.ExitToHome,
+                    BrowserDestination.ExitToPreviousRoute -> navController.popBackStack()
+                    is BrowserDestination.OpenFile -> actions.openPathWithSurroundingImages(
+                        destination.path,
+                        destination.surroundingFiles
+                    )
+                    is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
+                }
+            },
+            onShareSelected = actions::shareKnownFiles,
+            onFeedback = onFeedback
+        )
+    }
     registerTrashRoute(
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
@@ -88,6 +116,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
         onOpenFile = actions::openPathWithSurroundingImages,
+        onOpenFileWith = actions::openFileWith,
         onShareSelected = { files ->
             actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
         },

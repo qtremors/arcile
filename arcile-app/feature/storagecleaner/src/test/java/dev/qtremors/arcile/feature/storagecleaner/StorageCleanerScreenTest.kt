@@ -19,6 +19,7 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerBackAction
 import dev.qtremors.arcile.feature.storagecleaner.ui.CleanerCandidateRow
 import dev.qtremors.arcile.feature.storagecleaner.ui.DuplicateGroupCard
@@ -90,6 +91,41 @@ class StorageCleanerScreenTest {
 
         composeRule.runOnIdle {
             assertEquals(1, callbackCount)
+        }
+    }
+
+    @Test
+    fun `candidate thumbnail opens file and text opens containing folder without external button`() {
+        val file = CleanerCandidate(
+            name = "model.stl",
+            absolutePath = "/storage/emulated/0/Models/model.stl",
+            size = 1L,
+            lastModified = 0L,
+            groupTypes = setOf(CleanerGroupType.LargeFiles)
+        )
+        var openedFile: String? = null
+        var openedLocation: String? = null
+        var selectionCount = 0
+        composeRule.setContent {
+            ArcileTestTheme {
+                CleanerCandidateRow(
+                    file = file,
+                    selected = false,
+                    onToggle = { selectionCount += 1 },
+                    onOpenFile = { openedFile = it },
+                    onOpenContainingFolder = { openedLocation = it }
+                )
+            }
+        }
+
+        composeRule.onNode(hasTestTag("cleaner_thumbnail_${file.absolutePath}")).performClick()
+        composeRule.onNode(hasTestTag("cleaner_location_${file.absolutePath}")).performClick()
+        composeRule.onAllNodesWithContentDescription("Open with").assertCountEquals(0)
+
+        composeRule.runOnIdle {
+            assertEquals(file.absolutePath, openedFile)
+            assertEquals(file.absolutePath, openedLocation)
+            assertEquals(0, selectionCount)
         }
     }
 
@@ -360,10 +396,15 @@ class StorageCleanerScreenTest {
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
         composeRule.onNodeWithText("Junk files").performClick()
-        composeRule.onAllNodesWithContentDescription("Section settings")[0].performClick()
+        composeRule.onAllNodesWithContentDescription("Junk files rules")[0].performClick()
 
-        composeRule.onNodeWithText("Show this section").assertExists()
-        composeRule.onNodeWithText("Ignore name patterns").assertExists()
+        composeRule.onNodeWithText("Junk files rules").assertExists()
+        composeRule.onNodeWithText("Changes here apply only to Junk files.").assertExists()
+        composeRule.onNodeWithText("Show this cleaner").assertExists()
+        composeRule.onNodeWithText("Excluded names").assertExists()
+        composeRule.onNodeWithText("Examples: *.iso or cache").assertExists()
+        composeRule.onNodeWithText("Excluded locations").assertExists()
+        composeRule.onNodeWithText("Examples: */WhatsApp/* or Download/Temp").assertExists()
     }
 
     @Test
@@ -402,9 +443,39 @@ class StorageCleanerScreenTest {
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
         composeRule.onNodeWithText("Junk files").performClick()
-        composeRule.onNodeWithText("Ignore").performClick()
+        composeRule.onNodeWithText("Ignore item").performClick()
 
         assertEquals("/storage/emulated/0/cache/safe.tmp", ignoredPath)
+    }
+
+    @Test
+    fun `ignored items show filename location scope and clear unignore action`() {
+        val ignoredPath = "/storage/emulated/0/Download/APK/MyInsta_v2.apk"
+        var restoredPath: String? = null
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerScreen(
+                    state = StorageCleanerState(
+                        rules = StorageCleanerRules(ignoredPaths = setOf(ignoredPath))
+                    ),
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onUndoClean = {},
+                    onClearMessages = {},
+                    onUnignorePath = { restoredPath = it }
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithContentDescription("Ignored everywhere")[0].performClick()
+        composeRule.onNodeWithText("MyInsta_v2.apk").assertExists()
+        composeRule.onNodeWithText("Download/APK").assertExists()
+        composeRule.onNodeWithText("These exact files and folders are excluded from every cleaner.").assertExists()
+        composeRule.onNodeWithText("Pattern rules are separate and apply only to the cleaner where you create them.").assertExists()
+        composeRule.onNodeWithText("Stop ignoring").performClick()
+
+        assertEquals(ignoredPath, restoredPath)
     }
 
     @Test

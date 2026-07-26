@@ -43,10 +43,8 @@
     <string name="onboarding_permission_granted">Granted</string>
     <string name="onboarding_permission_grant">Grant</string>
     <string name="onboarding_permission_enabled">Enabled</string>
-    <string name="onboarding_storage_title">Storage Access (Required)</string>
-    <string name="onboarding_storage_description">Required to view, organize, and manage files on your device.</string>
-    <string name="onboarding_storage_ready_title">Storage Access Granted</string>
-    <string name="onboarding_storage_ready_description">You can now view and manage your files.</string>
+    <string name="onboarding_storage_title">Storage Access</string>
+    <string name="onboarding_storage_description">View and manage files on your device.</string>
     <string name="onboarding_storage_can_read">Shared storage access</string>
     <string name="onboarding_storage_can_read_description">Arcile can read and write user-visible files on internal storage, SD cards, and supported USB drives.</string>
     <string name="onboarding_storage_private">Private app data remains protected</string>
@@ -54,10 +52,8 @@
     <string name="onboarding_storage_restricted">Grant from settings</string>
     <string name="onboarding_storage_restricted_description">Android will open Settings to grant this permission, then Arcile checks it when you return.</string>
     <string name="onboarding_open_storage_settings">Grant Permission</string>
-    <string name="onboarding_notifications_title">Show Notifications (Recommended)</string>
-    <string name="onboarding_notifications_description">Needed to show progress when copying, moving, or archiving files in the background.</string>
-    <string name="onboarding_notifications_ready_title">Notifications Enabled</string>
-    <string name="onboarding_notifications_ready_description">Arcile will show background file operation progress.</string>
+    <string name="onboarding_notifications_title">Notifications</string>
+    <string name="onboarding_notifications_description">Show progress for background file operations.</string>
     <string name="onboarding_notifications_not_required_description">This Android version does not require a separate notification permission.</string>
     <string name="onboarding_enable_notifications">Enable</string>
     <string name="onboarding_storage_permission_required_hint">Storage permission is required to continue</string>

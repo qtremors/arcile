@@ -24,7 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material3.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
@@ -67,7 +67,8 @@ import java.text.DateFormat
 internal fun ViewerScreen(
     node: VaultNodeMetadata,
     viewModel: OnlyFilesViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var showInfo by remember(node.ref.nodeId) { mutableStateOf(false) }
@@ -75,7 +76,7 @@ internal fun ViewerScreen(
     var externalAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
     var fallbackAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
 
-    Box(Modifier.fillMaxSize().background(Color.Black)) {
+    Box(modifier.fillMaxSize().background(Color.Black)) {
         if (node.isViewableImage()) VaultImage(node, viewModel::openReader)
 
         // Overlay Navigation and Title

@@ -50,7 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
+import dev.qtremors.arcile.core.ui.dialogs.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution

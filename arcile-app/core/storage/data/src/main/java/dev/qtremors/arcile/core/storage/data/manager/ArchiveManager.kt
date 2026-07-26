@@ -161,7 +161,11 @@ class DefaultArchiveManager(
                 .filter { !it.isDirectory && it.path.matchesPrefix(entryPrefix) }
             val extractionContext = ArchiveExtractionContext(safetyPolicy, ::validateMutationPath)
             entries.mapNotNull { entry ->
-                val target = extractionContext.resolveRequestedTarget(destination, entry.path)
+                val target = try {
+                    extractionContext.resolveRequestedTarget(destination, entry.path)
+                } catch (_: UnsafeArchiveEntryException) {
+                    return@mapNotNull null
+                }
                 if (!target.exists()) return@mapNotNull null
                 FileConflict(
                     sourcePath = entry.path,

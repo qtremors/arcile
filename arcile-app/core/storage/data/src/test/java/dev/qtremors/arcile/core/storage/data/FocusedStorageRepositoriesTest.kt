@@ -97,6 +97,31 @@ class FocusedStorageRepositoriesTest {
     }
 
     @Test
+    fun `detailed permanent delete reports the current item before mutating it`() = runTest {
+        val paths = listOf("/storage/slow-first.bin", "/storage/second.bin")
+        val dataSource = RecordingFileSystemDataSource()
+        val repository = mutationRepository(
+            RecordingVolumeProvider(emptyList()),
+            RecordingTrashManager(),
+            dataSource
+        )
+        val progress = mutableListOf<dev.qtremors.arcile.core.storage.domain.FileOperationProgress>()
+
+        val result = repository.deletePermanentlyDetailed(paths, progress::add)
+
+        assertTrue(result.isSuccess)
+        assertEquals(
+            listOf(
+                0 to paths[0],
+                1 to paths[0],
+                1 to paths[1],
+                2 to paths[1]
+            ),
+            progress.map { it.completedItems to it.currentPath }
+        )
+    }
+
+    @Test
     fun `category and search queries delegate to media store client`() = runTest {
         val mediaStoreClient = RecordingMediaStoreClient().apply {
             categorySizesResult = Result.success(listOf(CategoryStorage("Images", 42L, setOf("jpg"))))

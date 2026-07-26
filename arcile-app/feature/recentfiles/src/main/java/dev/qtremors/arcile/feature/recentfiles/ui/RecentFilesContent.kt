@@ -123,13 +123,16 @@ internal fun RecentFilesContent(
                             file = file,
                             formattedDate = formatter.format(Date(file.lastModified)),
                             isSelected = state.selectedFiles.contains(file.absolutePath),
+                            isInSelectionMode = isSelectionMode,
                             presentation = FileItemPresentation(
-                                showThumbnails = state.presentation.showThumbnails
+                                showThumbnails = state.presentation.showThumbnails,
+                                openFileFromThumbnailInSelectionMode = true
                             ),
                             onClick = {
                                 if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
                             },
-                            onLongClick = { onToggleSelection(file.absolutePath) }
+                            onLongClick = { onToggleSelection(file.absolutePath) },
+                            onOpenDirectly = { onOpenFile(file.absolutePath) }
                         )
                     }
                 }
@@ -157,7 +160,8 @@ internal fun RecentFilesContent(
                 gridState = gridState,
                 minCellSize = state.presentation.gridMinCellSize.dp,
                 presentation = FileItemPresentation(
-                    showThumbnails = state.presentation.showThumbnails
+                    showThumbnails = state.presentation.showThumbnails,
+                    openFileFromThumbnailInSelectionMode = true
                 ),
                 modifier = Modifier
                     .fillMaxSize()
@@ -222,14 +226,17 @@ internal fun RecentFilesContent(
                         file = file,
                         formattedDate = formatter.format(Date(file.lastModified)),
                         isSelected = state.selectedFiles.contains(file.absolutePath),
+                        isInSelectionMode = isSelectionMode,
                         presentation = FileItemPresentation(
                             zoom = state.presentation.listZoom,
-                            showThumbnails = state.presentation.showThumbnails
+                            showThumbnails = state.presentation.showThumbnails,
+                            openFileFromThumbnailInSelectionMode = true
                         ),
                         onClick = {
                             if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
                         },
-                        onLongClick = { onToggleSelection(file.absolutePath) }
+                        onLongClick = { onToggleSelection(file.absolutePath) },
+                        onOpenDirectly = { onOpenFile(file.absolutePath) }
                     )
                 }
             }
@@ -270,7 +277,8 @@ internal fun RecentFilesContent(
             listState = listState,
             presentation = FileItemPresentation(
                 zoom = state.presentation.listZoom,
-                showThumbnails = state.presentation.showThumbnails
+                showThumbnails = state.presentation.showThumbnails,
+                openFileFromThumbnailInSelectionMode = true
             ),
             modifier = Modifier
                 .fillMaxSize()

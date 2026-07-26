@@ -35,8 +35,13 @@ internal class ZipArchiveHandler(
         }
         if (zip4j.isEncrypted) {
             val safety = ArchiveSafetyTally(safetyPolicy)
-            return zip4j.fileHeaders.map { entry ->
-                safety.accept(entry.fileName, entry.uncompressedSize.coerceAtLeast(0L), entry.compressedSize.coerceAtLeast(0L))
+            return zip4j.fileHeaders.mapNotNull { entry ->
+                if (!safety.acceptForExtraction(
+                        entry.fileName,
+                        entry.uncompressedSize.coerceAtLeast(0L),
+                        entry.compressedSize.coerceAtLeast(0L)
+                    )
+                ) return@mapNotNull null
                 ArchiveEntryModel(
                     name = entry.fileName.substringAfterLast('/').ifBlank { entry.fileName.trimEnd('/') },
                     path = entry.fileName.normalizeEntryName(),
@@ -50,8 +55,13 @@ internal class ZipArchiveHandler(
         }
         return ZipFile.builder().setFile(archive).setCharset(nameEncoding.charset()).get().use { zip ->
             val safety = ArchiveSafetyTally(safetyPolicy)
-            zip.entries.asSequence().map { entry ->
-                safety.accept(entry.name, entry.size.coerceAtLeast(0L), entry.compressedSize.takeIf { it >= 0L })
+            zip.entries.asSequence().mapNotNull { entry ->
+                if (!safety.acceptForExtraction(
+                        entry.name,
+                        entry.size.coerceAtLeast(0L),
+                        entry.compressedSize.takeIf { it >= 0L }
+                    )
+                ) return@mapNotNull null
                 ArchiveEntryModel(
                     name = entry.name.substringAfterLast('/').ifBlank { entry.name.trimEnd('/') },
                     path = entry.name.normalizeEntryName(),
@@ -88,7 +98,13 @@ internal class ZipArchiveHandler(
             val safety = ArchiveSafetyTally(safetyPolicy)
             val entries = zip.entries.asSequence()
                 .filter { it.name.matchesPrefix(prefix) }
-                .onEach { safety.accept(it.name, it.size.coerceAtLeast(0L), it.compressedSize.takeIf { size -> size >= 0L }) }
+                .filter {
+                    safety.acceptForExtraction(
+                        it.name,
+                        it.size.coerceAtLeast(0L),
+                        it.compressedSize.takeIf { size -> size >= 0L }
+                    )
+                }
                 .toList()
             val totalBytes = entries.sumOf { it.size.coerceAtLeast(0L) }.coerceAtLeast(1L)
             var copied = 0L
@@ -191,16 +207,22 @@ internal class ZipArchiveHandler(
     ) {
         val entries = zip.fileHeaders.filter { it.fileName.matchesPrefix(entryPrefix) }
         val safety = ArchiveSafetyTally(safetyPolicy)
-        entries.forEach { safety.accept(it.fileName, it.uncompressedSize.coerceAtLeast(0L), it.compressedSize.coerceAtLeast(0L)) }
-        val totalBytes = entries.sumOf { it.uncompressedSize.coerceAtLeast(0L) }.coerceAtLeast(1L)
+        val safeEntries = entries.filter {
+            safety.acceptForExtraction(
+                it.fileName,
+                it.uncompressedSize.coerceAtLeast(0L),
+                it.compressedSize.coerceAtLeast(0L)
+            )
+        }
+        val totalBytes = safeEntries.sumOf { it.uncompressedSize.coerceAtLeast(0L) }.coerceAtLeast(1L)
         var copied = 0L
         var completed = 0
-        for (entry in entries) {
+        for (entry in safeEntries) {
             currentCoroutineContext().ensureActive()
             val target = extractionContext.resolveTarget(destination, entry.fileName, entry.isDirectory, resolutions)
             if (target == null) {
                 completed += 1
-                onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.fileName, copied.coerceAtMost(totalBytes), totalBytes))
+                onProgress?.invoke(BulkFileOperationProgress(completed, safeEntries.size, entry.fileName, copied.coerceAtMost(totalBytes), totalBytes))
                 continue
             }
             if (entry.isDirectory) {
@@ -212,7 +234,7 @@ internal class ZipArchiveHandler(
                     BufferedInputStream(input).use { buffered ->
                         BufferedOutputStream(target.outputStream()).use { output ->
                             copied += copyWithProgress(buffered::read, output::write) {
-                                onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.fileName, copied + it, totalBytes))
+                                onProgress?.invoke(BulkFileOperationProgress(completed, safeEntries.size, entry.fileName, copied + it, totalBytes))
                             }
                         }
                     }
@@ -220,7 +242,7 @@ internal class ZipArchiveHandler(
                 entry.lastModifiedTimeEpoch.takeIf { it > 0L }?.let { target.setLastModified(it) }
             }
             completed += 1
-            onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, entry.fileName, copied.coerceAtMost(totalBytes), totalBytes))
+            onProgress?.invoke(BulkFileOperationProgress(completed, safeEntries.size, entry.fileName, copied.coerceAtMost(totalBytes), totalBytes))
         }
     }
 

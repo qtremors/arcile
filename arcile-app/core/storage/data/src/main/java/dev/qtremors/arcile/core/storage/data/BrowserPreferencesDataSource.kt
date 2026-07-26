@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
@@ -194,6 +195,18 @@ class BrowserPreferencesDataSource(
             } else {
                 emptyMap()
             }
+            val fileOpenBehaviors = prefs[FILE_OPEN_BEHAVIORS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+                .mapNotNull { (category, behavior) ->
+                    FileOpenBehavior.entries.firstOrNull { it.name == behavior }
+                        ?.let { category to it }
+                }
+                .toMap()
 
             BrowserPreferences(
                 globalPresentation = globalPresentation,
@@ -219,6 +232,7 @@ class BrowserPreferencesDataSource(
                 albumCovers = albumCovers,
                 lastOpenedPath = prefs[LAST_OPENED_PATH_KEY],
                 lastOpenedVolumeId = prefs[LAST_OPENED_VOLUME_ID_KEY],
+                fileOpenBehaviors = fileOpenBehaviors,
                 defaultSaveToArcilePath = prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY],
                 browserScrollbarEnabled = prefs[BROWSER_SCROLLBAR_ENABLED_KEY]
                     ?: BrowserPreferences().browserScrollbarEnabled,
@@ -363,6 +377,21 @@ class BrowserPreferencesDataSource(
             }
         }
         activityLogRepository?.recordFolderOpened(path, volumeId)
+    }
+
+    suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
+        dataStore.edit { prefs ->
+            val current = prefs[FILE_OPEN_BEHAVIORS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            prefs[FILE_OPEN_BEHAVIORS_KEY] = Json.encodeToString(
+                current + (categoryName to behavior.name)
+            )
+        }
     }
 
     suspend fun updateDefaultSaveToArcilePath(path: String?) {

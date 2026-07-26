@@ -17,6 +17,7 @@ import dev.qtremors.arcile.core.plugin.android.PluginManager
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.R
@@ -227,7 +228,13 @@ internal class AppNavigationActions(
                     selectedPaths = selectedPaths
                 )
                 is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution
-                is AppFileOpenResolution.External -> onOpenFile(resolution.path)
+                is AppFileOpenResolution.External -> {
+                    if (resolution.forceChooser) {
+                        onOpenFileWith(resolution.path)
+                    } else {
+                        onOpenFile(resolution.path)
+                    }
+                }
             }
         }
     }
@@ -419,6 +426,7 @@ internal fun rememberAppNavigationActions(
     navController: NavHostController,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    fileOpenBehaviors: Map<String, FileOpenBehavior>,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ): AppNavigationActions {
     val context = LocalContext.current
@@ -429,6 +437,7 @@ internal fun rememberAppNavigationActions(
         coroutineScope,
         onOpenFile,
         onOpenFileWith,
+        fileOpenBehaviors,
         onFeedback
     ) {
         AppNavigationActions(
@@ -436,7 +445,8 @@ internal fun rememberAppNavigationActions(
             navController = navController,
             coroutineScope = coroutineScope,
             fileOpenResolver = AppFileOpenResolver(
-                InstalledPluginFileResolutionGateway(PluginManager(context))
+                pluginGateway = InstalledPluginFileResolutionGateway(PluginManager(context)),
+                fileOpenBehaviors = fileOpenBehaviors
             ),
             onOpenFile = onOpenFile,
             onOpenFileWith = onOpenFileWith,

@@ -96,19 +96,28 @@
                     Manage your files privately on Android. Arcile works without ads, trackers, or internet access.
                 </p>
 
-                <!-- Live GitHub Stats Pill -->
-                <div class="flex justify-center lg:justify-start">
-                    <a href="https://github.com/qtremors/arcile" target="_blank" class="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-m3-surfaceContainerHigh border border-m3-outlineVariant text-sm font-medium hover:bg-m3-surfaceContainerHighest transition-colors">
+                <!-- Live GitHub Stats -->
+                <div class="flex flex-wrap justify-center lg:justify-start gap-3" aria-label="Arcile GitHub statistics">
+                    <a href="https://github.com/qtremors/arcile" target="_blank" aria-label="Arcile repository stars and forks" title="GitHub repository" class="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-m3-surfaceContainerHigh border border-m3-outlineVariant text-sm font-medium hover:bg-m3-surfaceContainerHighest transition-colors">
                         <i data-lucide="github" class="w-4 h-4 text-m3-onSurface"></i>
-                        <span class="text-m3-onSurface">GitHub</span>
                         <div class="flex items-center gap-1.5 text-m3-onSurfaceVariant border-l border-m3-outlineVariant pl-3">
-                            <i data-lucide="star" class="w-3.5 h-3.5"></i> <span id="gh-stars">--</span>
+                            <i data-lucide="star" class="w-3.5 h-3.5"></i>
+                            <span id="gh-stars" aria-label="GitHub stars">--</span>
                         </div>
                         <div class="flex items-center gap-1.5 text-m3-onSurfaceVariant">
-                            <i data-lucide="git-fork" class="w-3.5 h-3.5"></i> <span id="gh-forks">--</span>
+                            <i data-lucide="git-fork" class="w-3.5 h-3.5"></i>
+                            <span id="gh-forks" aria-label="GitHub forks">--</span>
+                        </div>
+                    </a>
+                    <a href="https://github.com/qtremors/arcile/releases" target="_blank" aria-label="Arcile total and latest release downloads" title="Release downloads" class="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-m3-surfaceContainerHigh border border-m3-outlineVariant text-sm font-medium hover:bg-m3-surfaceContainerHighest transition-colors">
+                        <i data-lucide="download" class="w-4 h-4 text-m3-onSurface"></i>
+                        <div class="flex items-center gap-1.5 text-m3-onSurfaceVariant border-l border-m3-outlineVariant pl-3">
+                            <span class="text-xs text-m3-outline">Total</span>
+                            <span id="gh-total-downloads" aria-label="Total release downloads">--</span>
                         </div>
                         <div class="flex items-center gap-1.5 text-m3-onSurfaceVariant">
-                            <i data-lucide="download" class="w-3.5 h-3.5"></i> <span id="gh-downloads">--</span>
+                            <span class="text-xs text-m3-outline">Latest</span>
+                            <span id="gh-latest-downloads" aria-label="Latest release downloads">--</span>
                         </div>
                     </a>
                 </div>

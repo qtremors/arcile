@@ -252,6 +252,7 @@
     <string name="open_containing_folder">Open containing folder</string>
     <string name="open">Open</string>
     <string name="open_image">Open image</string>
+    <string name="open_file">Open file</string>
     <string name="file_type_folder">FOLDER</string>
     <string name="file_type_generic">FILE</string>
     <string name="unknown_folder">Unknown</string>
@@ -472,4 +473,9 @@
     <string name="quick_access_home_toggle_description">%1$s %2$s</string>
     <string name="clear_date_filter">Clear date filter</string>
 
+    <string name="settings_file_opening_title">File opening</string>
+    <string name="settings_file_opening_arcile">Open in Arcile when supported</string>
+    <string name="settings_file_opening_external">Always use another app</string>
+    <string name="cleaner_detail_storage_map">Selection storage map</string>
+    <string name="cleaner_detail_storage_selected">%1$s selected of %2$s</string>
 </resources>

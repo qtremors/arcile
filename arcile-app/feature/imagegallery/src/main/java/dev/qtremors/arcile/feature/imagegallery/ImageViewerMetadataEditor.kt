@@ -419,7 +419,7 @@ private fun TimePickerDialog(
     dismissButton: @Composable () -> Unit,
     content: @Composable () -> Unit
 ) {
-    androidx.compose.ui.window.Dialog(
+    dev.qtremors.arcile.core.ui.dialogs.Dialog(
         onDismissRequest = onDismissRequest,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
     ) {

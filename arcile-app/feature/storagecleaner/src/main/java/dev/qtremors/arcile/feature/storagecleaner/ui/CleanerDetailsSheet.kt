@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.storagecleaner.ui
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,12 +21,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material.icons.filled.Tune
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -43,6 +43,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -86,7 +88,7 @@ import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CleanerDetailsSheet(
     group: CleanerGroup,
@@ -143,8 +145,11 @@ internal fun CleanerDetailsSheet(
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = stringResource(R.string.cleaner_section_settings)
+                            imageVector = Icons.Default.Tune,
+                            contentDescription = stringResource(
+                                R.string.cleaner_section_settings_title,
+                                cleanerTitle(group.type)
+                            )
                         )
                     }
                     val riskInfoClick = { showRiskInfo = true }
@@ -191,6 +196,7 @@ internal fun CleanerDetailsSheet(
             }
 
             HorizontalDivider()
+            CleanerDetailStorageMap(group.candidates, selectedFiles)
 
             if (group.candidates.isEmpty()) {
                 Box(
@@ -226,19 +232,29 @@ internal fun CleanerDetailsSheet(
                                 val selectedInGroup = filesInGroup.filter { it.absolutePath in selectedFiles }
                                 compareFiles = if (selectedInGroup.size == 2) selectedInGroup else filesInGroup.take(2)
                             },
-                            onIgnoreFile = onIgnorePath
+                            onIgnoreFile = { path ->
+                                onSelectedFilesChange(selectedFiles - path)
+                                onIgnorePath(path)
+                            }
                         )
                     }
                 }
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
                 ) {
-                    items(group.candidates, key = { it.absolutePath }) { file ->
+                    items(
+                        count = group.candidates.size,
+                        key = { group.candidates[it].absolutePath }
+                    ) { index ->
+                        val file = group.candidates[index]
                         CleanerCandidateRow(
                             file = file,
                             selected = file.absolutePath in selectedFiles,
+                            index = index,
+                            count = group.candidates.size,
                             onToggle = {
                                 onSelectedFilesChange(if (file.absolutePath in selectedFiles) {
                                     selectedFiles - file.absolutePath
@@ -248,7 +264,10 @@ internal fun CleanerDetailsSheet(
                             },
                             onOpenFile = onOpenFile,
                             onOpenContainingFolder = onOpenContainingFolder,
-                            onIgnoreFile = onIgnorePath
+                            onIgnoreFile = { path ->
+                                onSelectedFilesChange(selectedFiles - path)
+                                onIgnorePath(path)
+                            }
                         )
                     }
                 }
@@ -321,8 +340,74 @@ internal fun CleanerDetailsSheet(
             },
             onOpenFile = onOpenFile,
             onOpenContainingFolder = onOpenContainingFolder,
-            onIgnoreFile = onIgnorePath,
+            onIgnoreFile = { path ->
+                onSelectedFilesChange(selectedFiles - path)
+                onIgnorePath(path)
+            },
             onDismiss = { compareFiles = null }
         )
+    }
+}
+
+@Composable
+private fun CleanerDetailStorageMap(
+    candidates: List<CleanerCandidate>,
+    selectedFiles: Set<String>
+) {
+    val total = candidates.sumOf(CleanerCandidate::size).coerceAtLeast(0L)
+    val selected = candidates
+        .filter { it.absolutePath in selectedFiles }
+        .sumOf(CleanerCandidate::size)
+        .coerceIn(0L, total)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                stringResource(R.string.cleaner_detail_storage_map),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                stringResource(
+                    R.string.cleaner_detail_storage_selected,
+                    formatFileSize(selected),
+                    formatFileSize(total)
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(14.dp)
+                .clip(CircleShape),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            if (selected > 0L && total > 0L) {
+                Box(
+                    Modifier
+                        .weight(selected.toFloat() / total.toFloat())
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.error)
+                )
+            }
+            Box(
+                Modifier
+                    .weight(
+                        if (total > 0L) {
+                            ((total - selected).toFloat() / total.toFloat()).coerceAtLeast(0.01f)
+                        } else {
+                            1f
+                        }
+                    )
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            )
+        }
     }
 }

@@ -99,6 +99,7 @@ internal fun RecentFilesScreen(
     val onToggleSelection = selectionActions.toggle
     val onClearSelection = selectionActions.clear
     val onShareSelected = selectionActions.share
+    val onOpenFileWith = selectionActions.openWith
     val onSelectAll = selectionActions.selectAll
     val onSelectMultiple = selectionActions.selectMultiple
     val onOpenProperties = selectionActions.openProperties
@@ -318,6 +319,7 @@ internal fun RecentFilesScreen(
                             contentPadding = PaddingValues(),
                             onSelectAll = onSelectAll,
                             onShareSelected = onShareSelected,
+                            onOpenFileWith = onOpenFileWith,
                             onRequestDeleteSelected = onRequestDeleteSelected,
                             onOpenProperties = onOpenProperties,
                             onOpenContainingFolder = onOpenContainingFolder

@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.onlyfiles
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -45,7 +45,7 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
-import androidx.compose.material3.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LoadingIndicator
@@ -61,8 +61,8 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,6 +70,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -94,6 +95,7 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.core.ui.menus.FabMenuItem
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.SearchTopBar
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
@@ -106,6 +108,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
@@ -116,6 +119,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import java.text.DateFormat
+import kotlinx.coroutines.flow.collect
 
 internal enum class CreateItemKind { FOLDER, FILE }
 internal enum class ExternalAction { SHARE, OPEN_WITH }
@@ -164,6 +168,8 @@ private fun OnlyFilesScreen(
     var boundaryRequest by remember { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
     var fabExpanded by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
+    var isBackPredicting by remember { mutableStateOf(false) }
 
     val backHandlerEnabled = state.pendingConflict != null ||
             state.selectedNodeIds.isNotEmpty() ||
@@ -174,7 +180,7 @@ private fun OnlyFilesScreen(
             state.viewer != null ||
             state.selectedVault != null
 
-    BackHandler(enabled = backHandlerEnabled) {
+    val navigateBackThroughState = {
         when {
             state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
             state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
@@ -189,18 +195,49 @@ private fun OnlyFilesScreen(
             state.selectedVault != null -> viewModel.navigateUp()
         }
     }
+    PredictiveBackHandler(enabled = backHandlerEnabled) { progressFlow ->
+        try {
+            isBackPredicting = true
+            progressFlow.collect { event -> predictiveBackProgress = event.progress }
+            navigateBackThroughState()
+        } finally {
+            isBackPredicting = false
+            predictiveBackProgress = 0f
+        }
+    }
+    val predictiveBackModifier = Modifier.graphicsLayer {
+        if (isBackPredicting) {
+            translationX = predictiveBackProgress * size.width * 0.12f
+            scaleX = 1f - predictiveBackProgress * 0.02f
+            scaleY = 1f - predictiveBackProgress * 0.02f
+            alpha = 1f - predictiveBackProgress * 0.15f
+        }
+    }
 
     LaunchedEffect(state.message) {
-        state.message?.let { snackbarHost.showSnackbar(it); viewModel.clearMessage() }
+        state.message?.let { message ->
+            snackbarHost.showSnackbar(
+                message = message,
+                withDismissAction = true,
+                duration = SnackbarDuration.Short
+            )
+            viewModel.clearMessage()
+        }
     }
 
     state.viewer?.let { node ->
-        ViewerScreen(node, viewModel, viewModel::navigateUp)
+        ViewerScreen(
+            node = node,
+            viewModel = viewModel,
+            onBack = viewModel::navigateUp,
+            modifier = predictiveBackModifier
+        )
         return
     }
 
     ArcileScreenScaffold(
-        snackbarHost = { SnackbarHost(snackbarHost) },
+        modifier = predictiveBackModifier,
+        snackbarHost = { ArcileSnackbarHost(snackbarHost) },
         topBar = {
             if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
                 SearchTopBar(
