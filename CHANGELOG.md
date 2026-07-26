@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.6
+> **Version:** 1.6.7
 > **Last Updated:** 2026-07-26
 
 ---
+
+## [1.6.7] - 2026-07-26
+
+- **Audio Library Workflows**: Added selection-aware Audio navigation with copy, cut, paste, rename, share, Open With, containing-folder access, and surfaced mini-player and selection controls.
 
 ## [1.6.6] - 2026-07-26
 
