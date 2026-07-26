@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -109,6 +110,37 @@ class AudioLibraryPresentationTest {
         )
 
         assertEquals("latest.mp3", state.folders.single().coverTrack.file.name)
+    }
+
+    @Test
+    fun `folder tab selection scope includes every track in visible folders`() {
+        val presented = buildAudioLibraryState(
+            AudioLibraryState(query = "Scores", tab = AudioLibraryTab.FOLDERS),
+            listOf(
+                track("/Music/Scores/one.mp3", "One", "Artist", "Album"),
+                track("/Music/Scores/two.mp3", "Two", "Artist", "Album"),
+                track("/Music/Other/three.mp3", "Three", "Artist", "Album")
+            )
+        )
+
+        assertEquals(
+            setOf("/Music/Scores/one.mp3", "/Music/Scores/two.mp3"),
+            presented.visibleSelectionPaths().toSet()
+        )
+    }
+
+    @Test
+    fun `scrollbar index mapping accounts for grouped section headers`() {
+        val tracks = listOf(
+            track("/Music/new.mp3", "New", "Artist", "Album", modified = 2_000_000_000L),
+            track("/Music/old.mp3", "Old", "Artist", "Album", modified = 1_000_000_000L)
+        )
+        val groups = groupAudioTracks(tracks, ImageGalleryGrouping.DAY)
+
+        assertEquals("New", audioTrackForLazyIndex(0, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("New", audioTrackForLazyIndex(1, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("Old", audioTrackForLazyIndex(2, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("Old", audioTrackForLazyIndex(3, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
     }
 
     @Test

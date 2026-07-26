@@ -7,7 +7,8 @@ data class AudioLibraryPreferences(
     val folderPresentation: FileListingPreferences = BrowserPreferences().audioFolderPresentation,
     val grouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
     val defaultTab: AudioLibraryDefaultTab = AudioLibraryDefaultTab.AUDIO,
-    val showFileDetails: Boolean = true
+    val showFileDetails: Boolean = true,
+    val scrollbarEnabled: Boolean = true
 ) {
     companion object {
         fun from(preferences: BrowserPreferences) = AudioLibraryPreferences(
@@ -15,7 +16,8 @@ data class AudioLibraryPreferences(
             folderPresentation = preferences.audioFolderPresentation,
             grouping = preferences.audioGrouping,
             defaultTab = preferences.audioDefaultTab,
-            showFileDetails = preferences.audioShowFileDetails
+            showFileDetails = preferences.audioShowFileDetails,
+            scrollbarEnabled = preferences.galleryScrollbarEnabled
         )
     }
 }

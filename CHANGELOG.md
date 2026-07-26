@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.6.8
+> **Version:** 1.6.9
 > **Last Updated:** 2026-07-26
 
 ---
+
+## [1.6.9] - 2026-07-26
+
+- **Consistent Media Categories**: Aligned Audio with the Image and Video galleries through loading and error feedback, fast scrolling, complete selection actions, delete and properties dialogs, ZIP creation, clipboard inspection, and direct paste controls on folder tiles.
 
 ## [1.6.8] - 2026-07-26
 

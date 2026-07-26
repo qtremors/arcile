@@ -2,8 +2,10 @@ package dev.qtremors.arcile.feature.audio
 
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.OperationUiState
+import dev.qtremors.arcile.core.presentation.PropertiesUiModel
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
@@ -48,8 +50,19 @@ internal data class AudioLibraryState(
     ),
     val grouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
     val showFileDetails: Boolean = true,
+    val scrollbarEnabled: Boolean = true,
     val folderFilter: AudioFolder? = null,
     val selectedPaths: Set<String> = emptySet(),
+    val showTrashConfirmation: Boolean = false,
+    val showPermanentDeleteConfirmation: Boolean = false,
+    val showMixedDeleteExplanation: Boolean = false,
+    val deleteDecision: DeleteDecision? = null,
+    val isPermanentDeleteChecked: Boolean = false,
+    val isPermanentDeleteToggleEnabled: Boolean = true,
+    val isShredChecked: Boolean = false,
+    val isPropertiesVisible: Boolean = false,
+    val isPropertiesLoading: Boolean = false,
+    val properties: PropertiesUiModel? = null,
     val clipboardState: ClipboardState? = null,
     val activeFileOperation: OperationUiState? = null,
     val pasteConflicts: List<FileConflict> = emptyList(),

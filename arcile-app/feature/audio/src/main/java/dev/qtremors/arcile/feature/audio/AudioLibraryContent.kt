@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
+
 package dev.qtremors.arcile.feature.audio
 
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -14,21 +16,27 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -56,6 +64,10 @@ import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.scrollbar.ArcileFastScrollbar
+import dev.qtremors.arcile.core.ui.scrollbar.LazyGridScrollbarState
+import dev.qtremors.arcile.core.ui.scrollbar.LazyListScrollbarState
+import dev.qtremors.arcile.core.ui.scrollbar.ScrollbarState
 
 @Composable
 internal fun AudioLibraryPage(
@@ -70,7 +82,9 @@ internal fun AudioLibraryPage(
     onPlay: (String) -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
     onToggleSelection: (String) -> Unit,
-    onSelectPaths: (Collection<String>) -> Unit
+    onSelectPaths: (Collection<String>) -> Unit,
+    onTogglePaths: (Collection<String>) -> Unit,
+    onPasteToFolder: (String) -> Unit
 ) {
     val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     PullToRefreshBox(
@@ -91,6 +105,11 @@ internal fun AudioLibraryPage(
             state.folders.isEmpty()
         }
         when {
+            state.isLoading && state.tracks.isEmpty() -> {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    LoadingIndicator()
+                }
+            }
             isEmpty && !state.isLoading -> AudioEmptyState(
                 hasFilter = state.query.isNotBlank() || state.folderFilter != null
             )
@@ -112,7 +131,9 @@ internal fun AudioLibraryPage(
                 onGridSizeChange = onGridSizeChange,
                 onGridSizeFinalized = onGridSizeFinalized,
                 onSelectFolder = onSelectFolder,
-                onSelectPaths = onSelectPaths
+                onSelectPaths = onSelectPaths,
+                onTogglePaths = onTogglePaths,
+                onPasteToFolder = onPasteToFolder
             )
         }
     }
@@ -188,9 +209,19 @@ private fun AudioTracksContent(
         lastInteractedIndex = index
     }
 
+    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val scrollbarState: ScrollbarState =
+        if (state.audioPresentation.viewMode == FileViewMode.GRID) {
+            LazyGridScrollbarState(gridState)
+        } else {
+            LazyListScrollbarState(listState)
+        }
+    Box(modifier = Modifier.fillMaxSize()) {
     if (state.audioPresentation.viewMode == FileViewMode.GRID) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(gridSize.dp),
+            state = gridState,
             modifier = Modifier
                 .fillMaxSize()
                 .audioPinchToResize(
@@ -210,7 +241,8 @@ private fun AudioTracksContent(
                         isSelected = track.file.absolutePath in state.selectedPaths,
                         showDetails = state.showFileDetails,
                         onClick = { click(track) },
-                        onLongClick = { longClick(track) }
+                        onLongClick = { longClick(track) },
+                        modifier = Modifier.animateItem()
                     )
                 }
             } else {
@@ -225,7 +257,8 @@ private fun AudioTracksContent(
                             isSelected = track.file.absolutePath in state.selectedPaths,
                             showDetails = state.showFileDetails,
                             onClick = { click(track) },
-                            onLongClick = { longClick(track) }
+                            onLongClick = { longClick(track) },
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }
@@ -234,6 +267,7 @@ private fun AudioTracksContent(
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = contentPadding
         ) {
             if (state.grouping == ImageGalleryGrouping.NONE) {
@@ -245,7 +279,8 @@ private fun AudioTracksContent(
                         isSelected = track.file.absolutePath in state.selectedPaths,
                         showDetails = state.showFileDetails,
                         onClick = { click(track) },
-                        onLongClick = { longClick(track) }
+                        onLongClick = { longClick(track) },
+                        modifier = Modifier.animateItem()
                     )
                 }
             } else {
@@ -259,12 +294,27 @@ private fun AudioTracksContent(
                             isSelected = track.file.absolutePath in state.selectedPaths,
                             showDetails = state.showFileDetails,
                             onClick = { click(track) },
-                            onLongClick = { longClick(track) }
+                            onLongClick = { longClick(track) },
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }
             }
         }
+    }
+        ArcileFastScrollbar(
+            scrollbarState = scrollbarState,
+            labelForIndex = { index ->
+                audioTrackForLazyIndex(index, state.visibleTracks, state.grouping, groups)
+                    ?.displayTitle
+                    .orEmpty()
+            },
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight(),
+            contentPadding = contentPadding,
+            enabled = state.scrollbarEnabled
+        )
     }
 }
 
@@ -277,10 +327,11 @@ private fun AudioTrackListItem(
     isSelected: Boolean,
     showDetails: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 1.dp)
             .clip(MaterialTheme.shapes.extraLarge)
@@ -343,10 +394,11 @@ private fun AudioTrackGridItem(
     isSelected: Boolean,
     showDetails: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val shape = MaterialTheme.shapes.large
-    val itemModifier = Modifier
+    val itemModifier = modifier
         .fillMaxWidth()
         .clip(shape)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick)
@@ -420,11 +472,24 @@ private fun AudioFoldersContent(
     onGridSizeChange: (Float) -> Unit,
     onGridSizeFinalized: (Float) -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
-    onSelectPaths: (Collection<String>) -> Unit
+    onSelectPaths: (Collection<String>) -> Unit,
+    onTogglePaths: (Collection<String>) -> Unit,
+    onPasteToFolder: (String) -> Unit
 ) {
+    val haptics = rememberArcileHaptics()
+    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    val scrollbarState: ScrollbarState =
+        if (state.folderPresentation.viewMode == FileViewMode.GRID) {
+            LazyGridScrollbarState(gridState)
+        } else {
+            LazyListScrollbarState(listState)
+        }
+    Box(modifier = Modifier.fillMaxSize()) {
     if (state.folderPresentation.viewMode == FileViewMode.GRID) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(gridSize.dp),
+            state = gridState,
             modifier = Modifier
                 .fillMaxSize()
                 .audioPinchToResize(
@@ -437,28 +502,42 @@ private fun AudioFoldersContent(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(state.folders, key = AudioFolder::key) { folder ->
+                val folderPaths = folder.tracks.map { it.file.absolutePath }
+                val isSelected = folderPaths.all(state.selectedPaths::contains)
                 AudioFolderGridItem(
                     folder = folder,
+                    isSelected = isSelected,
                     showDetails = state.showFileDetails,
+                    canPaste = state.clipboardState != null,
                     onClick = {
                         if (state.selectedPaths.isEmpty()) {
                             onSelectFolder(folder)
                         } else {
-                            onSelectPaths(folder.tracks.map { it.file.absolutePath })
+                            onTogglePaths(folderPaths)
+                            haptics.selectionChanged()
                         }
                     },
                     onLongClick = {
-                        onSelectPaths(folder.tracks.map { it.file.absolutePath })
-                    }
+                        onSelectPaths(folderPaths)
+                        if (state.selectedPaths.isEmpty()) {
+                            haptics.selectionStart()
+                        } else {
+                            haptics.selectionChanged()
+                        }
+                    },
+                    onPaste = { onPasteToFolder(folder.key) },
+                    modifier = Modifier.animateItem()
                 )
             }
         }
     } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = contentPadding
         ) {
             items(state.folders, key = AudioFolder::key) { folder ->
+                val folderPaths = folder.tracks.map { it.file.absolutePath }
                 AudioFolderListItem(
                     folder = folder,
                     zoom = state.folderPresentation.listZoom,
@@ -466,19 +545,38 @@ private fun AudioFoldersContent(
                         it.file.absolutePath in state.selectedPaths
                     },
                     showDetails = state.showFileDetails,
+                    canPaste = state.clipboardState != null,
                     onClick = {
                         if (state.selectedPaths.isEmpty()) {
                             onSelectFolder(folder)
                         } else {
-                            onSelectPaths(folder.tracks.map { it.file.absolutePath })
+                            onTogglePaths(folderPaths)
+                            haptics.selectionChanged()
                         }
                     },
                     onLongClick = {
-                        onSelectPaths(folder.tracks.map { it.file.absolutePath })
-                    }
+                        onSelectPaths(folderPaths)
+                        if (state.selectedPaths.isEmpty()) {
+                            haptics.selectionStart()
+                        } else {
+                            haptics.selectionChanged()
+                        }
+                    },
+                    onPaste = { onPasteToFolder(folder.key) },
+                    modifier = Modifier.animateItem()
                 )
             }
         }
+    }
+        ArcileFastScrollbar(
+            scrollbarState = scrollbarState,
+            labelForIndex = { index -> state.folders.getOrNull(index)?.title.orEmpty() },
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight(),
+            contentPadding = contentPadding,
+            enabled = state.scrollbarEnabled
+        )
     }
 }
 
@@ -489,11 +587,14 @@ private fun AudioFolderListItem(
     zoom: Float,
     isSelected: Boolean,
     showDetails: Boolean,
+    canPaste: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onPaste: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 1.dp)
             .clip(MaterialTheme.shapes.extraLarge)
@@ -535,7 +636,15 @@ private fun AudioFolderListItem(
                 )
             }
         }
-        if (isSelected) {
+        if (canPaste && !isSelected) {
+            IconButton(onClick = onPaste) {
+                Icon(
+                    Icons.Default.ContentPaste,
+                    contentDescription = stringResource(R.string.audio_paste_here),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        } else if (isSelected) {
             Icon(
                 Icons.Default.CheckCircle,
                 contentDescription = null,
@@ -552,54 +661,100 @@ private fun AudioFolderListItem(
 @Composable
 private fun AudioFolderGridItem(
     folder: AudioFolder,
+    isSelected: Boolean,
     showDetails: Boolean,
+    canPaste: Boolean,
     onClick: () -> Unit,
-    onLongClick: () -> Unit
+    onLongClick: () -> Unit,
+    onPaste: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val shape = MaterialTheme.shapes.large
     val itemModifier = Modifier
         .fillMaxWidth()
         .clip(shape)
         .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-    if (showDetails) {
-        Surface(
-            shape = shape,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            modifier = itemModifier
-        ) {
-            Column {
-                AudioArtwork(
-                    folder.coverTrack,
-                    Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(1f)
-                )
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Text(
-                        folder.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+    Box(modifier = modifier) {
+        if (showDetails) {
+            Surface(
+                shape = shape,
+                color = if (isSelected) {
+                    MaterialTheme.colorScheme.primaryContainer
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerLow
+                },
+                modifier = itemModifier
+            ) {
+                Column {
+                    AudioArtwork(
+                        folder.coverTrack,
+                        Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(1f)
                     )
-                    Text(
-                        stringResource(R.string.audio_track_count, folder.tracks.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        formatFileSize(folder.totalSize),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    Column(modifier = Modifier.padding(8.dp)) {
+                        Text(
+                            folder.title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            stringResource(R.string.audio_track_count, folder.tracks.size),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            formatFileSize(folder.totalSize),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            Box(modifier = itemModifier.aspectRatio(1f)) {
+                AudioArtwork(folder.coverTrack, Modifier.fillMaxSize())
+                if (isSelected) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                     )
                 }
             }
         }
-    } else {
-        AudioArtwork(
-            folder.coverTrack,
-            itemModifier.aspectRatio(1f)
-        )
+        if (canPaste && !isSelected) {
+            Surface(
+                onClick = onPaste,
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                shadowElevation = 4.dp,
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(40.dp)
+                    .align(Alignment.TopEnd)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.ContentPaste,
+                        contentDescription = stringResource(R.string.audio_paste_here)
+                    )
+                }
+            }
+        } else if (isSelected) {
+            Icon(
+                Icons.Default.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .padding(8.dp)
+                    .size(24.dp)
+                    .align(Alignment.TopEnd)
+            )
+        }
     }
 }
 
@@ -617,6 +772,25 @@ private fun AudioSectionHeader(title: String) {
 private fun buildTrackSubtitle(track: AudioTrack): String =
     listOfNotNull(track.artist, track.album).joinToString(" • ")
         .ifBlank { track.file.name }
+
+internal fun audioTrackForLazyIndex(
+    index: Int,
+    tracks: List<AudioTrack>,
+    grouping: ImageGalleryGrouping,
+    groups: Map<AudioGroupKey, List<AudioTrack>>
+): AudioTrack? {
+    if (grouping == ImageGalleryGrouping.NONE) return tracks.getOrNull(index)
+    var lazyIndex = 0
+    groups.values.forEach { groupTracks ->
+        if (groupTracks.isEmpty()) return@forEach
+        if (index == lazyIndex) return groupTracks.firstOrNull()
+        lazyIndex += 1
+        val trackIndex = index - lazyIndex
+        if (trackIndex in groupTracks.indices) return groupTracks[trackIndex]
+        lazyIndex += groupTracks.size
+    }
+    return null
+}
 
 private fun Modifier.audioPinchToResize(
     currentCellSize: Float,

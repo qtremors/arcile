@@ -16,7 +16,10 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -126,7 +129,10 @@ internal fun AudioSelectionActionsBar(
     onCopy: () -> Unit,
     onCut: () -> Unit,
     onRename: () -> Unit,
+    onDelete: () -> Unit,
     onShare: () -> Unit,
+    onProperties: () -> Unit,
+    onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
     onShowFolder: () -> Unit
 ) {
@@ -152,6 +158,14 @@ internal fun AudioSelectionActionsBar(
                     icon = Icons.Default.ContentCut,
                     contentDescription = stringResource(R.string.audio_cut),
                     onClick = onCut
+                ),
+                ToolbarAction(
+                    icon = Icons.Default.Delete,
+                    contentDescription = stringResource(
+                        dev.qtremors.arcile.core.ui.R.string.action_delete_selected
+                    ),
+                    tint = MaterialTheme.colorScheme.error,
+                    onClick = onDelete
                 ),
                 *if (canUseSingleTrackActions) {
                     arrayOf(
@@ -193,11 +207,39 @@ internal fun AudioSelectionActionsBar(
                 items = buildList {
                     add {
                         ArcileDropdownMenuItem(
+                            text = stringResource(
+                                dev.qtremors.arcile.core.ui.R.string.archive_compress_zip
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Default.FolderZip, contentDescription = null)
+                            },
+                            onClick = {
+                                showMenu = false
+                                onCreateZip()
+                            }
+                        )
+                    }
+                    add {
+                        ArcileDropdownMenuItem(
                             text = stringResource(R.string.audio_share),
                             leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                             onClick = {
                                 showMenu = false
                                 onShare()
+                            }
+                        )
+                    }
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(
+                                dev.qtremors.arcile.core.ui.R.string.properties_title
+                            ),
+                            leadingIcon = {
+                                Icon(Icons.Default.Info, contentDescription = null)
+                            },
+                            onClick = {
+                                showMenu = false
+                                onProperties()
                             }
                         )
                     }

@@ -44,8 +44,15 @@ import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.PasteConflictDialog
+import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -72,14 +79,25 @@ internal fun AudioLibraryScreen(
     onDefaultTabChange: (AudioLibraryTab) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit,
+    onTogglePaths: (Collection<String>) -> Unit,
     onSelectAll: () -> Unit,
     onInvertSelection: () -> Unit,
     onClearSelection: () -> Unit,
     onCopySelection: () -> Unit,
     onCutSelection: () -> Unit,
     onRenameSelection: (String) -> Unit,
+    onDeleteSelection: () -> Unit,
+    onConfirmDelete: () -> Unit,
+    onDismissDelete: () -> Unit,
+    onTogglePermanentDelete: () -> Unit,
+    onToggleShred: () -> Unit,
+    onOpenProperties: () -> Unit,
+    onDismissProperties: () -> Unit,
+    onCreateZip: () -> Unit,
     onPaste: () -> Unit,
+    onPasteToFolder: (String) -> Unit,
     onCancelClipboard: () -> Unit,
+    onRemoveFromClipboard: (String) -> Unit,
     onResolvePasteConflicts: (Map<String, ConflictResolution>) -> Unit,
     onDismissPasteConflictDialog: () -> Unit,
     onClearActiveFileOperation: () -> Unit,
@@ -94,11 +112,13 @@ internal fun AudioLibraryScreen(
     onSeek: (Long) -> Unit,
     onExpandPlayer: () -> Unit,
     onCollapsePlayer: () -> Unit,
-    onShareSelected: (List<AudioTrack>) -> Unit,
+    onShareSelected: (List<AudioTrack>, () -> Unit) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
     onShowContainingFolder: (AudioTrack) -> Unit,
-    onClearError: () -> Unit
+    onClearError: () -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
+    val haptics = rememberArcileHaptics()
     val currentTrack = state.tracks.firstOrNull {
         it.file.absolutePath == playback.currentMediaId
     }
@@ -113,6 +133,7 @@ internal fun AudioLibraryScreen(
     var showSearchBar by rememberSaveable { mutableStateOf(state.query.isNotEmpty()) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
+    var showClipboardContents by rememberSaveable { mutableStateOf(false) }
     var isChromeVisible by rememberSaveable { mutableStateOf(true) }
     var backProgress by remember { mutableFloatStateOf(0f) }
     var backAction by remember { mutableStateOf<AudioBackAction?>(null) }
@@ -150,7 +171,16 @@ internal fun AudioLibraryScreen(
         if (pagerState.currentPage != page) pagerState.animateScrollToPage(page)
     }
     LaunchedEffect(state.error, playback.error) {
-        if (state.error != null || playback.error) onClearError()
+        val error = state.error ?: if (playback.error) {
+            UiText.StringResource(R.string.audio_playback_failed)
+        } else {
+            null
+        }
+        error?.let {
+            haptics.error()
+            onFeedback(ArcileFeedbackEvent(it, ArcileFeedbackSeverity.Error))
+            onClearError()
+        }
     }
 
     PredictiveBackHandler(enabled = !state.playerExpanded) { progress ->
@@ -242,7 +272,9 @@ internal fun AudioLibraryScreen(
                     coroutineScope.launch { pagerState.animateScrollToPage(0) }
                 },
                 onToggleSelection = onToggleSelection,
-                onSelectPaths = onSelectPaths
+                onSelectPaths = onSelectPaths,
+                onTogglePaths = onTogglePaths,
+                onPasteToFolder = onPasteToFolder
             )
         }
 
@@ -329,10 +361,12 @@ internal fun AudioLibraryScreen(
             onCopySelected = onCopySelection,
             onCutSelected = onCutSelection,
             onRenameSelected = { showRenameDialog = true },
+            onDeleteSelected = onDeleteSelection,
             onShareSelected = {
-                onShareSelected(selectedTracks)
-                onClearSelection()
+                onShareSelected(selectedTracks, onClearSelection)
             },
+            onOpenProperties = onOpenProperties,
+            onCreateZip = onCreateZip,
             onOpenWith = {
                 selectedTracks.singleOrNull()?.let(onOpenWith)
                 onClearSelection()
@@ -343,6 +377,7 @@ internal fun AudioLibraryScreen(
             },
             onPaste = onPaste,
             onCancelClipboard = onCancelClipboard,
+            onShowClipboardContents = { showClipboardContents = true },
             onClearActiveFileOperation = onClearActiveFileOperation,
             modifier = Modifier.align(Alignment.BottomCenter)
         )
@@ -379,7 +414,7 @@ internal fun AudioLibraryScreen(
                     onToggleRepeat = onToggleRepeat,
                     onToggleShuffle = onToggleShuffle,
                     onSeek = onSeek,
-                    onShare = { onShareSelected(listOf(track)) },
+                    onShare = { onShareSelected(listOf(track), {}) },
                     onOpenWith = { onOpenWith(track) },
                     onShowContainingFolder = { onShowContainingFolder(track) }
                 )
@@ -425,6 +460,44 @@ internal fun AudioLibraryScreen(
             conflicts = state.pasteConflicts,
             onResolve = onResolvePasteConflicts,
             onDismiss = onDismissPasteConflictDialog
+        )
+    }
+    if (
+        state.showTrashConfirmation ||
+        state.showPermanentDeleteConfirmation ||
+        state.showMixedDeleteExplanation
+    ) {
+        DeleteConfirmationDialog(
+            selectedCount = state.selectedPaths.size,
+            isPermanentDeleteChecked =
+                state.isPermanentDeleteChecked || state.showMixedDeleteExplanation,
+            isPermanentDeleteToggleEnabled =
+                state.isPermanentDeleteToggleEnabled && !state.showMixedDeleteExplanation,
+            onConfirm = if (state.showMixedDeleteExplanation) ({}) else onConfirmDelete,
+            onDismiss = onDismissDelete,
+            onTogglePermanentDelete = onTogglePermanentDelete,
+            decision = state.deleteDecision,
+            isShredChecked = state.isShredChecked,
+            onToggleShred = onToggleShred
+        )
+    }
+    state.clipboardState?.let { clipboard ->
+        if (showClipboardContents) {
+            ClipboardContentsDialog(
+                state = clipboard,
+                onRemoveItem = onRemoveFromClipboard,
+                onDismiss = { showClipboardContents = false }
+            )
+        }
+    }
+    if (state.isPropertiesVisible) {
+        PropertiesDialog(
+            properties = state.properties,
+            isLoading = state.isPropertiesLoading,
+            onDismiss = {
+                onDismissProperties()
+                onClearSelection()
+            }
         )
     }
 }

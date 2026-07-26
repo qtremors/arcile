@@ -117,7 +117,14 @@ internal fun AudioLibraryFloatingTopBar(
                     .padding(horizontal = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onCloseSearch) {
+                val closeSearch = {
+                    haptics.selectionChanged()
+                    onCloseSearch()
+                }
+                IconButton(
+                    onClick = closeSearch,
+                    modifier = Modifier.clip(CircleShape).bounceClickable(onClick = closeSearch)
+                ) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(dev.qtremors.arcile.core.ui.R.string.back)
@@ -146,7 +153,14 @@ internal fun AudioLibraryFloatingTopBar(
                     }
                 )
                 if (state.query.isNotEmpty()) {
-                    IconButton(onClick = { onQueryChange("") }) {
+                    val clearQuery = {
+                        haptics.selectionChanged()
+                        onQueryChange("")
+                    }
+                    IconButton(
+                        onClick = clearQuery,
+                        modifier = Modifier.clip(CircleShape).bounceClickable(onClick = clearQuery)
+                    ) {
                         Icon(
                             Icons.Default.Close,
                             contentDescription = stringResource(
@@ -200,14 +214,20 @@ internal fun AudioLibraryFloatingTopBar(
                             contentDescription = stringResource(
                                 dev.qtremors.arcile.core.ui.R.string.action_search
                             ),
-                            onClick = onSearchClick
+                            onClick = {
+                                haptics.selectionChanged()
+                                onSearchClick()
+                            }
                         ),
                         ToolbarAction(
                             icon = Icons.AutoMirrored.Filled.Sort,
                             contentDescription = stringResource(
                                 dev.qtremors.arcile.core.ui.R.string.action_sort
                             ),
-                            onClick = onViewSort
+                            onClick = {
+                                haptics.selectionChanged()
+                                onViewSort()
+                            }
                         )
                     ),
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
@@ -316,6 +336,7 @@ internal fun AudioSelectionTopBar(
     onInvertSelection: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptics = rememberArcileHaptics()
     Box(
         modifier = modifier
             .statusBarsPadding()
@@ -336,7 +357,13 @@ internal fun AudioSelectionTopBar(
                 modifier = Modifier.padding(start = 4.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onClearSelection) {
+                IconButton(onClick = {
+                    haptics.selectionChanged()
+                    onClearSelection()
+                }, modifier = Modifier.clip(CircleShape).bounceClickable {
+                    haptics.selectionChanged()
+                    onClearSelection()
+                }) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(dev.qtremors.arcile.core.ui.R.string.back)
@@ -367,7 +394,13 @@ internal fun AudioSelectionTopBar(
                 .align(Alignment.CenterEnd)
         ) {
             Row(modifier = Modifier.padding(horizontal = 4.dp)) {
-                IconButton(onClick = onSelectAll) {
+                IconButton(onClick = {
+                    haptics.selectionChanged()
+                    onSelectAll()
+                }, modifier = Modifier.clip(CircleShape).bounceClickable {
+                    haptics.selectionChanged()
+                    onSelectAll()
+                }) {
                     Icon(
                         Icons.Default.GridView,
                         contentDescription = stringResource(
@@ -375,7 +408,13 @@ internal fun AudioSelectionTopBar(
                         )
                     )
                 }
-                IconButton(onClick = onInvertSelection) {
+                IconButton(onClick = {
+                    haptics.selectionChanged()
+                    onInvertSelection()
+                }, modifier = Modifier.clip(CircleShape).bounceClickable {
+                    haptics.selectionChanged()
+                    onInvertSelection()
+                }) {
                     Icon(
                         Icons.Default.SelectAll,
                         contentDescription = stringResource(
@@ -404,11 +443,15 @@ internal fun AudioLibraryBottomBar(
     onCopySelected: () -> Unit,
     onCutSelected: () -> Unit,
     onRenameSelected: () -> Unit,
+    onDeleteSelected: () -> Unit,
     onShareSelected: () -> Unit,
+    onOpenProperties: () -> Unit,
+    onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
     onShowContainingFolder: () -> Unit,
     onPaste: () -> Unit,
     onCancelClipboard: () -> Unit,
+    onShowClipboardContents: () -> Unit,
     onClearActiveFileOperation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -465,7 +508,10 @@ internal fun AudioLibraryBottomBar(
                       onCopy = onCopySelected,
                       onCut = onCutSelected,
                       onRename = onRenameSelected,
+                      onDelete = onDeleteSelected,
                       onShare = onShareSelected,
+                    onProperties = onOpenProperties,
+                    onCreateZip = onCreateZip,
                     onOpenWith = onOpenWith,
                     onShowFolder = onShowContainingFolder
                 )
@@ -475,6 +521,7 @@ internal fun AudioLibraryBottomBar(
                       canPaste = state.folderFilter != null,
                       onPaste = onPaste,
                       onCancel = onCancelClipboard,
+                      onShowContents = onShowClipboardContents,
                       onClearCompleted = onClearActiveFileOperation
                   )
               } else {

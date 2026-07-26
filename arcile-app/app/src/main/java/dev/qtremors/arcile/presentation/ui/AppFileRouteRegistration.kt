@@ -157,7 +157,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
             }
         },
         onShareSelected = { tracks ->
-            actions.shareKnownFilesAsync(
+            actions.shareKnownFiles(
                 tracks.map { it.file.absolutePath },
                 tracks.map { it.file }
             )
@@ -172,7 +172,8 @@ internal fun NavGraphBuilder.registerFileRoutes(
                     focusPath = track.file.absolutePath
                 )
             )
-        }
+        },
+        onFeedback = onFeedback
     )
     registerImageViewerRoute(
         navController = navController,

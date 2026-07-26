@@ -4,13 +4,16 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.navigation.AppRoutes
+import kotlinx.coroutines.launch
 
 fun NavGraphBuilder.registerAudioLibraryRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -18,9 +21,10 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onShareSelected: (List<AudioTrack>) -> Unit,
+    onShareSelected: suspend (List<AudioTrack>) -> Boolean,
     onOpenWith: (AudioTrack) -> Unit,
-    onShowContainingFolder: (AudioTrack) -> Unit
+    onShowContainingFolder: (AudioTrack) -> Unit,
+    onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.AudioLibrary>(
         enterTransition = enterTransition,
@@ -31,6 +35,7 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
         val viewModel = hiltViewModel<AudioLibraryViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.playback.state.collectAsStateWithLifecycle()
+        val coroutineScope = rememberCoroutineScope()
         AudioLibraryScreen(
             state = state,
             playback = playback,
@@ -46,14 +51,25 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onDefaultTabChange = viewModel::updateDefaultTab,
             onToggleSelection = viewModel::toggleSelection,
             onSelectPaths = viewModel::selectPaths,
+            onTogglePaths = viewModel::togglePaths,
             onSelectAll = viewModel::selectAllVisible,
             onInvertSelection = viewModel::invertSelection,
             onClearSelection = viewModel::clearSelection,
             onCopySelection = viewModel::copySelection,
             onCutSelection = viewModel::cutSelection,
             onRenameSelection = viewModel::renameSelected,
+            onDeleteSelection = viewModel::requestDeleteSelected,
+            onConfirmDelete = viewModel::confirmDeleteSelected,
+            onDismissDelete = viewModel::dismissDeleteConfirmation,
+            onTogglePermanentDelete = viewModel::togglePermanentDelete,
+            onToggleShred = viewModel::toggleShred,
+            onOpenProperties = viewModel::openPropertiesForSelection,
+            onDismissProperties = viewModel::dismissProperties,
+            onCreateZip = viewModel::createZipFromSelection,
             onPaste = viewModel::pasteToCurrentFolder,
+            onPasteToFolder = viewModel::pasteToFolder,
             onCancelClipboard = viewModel::cancelClipboard,
+            onRemoveFromClipboard = viewModel::removeFromClipboard,
             onResolvePasteConflicts = viewModel::resolvePasteConflicts,
             onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
             onClearActiveFileOperation = viewModel::clearActiveFileOperation,
@@ -68,13 +84,18 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onSeek = viewModel.playback::seekTo,
             onExpandPlayer = viewModel::expandPlayer,
             onCollapsePlayer = viewModel::collapsePlayer,
-            onShareSelected = onShareSelected,
+            onShareSelected = { tracks, onShared ->
+                coroutineScope.launch {
+                    if (onShareSelected(tracks)) onShared()
+                }
+            },
             onOpenWith = onOpenWith,
             onShowContainingFolder = onShowContainingFolder,
             onClearError = {
                 viewModel.clearError()
                 viewModel.playback.clearError()
-            }
+            },
+            onFeedback = onFeedback
         )
     }
 }

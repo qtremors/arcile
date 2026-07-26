@@ -136,6 +136,46 @@ internal class AudioPlaybackController @Inject constructor(
         }
     }
 
+    fun removeQueueItems(paths: Collection<String>) {
+        if (paths.isEmpty()) return
+        val removed = paths.toSet()
+        pendingQueue = pendingQueue?.let { (tracks, initialPath) ->
+            val remaining = tracks.filterNot { it.file.absolutePath in removed }
+            if (remaining.isEmpty()) {
+                null
+            } else {
+                remaining to if (initialPath in removed) {
+                    remaining.first().file.absolutePath
+                } else {
+                    initialPath
+                }
+            }
+        }
+        controller?.let { player ->
+            (player.mediaItemCount - 1 downTo 0).forEach { index ->
+                if (player.getMediaItemAt(index).mediaId in removed) {
+                    player.removeMediaItem(index)
+                }
+            }
+            publish(player)
+        }
+    }
+
+    fun replaceQueueItem(oldPath: String, track: AudioTrack) {
+        pendingQueue = pendingQueue?.let { (tracks, initialPath) ->
+            tracks.map {
+                if (it.file.absolutePath == oldPath) track else it
+            } to if (initialPath == oldPath) track.file.absolutePath else initialPath
+        }
+        controller?.let { player ->
+            val index = (0 until player.mediaItemCount).firstOrNull {
+                player.getMediaItemAt(it).mediaId == oldPath
+            } ?: return@let
+            player.replaceMediaItem(index, track.toMediaItem())
+            publish(player)
+        }
+    }
+
     fun toggleRepeatMode() {
         controller?.let { player ->
             player.repeatMode = when (player.repeatMode) {

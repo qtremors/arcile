@@ -170,6 +170,7 @@ class FocusedBrowserPreferencesStoresTest {
         audioStore.updateAudioGrouping(ImageGalleryGrouping.WEEK)
         audioStore.updateAudioDefaultTab(AudioLibraryDefaultTab.FOLDERS)
         audioStore.updateAudioShowFileDetails(false)
+        galleryStore.updateGalleryScrollbarEnabled(false)
 
         val preferences = audioStore.audioLibraryPreferencesFlow.first()
         assertEquals(audioPresentation.normalized(), preferences.audioPresentation)
@@ -177,6 +178,7 @@ class FocusedBrowserPreferencesStoresTest {
         assertEquals(ImageGalleryGrouping.WEEK, preferences.grouping)
         assertEquals(AudioLibraryDefaultTab.FOLDERS, preferences.defaultTab)
         assertFalse(preferences.showFileDetails)
+        assertFalse(preferences.scrollbarEnabled)
     }
 
     @Test
