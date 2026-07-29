@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.2
+> **Version:** 1.7.3
 > **Last Updated:** 2026-07-29
 
 ---
+
+## [1.7.3] - 2026-07-29
+
+- **Reusable Category Browser**: Added the common file-and-folder category surface with Gallery-matched list and grid layouts, date grouping, fast scrolling, search, refresh, selection, predictive back, and transfer progress.
+- **Consistent Category Actions**: Unified copy, cut, paste, rename, delete or shred, ZIP, share, properties, and Open With workflows while keeping circular previews list-only and folders as Gallery-style grids.
 
 ## [1.7.2] - 2026-07-29
 
