@@ -74,7 +74,7 @@ fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>
             }
 
             // 2. Check category membership
-            val category = FileCategories.all.find { it.name == scope.categoryName } ?: return false
+            val category = FileCategories.find(scope.categoryName) ?: return false
             val extension = canonicalPath.substringAfterLast('.', "")
             FileCategories.getCategoryForFile(extension, null) == category
         }

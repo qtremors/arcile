@@ -15,7 +15,7 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CoroutineScope
@@ -75,7 +75,7 @@ class BrowserPreferencesDataSourceTest {
         assertEquals(FileListingPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
-        assertEquals(ImageGalleryDefaultTab.PHOTOS, preferences.imageGalleryDefaultTab)
+        assertEquals(CategoryLibraryPage.ITEMS, preferences.imageGalleryDefaultPage)
         assertEquals(true, preferences.showHiddenFiles)
         assertEquals(true, preferences.browserScrollbarEnabled)
         assertEquals(true, preferences.galleryScrollbarEnabled)
@@ -244,9 +244,9 @@ class BrowserPreferencesDataSourceTest {
     fun `image gallery default tab preference is persisted`() = runBlocking {
         val repository = BrowserPreferencesDataSource(context, dataStore)
 
-        repository.updateImageGalleryDefaultTab(ImageGalleryDefaultTab.ALBUMS)
+        repository.updateGalleryDefaultPage(CategoryLibraryPage.FOLDERS)
 
-        assertEquals(ImageGalleryDefaultTab.ALBUMS, repository.preferencesFlow.first().imageGalleryDefaultTab)
+        assertEquals(CategoryLibraryPage.FOLDERS, repository.preferencesFlow.first().imageGalleryDefaultPage)
     }
 
     @Test

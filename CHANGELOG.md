@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.3
+> **Version:** 1.7.4
 > **Last Updated:** 2026-07-29
 
 ---
+
+## [1.7.4] - 2026-07-29
+
+- **Documents And Native PDF Viewing**: Added a dedicated Documents library with Gallery-style files and folder navigation, stable document thumbnails, and native multi-page PDF rendering with navigation and bounded zoom.
+- **Independent Category State**: Persisted category presentation, grouping, item and folder preferences independently, introduced stable category IDs and names, and removed the hidden Models category while leaving Archives unchanged.
 
 ## [1.7.3] - 2026-07-29
 

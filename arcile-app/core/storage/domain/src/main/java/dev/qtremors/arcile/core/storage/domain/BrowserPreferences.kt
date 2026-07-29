@@ -5,20 +5,15 @@ enum class FileViewMode {
     GRID
 }
 
-enum class ImageGalleryGrouping {
+enum class CategoryGrouping {
     NONE,
     DAY,
     WEEK,
     MONTH
 }
 
-enum class ImageGalleryDefaultTab {
-    PHOTOS,
-    ALBUMS
-}
-
-enum class AudioLibraryDefaultTab {
-    AUDIO,
+enum class CategoryLibraryPage {
+    ITEMS,
     FOLDERS
 }
 
@@ -60,8 +55,8 @@ data class BrowserPreferences(
     val imageGalleryShowFileDetails: Boolean = true,
     val imageGalleryAspectRatio: Boolean = false,
     val imageGallerySectioned: Boolean = false,
-    val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
-    val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
+    val imageGalleryGrouping: CategoryGrouping = CategoryGrouping.MONTH,
+    val imageGalleryDefaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val audioPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.DATE_NEWEST,
         viewMode = FileViewMode.LIST,
@@ -72,9 +67,17 @@ data class BrowserPreferences(
         viewMode = FileViewMode.LIST,
         gridMinCellSize = 160f
     ),
-    val audioGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
-    val audioDefaultTab: AudioLibraryDefaultTab = AudioLibraryDefaultTab.AUDIO,
+    val audioGrouping: CategoryGrouping = CategoryGrouping.MONTH,
+    val audioDefaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val audioShowFileDetails: Boolean = true,
+    val audioFavoriteFiles: Set<String> = emptySet(),
+    val audioPinnedFolders: Set<String> = emptySet(),
+    val audioFolderCovers: Map<String, String> = emptyMap(),
+    val categoryGroupings: Map<String, CategoryGrouping> = emptyMap(),
+    val categoryDefaultPages: Map<String, CategoryLibraryPage> = emptyMap(),
+    val categoryShowFileDetails: Map<String, Boolean> = emptyMap(),
+    val categoryAspectRatios: Map<String, Boolean> = emptyMap(),
+    val categorySectioned: Map<String, Boolean> = emptyMap(),
     val albumPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.GRID,
@@ -130,15 +133,33 @@ data class BrowserPreferences(
         return globalPresentation
     }
 
-    fun getPresentationForCategory(categoryName: String): FileListingPreferences {
-        val key = "category_$categoryName"
+    fun getPresentationForCategory(
+        categoryName: String,
+        page: CategoryLibraryPage? = null
+    ): FileListingPreferences {
+        val categoryKey = "category_$categoryName"
+        val key = page?.let { "${categoryKey}_${it.preferenceSuffix}" } ?: categoryKey
         return exactPathPresentationOptions[key]
             ?: pathPresentationOptions[key]
+            ?: if (page != null) {
+                exactPathPresentationOptions[categoryKey] ?: pathPresentationOptions[categoryKey]
+            } else {
+                null
+            }
             ?: globalPresentation.copy(sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION)
     }
+
+    fun getDefaultPageForCategory(categoryName: String): CategoryLibraryPage =
+        categoryDefaultPages[categoryName] ?: CategoryLibraryPage.ITEMS
 
     fun getSortOptionForPath(path: String): FileSortOption = getPresentationForPath(path).sortOption
 
     fun getSortOptionForCategory(categoryName: String): FileSortOption =
         getPresentationForCategory(categoryName).sortOption
 }
+
+val CategoryLibraryPage.preferenceSuffix: String
+    get() = when (this) {
+        CategoryLibraryPage.ITEMS -> "items"
+        CategoryLibraryPage.FOLDERS -> "folders"
+    }

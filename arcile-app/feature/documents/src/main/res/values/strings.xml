@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="documents_search">Search documents</string>
+    <string name="documents_all">All Documents</string>
+    <string name="documents_folders">Folders</string>
+    <string name="documents_empty">No documents found</string>
+    <string name="documents_empty_description">Documents from device storage will appear here.</string>
+    <string name="documents_folders_empty">No document folders</string>
+    <string name="documents_folders_empty_description">Folders containing documents will appear here.</string>
+    <string name="documents_view_sort">View and sort documents</string>
+    <string name="documents_view_sort_folders">View and sort document folders</string>
+    <string name="documents_selected">%1$d selected</string>
+    <string name="documents_folder_count">%1$d documents</string>
+    <string name="documents_type">%1$s document</string>
+</resources>

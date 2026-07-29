@@ -71,7 +71,10 @@ class DefaultImageCatalogRepository @Inject constructor(
         cachedImages(volumeId).filter { it.hasReadableSource() }
 
     private suspend fun refreshImages(volumeId: String?) {
-        val scope: StorageScope = StorageScope.Category(volumeId, FileCategories.Images.name)
+        val scope: StorageScope = StorageScope.Category(
+            volumeId,
+            FileCategories.Images.storageName
+        )
         val allVolumes = volumeProvider.currentVolumes()
         val volumes = indexedVolumesForScope(scope, allVolumes)
         if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {

@@ -2,37 +2,53 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.preferenceSuffix
 
 class DefaultGalleryPreferencesStore(
     private val dataSource: BrowserPreferencesDataSource
 ) : GalleryPreferencesStore {
     override val galleryPreferencesFlow = dataSource.galleryPreferencesFlow
 
-    override suspend fun updateImageGalleryPresentation(presentation: FileListingPreferences) =
-        dataSource.updateImageGalleryPresentation(presentation)
+    override fun galleryPreferencesFlow(categoryName: String) =
+        dataSource.galleryPreferencesFlow(categoryName)
+
+    override suspend fun updateItemPresentation(
+        categoryName: String,
+        presentation: FileListingPreferences
+    ) = dataSource.updatePathPresentation(
+        path = "category_${categoryName}_${CategoryLibraryPage.ITEMS.preferenceSuffix}",
+        presentation = presentation,
+        applyToSubfolders = false
+    )
 
     override suspend fun updateGalleryScrollbarEnabled(enabled: Boolean) =
         dataSource.updateGalleryScrollbarEnabled(enabled)
 
-    override suspend fun updateImageGalleryShowFileDetails(show: Boolean) =
-        dataSource.updateImageGalleryShowFileDetails(show)
+    override suspend fun updateShowFileDetails(categoryName: String, show: Boolean) =
+        dataSource.updateCategoryShowFileDetails(categoryName, show)
 
-    override suspend fun updateImageGalleryAspectRatio(enabled: Boolean) =
-        dataSource.updateImageGalleryAspectRatio(enabled)
+    override suspend fun updateAspectRatio(categoryName: String, enabled: Boolean) =
+        dataSource.updateCategoryAspectRatio(categoryName, enabled)
 
-    override suspend fun updateImageGallerySectioned(enabled: Boolean) =
-        dataSource.updateImageGallerySectioned(enabled)
+    override suspend fun updateSectioned(categoryName: String, enabled: Boolean) =
+        dataSource.updateCategorySectioned(categoryName, enabled)
 
-    override suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) =
-        dataSource.updateImageGalleryGrouping(grouping)
+    override suspend fun updateGrouping(categoryName: String, grouping: CategoryGrouping) =
+        dataSource.updateCategoryGrouping(categoryName, grouping)
 
-    override suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab) =
-        dataSource.updateImageGalleryDefaultTab(tab)
+    override suspend fun updateDefaultPage(categoryName: String, page: CategoryLibraryPage) =
+        dataSource.updateCategoryDefaultPage(categoryName, page)
 
-    override suspend fun updateAlbumPresentation(presentation: FileListingPreferences) =
-        dataSource.updateAlbumPresentation(presentation)
+    override suspend fun updateFolderPresentation(
+        categoryName: String,
+        presentation: FileListingPreferences
+    ) = dataSource.updatePathPresentation(
+        path = "category_${categoryName}_${CategoryLibraryPage.FOLDERS.preferenceSuffix}",
+        presentation = presentation,
+        applyToSubfolders = false
+    )
 
     override suspend fun updateAlbumAspectRatio(enabled: Boolean) =
         dataSource.updateAlbumAspectRatio(enabled)

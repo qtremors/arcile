@@ -40,7 +40,7 @@ fun FileModel.matchesSearchFilters(
     }
 
     if (filters.fileType != null && filters.fileType != "All") {
-        val category = FileCategories.all.find { it.name == filters.fileType }
+        val category = FileCategories.find(filters.fileType)
         if (category != null) {
             val categoryExtensions = category.extensions.map { it.lowercase() }.toSet()
             if (isDirectory || extension.lowercase() !in categoryExtensions) return false
