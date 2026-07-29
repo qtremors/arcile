@@ -20,7 +20,7 @@ internal interface ImageGalleryRepository {
     suspend fun loadImages(
         volumeId: String?,
         forceRefresh: Boolean = false,
-        categoryName: String = FileCategories.Images.name
+        categoryId: String = FileCategories.Images.id.value
     ): ImageGallerySnapshot
     fun invalidate(paths: Collection<String> = emptyList())
 }
@@ -53,21 +53,25 @@ internal class DefaultImageGalleryRepository @Inject constructor(
     override suspend fun loadImages(
         volumeId: String?,
         forceRefresh: Boolean,
-        categoryName: String
+        categoryId: String
     ): ImageGallerySnapshot {
-        val key = "${categoryName.lowercase()}:${volumeId.orEmpty()}"
+        val key = "${categoryId.lowercase()}:${volumeId.orEmpty()}"
         val cached = synchronized(snapshotLock) { snapshots[key] }
         if (cached != null && !forceRefresh) return cached.copy(isStale = false)
 
-        val imageCatalog = if (categoryName == FileCategories.Images.name) {
+        val category = FileCategories.find(categoryId) ?: FileCategories.Images
+        val imageCatalog = if (category == FileCategories.Images) {
             imageCatalogRepository.loadImages(volumeId, forceRefresh).getOrThrow()
         } else {
             null
         }
         val categoryFiles = imageCatalog?.items?.map { it.file }
             ?: searchRepository.getFilesByCategory(
-                StorageScope.Category(volumeId?.takeIf(String::isNotBlank), categoryName),
-                categoryName
+                StorageScope.Category(
+                    volumeId?.takeIf(String::isNotBlank),
+                    category.storageName
+                ),
+                category.storageName
             ).getOrThrow()
         val snapshot = withContext(dispatchers.default) {
             val files = categoryFiles

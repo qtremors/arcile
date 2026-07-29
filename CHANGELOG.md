@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.0
-> **Last Updated:** 2026-07-26
+> **Version:** 1.7.1
+> **Last Updated:** 2026-07-29
 
 ---
+
+## [1.7.1] - 2026-07-28
+
+- **Shared Gallery Shell**: Extracted the Image Gallery 1.6.1 floating chrome, list and grid spacing, section headers, selection motion, and bottom navigation into reusable category UI.
+- **Gallery Reference Migration**: Moved Images and Videos onto the shared implementation without changing their established behavior, making Gallery the parity reference for the remaining categories.
 
 ## [1.7.0] - 2026-07-26
 

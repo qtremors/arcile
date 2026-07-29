@@ -18,8 +18,8 @@ import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.collections.immutable.toPersistentList
@@ -50,9 +50,12 @@ internal class ImageGalleryViewModel @Inject constructor(
     private val _state = MutableStateFlow(
         ImageGalleryState(
             volumeId = savedStateHandle.get<String>("volumeId")?.takeIf(String::isNotBlank),
-            categoryName = savedStateHandle.get<String>("categoryName")
-                ?.takeIf { it == FileCategories.Images.name || it == FileCategories.Videos.name }
-                ?: FileCategories.Images.name
+            categoryId = savedStateHandle.get<String>("categoryId")
+                ?.let(FileCategories::find)
+                ?.takeIf { it == FileCategories.Images || it == FileCategories.Videos }
+                ?.id
+                ?.value
+                ?: FileCategories.Images.id.value
         )
     )
     val state: StateFlow<ImageGalleryState> = _state.asStateFlow()
@@ -77,9 +80,11 @@ internal class ImageGalleryViewModel @Inject constructor(
     init {
         fileActions.startObserving()
         viewModelScope.launch {
-            applyPreferences(browserPreferencesStore.galleryPreferencesFlow.first())
+            val categoryId = state.value.categoryId
+            val preferencesFlow = browserPreferencesStore.galleryPreferencesFlow(categoryId)
+            applyPreferences(preferencesFlow.first())
             loadImages(forceRefresh = false)
-            browserPreferencesStore.galleryPreferencesFlow.drop(1).collectLatest(::applyPreferences)
+            preferencesFlow.drop(1).collectLatest(::applyPreferences)
         }
         viewModelScope.launch {
             repository.mutationEvents.collect { event ->
@@ -113,8 +118,8 @@ internal class ImageGalleryViewModel @Inject constructor(
                 showFileDetails = preferences.showFileDetails,
                 isAspectRatio = preferences.aspectRatio,
                 isSectioned = preferences.sectioned,
-                imageGalleryGrouping = preferences.grouping,
-                imageGalleryDefaultTab = preferences.defaultTab,
+                grouping = preferences.grouping,
+                defaultPage = preferences.defaultPage,
                 galleryScrollbarEnabled = preferences.scrollbarEnabled,
                 preferencesLoaded = true,
                 albumPresentation = preferences.albumPresentation,
@@ -127,7 +132,7 @@ internal class ImageGalleryViewModel @Inject constructor(
 
     fun loadImages(forceRefresh: Boolean = true, silent: Boolean = false) {
         val volumeId = state.value.volumeId
-        val categoryName = state.value.categoryName
+        val categoryId = state.value.categoryId
         _state.update {
             it.copy(
                 isLoading = !silent && it.files.isEmpty(),
@@ -140,7 +145,7 @@ internal class ImageGalleryViewModel @Inject constructor(
                 repository.loadImages(
                     volumeId = volumeId,
                     forceRefresh = forceRefresh,
-                    categoryName = categoryName
+                    categoryId = categoryId
                 )
             }
                 .onSuccess { snapshot ->
@@ -172,6 +177,9 @@ internal class ImageGalleryViewModel @Inject constructor(
     fun updateSearchQuery(query: String) =
         _state.update { it.copy(searchQuery = query).withResolvedDisplayedFiles() }
 
+    fun updateSearchFilters(filters: dev.qtremors.arcile.core.storage.domain.SearchFilters) =
+        _state.update { it.copy(searchFilters = filters).withResolvedDisplayedFiles() }
+
     fun selectAlbum(path: String?) =
         _state.update { it.copy(selectedAlbumPath = path).withResolvedDisplayedFiles() }
 
@@ -179,33 +187,48 @@ internal class ImageGalleryViewModel @Inject constructor(
         val normalized = preferences.normalized()
         _state.update { it.copy(presentation = normalized).withResolvedDisplayedFiles() }
         viewModelScope.launch {
-            browserPreferencesStore.updateImageGalleryPresentation(normalized)
+            browserPreferencesStore.updateItemPresentation(state.value.categoryId, normalized)
         }
     }
 
     fun setShowFileDetails(show: Boolean) {
         _state.update { it.copy(showFileDetails = show) }
-        viewModelScope.launch { browserPreferencesStore.updateImageGalleryShowFileDetails(show) }
+        viewModelScope.launch {
+            browserPreferencesStore.updateShowFileDetails(state.value.categoryId, show)
+        }
     }
 
     fun updateAspectRatio(enabled: Boolean) {
-        viewModelScope.launch { browserPreferencesStore.updateImageGalleryAspectRatio(enabled) }
+        viewModelScope.launch {
+            browserPreferencesStore.updateAspectRatio(state.value.categoryId, enabled)
+        }
     }
 
     fun updateSectioned(enabled: Boolean) {
-        viewModelScope.launch { browserPreferencesStore.updateImageGallerySectioned(enabled) }
+        viewModelScope.launch {
+            browserPreferencesStore.updateSectioned(state.value.categoryId, enabled)
+        }
     }
 
-    fun updateGrouping(grouping: ImageGalleryGrouping) {
-        viewModelScope.launch { browserPreferencesStore.updateImageGalleryGrouping(grouping) }
+    fun updateGrouping(grouping: CategoryGrouping) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateGrouping(state.value.categoryId, grouping)
+        }
     }
 
-    fun updateDefaultTab(tab: ImageGalleryDefaultTab) {
-        viewModelScope.launch { browserPreferencesStore.updateImageGalleryDefaultTab(tab) }
+    fun updateDefaultPage(tab: CategoryLibraryPage) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateDefaultPage(state.value.categoryId, tab)
+        }
     }
 
     fun updateAlbumPresentation(presentation: FileListingPreferences) {
-        viewModelScope.launch { browserPreferencesStore.updateAlbumPresentation(presentation) }
+        viewModelScope.launch {
+            browserPreferencesStore.updateFolderPresentation(
+                state.value.categoryId,
+                presentation
+            )
+        }
     }
 
     fun toggleFavorite(path: String) {

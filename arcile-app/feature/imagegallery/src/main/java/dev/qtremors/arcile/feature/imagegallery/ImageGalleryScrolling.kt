@@ -165,7 +165,7 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey

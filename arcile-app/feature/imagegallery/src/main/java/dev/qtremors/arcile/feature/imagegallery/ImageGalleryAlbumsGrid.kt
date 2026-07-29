@@ -222,7 +222,9 @@ internal fun ImageGalleryAlbumsGrid(
             if (otherAlbums.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }, key = "section_albums_header") {
                     ArcileSectionHeader(
-                        text = stringResource(R.string.image_gallery_section_albums),
+                        text = stringResource(
+                            R.string.image_gallery_section_albums
+                        ),
                         modifier = Modifier.padding(start = 0.dp, top = 8.dp)
                     )
                 }

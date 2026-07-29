@@ -26,7 +26,7 @@ class ImageGalleryRepositoryTest {
         val catalog = mockk<ImageCatalogRepository>(relaxed = true)
         val search = mockk<SearchRepository>()
         coEvery {
-            search.getFilesByCategory(any(), FileCategories.Videos.name)
+            search.getFilesByCategory(any(), FileCategories.Videos.storageName)
         } returns Result.success(listOf(first, second))
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val repository = DefaultImageGalleryRepository(
@@ -38,7 +38,7 @@ class ImageGalleryRepositoryTest {
 
         val snapshot = repository.loadImages(
             volumeId = "primary",
-            categoryName = FileCategories.Videos.name
+            categoryId = FileCategories.Videos.id.value
         )
 
         assertEquals(setOf(first.absolutePath, second.absolutePath), snapshot.files.map { it.absolutePath }.toSet())
@@ -82,7 +82,7 @@ class ImageGalleryRepositoryTest {
         val catalog = mockk<ImageCatalogRepository>(relaxed = true)
         val search = mockk<SearchRepository>()
         coEvery {
-            search.getFilesByCategory(any(), FileCategories.Videos.name)
+            search.getFilesByCategory(any(), FileCategories.Videos.storageName)
         } returns Result.success(emptyList())
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val repository = DefaultImageGalleryRepository(
@@ -93,12 +93,12 @@ class ImageGalleryRepositoryTest {
         )
 
         repeat(9) { volume ->
-            repository.loadImages(volume.toString(), categoryName = FileCategories.Videos.name)
+            repository.loadImages(volume.toString(), categoryId = FileCategories.Videos.id.value)
         }
-        repository.loadImages("0", categoryName = FileCategories.Videos.name)
+        repository.loadImages("0", categoryId = FileCategories.Videos.id.value)
 
         coVerify(exactly = 10) {
-            search.getFilesByCategory(any(), FileCategories.Videos.name)
+            search.getFilesByCategory(any(), FileCategories.Videos.storageName)
         }
     }
 }

@@ -12,8 +12,10 @@ import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.storage.domain.normalizeStoragePath
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.ui.category.matchesCategorySearchFilters
 import dev.qtremors.arcile.core.presentation.PropertiesUiModel
 import dev.qtremors.arcile.core.presentation.filterAndSortFiles
 import kotlinx.collections.immutable.PersistentList
@@ -28,12 +30,13 @@ import kotlinx.collections.immutable.toPersistentSet
 
 internal data class ImageGalleryState(
     val volumeId: String? = null,
-    val categoryName: String = FileCategories.Images.name,
+    val categoryId: String = FileCategories.Images.id.value,
     val files: PersistentList<FileModel> = persistentListOf(),
     val displayedFiles: PersistentList<FileModel> = persistentListOf(),
     val albums: PersistentList<ImageGalleryAlbum> = persistentListOf(),
     val selectedAlbumPath: String? = null,
     val searchQuery: String = "",
+    val searchFilters: SearchFilters = SearchFilters(),
     val presentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION,
         viewMode = FileViewMode.GRID,
@@ -47,8 +50,8 @@ internal data class ImageGalleryState(
     val error: UiText? = null,
     val isAspectRatio: Boolean = false,
     val isSectioned: Boolean = false,
-    val imageGalleryGrouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
-    val imageGalleryDefaultTab: ImageGalleryDefaultTab = ImageGalleryDefaultTab.PHOTOS,
+    val grouping: CategoryGrouping = CategoryGrouping.MONTH,
+    val defaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val galleryScrollbarEnabled: Boolean = true,
     val preferencesLoaded: Boolean = false,
     val albumPresentation: FileListingPreferences = FileListingPreferences(
@@ -63,7 +66,7 @@ internal data class ImageGalleryState(
     val viewerReturnPath: String? = null,
     val fileActions: ImageGalleryFileActionState = ImageGalleryFileActionState()
 ) {
-    val isVideoGallery: Boolean get() = categoryName == FileCategories.Videos.name
+    val isVideoGallery: Boolean get() = FileCategories.Videos.matches(categoryId)
     val selectedFiles: PersistentSet<String> get() = fileActions.selectedFiles
     val showTrashConfirmation: Boolean get() = fileActions.showTrashConfirmation
     val showPermanentDeleteConfirmation: Boolean get() = fileActions.showPermanentDeleteConfirmation
@@ -101,9 +104,12 @@ internal fun ImageGalleryState.withResolvedDisplayedFiles(): ImageGalleryState {
         null -> files
         else -> files.filter { storageParentPath(it.absolutePath) == selectedAlbumPath }
     }
+    val searchFiltered = albumFiltered.filter { file ->
+        file.matchesCategorySearchFilters(searchFilters, scopedVolumeId = volumeId)
+    }
     return copy(
         displayedFiles = filterAndSortFiles(
-            albumFiltered,
+            searchFiltered,
             searchQuery,
             presentation.sortOption
         ).toPersistentList()

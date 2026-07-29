@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.compose.runtime.Composable
 import dev.qtremors.arcile.core.ui.PasteConflictDialog
 import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
@@ -11,7 +12,7 @@ import dev.qtremors.arcile.core.storage.domain.storagePathName
 @Composable
 internal fun ImageGalleryDialogs(
     state: ImageGalleryState,
-    currentTab: GalleryTab,
+    currentTab: CategoryLibraryPage,
     showRenameDialog: Boolean,
     showClipboardContents: Boolean,
     showPresentationSheet: Boolean,
@@ -95,7 +96,7 @@ internal fun ImageGalleryDialogs(
             photosPresentation = state.presentation,
             albumPresentation = state.albumPresentation,
             isAspectRatio = state.isAspectRatio,
-            grouping = state.imageGalleryGrouping,
+            grouping = state.grouping,
             showFileDetails = state.showFileDetails,
             onPhotosPresentationChange = presentationActions.photosChange,
             onAlbumPresentationChange = presentationActions.albumsChange,

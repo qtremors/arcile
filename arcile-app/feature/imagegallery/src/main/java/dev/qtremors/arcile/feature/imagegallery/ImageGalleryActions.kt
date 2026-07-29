@@ -3,8 +3,9 @@ package dev.qtremors.arcile.feature.imagegallery
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 internal data class GalleryNavigationActions(
@@ -19,6 +20,7 @@ internal data class GallerySelectionActions(
     val invert: () -> Unit,
     val selectMultiple: (List<String>) -> Unit,
     val share: () -> Unit,
+    val openWith: () -> Unit,
     val openProperties: () -> Unit,
     val dismissProperties: () -> Unit
 )
@@ -34,6 +36,7 @@ internal data class GalleryDeleteActions(
 internal data class GalleryContentActions(
     val refresh: () -> Unit,
     val searchQueryChange: (String) -> Unit,
+    val searchFiltersChange: (SearchFilters) -> Unit,
     val clearSearch: () -> Unit,
     val selectAlbum: (String?) -> Unit,
     val clearError: () -> Unit,
@@ -46,8 +49,8 @@ internal data class GalleryPresentationActions(
     val showFileDetailsChange: (Boolean) -> Unit,
     val aspectRatioChange: (Boolean) -> Unit,
     val sectionedChange: (Boolean) -> Unit,
-    val groupingChange: (ImageGalleryGrouping) -> Unit,
-    val defaultTabChange: (ImageGalleryDefaultTab) -> Unit,
+    val groupingChange: (CategoryGrouping) -> Unit,
+    val defaultPageChange: (CategoryLibraryPage) -> Unit,
     val togglePinnedAlbum: (String) -> Unit
 )
 
