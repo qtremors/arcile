@@ -53,7 +53,12 @@ private fun handleHomeDestination(
         is HomeDestination.BrowseCategory -> {
             when {
                 isGalleryCategory(destination.name) -> {
-                    navController.navigate(AppRoutes.ImageGallery(categoryName = destination.name)) {
+                    navController.navigate(
+                        AppRoutes.ImageGallery(
+                            categoryId = FileCategories.find(destination.name)?.id?.value
+                                ?: FileCategories.Images.id.value
+                        )
+                    ) {
                         popUpTo<AppRoutes.Main> { saveState = true }
                         launchSingleTop = true
                     }
@@ -64,8 +69,25 @@ private fun handleHomeDestination(
                         launchSingleTop = true
                     }
                 }
+                isDocumentCategory(destination.name) -> {
+                    navController.navigate(AppRoutes.DocumentLibrary()) {
+                        popUpTo<AppRoutes.Main> { saveState = true }
+                        launchSingleTop = true
+                    }
+                }
+                isApkCategory(destination.name) -> {
+                    navController.navigate(AppRoutes.ApkLibrary()) {
+                        popUpTo<AppRoutes.Main> { saveState = true }
+                        launchSingleTop = true
+                    }
+                }
                 else -> {
-                    navController.navigate(AppRoutes.Category(name = destination.name)) {
+                    navController.navigate(
+                        AppRoutes.Category(
+                            id = FileCategories.find(destination.name)?.id?.value
+                                ?: destination.name
+                        )
+                    ) {
                         launchSingleTop = true
                     }
                 }

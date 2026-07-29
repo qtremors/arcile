@@ -20,6 +20,7 @@ import dev.qtremors.arcile.core.ui.image.AudioAlbumArtFetcher
 import dev.qtremors.arcile.core.ui.image.GlobalThumbnailStatePersistence
 import dev.qtremors.arcile.core.ui.image.PdfThumbnailFetcher
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.ThumbnailKeyer
 import dev.qtremors.arcile.core.ui.image.ThumbnailStatePersistence
 import dev.qtremors.arcile.core.ui.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
@@ -98,6 +99,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
                     .build()
             }
             .components {
+                add(ThumbnailKeyer())
                 add(ImageDecoderDecoder.Factory())
                 add(GifDecoder.Factory())
                 add(SvgDecoder.Factory())

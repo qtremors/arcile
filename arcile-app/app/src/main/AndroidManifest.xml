@@ -89,6 +89,20 @@
         </activity>
 
         <activity
+            android:name=".PdfViewerActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:process=":pdfviewer"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".FileOpenActivity"
             android:exported="true"
             android:label="${appLabel}"

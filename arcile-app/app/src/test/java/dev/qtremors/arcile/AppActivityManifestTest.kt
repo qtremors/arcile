@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.feature.importing.SaveToArcileActivity
+import dev.qtremors.arcile.feature.audio.AudioPlayerActivity
+import dev.qtremors.arcile.feature.audio.canResolveStandaloneAudio
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -92,6 +94,72 @@ class AppActivityManifestTest {
             it.activityInfo.name == ImageViewerActivity::class.java.name
         }.activityInfo
         assertEquals("${context.packageName}:imageviewer", activity.processName)
+    }
+
+    @Test
+    fun `standalone audio player resolves audio in the app process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(
+            Uri.parse("content://example/song"),
+            "audio/mpeg"
+        )
+
+        assertTrue(canResolveStandaloneAudio(context, intent))
+        assertEquals(
+            AudioPlayerActivity::class.java.name,
+            resolveStandaloneViewerActivityName(context, intent)
+        )
+
+        val activity = context.packageManager.queryIntentActivities(intent, 0)
+            .first { it.activityInfo.name == AudioPlayerActivity::class.java.name }
+            .activityInfo
+        assertEquals(context.packageName, activity.processName)
+    }
+
+    @Test
+    fun `standalone pdf viewer resolves valid pdf intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/report")
+        val target = resolveStandalonePdfTarget(
+            context,
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/pdf")
+        )
+
+        assertEquals(uri.toString(), target?.reference)
+        assertEquals("report", target?.displayName)
+    }
+
+    @Test
+    fun `standalone pdf viewer rejects non pdf intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        assertEquals(
+            null,
+            resolveStandalonePdfTarget(
+                context,
+                Intent(Intent.ACTION_VIEW).setDataAndType(
+                    Uri.parse("content://example/notes.txt"),
+                    "text/plain"
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `manifest exposes standalone pdf viewer in separate process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_VIEW).setDataAndType(
+                Uri.parse("content://example/report"),
+                "application/pdf"
+            ),
+            0
+        )
+
+        val activity = matches.first {
+            it.activityInfo.name == PdfViewerActivity::class.java.name
+        }.activityInfo
+        assertEquals("${context.packageName}:pdfviewer", activity.processName)
     }
 
     @Test

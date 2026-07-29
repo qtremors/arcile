@@ -32,17 +32,17 @@ internal fun SettingsFileOpeningSection(
     val categories = FileCategories.all
     SettingsSection(title = stringResource(R.string.settings_file_opening_title)) {
         categories.forEachIndexed { index, category ->
-            val behavior = behaviors[category.name] ?: FileOpenBehavior.ARCILE
+            val behavior = behaviors[category.id.value] ?: FileOpenBehavior.ARCILE
             val useArcile = behavior == FileOpenBehavior.ARCILE
             SegmentedListItem(
                 onClick = {
                     onBehaviorChange(
-                        category.name,
+                        category.id.value,
                         if (useArcile) FileOpenBehavior.EXTERNAL else FileOpenBehavior.ARCILE
                     )
                 },
                 shapes = expressiveSegmentedShapes(index, categories.size),
-                content = { Text(category.name) },
+                content = { Text(category.displayName) },
                 supportingContent = {
                     Text(
                         stringResource(
@@ -71,7 +71,7 @@ internal fun SettingsFileOpeningSection(
                         checked = useArcile,
                         onCheckedChange = { checked ->
                             onBehaviorChange(
-                                category.name,
+                                category.id.value,
                                 if (checked) FileOpenBehavior.ARCILE else FileOpenBehavior.EXTERNAL
                             )
                         }

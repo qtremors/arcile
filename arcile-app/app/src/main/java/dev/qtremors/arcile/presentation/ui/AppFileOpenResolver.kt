@@ -27,7 +27,10 @@ internal class AppFileOpenResolver(
         val mimeType = knownFile?.mimeType?.takeIf(String::isNotBlank)
             ?: mimeTypeForExtension(extension)
         val category = FileCategories.getCategoryForFile(extension, mimeType)
-        if (category != null && fileOpenBehaviors[category.name] == FileOpenBehavior.EXTERNAL) {
+        if (
+            category != null &&
+            fileOpenBehaviors[category.id.value] == FileOpenBehavior.EXTERNAL
+        ) {
             return AppFileOpenResolution.External(path, forceChooser = true)
         }
 
@@ -78,6 +81,7 @@ internal class AppFileOpenResolver(
                     .toList()
             )
             extension in FileCategories.Audio.extensions -> AppFileOpenResolution.ViewAudio(path)
+            extension == "pdf" -> AppFileOpenResolution.ViewPdf(path)
             else -> AppFileOpenResolution.External(path, forceChooser = true)
         }
     }

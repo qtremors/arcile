@@ -18,6 +18,7 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.R
@@ -26,6 +27,8 @@ import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.PdfViewerActivity
+import dev.qtremors.arcile.feature.audio.createAudioPlayerIntent
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -91,6 +94,21 @@ internal class AppNavigationActions(
 
     fun openFileWith(path: String) {
         onOpenFileWith(path)
+    }
+
+    fun openAudioPlayer(
+        track: AudioTrack,
+        queue: List<AudioTrack>,
+        startPlayback: Boolean
+    ) {
+        context.startActivity(
+            createAudioPlayerIntent(
+                context = context,
+                path = track.file.absolutePath,
+                contextPaths = queue.map { it.file.absolutePath },
+                startPlayback = startPlayback
+            )
+        )
     }
 
     fun openExternalFolder(uri: String) {
@@ -227,9 +245,24 @@ internal class AppNavigationActions(
                     surroundingFiles = surroundingFiles,
                     selectedPaths = selectedPaths
                 )
-                is AppFileOpenResolution.ViewAudio -> navController.navigate(
-                    AppRoutes.AudioLibrary(initialPath = resolution.path)
+                is AppFileOpenResolution.ViewAudio -> context.startActivity(
+                    createAudioPlayerIntent(
+                        context = context,
+                        path = resolution.path,
+                        contextPaths = surroundingFiles
+                            .filter {
+                                FileCategories.getCategoryForFile(it.extension, it.mimeType) ==
+                                    FileCategories.Audio
+                            }
+                            .map(FileModel::absolutePath)
+                    )
                 )
+                is AppFileOpenResolution.ViewPdf -> {
+                    val intent = ExternalFileAccessHelper
+                        .createOpenIntent(context, resolution.path)
+                        .setClass(context, PdfViewerActivity::class.java)
+                    context.startActivity(intent)
+                }
                 is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution
                 is AppFileOpenResolution.External -> {
                     if (resolution.forceChooser) {

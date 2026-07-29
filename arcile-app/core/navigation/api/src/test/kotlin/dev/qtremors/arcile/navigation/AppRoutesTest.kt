@@ -56,9 +56,12 @@ class AppRoutesTest {
         assertEquals(browserImageViewer, json.decodeFromString<AppRoutes.ImageViewer>(json.encodeToString(browserImageViewer)))
         val videoViewer = AppRoutes.VideoViewer("opaque-session-token")
         assertEquals(videoViewer, json.decodeFromString<AppRoutes.VideoViewer>(json.encodeToString(videoViewer)))
-
-        val audioLibrary = AppRoutes.AudioLibrary("primary", "/music/song.mp3")
+        val audioLibrary = AppRoutes.AudioLibrary("primary")
         assertEquals(audioLibrary, json.decodeFromString<AppRoutes.AudioLibrary>(json.encodeToString(audioLibrary)))
+        val documents = AppRoutes.DocumentLibrary("primary")
+        assertEquals(documents, json.decodeFromString<AppRoutes.DocumentLibrary>(json.encodeToString(documents)))
+        val apks = AppRoutes.ApkLibrary("primary")
+        assertEquals(apks, json.decodeFromString<AppRoutes.ApkLibrary>(json.encodeToString(apks)))
         assertEquals(externalBrowserEntry, json.decodeFromString<AppRoutes.Main>(json.encodeToString(externalBrowserEntry)))
     }
 }

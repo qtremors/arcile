@@ -14,7 +14,11 @@ class MainRouteTest {
     fun `images and videos use media galleries while other categories use browser`() {
         assertTrue(isGalleryCategory("Images"))
         assertTrue(isGalleryCategory("Videos"))
+        assertFalse(isGalleryCategory("Docs"))
+        assertFalse(isGalleryCategory("APKs"))
         assertFalse(isGalleryCategory("Audio"))
+        assertTrue(isDocumentCategory("Docs"))
+        assertTrue(isApkCategory("APKs"))
     }
 
     @Test

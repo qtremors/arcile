@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="apk_search">Search apps and packages</string>
+    <string name="apk_all">All Packages</string>
+    <string name="apk_folders">Folders</string>
+    <string name="apk_empty">No app packages found</string>
+    <string name="apk_empty_description">APK files and split package bundles will appear here.</string>
+    <string name="apk_folders_empty">No package folders</string>
+    <string name="apk_folders_empty_description">Folders containing app packages will appear here.</string>
+    <string name="apk_view_sort">View and sort packages</string>
+    <string name="apk_view_sort_folders">View and sort package folders</string>
+    <string name="apk_selected">%1$d selected</string>
+    <string name="apk_folder_count">%1$d packages</string>
+    <string name="apk_version">Version %1$s</string>
+    <string name="apk_split_bundle">Split bundle</string>
+    <string name="apk_standalone">Standalone APK</string>
+</resources>

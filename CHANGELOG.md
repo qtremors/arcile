@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.4
+> **Version:** 1.7.5
 > **Last Updated:** 2026-07-29
 
 ---
+
+## [1.7.5] - 2026-07-29
+
+- **Completed Seven-Category Parity**: Finished Gallery-shell integration for APKs and the remaining category routes, removed startup and folder-content flashes, matched selection and folder predictive-back motion, and kept Archives unchanged.
+- **Clean Stable Thumbnails**: Kept circular thumbnails exclusive to lists, removed APK icon background layers, made PDF previews cover document folder tiles, and added size-aware thumbnail and metadata caching to prevent reloads.
+- **One Global Audio Player**: Unified mini and full playback in one exported player that opens as a touch-through floating mini-player, expands and collapses from its real bounds without refreshing, and works for audio opened by other apps.
+- **Focused Category UI**: Removed the redundant containing-folder audio action and non-selection folder overflow controls, kept folders grid-only, and prevented Settings toggles from changing segmented-row shapes.
 
 ## [1.7.4] - 2026-07-29
 

@@ -34,7 +34,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -66,6 +65,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -110,8 +110,7 @@ internal fun AudioNowPlayingScreen(
     onToggleShuffle: () -> Unit,
     onSeek: (Long) -> Unit,
     onShare: () -> Unit,
-    onOpenWith: () -> Unit,
-    onShowContainingFolder: () -> Unit
+    onOpenWith: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showMetadata by remember { mutableStateOf(false) }
@@ -125,8 +124,14 @@ internal fun AudioNowPlayingScreen(
     val artworkOffset = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val haptics = rememberArcileHaptics()
     val effectiveDuration = playback.durationMs.takeIf { it > 0L } ?: track.durationMs
+    val collapseThreshold = with(density) { screenHeight.toPx() * 0.14f }
+    val collapseProgress = max(
+        (dragOffset.value / collapseThreshold).coerceIn(0f, 1f),
+        backProgress
+    )
     val containerModifier = with(sharedTransitionScope) {
         Modifier
             .fillMaxSize()
@@ -136,6 +141,14 @@ internal fun AudioNowPlayingScreen(
                 ),
                 animatedVisibilityScope = animatedVisibilityScope
             )
+            .graphicsLayer {
+                translationX = backProgress * 72.dp.toPx()
+                translationY = dragOffset.value.coerceAtLeast(0f) +
+                    backProgress * 48.dp.toPx()
+                val scale = 1f - collapseProgress * 0.08f
+                scaleX = scale
+                scaleY = scale
+            }
     }
 
     LaunchedEffect(playback.positionMs, isSeeking) {
@@ -148,7 +161,6 @@ internal fun AudioNowPlayingScreen(
             onCollapse()
         } catch (_: CancellationException) {
             // The player remains expanded when the predictive gesture is cancelled.
-        } finally {
             backProgress = 0f
         }
     }
@@ -162,23 +174,11 @@ internal fun AudioNowPlayingScreen(
         val dismissThreshold = with(density) { maxHeight.toPx() * 0.14f }
         val queueThreshold = with(density) { maxHeight.toPx() * 0.08f }
         val horizontalThreshold = with(density) { maxWidth.toPx() * 0.16f }
-        val gestureProgress = (dragOffset.value / dismissThreshold).coerceIn(0f, 1f)
-        val transitionProgress = max(gestureProgress, backProgress)
         val compactHeight = maxHeight < 720.dp
         val artworkMaxSize = if (compactHeight) 320.dp else 440.dp
 
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    translationX = backProgress * 72.dp.toPx()
-                    translationY = dragOffset.value.coerceAtLeast(0f) +
-                        backProgress * 48.dp.toPx()
-                    val scale = 1f - transitionProgress * 0.08f
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = 1f - transitionProgress * 0.35f
-                }
+            modifier = Modifier.fillMaxSize()
         ) {
             Column(
                 modifier = Modifier
@@ -269,10 +269,6 @@ internal fun AudioNowPlayingScreen(
                                                     artworkOffset.springBack()
                                                 }
                                             totalY > dismissThreshold -> coroutineScope.launch {
-                                                dragOffset.animateTo(
-                                                    dismissThreshold * 2f,
-                                                    spring(stiffness = Spring.StiffnessMedium)
-                                                )
                                                 onCollapse()
                                             }
                                             totalY < -queueThreshold -> {
@@ -353,7 +349,6 @@ internal fun AudioNowPlayingScreen(
                     showMetadata = true
                 },
                 onShare = onShare,
-                onShowContainingFolder = onShowContainingFolder,
                 onShowQueue = {
                     haptics.selectionStart()
                     showQueue = true

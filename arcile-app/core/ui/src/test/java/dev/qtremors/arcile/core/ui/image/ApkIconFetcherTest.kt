@@ -35,6 +35,15 @@ class ApkIconFetcherTest {
     }
 
     @Test
+    fun `preview entry ranking prefers base packages over configuration splits`() {
+        assertEquals(0, apkPreviewEntryPriority("base.apk"))
+        assertEquals(0, apkPreviewEntryPriority("splits/base.apk"))
+        assertEquals(2, apkPreviewEntryPriority("base-master.apk"))
+        assertEquals(4, apkPreviewEntryPriority("universal.apk"))
+        assertEquals(5, apkPreviewEntryPriority("split_config.arm64_v8a.apk"))
+    }
+
+    @Test
     fun `fetch returns drawable result when package archive icon is available`() = runTest {
         val expectedDrawable = ColorDrawable(Color.RED)
         val apk = File.createTempFile("sample", ".apk").apply { writeBytes(byteArrayOf(1, 2, 3)) }

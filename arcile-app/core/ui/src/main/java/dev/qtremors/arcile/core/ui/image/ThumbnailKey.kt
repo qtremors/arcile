@@ -35,7 +35,6 @@ data class ThumbnailKey(
             in FileCategories.Audio.extensions -> ThumbnailType.Audio
             in FileCategories.APKs.extensions -> ThumbnailType.Apk
             "pdf" -> ThumbnailType.Pdf
-            in FileCategories.Models.extensions -> ThumbnailType.Unsupported
             else -> ThumbnailType.Unsupported
         }
 

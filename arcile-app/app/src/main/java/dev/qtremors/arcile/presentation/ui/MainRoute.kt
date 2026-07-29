@@ -77,10 +77,17 @@ internal fun MainRoute(
 }
 
 internal fun isGalleryCategory(categoryName: String): Boolean =
-    categoryName == FileCategories.Images.name || categoryName == FileCategories.Videos.name
+    FileCategories.Images.matches(categoryName) ||
+        FileCategories.Videos.matches(categoryName)
 
 internal fun isAudioCategory(categoryName: String): Boolean =
-    categoryName == FileCategories.Audio.name
+    FileCategories.Audio.matches(categoryName)
+
+internal fun isDocumentCategory(categoryName: String): Boolean =
+    FileCategories.Documents.matches(categoryName)
+
+internal fun isApkCategory(categoryName: String): Boolean =
+    FileCategories.APKs.matches(categoryName)
 
 internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRequest? {
     if (initialPage != BROWSER_PAGE) return null

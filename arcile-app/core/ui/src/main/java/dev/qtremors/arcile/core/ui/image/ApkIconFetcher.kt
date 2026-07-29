@@ -22,30 +22,26 @@ class ApkIconFetcher(
     override suspend fun fetch(): FetchResult? {
         if (!data.exists() || !data.isFile || data.length() > ThumbnailPolicy.MAX_APK_BYTES) return null
         return ThumbnailWorkCoordinator.withExpensivePermit {
-        val packageManager = options.context.packageManager
-        val packageInfo = packageManager.getPackageArchiveInfo(data.absolutePath, 0)
-        
-        if (packageInfo != null) {
-            val appInfo = packageInfo.applicationInfo
-            if (appInfo != null) {
-                appInfo.sourceDir = data.absolutePath
-                appInfo.publicSourceDir = data.absolutePath
+            withApkPreviewFile(options.context, data) { apkFile ->
+                val packageManager = options.context.packageManager
+                val packageInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                    ?: return@withApkPreviewFile null
+                val appInfo = packageInfo.applicationInfo
+                    ?: return@withApkPreviewFile null
+                appInfo.sourceDir = apkFile.absolutePath
+                appInfo.publicSourceDir = apkFile.absolutePath
                 val icon = appInfo.loadIcon(packageManager)
-                if (icon != null) {
-                    val targetSize = ThumbnailTargetSize.fromOptions(
-                        options,
-                        maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX
-                    )
-                    DrawableResult(
-                        drawable = icon.toBoundedDrawable(options.context, targetSize),
-                        isSampled = true,
-                        dataSource = DataSource.DISK
-                    )
-                } else null
-            } else null
-        } else {
-            null
-        }
+                    ?: return@withApkPreviewFile null
+                val targetSize = ThumbnailTargetSize.fromOptions(
+                    options,
+                    maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX
+                )
+                DrawableResult(
+                    drawable = icon.toBoundedDrawable(options.context, targetSize),
+                    isSampled = true,
+                    dataSource = DataSource.DISK
+                )
+            }
         }
     }
 
