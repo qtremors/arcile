@@ -4,27 +4,29 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.OperationUiState
 import dev.qtremors.arcile.core.presentation.PropertiesUiModel
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
-
-internal enum class AudioLibraryTab {
-    AUDIO,
-    FOLDERS
-}
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
 internal data class AudioFolder(
     val key: String,
     val title: String,
     val subtitle: String?,
-    val tracks: List<AudioTrack>
+    val tracks: List<AudioTrack>,
+    val customCoverPath: String? = null,
+    val isPinned: Boolean = false,
+    val isFavorites: Boolean = false
 ) {
     val coverTrack: AudioTrack
-        get() = tracks.maxByOrNull { it.file.lastModified } ?: tracks.first()
+        get() = tracks.firstOrNull { it.file.absolutePath == customCoverPath }
+            ?: tracks.maxByOrNull { it.file.lastModified }
+            ?: tracks.first()
     val newestModified: Long get() = tracks.maxOf { it.file.lastModified }
     val totalSize: Long get() = tracks.sumOf { it.file.size }
 }
@@ -33,9 +35,10 @@ internal data class AudioLibraryState(
     val tracks: List<AudioTrack> = emptyList(),
     val visibleTracks: List<AudioTrack> = emptyList(),
     val folders: List<AudioFolder> = emptyList(),
-    val tab: AudioLibraryTab = AudioLibraryTab.AUDIO,
-    val defaultTab: AudioLibraryTab = AudioLibraryTab.AUDIO,
+    val tab: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
+    val defaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val query: String = "",
+    val searchFilters: SearchFilters = SearchFilters(),
     val audioPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.DATE_NEWEST,
         viewMode = FileViewMode.LIST,
@@ -44,13 +47,16 @@ internal data class AudioLibraryState(
     ),
     val folderPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.DATE_NEWEST,
-        viewMode = FileViewMode.LIST,
+        viewMode = FileViewMode.GRID,
         gridMinCellSize = 160f,
         showThumbnails = true
     ),
-    val grouping: ImageGalleryGrouping = ImageGalleryGrouping.MONTH,
+    val grouping: CategoryGrouping = CategoryGrouping.MONTH,
     val showFileDetails: Boolean = true,
     val scrollbarEnabled: Boolean = true,
+    val favoritePaths: Set<String> = emptySet(),
+    val pinnedFolderPaths: Set<String> = emptySet(),
+    val folderCoverPaths: Map<String, String> = emptyMap(),
     val folderFilter: AudioFolder? = null,
     val selectedPaths: Set<String> = emptySet(),
     val showTrashConfirmation: Boolean = false,
@@ -70,6 +76,5 @@ internal data class AudioLibraryState(
     val showPasteConflictDialog: Boolean = false,
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
-    val playerExpanded: Boolean = false,
     val error: UiText? = null
 )

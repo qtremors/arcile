@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -19,11 +20,15 @@ import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 
 @Composable
-internal fun AudioArtwork(track: AudioTrack, modifier: Modifier = Modifier) {
+internal fun AudioArtwork(
+    track: AudioTrack,
+    modifier: Modifier = Modifier,
+    shape: Shape = MaterialTheme.shapes.large
+) {
     Surface(
-        modifier = modifier.clip(MaterialTheme.shapes.large),
+        modifier = modifier.clip(shape),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        shape = MaterialTheme.shapes.large
+        shape = shape
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(

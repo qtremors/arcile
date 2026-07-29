@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.feature.audio
 
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -17,28 +17,28 @@ internal data class AudioGroupKey(
 
 internal fun groupAudioTracks(
     tracks: List<AudioTrack>,
-    grouping: ImageGalleryGrouping
+    grouping: CategoryGrouping
 ): Map<AudioGroupKey, List<AudioTrack>> {
-    if (grouping == ImageGalleryGrouping.NONE) return emptyMap()
+    if (grouping == CategoryGrouping.NONE) return emptyMap()
     val dayFormatter = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
     val monthFormatter = SimpleDateFormat("MMMM yyyy", Locale.getDefault())
     return tracks.groupBy { track ->
         val calendar = Calendar.getInstance().apply { timeInMillis = track.file.lastModified }
         val label = when (grouping) {
-            ImageGalleryGrouping.DAY -> dayFormatter.format(Date(track.file.lastModified))
-            ImageGalleryGrouping.WEEK -> audioWeekLabel(track.file.lastModified)
-            ImageGalleryGrouping.MONTH -> monthFormatter.format(Date(track.file.lastModified))
-            ImageGalleryGrouping.NONE -> ""
+            CategoryGrouping.DAY -> dayFormatter.format(Date(track.file.lastModified))
+            CategoryGrouping.WEEK -> audioWeekLabel(track.file.lastModified)
+            CategoryGrouping.MONTH -> monthFormatter.format(Date(track.file.lastModified))
+            CategoryGrouping.NONE -> ""
         }
         when (grouping) {
-            ImageGalleryGrouping.DAY -> Unit
-            ImageGalleryGrouping.WEEK -> {
+            CategoryGrouping.DAY -> Unit
+            CategoryGrouping.WEEK -> {
                 while (calendar.get(Calendar.DAY_OF_WEEK) != calendar.firstDayOfWeek) {
                     calendar.add(Calendar.DAY_OF_MONTH, -1)
                 }
             }
-            ImageGalleryGrouping.MONTH -> calendar.set(Calendar.DAY_OF_MONTH, 1)
-            ImageGalleryGrouping.NONE -> Unit
+            CategoryGrouping.MONTH -> calendar.set(Calendar.DAY_OF_MONTH, 1)
+            CategoryGrouping.NONE -> Unit
         }
         calendar.set(Calendar.HOUR_OF_DAY, 0)
         calendar.set(Calendar.MINUTE, 0)

@@ -22,8 +22,8 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
     onShareSelected: suspend (List<AudioTrack>) -> Boolean,
+    onOpenPlayer: (AudioTrack, List<AudioTrack>, Boolean) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
-    onShowContainingFolder: (AudioTrack) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.AudioLibrary>(
@@ -42,13 +42,17 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onNavigateBack = onNavigateBack,
             onRefresh = { viewModel.load(refresh = true) },
             onQueryChange = viewModel::updateQuery,
+            onSearchFiltersChange = viewModel::updateSearchFilters,
             onSelectTab = viewModel::selectTab,
             onSelectFolder = viewModel::selectFolder,
             onClearFolderFilter = viewModel::clearFolderFilter,
             onPresentationChange = viewModel::updatePresentation,
             onGroupingChange = viewModel::updateGrouping,
             onShowFileDetailsChange = viewModel::updateShowFileDetails,
-            onDefaultTabChange = viewModel::updateDefaultTab,
+            onDefaultPageChange = viewModel::updateDefaultPage,
+            onToggleFavoriteSelection = viewModel::toggleFavoriteSelection,
+            onTogglePinnedFolder = viewModel::togglePinnedFolder,
+            onUpdateFolderCover = viewModel::updateFolderCover,
             onToggleSelection = viewModel::toggleSelection,
             onSelectPaths = viewModel::selectPaths,
             onTogglePaths = viewModel::togglePaths,
@@ -73,24 +77,23 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onResolvePasteConflicts = viewModel::resolvePasteConflicts,
             onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
             onClearActiveFileOperation = viewModel::clearActiveFileOperation,
-            onPlay = viewModel::play,
-            onPlaySelection = viewModel::playSelection,
-            onTogglePlayback = viewModel.playback::togglePlayback,
-            onPrevious = viewModel.playback::seekToPrevious,
-            onNext = viewModel.playback::seekToNext,
-            onQueueTrack = viewModel.playback::seekToQueueIndex,
-            onToggleRepeat = viewModel.playback::toggleRepeatMode,
-            onToggleShuffle = viewModel.playback::toggleShuffle,
-            onSeek = viewModel.playback::seekTo,
-            onExpandPlayer = viewModel::expandPlayer,
-            onCollapsePlayer = viewModel::collapsePlayer,
+            onPlay = { path ->
+                val queue = state.visibleTracks.takeIf(List<AudioTrack>::isNotEmpty) ?: state.tracks
+                queue.firstOrNull { it.file.absolutePath == path }?.let {
+                    onOpenPlayer(it, queue, true)
+                }
+            },
+            onPlaySelection = { paths ->
+                val selected = paths.toSet()
+                val queue = state.tracks.filter { it.file.absolutePath in selected }
+                queue.firstOrNull()?.let { onOpenPlayer(it, queue, true) }
+            },
             onShareSelected = { tracks, onShared ->
                 coroutineScope.launch {
                     if (onShareSelected(tracks)) onShared()
                 }
             },
             onOpenWith = onOpenWith,
-            onShowContainingFolder = onShowContainingFolder,
             onClearError = {
                 viewModel.clearError()
                 viewModel.playback.clearError()

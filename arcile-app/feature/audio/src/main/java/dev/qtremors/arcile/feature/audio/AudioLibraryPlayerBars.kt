@@ -15,12 +15,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -160,6 +161,7 @@ internal fun AudioMiniPlayer(
 @Composable
 internal fun AudioSelectionActionsBar(
     canUseSingleTrackActions: Boolean,
+    allSelectedFavorite: Boolean,
     onPlay: () -> Unit,
     onCopy: () -> Unit,
     onCut: () -> Unit,
@@ -169,7 +171,7 @@ internal fun AudioSelectionActionsBar(
     onProperties: () -> Unit,
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
-    onShowFolder: () -> Unit
+    onToggleFavorite: () -> Unit
 ) {
     var showMenu by rememberSaveable { mutableStateOf(false) }
     Row(
@@ -243,6 +245,31 @@ internal fun AudioSelectionActionsBar(
                     add {
                         ArcileDropdownMenuItem(
                             text = stringResource(
+                                if (allSelectedFavorite) {
+                                    R.string.audio_remove_from_favorites
+                                } else {
+                                    R.string.audio_add_to_favorites
+                                }
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    if (allSelectedFavorite) {
+                                        Icons.Default.Favorite
+                                    } else {
+                                        Icons.Default.FavoriteBorder
+                                    },
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onToggleFavorite()
+                            }
+                        )
+                    }
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(
                                 dev.qtremors.arcile.core.ui.R.string.archive_compress_zip
                             ),
                             leadingIcon = {
@@ -288,18 +315,6 @@ internal fun AudioSelectionActionsBar(
                                 onClick = {
                                     showMenu = false
                                     onOpenWith()
-                                }
-                            )
-                        }
-                        add {
-                            ArcileDropdownMenuItem(
-                                text = stringResource(R.string.audio_show_folder),
-                                leadingIcon = {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = null)
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onShowFolder()
                                 }
                             )
                         }

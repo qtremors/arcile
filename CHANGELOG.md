@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.1
+> **Version:** 1.7.2
 > **Last Updated:** 2026-07-29
 
 ---
+
+## [1.7.2] - 2026-07-29
+
+- **Gallery-Parity Audio Library**: Aligned Audio list and grid spacing, date sections, floating chrome, selection actions, folder navigation, and predictive back behavior with the shared Gallery shell.
+- **Audio-Specific Presentation**: Kept circular artwork in lists, rectangular artwork cards in grids, rich artist, album, duration, and size metadata, grid-only folder browsing, and independent Favorites, pinned folders, and custom covers.
 
 ## [1.7.1] - 2026-07-28
 
