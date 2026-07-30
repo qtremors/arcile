@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.audio
 
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -37,5 +38,33 @@ class AudioPlayerPresentationTest {
                     )
                 )
             }
+    }
+
+    @Test
+    fun `mini player swipe up expands and swipe down dismisses`() {
+        assertEquals(
+            AudioMiniPlayerGesture.EXPAND,
+            resolveAudioMiniPlayerGesture(dragOffsetPx = -49f, thresholdPx = 48f)
+        )
+        assertEquals(
+            AudioMiniPlayerGesture.DISMISS,
+            resolveAudioMiniPlayerGesture(dragOffsetPx = 49f, thresholdPx = 48f)
+        )
+    }
+
+    @Test
+    fun `mini player gesture ignores short and invalid drags`() {
+        assertEquals(
+            AudioMiniPlayerGesture.NONE,
+            resolveAudioMiniPlayerGesture(dragOffsetPx = 47f, thresholdPx = 48f)
+        )
+        assertEquals(
+            AudioMiniPlayerGesture.NONE,
+            resolveAudioMiniPlayerGesture(dragOffsetPx = -47f, thresholdPx = 48f)
+        )
+        assertEquals(
+            AudioMiniPlayerGesture.NONE,
+            resolveAudioMiniPlayerGesture(dragOffsetPx = 100f, thresholdPx = 0f)
+        )
     }
 }

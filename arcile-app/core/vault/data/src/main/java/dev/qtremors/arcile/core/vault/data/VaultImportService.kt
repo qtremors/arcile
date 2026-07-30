@@ -15,12 +15,12 @@ import dev.qtremors.arcile.core.vault.domain.VaultImportProgress
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -28,42 +28,106 @@ class VaultImportService : Service() {
     @Inject internal lateinit var coordinator: DefaultVaultImportCoordinator
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val jobs = ConcurrentHashMap<String, Job>()
+    private val operationLock = Any()
+    private val jobs = mutableMapOf<String, Job>()
+    private val activeNotifications = mutableMapOf<String, Notification>()
+    private var foregroundVaultId: String? = null
+    private var latestStartId = 0
+    internal var executeImport:
+        suspend (VaultId, VaultPath, List<String>, String, (VaultImportProgress) -> Unit) -> Unit =
+        { vaultId, destination, sourceUris, token, onProgress ->
+            coordinator.execute(vaultId, destination, sourceUris, token, onProgress)
+        }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        synchronized(operationLock) {
+            latestStartId = startId
+        }
         when (intent?.action) {
             ACTION_CANCEL -> {
-                intent.getStringExtra(EXTRA_VAULT_ID)?.let { jobs[it]?.cancel(CancellationException("Import cancelled")) }
+                intent.getStringExtra(EXTRA_VAULT_ID)?.let { vaultIdValue ->
+                    val vaultId = VaultId.of(vaultIdValue)
+                    val (cancelledJob, stopStartId) = synchronized(operationLock) {
+                        val job = jobs.remove(vaultIdValue)
+                        if (job != null) removeImportNotificationLocked(vaultId)
+                        job to latestStartId.takeIf { jobs.isEmpty() }
+                    }
+                    cancelledJob?.cancel(CancellationException("Import cancelled"))
+                    stopStartId?.let(::stopSelfResult)
+                }
                 return START_NOT_STICKY
             }
-            ACTION_START -> startImport(intent, startId)
+            ACTION_START -> startImport(intent)
         }
         return START_NOT_STICKY
     }
 
-    private fun startImport(intent: Intent, startId: Int) {
+    private fun startImport(intent: Intent) {
         val vaultId = VaultId.of(intent.getStringExtra(EXTRA_VAULT_ID) ?: return)
         val destination = VaultPath.of(intent.getStringExtra(EXTRA_DESTINATION).orEmpty())
         val token = intent.getStringExtra(EXTRA_RESERVATION_TOKEN) ?: return
         val sourceUris = intent.getStringArrayListExtra(EXTRA_SOURCE_URIS)?.toList().orEmpty()
         val notificationId = notificationId(vaultId)
-        startForeground(notificationId, buildNotification(vaultId, null))
-        jobs[vaultId.value] = serviceScope.launch {
+        val initialNotification = buildNotification(vaultId, null)
+        lateinit var importJob: Job
+        importJob = serviceScope.launch(start = CoroutineStart.LAZY) {
             try {
-                coordinator.execute(vaultId, destination, sourceUris, token) { progress ->
-                    getSystemService(NotificationManager::class.java).notify(
-                        notificationId,
-                        buildNotification(vaultId, progress)
-                    )
+                executeImport(vaultId, destination, sourceUris, token) { progress ->
+                    updateImportNotification(vaultId, importJob, progress)
                 }
             } finally {
-                jobs.remove(vaultId.value)
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf(startId)
+                val stopStartId = synchronized(operationLock) {
+                    if (jobs[vaultId.value] !== importJob) return@synchronized null
+                    jobs.remove(vaultId.value)
+                    removeImportNotificationLocked(vaultId)
+                    latestStartId.takeIf { jobs.isEmpty() }
+                }
+                stopStartId?.let(::stopSelfResult)
             }
         }
+        val previousJob = synchronized(operationLock) {
+            val previous = jobs.put(vaultId.value, importJob)
+            activeNotifications[vaultId.value] = initialNotification
+            foregroundVaultId = vaultId.value
+            startForeground(notificationId, initialNotification)
+            previous
+        }
+        previousJob?.cancel(CancellationException("Import replaced by a newer request"))
+        importJob.start()
+    }
+
+    private fun updateImportNotification(
+        vaultId: VaultId,
+        ownerJob: Job,
+        progress: VaultImportProgress
+    ) {
+        synchronized(operationLock) {
+            if (jobs[vaultId.value] !== ownerJob || vaultId.value !in activeNotifications) return
+            val notification = buildNotification(vaultId, progress)
+            activeNotifications[vaultId.value] = notification
+            getSystemService(NotificationManager::class.java).notify(
+                notificationId(vaultId),
+                notification
+            )
+        }
+    }
+
+    private fun removeImportNotificationLocked(vaultId: VaultId) {
+        if (activeNotifications.remove(vaultId.value) == null) return
+        if (foregroundVaultId == vaultId.value) {
+            val replacement = activeNotifications.entries.lastOrNull()
+            if (replacement != null) {
+                foregroundVaultId = replacement.key
+                val replacementVaultId = VaultId.of(replacement.key)
+                startForeground(notificationId(replacementVaultId), replacement.value)
+            } else {
+                foregroundVaultId = null
+                runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+            }
+        }
+        getSystemService(NotificationManager::class.java).cancel(notificationId(vaultId))
     }
 
     private fun buildNotification(vaultId: VaultId, progress: VaultImportProgress?): Notification {
@@ -128,6 +192,16 @@ class VaultImportService : Service() {
     }
 
     override fun onDestroy() {
+        val notificationIds = synchronized(operationLock) {
+            jobs.clear()
+            foregroundVaultId = null
+            activeNotifications.keys
+                .map { notificationId(VaultId.of(it)) }
+                .also { activeNotifications.clear() }
+        }
+        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        notificationIds.forEach(notificationManager::cancel)
         serviceScope.cancel()
         super.onDestroy()
     }

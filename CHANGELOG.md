@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.5
-> **Last Updated:** 2026-07-29
+> **Version:** 1.7.6
+> **Last Updated:** 2026-07-30
 
 ---
+
+## [1.7.6] - 2026-07-30
+
+- **Reliable Player Motion**: Fixed mini-to-full and full-to-mini transitions for taps and swipes, added swipe-up expansion and swipe-down dismissal, and kept the mini player open during back gestures.
+- **Stable Playback Surfaces**: Kept mini-player artwork stable while tracks change and added a close action to playback notifications.
+- **Finished File Operations**: Removed progress notifications after file and vault operations complete or are cancelled, including concurrent operations and stale progress updates.
 
 ## [1.7.5] - 2026-07-29
 

@@ -1,8 +1,10 @@
 package dev.qtremors.arcile.feature.audio
 
 import android.content.ClipData
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
@@ -41,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -53,6 +56,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import java.io.File
 import javax.inject.Inject
@@ -69,19 +73,36 @@ class AudioPlayerActivity : ComponentActivity() {
     @Inject
     internal lateinit var repository: AudioLibraryRepository
 
+    @Inject
+    internal lateinit var themePreferences: ThemePreferences
+
     private var queue by mutableStateOf<List<AudioTrack>>(emptyList())
     private var initialPath by mutableStateOf<String?>(null)
     private var playerLaunchId by mutableStateOf(0)
     private var miniPlayerBottomClearanceDp = 0
     private var queueLoadJob: Job? = null
+    private val closePlayerReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ACTION_CLOSE_AUDIO_PLAYER) finish()
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ContextCompat.registerReceiver(
+            this,
+            closePlayerReceiver,
+            IntentFilter(ACTION_CLOSE_AUDIO_PLAYER),
+            ContextCompat.RECEIVER_NOT_EXPORTED
+        )
         if (!openIntent(intent)) return
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setPlayerWindowExpanded(false)
         setContent {
-            ArcileTheme(ThemeState()) {
+            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
+                initialValue = ThemeState()
+            )
+            ArcileTheme(themeState = themeState) {
                 val playbackState by playback.state.collectAsStateWithLifecycle()
                 val current = queue.firstOrNull {
                     it.file.absolutePath == playbackState.currentMediaId
@@ -106,6 +127,11 @@ class AudioPlayerActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(closePlayerReceiver)
+        super.onDestroy()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -285,8 +311,6 @@ private fun StandaloneAudioPlayer(
     BackHandler {
         if (presentation != AudioPlayerPresentation.MINI) {
             presentation = AudioPlayerPresentation.COLLAPSING
-        } else {
-            onFinish()
         }
     }
     SharedTransitionLayout {
@@ -320,30 +344,31 @@ private fun StandaloneAudioPlayer(
                 val visibilityScope = this
                 if (!isExpanded) {
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding()
-                            .padding(horizontal = 12.dp, vertical = 12.dp)
-                            .padding(
-                                bottom = if (usesFullWindow) {
-                                    miniPlayerBottomClearanceDp.dp
-                                } else {
-                                    0.dp
-                                }
-                            )
-                            .onGloballyPositioned { coordinates ->
-                                val parentHeight = coordinates.parentCoordinates?.size?.height
-                                    ?: return@onGloballyPositioned
-                                if (
-                                    shouldStartAudioPlayerExpansion(
-                                        presentation = presentation,
-                                        parentHeightPx = parentHeight,
-                                        miniPlayerHeightPx = coordinates.size.height
-                                    )
-                                ) {
-                                    presentation = AudioPlayerPresentation.EXPANDED
-                                }
+                        modifier = if (usesFullWindow) {
+                            Modifier
+                                .fillMaxSize()
+                                .navigationBarsPadding()
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
+                                .padding(bottom = miniPlayerBottomClearanceDp.dp)
+                        } else {
+                            Modifier
+                                .fillMaxWidth()
+                                .navigationBarsPadding()
+                                .padding(horizontal = 12.dp, vertical = 12.dp)
+                        }.onGloballyPositioned { coordinates ->
+                            val parentHeight = coordinates.parentCoordinates?.size?.height
+                                ?: return@onGloballyPositioned
+                            if (
+                                shouldStartAudioPlayerExpansion(
+                                    presentation = presentation,
+                                    parentHeightPx = parentHeight,
+                                    miniPlayerHeightPx = coordinates.size.height
+                                )
+                            ) {
+                                presentation = AudioPlayerPresentation.EXPANDED
                             }
+                        },
+                        contentAlignment = Alignment.BottomCenter
                     ) {
                         AudioMiniPlayer(
                             track = track,
@@ -357,6 +382,7 @@ private fun StandaloneAudioPlayer(
                                     onWindowModeChange(true)
                                 }
                             },
+                            onDismiss = onFinish,
                             onTogglePlayback = playbackController::togglePlayback,
                             onNext = playbackController::seekToNext
                         )
@@ -562,3 +588,5 @@ private const val EXTRA_START_PLAYBACK =
 private const val EXTRA_BOTTOM_CLEARANCE_DP =
     "dev.qtremors.arcile.feature.audio.extra.BOTTOM_CLEARANCE_DP"
 private const val IN_APP_PLAYER_BOTTOM_CLEARANCE_DP = 80
+internal const val ACTION_CLOSE_AUDIO_PLAYER =
+    "dev.qtremors.arcile.feature.audio.action.CLOSE_PLAYER"

@@ -22,6 +22,7 @@
     <string name="audio_queue_empty">The playback queue is empty.</string>
     <string name="audio_now_playing">Now playing</string>
     <string name="audio_collapse_player">Collapse player</string>
+    <string name="audio_close_player">Close player</string>
     <string name="audio_open_with">Open with</string>
     <string name="audio_share">Share</string>
     <string name="audio_more">More options</string>

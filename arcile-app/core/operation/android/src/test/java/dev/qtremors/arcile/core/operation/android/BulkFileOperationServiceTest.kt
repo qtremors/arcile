@@ -113,6 +113,36 @@ class BulkFileOperationServiceTest {
     }
 
     @Test
+    fun `completed delete removes its progress notification`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-delete-notification",
+            type = BulkFileOperationType.DELETE,
+            sourcePaths = listOf("/source/a.txt"),
+            destinationPath = null,
+            resolutions = emptyMap(),
+            fakeFileSize = null
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        fileMutationRepository.deletePermanentlyDetailedResultProvider = { paths ->
+            Result.success(BatchMutationResult(succeededPaths = paths))
+        }
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        awaitInactiveMutation()
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val deadline = System.currentTimeMillis() + 2_000
+        while (
+            shadowOf(notificationManager).allNotifications.isNotEmpty() &&
+            System.currentTimeMillis() < deadline
+        ) {
+            Thread.sleep(10)
+        }
+        assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
+    }
+
+    @Test
     fun `service cancel stops execution and calls coordinator`() {
         val request = BulkFileOperationRequest(
             operationId = "op-1",
