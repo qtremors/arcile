@@ -28,5 +28,6 @@ internal fun resolveStandaloneViewerActivityName(context: Context, intent: Inten
         resolveStandaloneVideoTarget(context, intent) != null -> "dev.qtremors.arcile.feature.videoplayer.VideoViewerActivity"
         canResolveStandaloneAudio(context, intent) -> "dev.qtremors.arcile.feature.audio.AudioPlayerActivity"
         resolveStandalonePdfTarget(context, intent) != null -> PdfViewerActivity::class.java.name
+        resolveStandaloneTextTarget(context, intent) != null -> TextEditorActivity::class.java.name
         else -> null
     }

@@ -18,6 +18,7 @@ internal sealed interface AppFileOpenResolution {
     ) : AppFileOpenResolution
     data class ViewPdf(val path: String) : AppFileOpenResolution
     data class ViewAudio(val path: String) : AppFileOpenResolution
+    data class EditText(val path: String) : AppFileOpenResolution
     data class InstallApk(
         val path: String,
         val splitPaths: List<String> = emptyList()

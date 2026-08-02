@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.6
-> **Last Updated:** 2026-07-30
+> **Version:** 1.7.7
+> **Last Updated:** 2026-08-02
 
 ---
+
+## [1.7.7] - 2026-08-02
+
+- **Native Text and Markdown Editing**: Added a standalone source editor activity for Arcile and other apps, with read-only handling for view-only grants.
+- **Document Saving and Draft Recovery**: Verified saved content before reporting success, preserved newer edits made during a save, restored matching unsaved drafts after interruption, and saved pending changes before sharing or opening elsewhere.
 
 ## [1.7.6] - 2026-07-30
 

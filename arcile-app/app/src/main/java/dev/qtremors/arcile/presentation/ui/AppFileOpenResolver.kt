@@ -82,7 +82,15 @@ internal class AppFileOpenResolver(
             )
             extension in FileCategories.Audio.extensions -> AppFileOpenResolution.ViewAudio(path)
             extension == "pdf" -> AppFileOpenResolution.ViewPdf(path)
+            extension in TEXT_EXTENSIONS -> AppFileOpenResolution.EditText(path)
             else -> AppFileOpenResolution.External(path, forceChooser = true)
         }
+    }
+
+    private companion object {
+        val TEXT_EXTENSIONS = setOf(
+            "txt", "md", "markdown", "log", "json", "xml", "yaml", "yml",
+            "csv", "ini", "conf", "properties", "kt", "java", "py", "js", "html", "css"
+        )
     }
 }

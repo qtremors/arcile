@@ -103,6 +103,26 @@
         </activity>
 
         <activity
+            android:name=".TextEditorActivity"
+            android:exported="true"
+            android:label="${appLabel}"
+            android:process=":texteditor"
+            android:theme="@style/Theme.Arcile">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <action android:name="android.intent.action.EDIT" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/x-markdown" />
+                <data android:mimeType="application/markdown" />
+                <data android:mimeType="application/x-markdown" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
+        </activity>
+
+        <activity
             android:name=".FileOpenActivity"
             android:exported="true"
             android:label="${appLabel}"

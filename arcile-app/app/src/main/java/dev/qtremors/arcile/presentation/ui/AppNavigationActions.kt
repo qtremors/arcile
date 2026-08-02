@@ -28,6 +28,7 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.PdfViewerActivity
+import dev.qtremors.arcile.TextEditorActivity
 import dev.qtremors.arcile.feature.audio.createAudioPlayerIntent
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import kotlinx.coroutines.CoroutineScope
@@ -261,6 +262,16 @@ internal class AppNavigationActions(
                     val intent = ExternalFileAccessHelper
                         .createOpenIntent(context, resolution.path)
                         .setClass(context, PdfViewerActivity::class.java)
+                    context.startActivity(intent)
+                }
+                is AppFileOpenResolution.EditText -> {
+                    val file = File(resolution.path)
+                    val intent = Intent(Intent.ACTION_EDIT).apply {
+                        setClass(context, TextEditorActivity::class.java)
+                        setDataAndType(Uri.fromFile(file), "text/plain")
+                        putExtra(Intent.EXTRA_TITLE, file.name)
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    }
                     context.startActivity(intent)
                 }
                 is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution

@@ -42,7 +42,7 @@ object FileCategories {
         displayName = "Docs",
         storageName = "Docs",
         mimePrefix = null,
-        extensions = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "odt", "ods", "odp", "csv", "epub")
+        extensions = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "markdown", "rtf", "odt", "ods", "odp", "csv", "epub")
     )
 
     val Archives = CategoryDef(
