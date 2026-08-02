@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.7
+> **Version:** 1.7.8
 > **Last Updated:** 2026-08-02
 
 ---
+
+## [1.7.8] - 2026-08-02
+
+- **Markdown Preview and Editing Tools**: Added formatted Markdown preview, source formatting actions, undo and redo, and document statistics.
+- **Arcile Editor Chrome**: Matched Arcile's viewer controls and segmented overflow menu, honored OLED backgrounds, let content scroll beneath the transparent chrome, and separated editor tools from file actions without containing the editing canvas.
+- **Consistent Selection Chrome**: Centered selection content and aligned Docs and APK split actions, overflow controls, and screen-edge spacing with the browser and other categories.
 
 ## [1.7.7] - 2026-08-02
 

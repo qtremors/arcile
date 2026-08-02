@@ -28,6 +28,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -281,7 +285,7 @@ fun StandaloneTextEditor(
 
     Surface(
         modifier = modifier.fillMaxSize().imePadding(),
-        color = Color(0xFF202124)
+        color = MaterialTheme.colorScheme.background
     ) {
         Box(Modifier.fillMaxSize()) {
             when (val state = loadState) {
@@ -296,18 +300,17 @@ fun StandaloneTextEditor(
                     modifier = Modifier.align(Alignment.Center)
                 )
                 TextLoadState.Ready -> {
+                    val topPadding = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 92.dp
                     val bottomPadding = if (
                         writable && supportsMarkdownPreview && mode == TextEditorMode.EDIT
                     ) {
-                        150.dp
+                        168.dp
                     } else {
-                        94.dp
-                    }
+                        104.dp
+                    } + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                     AnimatedContent(
                         targetState = mode,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(top = 92.dp, bottom = bottomPadding),
+                        modifier = Modifier.fillMaxSize(),
                         transitionSpec = {
                             fadeIn(spring(stiffness = Spring.StiffnessLow)) togetherWith
                                 fadeOut(spring(stiffness = Spring.StiffnessLow))
@@ -317,7 +320,10 @@ fun StandaloneTextEditor(
                         if (targetMode == TextEditorMode.PREVIEW && supportsMarkdownPreview) {
                             MarkdownRenderer(
                                 content = textState.text,
-                                modifier = Modifier.fillMaxSize().verticalScroll(previewScrollState)
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .verticalScroll(previewScrollState)
+                                    .padding(top = topPadding, bottom = bottomPadding)
                             )
                         } else {
                             BasicTextField(
@@ -326,13 +332,18 @@ fun StandaloneTextEditor(
                                 readOnly = !writable,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(horizontal = 18.dp, vertical = 12.dp)
-                                    .verticalScroll(editorScrollState),
+                                    .verticalScroll(editorScrollState)
+                                    .padding(
+                                        start = 18.dp,
+                                        top = topPadding + 12.dp,
+                                        end = 18.dp,
+                                        bottom = bottomPadding + 12.dp
+                                    ),
                                 textStyle = TextStyle(
                                     fontFamily = FontFamily.Monospace,
                                     fontSize = 15.sp,
                                     lineHeight = 23.sp,
-                                    color = Color.White.copy(alpha = 0.92f)
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.92f)
                                 ),
                                 cursorBrush = SolidColor(MaterialTheme.colorScheme.primary)
                             )

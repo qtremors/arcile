@@ -107,6 +107,15 @@ class AppFileOpenResolverTest {
     }
 
     @Test
+    fun `text and markdown files resolve to Arcile text editor`() = runTest {
+        val txtResult = resolver().resolve("/storage/notes.txt", emptyList())
+        val mdResult = resolver().resolve("/storage/readme.md", emptyList())
+
+        assertEquals(AppFileOpenResolution.EditText("/storage/notes.txt"), txtResult)
+        assertEquals(AppFileOpenResolution.EditText("/storage/readme.md"), mdResult)
+    }
+
+    @Test
     fun `external preference bypasses Arcile viewer for its file category`() = runTest {
         val resolver = AppFileOpenResolver(
             pluginGateway = PluginFileResolutionGateway { _, _, _ ->

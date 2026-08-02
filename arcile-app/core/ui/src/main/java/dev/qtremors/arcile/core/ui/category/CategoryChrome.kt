@@ -410,27 +410,31 @@ fun CategorySelectionTopBar(
                 .align(Alignment.CenterStart)
         ) {
             Row(
-                modifier = Modifier.padding(start = 4.dp, end = 16.dp),
+                modifier = Modifier.padding(start = 6.dp, end = 20.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 val clearSelection = {
                     haptics.selectionChanged()
                     onClearSelection()
                 }
-                IconButton(
-                    onClick = clearSelection,
+                Box(
                     modifier = Modifier
+                        .size(44.dp)
                         .clip(CircleShape)
-                        .bounceClickable(onClick = clearSelection)
+                        .bounceClickable(onClick = clearSelection),
+                    contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = stringResource(R.string.back),
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                Column {
+                Spacer(Modifier.width(8.dp))
+                Column(
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.Start
+                ) {
                     Text(
                         text = selectedCountText,
                         style = MaterialTheme.typography.labelLarge,
@@ -441,7 +445,7 @@ fun CategorySelectionTopBar(
                     Text(
                         text = selectedSizeText,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -459,7 +463,11 @@ fun CategorySelectionTopBar(
                 .height(56.dp)
                 .align(Alignment.CenterEnd)
         ) {
-            Row(modifier = Modifier.padding(horizontal = 4.dp)) {
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 CategorySelectionIconButton(
                     icon = Icons.Default.GridView,
                     description = stringResource(R.string.select_all)
@@ -485,11 +493,12 @@ private fun CategorySelectionIconButton(
     description: String,
     onClick: () -> Unit
 ) {
-    IconButton(
-        onClick = onClick,
+    Box(
         modifier = Modifier
+            .size(44.dp)
             .clip(CircleShape)
-            .bounceClickable(onClick = onClick)
+            .bounceClickable(onClick = onClick),
+        contentAlignment = Alignment.Center
     ) {
         Icon(
             imageVector = icon,

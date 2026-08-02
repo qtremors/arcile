@@ -1114,108 +1114,118 @@ private fun CategoryLibrarySelectionActions(
     onOpenWith: () -> Unit
 ) {
     var showMore by rememberSaveable { mutableStateOf(false) }
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-        modifier = Modifier.fillMaxWidth()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.padding(6.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            SplitButtonGroup(
-                actions = buildList {
-                    add(
-                        ToolbarAction(
-                            icon = Icons.Default.ContentCopy,
-                            contentDescription = stringResource(R.string.action_copy),
-                            onClick = actions.onCopy
-                        )
+        SplitButtonGroup(
+            actions = buildList {
+                add(
+                    ToolbarAction(
+                        icon = Icons.Default.ContentCopy,
+                        contentDescription = stringResource(R.string.action_copy),
+                        onClick = actions.onCopy
                     )
-                    add(
-                        ToolbarAction(
-                            icon = Icons.Default.ContentCut,
-                            contentDescription = stringResource(R.string.action_cut),
-                            onClick = actions.onCut
-                        )
+                )
+                add(
+                    ToolbarAction(
+                        icon = Icons.Default.ContentCut,
+                        contentDescription = stringResource(R.string.action_cut),
+                        onClick = actions.onCut
                     )
-                    add(
-                        ToolbarAction(
-                            icon = Icons.Default.Delete,
-                            contentDescription = stringResource(R.string.delete),
-                            onClick = actions.onDelete
-                        )
+                )
+                add(
+                    ToolbarAction(
+                        icon = Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                        onClick = actions.onDelete
                     )
-                    add(
-                        ToolbarAction(
-                            icon = Icons.Default.Share,
-                            contentDescription = stringResource(R.string.share),
-                            onClick = onShare
-                        )
+                )
+                add(
+                    ToolbarAction(
+                        icon = Icons.Default.Share,
+                        contentDescription = stringResource(R.string.share),
+                        onClick = onShare
                     )
-                },
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            Box {
-                androidx.compose.material3.IconButton(onClick = { showMore = true }) {
-                    Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options))
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            height = 48.dp,
+            minWidth = 48.dp,
+            iconSize = 24.dp
+        )
+        Box {
+            Surface(
+                onClick = { showMore = true },
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = 4.dp,
+                shadowElevation = 4.dp,
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.action_more_options),
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
-                ArcileDropdownMenu(
-                    expanded = showMore,
-                    onDismissRequest = { showMore = false },
-                    items = buildList {
-                        if (canRename) {
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.action_rename)) },
-                                    leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                    onClick = {
-                                        showMore = false
-                                        onShowRename()
-                                    }
-                                )
-                            }
-                        }
+            }
+            ArcileDropdownMenu(
+                expanded = showMore,
+                onDismissRequest = { showMore = false },
+                items = buildList {
+                    if (canRename) {
                         add {
                             ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.archive_compress_zip)) },
-                                leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                                text = { Text(stringResource(R.string.action_rename)) },
+                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                                 onClick = {
                                     showMore = false
-                                    actions.onCreateZip()
-                                }
-                            )
-                        }
-                        if (canOpenWith) {
-                            add {
-                                ArcileDropdownMenuItem(
-                                    text = { Text(stringResource(R.string.image_gallery_open_with)) },
-                                    leadingIcon = {
-                                        Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                                    },
-                                    onClick = {
-                                        showMore = false
-                                        onOpenWith()
-                                    }
-                                )
-                            }
-                        }
-                        add {
-                            ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.action_properties)) },
-                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                onClick = {
-                                    showMore = false
-                                    actions.onOpenProperties()
+                                    onShowRename()
                                 }
                             )
                         }
                     }
-                )
-            }
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = { Text(stringResource(R.string.archive_compress_zip)) },
+                            leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                            onClick = {
+                                showMore = false
+                                actions.onCreateZip()
+                            }
+                        )
+                    }
+                    if (canOpenWith) {
+                        add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                leadingIcon = {
+                                    Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                                },
+                                onClick = {
+                                    showMore = false
+                                    onOpenWith()
+                                }
+                            )
+                        }
+                    }
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_properties)) },
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                            onClick = {
+                                showMore = false
+                                actions.onOpenProperties()
+                            }
+                        )
+                    }
+                }
+            )
         }
     }
 }

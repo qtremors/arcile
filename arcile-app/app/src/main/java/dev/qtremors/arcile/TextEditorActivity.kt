@@ -7,19 +7,26 @@ import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.compose.runtime.getValue
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.texteditor.StandaloneTextEditor
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
+import dev.qtremors.arcile.core.ui.theme.ThemePreferences
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import java.io.File
 import kotlinx.coroutines.launch
 
 class TextEditorActivity : ComponentActivity() {
+    private val themePreferences by lazy { ThemePreferences(applicationContext) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         val target = resolveStandaloneTextTarget(this, intent)
         if (target == null) {
             Toast.makeText(
@@ -35,7 +42,10 @@ class TextEditorActivity : ComponentActivity() {
         }
 
         setContent {
-            ArcileTheme(themeState = ThemeState()) {
+            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
+                initialValue = ThemeState()
+            )
+            ArcileTheme(themeState = themeState) {
                 StandaloneTextEditor(
                     reference = target.reference,
                     title = target.displayName,

@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.ui.texteditor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,16 +14,27 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FormatBold
+import androidx.compose.material.icons.filled.FormatItalic
+import androidx.compose.material.icons.filled.FormatQuote
+import androidx.compose.material.icons.filled.HorizontalRule
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.InsertLink
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Title
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +72,10 @@ internal fun TextEditorTopChrome(
 ) {
     val marqueeEnabled = LocalMarqueeFilenames.current
     Row(
-        modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         ViewerIconButton(
@@ -70,8 +85,11 @@ internal fun TextEditorTopChrome(
         )
         Spacer(Modifier.width(12.dp))
         Column(
-            modifier = Modifier.weight(1f).clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.62f)).padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.62f))
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
                 text = title,
@@ -120,92 +138,153 @@ internal fun TextEditorBottomChrome(
     val words = remember(text) { text.wordCount() }
     val chars = remember(text) { text.length }
     var showMenu by rememberSaveable { mutableStateOf(false) }
-    val actions = buildList {
-        if (supportsMarkdownPreview) {
-            add(
-                ToolbarAction(
-                    if (mode == TextEditorMode.EDIT) Icons.Default.Visibility else Icons.Default.Edit,
-                    stringResource(
-                        if (mode == TextEditorMode.EDIT) R.string.text_editor_mode_preview
-                        else R.string.text_editor_mode_edit
-                    )
-                ) {
-                    onModeSelected(
-                        if (mode == TextEditorMode.EDIT) TextEditorMode.PREVIEW else TextEditorMode.EDIT
-                    )
-                }
-            )
-        }
-        if (writable && mode == TextEditorMode.EDIT) {
-            add(
-                ToolbarAction(
-                    Icons.Default.Save,
-                    stringResource(R.string.text_editor_save),
-                    tint = if (isDirty && !isSaving) Color.White else Color.White.copy(alpha = 0.35f)
-                ) { if (isDirty && !isSaving) onSave() }
-            )
-        }
-    }
+
     Column(
-        modifier = Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.62f))
-            .navigationBarsPadding().padding(horizontal = 16.dp, vertical = 10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            if (actions.isNotEmpty()) {
+        if (writable && supportsMarkdownPreview && mode == TextEditorMode.EDIT) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color.Black.copy(alpha = 0.62f))
+                    .horizontalScroll(rememberScrollState())
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 SplitButtonGroup(
-                    actions = actions,
+                    actions = listOf(
+                        ToolbarAction(Icons.Default.Title, stringResource(R.string.text_editor_format_heading)) { onFormat("# ", "") },
+                        ToolbarAction(Icons.Default.FormatBold, stringResource(R.string.text_editor_format_bold)) { onFormat("**", "**") },
+                        ToolbarAction(Icons.Default.FormatItalic, stringResource(R.string.text_editor_format_italic)) { onFormat("*", "*") },
+                        ToolbarAction(Icons.Default.Code, stringResource(R.string.text_editor_format_code)) { onFormat("`", "`") },
+                        ToolbarAction(Icons.AutoMirrored.Filled.FormatListBulleted, stringResource(R.string.text_editor_format_list)) { onFormat("- ", "") },
+                        ToolbarAction(Icons.Default.FormatQuote, stringResource(R.string.text_editor_format_quote)) { onFormat("> ", "") },
+                        ToolbarAction(Icons.Default.InsertLink, stringResource(R.string.text_editor_format_link)) { onFormat("[", "](url)") },
+                        ToolbarAction(Icons.Default.HorizontalRule, stringResource(R.string.text_editor_format_hr)) { onFormat("\n---\n", "") }
+                    ),
                     containerColor = Color.Black.copy(alpha = 0.5f),
                     contentColor = Color.White,
-                    height = 48.dp,
-                    minWidth = 48.dp,
-                    iconSize = 24.dp
-                )
-            }
-            Spacer(Modifier.weight(1f))
-            Box {
-                ViewerIconButton(
-                    icon = Icons.Default.MoreVert,
-                    description = stringResource(R.string.action_more_options),
-                    onClick = { showMenu = true }
-                )
-                ArcileDropdownMenu(
-                    expanded = showMenu,
-                    onDismissRequest = { showMenu = false },
-                    items = listOf(
-                        {
-                            ArcileDropdownMenuItem(
-                                text = stringResource(R.string.text_editor_file_info),
-                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                onClick = { showMenu = false; onInfo() }
-                            )
-                        },
-                        {
-                            ArcileDropdownMenuItem(
-                                text = stringResource(R.string.open_app),
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                                enabled = !isSaving,
-                                onClick = { showMenu = false; onOpenWith() }
-                            )
-                        },
-                        {
-                            ArcileDropdownMenuItem(
-                                text = stringResource(R.string.share),
-                                leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                enabled = !isSaving,
-                                onClick = { showMenu = false; onShare() }
-                            )
-                        }
-                    )
+                    height = 40.dp,
+                    minWidth = 40.dp,
+                    iconSize = 20.dp
                 )
             }
         }
-        Text(
-            text = stringResource(R.string.text_editor_stats_format, lines, words, chars),
-            color = Color.White.copy(alpha = 0.72f),
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.align(Alignment.CenterHorizontally)
-        )
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Color.Black.copy(alpha = 0.62f))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val actions = buildList {
+                    if (supportsMarkdownPreview) {
+                        add(
+                            ToolbarAction(
+                                icon = if (mode == TextEditorMode.EDIT) Icons.Default.Visibility else Icons.Default.Edit,
+                                contentDescription = if (mode == TextEditorMode.EDIT) {
+                                    stringResource(R.string.text_editor_mode_preview)
+                                } else {
+                                    stringResource(R.string.text_editor_mode_edit)
+                                },
+                                onClick = {
+                                    onModeSelected(
+                                        if (mode == TextEditorMode.EDIT) TextEditorMode.PREVIEW else TextEditorMode.EDIT
+                                    )
+                                }
+                            )
+                        )
+                    }
+                    if (writable && mode == TextEditorMode.EDIT) {
+                        add(
+                            ToolbarAction(
+                                icon = Icons.AutoMirrored.Filled.Undo,
+                                contentDescription = stringResource(R.string.text_editor_undo),
+                                tint = if (canUndo) Color.White else Color.White.copy(alpha = 0.35f),
+                                onClick = { if (canUndo) onUndo() }
+                            )
+                        )
+                        add(
+                            ToolbarAction(
+                                icon = Icons.AutoMirrored.Filled.Redo,
+                                contentDescription = stringResource(R.string.text_editor_redo),
+                                tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.35f),
+                                onClick = { if (canRedo) onRedo() }
+                            )
+                        )
+                        add(
+                            ToolbarAction(
+                                icon = Icons.Default.Save,
+                                contentDescription = stringResource(R.string.text_editor_save),
+                                tint = if (isDirty && !isSaving) Color.White else Color.White.copy(alpha = 0.35f),
+                                onClick = { if (isDirty && !isSaving) onSave() }
+                            )
+                        )
+                    }
+                }
+                if (actions.isNotEmpty()) {
+                    SplitButtonGroup(
+                        actions = actions,
+                        containerColor = Color.Black.copy(alpha = 0.5f),
+                        contentColor = Color.White,
+                        height = 48.dp,
+                        minWidth = 48.dp,
+                        iconSize = 24.dp
+                    )
+                }
+                Spacer(Modifier.weight(1f))
+                Box {
+                    ViewerIconButton(
+                        icon = Icons.Default.MoreVert,
+                        description = stringResource(R.string.action_more_options),
+                        onClick = { showMenu = true }
+                    )
+                    ArcileDropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        items = listOf(
+                            {
+                                ArcileDropdownMenuItem(
+                                    text = stringResource(R.string.text_editor_file_info),
+                                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                    onClick = { showMenu = false; onInfo() }
+                                )
+                            },
+                            {
+                                ArcileDropdownMenuItem(
+                                    text = stringResource(R.string.open_app),
+                                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
+                                    enabled = !isSaving,
+                                    onClick = { showMenu = false; onOpenWith() }
+                                )
+                            },
+                            {
+                                ArcileDropdownMenuItem(
+                                    text = stringResource(R.string.share),
+                                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
+                                    enabled = !isSaving,
+                                    onClick = { showMenu = false; onShare() }
+                                )
+                            }
+                        )
+                    )
+                }
+            }
+            Text(
+                text = stringResource(R.string.text_editor_stats_format, lines, words, chars),
+                color = Color.White.copy(alpha = 0.72f),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
+        }
     }
 }
 
@@ -218,7 +297,9 @@ private fun ViewerIconButton(
     Surface(
         shape = CircleShape,
         color = Color.Black.copy(alpha = 0.62f),
-        modifier = Modifier.size(48.dp).bounceClickable(onClick = onClick)
+        modifier = Modifier
+            .size(48.dp)
+            .bounceClickable(onClick = onClick)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(24.dp))
