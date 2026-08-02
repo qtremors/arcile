@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.9
+> **Version:** 1.8.0
 > **Last Updated:** 2026-08-02
 
 ---
+
+## [1.8.0] - 2026-08-02
+
+- **Release Readiness**: Synchronized 1.8.0 versioning, build metadata, task tracking, and user-facing release notes for the v1.7.1 through v1.8.0 development cycle.
 
 ## [1.7.9] - 2026-08-02
 
