@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.NavBackStackEntry
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
@@ -26,6 +27,8 @@ internal fun MainRoute(
     onHomeDestination: (HomeDestination) -> Unit,
     onBrowserDestination: (BrowserDestination) -> Unit,
     onShareBrowserFiles: suspend (List<String>, List<FileModel>) -> Boolean,
+    appStartPage: AppStartPage,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -44,6 +47,8 @@ internal fun MainRoute(
     ) { page ->
         when (page) {
             HOME_PAGE -> HomeRoute(
+                appStartPage = appStartPage,
+                onAppStartPageChange = onAppStartPageChange,
                 onDestination = { destination ->
                     when (destination) {
                         HomeDestination.BrowseRoot -> coordinator.requestBrowser(
@@ -58,10 +63,11 @@ internal fun MainRoute(
                 }
             )
             BROWSER_PAGE -> BrowserRoute(
+                viewModelKey = "main-browser-primary",
                 entryRequest = coordinator.browserEntryRequest,
                 isVisible = coordinator.pagerState.currentPage == BROWSER_PAGE,
                 hasPreviousRoute = hasPreviousRoute,
-                onStatusChange = coordinator::updateBrowserStatus,
+                onStatusChange = { coordinator.updateBrowserStatus(BROWSER_PAGE, it) },
                 onDestination = { destination ->
                     if (destination == BrowserDestination.ExitToHome) {
                         coordinator.showHome()
@@ -70,6 +76,26 @@ internal fun MainRoute(
                     }
                 },
                 onShareSelected = onShareBrowserFiles,
+                appStartPage = appStartPage,
+                onAppStartPageChange = onAppStartPageChange,
+                onFeedback = onFeedback
+            )
+            SECONDARY_BROWSER_PAGE -> BrowserRoute(
+                viewModelKey = "main-browser-secondary",
+                entryRequest = null,
+                isVisible = coordinator.pagerState.currentPage == SECONDARY_BROWSER_PAGE,
+                hasPreviousRoute = false,
+                onStatusChange = { coordinator.updateBrowserStatus(SECONDARY_BROWSER_PAGE, it) },
+                onDestination = { destination ->
+                    when (destination) {
+                        BrowserDestination.ExitToHome,
+                        BrowserDestination.ExitToPreviousRoute -> coordinator.showPrimaryBrowser()
+                        else -> onBrowserDestination(destination)
+                    }
+                },
+                onShareSelected = onShareBrowserFiles,
+                appStartPage = appStartPage,
+                onAppStartPageChange = onAppStartPageChange,
                 onFeedback = onFeedback
             )
         }

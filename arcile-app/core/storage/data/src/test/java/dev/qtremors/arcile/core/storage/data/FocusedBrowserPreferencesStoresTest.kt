@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -74,6 +75,7 @@ class FocusedBrowserPreferencesStoresTest {
         val folder = FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST)
 
         locationStore.updateGlobalPresentation(global)
+        locationStore.updateAppStartPage(AppStartPage.BROWSER)
         locationStore.updatePathPresentation("/Pictures/", folder, applyToSubfolders = true)
         locationStore.updateShowHiddenFiles(false)
         locationStore.updateBrowserScrollbarEnabled(false)
@@ -94,6 +96,7 @@ class FocusedBrowserPreferencesStoresTest {
 
         val preferences = locationStore.locationPreferencesFlow.first()
         assertEquals(global.normalized(), preferences.globalPresentation)
+        assertEquals(AppStartPage.BROWSER, preferences.appStartPage)
         assertEquals(
             folder.normalized(),
             preferences.pathPresentationOptions["/Pictures"]

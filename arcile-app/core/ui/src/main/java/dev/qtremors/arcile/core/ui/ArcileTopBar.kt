@@ -66,6 +66,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.Alignment
 
 import androidx.compose.ui.semantics.semantics
@@ -97,6 +98,13 @@ data class ArcileTopBarActions(
     val onSettingsClick: () -> Unit = {}
 )
 
+data class ArcileTopBarMenuAction(
+    val label: String,
+    val icon: ImageVector,
+    val selected: Boolean = false,
+    val onClick: () -> Unit
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ArcileTopBar(
@@ -105,6 +113,7 @@ fun ArcileTopBar(
     selectedSize: String? = null,
     scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior? = null,
     options: ArcileTopBarOptions = ArcileTopBarOptions(),
+    menuActions: List<ArcileTopBarMenuAction> = emptyList(),
     actions: ArcileTopBarActions
 ) {
     val showBackArrow = options.showBackArrow
@@ -267,7 +276,7 @@ fun ArcileTopBar(
                                 )
                             }
                         }
-                        val menuActions = remember(
+                        val renderedMenuActions = remember(
                             showNewFolderAction,
                             showPinAction,
                             showSettingsMenuAction,
@@ -275,9 +284,25 @@ fun ArcileTopBar(
                             showHiddenFilesAction,
                             areHiddenFilesShown,
                             showGridViewAction,
-                            isGridView
+                            isGridView,
+                            menuActions
                         ) {
                             mutableListOf<@Composable () -> Unit>().apply {
+                                menuActions.forEach { menuAction ->
+                                    add {
+                                        ArcileDropdownMenuItem(
+                                            text = { Text(menuAction.label) },
+                                            isSelected = menuAction.selected,
+                                            leadingIcon = {
+                                                Icon(menuAction.icon, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                showMenu = false
+                                                menuAction.onClick()
+                                            }
+                                        )
+                                    }
+                                }
                                 if (showNewFolderAction) {
                                     add {
                                         ArcileDropdownMenuItem(
@@ -371,7 +396,7 @@ fun ArcileTopBar(
                         ArcileDropdownMenu(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false },
-                            items = menuActions
+                            items = renderedMenuActions
                         )
                     }
                 }

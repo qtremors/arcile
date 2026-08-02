@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -313,6 +314,9 @@ class BrowserPreferencesDataSource(
                 .toMap()
 
             BrowserPreferences(
+                appStartPage = AppStartPage.entries.firstOrNull {
+                    it.name == prefs[APP_START_PAGE_KEY]
+                } ?: AppStartPage.HOME,
                 globalPresentation = globalPresentation,
                 recentPresentation = recentPresentation,
                 pathPresentationOptions = pathMap.mapValues { it.value.normalized() },
@@ -368,6 +372,12 @@ class BrowserPreferencesDataSource(
         preferencesFlow.asGalleryPreferences(categoryName)
     val audioLibraryPreferencesFlow = preferencesFlow.map(AudioLibraryPreferences::from)
     val saveDestinationPreferencesFlow = preferencesFlow.asSaveDestinationPreferences()
+
+    suspend fun updateAppStartPage(page: AppStartPage) {
+        dataStore.edit { prefs ->
+            prefs[APP_START_PAGE_KEY] = page.name
+        }
+    }
 
     suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()

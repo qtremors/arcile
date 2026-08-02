@@ -87,7 +87,7 @@ internal fun BrowserNavigationController.loadDirectory(
             }
             update {
                 it.withValues(
-                    isLoading = false,
+                    isLoading = !page.isComplete,
                     isPullToRefreshing = if (page.isComplete) false else it.isPullToRefreshing,
                     files = updatedFiles.toPersistentList(),
                     folderStatsByPath = (it.folderStatsByPath + cachedStats).toPersistentMap(),

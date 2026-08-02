@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.home.HomeDestination
@@ -13,6 +14,8 @@ import dev.qtremors.arcile.navigation.AppRoutes
 internal fun NavGraphBuilder.registerMainRoute(
     navController: NavHostController,
     actions: AppNavigationActions,
+    appStartPage: AppStartPage,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     composable<AppRoutes.Main> { backStackEntry ->
@@ -35,6 +38,8 @@ internal fun NavGraphBuilder.registerMainRoute(
                 }
             },
             onShareBrowserFiles = actions::shareKnownFiles,
+            appStartPage = appStartPage,
+            onAppStartPageChange = onAppStartPageChange,
             onFeedback = onFeedback
         )
     }

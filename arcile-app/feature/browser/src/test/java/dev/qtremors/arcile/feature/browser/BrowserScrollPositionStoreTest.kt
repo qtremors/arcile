@@ -2,10 +2,19 @@ package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BrowserScrollPositionStoreTest {
+
+    @Test
+    fun `length-prefixed location keys do not collide on separators`() {
+        assertNotEquals(
+            browserScrollPositionKey("NAME_ASC", "/folder|", "archive"),
+            browserScrollPositionKey("NAME_ASC", "/folder", "|archive")
+        )
+    }
 
     @Test
     fun `positions survive recreation including keys containing separators`() {
@@ -36,14 +45,33 @@ class BrowserScrollPositionStoreTest {
     }
 
     @Test
-    fun `clear removes a persisted position`() {
+    fun `different folders retain independent positions`() {
         val handle = SavedStateHandle()
-        val key = "folder"
+        val first = BrowserScrollPosition(8, 24, 4, 12)
+        val second = BrowserScrollPosition(19, 6, 10, 3)
         val store = BrowserScrollPositionStore(handle)
-        store.save(key, BrowserScrollPosition(1, 2, 3, 4))
 
-        store.clear(key)
+        store.save("NAME_ASC|/storage/Documents||||", first)
+        store.save("NAME_ASC|/storage/Download||||", second)
 
-        assertNull(BrowserScrollPositionStore(handle).get(key))
+        val restoredStore = BrowserScrollPositionStore(handle)
+        assertEquals(first, restoredStore.get("NAME_ASC|/storage/Documents||||"))
+        assertEquals(second, restoredStore.get("NAME_ASC|/storage/Download||||"))
+    }
+
+    @Test
+    fun `recently revisited folder survives cache trimming`() {
+        val handle = SavedStateHandle()
+        val store = BrowserScrollPositionStore(handle)
+        repeat(32) { index ->
+            store.save("folder-$index", BrowserScrollPosition(index, 0, index, 0))
+        }
+        val refreshed = BrowserScrollPosition(99, 7, 99, 7)
+        store.save("folder-0", refreshed)
+        store.save("folder-32", BrowserScrollPosition(32, 0, 32, 0))
+
+        val restoredStore = BrowserScrollPositionStore(handle)
+        assertEquals(refreshed, restoredStore.get("folder-0"))
+        assertNull(restoredStore.get("folder-1"))
     }
 }

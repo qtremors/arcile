@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.testutil
 
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -33,6 +34,7 @@ class FakeFilePreferencesStore(
         preferences.map(SaveDestinationPreferences::from)
 
     var lastUpdatedGlobalPresentation: FileListingPreferences? = null
+    var lastUpdatedAppStartPage: AppStartPage? = null
     var lastUpdatedRecentPresentation: FileListingPreferences? = null
     var lastUpdatedHomeRecentCarouselLimit: Int? = null
     var lastUpdatedShowHiddenFiles: Boolean? = null
@@ -49,6 +51,11 @@ class FakeFilePreferencesStore(
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: FileListingPreferences? = null
     var lastUpdatedDefaultSaveToArcilePath: String? = null
+
+    override suspend fun updateAppStartPage(page: AppStartPage) {
+        lastUpdatedAppStartPage = page
+        preferences.value = preferences.value.copy(appStartPage = page)
+    }
 
     override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         lastUpdatedGlobalPresentation = presentation

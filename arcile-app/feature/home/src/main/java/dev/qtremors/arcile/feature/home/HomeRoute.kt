@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.feature.home.ui.HomeContentIntents
 import dev.qtremors.arcile.feature.home.ui.HomeNavigationIntents
 import dev.qtremors.arcile.feature.home.ui.HomeScreen
@@ -30,6 +31,8 @@ sealed interface HomeDestination {
 
 @Composable
 fun HomeRoute(
+    appStartPage: AppStartPage,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onDestination: (HomeDestination) -> Unit
 ) {
     val viewModel = hiltViewModel<HomeViewModel>()
@@ -66,6 +69,8 @@ fun HomeRoute(
             setVolumeClassification = viewModel::setVolumeClassification,
             hideClassificationPrompt = viewModel::hideClassificationPrompt
         ),
+        appStartPage = appStartPage,
+        onAppStartPageChange = onAppStartPageChange,
         homeRecentCarouselLimit = homeRecentCarouselLimit
     )
 }

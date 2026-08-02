@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.8
+> **Version:** 1.7.9
 > **Last Updated:** 2026-08-02
 
 ---
+
+## [1.7.9] - 2026-08-02
+
+- **Two Browser Workspaces**: Added a second independently stateful Browser page after the existing Browser, so another swipe from Home provides a separate location, history, selection, search, and scroll position.
+- **Preferred Start Page**: Added Home and Browser launch choices to the main overflow menus, using the same selected-default treatment as category pages and applying the choice on the next cold launch without resetting the current session.
+- **Preserved Browser Context**: Kept the active Browser workspace when returning from a file viewer, preserved normal parent-folder back navigation in both workspaces, and moved from the second Browser to the first before Home.
+- **Per-Folder Scroll Memory**: Restored each folder, category tab, archive location, and large paged listing to its previous list or grid position after navigating away, going back, switching Browser workspaces, or returning to the app.
 
 ## [1.7.8] - 2026-08-02
 

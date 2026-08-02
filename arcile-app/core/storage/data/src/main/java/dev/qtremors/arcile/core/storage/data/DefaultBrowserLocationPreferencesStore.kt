@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
@@ -10,6 +11,9 @@ class DefaultBrowserLocationPreferencesStore(
     private val dataSource: BrowserPreferencesDataSource
 ) : BrowserLocationPreferencesStore {
     override val locationPreferencesFlow = dataSource.locationPreferencesFlow
+
+    override suspend fun updateAppStartPage(page: AppStartPage) =
+        dataSource.updateAppStartPage(page)
 
     override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) =
         dataSource.updateGlobalPresentation(presentation)

@@ -16,6 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.CoroutineScope
@@ -76,6 +77,7 @@ class BrowserPreferencesDataSourceTest {
         assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
         assertEquals(CategoryLibraryPage.ITEMS, preferences.imageGalleryDefaultPage)
+        assertEquals(AppStartPage.HOME, preferences.appStartPage)
         assertEquals(true, preferences.showHiddenFiles)
         assertEquals(true, preferences.browserScrollbarEnabled)
         assertEquals(true, preferences.galleryScrollbarEnabled)
@@ -247,6 +249,15 @@ class BrowserPreferencesDataSourceTest {
         repository.updateGalleryDefaultPage(CategoryLibraryPage.FOLDERS)
 
         assertEquals(CategoryLibraryPage.FOLDERS, repository.preferencesFlow.first().imageGalleryDefaultPage)
+    }
+
+    @Test
+    fun `app start page persists`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateAppStartPage(AppStartPage.BROWSER)
+
+        assertEquals(AppStartPage.BROWSER, repository.preferencesFlow.first().appStartPage)
     }
 
     @Test

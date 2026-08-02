@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.AppLaunchMode
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.navigation.AppRoutes
 import org.junit.Assert.assertEquals
@@ -9,6 +11,25 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MainRouteTest {
+
+    @Test
+    fun `cold launch applies the stored browser start page once`() {
+        assertEquals(
+            BROWSER_PAGE,
+            resolveColdLaunchPage(
+                mode = AppLaunchMode.ColdLauncher,
+                isColdLaunchResetting = true,
+                appStartPage = AppStartPage.BROWSER
+            )
+        )
+        assertNull(
+            resolveColdLaunchPage(
+                mode = AppLaunchMode.ColdLauncher,
+                isColdLaunchResetting = false,
+                appStartPage = AppStartPage.HOME
+            )
+        )
+    }
 
     @Test
     fun `images and videos use media galleries while other categories use browser`() {
@@ -58,13 +79,25 @@ class MainRouteTest {
     }
 
     @Test
-    fun `viewer return always restores the browser page`() {
+    fun `viewer return restores the browser pane that opened the file`() {
         assertEquals(
-            BROWSER_PAGE,
+            SECONDARY_BROWSER_PAGE,
             resolveInitialMainPage(
                 requestedPage = HOME_PAGE,
-                savedPage = HOME_PAGE,
+                savedPage = SECONDARY_BROWSER_PAGE,
                 pendingBrowserReturn = true
+            )
+        )
+    }
+
+    @Test
+    fun `configuration recreation retains the secondary browser page`() {
+        assertEquals(
+            SECONDARY_BROWSER_PAGE,
+            resolveInitialMainPage(
+                requestedPage = HOME_PAGE,
+                savedPage = SECONDARY_BROWSER_PAGE,
+                pendingBrowserReturn = false
             )
         )
     }

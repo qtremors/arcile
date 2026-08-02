@@ -30,7 +30,8 @@ private const val MAIN_PAGER_PAGE_KEY = "mainPagerPage"
 private const val SHOW_BROWSER_PAGE_KEY = "showBrowserPage"
 internal const val HOME_PAGE = 0
 internal const val BROWSER_PAGE = 1
-private const val MAIN_PAGE_COUNT = 2
+internal const val SECONDARY_BROWSER_PAGE = 2
+private const val MAIN_PAGE_COUNT = 3
 
 @Stable
 internal class MainShellCoordinator(
@@ -42,7 +43,7 @@ internal class MainShellCoordinator(
     private var requestId by mutableLongStateOf(initialBrowserEntry?.id ?: 0L)
     var browserEntryRequest by mutableStateOf(initialBrowserEntry)
         private set
-    var browserStatus by mutableStateOf(BrowserRouteStatus())
+    var browserStatuses by mutableStateOf<Map<Int, BrowserRouteStatus>>(emptyMap())
         private set
 
     fun requestBrowser(entry: BrowserEntry, focusPath: String? = null) {
@@ -55,8 +56,12 @@ internal class MainShellCoordinator(
         coroutineScope.launch { animateTo(HOME_PAGE) }
     }
 
-    fun updateBrowserStatus(status: BrowserRouteStatus) {
-        browserStatus = status
+    fun showPrimaryBrowser() {
+        coroutineScope.launch { animateTo(BROWSER_PAGE) }
+    }
+
+    fun updateBrowserStatus(page: Int, status: BrowserRouteStatus) {
+        browserStatuses = browserStatuses + (page to status)
     }
 
     suspend fun coordinate(showBrowserPageRequests: StateFlow<Boolean>) {
@@ -69,12 +74,15 @@ internal class MainShellCoordinator(
         ).collect { event ->
             when (event) {
                 is MainShellEvent.ShowBrowserRequested -> if (event.requested) {
-                    pagerState.scrollToPage(BROWSER_PAGE)
+                    val returnPage = savedStateHandle.get<Int>(MAIN_PAGER_PAGE_KEY)
+                        ?.takeIf { it in BROWSER_PAGE..SECONDARY_BROWSER_PAGE }
+                        ?: BROWSER_PAGE
+                    pagerState.scrollToPage(returnPage)
                     savedStateHandle[SHOW_BROWSER_PAGE_KEY] = false
                 }
                 is MainShellEvent.PageSettled -> {
                     savedStateHandle[MAIN_PAGER_PAGE_KEY] = event.page
-                    if (event.page == BROWSER_PAGE) {
+                    if (event.page in BROWSER_PAGE..SECONDARY_BROWSER_PAGE) {
                         savedStateHandle[BROWSER_VIEWER_RETURN_PENDING_KEY] = false
                     }
                 }
@@ -126,10 +134,12 @@ internal fun resolveInitialMainPage(
     savedPage: Int?,
     pendingBrowserReturn: Boolean
 ): Int = when {
-    pendingBrowserReturn -> BROWSER_PAGE
-    requestedPage == BROWSER_PAGE -> BROWSER_PAGE
-    savedPage in HOME_PAGE..BROWSER_PAGE -> requireNotNull(savedPage)
-    else -> requestedPage.coerceIn(HOME_PAGE, BROWSER_PAGE)
+    pendingBrowserReturn -> savedPage
+        ?.takeIf { it in BROWSER_PAGE..SECONDARY_BROWSER_PAGE }
+        ?: BROWSER_PAGE
+    requestedPage in BROWSER_PAGE..SECONDARY_BROWSER_PAGE -> requestedPage
+    savedPage in HOME_PAGE..SECONDARY_BROWSER_PAGE -> requireNotNull(savedPage)
+    else -> requestedPage.coerceIn(HOME_PAGE, SECONDARY_BROWSER_PAGE)
 }
 
 private sealed interface MainShellEvent {

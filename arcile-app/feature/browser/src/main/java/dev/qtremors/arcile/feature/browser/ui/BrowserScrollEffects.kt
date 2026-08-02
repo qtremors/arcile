@@ -5,9 +5,9 @@ import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
@@ -42,37 +42,29 @@ internal fun BrowserScrollEffects(
     }
 
     var restoredScrollKey by remember { mutableStateOf<String?>(null) }
-    var lastScrollResetKey by rememberSaveable { mutableStateOf(scroll.positionKey) }
-    var pendingScrollReset by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(scroll.positionKey) {
-        if (scroll.positionKey != lastScrollResetKey) {
-            pendingScrollReset = true
-            lastScrollResetKey = scroll.positionKey
-        }
-    }
-    LaunchedEffect(scroll.positionKey, displayedFiles.size) {
-        if (pendingScrollReset && displayedFiles.isNotEmpty()) {
-            scroll.listState.scrollToItem(0)
-            scroll.gridState.scrollToItem(0)
-            scroll.onClearPosition(scroll.positionKey)
-            restoredScrollKey = scroll.positionKey
-            pendingScrollReset = false
-        }
-    }
+    var restoredResumeTick by remember { mutableIntStateOf(-1) }
     LaunchedEffect(
         scroll.positionKey,
         resumeRestoreTick,
+        state.isLoading,
         displayedFiles.size,
         state.displayState.visibleListRows.size,
-        state.displayState.visibleGridRows.size,
-        pendingScrollReset
+        state.displayState.visibleGridRows.size
     ) {
-        if (!pendingScrollReset && displayedFiles.isNotEmpty()) {
-            val shouldRestore = restoredScrollKey != scroll.positionKey || resumeRestoreTick > 0
-            if (shouldRestore) scroll.savedPositionProvider(scroll.positionKey)?.let { position ->
-                scroll.restorePosition(state, position)
+        if (!state.isLoading) {
+            val shouldRestore = restoredScrollKey != scroll.positionKey ||
+                restoredResumeTick != resumeRestoreTick
+            if (shouldRestore) {
+                val savedPosition = scroll.savedPositionProvider(scroll.positionKey)
+                if (savedPosition != null && displayedFiles.isNotEmpty()) {
+                    scroll.restorePosition(state, savedPosition)
+                } else if (displayedFiles.isNotEmpty()) {
+                    scroll.listState.scrollToItem(0)
+                    scroll.gridState.scrollToItem(0)
+                }
             }
             restoredScrollKey = scroll.positionKey
+            restoredResumeTick = resumeRestoreTick
         }
     }
     LaunchedEffect(

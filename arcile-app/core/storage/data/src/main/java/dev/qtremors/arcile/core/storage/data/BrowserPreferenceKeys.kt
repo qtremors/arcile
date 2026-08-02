@@ -19,6 +19,7 @@ internal val RECENT_SHOW_THUMBNAILS_KEY = booleanPreferencesKey("recent_show_thu
 internal val HOME_RECENT_CAROUSEL_LIMIT_KEY = intPreferencesKey("home_recent_carousel_limit")
 internal val SHOW_HIDDEN_FILES_KEY = booleanPreferencesKey("show_hidden_files")
 internal val BROWSER_SCROLLBAR_ENABLED_KEY = booleanPreferencesKey("browser_scrollbar_enabled")
+internal val APP_START_PAGE_KEY = stringPreferencesKey("app_start_page")
 internal val GALLERY_SCROLLBAR_ENABLED_KEY = booleanPreferencesKey("gallery_scrollbar_enabled")
 internal val IMAGE_GALLERY_SHOW_FILE_DETAILS_KEY =
     booleanPreferencesKey("image_gallery_show_file_details")

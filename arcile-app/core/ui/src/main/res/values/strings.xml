@@ -315,6 +315,7 @@
 
     <!-- Browser / File Manager -->
     <string name="browse_title">Browse</string>
+    <string name="home_title">Home</string>
     <string name="search_placeholder">Search all files…</string>
     <string name="search_files_placeholder">Search files...</string>
     <string name="search_category_placeholder">Search %1$s...</string>

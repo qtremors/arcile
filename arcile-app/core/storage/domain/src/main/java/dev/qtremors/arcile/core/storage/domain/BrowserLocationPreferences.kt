@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.storage.domain
 import kotlinx.coroutines.flow.Flow
 
 data class BrowserLocationPreferences(
+    val appStartPage: AppStartPage = AppStartPage.HOME,
     val globalPresentation: FileListingPreferences = FileListingPreferences(),
     val pathPresentationOptions: Map<String, FileListingPreferences> = emptyMap(),
     val exactPathPresentationOptions: Map<String, FileListingPreferences> = emptyMap(),
@@ -63,6 +64,7 @@ data class BrowserLocationPreferences(
 
     companion object {
         fun from(preferences: BrowserPreferences) = BrowserLocationPreferences(
+            appStartPage = preferences.appStartPage,
             globalPresentation = preferences.globalPresentation,
             pathPresentationOptions = preferences.pathPresentationOptions,
             exactPathPresentationOptions = preferences.exactPathPresentationOptions,
@@ -80,6 +82,7 @@ data class BrowserLocationPreferences(
 
 interface BrowserLocationPreferencesStore {
     val locationPreferencesFlow: Flow<BrowserLocationPreferences>
+    suspend fun updateAppStartPage(page: AppStartPage)
     suspend fun updateGlobalPresentation(presentation: FileListingPreferences)
     suspend fun updateShowHiddenFiles(show: Boolean)
     suspend fun updateBrowserScrollbarEnabled(enabled: Boolean)

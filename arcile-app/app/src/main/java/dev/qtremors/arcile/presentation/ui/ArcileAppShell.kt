@@ -61,6 +61,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 
 private val FeedbackAboveActionsPadding = 88.dp
 
@@ -73,6 +74,8 @@ fun ArcileAppShell(
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
+    appStartPage: AppStartPage?,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onRestartApp: () -> Unit
 ) {
     val navController = key(appLaunchContext.navigationSessionId) {
@@ -122,9 +125,14 @@ fun ArcileAppShell(
         snackbarHostState.currentSnackbarData?.dismiss()
     }
 
-    LaunchedEffect(appLaunchContext.navigationSessionId, appLaunchContext.mode) {
-        if (appLaunchContext.mode == AppLaunchMode.ColdLauncher) {
-            navController.navigate(AppRoutes.Main(initialPage = 0, restorePersistentLocation = true)) {
+    val coldLaunchPage = resolveColdLaunchPage(
+        mode = appLaunchContext.mode,
+        isColdLaunchResetting = isColdLaunchResetting,
+        appStartPage = appStartPage
+    )
+    LaunchedEffect(appLaunchContext.navigationSessionId, coldLaunchPage) {
+        if (coldLaunchPage != null) {
+            navController.navigate(AppRoutes.Main(initialPage = coldLaunchPage, restorePersistentLocation = true)) {
                 popUpTo(navController.graph.id) {
                     inclusive = true
                 }
@@ -159,6 +167,8 @@ fun ArcileAppShell(
                     onOpenFile = onOpenFile,
                     onOpenFileWith = onOpenFileWith,
                     fileOpenBehaviors = fileOpenBehaviors,
+                    appStartPage = appStartPage ?: AppStartPage.HOME,
+                    onAppStartPageChange = onAppStartPageChange,
                     onRestartApp = onRestartApp,
                     onFeedback = emitOwnedFeedback
                 )
@@ -171,6 +181,19 @@ fun ArcileAppShell(
                 }
             }
         }
+    }
+}
+
+internal fun resolveColdLaunchPage(
+    mode: AppLaunchMode,
+    isColdLaunchResetting: Boolean,
+    appStartPage: AppStartPage?
+): Int? {
+    if (mode != AppLaunchMode.ColdLauncher || !isColdLaunchResetting) return null
+    return when (appStartPage) {
+        AppStartPage.HOME -> HOME_PAGE
+        AppStartPage.BROWSER -> BROWSER_PAGE
+        null -> null
     }
 }
 

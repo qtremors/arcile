@@ -17,6 +17,11 @@ enum class CategoryLibraryPage {
     FOLDERS
 }
 
+enum class AppStartPage {
+    HOME,
+    BROWSER
+}
+
 data class FileListingPreferences(
     val sortOption: FileSortOption = DEFAULT_SORT_OPTION,
     val viewMode: FileViewMode = DEFAULT_VIEW_MODE,
@@ -44,6 +49,7 @@ data class FileListingPreferences(
 }
 
 data class BrowserPreferences(
+    val appStartPage: AppStartPage = AppStartPage.HOME,
     val globalPresentation: FileListingPreferences = FileListingPreferences(),
     val recentPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION

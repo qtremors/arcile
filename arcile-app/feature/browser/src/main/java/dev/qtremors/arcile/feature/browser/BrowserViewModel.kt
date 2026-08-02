@@ -154,10 +154,6 @@ internal class BrowserViewModel @Inject constructor(
         scrollPositionStore.save(key, position)
     }
 
-    fun clearScrollPosition(key: String) {
-        scrollPositionStore.clear(key)
-    }
-
     fun requestOpenedFileReveal(path: String) = revealController.request(path)
     fun armOpenedFileReveal() = revealController.arm()
     fun consumeOpenedFileReveal(path: String) = revealController.consume(path)
