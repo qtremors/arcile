@@ -1,11 +1,13 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -113,9 +115,63 @@ class AudioLibraryPresentationTest {
     }
 
     @Test
+    fun `custom folder cover overrides the automatic latest track`() {
+        val state = buildAudioLibraryState(
+            AudioLibraryState(
+                folderCoverPaths = mapOf(
+                    "/Music/Folder" to "/Music/Folder/selected.mp3"
+                )
+            ),
+            listOf(
+                track("/Music/Folder/selected.mp3", "Selected", "Artist", "Album", modified = 10L),
+                track("/Music/Folder/latest.mp3", "Latest", "Artist", "Album", modified = 30L)
+            )
+        )
+
+        assertEquals("selected.mp3", state.folders.single().coverTrack.file.name)
+    }
+
+    @Test
+    fun `pinned audio folders stay ahead of the selected sort order`() {
+        val state = buildAudioLibraryState(
+            AudioLibraryState(
+                pinnedFolderPaths = setOf("/Music/Zed"),
+                folderPresentation = FileListingPreferences(
+                    sortOption = FileSortOption.NAME_ASC
+                )
+            ),
+            listOf(
+                track("/Music/Alpha/one.mp3", "One", "Artist", "Album"),
+                track("/Music/Zed/two.mp3", "Two", "Artist", "Album")
+            )
+        )
+
+        assertEquals(listOf("Zed", "Alpha"), state.folders.map(AudioFolder::title))
+        assertEquals(true, state.folders.first().isPinned)
+    }
+
+    @Test
+    fun `favorites folder contains only favorited audio and filters its track page`() {
+        val tracks = listOf(
+            track("/Music/One/favorite.mp3", "Favorite", "Artist", "Album"),
+            track("/Music/Two/other.mp3", "Other", "Artist", "Album")
+        )
+        val state = buildAudioLibraryState(
+            AudioLibraryState(favoritePaths = setOf("/Music/One/favorite.mp3")),
+            tracks
+        )
+        val favorites = state.folders.first()
+        val filtered = buildAudioLibraryState(state.copy(folderFilter = favorites), tracks)
+
+        assertEquals(true, favorites.isFavorites)
+        assertEquals(listOf("Favorite"), favorites.tracks.map { it.displayTitle })
+        assertEquals(listOf("Favorite"), filtered.visibleTracks.map { it.displayTitle })
+    }
+
+    @Test
     fun `folder tab selection scope includes every track in visible folders`() {
         val presented = buildAudioLibraryState(
-            AudioLibraryState(query = "Scores", tab = AudioLibraryTab.FOLDERS),
+            AudioLibraryState(query = "Scores", tab = CategoryLibraryPage.FOLDERS),
             listOf(
                 track("/Music/Scores/one.mp3", "One", "Artist", "Album"),
                 track("/Music/Scores/two.mp3", "Two", "Artist", "Album"),
@@ -130,17 +186,43 @@ class AudioLibraryPresentationTest {
     }
 
     @Test
+    fun `opening a folder atomically presents only that folders tracks`() {
+        val presented = buildAudioLibraryState(
+            AudioLibraryState(tab = CategoryLibraryPage.FOLDERS),
+            listOf(
+                track("/Music/Scores/one.mp3", "One", "Artist", "Album"),
+                track("/Music/Scores/two.mp3", "Two", "Artist", "Album"),
+                track("/Music/Other/three.mp3", "Three", "Artist", "Album")
+            )
+        )
+        val scoresFolder = presented.folders.first { it.title == "Scores" }
+        val folderContents = presented
+            .copy(folderFilter = scoresFolder)
+            .withPresentedVisibleTracks()
+
+        assertEquals(CategoryLibraryPage.FOLDERS, folderContents.tab)
+        assertEquals(
+            listOf("One", "Two"),
+            folderContents.visibleTracks.map { it.displayTitle }
+        )
+        assertEquals(
+            setOf("/Music/Scores/one.mp3", "/Music/Scores/two.mp3"),
+            folderContents.visibleSelectionPaths().toSet()
+        )
+    }
+
+    @Test
     fun `scrollbar index mapping accounts for grouped section headers`() {
         val tracks = listOf(
             track("/Music/new.mp3", "New", "Artist", "Album", modified = 2_000_000_000L),
             track("/Music/old.mp3", "Old", "Artist", "Album", modified = 1_000_000_000L)
         )
-        val groups = groupAudioTracks(tracks, ImageGalleryGrouping.DAY)
+        val groups = groupAudioTracks(tracks, CategoryGrouping.DAY)
 
-        assertEquals("New", audioTrackForLazyIndex(0, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
-        assertEquals("New", audioTrackForLazyIndex(1, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
-        assertEquals("Old", audioTrackForLazyIndex(2, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
-        assertEquals("Old", audioTrackForLazyIndex(3, tracks, ImageGalleryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("New", audioTrackForLazyIndex(0, tracks, CategoryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("New", audioTrackForLazyIndex(1, tracks, CategoryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("Old", audioTrackForLazyIndex(2, tracks, CategoryGrouping.DAY, groups)?.displayTitle)
+        assertEquals("Old", audioTrackForLazyIndex(3, tracks, CategoryGrouping.DAY, groups)?.displayTitle)
     }
 
     @Test
@@ -148,6 +230,20 @@ class AudioLibraryPresentationTest {
         assertEquals("0:00", formatAudioDuration(0L))
         assertEquals("3:05", formatAudioDuration(185_000L))
         assertEquals("1:02:03", formatAudioDuration(3_723_000L))
+    }
+
+    @Test
+    fun `structured search filters apply to audio and folder results`() {
+        val state = buildAudioLibraryState(
+            AudioLibraryState(searchFilters = SearchFilters(minSize = 10L)),
+            listOf(
+                track("/Music/Large/large.mp3", "Large", "Artist", "Album", size = 20L),
+                track("/Music/Small/small.mp3", "Small", "Artist", "Album", size = 5L)
+            )
+        )
+
+        assertEquals(listOf("Large"), state.visibleTracks.map { it.displayTitle })
+        assertEquals(listOf("Large"), state.folders.map(AudioFolder::title))
     }
 
     @Test

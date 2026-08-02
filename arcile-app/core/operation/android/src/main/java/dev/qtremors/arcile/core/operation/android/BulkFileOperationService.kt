@@ -93,6 +93,8 @@ class BulkFileOperationService : Service() {
     private var currentOperationJob: Job? = null
     private var lastNotificationUpdateAt = 0L
     private var notificationMetrics = NotificationMetrics()
+    private val notificationLock = Any()
+    private var notificationOperationId: String? = null
     private val serviceOperationJournal: OperationJournal
         get() = if (::operationJournal.isInitialized) operationJournal else NoOpOperationJournal()
     private val serviceMutationJournal: MutationJournal
@@ -110,7 +112,7 @@ class BulkFileOperationService : Service() {
                     serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
                     coordinator.onOperationCancelling(request)
                     currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
-                    stopForegroundSafely()
+                    stopForegroundAndRemoveNotification(request.operationId)
                     stopSelf(startId)
                 }
                 return START_NOT_STICKY
@@ -120,8 +122,12 @@ class BulkFileOperationService : Service() {
                 val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
                 currentRequest = request
                 notificationMetrics = NotificationMetrics(startedAtMillis = System.currentTimeMillis())
+                lastNotificationUpdateAt = 0L
                 serviceOperationJournal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
-                startForeground(NOTIFICATION_ID, buildNotification(request))
+                synchronized(notificationLock) {
+                    notificationOperationId = request.operationId
+                    startForeground(NOTIFICATION_ID, buildNotification(request))
+                }
                 storageWorkCoordinator.beginMutation()
                 val capturedStartId = startId
                 currentOperationJob = serviceScope.launch {
@@ -227,7 +233,7 @@ class BulkFileOperationService : Service() {
                         currentRequest = null
                         currentOperationJob = null
                         notificationMetrics = NotificationMetrics()
-                        stopForegroundSafely()
+                        stopForegroundAndRemoveNotification(request.operationId)
                         stopSelf(capturedStartId)
                     }
                 }
@@ -237,22 +243,26 @@ class BulkFileOperationService : Service() {
     }
 
     override fun onDestroy() {
+        stopForegroundAndRemoveNotification(operationId = null)
         serviceScope.cancel()
         super.onDestroy()
     }
 
     private fun updateNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
-        serviceOperationJournal.update(request.operationId) {
-            it.copy(phase = OperationPhase.RUNNING, progress = progress)
+        synchronized(notificationLock) {
+            if (notificationOperationId != request.operationId) return
+            serviceOperationJournal.update(request.operationId) {
+                it.copy(phase = OperationPhase.RUNNING, progress = progress)
+            }
+            val now = System.currentTimeMillis()
+            val finished = progress.completedItems >= progress.totalItems
+            if (!finished && now - lastNotificationUpdateAt < NOTIFICATION_UPDATE_THROTTLE_MS) return
+            lastNotificationUpdateAt = now
+            getSystemService(NotificationManager::class.java).notify(
+                NOTIFICATION_ID,
+                buildNotification(request, progress)
+            )
         }
-        val now = System.currentTimeMillis()
-        val finished = progress.completedItems >= progress.totalItems
-        if (!finished && now - lastNotificationUpdateAt < NOTIFICATION_UPDATE_THROTTLE_MS) return
-        lastNotificationUpdateAt = now
-        getSystemService(NotificationManager::class.java).notify(
-            NOTIFICATION_ID,
-            buildNotification(request, progress)
-        )
     }
 
     private fun operationFailureMessage(error: Throwable): String =
@@ -420,9 +430,14 @@ class BulkFileOperationService : Service() {
         manager.createNotificationChannel(channel)
     }
 
-    private fun stopForegroundSafely() {
-        runCatching {
-            stopForeground(STOP_FOREGROUND_REMOVE)
+    private fun stopForegroundAndRemoveNotification(operationId: String?) {
+        synchronized(notificationLock) {
+            if (operationId != null && notificationOperationId != operationId) return
+            notificationOperationId = null
+            runCatching {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+            }
+            getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
     }
 

@@ -17,5 +17,8 @@ internal fun Flow<BrowserPreferences>.asRecentFilesPreferences() =
 internal fun Flow<BrowserPreferences>.asGalleryPreferences() =
     map(GalleryPreferences::from)
 
+internal fun Flow<BrowserPreferences>.asGalleryPreferences(categoryName: String) =
+    map { GalleryPreferences.from(it, categoryName) }
+
 internal fun Flow<BrowserPreferences>.asSaveDestinationPreferences() =
     map(SaveDestinationPreferences::from)

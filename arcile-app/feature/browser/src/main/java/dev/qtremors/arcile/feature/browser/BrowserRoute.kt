@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
@@ -72,16 +74,19 @@ sealed interface BrowserDestination {
 
 @Composable
 fun BrowserRoute(
+    viewModelKey: String = "browser",
     entryRequest: BrowserEntryRequest?,
     isVisible: Boolean,
     hasPreviousRoute: Boolean,
     onStatusChange: (BrowserRouteStatus) -> Unit,
     onDestination: (BrowserDestination) -> Unit,
     onShareSelected: suspend (List<String>, List<FileModel>) -> Boolean,
+    appStartPage: AppStartPage? = null,
+    onAppStartPageChange: (AppStartPage) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel = hiltViewModel<BrowserViewModel>()
+    val viewModel = hiltViewModel<BrowserViewModel>(key = viewModelKey)
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val initializationState by viewModel.initializationState.collectAsStateWithLifecycle()
@@ -91,6 +96,9 @@ fun BrowserRoute(
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val scrollPositionKey = state.scrollPositionKey()
+    val saveCurrentScrollPosition = {
+        viewModel.saveVisibleScrollPosition(scrollPositionKey, listState, gridState)
+    }
     val hasActiveLocation =
         uiState.location.currentPath.isNotBlank() ||
             uiState.location.isVolumeRootScreen ||
@@ -137,7 +145,12 @@ fun BrowserRoute(
         }
     }
 
+    DisposableEffect(scrollPositionKey, isVisible) {
+        onDispose(saveCurrentScrollPosition)
+    }
+
     val navigateBack: () -> Unit = {
+        saveCurrentScrollPosition()
         if (!viewModel.navigateBack(allowVolumeRootFallback = !hasPreviousRoute)) {
             onDestination(
                 when (browserBackFallback(hasPreviousRoute)) {
@@ -168,9 +181,12 @@ fun BrowserRoute(
     val screenIntents = BrowserIntents(
         navigation = BrowserNavigationIntents(
             onNavigateBack = navigateBack,
-            onNavigateTo = viewModel::navigateToFolder,
+            onNavigateTo = { path ->
+                saveCurrentScrollPosition()
+                viewModel.navigateToFolder(path)
+            },
             onOpenFile = { path ->
-                viewModel.saveVisibleScrollPosition(scrollPositionKey, listState, gridState)
+                saveCurrentScrollPosition()
                 if (ArchiveFormat.isSupported(path)) {
                     viewModel.openArchive(path)
                 } else {
@@ -188,7 +204,10 @@ fun BrowserRoute(
                 }
             },
             onRefresh = { viewModel.refresh(pullToRefresh = true) },
-            onSelectFolderTab = viewModel::selectFolderTab,
+            onSelectFolderTab = { path ->
+                saveCurrentScrollPosition()
+                viewModel.selectFolderTab(path)
+            },
             onToggleHiddenFiles = viewModel::toggleHiddenFiles
         ),
         selection = BrowserSelectionIntents(
@@ -296,16 +315,16 @@ fun BrowserRoute(
                     listState = listState,
                     gridState = gridState,
                     positionKey = scrollPositionKey,
-                    savedPosition = viewModel.savedScrollPosition(scrollPositionKey),
                     savedPositionProvider = viewModel::savedScrollPosition,
                     onSavePosition = viewModel::saveScrollPosition,
-                    onClearPosition = viewModel::clearScrollPosition,
                     pendingRevealFilePath = state.pendingRevealFilePath,
                     pendingRevealReady = state.pendingRevealReady,
                     onArmPendingReveal = viewModel::armOpenedFileReveal,
                     onConsumePendingReveal = viewModel::consumeOpenedFileReveal
                 ),
                 onFeedback = onFeedback,
+                appStartPage = appStartPage,
+                onAppStartPageChange = onAppStartPageChange,
                 isRouteVisible = isVisible,
                 batchRenameHistory = batchRenameHistory
             )

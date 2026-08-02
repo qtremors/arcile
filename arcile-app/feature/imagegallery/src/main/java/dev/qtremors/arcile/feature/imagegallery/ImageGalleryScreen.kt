@@ -4,26 +4,18 @@ package dev.qtremors.arcile.feature.imagegallery
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.animateContentSize
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
@@ -62,13 +54,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -80,8 +68,8 @@ import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
@@ -89,6 +77,8 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.PasteConflictDialog
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryShell
+import dev.qtremors.arcile.core.ui.category.rememberCategoryLibraryShellState
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
@@ -140,6 +130,7 @@ internal fun ImageGalleryScreen(
     val onDismissDeleteConfirmation = deleteActions.dismiss
     val onRefresh = contentActions.refresh
     val onSearchQueryChange = contentActions.searchQueryChange
+    val onSearchFiltersChange = contentActions.searchFiltersChange
     val onClearSearch = contentActions.clearSearch
     val onSelectAlbum = contentActions.selectAlbum
     val onClearError = contentActions.clearError
@@ -149,7 +140,7 @@ internal fun ImageGalleryScreen(
     val onShowFileDetailsChange = presentationActions.showFileDetailsChange
     val onAspectRatioChange = presentationActions.aspectRatioChange
     val onGroupingChange = presentationActions.groupingChange
-    val onDefaultTabChange = presentationActions.defaultTabChange
+    val onDefaultPageChange = presentationActions.defaultPageChange
     val onTogglePinnedAlbum = presentationActions.togglePinnedAlbum
     val onCopySelected = clipboardActions.copySelected
     val onCutSelected = clipboardActions.cutSelected
@@ -168,11 +159,11 @@ internal fun ImageGalleryScreen(
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
-    var currentTab by rememberSaveable { mutableStateOf(GalleryTab.PHOTOS) }
-    var defaultTabApplied by rememberSaveable { mutableStateOf(false) }
+    var currentTab by rememberSaveable { mutableStateOf(CategoryLibraryPage.ITEMS) }
+    var defaultPageApplied by rememberSaveable { mutableStateOf(false) }
     val albumsGridState = rememberLazyGridState()
     val pagerState = rememberPagerState(
-        initialPage = if (currentTab == GalleryTab.ALBUMS) 1 else 0,
+        initialPage = if (currentTab == CategoryLibraryPage.FOLDERS) 1 else 0,
         pageCount = { 2 }
     )
     val coroutineScope = rememberCoroutineScope()
@@ -184,19 +175,7 @@ internal fun ImageGalleryScreen(
         mutableStateOf(state.albumPresentation.gridMinCellSize)
     }
 
-    var isTopBarVisible by rememberSaveable { mutableStateOf(true) }
-    val nestedScrollConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y < -15f) {
-                    isTopBarVisible = false
-                } else if (available.y > 15f) {
-                    isTopBarVisible = true
-                }
-                return Offset.Zero
-            }
-        }
-    }
+    val shellState = rememberCategoryLibraryShellState()
 
     LaunchedEffect(state.error) {
         state.error?.let { error ->
@@ -206,20 +185,20 @@ internal fun ImageGalleryScreen(
         }
     }
 
-    LaunchedEffect(state.preferencesLoaded, state.imageGalleryDefaultTab) {
-        if (!defaultTabApplied && state.preferencesLoaded) {
-            val targetTab = when (state.imageGalleryDefaultTab) {
-                ImageGalleryDefaultTab.PHOTOS -> GalleryTab.PHOTOS
-                ImageGalleryDefaultTab.ALBUMS -> GalleryTab.ALBUMS
+    LaunchedEffect(state.preferencesLoaded, state.defaultPage) {
+        if (!defaultPageApplied && state.preferencesLoaded) {
+            val targetTab = when (state.defaultPage) {
+                CategoryLibraryPage.ITEMS -> CategoryLibraryPage.ITEMS
+                CategoryLibraryPage.FOLDERS -> CategoryLibraryPage.FOLDERS
             }
             currentTab = targetTab
-            pagerState.scrollToPage(if (targetTab == GalleryTab.ALBUMS) 1 else 0)
-            defaultTabApplied = true
+            pagerState.scrollToPage(if (targetTab == CategoryLibraryPage.FOLDERS) 1 else 0)
+            defaultPageApplied = true
         }
     }
 
     LaunchedEffect(pagerState.currentPage) {
-        currentTab = if (pagerState.currentPage == 1) GalleryTab.ALBUMS else GalleryTab.PHOTOS
+        currentTab = if (pagerState.currentPage == 1) CategoryLibraryPage.FOLDERS else CategoryLibraryPage.ITEMS
         if (pagerState.currentPage == 0 && state.selectedAlbumPath != null) {
             onSelectAlbum(null)
         }
@@ -235,7 +214,7 @@ internal fun ImageGalleryScreen(
         backActionAtStart = when {
             isSelectionMode -> GalleryBackAction.ClearSelection
             showSearchBar -> GalleryBackAction.CloseSearch
-            currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null -> GalleryBackAction.CloseAlbum
+            currentTab == CategoryLibraryPage.FOLDERS && state.selectedAlbumPath != null -> GalleryBackAction.CloseAlbum
             else -> GalleryBackAction.NavigateBack
         }
         isBackPredicting = true
@@ -262,26 +241,95 @@ internal fun ImageGalleryScreen(
         }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(nestedScrollConnection)
-    ) {
-        val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    if (isBackPredicting && backActionAtStart == GalleryBackAction.NavigateBack) {
-                        val scale = 1f - (backProgress * 0.08f)
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = backProgress * 100.dp.toPx()
-                        alpha = 1f - (backProgress * 0.4f)
-                    }
-                }
+    CategoryLibraryShell(
+        state = shellState,
+        selectionMode = isSelectionMode,
+        searchVisible = showSearchBar,
+        exitBackProgress = if (
+            isBackPredicting && backActionAtStart == GalleryBackAction.NavigateBack
         ) {
+            backProgress
+        } else {
+            0f
+        },
+        chromeBackProgress = if (
+            isBackPredicting && (isSelectionMode || showSearchBar)
+        ) {
+            backProgress
+        } else {
+            0f
+        },
+        topChrome = {
+            if (isSelectionMode) {
+                FloatingGallerySelectionTopBar(
+                    selectedCount = state.selectedFiles.size,
+                    selectedSize = formatFileSize(
+                        state.files.filter { state.selectedFiles.contains(it.absolutePath) }
+                            .sumOf { it.size }
+                    ),
+                    onClearSelection = onClearSelection,
+                    onSelectAll = onSelectAll,
+                    onInvertSelection = onInvertSelection,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                FloatingGalleryTopBar(
+                    state = state,
+                    showSearchBar = showSearchBar,
+                    currentTab = currentTab,
+                    onSearchClick = {
+                        shellState.revealChrome()
+                        showSearchBar = true
+                    },
+                    onSortClick = { showPresentationSheet = true },
+                    onNavigateBack = {
+                        if (
+                            currentTab == CategoryLibraryPage.FOLDERS &&
+                            state.selectedAlbumPath != null
+                        ) {
+                            onSelectAlbum(null)
+                        } else {
+                            onNavigateBack()
+                        }
+                    },
+                    onClearSearch = {
+                        showSearchBar = false
+                        onClearSearch()
+                    },
+                    onSearchQueryChange = onSearchQueryChange,
+                    onSearchFiltersChange = onSearchFiltersChange,
+                    onShowFileDetailsChange = onShowFileDetailsChange,
+                    onDefaultPageChange = onDefaultPageChange,
+                    onSelectAll = onSelectAll,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        bottomChrome = { isChromeVisible ->
+            ImageGalleryBottomBar(
+                state = state,
+                currentTab = currentTab,
+                isTopBarVisible = isChromeVisible,
+                isBackPredicting = isBackPredicting,
+                backProgress = backProgress,
+                selectionActions = selectionActions,
+                deleteActions = deleteActions,
+                clipboardActions = clipboardActions,
+                fileActions = fileActions,
+                onSelectPhotos = {
+                    currentTab = CategoryLibraryPage.ITEMS
+                    onSelectAlbum(null)
+                    coroutineScope.launch { pagerState.animateScrollToPage(0) }
+                },
+                onSelectAlbums = {
+                    currentTab = CategoryLibraryPage.FOLDERS
+                    coroutineScope.launch { pagerState.animateScrollToPage(1) }
+                },
+                onShowRenameDialog = { showRenameDialog = true },
+                onShowClipboardContents = { showClipboardContents = true }
+            )
+        }
+    ) { contentPadding ->
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
@@ -295,10 +343,7 @@ internal fun ImageGalleryScreen(
                         onPhotosGridCellSizeFinalized = { size ->
                             onPresentationChange(state.presentation.copy(gridMinCellSize = size))
                         },
-                        contentPadding = PaddingValues(
-                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
-                            bottom = bottomPadding
-                        ),
+                        contentPadding = contentPadding,
                         onOpenFile = onOpenFileWithContext,
                         onToggleSelection = onToggleSelection,
                         onSelectMultiple = onSelectMultiple,
@@ -313,10 +358,7 @@ internal fun ImageGalleryScreen(
                         onAlbumsGridCellSizeFinalized = { size ->
                             onAlbumPresentationChange(state.albumPresentation.copy(gridMinCellSize = size))
                         },
-                        contentPadding = PaddingValues(
-                            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
-                            bottom = bottomPadding
-                        ),
+                        contentPadding = contentPadding,
                         onSelectAlbum = onSelectAlbum,
                         onRefresh = onRefresh,
                         gridState = albumsGridState,
@@ -341,10 +383,7 @@ internal fun ImageGalleryScreen(
                             onPhotosGridCellSizeFinalized = { size ->
                                 onPresentationChange(state.presentation.copy(gridMinCellSize = size))
                             },
-                            contentPadding = PaddingValues(
-                                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 72.dp,
-                                bottom = bottomPadding
-                            ),
+                            contentPadding = contentPadding,
                             onOpenFile = onOpenFileWithContext,
                             onToggleSelection = onToggleSelection,
                             onSelectMultiple = onSelectMultiple,
@@ -354,102 +393,6 @@ internal fun ImageGalleryScreen(
                     }
                 }
             }
-        }
-
-        // Animated offsets & alpha for floating top bar components
-        val topBarOffset by animateDpAsState(
-            targetValue = if (isTopBarVisible || showSearchBar) 0.dp else (-120).dp,
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-            label = "topBarOffset"
-        )
-        val topBarAlpha by animateFloatAsState(
-            targetValue = if (isTopBarVisible || showSearchBar) 1f else 0f,
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-            label = "topBarAlpha"
-        )
-
-        // Floating top control row
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopCenter)
-                .graphicsLayer {
-                    translationY = topBarOffset.toPx()
-                    alpha = topBarAlpha
-                    if (isBackPredicting) {
-                        if (isSelectionMode) {
-                            val scale = 1f - (backProgress * 0.15f)
-                            scaleX = scale
-                            scaleY = scale
-                            alpha = topBarAlpha * (1f - backProgress)
-                            translationY = topBarOffset.toPx() - (backProgress * 40.dp.toPx())
-                        } else if (showSearchBar) {
-                            alpha = topBarAlpha * (1f - backProgress)
-                            translationY = topBarOffset.toPx() - (backProgress * 50.dp.toPx())
-                        }
-                    }
-                }
-        ) {
-            if (isSelectionMode) {
-                FloatingGallerySelectionTopBar(
-                    selectedCount = state.selectedFiles.size,
-                    selectedSize = formatFileSize(
-                        state.files.filter { state.selectedFiles.contains(it.absolutePath) }.sumOf { it.size }
-                    ),
-                    onClearSelection = onClearSelection,
-                    onSelectAll = onSelectAll,
-                    onInvertSelection = onInvertSelection,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            } else {
-                FloatingGalleryTopBar(
-                    state = state,
-                    showSearchBar = showSearchBar,
-                    currentTab = currentTab,
-                    onSearchClick = { showSearchBar = true },
-                    onSortClick = { showPresentationSheet = true },
-                    onNavigateBack = {
-                        if (currentTab == GalleryTab.ALBUMS && state.selectedAlbumPath != null) {
-                            onSelectAlbum(null)
-                        } else {
-                            onNavigateBack()
-                        }
-                    },
-                    onClearSearch = {
-                        showSearchBar = false
-                        onClearSearch()
-                    },
-                    onSearchQueryChange = onSearchQueryChange,
-                    onShowFileDetailsChange = onShowFileDetailsChange,
-                    onDefaultTabChange = onDefaultTabChange,
-                    onSelectAll = onSelectAll,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        }
-
-        ImageGalleryBottomBar(
-            state = state,
-            currentTab = currentTab,
-            isTopBarVisible = isTopBarVisible,
-            isBackPredicting = isBackPredicting,
-            backProgress = backProgress,
-            selectionActions = selectionActions,
-            deleteActions = deleteActions,
-            clipboardActions = clipboardActions,
-            fileActions = fileActions,
-            onSelectPhotos = {
-                currentTab = GalleryTab.PHOTOS
-                onSelectAlbum(null)
-                coroutineScope.launch { pagerState.animateScrollToPage(0) }
-            },
-            onSelectAlbums = {
-                currentTab = GalleryTab.ALBUMS
-                coroutineScope.launch { pagerState.animateScrollToPage(1) }
-            },
-            onShowRenameDialog = { showRenameDialog = true },
-            onShowClipboardContents = { showClipboardContents = true }
-        )
     }
 
     ImageGalleryDialogs(

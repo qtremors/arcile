@@ -20,7 +20,7 @@ internal class MediaStoreCategoryCache(
                 data.map { item ->
                     CategorySummaryEntity(
                         scopeKey = cacheKey,
-                        categoryName = item.name,
+                        categoryName = FileCategories.find(item.name)?.storageName ?: item.name,
                         sizeBytes = item.sizeBytes,
                         itemCount = 0,
                         cachedAt = cachedAt
@@ -42,9 +42,9 @@ internal class MediaStoreCategoryCache(
 
             val byName = entities.associateBy { it.categoryName }
             return FileCategories.all.map { category ->
-                val entity = byName[category.name] ?: return null
+                val entity = byName[category.storageName] ?: return null
                 CategoryStorage(
-                    name = category.name,
+                    name = category.displayName,
                     sizeBytes = entity.sizeBytes,
                     extensions = category.extensions
                 )

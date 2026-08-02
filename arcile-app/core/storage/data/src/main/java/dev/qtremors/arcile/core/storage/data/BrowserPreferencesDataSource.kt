@@ -3,19 +3,20 @@ package dev.qtremors.arcile.core.storage.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
-import dev.qtremors.arcile.core.storage.domain.AudioLibraryDefaultTab
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import kotlinx.coroutines.Dispatchers
@@ -149,15 +150,31 @@ class BrowserPreferencesDataSource(
                             globalPresentation
                         ).copy(gridMinCellSize = value)
                     }
+
+                    key.name.startsWith("path_show_thumbnails_") && value is Boolean -> {
+                        val path = key.name.removePrefix("path_show_thumbnails_")
+                        pathMap[path] = currentPresentation(
+                            pathMap[path],
+                            globalPresentation
+                        ).copy(showThumbnails = value)
+                    }
+
+                    key.name.startsWith("exact_path_show_thumbnails_") && value is Boolean -> {
+                        val path = key.name.removePrefix("exact_path_show_thumbnails_")
+                        exactPathMap[path] = currentPresentation(
+                            exactPathMap[path],
+                            globalPresentation
+                        ).copy(showThumbnails = value)
+                    }
                 }
             }
 
             val groupingStr = prefs[IMAGE_GALLERY_GROUPING_KEY]
-            val grouping = ImageGalleryGrouping.entries.find { it.name == groupingStr }
+            val grouping = CategoryGrouping.entries.find { it.name == groupingStr }
                 ?: BrowserPreferences().imageGalleryGrouping
-            val defaultTabStr = prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY]
-            val defaultTab = ImageGalleryDefaultTab.entries.find { it.name == defaultTabStr }
-                ?: BrowserPreferences().imageGalleryDefaultTab
+            val defaultPageString = prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY]
+            val defaultPage = parseCategoryLibraryPage(defaultPageString)
+                ?: BrowserPreferences().imageGalleryDefaultPage
 
             val albumPresentation = FileListingPreferences(
                 sortOption = parseSortOption(
@@ -204,12 +221,61 @@ class BrowserPreferencesDataSource(
                     ?: defaults.audioFolderPresentation.gridMinCellSize,
                 showThumbnails = true
             ).normalized()
-            val audioGrouping = ImageGalleryGrouping.entries.firstOrNull {
+            val audioGrouping = CategoryGrouping.entries.firstOrNull {
                 it.name == prefs[AUDIO_GROUPING_KEY]
             } ?: defaults.audioGrouping
-            val audioDefaultTab = AudioLibraryDefaultTab.entries.firstOrNull {
-                it.name == prefs[AUDIO_DEFAULT_TAB_KEY]
-            } ?: defaults.audioDefaultTab
+            val audioDefaultPage = parseCategoryLibraryPage(prefs[AUDIO_DEFAULT_TAB_KEY])
+                ?: defaults.audioDefaultPage
+            val audioFavoriteFiles = prefs[AUDIO_FAVORITE_FILES_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Set<String>>(encoded)
+                    }.getOrDefault(emptySet())
+                }
+                .orEmpty()
+            val audioPinnedFolders = prefs[AUDIO_PINNED_FOLDERS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Set<String>>(encoded)
+                    }.getOrDefault(emptySet())
+                }
+                .orEmpty()
+            val audioFolderCovers = prefs[AUDIO_FOLDER_COVERS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            val categoryGroupings = prefs[CATEGORY_GROUPINGS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+                .mapNotNull { (category, grouping) ->
+                    CategoryGrouping.entries.firstOrNull { it.name == grouping }
+                        ?.let { category to it }
+                }
+                .toMap()
+            val categoryDefaultPages = prefs[CATEGORY_DEFAULT_PAGES_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+                .mapNotNull { (category, page) ->
+                    parseCategoryLibraryPage(page)?.let { category to it }
+                }
+                .toMap()
+            val categoryShowFileDetails =
+                parseCategoryBooleanMap(prefs[CATEGORY_SHOW_FILE_DETAILS_KEY])
+            val categoryAspectRatios =
+                parseCategoryBooleanMap(prefs[CATEGORY_ASPECT_RATIOS_KEY])
+            val categorySectioned =
+                parseCategoryBooleanMap(prefs[CATEGORY_SECTIONED_KEY])
 
             val albumAspectRatio = prefs[ALBUM_ASPECT_RATIO_KEY]
                 ?: BrowserPreferences().albumAspectRatio
@@ -248,6 +314,9 @@ class BrowserPreferencesDataSource(
                 .toMap()
 
             BrowserPreferences(
+                appStartPage = AppStartPage.entries.firstOrNull {
+                    it.name == prefs[APP_START_PAGE_KEY]
+                } ?: AppStartPage.HOME,
                 globalPresentation = globalPresentation,
                 recentPresentation = recentPresentation,
                 pathPresentationOptions = pathMap.mapValues { it.value.normalized() },
@@ -263,13 +332,21 @@ class BrowserPreferencesDataSource(
                 imageGallerySectioned = prefs[IMAGE_GALLERY_SECTIONED_KEY]
                     ?: BrowserPreferences().imageGallerySectioned,
                 imageGalleryGrouping = grouping,
-                imageGalleryDefaultTab = defaultTab,
+                imageGalleryDefaultPage = defaultPage,
                 audioPresentation = audioPresentation,
                 audioFolderPresentation = audioFolderPresentation,
                 audioGrouping = audioGrouping,
-                audioDefaultTab = audioDefaultTab,
+                audioDefaultPage = audioDefaultPage,
                 audioShowFileDetails = prefs[AUDIO_SHOW_FILE_DETAILS_KEY]
                     ?: defaults.audioShowFileDetails,
+                audioFavoriteFiles = audioFavoriteFiles,
+                audioPinnedFolders = audioPinnedFolders,
+                audioFolderCovers = audioFolderCovers,
+                categoryGroupings = categoryGroupings,
+                categoryDefaultPages = categoryDefaultPages,
+                categoryShowFileDetails = categoryShowFileDetails,
+                categoryAspectRatios = categoryAspectRatios,
+                categorySectioned = categorySectioned,
                 albumPresentation = albumPresentation,
                 albumAspectRatio = albumAspectRatio,
                 favoriteFiles = favoriteFiles,
@@ -290,8 +367,17 @@ class BrowserPreferencesDataSource(
     val locationPreferencesFlow = preferencesFlow.asLocationPreferences()
     val recentFilesPreferencesFlow = preferencesFlow.asRecentFilesPreferences()
     val galleryPreferencesFlow = preferencesFlow.asGalleryPreferences()
+
+    fun galleryPreferencesFlow(categoryName: String) =
+        preferencesFlow.asGalleryPreferences(categoryName)
     val audioLibraryPreferencesFlow = preferencesFlow.map(AudioLibraryPreferences::from)
     val saveDestinationPreferencesFlow = preferencesFlow.asSaveDestinationPreferences()
+
+    suspend fun updateAppStartPage(page: AppStartPage) {
+        dataStore.edit { prefs ->
+            prefs[APP_START_PAGE_KEY] = page.name
+        }
+    }
 
     suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         val normalized = presentation.normalized()
@@ -357,13 +443,13 @@ class BrowserPreferencesDataSource(
         }
     }
 
-    suspend fun updateImageGalleryGrouping(grouping: ImageGalleryGrouping) {
+    suspend fun updateGalleryGrouping(grouping: CategoryGrouping) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_GROUPING_KEY] = grouping.name
         }
     }
 
-    suspend fun updateImageGalleryDefaultTab(tab: ImageGalleryDefaultTab) {
+    suspend fun updateGalleryDefaultPage(tab: CategoryLibraryPage) {
         dataStore.edit { prefs ->
             prefs[IMAGE_GALLERY_DEFAULT_TAB_KEY] = tab.name
         }
@@ -409,6 +495,7 @@ class BrowserPreferencesDataSource(
                 prefs[keys.viewMode] = normalized.viewMode.name
                 prefs[keys.listZoom] = normalized.listZoom
                 prefs[keys.gridMinCellSize] = normalized.gridMinCellSize
+                prefs[keys.showThumbnails] = normalized.showThumbnails
             }
         }
     }
@@ -445,17 +532,111 @@ class BrowserPreferencesDataSource(
         }
     }
 
-    suspend fun updateAudioGrouping(grouping: ImageGalleryGrouping) {
+    suspend fun updateAudioGrouping(grouping: CategoryGrouping) {
         dataStore.edit { prefs -> prefs[AUDIO_GROUPING_KEY] = grouping.name }
     }
 
-    suspend fun updateAudioDefaultTab(tab: AudioLibraryDefaultTab) {
+    suspend fun updateAudioDefaultPage(tab: CategoryLibraryPage) {
         dataStore.edit { prefs -> prefs[AUDIO_DEFAULT_TAB_KEY] = tab.name }
     }
 
     suspend fun updateAudioShowFileDetails(show: Boolean) {
         dataStore.edit { prefs -> prefs[AUDIO_SHOW_FILE_DETAILS_KEY] = show }
     }
+
+    suspend fun updateAudioFavorite(path: String, isFavorite: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[AUDIO_FAVORITE_FILES_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Set<String>>(encoded)
+                    }.getOrDefault(emptySet())
+                }
+                .orEmpty()
+            prefs[AUDIO_FAVORITE_FILES_KEY] = Json.encodeToString(
+                if (isFavorite) current + path else current - path
+            )
+        }
+    }
+
+    suspend fun updateAudioPinnedFolder(path: String, isPinned: Boolean) {
+        dataStore.edit { prefs ->
+            val current = prefs[AUDIO_PINNED_FOLDERS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Set<String>>(encoded)
+                    }.getOrDefault(emptySet())
+                }
+                .orEmpty()
+            prefs[AUDIO_PINNED_FOLDERS_KEY] = Json.encodeToString(
+                if (isPinned) current + path else current - path
+            )
+        }
+    }
+
+    suspend fun updateAudioFolderCover(folderPath: String, coverPath: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[AUDIO_FOLDER_COVERS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            prefs[AUDIO_FOLDER_COVERS_KEY] = Json.encodeToString(
+                if (coverPath.isBlank()) {
+                    current - folderPath
+                } else {
+                    current + (folderPath to coverPath)
+                }
+            )
+        }
+    }
+
+    suspend fun updateCategoryGrouping(
+        categoryName: String,
+        grouping: CategoryGrouping
+    ) {
+        dataStore.edit { prefs ->
+            val current = prefs[CATEGORY_GROUPINGS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            prefs[CATEGORY_GROUPINGS_KEY] = Json.encodeToString(
+                current + (categoryName to grouping.name)
+            )
+        }
+    }
+
+    suspend fun updateCategoryDefaultPage(
+        categoryName: String,
+        page: CategoryLibraryPage
+    ) {
+        dataStore.edit { prefs ->
+            val current = prefs[CATEGORY_DEFAULT_PAGES_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            prefs[CATEGORY_DEFAULT_PAGES_KEY] = Json.encodeToString(
+                current + (categoryName to page.name)
+            )
+        }
+    }
+
+    suspend fun updateCategoryShowFileDetails(categoryName: String, show: Boolean) =
+        updateCategoryBoolean(CATEGORY_SHOW_FILE_DETAILS_KEY, categoryName, show)
+
+    suspend fun updateCategoryAspectRatio(categoryName: String, enabled: Boolean) =
+        updateCategoryBoolean(CATEGORY_ASPECT_RATIOS_KEY, categoryName, enabled)
+
+    suspend fun updateCategorySectioned(categoryName: String, enabled: Boolean) =
+        updateCategoryBoolean(CATEGORY_SECTIONED_KEY, categoryName, enabled)
 
     suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
         dataStore.edit { prefs ->
@@ -541,6 +722,33 @@ class BrowserPreferencesDataSource(
         return FileViewMode.entries.find { it.name == value } ?: fallback
     }
 
+    private fun parseCategoryLibraryPage(value: String?): CategoryLibraryPage? = when (value) {
+        CategoryLibraryPage.ITEMS.name,
+        "PHOTOS",
+        "AUDIO" -> CategoryLibraryPage.ITEMS
+        CategoryLibraryPage.FOLDERS.name,
+        "ALBUMS" -> CategoryLibraryPage.FOLDERS
+        else -> null
+    }
+
+    private fun parseCategoryBooleanMap(value: String?): Map<String, Boolean> =
+        value?.let { encoded ->
+            runCatchingPreservingCancellation {
+                Json.decodeFromString<Map<String, Boolean>>(encoded)
+            }.getOrDefault(emptyMap())
+        }.orEmpty()
+
+    private suspend fun updateCategoryBoolean(
+        key: androidx.datastore.preferences.core.Preferences.Key<String>,
+        categoryName: String,
+        value: Boolean
+    ) {
+        dataStore.edit { prefs ->
+            val current = parseCategoryBooleanMap(prefs[key])
+            prefs[key] = Json.encodeToString(current + (categoryName to value))
+        }
+    }
+
     private fun currentPresentation(
         existing: FileListingPreferences?,
         globalPresentation: FileListingPreferences
@@ -554,7 +762,8 @@ class BrowserPreferencesDataSource(
             sort = stringPreferencesKey("${prefix}_sort_$path"),
             viewMode = stringPreferencesKey("${prefix}_view_mode_$path"),
             listZoom = floatPreferencesKey("${prefix}_list_zoom_$path"),
-            gridMinCellSize = floatPreferencesKey("${prefix}_grid_min_cell_size_$path")
+            gridMinCellSize = floatPreferencesKey("${prefix}_grid_min_cell_size_$path"),
+            showThumbnails = booleanPreferencesKey("${prefix}_show_thumbnails_$path")
         )
     }
 
@@ -562,9 +771,10 @@ class BrowserPreferencesDataSource(
         val sort: androidx.datastore.preferences.core.Preferences.Key<String>,
         val viewMode: androidx.datastore.preferences.core.Preferences.Key<String>,
         val listZoom: androidx.datastore.preferences.core.Preferences.Key<Float>,
-        val gridMinCellSize: androidx.datastore.preferences.core.Preferences.Key<Float>
+        val gridMinCellSize: androidx.datastore.preferences.core.Preferences.Key<Float>,
+        val showThumbnails: androidx.datastore.preferences.core.Preferences.Key<Boolean>
     ) {
         fun all(): List<androidx.datastore.preferences.core.Preferences.Key<*>> =
-            listOf(sort, viewMode, listZoom, gridMinCellSize)
+            listOf(sort, viewMode, listZoom, gridMinCellSize, showThumbnails)
     }
 }

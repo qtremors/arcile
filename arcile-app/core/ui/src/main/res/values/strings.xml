@@ -315,6 +315,7 @@
 
     <!-- Browser / File Manager -->
     <string name="browse_title">Browse</string>
+    <string name="home_title">Home</string>
     <string name="search_placeholder">Search all files…</string>
     <string name="search_files_placeholder">Search files...</string>
     <string name="search_category_placeholder">Search %1$s...</string>
@@ -485,4 +486,40 @@
     <string name="settings_file_opening_external">Always use another app</string>
     <string name="cleaner_detail_storage_map">Selection storage map</string>
     <string name="cleaner_detail_storage_selected">%1$s selected of %2$s</string>
+
+    <!-- Text / Markdown Editor -->
+    <string name="text_editor_mode_edit">Edit</string>
+    <string name="text_editor_mode_preview">Preview</string>
+    <string name="text_editor_save">Save</string>
+    <string name="text_editor_saved">Saved</string>
+    <string name="text_editor_saving">Saving…</string>
+    <string name="text_editor_wait_for_save">Wait for the current save to finish</string>
+    <string name="text_editor_unsaved_changes">Unsaved Changes</string>
+    <string name="text_editor_unsaved_changes_message">You have unsaved changes. Do you want to save them before closing?</string>
+    <string name="text_editor_save_and_exit">Save &amp; Exit</string>
+    <string name="text_editor_discard">Discard</string>
+    <string name="text_editor_read_only">Read-Only</string>
+    <string name="text_editor_stats_format">%1$d lines  •  %2$d words  •  %3$d chars</string>
+    <string name="text_editor_file_info">Document Info</string>
+    <string name="text_editor_save_success">File saved successfully</string>
+    <string name="text_editor_save_failed_detail">Failed to save file: %1$s</string>
+    <string name="text_editor_unknown_error">Unknown error</string>
+    <string name="text_editor_draft_failed">Could not preserve the unsaved draft</string>
+    <string name="text_editor_load_failed">Failed to load text file</string>
+    <string name="retry">Retry</string>
+    <string name="text_editor_format_heading">Heading</string>
+    <string name="text_editor_format_bold">Bold</string>
+    <string name="text_editor_format_italic">Italic</string>
+    <string name="text_editor_format_code">Code</string>
+    <string name="text_editor_format_list">Bullet List</string>
+    <string name="text_editor_format_quote">Quote</string>
+    <string name="text_editor_format_link">Link</string>
+    <string name="text_editor_format_hr">Divider</string>
+    <string name="text_editor_undo">Undo</string>
+    <string name="text_editor_redo">Redo</string>
+    <string name="text_editor_path_format">Path: %1$s</string>
+    <string name="text_editor_lines">Lines</string>
+    <string name="text_editor_words">Words</string>
+    <string name="text_editor_characters">Characters</string>
+    <string name="text_editor_file_size">File size</string>
 </resources>

@@ -8,6 +8,8 @@
     <string name="image_gallery_view_sort_title">View and sort images</string>
     <string name="image_gallery_show_file_details">Show file names and info</string>
     <string name="image_gallery_show_file_details_description">Turn off for a clean image-only gallery.</string>
+    <string name="category_show_file_details">Show file names and info</string>
+    <string name="category_show_file_details_description">Turn off for a clean thumbnail-only grid.</string>
     <string name="settings_thumbnail_cache">Thumbnail cache</string>
     <string name="settings_thumbnail_cache_stats">%1$s disk • %2$d loaded • %3$d failed • %4$d in flight</string>
     <string name="settings_clear_thumbnail_cache">Clear</string>
@@ -20,6 +22,10 @@
     <string name="image_gallery_section_older">Older</string>
     <string name="image_gallery_grid_mode">Grid Mode</string>
     <string name="image_gallery_grouping">Grouping</string>
+    <string name="category_group_none">None</string>
+    <string name="category_group_day">Day</string>
+    <string name="category_group_week">Week</string>
+    <string name="category_group_month">Month</string>
     <string name="image_gallery_open_to_photos">Open to Photos</string>
     <string name="image_gallery_open_to_albums">Open to Albums</string>
     <string name="image_gallery_tab_photos">Photos</string>
@@ -77,6 +83,7 @@
     <string name="video_gallery_show_file_details_description">Turn off for a clean video-only gallery.</string>
     <string name="video_gallery_open_to_videos">Open to Videos</string>
     <string name="video_gallery_tab_videos">Videos</string>
+    <string name="image_gallery_view_sort_albums">View and sort albums</string>
     <string name="open_video">Open video</string>
     <string name="video_player_play">Play</string>
     <string name="video_player_pause">Pause</string>

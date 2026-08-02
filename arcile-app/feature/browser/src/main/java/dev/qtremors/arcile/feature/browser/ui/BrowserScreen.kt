@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -47,6 +48,7 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.core.presentation.UiText
@@ -74,11 +76,14 @@ internal fun BrowserScreen(
     intents: BrowserIntents,
     scroll: BrowserScrollBindings,
     onFeedback: (ArcileFeedbackEvent) -> Unit,
+    appStartPage: AppStartPage? = null,
+    onAppStartPageChange: (AppStartPage) -> Unit = {},
     isRouteVisible: Boolean = true,
     batchRenameHistory: List<String> = emptyList()
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
+    val currentScroll by rememberUpdatedState(scroll)
     val onArmPendingReveal = scroll.onArmPendingReveal
     val onSelectFolderTab = intents.navigation.onSelectFolderTab
     val onDismissConflictDialog = intents.clipboard.onDismissConflictDialog
@@ -110,6 +115,15 @@ internal fun BrowserScreen(
             when (event) {
                 Lifecycle.Event.ON_PAUSE,
                 Lifecycle.Event.ON_STOP -> {
+                    currentScroll.onSavePosition(
+                        currentScroll.positionKey,
+                        BrowserScrollPosition(
+                            listIndex = listState.firstVisibleItemIndex,
+                            listOffset = listState.firstVisibleItemScrollOffset,
+                            gridIndex = gridState.firstVisibleItemIndex,
+                            gridOffset = gridState.firstVisibleItemScrollOffset
+                        )
+                    )
                     onArmPendingReveal()
                 }
                 Lifecycle.Event.ON_RESUME -> {
@@ -339,6 +353,8 @@ internal fun BrowserScreen(
                     mutationIntents = intents.mutation,
                     clipboardIntents = intents.clipboard,
                     onToggleHiddenFiles = intents.navigation.onToggleHiddenFiles,
+                    appStartPage = appStartPage,
+                    onAppStartPageChange = onAppStartPageChange,
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
                     onShowPinnedSnackbar = { label ->

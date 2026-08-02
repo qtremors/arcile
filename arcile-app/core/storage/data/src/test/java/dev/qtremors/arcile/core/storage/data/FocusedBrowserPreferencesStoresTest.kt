@@ -6,11 +6,11 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.AudioLibraryDefaultTab
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import java.io.File
 import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
@@ -75,21 +75,63 @@ class FocusedBrowserPreferencesStoresTest {
         val folder = FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST)
 
         locationStore.updateGlobalPresentation(global)
+        locationStore.updateAppStartPage(AppStartPage.BROWSER)
         locationStore.updatePathPresentation("/Pictures/", folder, applyToSubfolders = true)
         locationStore.updateShowHiddenFiles(false)
         locationStore.updateBrowserScrollbarEnabled(false)
         locationStore.updateLastOpenedLocation("/Pictures", "primary")
+        locationStore.updateCategoryGrouping("Documents", CategoryGrouping.WEEK)
+        locationStore.updateCategoryGrouping("APKs", CategoryGrouping.DAY)
+        locationStore.updateCategoryDefaultPage("Docs", CategoryLibraryPage.FOLDERS)
+        locationStore.updateCategoryShowFileDetails("Docs", false)
+        locationStore.updateCategoryShowFileDetails("APKs", true)
+        locationStore.updatePathPresentation(
+            "category_Docs_items",
+            FileListingPreferences(sortOption = FileSortOption.NAME_ASC)
+        )
+        locationStore.updatePathPresentation(
+            "category_Docs_folders",
+            FileListingPreferences(sortOption = FileSortOption.SIZE_LARGEST)
+        )
 
         val preferences = locationStore.locationPreferencesFlow.first()
         assertEquals(global.normalized(), preferences.globalPresentation)
+        assertEquals(AppStartPage.BROWSER, preferences.appStartPage)
         assertEquals(
-            folder.copy(showThumbnails = global.showThumbnails).normalized(),
+            folder.normalized(),
             preferences.pathPresentationOptions["/Pictures"]
         )
         assertFalse(preferences.showHiddenFiles)
         assertFalse(preferences.scrollbarEnabled)
         assertEquals("/Pictures", preferences.lastOpenedPath)
         assertEquals("primary", preferences.lastOpenedVolumeId)
+        assertEquals(
+            CategoryGrouping.WEEK,
+            preferences.getGroupingForCategory("Documents")
+        )
+        assertEquals(
+            CategoryGrouping.DAY,
+            preferences.getGroupingForCategory("APKs")
+        )
+        assertEquals(
+            CategoryGrouping.MONTH,
+            preferences.getGroupingForCategory("Other")
+        )
+        assertEquals(
+            CategoryLibraryPage.FOLDERS,
+            preferences.getDefaultPageForCategory("Docs")
+        )
+        assertEquals(
+            FileSortOption.NAME_ASC,
+            preferences.getPresentationForCategory("Docs", CategoryLibraryPage.ITEMS).sortOption
+        )
+        assertEquals(
+            FileSortOption.SIZE_LARGEST,
+            preferences.getPresentationForCategory("Docs", CategoryLibraryPage.FOLDERS).sortOption
+        )
+        assertFalse(preferences.getShowFileDetailsForCategory("Docs"))
+        assertTrue(preferences.getShowFileDetailsForCategory("APKs"))
+        assertTrue(preferences.getShowFileDetailsForCategory("Other"))
     }
 
     @Test
@@ -124,32 +166,62 @@ class FocusedBrowserPreferencesStoresTest {
             gridMinCellSize = 172f
         )
 
-        galleryStore.updateImageGalleryPresentation(imagePresentation)
-        galleryStore.updateAlbumPresentation(albumPresentation)
+        galleryStore.updateItemPresentation("Images", imagePresentation)
+        galleryStore.updateFolderPresentation("Images", albumPresentation)
         galleryStore.updateGalleryScrollbarEnabled(false)
-        galleryStore.updateImageGalleryShowFileDetails(false)
-        galleryStore.updateImageGalleryAspectRatio(true)
-        galleryStore.updateImageGallerySectioned(true)
-        galleryStore.updateImageGalleryGrouping(ImageGalleryGrouping.WEEK)
-        galleryStore.updateImageGalleryDefaultTab(ImageGalleryDefaultTab.ALBUMS)
+        galleryStore.updateShowFileDetails("Images", false)
+        galleryStore.updateAspectRatio("Images", true)
+        galleryStore.updateSectioned("Images", true)
+        galleryStore.updateGrouping("Images", CategoryGrouping.WEEK)
+        galleryStore.updateDefaultPage("Images", CategoryLibraryPage.FOLDERS)
         galleryStore.updateAlbumAspectRatio(true)
         galleryStore.updateFavorite("/Pictures/favorite.jpg", true)
         galleryStore.updatePinnedAlbum("/Pictures/Trips", true)
         galleryStore.updateAlbumCover("/Pictures/Trips", "/Pictures/Trips/cover.jpg")
 
-        val preferences = galleryStore.galleryPreferencesFlow.first()
+        val preferences = galleryStore.galleryPreferencesFlow("Images").first()
         assertEquals(imagePresentation.normalized(), preferences.imagePresentation)
         assertEquals(albumPresentation.normalized(), preferences.albumPresentation)
         assertFalse(preferences.scrollbarEnabled)
         assertFalse(preferences.showFileDetails)
         assertTrue(preferences.aspectRatio)
         assertTrue(preferences.sectioned)
-        assertEquals(ImageGalleryGrouping.WEEK, preferences.grouping)
-        assertEquals(ImageGalleryDefaultTab.ALBUMS, preferences.defaultTab)
+        assertEquals(CategoryGrouping.WEEK, preferences.grouping)
+        assertEquals(CategoryLibraryPage.FOLDERS, preferences.defaultPage)
         assertTrue(preferences.albumAspectRatio)
         assertEquals(setOf("/Pictures/favorite.jpg"), preferences.favoriteFiles)
         assertEquals(setOf("/Pictures/Trips"), preferences.pinnedAlbums)
         assertEquals("/Pictures/Trips/cover.jpg", preferences.albumCovers["/Pictures/Trips"])
+    }
+
+    @Test
+    fun `image and video layouts persist independently`() = runBlocking {
+        val imagePresentation = FileListingPreferences(
+            viewMode = FileViewMode.GRID,
+            showThumbnails = true
+        )
+        val videoPresentation = FileListingPreferences(
+            viewMode = FileViewMode.LIST,
+            showThumbnails = false
+        )
+
+        galleryStore.updateItemPresentation("Images", imagePresentation)
+        galleryStore.updateItemPresentation("Videos", videoPresentation)
+        galleryStore.updateDefaultPage("Images", CategoryLibraryPage.FOLDERS)
+        galleryStore.updateDefaultPage("Videos", CategoryLibraryPage.ITEMS)
+        galleryStore.updateShowFileDetails("Images", false)
+        galleryStore.updateShowFileDetails("Videos", true)
+
+        val images = galleryStore.galleryPreferencesFlow("Images").first()
+        val videos = galleryStore.galleryPreferencesFlow("Videos").first()
+        assertEquals(FileViewMode.GRID, images.imagePresentation?.viewMode)
+        assertEquals(FileViewMode.LIST, videos.imagePresentation?.viewMode)
+        assertTrue(images.imagePresentation?.showThumbnails == true)
+        assertFalse(videos.imagePresentation?.showThumbnails ?: true)
+        assertEquals(CategoryLibraryPage.FOLDERS, images.defaultPage)
+        assertEquals(CategoryLibraryPage.ITEMS, videos.defaultPage)
+        assertFalse(images.showFileDetails)
+        assertTrue(videos.showFileDetails)
     }
 
     @Test
@@ -167,18 +239,30 @@ class FocusedBrowserPreferencesStoresTest {
 
         audioStore.updateAudioPresentation(audioPresentation)
         audioStore.updateAudioFolderPresentation(folderPresentation)
-        audioStore.updateAudioGrouping(ImageGalleryGrouping.WEEK)
-        audioStore.updateAudioDefaultTab(AudioLibraryDefaultTab.FOLDERS)
+        audioStore.updateAudioGrouping(CategoryGrouping.WEEK)
+        audioStore.updateAudioDefaultPage(CategoryLibraryPage.FOLDERS)
         audioStore.updateAudioShowFileDetails(false)
+        audioStore.updateFavorite("/Music/favorite.mp3", true)
+        audioStore.updatePinnedFolder("/Music/Album", true)
+        audioStore.updateFolderCover("/Music/Album", "/Music/Album/cover.mp3")
         galleryStore.updateGalleryScrollbarEnabled(false)
 
         val preferences = audioStore.audioLibraryPreferencesFlow.first()
         assertEquals(audioPresentation.normalized(), preferences.audioPresentation)
         assertEquals(folderPresentation.normalized(), preferences.folderPresentation)
-        assertEquals(ImageGalleryGrouping.WEEK, preferences.grouping)
-        assertEquals(AudioLibraryDefaultTab.FOLDERS, preferences.defaultTab)
+        assertEquals(CategoryGrouping.WEEK, preferences.grouping)
+        assertEquals(CategoryLibraryPage.FOLDERS, preferences.defaultPage)
         assertFalse(preferences.showFileDetails)
         assertFalse(preferences.scrollbarEnabled)
+        assertEquals(setOf("/Music/favorite.mp3"), preferences.favoriteFiles)
+        assertEquals(setOf("/Music/Album"), preferences.pinnedFolders)
+        assertEquals(
+            "/Music/Album/cover.mp3",
+            preferences.folderCovers["/Music/Album"]
+        )
+        assertTrue(galleryStore.galleryPreferencesFlow.first().favoriteFiles.isEmpty())
+        assertTrue(galleryStore.galleryPreferencesFlow.first().pinnedAlbums.isEmpty())
+        assertTrue(galleryStore.galleryPreferencesFlow.first().albumCovers.isEmpty())
     }
 
     @Test

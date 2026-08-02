@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -41,7 +42,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.core.ui.ExpressiveSegmentedRow
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
@@ -53,16 +54,24 @@ import kotlin.math.roundToInt
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AudioViewOptionsDialog(
-    tab: AudioLibraryTab,
+    tab: CategoryLibraryPage,
     presentation: FileListingPreferences,
-    grouping: ImageGalleryGrouping,
+    grouping: CategoryGrouping,
     showFileDetails: Boolean,
-    onApply: (FileListingPreferences, ImageGalleryGrouping, Boolean) -> Unit,
+    onApply: (FileListingPreferences, CategoryGrouping, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val haptics = rememberArcileHaptics()
-    var draftPresentation by remember(presentation) {
-        mutableStateOf(presentation.normalized())
+    var draftPresentation by remember(presentation, tab) {
+        mutableStateOf(
+            presentation.normalized().let {
+                if (tab == CategoryLibraryPage.FOLDERS) {
+                    it.copy(viewMode = FileViewMode.GRID)
+                } else {
+                    it
+                }
+            }
+        )
     }
     var draftGrouping by remember(grouping) { mutableStateOf(grouping) }
     var draftDetails by remember(showFileDetails) { mutableStateOf(showFileDetails) }
@@ -87,7 +96,7 @@ internal fun AudioViewOptionsDialog(
             ) {
                 Text(
                     text = stringResource(
-                        if (tab == AudioLibraryTab.AUDIO) {
+                        if (tab == CategoryLibraryPage.ITEMS) {
                             R.string.audio_view_sort_title
                         } else {
                             R.string.audio_folder_view_sort_title
@@ -96,12 +105,14 @@ internal fun AudioViewOptionsDialog(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                AudioViewModeSection(
-                    selected = draftPresentation.viewMode,
-                    onSelected = {
-                        draftPresentation = draftPresentation.copy(viewMode = it)
-                    }
-                )
+                if (tab == CategoryLibraryPage.ITEMS) {
+                    AudioViewModeSection(
+                        selected = draftPresentation.viewMode,
+                        onSelected = {
+                            draftPresentation = draftPresentation.copy(viewMode = it)
+                        }
+                    )
+                }
                 AudioSizeSection(
                     presentation = draftPresentation,
                     availableWidth = this@BoxWithConstraints.maxWidth,
@@ -113,10 +124,12 @@ internal fun AudioViewOptionsDialog(
                         draftPresentation = draftPresentation.copy(sortOption = it)
                     }
                 )
-                if (tab == AudioLibraryTab.AUDIO) {
+                if (tab == CategoryLibraryPage.ITEMS) {
                     AudioGroupingSection(draftGrouping) { draftGrouping = it }
                 }
-                AudioDetailsSection(draftDetails) { draftDetails = it }
+                if (tab == CategoryLibraryPage.ITEMS) {
+                    AudioDetailsSection(draftDetails) { draftDetails = it }
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -133,7 +146,13 @@ internal fun AudioViewOptionsDialog(
                         onClick = {
                             haptics.selectionChanged()
                             onApply(
-                                draftPresentation.normalized(),
+                                draftPresentation.normalized().let {
+                                    if (tab == CategoryLibraryPage.FOLDERS) {
+                                        it.copy(viewMode = FileViewMode.GRID)
+                                    } else {
+                                        it
+                                    }
+                                },
                                 draftGrouping,
                                 draftDetails
                             )
@@ -303,8 +322,8 @@ private fun AudioSortSection(
 
 @Composable
 private fun AudioGroupingSection(
-    grouping: ImageGalleryGrouping,
-    onSelected: (ImageGalleryGrouping) -> Unit
+    grouping: CategoryGrouping,
+    onSelected: (CategoryGrouping) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AudioOptionTitle(stringResource(R.string.audio_grouping))
@@ -312,7 +331,7 @@ private fun AudioGroupingSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ImageGalleryGrouping.entries.forEach { option ->
+            CategoryGrouping.entries.forEach { option ->
                 ExpressiveFilterChip(
                     selected = grouping == option,
                     onClick = { onSelected(option) },
@@ -320,10 +339,10 @@ private fun AudioGroupingSection(
                         Text(
                             stringResource(
                                 when (option) {
-                                    ImageGalleryGrouping.NONE -> R.string.audio_group_none
-                                    ImageGalleryGrouping.DAY -> R.string.audio_group_day
-                                    ImageGalleryGrouping.WEEK -> R.string.audio_group_week
-                                    ImageGalleryGrouping.MONTH -> R.string.audio_group_month
+                                    CategoryGrouping.NONE -> R.string.audio_group_none
+                                    CategoryGrouping.DAY -> R.string.audio_group_day
+                                    CategoryGrouping.WEEK -> R.string.audio_group_week
+                                    CategoryGrouping.MONTH -> R.string.audio_group_month
                                 }
                             )
                         )

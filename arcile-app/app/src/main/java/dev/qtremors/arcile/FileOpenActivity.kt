@@ -6,6 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.feature.audio.canResolveStandaloneAudio
 
 class FileOpenActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,5 +26,8 @@ internal fun resolveStandaloneViewerActivityName(context: Context, intent: Inten
     when {
         resolveStandaloneImageTarget(context, intent) != null -> ImageViewerActivity::class.java.name
         resolveStandaloneVideoTarget(context, intent) != null -> "dev.qtremors.arcile.feature.videoplayer.VideoViewerActivity"
+        canResolveStandaloneAudio(context, intent) -> "dev.qtremors.arcile.feature.audio.AudioPlayerActivity"
+        resolveStandalonePdfTarget(context, intent) != null -> PdfViewerActivity::class.java.name
+        resolveStandaloneTextTarget(context, intent) != null -> TextEditorActivity::class.java.name
         else -> null
     }

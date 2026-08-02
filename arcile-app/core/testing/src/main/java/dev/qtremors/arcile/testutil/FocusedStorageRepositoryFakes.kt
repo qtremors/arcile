@@ -48,6 +48,7 @@ class FakeFileBrowserRepository(
     var filesByPath: Map<String, List<FileModel>> = initialFilesByPath
     var cachedFolderStats: Map<String, FolderStats> = emptyMap()
     var listFilesResultProvider: (suspend (String) -> Result<List<FileModel>>)? = null
+    var listFilePagesProvider: ((String, Int) -> Flow<ListingPage>)? = null
     var selectionPropertiesResultProvider: (suspend (List<String>) -> Result<SelectionProperties>)? = null
 
     val queuedFolderStatsRequests = mutableListOf<List<String>>()
@@ -59,13 +60,14 @@ class FakeFileBrowserRepository(
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         listFilesResultProvider?.invoke(path) ?: Result.success(filesByPath[path].orEmpty())
 
-    override fun listFilePages(path: String, pageSize: Int): Flow<ListingPage> = flow {
-        val nodePath = StorageNodePath.of(path)
-        listFiles(path).fold(
-            onSuccess = { files -> emit(ListingPage(nodePath, files, pageIndex = 0, isComplete = true)) },
-            onFailure = { error -> emit(ListingPage.failed(nodePath, error)) }
-        )
-    }
+    override fun listFilePages(path: String, pageSize: Int): Flow<ListingPage> =
+        listFilePagesProvider?.invoke(path, pageSize) ?: flow {
+            val nodePath = StorageNodePath.of(path)
+            listFiles(path).fold(
+                onSuccess = { files -> emit(ListingPage(nodePath, files, pageIndex = 0, isComplete = true)) },
+                onFailure = { error -> emit(ListingPage.failed(nodePath, error)) }
+            )
+        }
 
     override suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats> =
         paths.mapNotNull { path -> cachedFolderStats[path]?.let { path to it } }.toMap()

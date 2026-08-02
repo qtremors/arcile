@@ -5,25 +5,23 @@ import androidx.lifecycle.SavedStateHandle
 internal class BrowserScrollPositionStore(
     private val savedStateHandle: SavedStateHandle
 ) {
-    private val positions = decode(
-        savedStateHandle.get<Array<String>>(SAVED_SCROLL_POSITIONS_KEY)?.toList().orEmpty()
-    ).toMutableMap()
+    private val positions = LinkedHashMap(
+        decode(savedStateHandle.get<Array<String>>(SAVED_SCROLL_POSITIONS_KEY)?.toList().orEmpty())
+    )
 
     fun get(key: String): BrowserScrollPosition? = positions[key]
 
     fun save(key: String, position: BrowserScrollPosition) {
+        positions.remove(key)
         positions[key] = position
+        while (positions.size > MAX_SAVED_BROWSER_SCROLL_ENTRIES) {
+            positions.remove(positions.keys.first())
+        }
         persist()
-    }
-
-    fun clear(key: String) {
-        if (positions.remove(key) != null) persist()
     }
 
     private fun persist() {
         savedStateHandle[SAVED_SCROLL_POSITIONS_KEY] = positions.entries
-            .toList()
-            .takeLast(MAX_SAVED_BROWSER_SCROLL_ENTRIES)
             .map { entry -> encode(entry.key, entry.value) }
             .toTypedArray()
     }

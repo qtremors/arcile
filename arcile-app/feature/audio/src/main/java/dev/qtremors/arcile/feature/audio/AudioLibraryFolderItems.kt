@@ -16,20 +16,33 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.category.CategoryFolderGridItem
+import dev.qtremors.arcile.core.ui.category.CategoryItemInfo
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -42,8 +55,12 @@ internal fun AudioFolderListItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onPaste: () -> Unit,
+    onTogglePin: () -> Unit,
+    onChooseCover: () -> Unit,
+    onResetCover: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var showMenu by rememberSaveable { mutableStateOf(false) }
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -64,7 +81,11 @@ internal fun AudioFolderListItem(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                folder.title,
+                if (folder.isFavorites) {
+                    stringResource(R.string.audio_favorites)
+                } else {
+                    folder.title
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
@@ -105,6 +126,24 @@ internal fun AudioFolderListItem(
                     .size(22.dp)
             )
         }
+        if (!folder.isFavorites && !isSelected) {
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.audio_folder_options)
+                    )
+                }
+                AudioFolderOptionsMenu(
+                    folder = folder,
+                    expanded = showMenu,
+                    onDismiss = { showMenu = false },
+                    onTogglePin = onTogglePin,
+                    onChooseCover = onChooseCover,
+                    onResetCover = onResetCover
+                )
+            }
+        }
     }
 }
 
@@ -113,68 +152,36 @@ internal fun AudioFolderListItem(
 internal fun AudioFolderGridItem(
     folder: AudioFolder,
     isSelected: Boolean,
-    showDetails: Boolean,
     canPaste: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onPaste: () -> Unit,
+    onTogglePin: () -> Unit,
+    onChooseCover: () -> Unit,
+    onResetCover: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val shape = MaterialTheme.shapes.large
-    val itemModifier = Modifier
-        .fillMaxWidth()
-        .clip(shape)
-        .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     Box(modifier = modifier) {
-        if (showDetails) {
-            Surface(
-                shape = shape,
-                color = if (isSelected) {
-                    MaterialTheme.colorScheme.primaryContainer
+        CategoryFolderGridItem(
+            info = CategoryItemInfo(
+                title = if (folder.isFavorites) {
+                    stringResource(R.string.audio_favorites)
                 } else {
-                    MaterialTheme.colorScheme.surfaceContainerLow
+                    folder.title
                 },
-                modifier = itemModifier
-            ) {
-                Column {
-                    AudioArtwork(
-                        folder.coverTrack,
-                        Modifier
-                            .fillMaxWidth()
-                            .aspectRatio(1f)
-                    )
-                    Column(modifier = Modifier.padding(8.dp)) {
-                        Text(
-                            folder.title,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            stringResource(R.string.audio_track_count, folder.tracks.size),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            formatFileSize(folder.totalSize),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        } else {
-            Box(modifier = itemModifier.aspectRatio(1f)) {
-                AudioArtwork(folder.coverTrack, Modifier.fillMaxSize())
-                if (isSelected) {
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                    )
-                }
-            }
+                detailLines = listOf(
+                    stringResource(R.string.audio_track_count, folder.tracks.size),
+                    formatFileSize(folder.totalSize)
+                )
+            ),
+            onClick = onClick,
+            onLongClick = onLongClick
+        ) {
+            AudioArtwork(
+                folder.coverTrack,
+                Modifier.fillMaxSize(),
+                shape = RectangleShape
+            )
         }
         if (canPaste && !isSelected) {
             Surface(
@@ -207,4 +214,63 @@ internal fun AudioFolderGridItem(
             )
         }
     }
+}
+
+@Composable
+private fun AudioFolderOptionsMenu(
+    folder: AudioFolder,
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onTogglePin: () -> Unit,
+    onChooseCover: () -> Unit,
+    onResetCover: () -> Unit
+) {
+    ArcileDropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        items = buildList {
+            add {
+                ArcileDropdownMenuItem(
+                    text = {
+                        Text(
+                            stringResource(
+                                if (folder.isPinned) {
+                                    R.string.audio_unpin_folder
+                                } else {
+                                    R.string.audio_pin_folder
+                                }
+                            )
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onTogglePin()
+                    }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.audio_choose_folder_cover)) },
+                    leadingIcon = { Icon(Icons.Default.Image, contentDescription = null) },
+                    onClick = {
+                        onDismiss()
+                        onChooseCover()
+                    }
+                )
+            }
+            if (folder.customCoverPath != null) {
+                add {
+                    ArcileDropdownMenuItem(
+                        text = { Text(stringResource(R.string.audio_reset_folder_cover)) },
+                        leadingIcon = { Icon(Icons.Default.Restore, contentDescription = null) },
+                        onClick = {
+                            onDismiss()
+                            onResetCover()
+                        }
+                    )
+                }
+            }
+        }
+    )
 }

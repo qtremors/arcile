@@ -213,7 +213,9 @@ class DefaultMediaStoreClient(
             val volumes = indexedVolumesForScope(scope, allVolumes)
             if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
                 return@withContext Result.success(
-                    FileCategories.all.map { CategoryStorage(it.name, 0L, it.extensions) }
+                    FileCategories.all.map {
+                        CategoryStorage(it.displayName, 0L, it.extensions)
+                    }
                 )
             }
 
@@ -243,7 +245,7 @@ class DefaultMediaStoreClient(
 
             val result = FileCategories.all.mapIndexed { index, cat ->
                 CategoryStorage(
-                    name = cat.name,
+                    name = cat.displayName,
                     sizeBytes = sizes[index],
                     extensions = cat.extensions
                 )
@@ -268,7 +270,7 @@ class DefaultMediaStoreClient(
             if (scope !is StorageScope.AllStorage && volumes.isEmpty()) {
                 return@withContext Result.success(emptyList())
             }
-            val category = FileCategories.all.find { it.name == categoryName }
+            val category = FileCategories.find(categoryName)
                 ?: return@withContext Result.failure(IllegalArgumentException("Unknown category: $categoryName"))
             
             val filesList = mutableListOf<FileModel>()
@@ -405,7 +407,7 @@ class DefaultMediaStoreClient(
                 val selectionArgs = mutableListOf("%$query%")
                 
                 if (scope is StorageScope.Category) {
-                    val category = FileCategories.all.find { it.name == scope.categoryName }
+                    val category = FileCategories.find(scope.categoryName)
                     if (category != null) {
                         val categoryClauses = mutableListOf<String>()
                         

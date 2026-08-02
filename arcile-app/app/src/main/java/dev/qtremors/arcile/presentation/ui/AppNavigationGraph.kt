@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 
 @Composable
 fun AppNavigationGraph(
@@ -17,6 +18,8 @@ fun AppNavigationGraph(
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
+    appStartPage: AppStartPage,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onRestartApp: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
@@ -47,7 +50,13 @@ fun AppNavigationGraph(
         popEnterTransition = transitions.rootPopEnter,
         popExitTransition = transitions.rootPopExit
     ) {
-        registerMainRoute(navController, actions, onFeedback)
+        registerMainRoute(
+            navController,
+            actions,
+            appStartPage,
+            onAppStartPageChange,
+            onFeedback
+        )
         registerFileRoutes(navController, actions, transitions, onFeedback)
         registerUtilityRoutes(
             navController = navController,

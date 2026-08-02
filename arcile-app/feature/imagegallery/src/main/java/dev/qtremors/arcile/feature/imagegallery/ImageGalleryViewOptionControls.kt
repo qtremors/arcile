@@ -23,7 +23,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.core.ui.ExpressiveSegmentedRow
@@ -35,13 +35,13 @@ import kotlin.math.roundToInt
 internal fun GalleryPhotosViewOptions(
     preferences: FileListingPreferences,
     aspectRatio: Boolean,
-    grouping: ImageGalleryGrouping,
+    grouping: CategoryGrouping,
     showDetails: Boolean,
     isVideoGallery: Boolean,
     availableWidth: Dp,
     onPreferencesChange: (FileListingPreferences) -> Unit,
     onAspectRatioChange: (Boolean) -> Unit,
-    onGroupingChange: (ImageGalleryGrouping) -> Unit,
+    onGroupingChange: (CategoryGrouping) -> Unit,
     onShowDetailsChange: (Boolean) -> Unit
 ) {
     GalleryViewModeSection(
@@ -53,7 +53,10 @@ internal fun GalleryPhotosViewOptions(
         availableWidth = availableWidth,
         onPreferencesChange = onPreferencesChange
     )
-    if (preferences.viewMode == FileViewMode.GRID && !isVideoGallery) {
+    if (
+        preferences.viewMode == FileViewMode.GRID &&
+        !isVideoGallery
+    ) {
         GalleryAspectRatioSection(
             aspectRatio = aspectRatio,
             onAspectRatioChange = onAspectRatioChange
@@ -64,7 +67,11 @@ internal fun GalleryPhotosViewOptions(
         onSortChange = { onPreferencesChange(preferences.copy(sortOption = it)) }
     )
     GalleryGroupingSection(grouping, onGroupingChange)
-    GalleryDetailsSection(showDetails, isVideoGallery, onShowDetailsChange)
+    GalleryDetailsSection(
+        showDetails,
+        isVideoGallery,
+        onShowDetailsChange
+    )
 }
 
 @Composable
@@ -241,8 +248,8 @@ private fun GallerySortSection(
 
 @Composable
 private fun GalleryGroupingSection(
-    grouping: ImageGalleryGrouping,
-    onGroupingChange: (ImageGalleryGrouping) -> Unit
+    grouping: CategoryGrouping,
+    onGroupingChange: (CategoryGrouping) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         SectionTitle(stringResource(R.string.image_gallery_grouping))
@@ -250,17 +257,17 @@ private fun GalleryGroupingSection(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ImageGalleryGrouping.entries.forEach { mode ->
+            CategoryGrouping.entries.forEach { mode ->
                 ExpressiveFilterChip(
                     selected = grouping == mode,
                     onClick = { onGroupingChange(mode) },
                     label = {
                         Text(
                             when (mode) {
-                                ImageGalleryGrouping.NONE -> "None"
-                                ImageGalleryGrouping.DAY -> "Day"
-                                ImageGalleryGrouping.WEEK -> "Week"
-                                ImageGalleryGrouping.MONTH -> "Month"
+                                CategoryGrouping.NONE -> "None"
+                                CategoryGrouping.DAY -> "Day"
+                                CategoryGrouping.WEEK -> "Week"
+                                CategoryGrouping.MONTH -> "Month"
                             }
                         )
                     }
@@ -288,8 +295,12 @@ private fun GalleryDetailsSection(
             )
             Text(
                 text = stringResource(
-                    if (isVideoGallery) R.string.video_gallery_show_file_details_description
-                    else R.string.image_gallery_show_file_details_description
+                    when {
+                        isVideoGallery ->
+                            R.string.video_gallery_show_file_details_description
+                        else ->
+                            R.string.image_gallery_show_file_details_description
+                    }
                 ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

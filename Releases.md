@@ -1,17 +1,51 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.7.0
-> **Last Updated:** 2026-07-26
+> **Version:** 1.8.0
+> **Last Updated:** 2026-08-02
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.8.0](#v180) | 2026-08-02 | Category UI parity, native PDF and document tools, Markdown editor, dual browser workspaces, and unified audio playback |
 | [v1.7.0](#v170) | 2026-07-26 | Complete audio library and background player, PowerRename, split APK installation, richer video controls, and consistent media workflows |
 | [v1.6.0](#v160) | 2026-07-23 | Encrypted OnlyFiles vaults, native video browsing and playback, visual storage insights, and refined Trash interactions |
 | [v1.5.0](#v150) | 2026-07-13 | Independent feature ownership, safer file workflows, viewer and sharing reliability, plugin distribution, and navigation fixes |
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v1.8.0
+
+**Release Date:** August 2, 2026
+
+**Previous public release:** v1.7.0
+
+**Development range included:** v1.7.1 through v1.8.0
+
+**Known issues & roadmap:** Track active issues and ongoing engineering tasks in [TASKS.md](TASKS.md).
+
+Arcile v1.8.0 delivers full design and navigation parity across all file categories, introduces native PDF viewing and Markdown editing, adds a second independent Browser workspace, and unifies audio playback with smoother gestures and interactions.
+
+## What's New Since v1.7.0
+
+### Category Design Parity
+- **Unified Category Experience:** All seven file categories (Images, Videos, Audio, Documents, APKs, Archives, and Vaults) now share the same polished floating navigation, list/grid views, fast scrolling, date grouping, search, and predictive-back motion.
+- **Documents Library:** Added a dedicated Documents space with category-matched file and folder navigation, quick filters, and document preview tiles.
+
+### Native Reading & Editing
+- **Built-in PDF Viewer:** View PDF documents natively with smooth multi-page scrolling, quick page navigation, and pinch-to-zoom controls without leaving Arcile.
+- **Markdown & Text Editor:** Create, edit, and format Markdown and plain text files with live preview, formatting shortcuts, source tools, undo/redo history, document stats, and automatic draft recovery.
+
+### Dual Workspaces & Navigation
+- **Two Browser Workspaces:** Swipe to open a second independent Browser workspace with its own location history, folder position, search, and selection state.
+- **Per-Folder Memory:** Returning to any folder, category tab, or workspace now instantly restores your exact scroll and grid position.
+- **Preferred Launch Screen:** Choose whether Arcile starts directly on your Home dashboard or Browser view.
+
+### Playback & Interface Polish
+- **Unified Audio Experience:** Merged mini and full playback into one seamless floating player with smooth expansion gestures, responsive artwork transitions, wavy seek rails, and notification playback controls.
+- **Finished Operations:** Improved batch file operation feedback, progress tracking, and background notification management across all operations.
 
 ---
 

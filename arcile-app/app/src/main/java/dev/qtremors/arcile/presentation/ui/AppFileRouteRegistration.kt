@@ -7,6 +7,7 @@ import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.feature.apk.registerApkLibraryRoute
 import dev.qtremors.arcile.feature.archive.registerArchiveViewerRoute
 import dev.qtremors.arcile.feature.audio.registerAudioLibraryRoute
 import dev.qtremors.arcile.feature.browser.BrowserDestination
@@ -15,6 +16,7 @@ import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
 import dev.qtremors.arcile.feature.browser.BrowserRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
 import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
+import dev.qtremors.arcile.feature.documents.registerDocumentLibraryRoute
 import dev.qtremors.arcile.feature.videoplayer.registerVideoViewerRoute
 import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
 import dev.qtremors.arcile.feature.storageusage.StorageDashboardDestination
@@ -42,7 +44,8 @@ internal fun NavGraphBuilder.registerFileRoutes(
                             navController.navigate(
                                 AppRoutes.ImageGallery(
                                     volumeId = destination.volumeId,
-                                    categoryName = destination.name
+                                    categoryId = FileCategories.find(destination.name)?.id?.value
+                                        ?: FileCategories.Images.id.value
                                 )
                             )
                         }
@@ -51,10 +54,21 @@ internal fun NavGraphBuilder.registerFileRoutes(
                                 AppRoutes.AudioLibrary(volumeId = destination.volumeId)
                             )
                         }
+                        isDocumentCategory(destination.name) -> {
+                            navController.navigate(
+                                AppRoutes.DocumentLibrary(volumeId = destination.volumeId)
+                            )
+                        }
+                        isApkCategory(destination.name) -> {
+                            navController.navigate(
+                                AppRoutes.ApkLibrary(volumeId = destination.volumeId)
+                            )
+                        }
                         else -> {
                             navController.navigate(
                                 AppRoutes.Category(
-                                    name = destination.name,
+                                    id = FileCategories.find(destination.name)?.id?.value
+                                        ?: destination.name,
                                     volumeId = destination.volumeId
                                 )
                             )
@@ -87,7 +101,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
         BrowserRoute(
             entryRequest = BrowserEntryRequest(
                 id = 0L,
-                entry = BrowserEntry.Category(category.name, category.volumeId)
+                entry = BrowserEntry.Category(category.id, category.volumeId)
             ),
             isVisible = true,
             hasPreviousRoute = true,
@@ -107,6 +121,20 @@ internal fun NavGraphBuilder.registerFileRoutes(
             onFeedback = onFeedback
         )
     }
+    registerDocumentLibraryRoute(
+        onNavigateBack = { navController.popBackStack() },
+        onOpenFile = { file, context -> actions.openPathWithSurroundingImages(file.absolutePath, context) },
+        onOpenWith = { actions.openFileWith(it.absolutePath) },
+        onShare = { files -> actions.shareKnownFiles(files.map { it.absolutePath }, files) },
+        onFeedback = onFeedback
+    )
+    registerApkLibraryRoute(
+        onNavigateBack = { navController.popBackStack() },
+        onInstall = { actions.openPath(it.absolutePath) },
+        onOpenWith = { actions.openFileWith(it.absolutePath) },
+        onShare = { files -> actions.shareKnownFiles(files.map { it.absolutePath }, files) },
+        onFeedback = onFeedback
+    )
     registerTrashRoute(
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
@@ -142,6 +170,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onShareSelected = { files ->
             actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
         },
+        onOpenWith = { actions.openFileWith(it.absolutePath) },
         onFeedback = onFeedback
     )
     registerAudioLibraryRoute(
@@ -162,17 +191,8 @@ internal fun NavGraphBuilder.registerFileRoutes(
                 tracks.map { it.file }
             )
         },
+        onOpenPlayer = actions::openAudioPlayer,
         onOpenWith = { track -> actions.openFileWith(track.file.absolutePath) },
-        onShowContainingFolder = { track ->
-            val parent = track.file.absolutePath.replace('\\', '/').substringBeforeLast('/', "")
-            actions.navigateToBrowser(
-                AppRoutes.Main(
-                    initialPage = BROWSER_PAGE,
-                    path = parent,
-                    focusPath = track.file.absolutePath
-                )
-            )
-        },
         onFeedback = onFeedback
     )
     registerImageViewerRoute(

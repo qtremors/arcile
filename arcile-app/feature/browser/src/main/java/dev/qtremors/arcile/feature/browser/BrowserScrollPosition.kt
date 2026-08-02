@@ -10,7 +10,14 @@ internal data class BrowserScrollPosition(
     val gridOffset: Int
 )
 
-internal fun BrowserUiState.scrollPositionKey(): String =
-    "$browserSortOption|$currentPath|${activeCategoryName.orEmpty()}|" +
-        "${selectedFolderTabPath.orEmpty()}|${archiveContext?.archivePath.orEmpty()}|" +
-        archiveContext?.entryPrefix.orEmpty()
+internal fun BrowserUiState.scrollPositionKey(): String = browserScrollPositionKey(
+    browserSortOption.name,
+    currentPath,
+    activeCategoryName,
+    selectedFolderTabPath.orEmpty(),
+    archiveContext?.archivePath.orEmpty(),
+    archiveContext?.entryPrefix.orEmpty()
+)
+
+internal fun browserScrollPositionKey(vararg parts: String): String =
+    parts.joinToString(separator = "|") { part -> "${part.length}:$part" }

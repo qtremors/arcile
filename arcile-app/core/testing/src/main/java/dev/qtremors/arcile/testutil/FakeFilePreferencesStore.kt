@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.testutil
 
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -27,10 +28,13 @@ class FakeFilePreferencesStore(
         preferences.map(RecentFilesPreferences::from)
     override val galleryPreferencesFlow: Flow<GalleryPreferences> =
         preferences.map(GalleryPreferences::from)
+    override fun galleryPreferencesFlow(categoryName: String): Flow<GalleryPreferences> =
+        preferences.map { GalleryPreferences.from(it, categoryName) }
     override val saveDestinationPreferencesFlow: Flow<SaveDestinationPreferences> =
         preferences.map(SaveDestinationPreferences::from)
 
     var lastUpdatedGlobalPresentation: FileListingPreferences? = null
+    var lastUpdatedAppStartPage: AppStartPage? = null
     var lastUpdatedRecentPresentation: FileListingPreferences? = null
     var lastUpdatedHomeRecentCarouselLimit: Int? = null
     var lastUpdatedShowHiddenFiles: Boolean? = null
@@ -39,14 +43,19 @@ class FakeFilePreferencesStore(
     var lastUpdatedImageGalleryShowFileDetails: Boolean? = null
     var lastUpdatedImageGalleryAspectRatio: Boolean? = null
     var lastUpdatedImageGallerySectioned: Boolean? = null
-    var lastUpdatedImageGalleryGrouping: dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping? = null
-    var lastUpdatedImageGalleryDefaultTab: dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab? = null
+    var lastUpdatedCategoryGrouping: dev.qtremors.arcile.core.storage.domain.CategoryGrouping? = null
+    var lastUpdatedCategoryLibraryPage: dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage? = null
     var lastUpdatedAlbumPresentation: FileListingPreferences? = null
     var lastUpdatedImageGalleryPresentation: FileListingPreferences? = null
     var lastUpdatedAlbumAspectRatio: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: FileListingPreferences? = null
     var lastUpdatedDefaultSaveToArcilePath: String? = null
+
+    override suspend fun updateAppStartPage(page: AppStartPage) {
+        lastUpdatedAppStartPage = page
+        preferences.value = preferences.value.copy(appStartPage = page)
+    }
 
     override suspend fun updateGlobalPresentation(presentation: FileListingPreferences) {
         lastUpdatedGlobalPresentation = presentation
@@ -79,39 +88,70 @@ class FakeFilePreferencesStore(
         preferences.value = preferences.value.copy(galleryScrollbarEnabled = enabled)
     }
 
-    override suspend fun updateImageGalleryShowFileDetails(show: Boolean) {
+    override suspend fun updateShowFileDetails(categoryName: String, show: Boolean) {
         lastUpdatedImageGalleryShowFileDetails = show
-        preferences.value = preferences.value.copy(imageGalleryShowFileDetails = show)
+        preferences.value = preferences.value.copy(
+            categoryShowFileDetails =
+                preferences.value.categoryShowFileDetails + (categoryName to show)
+        )
     }
 
-    override suspend fun updateImageGalleryAspectRatio(enabled: Boolean) {
+    override suspend fun updateAspectRatio(categoryName: String, enabled: Boolean) {
         lastUpdatedImageGalleryAspectRatio = enabled
-        preferences.value = preferences.value.copy(imageGalleryAspectRatio = enabled)
+        preferences.value = preferences.value.copy(
+            categoryAspectRatios = preferences.value.categoryAspectRatios + (categoryName to enabled)
+        )
     }
 
-    override suspend fun updateImageGallerySectioned(enabled: Boolean) {
+    override suspend fun updateSectioned(categoryName: String, enabled: Boolean) {
         lastUpdatedImageGallerySectioned = enabled
-        preferences.value = preferences.value.copy(imageGallerySectioned = enabled)
+        preferences.value = preferences.value.copy(
+            categorySectioned = preferences.value.categorySectioned + (categoryName to enabled)
+        )
     }
 
-    override suspend fun updateImageGalleryGrouping(grouping: dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping) {
-        lastUpdatedImageGalleryGrouping = grouping
-        preferences.value = preferences.value.copy(imageGalleryGrouping = grouping)
+    override suspend fun updateGrouping(
+        categoryName: String,
+        grouping: dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+    ) {
+        lastUpdatedCategoryGrouping = grouping
+        preferences.value = preferences.value.copy(
+            categoryGroupings = preferences.value.categoryGroupings + (categoryName to grouping)
+        )
     }
 
-    override suspend fun updateImageGalleryDefaultTab(tab: dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab) {
-        lastUpdatedImageGalleryDefaultTab = tab
-        preferences.value = preferences.value.copy(imageGalleryDefaultTab = tab)
+    override suspend fun updateDefaultPage(
+        categoryName: String,
+        page: dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+    ) {
+        lastUpdatedCategoryLibraryPage = page
+        preferences.value = preferences.value.copy(
+            categoryDefaultPages = preferences.value.categoryDefaultPages + (categoryName to page)
+        )
     }
 
-    override suspend fun updateAlbumPresentation(presentation: FileListingPreferences) {
+    override suspend fun updateFolderPresentation(
+        categoryName: String,
+        presentation: FileListingPreferences
+    ) {
         lastUpdatedAlbumPresentation = presentation
-        preferences.value = preferences.value.copy(albumPresentation = presentation)
+        updatePathPresentation(
+            "category_${categoryName}_folders",
+            presentation,
+            applyToSubfolders = false
+        )
     }
 
-    override suspend fun updateImageGalleryPresentation(presentation: FileListingPreferences) {
+    override suspend fun updateItemPresentation(
+        categoryName: String,
+        presentation: FileListingPreferences
+    ) {
         lastUpdatedImageGalleryPresentation = presentation
-        updatePathPresentation("image_gallery", presentation, applyToSubfolders = false)
+        updatePathPresentation(
+            "category_${categoryName}_items",
+            presentation,
+            applyToSubfolders = false
+        )
     }
 
     override suspend fun updateAlbumAspectRatio(enabled: Boolean) {
@@ -153,6 +193,33 @@ class FakeFilePreferencesStore(
     ) {
         preferences.value = preferences.value.copy(
             fileOpenBehaviors = preferences.value.fileOpenBehaviors + (categoryName to behavior)
+        )
+    }
+
+    override suspend fun updateCategoryGrouping(
+        categoryName: String,
+        grouping: dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+    ) {
+        preferences.value = preferences.value.copy(
+            categoryGroupings = preferences.value.categoryGroupings +
+                (categoryName to grouping)
+        )
+    }
+
+    override suspend fun updateCategoryDefaultPage(
+        categoryName: String,
+        page: dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+    ) {
+        preferences.value = preferences.value.copy(
+            categoryDefaultPages = preferences.value.categoryDefaultPages +
+                (categoryName to page)
+        )
+    }
+
+    override suspend fun updateCategoryShowFileDetails(categoryName: String, show: Boolean) {
+        preferences.value = preferences.value.copy(
+            categoryShowFileDetails = preferences.value.categoryShowFileDetails +
+                (categoryName to show)
         )
     }
 

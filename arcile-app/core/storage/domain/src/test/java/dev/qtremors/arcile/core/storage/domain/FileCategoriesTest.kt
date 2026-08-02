@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -28,9 +29,19 @@ class FileCategoriesTest {
     }
 
     @Test
-    fun `models category includes glb extension and mime`() {
-        assertTrue(FileCategories.Models.extensions.contains("glb"))
-        assertEquals(FileCategories.Models, FileCategories.getCategoryForFile("glb", null))
-        assertEquals(FileCategories.Models, FileCategories.getCategoryForFile("", "model/gltf-binary"))
+    fun `model files are not exposed as a category`() {
+        assertNull(FileCategories.getCategoryForFile("glb", null))
+        assertNull(FileCategories.getCategoryForFile("", "model/gltf-binary"))
+    }
+
+    @Test
+    fun `category identity is separate from presentation and storage names`() {
+        val documents = FileCategories.Documents
+
+        assertEquals("Docs", documents.id.value)
+        assertEquals("Docs", documents.displayName)
+        assertEquals("Docs", documents.storageName)
+        assertEquals(documents, FileCategories.find(documents.id.value))
+        assertEquals(documents, FileCategories.find(documents.displayName.lowercase()))
     }
 }

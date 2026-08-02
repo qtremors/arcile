@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.home.HomeDestination
@@ -13,6 +14,8 @@ import dev.qtremors.arcile.navigation.AppRoutes
 internal fun NavGraphBuilder.registerMainRoute(
     navController: NavHostController,
     actions: AppNavigationActions,
+    appStartPage: AppStartPage,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     composable<AppRoutes.Main> { backStackEntry ->
@@ -35,6 +38,8 @@ internal fun NavGraphBuilder.registerMainRoute(
                 }
             },
             onShareBrowserFiles = actions::shareKnownFiles,
+            appStartPage = appStartPage,
+            onAppStartPageChange = onAppStartPageChange,
             onFeedback = onFeedback
         )
     }
@@ -53,7 +58,12 @@ private fun handleHomeDestination(
         is HomeDestination.BrowseCategory -> {
             when {
                 isGalleryCategory(destination.name) -> {
-                    navController.navigate(AppRoutes.ImageGallery(categoryName = destination.name)) {
+                    navController.navigate(
+                        AppRoutes.ImageGallery(
+                            categoryId = FileCategories.find(destination.name)?.id?.value
+                                ?: FileCategories.Images.id.value
+                        )
+                    ) {
                         popUpTo<AppRoutes.Main> { saveState = true }
                         launchSingleTop = true
                     }
@@ -64,8 +74,25 @@ private fun handleHomeDestination(
                         launchSingleTop = true
                     }
                 }
+                isDocumentCategory(destination.name) -> {
+                    navController.navigate(AppRoutes.DocumentLibrary()) {
+                        popUpTo<AppRoutes.Main> { saveState = true }
+                        launchSingleTop = true
+                    }
+                }
+                isApkCategory(destination.name) -> {
+                    navController.navigate(AppRoutes.ApkLibrary()) {
+                        popUpTo<AppRoutes.Main> { saveState = true }
+                        launchSingleTop = true
+                    }
+                }
                 else -> {
-                    navController.navigate(AppRoutes.Category(name = destination.name)) {
+                    navController.navigate(
+                        AppRoutes.Category(
+                            id = FileCategories.find(destination.name)?.id?.value
+                                ?: destination.name
+                        )
+                    ) {
                         launchSingleTop = true
                     }
                 }

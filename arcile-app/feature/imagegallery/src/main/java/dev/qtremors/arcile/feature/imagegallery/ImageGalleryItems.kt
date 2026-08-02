@@ -154,8 +154,9 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.getFileIconVector
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
@@ -168,7 +169,6 @@ import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
@@ -178,6 +178,8 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.ui.category.CategoryGridItem
+import dev.qtremors.arcile.core.ui.category.CategoryItemInfo
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -197,126 +199,24 @@ internal fun GalleryImageItem(
 ) {
     val context = LocalContext.current
     val haptics = rememberArcileHaptics()
-    val formatter = rememberDateTimeFormatter()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file) { ThumbnailKey.from(file) }
     val isVideo = remember(file.extension, file.mimeType) {
         FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Videos
     }
 
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 0.92f else 1.0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
-        label = "scale"
-    )
-
-    if (showDetails) {
-        val itemShape = ExpressiveShapes.medium
-        Card(
-            shape = itemShape,
-            colors = CardDefaults.cardColors(
-                containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = modifier
-                .fillMaxWidth()
-                .graphicsLayer(scaleX = scale, scaleY = scale)
-                .clip(itemShape)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .aspectRatio(aspectRatio)
-                ) {
-                    GalleryThumbnail(
-                        file = file,
-                        thumbnailKey = thumbnailKey,
-                        thumbnailPolicy = thumbnailPolicy,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    if (isVideo) GalleryVideoPlayBadge(Modifier.align(Alignment.Center))
-
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                        )
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                            modifier = Modifier
-                                .padding(8.dp)
-                                .size(24.dp)
-                                .align(Alignment.TopEnd)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-                    }
-                    if (isSelectionMode) {
-                        GalleryOpenImageAction(
-                            isVideo = isVideo,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(8.dp),
-                            onClick = onOpenDirectly
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        text = file.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = formatFileSize(file.size),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = formatter.format(file.lastModified),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-        }
-    } else {
-        val itemShape = ExpressiveShapes.medium
-        Box(
-            modifier = modifier
-                .aspectRatio(aspectRatio)
-                .graphicsLayer(scaleX = scale, scaleY = scale)
-                .clip(itemShape)
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = onLongClick
-                )
-        ) {
+    CategoryGridItem(
+        info = CategoryItemInfo(
+            title = file.name,
+            detailLines = listOf(formatFileSize(file.size))
+        ),
+        selected = isSelected,
+        showInfo = showDetails,
+        onClick = onClick,
+        onLongClick = onLongClick,
+        modifier = modifier,
+        previewAspectRatio = aspectRatio
+    ) {
             GalleryThumbnail(
                 file = file,
                 thumbnailKey = thumbnailKey,
@@ -325,30 +225,6 @@ internal fun GalleryImageItem(
             )
             if (isVideo) GalleryVideoPlayBadge(Modifier.align(Alignment.Center))
 
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-                )
-                Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .size(24.dp)
-                        .align(Alignment.TopEnd)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
             if (isSelectionMode) {
                 GalleryOpenImageAction(
                     isVideo = isVideo,
@@ -358,7 +234,6 @@ internal fun GalleryImageItem(
                     onClick = onOpenDirectly
                 )
             }
-        }
     }
 }
 
@@ -415,7 +290,7 @@ internal fun GalleryThumbnail(
         }
         if (showPlaceholder) {
             Icon(
-                imageVector = if (isVideo) Icons.Default.VideoLibrary else Icons.Default.Image,
+                imageVector = getFileIconVector(file),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
@@ -463,7 +338,10 @@ internal fun GalleryOpenImageAction(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                 contentDescription = stringResource(
-                    if (isVideo) R.string.open_video else R.string.open_image
+                    when {
+                        isVideo -> R.string.open_video
+                        else -> R.string.open_image
+                    }
                 ),
                 modifier = Modifier.size(iconSize)
             )

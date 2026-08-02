@@ -22,7 +22,7 @@
     <string name="audio_queue_empty">The playback queue is empty.</string>
     <string name="audio_now_playing">Now playing</string>
     <string name="audio_collapse_player">Collapse player</string>
-    <string name="audio_show_folder">Show containing folder</string>
+    <string name="audio_close_player">Close player</string>
     <string name="audio_open_with">Open with</string>
     <string name="audio_share">Share</string>
     <string name="audio_more">More options</string>
@@ -60,4 +60,12 @@
     <string name="audio_rename">Rename</string>
     <string name="audio_cancel_transfer">Cancel transfer</string>
     <string name="audio_clipboard_items">%1$d items</string>
+    <string name="audio_favorites">Favorites</string>
+    <string name="audio_add_to_favorites">Add to favorites</string>
+    <string name="audio_remove_from_favorites">Remove from favorites</string>
+    <string name="audio_folder_options">Folder options</string>
+    <string name="audio_pin_folder">Pin folder</string>
+    <string name="audio_unpin_folder">Unpin folder</string>
+    <string name="audio_choose_folder_cover">Choose folder cover</string>
+    <string name="audio_reset_folder_cover">Use automatic cover</string>
 </resources>

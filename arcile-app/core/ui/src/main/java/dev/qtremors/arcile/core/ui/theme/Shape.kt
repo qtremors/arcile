@@ -18,7 +18,10 @@ fun expressiveSegmentedShapes(index: Int, count: Int): ListItemShapes {
         index == count - 1 -> RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp, bottomStart = 28.dp, bottomEnd = 28.dp)
         else -> RoundedCornerShape(4.dp)
     }
-    return ListItemDefaults.shapes(shape = shape)
+    return ListItemDefaults.shapes(
+        shape = shape,
+        selectedShape = shape
+    )
 }
 
 val ExpressiveShapes = Shapes(

@@ -31,7 +31,7 @@ private fun FileModel.matches(filters: SearchFilters): Boolean {
     if (itemType == "folders" && !isDirectory) return false
 
     filters.fileType?.let { type ->
-        val selectedCategory = FileCategories.all.firstOrNull { category -> category.name == type }
+        val selectedCategory = FileCategories.find(type)
         if (selectedCategory != null) {
             val fileCategory = FileCategories.getCategoryForFile(extension, mimeType)
             if (fileCategory != selectedCategory) return false

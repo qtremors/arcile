@@ -1,10 +1,65 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.7.0
-> **Last Updated:** 2026-07-26
+> **Version:** 1.8.0
+> **Last Updated:** 2026-08-02
 
 ---
+
+## [1.8.0] - 2026-08-02
+
+- **Release Readiness**: Synchronized 1.8.0 versioning, build metadata, task tracking, and user-facing release notes for the v1.7.1 through v1.8.0 development cycle.
+
+## [1.7.9] - 2026-08-02
+
+- **Two Browser Workspaces**: Added a second independently stateful Browser page after the existing Browser, so another swipe from Home provides a separate location, history, selection, search, and scroll position.
+- **Preferred Start Page**: Added Home and Browser launch choices to the main overflow menus, using the same selected-default treatment as category pages and applying the choice on the next cold launch without resetting the current session.
+- **Preserved Browser Context**: Kept the active Browser workspace when returning from a file viewer, preserved normal parent-folder back navigation in both workspaces, and moved from the second Browser to the first before Home.
+- **Per-Folder Scroll Memory**: Restored each folder, category tab, archive location, and large paged listing to its previous list or grid position after navigating away, going back, switching Browser workspaces, or returning to the app.
+
+## [1.7.8] - 2026-08-02
+
+- **Markdown Preview and Editing Tools**: Added formatted Markdown preview, source formatting actions, undo and redo, and document statistics.
+- **Arcile Editor Chrome**: Matched Arcile's viewer controls and segmented overflow menu, honored OLED backgrounds, let content scroll beneath the transparent chrome, and separated editor tools from file actions without containing the editing canvas.
+- **Consistent Selection Chrome**: Centered selection content and aligned Docs and APK split actions, overflow controls, and screen-edge spacing with the browser and other categories.
+
+## [1.7.7] - 2026-08-02
+
+- **Native Text and Markdown Editing**: Added a standalone source editor activity for Arcile and other apps, with read-only handling for view-only grants.
+- **Document Saving and Draft Recovery**: Verified saved content before reporting success, preserved newer edits made during a save, restored matching unsaved drafts after interruption, and saved pending changes before sharing or opening elsewhere.
+
+## [1.7.6] - 2026-07-30
+
+- **Reliable Player Motion**: Fixed mini-to-full and full-to-mini transitions for taps and swipes, added swipe-up expansion and swipe-down dismissal, and kept the mini player open during back gestures.
+- **Stable Playback Surfaces**: Kept mini-player artwork stable while tracks change and added a close action to playback notifications.
+- **Finished File Operations**: Removed progress notifications after file and vault operations complete or are cancelled, including concurrent operations and stale progress updates.
+
+## [1.7.5] - 2026-07-29
+
+- **Completed Seven-Category Parity**: Finished Gallery-shell integration for APKs and the remaining category routes, removed startup and folder-content flashes, matched selection and folder predictive-back motion, and kept Archives unchanged.
+- **Clean Stable Thumbnails**: Kept circular thumbnails exclusive to lists, removed APK icon background layers, made PDF previews cover document folder tiles, and added size-aware thumbnail and metadata caching to prevent reloads.
+- **One Global Audio Player**: Unified mini and full playback in one exported player that opens as a touch-through floating mini-player, expands and collapses from its real bounds without refreshing, and works for audio opened by other apps.
+- **Focused Category UI**: Removed the redundant containing-folder audio action and non-selection folder overflow controls, kept folders grid-only, and prevented Settings toggles from changing segmented-row shapes.
+
+## [1.7.4] - 2026-07-29
+
+- **Documents And Native PDF Viewing**: Added a dedicated Documents library with Gallery-style files and folder navigation, stable document thumbnails, and native multi-page PDF rendering with navigation and bounded zoom.
+- **Independent Category State**: Persisted category presentation, grouping, item and folder preferences independently, introduced stable category IDs and names, and removed the hidden Models category while leaving Archives unchanged.
+
+## [1.7.3] - 2026-07-29
+
+- **Reusable Category Browser**: Added the common file-and-folder category surface with Gallery-matched list and grid layouts, date grouping, fast scrolling, search, refresh, selection, predictive back, and transfer progress.
+- **Consistent Category Actions**: Unified copy, cut, paste, rename, delete or shred, ZIP, share, properties, and Open With workflows while keeping circular previews list-only and folders as Gallery-style grids.
+
+## [1.7.2] - 2026-07-29
+
+- **Gallery-Parity Audio Library**: Aligned Audio list and grid spacing, date sections, floating chrome, selection actions, folder navigation, and predictive back behavior with the shared Gallery shell.
+- **Audio-Specific Presentation**: Kept circular artwork in lists, rectangular artwork cards in grids, rich artist, album, duration, and size metadata, grid-only folder browsing, and independent Favorites, pinned folders, and custom covers.
+
+## [1.7.1] - 2026-07-28
+
+- **Shared Gallery Shell**: Extracted the Image Gallery 1.6.1 floating chrome, list and grid spacing, section headers, selection motion, and bottom navigation into reusable category UI.
+- **Gallery Reference Migration**: Moved Images and Videos onto the shared implementation without changing their established behavior, making Gallery the parity reference for the remaining categories.
 
 ## [1.7.0] - 2026-07-26
 

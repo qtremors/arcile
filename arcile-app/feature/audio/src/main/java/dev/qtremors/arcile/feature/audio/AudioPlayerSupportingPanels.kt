@@ -12,7 +12,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,7 +36,6 @@ import java.util.Date
 internal fun AudioPlayerBottomActions(
     onShowMetadata: () -> Unit,
     onShare: () -> Unit,
-    onShowContainingFolder: () -> Unit,
     onShowQueue: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -59,11 +57,6 @@ internal fun AudioPlayerBottomActions(
                     icon = Icons.Default.Share,
                     contentDescription = stringResource(R.string.audio_share),
                     onClick = onShare
-                ),
-                ToolbarAction(
-                    icon = Icons.Default.FolderOpen,
-                    contentDescription = stringResource(R.string.audio_show_folder),
-                    onClick = onShowContainingFolder
                 ),
                 ToolbarAction(
                     icon = Icons.AutoMirrored.Filled.QueueMusic,

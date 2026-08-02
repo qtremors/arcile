@@ -107,6 +107,25 @@ internal class AudioPlaybackController @Inject constructor(
         publish(player)
     }
 
+    fun expandQueue(tracks: List<AudioTrack>, currentPath: String) {
+        if (tracks.none { it.file.absolutePath == currentPath }) return
+        val player = controller
+        if (player == null) {
+            if (pendingQueue?.second == currentPath) {
+                pendingQueue = tracks to currentPath
+            }
+            return
+        }
+        if (player.currentMediaItem?.mediaId != currentPath || player.mediaItemCount != 1) return
+
+        val currentIndex = tracks.indexOfFirst { it.file.absolutePath == currentPath }
+        val before = tracks.take(currentIndex).map { it.toMediaItem() }
+        val after = tracks.drop(currentIndex + 1).map { it.toMediaItem() }
+        if (before.isNotEmpty()) player.addMediaItems(0, before)
+        if (after.isNotEmpty()) player.addMediaItems(currentIndex + 1, after)
+        publish(player)
+    }
+
     fun togglePlayback() {
         controller?.let { player ->
             if (player.isPlaying) player.pause() else player.play()

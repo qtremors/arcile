@@ -11,6 +11,7 @@ android {
 
     defaultConfig {
         minSdk = 30
+        manifestPlaceholders["appLabel"] = "Arcile"
     }
 
     compileOptions {

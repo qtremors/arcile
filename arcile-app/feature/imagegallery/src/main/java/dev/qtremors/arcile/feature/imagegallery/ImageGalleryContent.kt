@@ -39,7 +39,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
 import dev.qtremors.arcile.core.ui.EmptyState
@@ -69,30 +69,30 @@ internal fun ImageGalleryContent(
 
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 96.dp
 
-    val groupedFiles = remember(state.displayedFiles, state.imageGalleryGrouping) {
-        if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+    val groupedFiles = remember(state.displayedFiles, state.grouping) {
+        if (state.grouping != CategoryGrouping.NONE) {
             val dayFormatter = java.text.SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault())
             val monthFormatter = java.text.SimpleDateFormat("MMMM yyyy", java.util.Locale.getDefault())
 
             state.displayedFiles.groupBy { file ->
                 val lastMod = file.lastModified
-                val label = when (state.imageGalleryGrouping) {
-                    ImageGalleryGrouping.DAY -> dayFormatter.format(java.util.Date(lastMod))
-                    ImageGalleryGrouping.WEEK -> getWeekLabel(lastMod)
-                    ImageGalleryGrouping.MONTH -> monthFormatter.format(java.util.Date(lastMod))
-                    ImageGalleryGrouping.NONE -> ""
+                val label = when (state.grouping) {
+                    CategoryGrouping.DAY -> dayFormatter.format(java.util.Date(lastMod))
+                    CategoryGrouping.WEEK -> getWeekLabel(lastMod)
+                    CategoryGrouping.MONTH -> monthFormatter.format(java.util.Date(lastMod))
+                    CategoryGrouping.NONE -> ""
                 }
 
                 val cal = java.util.Calendar.getInstance()
                 cal.timeInMillis = lastMod
-                when (state.imageGalleryGrouping) {
-                    ImageGalleryGrouping.DAY -> {
+                when (state.grouping) {
+                    CategoryGrouping.DAY -> {
                         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
                         cal.set(java.util.Calendar.MINUTE, 0)
                         cal.set(java.util.Calendar.SECOND, 0)
                         cal.set(java.util.Calendar.MILLISECOND, 0)
                     }
-                    ImageGalleryGrouping.WEEK -> {
+                    CategoryGrouping.WEEK -> {
                         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
                         cal.set(java.util.Calendar.MINUTE, 0)
                         cal.set(java.util.Calendar.SECOND, 0)
@@ -102,7 +102,7 @@ internal fun ImageGalleryContent(
                             cal.add(java.util.Calendar.DAY_OF_MONTH, -1)
                         }
                     }
-                    ImageGalleryGrouping.MONTH -> {
+                    CategoryGrouping.MONTH -> {
                         cal.set(java.util.Calendar.DAY_OF_MONTH, 1)
                         cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
                         cal.set(java.util.Calendar.MINUTE, 0)
@@ -118,8 +118,8 @@ internal fun ImageGalleryContent(
         }
     }
 
-    val flatUiFiles = remember(state.displayedFiles, state.imageGalleryGrouping, groupedFiles) {
-        if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+    val flatUiFiles = remember(state.displayedFiles, state.grouping, groupedFiles) {
+        if (state.grouping != CategoryGrouping.NONE) {
             groupedFiles.values.flatten()
         } else {
             state.displayedFiles
@@ -188,12 +188,16 @@ internal fun ImageGalleryContent(
                 EmptyState(
                     variant = EmptyStateVariant.Search,
                     title = stringResource(
-                        if (state.isVideoGallery) R.string.video_gallery_empty_title
-                        else R.string.image_gallery_empty_title
+                        when {
+                            state.isVideoGallery -> R.string.video_gallery_empty_title
+                            else -> R.string.image_gallery_empty_title
+                        }
                     ),
                     description = stringResource(
-                        if (state.isVideoGallery) R.string.video_gallery_empty_description
-                        else R.string.image_gallery_empty_description
+                        when {
+                            state.isVideoGallery -> R.string.video_gallery_empty_description
+                            else -> R.string.image_gallery_empty_description
+                        }
                     ),
                     modifier = Modifier.fillMaxSize()
                 )
@@ -207,7 +211,8 @@ internal fun ImageGalleryContent(
                 )
             }
             else -> {
-                val useAspectRatioGrid = state.isAspectRatio && !state.isVideoGallery
+                val useAspectRatioGrid =
+                    state.isAspectRatio && !state.isVideoGallery
                 val scrollbarState = when {
                     state.presentation.viewMode == FileViewMode.GRID && useAspectRatioGrid -> {
                         val staggeredGridState = rememberSaveable(
@@ -238,13 +243,13 @@ internal fun ImageGalleryContent(
                     }
                 }
                 var restoredViewerPath by rememberSaveable(albumScrollKey) { mutableStateOf<String?>(null) }
-                LaunchedEffect(state.viewerReturnPath, state.displayedFiles, state.imageGalleryGrouping, groupedFiles) {
+                LaunchedEffect(state.viewerReturnPath, state.displayedFiles, state.grouping, groupedFiles) {
                     val viewerPath = state.viewerReturnPath ?: return@LaunchedEffect
                     if (viewerPath == restoredViewerPath || state.displayedFiles.isEmpty()) return@LaunchedEffect
                     val targetIndex = galleryLazyIndexForPath(
                         path = viewerPath,
                         displayedFiles = state.displayedFiles,
-                        imageGalleryGrouping = state.imageGalleryGrouping,
+                        grouping = state.grouping,
                         groupedFiles = groupedFiles
                     ) ?: return@LaunchedEffect
                     scrollbarState.scrollToItem(targetIndex)
@@ -275,7 +280,7 @@ internal fun ImageGalleryContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalItemSpacing = 8.dp
                             ) {
-                                if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+                                if (state.grouping != CategoryGrouping.NONE) {
                                     groupedFiles.forEach { (section, filesInSection) ->
                                         if (filesInSection.isNotEmpty()) {
                                             item(span = StaggeredGridItemSpan.FullLine) {
@@ -333,7 +338,7 @@ internal fun ImageGalleryContent(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+                                if (state.grouping != CategoryGrouping.NONE) {
                                     groupedFiles.forEach { (section, filesInSection) ->
                                         if (filesInSection.isNotEmpty()) {
                                             item(span = { GridItemSpan(maxLineSpan) }) {
@@ -381,7 +386,7 @@ internal fun ImageGalleryContent(
                                 bottom = bottomPadding
                             )
                         ) {
-                            if (state.imageGalleryGrouping != ImageGalleryGrouping.NONE) {
+                            if (state.grouping != CategoryGrouping.NONE) {
                                 groupedFiles.forEach { (section, filesInSection) ->
                                     if (filesInSection.isNotEmpty()) {
                                         item {
@@ -426,7 +431,7 @@ internal fun ImageGalleryContent(
                             galleryFileForLazyIndex(
                                 index = index,
                                 displayedFiles = state.displayedFiles,
-                                imageGalleryGrouping = state.imageGalleryGrouping,
+                                grouping = state.grouping,
                                 groupedFiles = groupedFiles
                             )?.let { scrollbarLabelFormatter.format(java.util.Date(it.lastModified)) }.orEmpty()
                         },
@@ -448,10 +453,10 @@ internal fun ImageGalleryContent(
 internal fun galleryLazyIndexForPath(
     path: String,
     displayedFiles: List<FileModel>,
-    imageGalleryGrouping: ImageGalleryGrouping,
+    grouping: CategoryGrouping,
     groupedFiles: Map<GroupKey, List<FileModel>>
 ): Int? {
-    if (imageGalleryGrouping == ImageGalleryGrouping.NONE) {
+    if (grouping == CategoryGrouping.NONE) {
         return displayedFiles.indexOfFirst { it.absolutePath == path }.takeIf { it >= 0 }
     }
     var lazyIndex = 0
@@ -468,10 +473,10 @@ internal fun galleryLazyIndexForPath(
 private fun galleryFileForLazyIndex(
     index: Int,
     displayedFiles: List<FileModel>,
-    imageGalleryGrouping: ImageGalleryGrouping,
+    grouping: CategoryGrouping,
     groupedFiles: Map<GroupKey, List<FileModel>>
 ): FileModel? {
-    if (imageGalleryGrouping == ImageGalleryGrouping.NONE) return displayedFiles.getOrNull(index)
+    if (grouping == CategoryGrouping.NONE) return displayedFiles.getOrNull(index)
     var lazyIndex = 0
     groupedFiles.values.forEach { filesInSection ->
         if (filesInSection.isEmpty()) return@forEach

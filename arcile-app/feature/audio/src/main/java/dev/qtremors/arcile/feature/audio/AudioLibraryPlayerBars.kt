@@ -3,6 +3,11 @@ package dev.qtremors.arcile.feature.audio
 import androidx.compose.animation.AnimatedVisibilityScope
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +20,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
@@ -34,11 +40,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -49,6 +60,8 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -58,18 +71,85 @@ internal fun AudioMiniPlayer(
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     onExpand: () -> Unit,
+    onDismiss: () -> Unit,
     onTogglePlayback: () -> Unit,
     onNext: () -> Unit
 ) {
+    val dragOffset = remember { Animatable(0f) }
+    val gestureThresholdPx = with(LocalDensity.current) { 48.dp.toPx() }
+    val gestureScope = rememberCoroutineScope()
     val containerModifier = with(sharedTransitionScope) {
         Modifier
             .fillMaxWidth()
             .sharedBounds(
                 sharedContentState = rememberSharedContentState(
-                    "audio-player-container-${track.file.absolutePath}"
+                    AUDIO_PLAYER_CONTAINER_TRANSITION_KEY
                 ),
                 animatedVisibilityScope = animatedVisibilityScope
             )
+            .graphicsLayer {
+                translationY = dragOffset.value
+                alpha = 1f -
+                    (dragOffset.value / (gestureThresholdPx * 2f)).coerceIn(0f, 0.5f)
+            }
+            .pointerInput(gestureThresholdPx) {
+                var totalDrag = 0f
+                var hasTriggeredExpand = false
+                var gestureJob: Job? = null
+                detectVerticalDragGestures(
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDrag += dragAmount
+                        val dragTarget = totalDrag.coerceIn(
+                            -gestureThresholdPx * 10f,
+                            gestureThresholdPx * 2.5f
+                        )
+                        gestureJob?.cancel()
+                        gestureJob = gestureScope.launch { dragOffset.snapTo(dragTarget) }
+                        if (totalDrag <= -gestureThresholdPx && !hasTriggeredExpand) {
+                            hasTriggeredExpand = true
+                            onExpand()
+                        }
+                    },
+                    onDragCancel = {
+                        gestureJob?.cancel()
+                        gestureJob = gestureScope.launch { dragOffset.settleMiniDrag() }
+                        totalDrag = 0f
+                        hasTriggeredExpand = false
+                    },
+                    onDragEnd = {
+                        if (!hasTriggeredExpand) {
+                            val gesture = resolveAudioMiniPlayerGesture(
+                                dragOffsetPx = totalDrag,
+                                thresholdPx = gestureThresholdPx
+                            )
+                            gestureJob?.cancel()
+                            gestureJob = gestureScope.launch {
+                                when (gesture) {
+                                    AudioMiniPlayerGesture.EXPAND -> {
+                                        onExpand()
+                                    }
+                                    AudioMiniPlayerGesture.DISMISS -> {
+                                        dragOffset.animateTo(
+                                            targetValue = gestureThresholdPx * 2.5f,
+                                            animationSpec = spring(
+                                                stiffness = Spring.StiffnessMedium,
+                                                dampingRatio = Spring.DampingRatioNoBouncy
+                                            )
+                                        )
+                                        onDismiss()
+                                    }
+                                    AudioMiniPlayerGesture.NONE -> {
+                                        dragOffset.settleMiniDrag()
+                                    }
+                                }
+                            }
+                        }
+                        totalDrag = 0f
+                        hasTriggeredExpand = false
+                    }
+                )
+            }
     }
     Surface(
         shape = MaterialTheme.shapes.extraLarge,
@@ -94,7 +174,7 @@ internal fun AudioMiniPlayer(
                             .size(56.dp)
                             .sharedBounds(
                                 sharedContentState = rememberSharedContentState(
-                                    "audio-player-artwork-${track.file.absolutePath}"
+                                    AUDIO_PLAYER_ARTWORK_TRANSITION_KEY
                                 ),
                                 animatedVisibilityScope = animatedVisibilityScope
                             )
@@ -157,9 +237,39 @@ internal fun AudioMiniPlayer(
     }
 }
 
+internal enum class AudioMiniPlayerGesture {
+    NONE,
+    EXPAND,
+    DISMISS
+}
+
+internal fun resolveAudioMiniPlayerGesture(
+    dragOffsetPx: Float,
+    thresholdPx: Float
+): AudioMiniPlayerGesture = when {
+    thresholdPx <= 0f -> AudioMiniPlayerGesture.NONE
+    dragOffsetPx <= -thresholdPx -> AudioMiniPlayerGesture.EXPAND
+    dragOffsetPx >= thresholdPx -> AudioMiniPlayerGesture.DISMISS
+    else -> AudioMiniPlayerGesture.NONE
+}
+
+private suspend fun Animatable<Float, *>.settleMiniDrag() {
+    animateTo(
+        targetValue = 0f,
+        animationSpec = spring(
+            stiffness = Spring.StiffnessMediumLow,
+            dampingRatio = Spring.DampingRatioNoBouncy
+        )
+    )
+}
+
+internal const val AUDIO_PLAYER_CONTAINER_TRANSITION_KEY = "audio-player-container"
+internal const val AUDIO_PLAYER_ARTWORK_TRANSITION_KEY = "audio-player-artwork"
+
 @Composable
 internal fun AudioSelectionActionsBar(
     canUseSingleTrackActions: Boolean,
+    allSelectedFavorite: Boolean,
     onPlay: () -> Unit,
     onCopy: () -> Unit,
     onCut: () -> Unit,
@@ -169,7 +279,7 @@ internal fun AudioSelectionActionsBar(
     onProperties: () -> Unit,
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
-    onShowFolder: () -> Unit
+    onToggleFavorite: () -> Unit
 ) {
     var showMenu by rememberSaveable { mutableStateOf(false) }
     Row(
@@ -243,6 +353,31 @@ internal fun AudioSelectionActionsBar(
                     add {
                         ArcileDropdownMenuItem(
                             text = stringResource(
+                                if (allSelectedFavorite) {
+                                    R.string.audio_remove_from_favorites
+                                } else {
+                                    R.string.audio_add_to_favorites
+                                }
+                            ),
+                            leadingIcon = {
+                                Icon(
+                                    if (allSelectedFavorite) {
+                                        Icons.Default.Favorite
+                                    } else {
+                                        Icons.Default.FavoriteBorder
+                                    },
+                                    contentDescription = null
+                                )
+                            },
+                            onClick = {
+                                showMenu = false
+                                onToggleFavorite()
+                            }
+                        )
+                    }
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(
                                 dev.qtremors.arcile.core.ui.R.string.archive_compress_zip
                             ),
                             leadingIcon = {
@@ -288,18 +423,6 @@ internal fun AudioSelectionActionsBar(
                                 onClick = {
                                     showMenu = false
                                     onOpenWith()
-                                }
-                            )
-                        }
-                        add {
-                            ArcileDropdownMenuItem(
-                                text = stringResource(R.string.audio_show_folder),
-                                leadingIcon = {
-                                    Icon(Icons.Default.FolderOpen, contentDescription = null)
-                                },
-                                onClick = {
-                                    showMenu = false
-                                    onShowFolder()
                                 }
                             )
                         }

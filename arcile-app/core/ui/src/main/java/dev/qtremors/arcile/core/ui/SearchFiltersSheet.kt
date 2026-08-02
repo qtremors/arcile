@@ -102,7 +102,7 @@ fun SearchFiltersSheet(
     val anyLabel = stringResource(R.string.item_type_any)
     val foldersLabel = stringResource(R.string.folders)
     val filesLabel = stringResource(R.string.item_type_files)
-    val categories = listOf(allLabel) + FileCategories.all.map { it.name }
+    val categories = listOf(allLabel) + FileCategories.all.map { it.displayName }
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showAdvanced by rememberSaveable { mutableStateOf(currentFilters.hasActiveAdvancedFilters()) }
     var extensionText by rememberSaveable(currentFilters.extensions) {

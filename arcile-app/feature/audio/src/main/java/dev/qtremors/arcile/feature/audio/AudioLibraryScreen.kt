@@ -1,24 +1,9 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.SharedTransitionScope
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -30,22 +15,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.PasteConflictDialog
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryShell
+import dev.qtremors.arcile.core.ui.category.rememberCategoryLibraryShellState
 import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
@@ -61,7 +45,6 @@ private enum class AudioBackAction {
     NAVIGATE_BACK
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun AudioLibraryScreen(
     state: AudioLibraryState,
@@ -69,13 +52,17 @@ internal fun AudioLibraryScreen(
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
     onQueryChange: (String) -> Unit,
-    onSelectTab: (AudioLibraryTab) -> Unit,
+    onSearchFiltersChange: (SearchFilters) -> Unit,
+    onSelectTab: (CategoryLibraryPage) -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
     onClearFolderFilter: () -> Unit,
-    onPresentationChange: (AudioLibraryTab, FileListingPreferences) -> Unit,
-    onGroupingChange: (ImageGalleryGrouping) -> Unit,
+    onPresentationChange: (CategoryLibraryPage, FileListingPreferences) -> Unit,
+    onGroupingChange: (CategoryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
-    onDefaultTabChange: (AudioLibraryTab) -> Unit,
+    onDefaultPageChange: (CategoryLibraryPage) -> Unit,
+    onToggleFavoriteSelection: () -> Unit,
+    onTogglePinnedFolder: (AudioFolder) -> Unit,
+    onUpdateFolderCover: (AudioFolder, String?) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit,
     onTogglePaths: (Collection<String>) -> Unit,
@@ -102,29 +89,12 @@ internal fun AudioLibraryScreen(
     onClearActiveFileOperation: () -> Unit,
     onPlay: (String) -> Unit,
     onPlaySelection: (Collection<String>) -> Unit,
-    onTogglePlayback: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onQueueTrack: (Int) -> Unit,
-    onToggleRepeat: () -> Unit,
-    onToggleShuffle: () -> Unit,
-    onSeek: (Long) -> Unit,
-    onExpandPlayer: () -> Unit,
-    onCollapsePlayer: () -> Unit,
     onShareSelected: (List<AudioTrack>, () -> Unit) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
-    onShowContainingFolder: (AudioTrack) -> Unit,
     onClearError: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val haptics = rememberArcileHaptics()
-    val currentTrack = state.tracks.firstOrNull {
-        it.file.absolutePath == playback.currentMediaId
-    }
-    val queueTracks = remember(state.tracks, playback.queueMediaIds) {
-        val byPath = state.tracks.associateBy { it.file.absolutePath }
-        playback.queueMediaIds.mapNotNull(byPath::get)
-    }
     val selectedTracks = remember(state.tracks, state.selectedPaths) {
         state.tracks.filter { it.file.absolutePath in state.selectedPaths }
     }
@@ -133,11 +103,12 @@ internal fun AudioLibraryScreen(
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
-    var isChromeVisible by rememberSaveable { mutableStateOf(true) }
+    var coverFolder by remember { mutableStateOf<AudioFolder?>(null) }
+    val shellState = rememberCategoryLibraryShellState()
     var backProgress by remember { mutableFloatStateOf(0f) }
     var backAction by remember { mutableStateOf<AudioBackAction?>(null) }
     val pagerState = rememberPagerState(
-        initialPage = if (state.defaultTab == AudioLibraryTab.FOLDERS) 1 else 0,
+        initialPage = if (state.defaultPage == CategoryLibraryPage.FOLDERS) 1 else 0,
         pageCount = { 2 }
     )
     val coroutineScope = rememberCoroutineScope()
@@ -147,26 +118,14 @@ internal fun AudioLibraryScreen(
     var activeFolderGridSize by remember(state.folderPresentation.gridMinCellSize) {
         mutableFloatStateOf(state.folderPresentation.gridMinCellSize)
     }
-    val nestedScrollConnection = remember {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y < -15f) {
-                    isChromeVisible = false
-                } else if (available.y > 15f) {
-                    isChromeVisible = true
-                }
-                return Offset.Zero
-            }
-        }
-    }
 
     LaunchedEffect(pagerState.currentPage) {
         val tab =
-            if (pagerState.currentPage == 0) AudioLibraryTab.AUDIO else AudioLibraryTab.FOLDERS
+            if (pagerState.currentPage == 0) CategoryLibraryPage.ITEMS else CategoryLibraryPage.FOLDERS
         if (state.tab != tab) onSelectTab(tab)
     }
     LaunchedEffect(state.tab) {
-        val page = if (state.tab == AudioLibraryTab.AUDIO) 0 else 1
+        val page = if (state.tab == CategoryLibraryPage.ITEMS) 0 else 1
         if (pagerState.currentPage != page) pagerState.animateScrollToPage(page)
     }
     LaunchedEffect(state.error, playback.error) {
@@ -182,7 +141,7 @@ internal fun AudioLibraryScreen(
         }
     }
 
-    PredictiveBackHandler(enabled = !state.playerExpanded) { progress ->
+    PredictiveBackHandler { progress ->
         backAction = when {
             isSelectionMode -> AudioBackAction.CLEAR_SELECTION
             showSearchBar -> AudioBackAction.CLOSE_SEARCH
@@ -208,221 +167,199 @@ internal fun AudioLibraryScreen(
         }
     }
 
-    SharedTransitionLayout {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .nestedScroll(nestedScrollConnection)
-        ) {
-        val topPadding =
-            WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 80.dp
-        val bottomPadding =
-            WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
-                if (currentTrack == null) 104.dp else 176.dp
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    if (backAction == AudioBackAction.NAVIGATE_BACK) {
-                        val scale = 1f - backProgress * 0.08f
-                        scaleX = scale
-                        scaleY = scale
-                        translationX = backProgress * 100.dp.toPx()
-                        alpha = 1f - backProgress * 0.4f
-                    }
-                },
-            userScrollEnabled = !isSelectionMode
-        ) { page ->
-            val tab = if (page == 0) AudioLibraryTab.AUDIO else AudioLibraryTab.FOLDERS
-            AudioLibraryPage(
-                state = state,
-                tab = tab,
-                activeGridSize = if (tab == AudioLibraryTab.AUDIO) {
-                    activeAudioGridSize
-                } else {
-                    activeFolderGridSize
-                },
-                contentPadding = PaddingValues(
-                    start = 12.dp,
-                    top = topPadding,
-                    end = 12.dp,
-                    bottom = bottomPadding
-                ),
-                currentMediaId = playback.currentMediaId,
-                onGridSizeChange = { size ->
-                    if (tab == AudioLibraryTab.AUDIO) {
-                        activeAudioGridSize = size
-                    } else {
-                        activeFolderGridSize = size
-                    }
-                },
-                onGridSizeFinalized = { size ->
-                    val current = if (tab == AudioLibraryTab.AUDIO) {
-                        state.audioPresentation
-                    } else {
-                        state.folderPresentation
-                    }
-                    onPresentationChange(tab, current.copy(gridMinCellSize = size))
-                },
-                onRefresh = onRefresh,
-                onPlay = onPlay,
-                onSelectFolder = { folder ->
-                    onSelectFolder(folder)
-                    coroutineScope.launch { pagerState.animateScrollToPage(0) }
-                },
-                onToggleSelection = onToggleSelection,
-                onSelectPaths = onSelectPaths,
-                onTogglePaths = onTogglePaths,
-                onPasteToFolder = onPasteToFolder
-            )
-        }
-
-        val chromeOffset by animateDpAsState(
-            targetValue = if (isChromeVisible || isSelectionMode || showSearchBar) 0.dp else (-120).dp,
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-            label = "audioTopChromeOffset"
-        )
-        val chromeAlpha by animateFloatAsState(
-            targetValue = if (isChromeVisible || isSelectionMode || showSearchBar) 1f else 0f,
-            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-            label = "audioTopChromeAlpha"
-        )
-        if (isSelectionMode) {
-            AudioSelectionTopBar(
-                selectedCount = selectedTracks.size,
-                selectedSize = selectedTracks.sumOf { it.file.size },
-                onClearSelection = onClearSelection,
-                onSelectAll = onSelectAll,
-                onInvertSelection = onInvertSelection,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .graphicsLayer {
-                        translationY = chromeOffset.toPx()
-                        alpha = chromeAlpha
-                    }
-            )
-        } else {
-            AudioLibraryFloatingTopBar(
-                state = state,
-                currentTab = if (pagerState.currentPage == 0) {
-                    AudioLibraryTab.AUDIO
-                } else {
-                    AudioLibraryTab.FOLDERS
-                },
-                showSearchBar = showSearchBar,
-                onSearchClick = { showSearchBar = true },
-                onCloseSearch = {
-                    onQueryChange("")
-                    showSearchBar = false
-                },
-                onQueryChange = onQueryChange,
-                onViewSort = { showPresentationSheet = true },
-                onDefaultTabChange = onDefaultTabChange,
-                onSelectAll = onSelectAll,
-                onNavigateBack = {
-                    if (state.folderFilter != null) onClearFolderFilter() else onNavigateBack()
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .align(Alignment.TopCenter)
-                    .graphicsLayer {
-                        translationY = chromeOffset.toPx()
-                        alpha = chromeAlpha
-                    }
-            )
-        }
-        AudioLibraryBottomBar(
-            state = state,
-            currentTab = if (pagerState.currentPage == 0) {
-                AudioLibraryTab.AUDIO
+    CategoryLibraryShell(
+            state = shellState,
+            selectionMode = isSelectionMode,
+            searchVisible = showSearchBar,
+            exitBackProgress = if (backAction == AudioBackAction.NAVIGATE_BACK) {
+                backProgress
             } else {
-                AudioLibraryTab.FOLDERS
+                0f
             },
-            currentTrack = currentTrack,
-            selectedTracks = selectedTracks,
-            playback = playback,
-            playerExpanded = state.playerExpanded,
-            sharedTransitionScope = this@SharedTransitionLayout,
-            isChromeVisible = isChromeVisible,
-            onSelectTab = { tab ->
-                coroutineScope.launch {
-                    pagerState.animateScrollToPage(
-                        if (tab == AudioLibraryTab.AUDIO) 0 else 1
+            chromeBackProgress = if (
+                backAction == AudioBackAction.CLEAR_SELECTION ||
+                backAction == AudioBackAction.CLOSE_SEARCH
+            ) {
+                backProgress
+            } else {
+                0f
+            },
+            extraBottomContentPadding = 8.dp,
+            topChrome = {
+                if (isSelectionMode) {
+                    AudioSelectionTopBar(
+                        selectedCount = selectedTracks.size,
+                        selectedSize = selectedTracks.sumOf { it.file.size },
+                        onClearSelection = onClearSelection,
+                        onSelectAll = onSelectAll,
+                        onInvertSelection = onInvertSelection,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                } else {
+                    AudioLibraryFloatingTopBar(
+                        state = state,
+                        currentTab = if (pagerState.currentPage == 0) {
+                            CategoryLibraryPage.ITEMS
+                        } else {
+                            CategoryLibraryPage.FOLDERS
+                        },
+                        showSearchBar = showSearchBar,
+                        onSearchClick = {
+                            shellState.revealChrome()
+                            showSearchBar = true
+                        },
+                        onCloseSearch = {
+                            onQueryChange("")
+                            showSearchBar = false
+                        },
+                        onQueryChange = onQueryChange,
+                        onSearchFiltersChange = onSearchFiltersChange,
+                        onViewSort = { showPresentationSheet = true },
+                        onDefaultPageChange = onDefaultPageChange,
+                        onSelectAll = onSelectAll,
+                        onNavigateBack = {
+                            if (state.folderFilter != null) {
+                                onClearFolderFilter()
+                            } else {
+                                onNavigateBack()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             },
-            onExpandPlayer = onExpandPlayer,
-            onTogglePlayback = onTogglePlayback,
-            onNext = onNext,
-            onPlaySelected = {
-                onPlaySelection(selectedTracks.map { it.file.absolutePath })
-                onClearSelection()
-            },
-            onCopySelected = onCopySelection,
-            onCutSelected = onCutSelection,
-            onRenameSelected = { showRenameDialog = true },
-            onDeleteSelected = onDeleteSelection,
-            onShareSelected = {
-                onShareSelected(selectedTracks, onClearSelection)
-            },
-            onOpenProperties = onOpenProperties,
-            onCreateZip = onCreateZip,
-            onOpenWith = {
-                selectedTracks.singleOrNull()?.let(onOpenWith)
-                onClearSelection()
-            },
-            onShowContainingFolder = {
-                selectedTracks.singleOrNull()?.let(onShowContainingFolder)
-                onClearSelection()
-            },
-            onPaste = onPaste,
-            onCancelClipboard = onCancelClipboard,
-            onShowClipboardContents = { showClipboardContents = true },
-            onClearActiveFileOperation = onClearActiveFileOperation,
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
-
-        AnimatedVisibility(
-            visible = state.playerExpanded && currentTrack != null,
-            modifier = Modifier
-                .fillMaxSize()
-                .align(Alignment.Center),
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            currentTrack?.let { track ->
-                AudioNowPlayingScreen(
-                    track = track,
-                    queue = queueTracks,
-                    playback = playback,
-                    sharedTransitionScope = this@SharedTransitionLayout,
-                    animatedVisibilityScope = this@AnimatedVisibility,
-                    predictiveBackEnabled = state.playerExpanded,
-                    onCollapse = onCollapsePlayer,
-                    onTogglePlayback = onTogglePlayback,
-                    onPrevious = onPrevious,
-                    onNext = onNext,
-                    onQueueTrack = onQueueTrack,
-                    onToggleRepeat = onToggleRepeat,
-                    onToggleShuffle = onToggleShuffle,
-                    onSeek = onSeek,
-                    onShare = { onShareSelected(listOf(track), {}) },
-                    onOpenWith = { onOpenWith(track) },
-                    onShowContainingFolder = { onShowContainingFolder(track) }
+            bottomChrome = { isChromeVisible ->
+                AudioLibraryBottomBar(
+                    state = state,
+                    currentTab = if (pagerState.currentPage == 0) {
+                        CategoryLibraryPage.ITEMS
+                    } else {
+                        CategoryLibraryPage.FOLDERS
+                    },
+                    selectedTracks = selectedTracks,
+                    isChromeVisible = isChromeVisible,
+                    selectionBackProgress = if (
+                        backAction == AudioBackAction.CLEAR_SELECTION
+                    ) {
+                        backProgress
+                    } else {
+                        0f
+                    },
+                    onSelectTab = { tab ->
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(
+                                if (tab == CategoryLibraryPage.ITEMS) 0 else 1
+                            )
+                        }
+                    },
+                    onPlaySelected = {
+                        onPlaySelection(selectedTracks.map { it.file.absolutePath })
+                        onClearSelection()
+                    },
+                    onCopySelected = onCopySelection,
+                    onCutSelected = onCutSelection,
+                    onRenameSelected = { showRenameDialog = true },
+                    onDeleteSelected = onDeleteSelection,
+                    onShareSelected = {
+                        onShareSelected(selectedTracks, onClearSelection)
+                    },
+                    onOpenProperties = onOpenProperties,
+                    onCreateZip = onCreateZip,
+                    onOpenWith = {
+                        selectedTracks.singleOrNull()?.let(onOpenWith)
+                        onClearSelection()
+                    },
+                    onToggleFavorite = {
+                        onToggleFavoriteSelection()
+                        onClearSelection()
+                    },
+                    onPaste = onPaste,
+                    onCancelClipboard = onCancelClipboard,
+                    onShowClipboardContents = { showClipboardContents = true },
+                    onClearActiveFileOperation = onClearActiveFileOperation,
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                )
+            }
+        ) { contentPadding ->
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize(),
+                userScrollEnabled = !isSelectionMode
+            ) { page ->
+                val tab =
+                    if (page == 0) CategoryLibraryPage.ITEMS else CategoryLibraryPage.FOLDERS
+                val showingFolderContents =
+                    tab == CategoryLibraryPage.FOLDERS && state.folderFilter != null
+                val presentationPage = if (showingFolderContents) {
+                    CategoryLibraryPage.ITEMS
+                } else {
+                    tab
+                }
+                AudioLibraryPage(
+                    state = state,
+                    tab = tab,
+                    activeGridSize = if (presentationPage == CategoryLibraryPage.ITEMS) {
+                        activeAudioGridSize
+                    } else {
+                        activeFolderGridSize
+                    },
+                    contentPadding = contentPadding,
+                    currentMediaId = playback.currentMediaId,
+                    onGridSizeChange = { size ->
+                        if (presentationPage == CategoryLibraryPage.ITEMS) {
+                            activeAudioGridSize = size
+                        } else {
+                            activeFolderGridSize = size
+                        }
+                    },
+                    onGridSizeFinalized = { size ->
+                        val current = if (presentationPage == CategoryLibraryPage.ITEMS) {
+                            state.audioPresentation
+                        } else {
+                            state.folderPresentation
+                        }
+                        onPresentationChange(
+                            presentationPage,
+                            current.copy(gridMinCellSize = size)
+                        )
+                    },
+                    onRefresh = onRefresh,
+                    onPlay = onPlay,
+                    onSelectFolder = onSelectFolder,
+                    onToggleSelection = onToggleSelection,
+                    onSelectPaths = onSelectPaths,
+                    onTogglePaths = onTogglePaths,
+                    onPasteToFolder = onPasteToFolder,
+                    onTogglePinnedFolder = onTogglePinnedFolder,
+                    onChooseFolderCover = { coverFolder = it },
+                    onResetFolderCover = { onUpdateFolderCover(it, null) },
+                    modifier = Modifier.graphicsLayer {
+                        if (
+                            backAction == AudioBackAction.CLOSE_FOLDER &&
+                            showingFolderContents
+                        ) {
+                            translationX = backProgress * 120.dp.toPx()
+                            alpha = 1f - backProgress * 0.5f
+                        }
+                    }
                 )
             }
         }
-        }
-    }
 
     if (showPresentationSheet) {
-        val currentTab =
-            if (pagerState.currentPage == 0) AudioLibraryTab.AUDIO else AudioLibraryTab.FOLDERS
+        val selectedTab =
+            if (pagerState.currentPage == 0) CategoryLibraryPage.ITEMS else CategoryLibraryPage.FOLDERS
+        val presentationPage = if (
+            selectedTab == CategoryLibraryPage.FOLDERS &&
+            state.folderFilter != null
+        ) {
+            CategoryLibraryPage.ITEMS
+        } else {
+            selectedTab
+        }
         AudioViewOptionsDialog(
-            tab = currentTab,
-            presentation = if (currentTab == AudioLibraryTab.AUDIO) {
+            tab = presentationPage,
+            presentation = if (presentationPage == CategoryLibraryPage.ITEMS) {
                 state.audioPresentation
             } else {
                 state.folderPresentation
@@ -430,11 +367,21 @@ internal fun AudioLibraryScreen(
             grouping = state.grouping,
             showFileDetails = state.showFileDetails,
             onApply = { presentation, grouping, showDetails ->
-                onPresentationChange(currentTab, presentation)
+                onPresentationChange(presentationPage, presentation)
                 onGroupingChange(grouping)
                 onShowFileDetailsChange(showDetails)
             },
             onDismiss = { showPresentationSheet = false }
+        )
+    }
+    coverFolder?.let { folder ->
+        AudioFolderCoverDialog(
+            folder = folder,
+            onSelect = { trackPath ->
+                onUpdateFolderCover(folder, trackPath)
+                coverFolder = null
+            },
+            onDismiss = { coverFolder = null }
         )
     }
     if (showRenameDialog && selectedTracks.size == 1) {

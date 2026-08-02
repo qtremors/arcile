@@ -12,6 +12,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,7 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +82,7 @@ import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
@@ -110,8 +112,7 @@ internal fun AudioNowPlayingScreen(
     onToggleShuffle: () -> Unit,
     onSeek: (Long) -> Unit,
     onShare: () -> Unit,
-    onOpenWith: () -> Unit,
-    onShowContainingFolder: () -> Unit
+    onOpenWith: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showMetadata by remember { mutableStateOf(false) }
@@ -123,19 +124,33 @@ internal fun AudioNowPlayingScreen(
     var backProgress by remember { mutableFloatStateOf(0f) }
     val dragOffset = remember { Animatable(0f) }
     val artworkOffset = remember { Animatable(0f) }
-    val coroutineScope = rememberCoroutineScope()
+    val gestureScope = rememberCoroutineScope()
     val density = LocalDensity.current
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
     val haptics = rememberArcileHaptics()
     val effectiveDuration = playback.durationMs.takeIf { it > 0L } ?: track.durationMs
+    val collapseThreshold = with(density) { screenHeight.toPx() * 0.14f }
+    val collapseProgress = max(
+        (dragOffset.value / collapseThreshold).coerceIn(0f, 1f),
+        backProgress
+    )
     val containerModifier = with(sharedTransitionScope) {
         Modifier
             .fillMaxSize()
             .sharedBounds(
                 sharedContentState = rememberSharedContentState(
-                    "audio-player-container-${track.file.absolutePath}"
+                    AUDIO_PLAYER_CONTAINER_TRANSITION_KEY
                 ),
                 animatedVisibilityScope = animatedVisibilityScope
             )
+            .graphicsLayer {
+                translationX = backProgress * 72.dp.toPx()
+                translationY = dragOffset.value.coerceAtLeast(0f) +
+                    backProgress * 48.dp.toPx()
+                val scale = 1f - collapseProgress * 0.08f
+                scaleX = scale
+                scaleY = scale
+            }
     }
 
     LaunchedEffect(playback.positionMs, isSeeking) {
@@ -148,7 +163,6 @@ internal fun AudioNowPlayingScreen(
             onCollapse()
         } catch (_: CancellationException) {
             // The player remains expanded when the predictive gesture is cancelled.
-        } finally {
             backProgress = 0f
         }
     }
@@ -162,22 +176,56 @@ internal fun AudioNowPlayingScreen(
         val dismissThreshold = with(density) { maxHeight.toPx() * 0.14f }
         val queueThreshold = with(density) { maxHeight.toPx() * 0.08f }
         val horizontalThreshold = with(density) { maxWidth.toPx() * 0.16f }
-        val gestureProgress = (dragOffset.value / dismissThreshold).coerceIn(0f, 1f)
-        val transitionProgress = max(gestureProgress, backProgress)
         val compactHeight = maxHeight < 720.dp
         val artworkMaxSize = if (compactHeight) 320.dp else 440.dp
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer {
-                    translationX = backProgress * 72.dp.toPx()
-                    translationY = dragOffset.value.coerceAtLeast(0f) +
-                        backProgress * 48.dp.toPx()
-                    val scale = 1f - transitionProgress * 0.08f
-                    scaleX = scale
-                    scaleY = scale
-                    alpha = 1f - transitionProgress * 0.35f
+                .pointerInput(dismissThreshold) {
+                    var totalY = 0f
+                    var hasTriggeredCollapse = false
+                    var gestureJob: Job? = null
+                    detectVerticalDragGestures(
+                        onVerticalDrag = { change, dragAmount ->
+                            if (dragAmount > 0f || totalY > 0f) {
+                                change.consume()
+                                totalY += dragAmount
+                                val targetY = totalY.coerceAtLeast(0f)
+                                gestureJob?.cancel()
+                                gestureJob = gestureScope.launch {
+                                    dragOffset.snapTo(targetY)
+                                }
+                                if (totalY >= dismissThreshold && !hasTriggeredCollapse) {
+                                    hasTriggeredCollapse = true
+                                    onCollapse()
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            gestureJob?.cancel()
+                            gestureJob = gestureScope.launch {
+                                dragOffset.springBack()
+                            }
+                            totalY = 0f
+                            hasTriggeredCollapse = false
+                        },
+                        onDragEnd = {
+                            if (!hasTriggeredCollapse) {
+                                val finalY = totalY
+                                gestureJob?.cancel()
+                                if (finalY > dismissThreshold) {
+                                    onCollapse()
+                                } else {
+                                    gestureJob = gestureScope.launch {
+                                        dragOffset.springBack()
+                                    }
+                                }
+                            }
+                            totalY = 0f
+                            hasTriggeredCollapse = false
+                        }
+                    )
                 }
         ) {
             Column(
@@ -205,7 +253,7 @@ internal fun AudioNowPlayingScreen(
                             .aspectRatio(1f)
                             .sharedBounds(
                                 sharedContentState = rememberSharedContentState(
-                                    "audio-player-artwork-${track.file.absolutePath}"
+                                    AUDIO_PLAYER_ARTWORK_TRANSITION_KEY
                                 ),
                                 animatedVisibilityScope = animatedVisibilityScope
                             )
@@ -233,56 +281,65 @@ internal fun AudioNowPlayingScreen(
                             ) {
                                 var totalX = 0f
                                 var totalY = 0f
+                                var gestureJob: Job? = null
                                 detectDragGestures(
                                     onDrag = { change, amount ->
                                         change.consume()
                                         totalX += amount.x
                                         totalY += amount.y
-                                        coroutineScope.launch {
-                                            if (abs(totalX) > abs(totalY)) {
-                                                artworkOffset.snapTo(totalX)
+                                        val dragX = totalX
+                                        val dragY = totalY
+                                        gestureJob?.cancel()
+                                        gestureJob = gestureScope.launch {
+                                            if (abs(dragX) > abs(dragY)) {
+                                                artworkOffset.snapTo(dragX)
                                             } else {
-                                                dragOffset.snapTo(totalY.coerceAtLeast(0f))
+                                                dragOffset.snapTo(dragY.coerceAtLeast(0f))
                                             }
                                         }
                                     },
                                     onDragCancel = {
-                                        coroutineScope.launch {
+                                        gestureJob?.cancel()
+                                        gestureJob = gestureScope.launch {
                                             dragOffset.springBack()
                                             artworkOffset.springBack()
                                         }
+                                        totalX = 0f
+                                        totalY = 0f
                                     },
                                     onDragEnd = {
+                                        val finalX = totalX
+                                        val finalY = totalY
+                                        gestureJob?.cancel()
                                         when {
-                                            abs(totalX) > abs(totalY) &&
-                                                abs(totalX) > horizontalThreshold ->
-                                                coroutineScope.launch {
-                                                    val direction = totalX.sign
+                                            abs(finalX) > abs(finalY) &&
+                                                abs(finalX) > horizontalThreshold -> {
+                                                gestureJob = gestureScope.launch {
+                                                    val direction = finalX.sign
                                                     artworkOffset.animateTo(
                                                         direction * horizontalThreshold * 2f,
                                                         spring(stiffness = Spring.StiffnessMedium)
                                                     )
-                                                    if (totalX < 0f) onNext() else onPrevious()
+                                                    if (finalX < 0f) onNext() else onPrevious()
                                                     artworkOffset.snapTo(
                                                         -direction * horizontalThreshold
                                                     )
                                                     artworkOffset.springBack()
                                                 }
-                                            totalY > dismissThreshold -> coroutineScope.launch {
-                                                dragOffset.animateTo(
-                                                    dismissThreshold * 2f,
-                                                    spring(stiffness = Spring.StiffnessMedium)
-                                                )
-                                                onCollapse()
                                             }
-                                            totalY < -queueThreshold -> {
+                                            finalY > dismissThreshold -> onCollapse()
+                                            finalY < -queueThreshold -> {
                                                 haptics.selectionStart()
                                                 showQueue = true
-                                                coroutineScope.launch { dragOffset.snapTo(0f) }
+                                                gestureJob = gestureScope.launch {
+                                                    dragOffset.snapTo(0f)
+                                                }
                                             }
-                                            else -> coroutineScope.launch {
-                                                dragOffset.springBack()
-                                                artworkOffset.springBack()
+                                            else -> {
+                                                gestureJob = gestureScope.launch {
+                                                    dragOffset.springBack()
+                                                    artworkOffset.springBack()
+                                                }
                                             }
                                         }
                                         totalX = 0f
@@ -353,7 +410,6 @@ internal fun AudioNowPlayingScreen(
                     showMetadata = true
                 },
                 onShare = onShare,
-                onShowContainingFolder = onShowContainingFolder,
                 onShowQueue = {
                     haptics.selectionStart()
                     showQueue = true

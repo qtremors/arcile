@@ -43,10 +43,13 @@ import coil.request.ImageRequest
 import coil.size.Precision
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.ui.getFileIconVector
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.ThumbnailPolicy
 import dev.qtremors.arcile.core.ui.image.ThumbnailTargetSize
+import dev.qtremors.arcile.core.ui.category.CategoryItemInfo
+import dev.qtremors.arcile.core.ui.category.CategoryListItem
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlin.math.roundToInt
 
@@ -69,38 +72,17 @@ internal fun GalleryImageListItem(
         FileCategories.getCategoryForFile(file.extension, file.mimeType) == FileCategories.Videos
     }
     val thumbnailSizePx = ThumbnailTargetSize.fromBounds((48 * zoom).roundToInt())
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 0.98f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
+    CategoryListItem(
+        info = CategoryItemInfo(
+            title = file.name,
+            detailLines = listOf(formatFileSize(file.size))
         ),
-        label = "scale"
-    )
-
-    Row(
+        selected = isSelected,
+        zoom = zoom,
+        onClick = onClick,
+        onLongClick = onLongClick,
         modifier = modifier
-            .fillMaxWidth()
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(MaterialTheme.shapes.extraLarge)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .background(
-                if (isSelected) {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                } else {
-                    Color.Transparent
-                }
-            )
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size((48 * zoom).dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(MaterialTheme.colorScheme.surface),
-            contentAlignment = Alignment.Center
-        ) {
             var showPlaceholder by remember(
                 file.absolutePath,
                 file.size,
@@ -134,7 +116,7 @@ internal fun GalleryImageListItem(
             }
             if (showPlaceholder) {
                 Icon(
-                    imageVector = if (isVideo) Icons.Default.VideoLibrary else Icons.Default.Image,
+                    imageVector = getFileIconVector(file),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(18.dp)
@@ -177,28 +159,5 @@ internal fun GalleryImageListItem(
                     iconSize = 16.dp
                 )
             }
-        }
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = file.name,
-                style = MaterialTheme.typography.bodyMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = formatFileSize(file.size),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        if (isSelected) {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
-        }
     }
 }

@@ -80,13 +80,10 @@ class AppFileOpenResolverTest {
     }
 
     @Test
-    fun `unsupported file resolves to external chooser`() = runTest {
+    fun `pdf resolves to Arcile pdf viewer`() = runTest {
         val result = resolver().resolve("/storage/report.pdf", emptyList())
 
-        assertEquals(
-            AppFileOpenResolution.External("/storage/report.pdf", forceChooser = true),
-            result
-        )
+        assertEquals(AppFileOpenResolution.ViewPdf("/storage/report.pdf"), result)
     }
 
     @Test
@@ -110,6 +107,15 @@ class AppFileOpenResolverTest {
     }
 
     @Test
+    fun `text and markdown files resolve to Arcile text editor`() = runTest {
+        val txtResult = resolver().resolve("/storage/notes.txt", emptyList())
+        val mdResult = resolver().resolve("/storage/readme.md", emptyList())
+
+        assertEquals(AppFileOpenResolution.EditText("/storage/notes.txt"), txtResult)
+        assertEquals(AppFileOpenResolution.EditText("/storage/readme.md"), mdResult)
+    }
+
+    @Test
     fun `external preference bypasses Arcile viewer for its file category`() = runTest {
         val resolver = AppFileOpenResolver(
             pluginGateway = PluginFileResolutionGateway { _, _, _ ->
@@ -123,6 +129,24 @@ class AppFileOpenResolverTest {
 
         assertEquals(
             AppFileOpenResolution.External("/storage/photo.jpg", forceChooser = true),
+            result
+        )
+    }
+
+    @Test
+    fun `external docs preference bypasses native pdf viewer`() = runTest {
+        val resolver = AppFileOpenResolver(
+            pluginGateway = PluginFileResolutionGateway { _, _, _ ->
+                error("External preference should bypass plugin resolution")
+            },
+            fileOpenBehaviors = mapOf("Docs" to FileOpenBehavior.EXTERNAL),
+            mimeTypeForExtension = { "application/pdf" }
+        )
+
+        val result = resolver.resolve("/storage/report.pdf", emptyList())
+
+        assertEquals(
+            AppFileOpenResolution.External("/storage/report.pdf", forceChooser = true),
             result
         )
     }

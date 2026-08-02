@@ -35,6 +35,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
     onNavigateBack: () -> Unit,
     onDestination: (GalleryDestination) -> Unit,
     onShareSelected: suspend (List<FileModel>) -> Boolean,
+    onOpenWith: (FileModel) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     composable<AppRoutes.ImageGallery>(
@@ -92,6 +93,12 @@ fun NavGraphBuilder.registerImageGalleryRoute(
                         }
                     }
                 },
+                openWith = {
+                    state.files.singleOrNull {
+                        it.absolutePath in state.selectedFiles
+                    }?.let(onOpenWith)
+                    viewModel.clearSelection()
+                },
                 openProperties = viewModel::openPropertiesForSelection,
                 dismissProperties = viewModel::dismissProperties
             ),
@@ -105,6 +112,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
             contentActions = GalleryContentActions(
                 refresh = { viewModel.loadImages(forceRefresh = true) },
                 searchQueryChange = viewModel::updateSearchQuery,
+                searchFiltersChange = viewModel::updateSearchFilters,
                 clearSearch = { viewModel.updateSearchQuery("") },
                 selectAlbum = viewModel::selectAlbum,
                 clearError = viewModel::clearError,
@@ -117,7 +125,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
                 aspectRatioChange = viewModel::updateAspectRatio,
                 sectionedChange = viewModel::updateSectioned,
                 groupingChange = viewModel::updateGrouping,
-                defaultTabChange = viewModel::updateDefaultTab,
+                defaultPageChange = viewModel::updateDefaultPage,
                 togglePinnedAlbum = viewModel::togglePinnedAlbum
             ),
             clipboardActions = GalleryClipboardActions(

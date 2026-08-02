@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.Delete
@@ -50,6 +52,9 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.category.CategoryNavigationBar
+import dev.qtremors.arcile.core.ui.category.CategoryBottomChrome
+import dev.qtremors.arcile.core.ui.category.CategoryTabSpec
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
@@ -58,7 +63,7 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 @Composable
 internal fun BoxScope.ImageGalleryBottomBar(
     state: ImageGalleryState,
-    currentTab: GalleryTab,
+    currentTab: CategoryLibraryPage,
     isTopBarVisible: Boolean,
     isBackPredicting: Boolean,
     backProgress: Float,
@@ -72,63 +77,11 @@ internal fun BoxScope.ImageGalleryBottomBar(
     onShowClipboardContents: () -> Unit
 ) {
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    val rotationX by animateFloatAsState(
-        targetValue = if (isSelectionMode) 180f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioLowBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "bottomNavFlip"
-    )
-    val bottomBarOffset by animateDpAsState(
-        targetValue = if (isTopBarVisible || isSelectionMode) 0.dp else 120.dp,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "bottomBarOffset"
-    )
-    val bottomBarAlpha by animateFloatAsState(
-        targetValue = if (isTopBarVisible || isSelectionMode) 1f else 0f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "bottomBarAlpha"
-    )
-    val bottomBarModifier = if (isSelectionMode) {
-        Modifier
-            .align(Alignment.BottomCenter)
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-            .fillMaxWidth()
-    } else {
-        Modifier
-            .align(Alignment.BottomCenter)
-            .navigationBarsPadding()
-            .padding(bottom = 16.dp)
-            .wrapContentSize()
-    }
-    val density = LocalDensity.current
-
-    Box(
-        modifier = bottomBarModifier
-            .graphicsLayer {
-                translationY = bottomBarOffset.toPx()
-                alpha = bottomBarAlpha
-            }
-            .animateContentSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .graphicsLayer {
-                    this.rotationX = rotationX
-                    cameraDistance = 12f * density.density
-                    if (isBackPredicting && isSelectionMode) {
-                        val scale = 1f - (backProgress * 0.15f)
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = 1f - backProgress
-                    }
-                }
-                .then(if (isSelectionMode) Modifier.fillMaxWidth() else Modifier.wrapContentSize())
-        ) {
-            if (rotationX <= 90f) {
+    CategoryBottomChrome(
+        visible = isTopBarVisible,
+        selectionMode = isSelectionMode,
+        selectionBackProgress = if (isBackPredicting) backProgress else 0f,
+        normalContent = {
                 GalleryNavigationOrClipboardBar(
                     state = state,
                     currentTab = currentTab,
@@ -137,7 +90,8 @@ internal fun BoxScope.ImageGalleryBottomBar(
                     onSelectAlbums = onSelectAlbums,
                     onShowClipboardContents = onShowClipboardContents
                 )
-            } else {
+        },
+        selectionContent = {
                 GallerySelectionActionsBar(
                     state = state,
                     selectionActions = selectionActions,
@@ -146,14 +100,14 @@ internal fun BoxScope.ImageGalleryBottomBar(
                     fileActions = fileActions,
                     onShowRenameDialog = onShowRenameDialog
                 )
-            }
-        }
-    }
+        },
+        modifier = Modifier.align(Alignment.BottomCenter)
+    )
 }
 @Composable
 private fun GalleryNavigationOrClipboardBar(
     state: ImageGalleryState,
-    currentTab: GalleryTab,
+    currentTab: CategoryLibraryPage,
     clipboardActions: GalleryClipboardActions,
     onSelectPhotos: () -> Unit,
     onSelectAlbums: () -> Unit,
@@ -163,7 +117,7 @@ private fun GalleryNavigationOrClipboardBar(
     if (state.clipboardState != null || state.activeFileOperation != null) {
         GalleryClipboardOperationToolbar(
             state = state,
-            pasteDestinationPath = albumPastePath.takeIf { currentTab == GalleryTab.ALBUMS },
+            pasteDestinationPath = albumPastePath.takeIf { currentTab == CategoryLibraryPage.FOLDERS },
             onPasteToAlbum = clipboardActions.pasteToAlbum,
             onCancelClipboard = clipboardActions.cancel,
             onShowClipboardContents = onShowClipboardContents,
@@ -172,32 +126,32 @@ private fun GalleryNavigationOrClipboardBar(
         return
     }
 
-    Row(
-        modifier = Modifier
-            .background(
-                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
-                shape = CircleShape
-            )
-            .padding(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        TabItem(
-            selected = currentTab == GalleryTab.PHOTOS,
-            label = stringResource(
-                if (state.isVideoGallery) R.string.video_gallery_tab_videos
-                else R.string.image_gallery_tab_photos
+    CategoryNavigationBar(
+        tabs = listOf(
+            CategoryTabSpec(
+                selected = currentTab == CategoryLibraryPage.ITEMS,
+                label = stringResource(
+                    if (state.isVideoGallery) {
+                        R.string.video_gallery_tab_videos
+                    } else {
+                        R.string.image_gallery_tab_photos
+                    }
+                ),
+                icon = if (state.isVideoGallery) {
+                    Icons.Default.VideoLibrary
+                } else {
+                    Icons.Default.Image
+                },
+                onClick = onSelectPhotos
             ),
-            icon = if (state.isVideoGallery) Icons.Default.VideoLibrary else Icons.Default.Image,
-            onClick = onSelectPhotos
+            CategoryTabSpec(
+                selected = currentTab == CategoryLibraryPage.FOLDERS,
+                label = stringResource(R.string.image_gallery_tab_albums),
+                icon = Icons.Default.Folder,
+                onClick = onSelectAlbums
+            )
         )
-        TabItem(
-            selected = currentTab == GalleryTab.ALBUMS,
-            label = stringResource(R.string.image_gallery_tab_albums),
-            icon = Icons.Default.Folder,
-            onClick = onSelectAlbums
-        )
-    }
+    )
 }
 
 @Composable
@@ -262,7 +216,6 @@ private fun GallerySelectionActionsBar(
 
     Box(
         modifier = Modifier
-            .graphicsLayer { rotationX = 180f }
             .fillMaxWidth()
     ) {
         Row(
@@ -315,6 +268,20 @@ private fun GallerySelectionMoreMenu(
             }
         }
         val menuActions = buildList<@Composable () -> Unit> {
+            if (state.selectedFiles.size == 1) {
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.image_gallery_open_with),
+                        leadingIcon = {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                        },
+                        onClick = {
+                            expanded = false
+                            selectionActions.openWith()
+                        }
+                    )
+                }
+            }
             add {
                 ArcileDropdownMenuItem(
                     text = stringResource(R.string.archive_compress_zip),

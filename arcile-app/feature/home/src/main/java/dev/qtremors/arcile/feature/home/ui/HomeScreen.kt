@@ -54,6 +54,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -111,6 +112,8 @@ import dev.qtremors.arcile.core.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.feature.home.HomeState
 import dev.qtremors.arcile.core.ui.ArcileTopBar
+import dev.qtremors.arcile.core.ui.ArcileTopBarMenuAction
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.ui.ToolCard
 import dev.qtremors.arcile.core.ui.ToolItem
 import dev.qtremors.arcile.feature.home.ui.components.StorageSummaryCard
@@ -175,6 +178,8 @@ internal fun HomeScreen(
     state: HomeState,
     navigationIntents: HomeNavigationIntents,
     contentIntents: HomeContentIntents,
+    appStartPage: AppStartPage = AppStartPage.HOME,
+    onAppStartPageChange: (AppStartPage) -> Unit = {},
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
 ) {
     val context = LocalContext.current
@@ -247,6 +252,20 @@ internal fun HomeScreen(
                     showAboutAction = true
                 ),
                 scrollBehavior = scrollBehavior,
+                menuActions = listOf(
+                    ArcileTopBarMenuAction(
+                        label = stringResource(R.string.home_title),
+                        icon = Icons.Default.Home,
+                        selected = appStartPage == AppStartPage.HOME,
+                        onClick = { onAppStartPageChange(AppStartPage.HOME) }
+                    ),
+                    ArcileTopBarMenuAction(
+                        label = stringResource(R.string.browse_title),
+                        icon = Icons.Default.Folder,
+                        selected = appStartPage == AppStartPage.BROWSER,
+                        onClick = { onAppStartPageChange(AppStartPage.BROWSER) }
+                    )
+                ),
                 actions = dev.qtremors.arcile.core.ui.ArcileTopBarActions(
                     onSettingsClick = navigationIntents.settingsClick,
                     onClearSelection = {},

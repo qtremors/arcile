@@ -5,6 +5,8 @@ import android.content.Intent
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.feature.importing.SaveToArcileActivity
+import dev.qtremors.arcile.feature.audio.AudioPlayerActivity
+import dev.qtremors.arcile.feature.audio.canResolveStandaloneAudio
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -95,6 +97,72 @@ class AppActivityManifestTest {
     }
 
     @Test
+    fun `standalone audio player resolves audio in the app process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val intent = Intent(Intent.ACTION_VIEW).setDataAndType(
+            Uri.parse("content://example/song"),
+            "audio/mpeg"
+        )
+
+        assertTrue(canResolveStandaloneAudio(context, intent))
+        assertEquals(
+            AudioPlayerActivity::class.java.name,
+            resolveStandaloneViewerActivityName(context, intent)
+        )
+
+        val activity = context.packageManager.queryIntentActivities(intent, 0)
+            .first { it.activityInfo.name == AudioPlayerActivity::class.java.name }
+            .activityInfo
+        assertEquals(context.packageName, activity.processName)
+    }
+
+    @Test
+    fun `standalone pdf viewer resolves valid pdf intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/report")
+        val target = resolveStandalonePdfTarget(
+            context,
+            Intent(Intent.ACTION_VIEW).setDataAndType(uri, "application/pdf")
+        )
+
+        assertEquals(uri.toString(), target?.reference)
+        assertEquals("report", target?.displayName)
+    }
+
+    @Test
+    fun `standalone pdf viewer rejects non pdf intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+
+        assertEquals(
+            null,
+            resolveStandalonePdfTarget(
+                context,
+                Intent(Intent.ACTION_VIEW).setDataAndType(
+                    Uri.parse("content://example/notes.txt"),
+                    "text/plain"
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `manifest exposes standalone pdf viewer in separate process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_VIEW).setDataAndType(
+                Uri.parse("content://example/report"),
+                "application/pdf"
+            ),
+            0
+        )
+
+        val activity = matches.first {
+            it.activityInfo.name == PdfViewerActivity::class.java.name
+        }.activityInfo
+        assertEquals("${context.packageName}:pdfviewer", activity.processName)
+    }
+
+    @Test
     fun `manifest exposes generic file opener for binary fallback`() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val matches = context.packageManager.queryIntentActivities(
@@ -106,5 +174,76 @@ class AppActivityManifestTest {
         )
 
         assertTrue(matches.any { it.activityInfo.name == FileOpenActivity::class.java.name })
+    }
+
+    @Test
+    fun `standalone text editor resolves valid text and markdown view and edit intent`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/notes.md")
+        val viewIntent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, "text/markdown")
+        val editIntent = Intent(Intent.ACTION_EDIT).setDataAndType(uri, "text/plain")
+
+        val targetView = resolveStandaloneTextTarget(context, viewIntent)
+        val targetEdit = resolveStandaloneTextTarget(context, editIntent)
+
+        assertEquals(uri.toString(), targetView?.reference)
+        assertEquals(uri.toString(), targetEdit?.reference)
+        assertEquals(false, targetView?.writable)
+        assertEquals(false, targetEdit?.writable)
+        assertEquals(true, targetView?.isMarkdown)
+    }
+
+    @Test
+    fun `standalone text editor requires edit action and write grant for content uri`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val uri = Uri.parse("content://example/notes.md")
+        val target = resolveStandaloneTextTarget(
+            context,
+            Intent(Intent.ACTION_EDIT)
+                .setDataAndType(uri, "text/markdown")
+                .addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        )
+
+        assertEquals(true, target?.writable)
+    }
+
+    @Test
+    fun `generic markdown intent is forwarded to the standalone text editor`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val target = resolveStandaloneViewerActivityName(
+            context,
+            Intent(Intent.ACTION_VIEW).setDataAndType(
+                Uri.parse("content://example/readme.md"),
+                "application/octet-stream"
+            )
+        )
+
+        assertEquals(TextEditorActivity::class.java.name, target)
+    }
+
+    @Test
+    fun `manifest exposes standalone text editor in separate process`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val matches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_VIEW).setDataAndType(
+                Uri.parse("content://example/readme.txt"),
+                "text/plain"
+            ),
+            0
+        )
+
+        val activity = matches.first {
+            it.activityInfo.name == TextEditorActivity::class.java.name
+        }.activityInfo
+        assertEquals("${context.packageName}:texteditor", activity.processName)
+
+        val editMatches = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_EDIT).setDataAndType(
+                Uri.parse("content://example/readme.md"),
+                "text/markdown"
+            ),
+            0
+        )
+        assertTrue(editMatches.any { it.activityInfo.name == TextEditorActivity::class.java.name })
     }
 }

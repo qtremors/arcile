@@ -4,9 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -15,6 +17,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -98,6 +101,61 @@ class BrowserNavigationControllerTest {
         assertEquals("", delegate.state.value.activeCategoryName)
         verify { savedStateHandle.set("isVolumeRootScreen", true) }
         verify { savedStateHandle.set("isCategoryScreen", false) }
+    }
+
+    @Test
+    fun `paged directory remains loading until its final page`() = testScope.runTest {
+        val finalPage = CompletableDeferred<Unit>()
+        val path = "/storage/emulated/0/Documents"
+        repository.fileBrowserRepository.listFilePagesProvider = { requestedPath, _ ->
+            flow {
+                val nodePath = StorageNodePath.of(requestedPath)
+                emit(
+                    ListingPage(
+                        path = nodePath,
+                        files = listOf(
+                            FileModel(
+                                name = "first.txt",
+                                absolutePath = "$path/first.txt",
+                                size = 1L,
+                                lastModified = 1L
+                            )
+                        ),
+                        pageIndex = 0,
+                        isComplete = false
+                    )
+                )
+                finalPage.await()
+                emit(
+                    ListingPage(
+                        path = nodePath,
+                        files = listOf(
+                            FileModel(
+                                name = "second.txt",
+                                absolutePath = "$path/second.txt",
+                                size = 1L,
+                                lastModified = 1L
+                            )
+                        ),
+                        pageIndex = 1,
+                        isComplete = true
+                    )
+                )
+            }
+        }
+
+        delegate.navigateToFolder(path)
+        advanceUntilIdle()
+        assertTrue(delegate.state.value.isLoading)
+        assertEquals(listOf("first.txt"), delegate.state.value.files.map(FileModel::name))
+
+        finalPage.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(delegate.state.value.isLoading)
+        assertEquals(
+            listOf("first.txt", "second.txt"),
+            delegate.state.value.files.map(FileModel::name)
+        )
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -32,7 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
@@ -40,17 +41,17 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun GalleryViewOptionsDialog(
-    currentTab: GalleryTab,
+    currentTab: CategoryLibraryPage,
     isVideoGallery: Boolean,
     photosPresentation: FileListingPreferences,
     albumPresentation: FileListingPreferences,
     isAspectRatio: Boolean,
-    grouping: ImageGalleryGrouping,
+    grouping: CategoryGrouping,
     showFileDetails: Boolean,
     onPhotosPresentationChange: (FileListingPreferences) -> Unit,
     onAlbumPresentationChange: (FileListingPreferences) -> Unit,
     onPhotosAspectRatioChange: (Boolean) -> Unit,
-    onGroupingChange: (ImageGalleryGrouping) -> Unit,
+    onGroupingChange: (CategoryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -84,18 +85,20 @@ internal fun GalleryViewOptionsDialog(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
-                    text = if (currentTab == GalleryTab.PHOTOS) {
+                    text = if (currentTab == CategoryLibraryPage.ITEMS) {
                         stringResource(
-                            if (isVideoGallery) R.string.video_gallery_view_sort_title
-                            else R.string.image_gallery_view_sort_title
+                            when {
+                                isVideoGallery -> R.string.video_gallery_view_sort_title
+                                else -> R.string.image_gallery_view_sort_title
+                            }
                         )
                     } else {
-                        "View and sort albums"
+                        stringResource(R.string.image_gallery_view_sort_albums)
                     },
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                if (currentTab == GalleryTab.PHOTOS) {
+                if (currentTab == CategoryLibraryPage.ITEMS) {
                     GalleryPhotosViewOptions(
                         preferences = photos,
                         aspectRatio = aspectRatio,
@@ -133,7 +136,7 @@ internal fun GalleryViewOptionsDialog(
                     FilledTonalButton(
                         onClick = {
                             haptics.selectionChanged()
-                            if (currentTab == GalleryTab.PHOTOS) {
+                            if (currentTab == CategoryLibraryPage.ITEMS) {
                                 onPhotosPresentationChange(photos.normalized())
                                 onPhotosAspectRatioChange(aspectRatio)
                                 onGroupingChange(draftGrouping)

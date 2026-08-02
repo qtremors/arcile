@@ -8,15 +8,18 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
-import dev.qtremors.arcile.core.storage.domain.AudioLibraryDefaultTab
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.Job
@@ -26,6 +29,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -44,13 +49,11 @@ internal class AudioLibraryViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val volumeId = savedStateHandle.get<String>("volumeId")?.takeIf(String::isNotBlank)
-    private val initialPath = savedStateHandle.get<String>("initialPath")?.takeIf(String::isNotBlank)
-    private var initialPlaybackHandled = false
     private var loadJob: Job? = null
     private var presentationJob: Job? = null
     private var presentationGeneration = 0L
     private var preferencesApplied = false
-    private val _state = MutableStateFlow(AudioLibraryState(playerExpanded = initialPath != null))
+    private val _state = MutableStateFlow(AudioLibraryState())
     val state: StateFlow<AudioLibraryState> = _state.asStateFlow()
     private val fileActions = AudioLibraryFileActions(
         scope = viewModelScope,
@@ -76,23 +79,32 @@ internal class AudioLibraryViewModel @Inject constructor(
             operationCoordinator.events.collect(fileActions::handleOperationEvent)
         }
         viewModelScope.launch {
-            preferencesStore.audioLibraryPreferencesFlow.collectLatest { preferences ->
-                rebuildPresentation { current ->
-                    val defaultTab = preferences.defaultTab.toFeatureTab()
-                    current.copy(
-                        audioPresentation = preferences.audioPresentation,
-                        folderPresentation = preferences.folderPresentation,
-                        grouping = preferences.grouping,
-                        defaultTab = defaultTab,
-                        tab = if (preferencesApplied) current.tab else defaultTab,
-                        showFileDetails = preferences.showFileDetails,
-                        scrollbarEnabled = preferences.scrollbarEnabled
-                    )
-                }
-                preferencesApplied = true
-            }
+            val preferencesFlow = preferencesStore.audioLibraryPreferencesFlow
+            applyPreferences(preferencesFlow.first())
+            load()
+            preferencesFlow.drop(1).collectLatest(::applyPreferences)
         }
-        load()
+    }
+
+    private fun applyPreferences(preferences: AudioLibraryPreferences) {
+        rebuildPresentation { current ->
+            val defaultPage = preferences.defaultPage
+            current.copy(
+                audioPresentation = preferences.audioPresentation,
+                folderPresentation = preferences.folderPresentation.copy(
+                    viewMode = FileViewMode.GRID
+                ),
+                grouping = preferences.grouping,
+                defaultPage = defaultPage,
+                tab = if (preferencesApplied) current.tab else defaultPage,
+                showFileDetails = preferences.showFileDetails,
+                scrollbarEnabled = preferences.scrollbarEnabled,
+                favoritePaths = preferences.favoriteFiles,
+                pinnedFolderPaths = preferences.pinnedFolders,
+                folderCoverPaths = preferences.folderCovers
+            )
+        }
+        preferencesApplied = true
     }
 
     fun load(refresh: Boolean = false) {
@@ -122,13 +134,6 @@ internal class AudioLibraryViewModel @Inject constructor(
                         buildAudioLibraryState(current, tracks)
                     }
                     _state.value = presented
-                    if (!initialPlaybackHandled && initialPath != null) {
-                        initialPlaybackHandled = true
-                        val queue = _state.value.tracks
-                        if (queue.any { it.file.absolutePath == initialPath }) {
-                            playback.playQueue(queue, initialPath)
-                        }
-                    }
                 }
                 .onFailure { error ->
                     _state.update {
@@ -149,46 +154,60 @@ internal class AudioLibraryViewModel @Inject constructor(
         rebuildPresentation { it.copy(query = query) }
     }
 
-    fun selectTab(tab: AudioLibraryTab) {
-        rebuildPresentation { it.copy(tab = tab, folderFilter = null) }
+    fun updateSearchFilters(filters: SearchFilters) {
+        rebuildPresentation { it.copy(searchFilters = filters) }
+    }
+
+    fun selectTab(tab: CategoryLibraryPage) {
+        rebuildPresentation {
+            it.copy(tab = tab, folderFilter = null)
+                .withPresentedVisibleTracks()
+        }
     }
 
     fun selectFolder(folder: AudioFolder) {
         rebuildPresentation {
             it.copy(
-                tab = AudioLibraryTab.AUDIO,
+                tab = CategoryLibraryPage.FOLDERS,
                 folderFilter = folder,
                 query = ""
-            )
+            ).withPresentedVisibleTracks()
         }
     }
 
     fun clearFolderFilter() {
-        rebuildPresentation { it.copy(folderFilter = null) }
+        rebuildPresentation {
+            it.copy(folderFilter = null)
+                .withPresentedVisibleTracks()
+        }
     }
 
-    fun updatePresentation(tab: AudioLibraryTab, presentation: FileListingPreferences) {
+    fun updatePresentation(tab: CategoryLibraryPage, presentation: FileListingPreferences) {
         viewModelScope.launch {
             when (tab) {
-                AudioLibraryTab.AUDIO ->
+                CategoryLibraryPage.ITEMS ->
                     preferencesStore.updateAudioPresentation(presentation.normalized())
-                AudioLibraryTab.FOLDERS ->
-                    preferencesStore.updateAudioFolderPresentation(presentation.normalized())
+                CategoryLibraryPage.FOLDERS ->
+                    preferencesStore.updateAudioFolderPresentation(
+                        presentation.normalized().copy(viewMode = FileViewMode.GRID)
+                    )
             }
         }
         rebuildPresentation { current ->
             when (tab) {
-                AudioLibraryTab.AUDIO -> current.copy(
+                CategoryLibraryPage.ITEMS -> current.copy(
                     audioPresentation = presentation.normalized()
                 )
-                AudioLibraryTab.FOLDERS -> current.copy(
-                    folderPresentation = presentation.normalized()
+                CategoryLibraryPage.FOLDERS -> current.copy(
+                    folderPresentation = presentation.normalized().copy(
+                        viewMode = FileViewMode.GRID
+                    )
                 )
             }
         }
     }
 
-    fun updateGrouping(grouping: ImageGalleryGrouping) {
+    fun updateGrouping(grouping: CategoryGrouping) {
         viewModelScope.launch { preferencesStore.updateAudioGrouping(grouping) }
         _state.update { it.copy(grouping = grouping) }
     }
@@ -198,17 +217,65 @@ internal class AudioLibraryViewModel @Inject constructor(
         _state.update { it.copy(showFileDetails = show) }
     }
 
-    fun updateDefaultTab(tab: AudioLibraryTab) {
+    fun updateDefaultPage(tab: CategoryLibraryPage) {
+        viewModelScope.launch { preferencesStore.updateAudioDefaultPage(tab) }
+        _state.update { it.copy(defaultPage = tab) }
+    }
+
+    fun toggleFavoriteSelection() {
+        val selected = _state.value.selectedPaths
+        if (selected.isEmpty()) return
+        val makeFavorite = !selected.all(_state.value.favoritePaths::contains)
         viewModelScope.launch {
-            preferencesStore.updateAudioDefaultTab(
-                if (tab == AudioLibraryTab.AUDIO) {
-                    AudioLibraryDefaultTab.AUDIO
+            selected.forEach { path ->
+                preferencesStore.updateFavorite(path, makeFavorite)
+            }
+        }
+        rebuildPresentation { current ->
+            current.copy(
+                favoritePaths = if (makeFavorite) {
+                    current.favoritePaths + selected
                 } else {
-                    AudioLibraryDefaultTab.FOLDERS
+                    current.favoritePaths - selected
                 }
             )
         }
-        _state.update { it.copy(defaultTab = tab) }
+    }
+
+    fun togglePinnedFolder(folder: AudioFolder) {
+        if (folder.isFavorites) return
+        val makePinned = folder.key !in _state.value.pinnedFolderPaths
+        viewModelScope.launch {
+            preferencesStore.updatePinnedFolder(folder.key, makePinned)
+        }
+        rebuildPresentation { current ->
+            current.copy(
+                pinnedFolderPaths = if (makePinned) {
+                    current.pinnedFolderPaths + folder.key
+                } else {
+                    current.pinnedFolderPaths - folder.key
+                }
+            )
+        }
+    }
+
+    fun updateFolderCover(folder: AudioFolder, trackPath: String?) {
+        if (folder.isFavorites) return
+        val validPath = trackPath?.takeIf { candidate ->
+            folder.tracks.any { it.file.absolutePath == candidate }
+        }
+        viewModelScope.launch {
+            preferencesStore.updateFolderCover(folder.key, validPath)
+        }
+        rebuildPresentation { current ->
+            current.copy(
+                folderCoverPaths = if (validPath == null) {
+                    current.folderCoverPaths - folder.key
+                } else {
+                    current.folderCoverPaths + (folder.key to validPath)
+                }
+            )
+        }
     }
 
     fun toggleSelection(path: String) = fileActions.toggleSelection(path)
@@ -237,25 +304,6 @@ internal class AudioLibraryViewModel @Inject constructor(
     fun renameSelected(newName: String) = fileActions.renameSelected(newName)
     fun createZipFromSelection() = fileActions.createZipFromSelection()
 
-    fun play(trackPath: String) {
-        val queue = _state.value.visibleTracks.takeIf { it.isNotEmpty() } ?: _state.value.tracks
-        playback.playQueue(queue, trackPath)
-    }
-
-    fun playSelection(paths: Collection<String>) {
-        val selected = paths.toSet()
-        val queue = _state.value.tracks.filter { it.file.absolutePath in selected }
-        queue.firstOrNull()?.let { playback.playQueue(queue, it.file.absolutePath) }
-    }
-
-    fun expandPlayer() {
-        _state.update { it.copy(playerExpanded = true) }
-    }
-
-    fun collapsePlayer() {
-        _state.update { it.copy(playerExpanded = false) }
-    }
-
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
@@ -280,16 +328,10 @@ internal class AudioLibraryViewModel @Inject constructor(
 }
 
 internal fun AudioLibraryState.visibleSelectionPaths(): List<String> =
-    when (tab) {
-        AudioLibraryTab.AUDIO -> visibleTracks.map { it.file.absolutePath }
-        AudioLibraryTab.FOLDERS -> folders.flatMap { folder ->
+    if (tab == CategoryLibraryPage.ITEMS || folderFilter != null) {
+        visibleTracks.map { it.file.absolutePath }
+    } else {
+        folders.flatMap { folder ->
             folder.tracks.map { it.file.absolutePath }
         }
-    }
-
-private fun AudioLibraryDefaultTab.toFeatureTab(): AudioLibraryTab =
-    if (this == AudioLibraryDefaultTab.AUDIO) {
-        AudioLibraryTab.AUDIO
-    } else {
-        AudioLibraryTab.FOLDERS
     }

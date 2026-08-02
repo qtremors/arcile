@@ -4,12 +4,13 @@ import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryDefaultTab
-import dev.qtremors.arcile.core.storage.domain.ImageGalleryGrouping
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
+import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import kotlinx.collections.immutable.persistentMapOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -50,6 +51,19 @@ class ImageGalleryStateTest {
     }
 
     @Test
+    fun `gallery applies structured filters before text search and sorting`() {
+        val jpg = FileModel("photo.jpg", "/photos/photo.jpg", size = 20L, extension = "jpg")
+        val png = FileModel("small.png", "/photos/small.png", size = 5L, extension = "png")
+
+        val state = ImageGalleryState(
+            files = kotlinx.collections.immutable.persistentListOf(jpg, png),
+            searchFilters = SearchFilters(minSize = 10L)
+        ).withResolvedDisplayedFiles()
+
+        assertEquals(listOf(jpg), state.displayedFiles)
+    }
+
+    @Test
     fun `state aspect ratios and grouping preferences are correct`() {
         val state = ImageGalleryState(
             isAspectRatio = true,
@@ -64,14 +78,14 @@ class ImageGalleryStateTest {
     @Test
     fun `dynamic image gallery grouping options are stored correctly in state`() {
         val state = ImageGalleryState(
-            imageGalleryGrouping = ImageGalleryGrouping.DAY,
+            grouping = CategoryGrouping.DAY,
             albumPresentation = FileListingPreferences(gridMinCellSize = 180f),
-            imageGalleryDefaultTab = ImageGalleryDefaultTab.ALBUMS,
+            defaultPage = CategoryLibraryPage.FOLDERS,
             preferencesLoaded = true
         )
-        assertEquals(ImageGalleryGrouping.DAY, state.imageGalleryGrouping)
+        assertEquals(CategoryGrouping.DAY, state.grouping)
         assertEquals(180f, state.albumPresentation.gridMinCellSize)
-        assertEquals(ImageGalleryDefaultTab.ALBUMS, state.imageGalleryDefaultTab)
+        assertEquals(CategoryLibraryPage.FOLDERS, state.defaultPage)
         assertTrue(state.preferencesLoaded)
     }
 
@@ -427,7 +441,7 @@ class ImageGalleryStateTest {
             galleryLazyIndexForPath(
                 path = second.absolutePath,
                 displayedFiles = listOf(first, second, third),
-                imageGalleryGrouping = ImageGalleryGrouping.MONTH,
+                grouping = CategoryGrouping.MONTH,
                 groupedFiles = grouped
             )
         )
@@ -436,7 +450,7 @@ class ImageGalleryStateTest {
             galleryLazyIndexForPath(
                 path = third.absolutePath,
                 displayedFiles = listOf(first, second, third),
-                imageGalleryGrouping = ImageGalleryGrouping.MONTH,
+                grouping = CategoryGrouping.MONTH,
                 groupedFiles = grouped
             )
         )

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -153,7 +154,7 @@ internal class AudioLibraryFileActions(
             rebuildPresentation {
                 it.copy(
                     selectedPaths = emptySet(),
-                    tab = AudioLibraryTab.FOLDERS,
+                    tab = CategoryLibraryPage.FOLDERS,
                     folderFilter = null
                 )
             }

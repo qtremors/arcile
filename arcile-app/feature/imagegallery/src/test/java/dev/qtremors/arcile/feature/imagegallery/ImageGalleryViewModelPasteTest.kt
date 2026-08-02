@@ -310,7 +310,7 @@ private class RecordingGalleryRepository : ImageGalleryRepository {
     override suspend fun loadImages(
         volumeId: String?,
         forceRefresh: Boolean,
-        categoryName: String
+        categoryId: String
     ): ImageGallerySnapshot {
         loadCalls += 1
         return ImageGallerySnapshot(

@@ -11,13 +11,17 @@ data class CategoryStorage(
 object FileCategories {
 
     val Images = CategoryDef(
-        name = "Images",
+        id = CategoryId.of("Images"),
+        displayName = "Images",
+        storageName = "Images",
         mimePrefix = "image/",
         extensions = setOf("jpg", "jpeg", "png", "gif", "bmp", "webp", "svg", "heic", "heif", "ico", "raw")
     )
 
     val Videos = CategoryDef(
-        name = "Videos",
+        id = CategoryId.of("Videos"),
+        displayName = "Videos",
+        storageName = "Videos",
         mimePrefix = "video/",
         extensions = setOf(
             "mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "m4v", "3gp", "3g2",
@@ -26,36 +30,40 @@ object FileCategories {
     )
 
     val Audio = CategoryDef(
-        name = "Audio",
+        id = CategoryId.of("Audio"),
+        displayName = "Audio",
+        storageName = "Audio",
         mimePrefix = "audio/",
         extensions = setOf("mp3", "wav", "flac", "aac", "ogg", "wma", "m4a", "opus", "amr", "mid", "midi")
     )
 
     val Documents = CategoryDef(
-        name = "Docs",
+        id = CategoryId.of("Docs"),
+        displayName = "Docs",
+        storageName = "Docs",
         mimePrefix = null,
-        extensions = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "rtf", "odt", "ods", "odp", "csv", "epub")
+        extensions = setOf("pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "md", "markdown", "rtf", "odt", "ods", "odp", "csv", "epub")
     )
 
     val Archives = CategoryDef(
-        name = "Archives",
+        id = CategoryId.of("Archives"),
+        displayName = "Archives",
+        storageName = "Archives",
         mimePrefix = "application/zip",
         extensions = setOf("zip", "rar", "7z", "tar", "gz", "bz2", "xz", "zst")
     )
 
     val APKs = CategoryDef(
-        name = "APKs",
+        id = CategoryId.of("APKs"),
+        displayName = "APKs",
+        storageName = "APKs",
         mimePrefix = "application/vnd.android.package-archive",
         extensions = setOf("apk", "xapk", "apks", "apkm")
     )
 
-    val Models = CategoryDef(
-        name = "Models",
-        mimePrefix = "model/",
-        extensions = setOf("glb")
-    )
+    val all = listOf(Images, Videos, Audio, Documents, Archives, APKs)
 
-    val all = listOf(Images, Videos, Audio, Documents, Archives, APKs, Models)
+    fun find(value: String): CategoryDef? = all.firstOrNull { it.matches(value) }
 
     fun getCategoryForFile(extension: String, mimeType: String?): CategoryDef? {
         var normalizedMime = mimeType?.lowercase()
@@ -70,7 +78,6 @@ object FileCategories {
                 "pdf" -> "application/pdf"
                 "zip" -> "application/zip"
                 "apk", "apks", "xapk", "apkm" -> "application/vnd.android.package-archive"
-                "glb" -> "model/gltf-binary"
                 else -> java.net.URLConnection.guessContentTypeFromName("file.$normalizedExt")?.lowercase()
             }
         }
@@ -95,7 +102,14 @@ object FileCategories {
 }
 
 data class CategoryDef(
-    val name: String,
+    val id: CategoryId,
+    val displayName: String,
+    val storageName: String,
     val extensions: Set<String>,
     val mimePrefix: String? = null
-)
+) {
+    fun matches(value: String): Boolean =
+        id.value.equals(value, ignoreCase = true) ||
+            displayName.equals(value, ignoreCase = true) ||
+            storageName.equals(value, ignoreCase = true)
+}

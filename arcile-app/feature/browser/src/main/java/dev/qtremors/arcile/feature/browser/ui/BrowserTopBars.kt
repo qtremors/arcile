@@ -5,12 +5,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.ArcileTopBar
+import dev.qtremors.arcile.core.ui.ArcileTopBarMenuAction
 import dev.qtremors.arcile.core.ui.SearchTopBar
 import dev.qtremors.arcile.core.ui.TopBarAction
 import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
@@ -30,6 +35,8 @@ internal fun BrowserTopBars(
     mutationIntents: BrowserMutationIntents,
     clipboardIntents: BrowserClipboardIntents,
     onToggleHiddenFiles: () -> Unit,
+    appStartPage: AppStartPage?,
+    onAppStartPageChange: (AppStartPage) -> Unit,
     onBackClick: () -> Unit,
     onSelectionChanged: () -> Unit,
     onShowPinnedSnackbar: (String) -> Unit
@@ -88,6 +95,24 @@ internal fun BrowserTopBars(
                 isGridView = state.browserViewMode == FileViewMode.GRID
             ),
             scrollBehavior = scrollBehavior,
+            menuActions = if (appStartPage == null) {
+                emptyList()
+            } else {
+                listOf(
+                    ArcileTopBarMenuAction(
+                        label = stringResource(R.string.home_title),
+                        icon = Icons.Default.Home,
+                        selected = appStartPage == AppStartPage.HOME,
+                        onClick = { onAppStartPageChange(AppStartPage.HOME) }
+                    ),
+                    ArcileTopBarMenuAction(
+                        label = stringResource(R.string.browse_title),
+                        icon = Icons.Default.Folder,
+                        selected = appStartPage == AppStartPage.BROWSER,
+                        onClick = { onAppStartPageChange(AppStartPage.BROWSER) }
+                    )
+                )
+            },
             actions = dev.qtremors.arcile.core.ui.ArcileTopBarActions(
                 onBackClick = onBackClick,
                 onClearSelection = selectionIntents.onClearSelection,

@@ -31,7 +31,7 @@ object AppRoutes {
         val restorePersistentLocation: Boolean = true
     )
     @Serializable data class Category(
-        val name: String,
+        val id: String,
         val volumeId: String? = null
     )
     @Serializable object Tools
@@ -43,7 +43,7 @@ object AppRoutes {
     @Serializable data class RecentFiles(val volumeId: String? = null)
     @Serializable data class ImageGallery(
         val volumeId: String? = null,
-        val categoryName: String = "Images"
+        val categoryId: String = "Images"
     )
     @Serializable data class ImageViewer(
         val initialPath: String,
@@ -54,10 +54,9 @@ object AppRoutes {
         val managedTrash: Boolean = false
     )
     @Serializable data class VideoViewer(val sessionToken: String)
-    @Serializable data class AudioLibrary(
-        val volumeId: String? = null,
-        val initialPath: String? = null
-    )
+    @Serializable data class AudioLibrary(val volumeId: String? = null)
+    @Serializable data class DocumentLibrary(val volumeId: String? = null)
+    @Serializable data class ApkLibrary(val volumeId: String? = null)
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner
     @Serializable object StorageManagement
