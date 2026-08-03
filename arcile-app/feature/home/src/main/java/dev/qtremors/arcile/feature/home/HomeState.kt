@@ -43,6 +43,8 @@ internal data class HomeState(
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
+    val isRootStorageUsageLoading: Boolean = false,
+    val hasLoadedRootStorageUsage: Boolean = false,
     val error: UiText? = null,
     val unclassifiedVolumes: PersistentList<StorageVolume> = persistentListOf(),
     val showClassificationPrompt: Boolean = false,

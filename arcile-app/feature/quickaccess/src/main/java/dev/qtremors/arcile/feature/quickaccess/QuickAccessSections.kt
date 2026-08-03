@@ -31,6 +31,13 @@ internal fun QuickAccessSections(
     ) {
         item {
             QuickAccessSection(
+                title = stringResource(R.string.quick_access_section_storage),
+                items = sections.storage,
+                actions = actions
+            )
+        }
+        item {
+            QuickAccessSection(
                 title = stringResource(R.string.quick_access_section_custom),
                 items = sections.custom,
                 actions = actions
@@ -77,6 +84,7 @@ private fun QuickAccessSection(
 }
 
 internal data class QuickAccessSectionItems(
+    val storage: List<QuickAccessItem>,
     val custom: List<QuickAccessItem>,
     val system: List<QuickAccessItem>,
     val apps: List<QuickAccessItem>,
@@ -85,8 +93,14 @@ internal data class QuickAccessSectionItems(
 
 internal fun List<QuickAccessItem>.toQuickAccessSections(): QuickAccessSectionItems =
     QuickAccessSectionItems(
+        storage = filter { it.id == ARCILE_STORAGE_ID || it.id == ROOT_STORAGE_ID },
         custom = filter { it.type == QuickAccessType.CUSTOM },
-        system = filter { it.type == QuickAccessType.STANDARD && !it.isAppFolderShortcut() },
+        system = filter {
+            it.type == QuickAccessType.STANDARD &&
+                it.id != ARCILE_STORAGE_ID &&
+                it.id != ROOT_STORAGE_ID &&
+                !it.isAppFolderShortcut()
+        },
         apps = filter { it.type == QuickAccessType.STANDARD && it.isAppFolderShortcut() },
         files = filter {
             it.type == QuickAccessType.FILES_APP ||
@@ -101,3 +115,5 @@ private fun QuickAccessItem.isAppFolderShortcut(): Boolean =
         path.contains("whatsapp", ignoreCase = true)
 
 private const val WHATSAPP_MEDIA_ID = "standard_whatsapp_media"
+private const val ARCILE_STORAGE_ID = "internal_all_files"
+internal const val ROOT_STORAGE_ID = "standard_root_storage"

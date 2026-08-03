@@ -1,8 +1,8 @@
 # Arcile - Tasks
 
 > **Project:** Arcile
-> **Version:** 1.8.0
-> **Last Updated:** 2026-08-02
+> **Version:** 1.8.1
+> **Last Updated:** 2026-08-08
 
 ---
 

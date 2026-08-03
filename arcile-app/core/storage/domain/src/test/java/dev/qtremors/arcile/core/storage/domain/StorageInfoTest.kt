@@ -102,4 +102,14 @@ class StorageInfoTest {
         assertEquals(0L, storageInfo.freeBytes)
         assertEquals(null, storageInfo.primaryVolume)
     }
+
+    @Test
+    fun `root storage usage is separate from mounted volume aggregates`() {
+        val rootUsage = RootStorageUsage(totalBytes = 500L, freeBytes = 125L)
+        val storageInfo = StorageInfo(emptyList(), rootStorageUsage = rootUsage)
+
+        assertEquals(0L, storageInfo.totalBytes)
+        assertEquals(0L, storageInfo.freeBytes)
+        assertEquals(375L, storageInfo.rootStorageUsage?.usedBytes)
+    }
 }

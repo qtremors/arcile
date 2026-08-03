@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
@@ -13,6 +15,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -83,13 +87,18 @@ class QuickAccessPreferencesRepositoryTest {
     }
 
     @Test
-    fun `default shortcuts include whatsapp media and files app`() = runBlocking {
+    fun `default shortcuts include root storage whatsapp media and files app`() = runBlocking {
         val repository = QuickAccessPreferencesRepository(context, dataStore)
 
         val items = repository.quickAccessItems.first()
+        val rootStorage = items.single { it.id == "standard_root_storage" }
         val whatsApp = items.single { it.id == "standard_whatsapp_media" }
         val files = items.single { it.id == "handoff_files_app" }
 
+        assertEquals("Root Storage", rootStorage.label)
+        assertEquals("/", rootStorage.path)
+        assertEquals(QuickAccessType.STANDARD, rootStorage.type)
+        assertFalse(rootStorage.isPinned)
         assertEquals("WhatsApp", whatsApp.label)
         assertEquals("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media", whatsApp.path)
         assertEquals(QuickAccessType.STANDARD, whatsApp.type)
@@ -119,5 +128,57 @@ class QuickAccessPreferencesRepositoryTest {
         assertEquals(QuickAccessType.FILES_APP, files.type)
         assertEquals("Files", files.label)
         assertTrue(files.path.startsWith("content://com.android.externalstorage.documents/tree/primary"))
+    }
+
+    @Test
+    fun `stored shortcut lists gain the root storage default`() = runBlocking {
+        val repository = QuickAccessPreferencesRepository(context, dataStore)
+        repository.updateItems(
+            listOf(
+                QuickAccessItem(
+                    id = "standard_downloads",
+                    label = "Downloads",
+                    path = "/storage/emulated/0/Download",
+                    type = QuickAccessType.STANDARD
+                )
+            )
+        )
+
+        val items = repository.quickAccessItems.first()
+
+        assertTrue(items.any { it.id == "standard_root_storage" && it.path == "/" })
+    }
+
+    @Test
+    fun `existing automatic root pin is removed once and can be enabled by user`() = runBlocking {
+        dataStore.edit { preferences ->
+            preferences[stringPreferencesKey("quick_access_items")] = Json.encodeToString(
+                listOf(
+                    QuickAccessItem(
+                        id = "standard_root_storage",
+                        label = "Root Storage",
+                        path = "/",
+                        type = QuickAccessType.STANDARD,
+                        isPinned = true
+                    )
+                )
+            )
+        }
+        val repository = QuickAccessPreferencesRepository(context, dataStore)
+        val migrated = repository.quickAccessItems.first()
+
+        assertFalse(migrated.single { it.id == "standard_root_storage" }.isPinned)
+
+        repository.updateItems(
+            migrated.map { item ->
+                if (item.id == "standard_root_storage") item.copy(isPinned = true) else item
+            }
+        )
+
+        assertTrue(
+            repository.quickAccessItems.first()
+                .single { it.id == "standard_root_storage" }
+                .isPinned
+        )
     }
 }

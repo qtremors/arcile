@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.ui.Alignment
@@ -309,6 +310,7 @@ internal fun QuickAccessListItem(
 }
 
 internal fun iconForQuickAccessItem(item: QuickAccessItem): ImageVector {
+    if (item.id == ROOT_STORAGE_ID) return Icons.Default.AccountTree
     return when (item.type) {
         QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
         QuickAccessType.EXTERNAL_HANDOFF -> Icons.Default.FolderSpecial

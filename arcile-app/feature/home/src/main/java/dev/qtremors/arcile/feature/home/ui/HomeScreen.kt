@@ -329,7 +329,8 @@ internal fun HomeScreen(
                             state = state,
                             onNavigateToPath = navigationIntents.navigateToPath,
                             onOpenStorageDashboard = navigationIntents.openStorageDashboard,
-                            onOpenFileBrowser = navigationIntents.openFileBrowser
+                            onOpenFileBrowser = navigationIntents.openFileBrowser,
+                            onRootStoragePageVisible = contentIntents.loadRootStorageUsage
                         )
                     }
 

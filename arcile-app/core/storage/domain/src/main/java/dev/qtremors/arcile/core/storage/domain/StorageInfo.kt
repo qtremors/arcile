@@ -84,12 +84,24 @@ data class StorageVolume(
  * @property volumes List of all detected storage volumes.
  */
 data class StorageInfo(
-    val volumes: List<StorageVolume>
+    val volumes: List<StorageVolume>,
+    val rootStorageUsage: RootStorageUsage? = null
 ) {
-    // Helper for backward compatibility or cases where only summary is needed
+    // Root storage is reported separately because it is not a mounted user-storage volume.
     val totalBytes: Long get() = volumes.filter { it.kind.isIndexed }.sumOf { it.totalBytes }
     val freeBytes: Long get() = volumes.filter { it.kind.isIndexed }.sumOf { it.freeBytes }
     val primaryVolume: StorageVolume? get() = volumes.find { it.isPrimary }
+}
+
+data class RootStorageUsage(
+    val totalBytes: Long,
+    val freeBytes: Long
+) {
+    val usedBytes: Long
+        get() {
+            val boundedTotal = totalBytes.coerceAtLeast(0L)
+            return (boundedTotal - freeBytes).coerceIn(0L, boundedTotal)
+        }
 }
 
 data class TrashStorageUsage(

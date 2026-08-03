@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Description
@@ -42,26 +43,6 @@ internal fun QuickAccessGrid(
     onNavigateToPath: (String) -> Unit,
     onNavigateToSaf: (String) -> Unit
 ) {
-    fun getIconForItem(item: QuickAccessItem): ImageVector {
-        if (item.type == QuickAccessType.FILES_APP) {
-            return Icons.Outlined.Folder
-        }
-        if (item.type == QuickAccessType.EXTERNAL_HANDOFF) {
-            return Icons.AutoMirrored.Outlined.OpenInNew
-        }
-        return when (item.label.lowercase()) {
-            "dcim" -> Icons.Outlined.CameraAlt
-            "downloads", "download" -> Icons.Outlined.Download
-            "whatsapp" -> Icons.Outlined.Chat
-            "pictures", "images" -> Icons.Outlined.Image
-            "documents", "docs" -> Icons.Outlined.Description
-            "music", "audio" -> Icons.Outlined.MusicNote
-            "movies", "videos", "video" -> Icons.Outlined.Movie
-            else -> Icons.Outlined.Folder
-        }
-    }
-
-
     val folders = quickAccessItems.filter { it.isPinned }
 
     Column(
@@ -104,7 +85,7 @@ internal fun QuickAccessGrid(
                         ) {
                             QuickAccessIcon(
                                 item = folder,
-                                fallbackIcon = getIconForItem(folder)
+                                fallbackIcon = iconForHomeQuickAccessItem(folder)
                             )
                             val displayLabel = folder.label.trimEnd('/').let { cleaned ->
                                 val lastSlash = cleaned.lastIndexOf('/')
@@ -128,6 +109,22 @@ internal fun QuickAccessGrid(
                 }
             }
         }
+    }
+}
+
+internal fun iconForHomeQuickAccessItem(item: QuickAccessItem): ImageVector {
+    if (item.id == "standard_root_storage") return Icons.Outlined.AccountTree
+    if (item.type == QuickAccessType.FILES_APP) return Icons.Outlined.Folder
+    if (item.type == QuickAccessType.EXTERNAL_HANDOFF) return Icons.AutoMirrored.Outlined.OpenInNew
+    return when (item.label.lowercase()) {
+        "dcim" -> Icons.Outlined.CameraAlt
+        "downloads", "download" -> Icons.Outlined.Download
+        "whatsapp" -> Icons.Outlined.Chat
+        "pictures", "images" -> Icons.Outlined.Image
+        "documents", "docs" -> Icons.Outlined.Description
+        "music", "audio" -> Icons.Outlined.MusicNote
+        "movies", "videos", "video" -> Icons.Outlined.Movie
+        else -> Icons.Outlined.Folder
     }
 }
 

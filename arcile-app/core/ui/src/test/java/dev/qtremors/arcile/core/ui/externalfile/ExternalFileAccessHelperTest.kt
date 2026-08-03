@@ -382,6 +382,25 @@ class ExternalFileAccessHelperTest {
     }
 
     @Test
+    fun `createOpenIntent stages readable file from approved system root`() = runTest {
+        configureExternalStorageRoot()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val systemRoot = java.nio.file.Files.createTempDirectory("read-only-system-test").toFile()
+        val source = File(systemRoot, "build.prop").apply { writeText("ro.test=true") }
+        ExternalFileAccessHelper.readOnlySystemRootsOverrideForTest =
+            listOf(systemRoot.canonicalPath)
+        try {
+            val intent = ExternalFileAccessHelper.createOpenIntent(context, source.absolutePath)
+
+            assertEquals(Intent.ACTION_VIEW, intent.action)
+            assertTrue(intent.data.toString().startsWith("content://${context.packageName}.externalfileaccess/"))
+        } finally {
+            ExternalFileAccessHelper.resetReadOnlySystemRootsForTest()
+            systemRoot.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `createOpenIntent rejects app metadata and Android restricted paths`() = runTest {
         configureExternalStorageRoot()
         val context = ApplicationProvider.getApplicationContext<Context>()

@@ -65,7 +65,8 @@ class HomeStorageScopeTest {
         val viewModel = createViewModel(repository, FakeStorageClassificationStore())
         advanceUntilIdle()
 
-        assertTrue(StorageScope.AllStorage in repository.requestedStorageInfoScopes)
+        assertTrue(StorageScope.AllStorage in repository.requestedMountedStorageInfoScopes)
+        assertTrue(repository.requestedStorageInfoScopes.isEmpty())
         assertTrue(StorageScope.AllStorage in repository.requestedCategoryScopes)
         assertTrue(StorageScope.Volume("primary") in repository.requestedCategoryScopes)
         assertTrue(StorageScope.Volume("sd") in repository.requestedCategoryScopes)
@@ -97,7 +98,8 @@ class HomeStorageScopeTest {
         val viewModel = createViewModel(repository, FakeStorageClassificationStore())
         advanceUntilIdle()
 
-        assertTrue(StorageScope.AllStorage in repository.requestedStorageInfoScopes)
+        assertTrue(StorageScope.AllStorage in repository.requestedMountedStorageInfoScopes)
+        assertTrue(repository.requestedStorageInfoScopes.isEmpty())
         assertTrue(StorageScope.AllStorage in repository.requestedCategoryScopes)
         assertTrue(repository.requestedCategoryScopes.none { it is StorageScope.Volume })
         assertEquals(

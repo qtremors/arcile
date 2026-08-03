@@ -127,6 +127,11 @@ internal class BrowserInitializer(
                 location.pathScope.absolutePath,
                 seedInitialPathHistory = false
             )
+            is StorageBrowserLocation.DirectDirectory -> navigation.navigateToSpecificFolder(
+                location.path.absolutePath,
+                seedInitialPathHistory = false,
+                allowDirectPath = true
+            )
             is StorageBrowserLocation.Category -> navigation.navigateToCategory(
                 location.categoryScope.categoryName,
                 location.categoryScope.volumeId

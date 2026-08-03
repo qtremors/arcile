@@ -33,6 +33,15 @@ object ExternalFileAccessHelper {
     private const val MAX_SHARE_FILE_BYTES = 256L * 1024 * 1024 // 256MB
     private const val MAX_SHARE_BATCH_BYTES = 750L * 1024 * 1024 // 750MB
     private const val FALLBACK_FREE_SPACE_RESERVE_BYTES = 8L * 1024 * 1024
+    private val READ_ONLY_SYSTEM_ROOTS = listOf(
+        "/apex",
+        "/odm",
+        "/oem",
+        "/product",
+        "/system",
+        "/system_ext",
+        "/vendor"
+    )
 
     data class StagingCacheStats(
         val fileCount: Int,
@@ -70,9 +79,14 @@ object ExternalFileAccessHelper {
     )
 
     internal var directOpenUriFactory: (Context, File) -> Uri = ::createStagedContentUri
+    internal var readOnlySystemRootsOverrideForTest: List<String>? = null
 
     internal fun resetDirectOpenUriFactoryForTest() {
         directOpenUriFactory = ::createStagedContentUri
+    }
+
+    internal fun resetReadOnlySystemRootsForTest() {
+        readOnlySystemRootsOverrideForTest = null
     }
 
     fun cleanupStagingArea(context: Context): StagingCacheStats {
@@ -238,7 +252,13 @@ object ExternalFileAccessHelper {
         ) {
             return false
         }
-        return allowedStorageRoots(context).any { root ->
+        val isSharedStorageFile = allowedStorageRoots(context).any { root ->
+            canonicalPath == root || canonicalPath.startsWith("$root${File.separator}")
+        }
+        if (isSharedStorageFile) return true
+
+        val readOnlySystemRoots = readOnlySystemRootsOverrideForTest ?: READ_ONLY_SYSTEM_ROOTS
+        return file.isFile && file.canRead() && readOnlySystemRoots.any { root ->
             canonicalPath == root || canonicalPath.startsWith("$root${File.separator}")
         }
     }

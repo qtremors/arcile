@@ -109,6 +109,23 @@ class FileSystemDataSourceTest {
     }
 
     @Test
+    fun `listing readable directory is not limited to mutation storage roots`() = runTest {
+        val readableDirectory = createTempStorageRoot("fs-readable-outside-root")
+        try {
+            File(readableDirectory, "visible.txt").writeText("visible")
+
+            val result = dataSource.listFiles(readableDirectory.absolutePath)
+
+            assertTrue(result.isSuccess)
+            assertEquals(listOf("visible.txt"), result.getOrThrow().map { it.name })
+            assertFalse(result.getOrThrow().single().nodeRef.capabilities.canWrite)
+            assertTrue(storageNodeDao.listChildren(readableDirectory.absolutePath).isEmpty())
+        } finally {
+            readableDirectory.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `list emits directory pages incrementally`() = runTest {
         File(root, "zeta.txt").apply { createNewFile() }
         File(root, "alpha").apply { mkdirs() }

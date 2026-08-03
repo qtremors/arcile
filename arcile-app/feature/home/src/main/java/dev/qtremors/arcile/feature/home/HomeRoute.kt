@@ -43,7 +43,10 @@ fun HomeRoute(
         state = state,
         navigationIntents = HomeNavigationIntents(
             openFileBrowser = { onDestination(HomeDestination.BrowseRoot) },
-            navigateToPath = { onDestination(HomeDestination.BrowsePath(it)) },
+            navigateToPath = { path ->
+                if (path == "/") viewModel.loadRootStorageUsage()
+                onDestination(HomeDestination.BrowsePath(path))
+            },
             openFileWithContext = { path, context ->
                 onDestination(HomeDestination.OpenFile(path, context))
             },
@@ -63,6 +66,7 @@ fun HomeRoute(
         contentIntents = HomeContentIntents(
             refresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
             resumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
+            loadRootStorageUsage = viewModel::loadRootStorageUsage,
             shareRecentFile = { path ->
                 onDestination(HomeDestination.ShareRecentFile(path, state.displayState.todayRecentFiles))
             },

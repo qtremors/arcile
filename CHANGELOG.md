@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.0
-> **Last Updated:** 2026-08-02
+> **Version:** 1.8.1
+> **Last Updated:** 2026-08-08
 
 ---
+
+## [1.8.1] - 2026-08-08
+
+- **Root Storage Browsing**: Added an opt-in Root Storage shortcut for browsing system paths available through standard Android permissions, without root or Shizuku. This is limited access, not full privileged root storage support.
+- **Root Storage Usage**: Added a continuously swipeable Home card with matching layout and a System legend, loaded only when shown. Dashboard reporting remains separate from mounted-storage totals.
+- **Protected Location Handling**: Added back navigation outside detected storage volumes, reported denied folders instead of showing misleading empty results, and cached root discovery to avoid repeated permission probes.
 
 ## [1.8.0] - 2026-08-02
 

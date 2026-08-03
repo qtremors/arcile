@@ -21,6 +21,7 @@ class FakeStorageAnalyticsRepository(
     var recentFilesByScope: Map<StorageScope, List<FileModel>> = initialRecentFilesByScope
     var categorySizesByScope: Map<StorageScope, List<CategoryStorage>> = initialCategorySizesByScope
     var storageInfoResultProvider: (suspend (StorageScope) -> Result<StorageInfo>)? = null
+    var mountedStorageInfoResultProvider: (suspend (StorageScope) -> Result<StorageInfo>)? = null
     var recentFilesResultProvider: (suspend (StorageScope, Int, Int, Long) -> Result<List<FileModel>>)? = null
     var categoryStorageResultProvider: (suspend (StorageScope) -> Result<List<CategoryStorage>>)? = null
     var trashStorageUsageResult: Result<TrashStorageUsage> =
@@ -29,6 +30,7 @@ class FakeStorageAnalyticsRepository(
 
     val requestedRecentScopes = mutableListOf<StorageScope>()
     val requestedStorageInfoScopes = mutableListOf<StorageScope>()
+    val requestedMountedStorageInfoScopes = mutableListOf<StorageScope>()
     val requestedCategoryScopes = mutableListOf<StorageScope>()
     var invalidateAnalyticsCacheCalls = 0
 
@@ -47,6 +49,13 @@ class FakeStorageAnalyticsRepository(
         requestedStorageInfoScopes += scope
         return storageInfoResultProvider?.invoke(scope)
             ?: Result.success(storageInfoForScope(scope, observedVolumes))
+    }
+
+    override suspend fun getMountedStorageInfo(scope: StorageScope): Result<StorageInfo> {
+        requestedMountedStorageInfoScopes += scope
+        return mountedStorageInfoResultProvider?.invoke(scope)
+            ?: storageInfoResultProvider?.invoke(scope)?.map { it.copy(rootStorageUsage = null) }
+            ?: Result.success(storageInfoForScope(scope, observedVolumes).copy(rootStorageUsage = null))
     }
 
     override suspend fun getCategoryStorageSizes(

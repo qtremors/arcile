@@ -2,6 +2,8 @@ package dev.qtremors.arcile.feature.quickaccess
 
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountTree
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,6 +13,8 @@ class QuickAccessSectionsTest {
     @Test
     fun `section mapping assigns every supported item to exactly one section`() {
         val items = listOf(
+            item("internal_all_files", "", QuickAccessType.STANDARD),
+            item("standard_root_storage", "/", QuickAccessType.STANDARD),
             item("downloads", "/storage/emulated/0/Download", QuickAccessType.STANDARD),
             item("standard_whatsapp_media", "/storage/emulated/0/Android/media/com.whatsapp", QuickAccessType.STANDARD),
             item("work", "/work/whatsapp-backups", QuickAccessType.CUSTOM),
@@ -20,14 +24,22 @@ class QuickAccessSectionsTest {
         )
 
         val sections = items.toQuickAccessSections()
-        val mapped = sections.custom + sections.system + sections.apps + sections.files
+        val mapped = sections.storage + sections.custom + sections.system + sections.apps + sections.files
 
         assertEquals(items.map { it.id }.toSet(), mapped.map { it.id }.toSet())
         assertEquals(items.size, mapped.size)
+        assertEquals(listOf("internal_all_files", "standard_root_storage"), sections.storage.map { it.id })
         assertEquals(listOf("work"), sections.custom.map { it.id })
         assertEquals(listOf("downloads"), sections.system.map { it.id })
         assertEquals(listOf("standard_whatsapp_media"), sections.apps.map { it.id })
         assertEquals(listOf("tree", "files", "data"), sections.files.map { it.id })
+    }
+
+    @Test
+    fun `root storage uses filesystem tree icon`() {
+        val root = item("standard_root_storage", "/", QuickAccessType.STANDARD)
+
+        assertEquals(Icons.Default.AccountTree, iconForQuickAccessItem(root))
     }
 
     @Test

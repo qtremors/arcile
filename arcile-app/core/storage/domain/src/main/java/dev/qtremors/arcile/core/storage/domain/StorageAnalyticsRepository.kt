@@ -10,6 +10,11 @@ interface StorageAnalyticsRepository {
     suspend fun getStorageInfo(
         scope: StorageScope = StorageScope.AllStorage
     ): Result<StorageInfo>
+    suspend fun getMountedStorageInfo(
+        scope: StorageScope = StorageScope.AllStorage
+    ): Result<StorageInfo> = getStorageInfo(scope).map { info ->
+        info.copy(rootStorageUsage = null)
+    }
     suspend fun getCategoryStorageSizes(
         scope: StorageScope = StorageScope.AllStorage
     ): Result<List<CategoryStorage>>

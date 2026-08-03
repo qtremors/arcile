@@ -12,12 +12,35 @@ internal object FolderStatsCalculator {
     const val DEFAULT_NODE_LIMIT = 100_000
     private const val CANCELLATION_CHECK_GRANULARITY = 128
     private val excludedDescendantFolders = setOf(".thumbnails")
+    private val excludedRootTrees = setOf(
+        "/acct",
+        "/apex",
+        "/config",
+        "/data",
+        "/dev",
+        "/metadata",
+        "/mnt",
+        "/odm",
+        "/proc",
+        "/product",
+        "/sys",
+        "/system",
+        "/vendor"
+    )
 
     suspend fun calculate(
         root: File,
         now: Long = System.currentTimeMillis(),
         nodeLimit: Int = DEFAULT_NODE_LIMIT
     ): FolderStats {
+        val path = root.path.trimEnd('/').ifEmpty { "/" }
+        if (path == "/" || excludedRootTrees.any { excluded ->
+                path == excluded || path.startsWith("$excluded/")
+            }
+        ) {
+            return FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
+        }
+
         if (!root.exists() || !root.isDirectory) {
             return FolderStats(0L, 0L, now, FolderStatsStatus.Unavailable)
         }

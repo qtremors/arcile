@@ -292,6 +292,11 @@ class FakeStorageRepositoryBundle(
         set(value) {
             storageAnalyticsRepository.storageInfoResultProvider = value
         }
+    var mountedStorageInfoResultProvider: (suspend (StorageScope) -> Result<StorageInfo>)?
+        get() = storageAnalyticsRepository.mountedStorageInfoResultProvider
+        set(value) {
+            storageAnalyticsRepository.mountedStorageInfoResultProvider = value
+        }
     var recentFilesResultProvider: (suspend (StorageScope, Int, Int, Long) -> Result<List<FileModel>>)?
         get() = storageAnalyticsRepository.recentFilesResultProvider
         set(value) {
@@ -412,6 +417,8 @@ class FakeStorageRepositoryBundle(
         get() = storageAnalyticsRepository.requestedRecentScopes
     val requestedStorageInfoScopes: MutableList<StorageScope>
         get() = storageAnalyticsRepository.requestedStorageInfoScopes
+    val requestedMountedStorageInfoScopes: MutableList<StorageScope>
+        get() = storageAnalyticsRepository.requestedMountedStorageInfoScopes
     val requestedCategoryScopes: MutableList<StorageScope>
         get() = storageAnalyticsRepository.requestedCategoryScopes
     val invalidateAnalyticsCacheCalls: Int

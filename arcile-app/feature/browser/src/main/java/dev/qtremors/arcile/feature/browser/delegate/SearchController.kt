@@ -82,6 +82,10 @@ internal class SearchController(
                 StorageScope.Category(context.currentVolumeId, context.activeCategoryName)
             context.currentVolumeId != null && context.currentPath.isNotEmpty() ->
                 StorageScope.Path(context.currentVolumeId, context.currentPath)
+            context.currentPath.isNotEmpty() ->
+                return Result.failure(
+                    UnsupportedOperationException("Search is unavailable for this location")
+                )
             else -> StorageScope.AllStorage
         }
         return repository.searchFiles(query, storageScope, filters)

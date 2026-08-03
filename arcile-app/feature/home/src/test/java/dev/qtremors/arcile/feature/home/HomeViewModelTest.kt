@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.RootStorageUsage
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageScope
@@ -87,6 +88,48 @@ class HomeViewModelTest {
         assertFalse(viewModel.state.value.isLoading)
         assertFalse(viewModel.state.value.isCalculatingStorage)
         assertFalse(viewModel.state.value.isPullToRefreshing)
+    }
+
+    @Test
+    fun `root capacity loads only after it is requested`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume(
+            "primary",
+            "primary",
+            "Internal",
+            "/storage/emulated/0",
+            StorageKind.INTERNAL,
+            true,
+            false
+        )
+        val rootUsage = RootStorageUsage(totalBytes = 500L, freeBytes = 125L)
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume)).apply {
+            storageInfoResultProvider = {
+                Result.success(StorageInfo(listOf(volume), rootStorageUsage = rootUsage))
+            }
+        }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+            io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        val viewModel = HomeViewModel(
+            repository.volumeRepository,
+            repository.storageAnalyticsRepository,
+            repository.searchRepository,
+            HomeFakeStorageClassificationStore(),
+            quickAccessRepo
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(repository.requestedStorageInfoScopes.isEmpty())
+        assertEquals(null, viewModel.state.value.storageInfo?.rootStorageUsage)
+
+        viewModel.loadRootStorageUsage()
+        advanceUntilIdle()
+
+        assertEquals(listOf(StorageScope.AllStorage), repository.requestedStorageInfoScopes)
+        assertEquals(rootUsage, viewModel.state.value.storageInfo?.rootStorageUsage)
+        assertTrue(viewModel.state.value.hasLoadedRootStorageUsage)
+        assertFalse(viewModel.state.value.isRootStorageUsageLoading)
     }
 
     @Test

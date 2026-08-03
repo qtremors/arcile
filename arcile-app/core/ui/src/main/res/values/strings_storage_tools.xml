@@ -172,6 +172,8 @@
     <string name="add_android_data">Add Android/data</string>
     <string name="add_android_obb">Add Android/obb</string>
     <string name="quick_access_section_system">System Folders</string>
+    <string name="quick_access_section_storage">Storage</string>
+    <string name="root_storage">Root Storage</string>
     <string name="quick_access_section_apps">App Folders</string>
     <string name="quick_access_section_files">Files App Section</string>
     <string name="quick_access_section_custom">Custom Folders</string>

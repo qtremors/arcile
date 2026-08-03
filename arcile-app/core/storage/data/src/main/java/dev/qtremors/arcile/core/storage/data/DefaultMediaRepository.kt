@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
+import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.data.util.indexedVolumes
 import dev.qtremors.arcile.core.storage.data.util.scopedVolumes
@@ -21,7 +22,8 @@ class DefaultMediaRepository(
     private val mediaStoreClient: MediaStoreClient,
     private val trashManager: TrashManager,
     private val recentFilesSnapshotStore: RecentFilesSnapshotStore,
-    private val dispatchers: ArcileDispatchers
+    private val dispatchers: ArcileDispatchers,
+    private val rootStorageUsageProvider: RootStorageUsageProvider
 ) : SearchRepository, StorageAnalyticsRepository {
     override suspend fun getRecentFiles(
         scope: StorageScope,
@@ -50,13 +52,27 @@ class DefaultMediaRepository(
         mediaStoreClient.searchFiles(query, scope, filters)
 
     override suspend fun getStorageInfo(scope: StorageScope): Result<StorageInfo> =
+        loadStorageInfo(scope, includeRootStorage = true)
+
+    override suspend fun getMountedStorageInfo(scope: StorageScope): Result<StorageInfo> =
+        loadStorageInfo(scope, includeRootStorage = false)
+
+    private suspend fun loadStorageInfo(
+        scope: StorageScope,
+        includeRootStorage: Boolean
+    ): Result<StorageInfo> =
         withContext(dispatchers.io) {
             volumeProvider.getStorageVolumes().map { volumes ->
                 StorageInfo(
-                    if (scope is StorageScope.AllStorage) {
+                    volumes = if (scope is StorageScope.AllStorage) {
                         indexedVolumes(volumes)
                     } else {
                         scopedVolumes(scope, volumes)
+                    },
+                    rootStorageUsage = if (includeRootStorage && scope is StorageScope.AllStorage) {
+                        rootStorageUsageProvider.getRootStorageUsage()
+                    } else {
+                        null
                     }
                 )
             }

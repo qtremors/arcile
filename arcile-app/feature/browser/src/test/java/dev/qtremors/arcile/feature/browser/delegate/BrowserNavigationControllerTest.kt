@@ -303,6 +303,42 @@ class BrowserNavigationControllerTest {
     }
 
     @Test
+    fun `direct filesystem root path loads without a displayed storage volume and keeps back history`() = testScope.runTest {
+        repository.filesByPath = mapOf(
+            "/" to listOf(
+                FileModel("system", "/system", 0L, 0L, true, "", false)
+            ),
+            "/system" to emptyList()
+        )
+
+        delegate.navigateToSpecificFolder("/", seedInitialPathHistory = false)
+        advanceUntilIdle()
+
+        assertEquals("/", delegate.state.value.currentPath)
+        assertEquals(null, delegate.state.value.currentVolumeId)
+
+        delegate.navigateToFolder("/system")
+        advanceUntilIdle()
+        assertEquals("/system", delegate.state.value.currentPath)
+
+        assertTrue(delegate.navigateBack(allowVolumeRootFallback = false))
+        advanceUntilIdle()
+        assertEquals("/", delegate.state.value.currentPath)
+        assertEquals(null, delegate.state.value.currentVolumeId)
+    }
+
+    @Test
+    fun `arbitrary path outside mounted storage does not enter direct root mode`() = testScope.runTest {
+        delegate.navigateToSpecificFolder("/not-a-mounted-location", seedInitialPathHistory = false)
+        advanceUntilIdle()
+
+        assertFalse(delegate.state.value.isVolumeRootScreen)
+        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
+        assertEquals("vol1", delegate.state.value.currentVolumeId)
+        assertTrue(delegate.state.value.error != null)
+    }
+
+    @Test
     fun `navigateBack can skip volume roots so app route stack handles external origins`() = testScope.runTest {
         val sdCard = dev.qtremors.arcile.core.storage.domain.StorageVolume(
             id = "sdcard",

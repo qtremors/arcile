@@ -44,6 +44,8 @@ import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
 import dev.qtremors.arcile.core.storage.data.provider.DefaultVolumeProvider
+import dev.qtremors.arcile.core.storage.data.provider.DefaultRootStorageUsageProvider
+import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.DefaultFileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
@@ -183,6 +185,11 @@ object StorageDataModule {
     ): VolumeProvider {
         return DefaultVolumeProvider(context, classificationRepository, applicationScope, dispatchers)
     }
+
+    @Provides
+    @Singleton
+    fun provideRootStorageUsageProvider(): RootStorageUsageProvider =
+        DefaultRootStorageUsageProvider()
 
     @Provides
     @Singleton
@@ -333,13 +340,15 @@ object StorageDataModule {
         mediaStoreClient: MediaStoreClient,
         trashManager: TrashManager,
         recentFilesSnapshotStore: RecentFilesSnapshotStore,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        rootStorageUsageProvider: RootStorageUsageProvider
     ): DefaultMediaRepository = DefaultMediaRepository(
         volumeProvider,
         mediaStoreClient,
         trashManager,
         recentFilesSnapshotStore,
-        dispatchers
+        dispatchers,
+        rootStorageUsageProvider
     )
 
     @Provides

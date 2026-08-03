@@ -28,7 +28,9 @@ internal data class HomeRefreshResults(
 
     fun resolveStorageInfo(current: HomeState): StorageInfo? =
         if (shouldRefreshAnalytics && !timedOut) {
-            storageInfo?.getOrNull()
+            storageInfo?.getOrNull()?.copy(
+                rootStorageUsage = current.storageInfo?.rootStorageUsage
+            ) ?: current.storageInfo
         } else {
             current.storageInfo
         }
