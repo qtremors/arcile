@@ -75,6 +75,7 @@ fun HomeRoute(
         ),
         appStartPage = appStartPage,
         onAppStartPageChange = onAppStartPageChange,
-        homeRecentCarouselLimit = homeRecentCarouselLimit
+        homeRecentCarouselLimit = homeRecentCarouselLimit,
+        onHomeLayoutPreferencesChange = viewModel::updateHomeLayoutPreferences
     )
 }

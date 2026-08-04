@@ -7,6 +7,8 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.test.core.app.ApplicationProvider
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
+import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -87,6 +89,58 @@ class UtilityPreferencesRepositoryTest {
         val ids = UtilityPreferencesRepository(context, dataStore).homeUtilityIds.first()
 
         assertEquals(listOf("trash", "onlyfiles"), ids)
+    }
+
+    @Test
+    fun `home layout defaults to every section enabled in catalog order`() = runBlocking {
+        val preferences = UtilityPreferencesRepository(context, dataStore)
+            .homeLayoutPreferences.first()
+
+        assertEquals(HomeSectionIds.ALL, preferences.orderedSectionIds)
+        assertEquals(HomeSectionIds.ALL.toSet(), preferences.enabledSectionIds)
+    }
+
+    @Test
+    fun `home layout persists order separately from enabled state`() = runBlocking {
+        val repository = UtilityPreferencesRepository(context, dataStore)
+        val order = listOf(
+            HomeSectionIds.RECENT_FILES,
+            HomeSectionIds.STORAGE,
+            HomeSectionIds.QUICK_ACCESS,
+            HomeSectionIds.CATEGORIES,
+            HomeSectionIds.UTILITIES
+        )
+        repository.setHomeLayoutPreferences(
+            HomeLayoutPreferences(
+                orderedSectionIds = order,
+                enabledSectionIds = setOf(HomeSectionIds.RECENT_FILES, HomeSectionIds.STORAGE)
+            )
+        )
+
+        val preferences = repository.homeLayoutPreferences.first()
+
+        assertEquals(order, preferences.orderedSectionIds)
+        assertEquals(
+            setOf(HomeSectionIds.RECENT_FILES, HomeSectionIds.STORAGE),
+            preferences.enabledSectionIds
+        )
+    }
+
+    @Test
+    fun `home layout discards stale ids and restores missing catalog entries`() = runBlocking {
+        val repository = UtilityPreferencesRepository(context, dataStore)
+        repository.setHomeLayoutPreferences(
+            HomeLayoutPreferences(
+                orderedSectionIds = listOf("unknown", HomeSectionIds.UTILITIES),
+                enabledSectionIds = setOf("unknown", HomeSectionIds.UTILITIES)
+            )
+        )
+
+        val preferences = repository.homeLayoutPreferences.first()
+
+        assertEquals(HomeSectionIds.UTILITIES, preferences.orderedSectionIds.first())
+        assertEquals(HomeSectionIds.ALL.toSet(), preferences.orderedSectionIds.toSet())
+        assertEquals(setOf(HomeSectionIds.UTILITIES), preferences.enabledSectionIds)
     }
 
     @Test

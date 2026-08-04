@@ -233,6 +233,12 @@
     <string name="grant_permission">Grant Permission</string>
 
     <!-- Home Screen -->
+    <string name="home_storage">Storage</string>
+    <string name="home_edit_action">Edit Home</string>
+    <string name="home_edit_title">Edit Home</string>
+    <string name="home_edit_description">Show, hide, and drag sections into the order you want.</string>
+    <string name="home_show_section">Show %1$s on Home</string>
+    <string name="home_reorder_section">Reorder %1$s</string>
     <string name="categories">Categories</string>
     <string name="category_images">Images</string>
     <string name="category_videos">Videos</string>

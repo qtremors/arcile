@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.1
+> **Version:** 1.8.2
 > **Last Updated:** 2026-08-08
 
 ---
+
+## [1.8.2] - 2026-08-08
+
+- **Custom Home Layout**: Added an Edit Home overflow action with a card dialog for showing, hiding, resetting, and drag-reordering Storage, Categories, Quick Access, Utilities, and Recent Files.
+- **Consistent Home Spacing**: Standardized section gutters and vertical spacing, omitted the top title when no header action is needed, and retained clear titles beside Manage, Show All, and See All actions.
 
 ## [1.8.1] - 2026-08-08
 

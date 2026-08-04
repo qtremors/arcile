@@ -55,6 +55,7 @@ import androidx.compose.material.icons.filled.ZoomIn
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -114,6 +115,8 @@ import dev.qtremors.arcile.feature.home.HomeState
 import dev.qtremors.arcile.core.ui.ArcileTopBar
 import dev.qtremors.arcile.core.ui.ArcileTopBarMenuAction
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
+import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import dev.qtremors.arcile.core.ui.ToolCard
 import dev.qtremors.arcile.core.ui.ToolItem
 import dev.qtremors.arcile.feature.home.ui.components.StorageSummaryCard
@@ -181,6 +184,7 @@ internal fun HomeScreen(
     appStartPage: AppStartPage = AppStartPage.HOME,
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
+    onHomeLayoutPreferencesChange: (HomeLayoutPreferences) -> Unit = {},
 ) {
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
@@ -235,6 +239,18 @@ internal fun HomeScreen(
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val dateFormatter = dev.qtremors.arcile.core.ui.rememberDateFormatter("MMM dd, yyyy")
+    var showHomeLayoutDialog by rememberSaveable { mutableStateOf(false) }
+
+    if (showHomeLayoutDialog) {
+        HomeLayoutDialog(
+            preferences = state.homeLayoutPreferences,
+            onDismiss = { showHomeLayoutDialog = false },
+            onApply = { preferences ->
+                onHomeLayoutPreferencesChange(preferences)
+                showHomeLayoutDialog = false
+            }
+        )
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -253,6 +269,11 @@ internal fun HomeScreen(
                 ),
                 scrollBehavior = scrollBehavior,
                 menuActions = listOf(
+                    ArcileTopBarMenuAction(
+                        label = stringResource(R.string.home_edit_action),
+                        icon = Icons.Default.Edit,
+                        onClick = { showHomeLayoutDialog = true }
+                    ),
                     ArcileTopBarMenuAction(
                         label = stringResource(R.string.home_title),
                         icon = Icons.Default.Home,
@@ -324,176 +345,110 @@ internal fun HomeScreen(
                         }
                     }
 
-                    item {
-                        StorageSummaryCard(
-                            state = state,
-                            onNavigateToPath = navigationIntents.navigateToPath,
-                            onOpenStorageDashboard = navigationIntents.openStorageDashboard,
-                            onOpenFileBrowser = navigationIntents.openFileBrowser,
-                            onRootStoragePageVisible = contentIntents.loadRootStorageUsage
-                        )
-                    }
-
-                    item {
-                        Text(
-                            text = stringResource(R.string.categories),
-                            style = MaterialTheme.typography.titleMediumBold,
-                            modifier = Modifier.padding(
-                                start = MaterialTheme.spacing.medium,
-                                top = MaterialTheme.spacing.medium,
-                                end = MaterialTheme.spacing.medium,
-                                bottom = MaterialTheme.spacing.small
-                            )
-                        )
-                    }
-                    item {
-                        CategoryGrid(
-                            categoryStorages = state.categoryStorages,
-                            reserveSizeLine = state.isLoading || state.isCalculatingStorage || state.categoryStorages.isEmpty(),
-                            onCategoryClick = navigationIntents.categoryClick
-                        )
-                    }
-
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    start = MaterialTheme.spacing.medium,
-                                    top = MaterialTheme.spacing.large,
-                                    end = MaterialTheme.spacing.medium,
-                                    bottom = MaterialTheme.spacing.small
-                                ),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.quick_access),
-                                style = MaterialTheme.typography.titleMediumBold
-                            )
-                            TextButton(
-                                onClick = navigationIntents.navigateToQuickAccess,
-                                shape = ExpressiveShapes.medium
-                            ) {
-                                Text(stringResource(R.string.manage))
-                            }
-                        }
-                    }
-                    item {
-                        QuickAccessGrid(
-                            quickAccessItems = state.quickAccessItems,
-                            onOpenFileBrowser = navigationIntents.openFileBrowser,
-                            onNavigateToPath = navigationIntents.navigateToPath,
-                            onNavigateToSaf = navigationIntents.navigateToExternalFolder
-                        )
-                    }
-
                     val displayedHomeUtilities = state.homeUtilityIds.mapNotNull { id ->
                         HomeUtilityCatalog.firstOrNull { it.id == id }
                     }
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(
-                                    start = MaterialTheme.spacing.medium,
-                                    top = MaterialTheme.spacing.large,
-                                    end = MaterialTheme.spacing.medium,
-                                    bottom = MaterialTheme.spacing.small
-                                ),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = stringResource(R.string.utilities),
-                                style = MaterialTheme.typography.titleMediumBold
-                            )
-                            TextButton(
-                                onClick = navigationIntents.navigateToTools,
-                                shape = ExpressiveShapes.medium
-                            ) {
-                                Text(stringResource(R.string.show_all))
-                            }
-                        }
+                    val visibleSectionIds = state.homeLayoutPreferences.orderedSectionIds.filter { id ->
+                        id in state.homeLayoutPreferences.enabledSectionIds &&
+                            (id != HomeSectionIds.RECENT_FILES || normalizedRecentLimit > 0)
                     }
-
-                    if (displayedHomeUtilities.isNotEmpty()) {
-                        item {
-                            androidx.compose.foundation.lazy.LazyRow(
-                                modifier = Modifier
-                                    .fillMaxWidth(),
-                                contentPadding = PaddingValues(horizontal = MaterialTheme.spacing.medium),
-                                horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
+                    visibleSectionIds.forEachIndexed { index, sectionId ->
+                        item(key = "home_section_$sectionId") {
+                            val definition = HomeSectionCatalog.first { it.id == sectionId }
+                            val action = when (sectionId) {
+                                HomeSectionIds.QUICK_ACCESS -> HomeSectionAction(
+                                    label = stringResource(R.string.manage),
+                                    onClick = navigationIntents.navigateToQuickAccess
+                                )
+                                HomeSectionIds.UTILITIES -> HomeSectionAction(
+                                    label = stringResource(R.string.show_all),
+                                    onClick = navigationIntents.navigateToTools
+                                )
+                                HomeSectionIds.RECENT_FILES -> HomeSectionAction(
+                                    label = stringResource(R.string.see_all),
+                                    onClick = navigationIntents.navigateToRecentFiles
+                                )
+                                else -> null
+                            }
+                            HomeSectionContainer(
+                                title = stringResource(definition.nameRes),
+                                isFirst = index == 0,
+                                action = action
                             ) {
-                                items(displayedHomeUtilities, key = { it.id }) { definition ->
-                                    Box(modifier = Modifier.width(140.dp)) {
-                                        ToolCard(
-                                            ToolItem(
-                                                stringResource(definition.nameRes),
-                                                definition.icon
+                                when (sectionId) {
+                                    HomeSectionIds.STORAGE -> StorageSummaryCard(
+                                        state = state,
+                                        onNavigateToPath = navigationIntents.navigateToPath,
+                                        onOpenStorageDashboard = navigationIntents.openStorageDashboard,
+                                        onOpenFileBrowser = navigationIntents.openFileBrowser,
+                                        onRootStoragePageVisible = contentIntents.loadRootStorageUsage
+                                    )
+                                    HomeSectionIds.CATEGORIES -> CategoryGrid(
+                                        categoryStorages = state.categoryStorages,
+                                        reserveSizeLine = state.isLoading ||
+                                            state.isCalculatingStorage ||
+                                            state.categoryStorages.isEmpty(),
+                                        onCategoryClick = navigationIntents.categoryClick
+                                    )
+                                    HomeSectionIds.QUICK_ACCESS -> QuickAccessGrid(
+                                        quickAccessItems = state.quickAccessItems,
+                                        onOpenFileBrowser = navigationIntents.openFileBrowser,
+                                        onNavigateToPath = navigationIntents.navigateToPath,
+                                        onNavigateToSaf = navigationIntents.navigateToExternalFolder
+                                    )
+                                    HomeSectionIds.UTILITIES -> if (displayedHomeUtilities.isNotEmpty()) {
+                                        androidx.compose.foundation.lazy.LazyRow(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            contentPadding = PaddingValues(
+                                                horizontal = MaterialTheme.spacing.medium
                                             ),
-                                            onClick = {
-                                                when (definition.action) {
-                                                    UtilityAction.Trash -> navigationIntents.navigateToTrash()
-                                                    UtilityAction.Cleaner -> navigationIntents.navigateToCleaner()
-                                                    UtilityAction.Activity -> navigationIntents.navigateToActivity()
-                                                    UtilityAction.OnlyFiles -> navigationIntents.navigateToOnlyFiles()
+                                            horizontalArrangement = Arrangement.spacedBy(
+                                                MaterialTheme.spacing.space12
+                                            )
+                                        ) {
+                                            items(displayedHomeUtilities, key = { it.id }) { utility ->
+                                                Box(modifier = Modifier.width(140.dp)) {
+                                                    ToolCard(
+                                                        ToolItem(
+                                                            stringResource(utility.nameRes),
+                                                            utility.icon
+                                                        ),
+                                                        onClick = {
+                                                            when (utility.action) {
+                                                                UtilityAction.Trash -> navigationIntents.navigateToTrash()
+                                                                UtilityAction.Cleaner -> navigationIntents.navigateToCleaner()
+                                                                UtilityAction.Activity -> navigationIntents.navigateToActivity()
+                                                                UtilityAction.OnlyFiles -> navigationIntents.navigateToOnlyFiles()
+                                                            }
+                                                        }
+                                                    )
                                                 }
                                             }
-                                        )
+                                        }
                                     }
+                                    HomeSectionIds.RECENT_FILES -> when {
+                                        displayedRecentFiles.isEmpty() && !state.isLoading -> EmptyState(
+                                            variant = EmptyStateVariant.Recent,
+                                            title = stringResource(R.string.no_recent_files),
+                                            description = stringResource(R.string.no_recent_files_description),
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        displayedRecentFiles.isNotEmpty() ->
+                                            dev.qtremors.arcile.feature.home.ui.components.RecentFilesCarousel(
+                                                files = displayedRecentFiles,
+                                                onOpenFile = { path ->
+                                                    navigationIntents.openFileWithContext(
+                                                        path,
+                                                        displayedRecentFiles
+                                                    )
+                                                },
+                                                onNavigateToPath = navigationIntents.navigateToPath,
+                                                onShareFile = contentIntents.shareRecentFile,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                    }
+                                    else -> Unit
                                 }
-                            }
-                        }
-                    }
-
-                    if (normalizedRecentLimit > 0) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(
-                                        start = MaterialTheme.spacing.medium,
-                                        top = MaterialTheme.spacing.large,
-                                        end = MaterialTheme.spacing.medium,
-                                        bottom = MaterialTheme.spacing.small
-                                    ),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.recent_files),
-                                    style = MaterialTheme.typography.titleMediumBold
-                                )
-                                TextButton(
-                                    onClick = navigationIntents.navigateToRecentFiles,
-                                    shape = ExpressiveShapes.medium
-                                ) {
-                                    Text(stringResource(R.string.see_all))
-                                }
-                            }
-                        }
-
-                        if (displayedRecentFiles.isEmpty() && !state.isLoading) {
-                            item {
-                                EmptyState(
-                                    variant = EmptyStateVariant.Recent,
-                                    title = stringResource(R.string.no_recent_files),
-                                    description = stringResource(R.string.no_recent_files_description),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        } else if (displayedRecentFiles.isNotEmpty()) {
-                            item {
-                                dev.qtremors.arcile.feature.home.ui.components.RecentFilesCarousel(
-                                    files = displayedRecentFiles,
-                                    onOpenFile = { path ->
-                                        navigationIntents.openFileWithContext(path, displayedRecentFiles)
-                                    },
-                                    onNavigateToPath = navigationIntents.navigateToPath,
-                                    onShareFile = contentIntents.shareRecentFile,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
                             }
                         }
                     }
@@ -502,6 +457,53 @@ internal fun HomeScreen(
                 }
             }
         }
+    }
+}
+
+private data class HomeSectionAction(
+    val label: String,
+    val onClick: () -> Unit
+)
+
+@Composable
+private fun HomeSectionContainer(
+    title: String,
+    isFirst: Boolean,
+    action: HomeSectionAction?,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        if (isFirst && action == null) {
+            Spacer(modifier = Modifier.height(MaterialTheme.spacing.medium))
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = MaterialTheme.spacing.medium,
+                        top = if (isFirst) MaterialTheme.spacing.none else MaterialTheme.spacing.medium,
+                        end = MaterialTheme.spacing.medium,
+                        bottom = MaterialTheme.spacing.small
+                    )
+                    .sizeIn(minHeight = 48.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMediumBold
+                )
+                action?.let {
+                    TextButton(
+                        onClick = it.onClick,
+                        shape = ExpressiveShapes.medium
+                    ) {
+                        Text(it.label)
+                    }
+                }
+            }
+        }
+        content()
     }
 }
 

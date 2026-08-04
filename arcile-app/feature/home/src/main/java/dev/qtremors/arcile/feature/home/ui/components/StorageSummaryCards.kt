@@ -140,8 +140,7 @@ internal fun StorageSummaryCard(
                     hasLoadCompleted = state.hasLoadedRootStorageUsage,
                     onClick = { onNavigateToPath("/") },
                     modifier = Modifier.padding(
-                        horizontal = MaterialTheme.spacing.medium,
-                        vertical = MaterialTheme.spacing.medium
+                        horizontal = MaterialTheme.spacing.medium
                     )
                 )
             }
@@ -175,8 +174,8 @@ private fun MountedStorageSummaryCard(
         // Multi-storage layout
         val indexedVolumes = volumes.filter { it.kind.isIndexed }
         val soleIndexedVolumeId = indexedVolumes.singleOrNull()?.id
-        Column(modifier = modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small)) {
-            volumes.forEach { volume ->
+        Column(modifier = modifier.padding(horizontal = MaterialTheme.spacing.medium)) {
+            volumes.forEachIndexed { index, volume ->
                 val volumeCategories = state.categoryStoragesByVolume[volume.id]
                     ?: if (volume.id == soleIndexedVolumeId) state.categoryStorages else emptyList()
                 val volumeTrashBytes = state.trashStorageUsage.byVolumeId[volume.id]
@@ -193,7 +192,9 @@ private fun MountedStorageSummaryCard(
                         }
                     }
                 )
-                Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                if (index < volumes.lastIndex) {
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                }
             }
         }
     } else {
@@ -207,7 +208,7 @@ private fun MountedStorageSummaryCard(
             modifier = modifier
                 .fillMaxWidth()
                 .heightIn(min = 144.dp)
-                .padding(MaterialTheme.spacing.medium)
+                .padding(horizontal = MaterialTheme.spacing.medium)
                 .clip(MaterialTheme.shapes.extraLarge)
                 .bounceCombinedClickable(
                     onClick = onOpenFileBrowser,

@@ -18,6 +18,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
@@ -111,6 +112,12 @@ internal class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             utilityPreferencesStore.homeUtilityIds.collectLatest { ids ->
                 _state.update { it.copy(homeUtilityIds = ids.toPersistentList()) }
+            }
+        }
+
+        viewModelScope.launch {
+            utilityPreferencesStore.homeLayoutPreferences.collectLatest { preferences ->
+                _state.update { it.copy(homeLayoutPreferences = preferences) }
             }
         }
 
@@ -361,6 +368,12 @@ internal class HomeViewModel @Inject constructor(
 
     fun hideClassificationPrompt(storageKey: String) {
         classificationController.suppress(storageKey)
+    }
+
+    fun updateHomeLayoutPreferences(preferences: HomeLayoutPreferences) {
+        viewModelScope.launch {
+            utilityPreferencesStore.setHomeLayoutPreferences(preferences)
+        }
     }
 
     fun updateHomeSearchQuery(query: String) {

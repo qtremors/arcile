@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.8.1 | **Last Updated:** 2026-08-08
+**Version:** 1.8.2 | **Last Updated:** 2026-08-08
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -600,6 +600,8 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - The current implemented utilities are Trash, Storage Cleaner, Activity Log, and OnlyFiles. The Tools screen navigates to those same destinations and contains no duplicate feature definitions.
 - `UtilityPreferencesStore` persists an **ordered list** of utility IDs. The repository filters unknown IDs, removes duplicates, preserves user order, and migrates the former unordered `home_utility_ids` set into deterministic catalog order.
 - The Tools screen lets users show or hide each implemented utility on Home. Move-up and move-down actions reorder only the visible group; Home projects the catalog through that saved list, so rendered order exactly matches the preference.
+- The same store persists Home section order and enablement independently. Unknown section IDs are discarded and newly introduced sections are appended safely without changing the user's existing order.
+- Home's overflow editor uses a configuration-safe draft, reset control, switches for visibility, and drag handles with haptics and edge auto-scrolling. The first visible section omits its title unless it retains a trailing header action; later sections use one shared header and spacing contract.
 - Adding a utility requires its route, catalog entry, navigation mapping, user-facing strings, and catalog/preference/Home tests in the same change. Removing a route requires removing its catalog entry so stale preferences are ignored safely.
 
 ### 5. Material 3 Expressive APIs & Typography Guidelines
@@ -630,7 +632,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - **Controllers:** Navigation, selection, search, clipboard, conflicts, mutations, operations, reveal, archive, properties, and transient feedback have focused owners. Cross-domain transitions remain coordinated through the Browser owner rather than controllers mutating one another.
 
 ### 2. Home (`feature/home`)
-- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, and neutral navigation destinations. It consumes utility IDs from `UtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
+- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, saved section layout, and neutral navigation destinations. It consumes utility IDs and Home layout preferences from `UtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
 
 ### 3. Gallery and Viewer (`feature/imagegallery`)
 - `ImageGalleryViewModel` owns albums, timelines, filters, selection, and gallery presentation.
@@ -718,8 +720,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 181 |
-| **Version Name** | `1.8.1` |
+| **Version Code** | 182 |
+| **Version Name** | `1.8.2` |
 | **Java Target** | JVM 11 |
 | **Kotlin Version** | 2.2.10 |
 | **AGP Version** | 9.2.1 |
@@ -872,8 +874,8 @@ To package Arcile:
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.8.1-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.8.1.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.8.2-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.8.2.apk`
 
 ---
 
