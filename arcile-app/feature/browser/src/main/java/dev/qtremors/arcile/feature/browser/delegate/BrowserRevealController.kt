@@ -25,6 +25,8 @@ internal class BrowserRevealController(
         if (state.value.path == path) publish(BrowserRevealState())
     }
 
+    fun clear() = publish(BrowserRevealState())
+
     private fun publish(next: BrowserRevealState) {
         _state.value = next
     }

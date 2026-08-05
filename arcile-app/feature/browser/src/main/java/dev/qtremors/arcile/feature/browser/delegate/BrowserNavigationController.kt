@@ -148,6 +148,22 @@ internal class BrowserNavigationController(
         }
     }
 
+    fun openPrimaryStorage(errorMessage: UiText? = null) {
+        val primaryVolume = state.value.storageVolumes.firstOrNull { it.isPrimary }
+        if (primaryVolume == null) {
+            openFileBrowser(errorMessage = errorMessage)
+            return
+        }
+        navigationPersistence.clear()
+        loadDirectory(
+            path = primaryVolume.path,
+            volumeId = primaryVolume.id,
+            clearHistory = true,
+            errorMessage = errorMessage,
+            persistAsLastOpened = false
+        )
+    }
+
     fun openVolumeRoots(errorMessage: UiText? = null) {
         navigationPersistence.clear()
         onLocationChanged()

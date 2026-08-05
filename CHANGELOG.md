@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.2
+> **Version:** 1.8.3
 > **Last Updated:** 2026-08-08
 
 ---
+
+## [1.8.3] - 2026-08-08
+
+- **Independent Browser Tabs**: Added click-controlled tabs inside each existing Browser page, with independent locations, real folder, category, and archive names, protected pinned tabs, and page-specific persistence across launches.
 
 ## [1.8.2] - 2026-08-08
 

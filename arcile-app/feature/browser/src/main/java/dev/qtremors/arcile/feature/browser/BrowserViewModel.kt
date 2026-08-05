@@ -114,6 +114,7 @@ internal class BrowserViewModel @Inject constructor(
         navigation = navigationController
     )
     val initializationState: StateFlow<BrowserInitializationState> = initializer.state
+    private var lastPreparedEntryRequestId: Long? = null
 
     init {
         operationController.startObserving()
@@ -143,8 +144,35 @@ internal class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun initialize(entryRequest: BrowserEntryRequest?) = initializer.initialize(entryRequest)
+    fun initialize(entryRequest: BrowserEntryRequest?) {
+        val newRequest = entryRequest?.takeIf { it.id != lastPreparedEntryRequestId }
+        if (newRequest != null) {
+            selectionController.clear()
+            searchController.updateQuery("")
+            searchController.updateFilters(SearchFilters())
+            searchController.setFilterMenuVisible(false)
+            propertiesController.dismiss()
+            conflictController.dismiss()
+            mutationController.dismissDeleteConfirmation()
+            controllers.transient.clearError()
+            if (newRequest.resetWorkspace) {
+                scrollPositionStore.clear()
+                archiveController.dismissWorkflow()
+                navigationController.dismissArchivePasswordPrompt()
+                revealController.clear()
+            }
+        }
+        lastPreparedEntryRequestId = entryRequest?.id
+        if (newRequest?.resetWorkspace == true) {
+            initializer.reset(newRequest)
+        } else {
+            initializer.initialize(entryRequest)
+        }
+    }
     fun retryInitialization() = initializer.retry()
+    fun isPreparedEntryRequest(entryRequest: BrowserEntryRequest?): Boolean =
+        entryRequest == null || entryRequest.id == lastPreparedEntryRequestId
+
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
         navigationController.openFileBrowser(restorePersistentLocation, errorMessage?.let(UiText::Dynamic))
 

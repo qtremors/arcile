@@ -39,6 +39,7 @@ internal fun BrowserTopBars(
     onAppStartPageChange: (AppStartPage) -> Unit,
     onBackClick: () -> Unit,
     onSelectionChanged: () -> Unit,
+    workspaceTabs: @Composable () -> Unit,
     onShowPinnedSnackbar: (String) -> Unit
 ) {
     if (showSearchBar) {
@@ -63,92 +64,98 @@ internal fun BrowserTopBars(
                 filters = state.activeSearchFilters,
                 onClearFilter = { clearedFilters -> searchIntents.onSearchFiltersChange(clearedFilters) }
             )
+            workspaceTabs()
         }
     } else {
-        val selectedSizeFormatted = if (state.selectedFiles.isNotEmpty()) {
-            formatFileSize(state.selectedFilesTotalSize)
-        } else {
-            null
-        }
-
-        ArcileTopBar(
-            title = when {
-                state.archiveContext != null -> state.archiveContext.archiveName
-                state.isCategoryScreen -> state.activeCategoryName
-                else -> stringResource(R.string.browse_title)
-            },
-            selectionCount = state.selectedFiles.size,
-            selectedSize = selectedSizeFormatted,
-            options = dev.qtremors.arcile.core.ui.ArcileTopBarOptions(
-                showBackArrow = true,
-                showSearchAction = true,
-                showSortAction = !state.isVolumeRootScreen,
-                showNewFolderAction = !state.isVolumeRootScreen &&
-                    !state.isCategoryScreen &&
-                    state.archiveContext == null,
-                showPinAction = !state.isVolumeRootScreen &&
-                    !state.isCategoryScreen &&
-                    state.currentPath.isNotEmpty() &&
-                    state.archiveContext == null,
-                showHiddenFilesAction = state.archiveContext == null,
-                areHiddenFilesShown = state.showHiddenFiles,
-                isGridView = state.browserViewMode == FileViewMode.GRID
-            ),
-            scrollBehavior = scrollBehavior,
-            menuActions = if (appStartPage == null) {
-                emptyList()
+        Column {
+            val selectedSizeFormatted = if (state.selectedFiles.isNotEmpty()) {
+                formatFileSize(state.selectedFilesTotalSize)
             } else {
-                listOf(
-                    ArcileTopBarMenuAction(
-                        label = stringResource(R.string.home_title),
-                        icon = Icons.Default.Home,
-                        selected = appStartPage == AppStartPage.HOME,
-                        onClick = { onAppStartPageChange(AppStartPage.HOME) }
-                    ),
-                    ArcileTopBarMenuAction(
-                        label = stringResource(R.string.browse_title),
-                        icon = Icons.Default.Folder,
-                        selected = appStartPage == AppStartPage.BROWSER,
-                        onClick = { onAppStartPageChange(AppStartPage.BROWSER) }
-                    )
-                )
-            },
-            actions = dev.qtremors.arcile.core.ui.ArcileTopBarActions(
-                onBackClick = onBackClick,
-                onClearSelection = selectionIntents.onClearSelection,
-                onSearchClick = { onShowSearchBarChange(true) },
-                onSortClick = { dialogVisibility.showSortDialog = true },
-                onActionSelected = { action ->
-                when (action) {
-                    TopBarAction.NewFolder -> dialogVisibility.showCreateFolderDialog = true
-                    TopBarAction.PinToQuickAccess -> {
-                        state.currentPath.takeIf { it.isNotEmpty() }?.let { path ->
-                            val label = storagePathName(path)
-                            selectionIntents.onPinToQuickAccess(path, label)
-                            onShowPinnedSnackbar(label)
+                null
+            }
+
+            ArcileTopBar(
+                title = when {
+                    state.archiveContext != null -> state.archiveContext.archiveName
+                    state.isCategoryScreen -> state.activeCategoryName
+                    else -> stringResource(R.string.browse_title)
+                },
+                selectionCount = state.selectedFiles.size,
+                selectedSize = selectedSizeFormatted,
+                options = dev.qtremors.arcile.core.ui.ArcileTopBarOptions(
+                    showBackArrow = true,
+                    showSearchAction = true,
+                    showSortAction = !state.isVolumeRootScreen,
+                    showNewFolderAction = !state.isVolumeRootScreen &&
+                        !state.isCategoryScreen &&
+                        state.archiveContext == null,
+                    showPinAction = !state.isVolumeRootScreen &&
+                        !state.isCategoryScreen &&
+                        state.currentPath.isNotEmpty() &&
+                        state.archiveContext == null,
+                    showHiddenFilesAction = state.archiveContext == null,
+                    areHiddenFilesShown = state.showHiddenFiles,
+                    isGridView = state.browserViewMode == FileViewMode.GRID
+                ),
+                scrollBehavior = scrollBehavior,
+                menuActions = buildList {
+                    if (appStartPage != null) {
+                        add(
+                            ArcileTopBarMenuAction(
+                                label = stringResource(R.string.home_title),
+                                icon = Icons.Default.Home,
+                                selected = appStartPage == AppStartPage.HOME,
+                                onClick = { onAppStartPageChange(AppStartPage.HOME) }
+                            )
+                        )
+                        add(
+                            ArcileTopBarMenuAction(
+                                label = stringResource(R.string.browse_title),
+                                icon = Icons.Default.Folder,
+                                selected = appStartPage == AppStartPage.BROWSER,
+                                onClick = { onAppStartPageChange(AppStartPage.BROWSER) }
+                            )
+                        )
+                    }
+                },
+                actions = dev.qtremors.arcile.core.ui.ArcileTopBarActions(
+                    onBackClick = onBackClick,
+                    onClearSelection = selectionIntents.onClearSelection,
+                    onSearchClick = { onShowSearchBarChange(true) },
+                    onSortClick = { dialogVisibility.showSortDialog = true },
+                    onActionSelected = { action ->
+                        when (action) {
+                            TopBarAction.NewFolder -> dialogVisibility.showCreateFolderDialog = true
+                            TopBarAction.PinToQuickAccess -> {
+                                state.currentPath.takeIf { it.isNotEmpty() }?.let { path ->
+                                    val label = storagePathName(path)
+                                    selectionIntents.onPinToQuickAccess(path, label)
+                                    onShowPinnedSnackbar(label)
+                                }
+                            }
+                            TopBarAction.DeleteSelected -> mutationIntents.onRequestDeleteSelected()
+                            TopBarAction.Rename -> if (state.selectedFiles.size == 1) {
+                                dialogVisibility.showRenameDialog = true
+                            }
+                            TopBarAction.Copy -> clipboardIntents.onCopySelected()
+                            TopBarAction.Cut -> clipboardIntents.onCutSelected()
+                            TopBarAction.Share -> selectionIntents.onShareSelected()
+                            TopBarAction.SelectAll -> {
+                                onSelectionChanged()
+                                selectionIntents.onSelectAll(displayedFiles.map { it.absolutePath })
+                            }
+                            TopBarAction.InvertSelection -> {
+                                onSelectionChanged()
+                                selectionIntents.onInvertSelection(displayedFiles.map { it.absolutePath })
+                            }
+                            TopBarAction.Properties -> selectionIntents.onOpenProperties()
+                            TopBarAction.ToggleHiddenFiles -> onToggleHiddenFiles()
+                            else -> Unit
                         }
                     }
-                    TopBarAction.DeleteSelected -> mutationIntents.onRequestDeleteSelected()
-                    TopBarAction.Rename -> if (state.selectedFiles.size == 1) {
-                        dialogVisibility.showRenameDialog = true
-                    }
-                    TopBarAction.Copy -> clipboardIntents.onCopySelected()
-                    TopBarAction.Cut -> clipboardIntents.onCutSelected()
-                    TopBarAction.Share -> selectionIntents.onShareSelected()
-                    TopBarAction.SelectAll -> {
-                        onSelectionChanged()
-                        selectionIntents.onSelectAll(displayedFiles.map { it.absolutePath })
-                    }
-                    TopBarAction.InvertSelection -> {
-                        onSelectionChanged()
-                        selectionIntents.onInvertSelection(displayedFiles.map { it.absolutePath })
-                    }
-                    TopBarAction.Properties -> selectionIntents.onOpenProperties()
-                    TopBarAction.ToggleHiddenFiles -> onToggleHiddenFiles()
-                    else -> Unit
-                }
-                }
+                )
             )
-        )
+            workspaceTabs()
+        }
     }
 }
