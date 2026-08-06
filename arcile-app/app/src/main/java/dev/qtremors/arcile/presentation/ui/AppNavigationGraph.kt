@@ -55,6 +55,7 @@ fun AppNavigationGraph(
             actions,
             appStartPage,
             onAppStartPageChange,
+            currentThemeState.landscapeDualPaneEnabled,
             onFeedback
         )
         registerFileRoutes(navController, actions, transitions, onFeedback)

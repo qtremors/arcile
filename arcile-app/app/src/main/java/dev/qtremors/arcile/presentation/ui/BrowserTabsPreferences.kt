@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.ui
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -29,6 +30,7 @@ import kotlinx.serialization.json.Json
 
 private val Context.browserTabsDataStore by preferencesDataStore(name = "browser_tabs")
 private val PINNED_BROWSER_TABS_KEY = stringPreferencesKey("pinned_browser_tabs")
+private val BROWSER_TABS_ENABLED_KEY = booleanPreferencesKey("browser_tabs_enabled")
 
 @Serializable
 internal data class PersistedBrowserTab(
@@ -59,6 +61,10 @@ internal class BrowserTabsPreferencesRepository @Inject constructor(
                 .orEmpty()
         }
 
+    val tabsEnabled: Flow<Boolean> = preferences.map { stored ->
+        stored[BROWSER_TABS_ENABLED_KEY] ?: false
+    }
+
     suspend fun setPinnedTabs(browserPage: Int, tabs: List<PersistedBrowserTab>) {
         dataStore.edit { preferences ->
             val existing = preferences[PINNED_BROWSER_TABS_KEY]
@@ -70,6 +76,11 @@ internal class BrowserTabsPreferencesRepository @Inject constructor(
         }
     }
 
+    suspend fun setTabsEnabled(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[BROWSER_TABS_ENABLED_KEY] = enabled
+        }
+    }
 }
 
 @HiltViewModel
@@ -78,6 +89,9 @@ internal class BrowserTabsViewModel @Inject constructor(
 ) : ViewModel() {
     val restoredTabs: StateFlow<List<PersistedBrowserTab>?> = repository.pinnedTabs
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    val tabsEnabled: StateFlow<Boolean> = repository.tabsEnabled
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     private val persistenceJobs = mutableMapOf<Int, Job>()
 
     fun persistPinnedTabs(browserPage: Int, tabs: List<PersistedBrowserTab>) {
@@ -85,6 +99,10 @@ internal class BrowserTabsViewModel @Inject constructor(
         persistenceJobs[browserPage] = viewModelScope.launch {
             repository.setPinnedTabs(browserPage, tabs)
         }
+    }
+
+    fun setTabsEnabled(enabled: Boolean) {
+        viewModelScope.launch { repository.setTabsEnabled(enabled) }
     }
 }
 

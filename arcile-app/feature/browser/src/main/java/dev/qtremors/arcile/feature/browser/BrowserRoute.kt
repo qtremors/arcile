@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,7 +70,8 @@ data class BrowserRouteStatus(
     val hasActiveLocation: Boolean = false,
     val isCategoryScreen: Boolean = false,
     val title: String = "",
-    val entry: BrowserEntry = BrowserEntry.Root(restorePersistentLocation = false)
+    val entry: BrowserEntry = BrowserEntry.Root(restorePersistentLocation = false),
+    val isReady: Boolean = true
 )
 
 sealed interface BrowserDestination {
@@ -97,8 +97,9 @@ fun BrowserRoute(
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit,
     workspaceTabs: @Composable () -> Unit = {},
+    workspaceTabsEnabled: Boolean = false,
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
     renderContent: Boolean = true,
-    initializeImmediately: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val viewModel = hiltViewModel<BrowserViewModel>(key = viewModelKey)
@@ -170,14 +171,15 @@ fun BrowserRoute(
                     hasActiveLocation = hasActiveLocation,
                     isCategoryScreen = uiState.location.isCategoryScreen,
                     title = statusTitle,
-                    entry = statusEntry
+                    entry = statusEntry,
+                    isReady = initializationState == BrowserInitializationState.Ready
                 )
             )
         }
     }
 
-    LaunchedEffect(isVisible, initializeImmediately, entryRequest?.id) {
-        if (isVisible || initializeImmediately) viewModel.initialize(entryRequest)
+    LaunchedEffect(isVisible, renderContent, entryRequest?.id) {
+        if (isVisible || !renderContent) viewModel.initialize(entryRequest)
     }
 
     if (!renderContent) return
@@ -363,29 +365,29 @@ fun BrowserRoute(
             }
     ) {
         if (initializationState == BrowserInitializationState.Ready) {
-            key(entryRequest?.id) {
-                BrowserScreen(
-                    state = state,
-                    intents = screenIntents,
-                    scroll = BrowserScrollBindings(
-                        listState = listState,
-                        gridState = gridState,
-                        positionKey = scrollPositionKey,
-                        savedPositionProvider = viewModel::savedScrollPosition,
-                        onSavePosition = viewModel::saveScrollPosition,
-                        pendingRevealFilePath = state.pendingRevealFilePath,
-                        pendingRevealReady = state.pendingRevealReady,
-                        onArmPendingReveal = viewModel::armOpenedFileReveal,
-                        onConsumePendingReveal = viewModel::consumeOpenedFileReveal
-                    ),
-                    onFeedback = onFeedback,
-                    appStartPage = appStartPage,
-                    onAppStartPageChange = onAppStartPageChange,
-                    isRouteVisible = isVisible,
-                    batchRenameHistory = batchRenameHistory,
-                    workspaceTabs = workspaceTabs
-                )
-            }
+            BrowserScreen(
+                state = state,
+                intents = screenIntents,
+                scroll = BrowserScrollBindings(
+                    listState = listState,
+                    gridState = gridState,
+                    positionKey = scrollPositionKey,
+                    savedPositionProvider = viewModel::savedScrollPosition,
+                    onSavePosition = viewModel::saveScrollPosition,
+                    pendingRevealFilePath = state.pendingRevealFilePath,
+                    pendingRevealReady = state.pendingRevealReady,
+                    onArmPendingReveal = viewModel::armOpenedFileReveal,
+                    onConsumePendingReveal = viewModel::consumeOpenedFileReveal
+                ),
+                onFeedback = onFeedback,
+                appStartPage = appStartPage,
+                onAppStartPageChange = onAppStartPageChange,
+                isRouteVisible = isVisible,
+                batchRenameHistory = batchRenameHistory,
+                workspaceTabs = workspaceTabs,
+                workspaceTabsEnabled = workspaceTabsEnabled,
+                onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange
+            )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
                 workspaceTabs()
@@ -402,7 +404,7 @@ fun BrowserRoute(
 }
 
 internal fun canPublishBrowserStatus(state: BrowserInitializationState): Boolean =
-    state == BrowserInitializationState.Ready
+    state == BrowserInitializationState.Ready || state is BrowserInitializationState.Failed
 
 private fun BrowserViewModel.saveVisibleScrollPosition(
     key: String,

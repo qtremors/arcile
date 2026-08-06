@@ -164,6 +164,8 @@
     <string name="settings_show_hidden_files_description">Include dotfiles and hidden folders in browser listings.</string>
     <string name="settings_browser_scrollbar">Browser scrollbar</string>
     <string name="settings_browser_scrollbar_description">Show the fast-scroll scrollbar overlay in Browser lists and grids.</string>
+    <string name="settings_landscape_dual_pane">Dual pane in landscape</string>
+    <string name="settings_landscape_dual_pane_description">Show Browser 1 and Browser 2 side by side when the device is horizontal.</string>
     <string name="settings_gallery_scrollbar">Media gallery scrollbar</string>
     <string name="settings_gallery_scrollbar_description">Show the fast-scroll scrollbar overlay in Image, Video, and Audio lists and grids.</string>
     <string name="settings_home_recent_carousel_limit">Home recent files</string>
@@ -263,10 +265,13 @@
     <string name="folder_tabs_content_description">Folder filters</string>
     <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
     <string name="browser_tab_actions">Show tab actions</string>
+    <string name="browser_tabs">Browser tabs</string>
     <string name="browser_new_tab">New tab</string>
     <string name="browser_pin_tab">Pin tab</string>
     <string name="browser_unpin_tab">Unpin tab</string>
     <string name="browser_duplicate_tab">Duplicate tab</string>
+    <string name="browser_move_tab_left">Move tab left</string>
+    <string name="browser_move_tab_right">Move tab right</string>
     <string name="browser_close_other_tabs">Close other tabs</string>
     <string name="browser_close_tab">Close tab</string>
     <string name="browser_tab_limit_reached">You can keep up to %1$d Browser tabs open.</string>

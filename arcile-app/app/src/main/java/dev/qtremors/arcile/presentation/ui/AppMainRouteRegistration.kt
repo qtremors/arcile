@@ -16,6 +16,7 @@ internal fun NavGraphBuilder.registerMainRoute(
     actions: AppNavigationActions,
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
+    landscapeDualPaneEnabled: Boolean,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     composable<AppRoutes.Main> { backStackEntry ->
@@ -40,6 +41,7 @@ internal fun NavGraphBuilder.registerMainRoute(
             onShareBrowserFiles = actions::shareKnownFiles,
             appStartPage = appStartPage,
             onAppStartPageChange = onAppStartPageChange,
+            landscapeDualPaneEnabled = landscapeDualPaneEnabled,
             onFeedback = onFeedback
         )
     }

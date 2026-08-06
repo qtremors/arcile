@@ -56,6 +56,8 @@ internal class BrowserTabsCoordinator(
         private set
     var browserStatuses by mutableStateOf<Map<Int, BrowserRouteStatus>>(emptyMap())
         private set
+    var pendingBrowserTabId: Int? = null
+        private set
     private var persistentTabsReady = persistentTabsInitiallyReady
 
     init {
@@ -110,6 +112,14 @@ internal class BrowserTabsCoordinator(
         onTabsChanged()
     }
 
+    fun moveTab(tabId: Int, offset: Int): Boolean {
+        val reordered = moveBrowserTab(tabs, tabId, offset)
+        if (reordered == tabs) return false
+        tabs = reordered
+        onTabsChanged()
+        return true
+    }
+
     fun closeTab(tabId: Int): Boolean {
         val target = tabs.firstOrNull { it.id == tabId } ?: return false
         if (target.id == PRIMARY_BROWSER_TAB_ID || target.isPinned || tabs.size == 1) return false
@@ -139,6 +149,15 @@ internal class BrowserTabsCoordinator(
 
     fun showTab(tabId: Int) {
         if (!containsTab(tabId)) return
+        if (tabId != activeBrowserTabId && tabId !in browserStatuses) {
+            pendingBrowserTabId = tabId
+            return
+        }
+        activateTab(tabId)
+    }
+
+    private fun activateTab(tabId: Int) {
+        pendingBrowserTabId = null
         activeBrowserTabId = tabId
         savedStateHandle[activeTabKey(browserPage)] = tabId
     }
@@ -146,7 +165,10 @@ internal class BrowserTabsCoordinator(
     fun updateBrowserStatus(tabId: Int, status: BrowserRouteStatus) {
         if (containsTab(tabId)) {
             browserStatuses = browserStatuses + (tabId to status)
-            persistPinnedTabs()
+            if (status.isReady) {
+                persistPinnedTabs()
+            }
+            if (pendingBrowserTabId == tabId) activateTab(tabId)
         }
     }
 
@@ -208,7 +230,7 @@ internal class BrowserTabsCoordinator(
                     persistedBrowserTab(
                         browserPage = browserPage,
                         id = tab.id,
-                        entry = browserStatuses[tab.id]?.entry
+                        entry = browserStatuses[tab.id]?.takeIf { it.isReady }?.entry
                             ?: browserEntryRequests[tab.id]?.entry
                             ?: BrowserEntry.Root(restorePersistentLocation = false)
                     )
@@ -380,6 +402,25 @@ internal fun browserTabInsertionIndex(tabs: List<BrowserTab>, anchorTabId: Int):
         .takeIf { it >= 0 }
         ?: tabs.size
 }
+
+internal fun moveBrowserTab(
+    tabs: List<BrowserTab>,
+    tabId: Int,
+    offset: Int
+): List<BrowserTab> {
+    if ((offset != -1 && offset != 1) || tabId == PRIMARY_BROWSER_TAB_ID) return tabs
+    val sourceIndex = tabs.indexOfFirst { it.id == tabId }
+    val targetIndex = sourceIndex + offset
+    if (sourceIndex <= 0 || targetIndex !in tabs.indices) return tabs
+    if (tabs[sourceIndex].isPinned != tabs[targetIndex].isPinned) return tabs
+    return tabs.toMutableList().apply {
+        val moved = removeAt(sourceIndex)
+        add(targetIndex, moved)
+    }
+}
+
+internal fun canMoveBrowserTab(tabs: List<BrowserTab>, tabId: Int, offset: Int): Boolean =
+    moveBrowserTab(tabs, tabId, offset) != tabs
 
 internal fun browserTabsAfterClosingOthers(tabs: List<BrowserTab>, tabId: Int): List<BrowserTab> =
     tabs.filter { tab -> tab.id == PRIMARY_BROWSER_TAB_ID || tab.id == tabId || tab.isPinned }

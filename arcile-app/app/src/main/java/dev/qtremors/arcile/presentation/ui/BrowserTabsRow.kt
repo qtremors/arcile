@@ -5,13 +5,15 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -19,7 +21,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -53,6 +54,8 @@ internal fun BrowserTabsRow(
     onNewTab: () -> Unit,
     onSetPinned: (Int, Boolean) -> Unit,
     onDuplicate: (Int) -> Unit,
+    onMoveLeft: (Int) -> Unit,
+    onMoveRight: (Int) -> Unit,
     onCloseOthers: (Int) -> Unit,
     onClose: (Int) -> Unit,
     modifier: Modifier = Modifier
@@ -72,14 +75,14 @@ internal fun BrowserTabsRow(
 
     Box(
         modifier = modifier
-            .heightIn(min = 56.dp)
+            .height(48.dp)
     ) {
         LazyRow(
             state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(min = 56.dp),
-            contentPadding = PaddingValues(end = 64.dp, top = 4.dp, bottom = 4.dp),
+                .height(48.dp),
+            contentPadding = PaddingValues(start = 8.dp, end = 56.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -94,22 +97,25 @@ internal fun BrowserTabsRow(
                         ?: stringResource(R.string.browse_title)
                 }
                 val showMenu = menuTabId == tab.id
-                Box {
-                    Surface(
-                        modifier = Modifier
-                            .clip(MaterialTheme.shapes.extraLarge)
-                            .semantics {
-                                this.selected = selected
-                                onLongClick(label = tabActionsLabel) {
-                                    menuTabId = tab.id
-                                    true
-                                }
+                Box(
+                    modifier = Modifier
+                        .height(48.dp)
+                        .clip(MaterialTheme.shapes.extraLarge)
+                        .semantics {
+                            this.selected = selected
+                            onLongClick(label = tabActionsLabel) {
+                                menuTabId = tab.id
+                                true
                             }
-                            .bounceCombinedClickable(
-                                role = Role.Tab,
-                                onClick = { onSelectTab(tab.id) },
-                                onLongClick = { menuTabId = tab.id }
-                            ),
+                        }
+                        .bounceCombinedClickable(
+                            role = Role.Tab,
+                            onClick = { onSelectTab(tab.id) },
+                            onLongClick = { menuTabId = tab.id }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Surface(
                         shape = MaterialTheme.shapes.extraLarge,
                         color = if (selected) {
                             MaterialTheme.colorScheme.primaryContainer
@@ -124,8 +130,8 @@ internal fun BrowserTabsRow(
                     ) {
                         Row(
                             modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                                .height(40.dp)
+                                .padding(horizontal = 14.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (isPrimaryTab) {
@@ -158,6 +164,14 @@ internal fun BrowserTabsRow(
                             menuTabId = null
                             onDuplicate(tab.id)
                         },
+                        onMoveLeft = {
+                            menuTabId = null
+                            onMoveLeft(tab.id)
+                        },
+                        onMoveRight = {
+                            menuTabId = null
+                            onMoveRight(tab.id)
+                        },
                         onCloseOthers = {
                             menuTabId = null
                             onCloseOthers(tab.id)
@@ -171,21 +185,29 @@ internal fun BrowserTabsRow(
             }
         }
 
-        SmallFloatingActionButton(
-            onClick = onNewTab,
+        Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 8.dp)
-                .size(48.dp),
-            shape = MaterialTheme.shapes.extraLarge,
-            containerColor = MaterialTheme.colorScheme.primaryContainer,
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                .size(48.dp)
+                .clip(MaterialTheme.shapes.extraLarge)
+                .bounceCombinedClickable(onClick = onNewTab),
+            contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.Add,
-                contentDescription = stringResource(R.string.browser_new_tab),
-                modifier = Modifier.size(22.dp)
-            )
+            Surface(
+                modifier = Modifier.size(40.dp),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = stringResource(R.string.browser_new_tab),
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -198,6 +220,8 @@ private fun BrowserTabMenu(
     onDismiss: () -> Unit,
     onSetPinned: (Boolean) -> Unit,
     onDuplicate: () -> Unit,
+    onMoveLeft: () -> Unit,
+    onMoveRight: () -> Unit,
     onCloseOthers: () -> Unit,
     onClose: () -> Unit
 ) {
@@ -207,6 +231,26 @@ private fun BrowserTabMenu(
     }
     val items = buildList<@Composable () -> Unit> {
         if (!isPrimaryTab) {
+            add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.browser_move_tab_left),
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
+                    },
+                    enabled = canMoveBrowserTab(tabs, tab.id, offset = -1),
+                    onClick = onMoveLeft
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = stringResource(R.string.browser_move_tab_right),
+                    leadingIcon = {
+                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
+                    },
+                    enabled = canMoveBrowserTab(tabs, tab.id, offset = 1),
+                    onClick = onMoveRight
+                )
+            }
             add {
                 ArcileDropdownMenuItem(
                     text = stringResource(if (tab.isPinned) R.string.browser_unpin_tab else R.string.browser_pin_tab),

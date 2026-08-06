@@ -80,7 +80,9 @@ internal fun BrowserScreen(
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     isRouteVisible: Boolean = true,
     batchRenameHistory: List<String> = emptyList(),
-    workspaceTabs: @Composable () -> Unit = {}
+    workspaceTabs: @Composable () -> Unit = {},
+    workspaceTabsEnabled: Boolean = false,
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
@@ -359,6 +361,8 @@ internal fun BrowserScreen(
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
                     workspaceTabs = workspaceTabs,
+                    workspaceTabsEnabled = workspaceTabsEnabled,
+                    onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange,
                     onShowPinnedSnackbar = { label ->
                         if (isRouteVisible) {
                             onFeedback(

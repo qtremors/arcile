@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.3
+> **Version:** 1.8.4
 > **Last Updated:** 2026-08-08
 
 ---
+
+## [1.8.4] - 2026-08-08
+
+- **Configurable Browser Tabs**: Made tabs disabled by default with a Browser overflow toggle; hiding them preserves each Browser page's tab state.
+- **Landscape Dual Pane**: Added an optional Appearance setting that shows Browser 1 and Browser 2 side by side at equal width in landscape and returns to the last-focused Browser page in portrait.
+- **Refined Browser Tabs**: Added left/right ordering actions, reduced the tab strip's vertical footprint, and added leading spacing before the first tab.
 
 ## [1.8.3] - 2026-08-08
 

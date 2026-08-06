@@ -199,6 +199,7 @@ class PreferencesBackupManager @Inject constructor(
 
     private fun String.displayName(): String = when (this) {
         "browser_prefs" -> "Browser preferences"
+        "browser_tabs" -> "Browser tabs"
         "quick_access_prefs" -> "Quick Access"
         "storage_classifications_prefs" -> "Storage classifications"
         "onboarding_prefs" -> "Onboarding state"
@@ -216,6 +217,7 @@ class PreferencesBackupManager @Inject constructor(
 
         val preferenceStoreNames = setOf(
             "browser_prefs",
+            "browser_tabs",
             "quick_access_prefs",
             "storage_classifications_prefs",
             "onboarding_prefs",
@@ -251,6 +253,7 @@ private data class ThemeBackupState(
     val vibrationsEnabled: Boolean,
     val doubleLineFilenames: Boolean,
     val marqueeFilenames: Boolean,
+    val landscapeDualPaneEnabled: Boolean = false,
     val themePreset: String,
     val customPrimaryColorHex: String,
     val customBackgroundColorHex: String
@@ -264,6 +267,7 @@ private fun ThemeState.toBackupState(): ThemeBackupState =
         vibrationsEnabled = vibrationsEnabled,
         doubleLineFilenames = doubleLineFilenames,
         marqueeFilenames = marqueeFilenames,
+        landscapeDualPaneEnabled = landscapeDualPaneEnabled,
         themePreset = themePreset.name,
         customPrimaryColorHex = customPrimaryColorHex,
         customBackgroundColorHex = customBackgroundColorHex
@@ -277,6 +281,7 @@ private fun ThemeBackupState.toThemeState(): ThemeState =
         vibrationsEnabled = vibrationsEnabled,
         doubleLineFilenames = doubleLineFilenames,
         marqueeFilenames = marqueeFilenames,
+        landscapeDualPaneEnabled = landscapeDualPaneEnabled,
         themePreset = ThemePreset.entries.find { it.name == themePreset } ?: ThemePreset.NONE,
         customPrimaryColorHex = customPrimaryColorHex,
         customBackgroundColorHex = customBackgroundColorHex

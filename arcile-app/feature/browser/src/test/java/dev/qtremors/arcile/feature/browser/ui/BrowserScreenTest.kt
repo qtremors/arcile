@@ -46,6 +46,49 @@ class BrowserScreenTest {
     val composeRule = createComposeRule()
 
     @Test
+    fun `browser overflow enables workspace tabs`() {
+        var requestedState: Boolean? = null
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = browserUiState(isLoading = false),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> },
+                    workspaceTabsEnabled = false,
+                    onWorkspaceTabsEnabledChange = { requestedState = it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithContentDescription("More options").performClick()
+        composeRule.onNodeWithText("Browser tabs").performClick()
+
+        assertEquals(true, requestedState)
+    }
+
+    @Test
     fun `search result click opens file and clears search`() {
         var openedPath: String? = null
         var clearSearchCalls = 0
@@ -688,7 +731,9 @@ private fun BrowserScreen(
     onCancelClipboard: () -> Unit,
     onShareSelected: () -> Unit,
     onOpenProperties: () -> Unit = {},
-    onClearActiveFileOperation: () -> Unit = {}
+    onClearActiveFileOperation: () -> Unit = {},
+    workspaceTabsEnabled: Boolean = false,
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null
 ) {
     val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
@@ -775,7 +820,9 @@ private fun BrowserScreen(
             onArmPendingReveal = {},
             onConsumePendingReveal = {}
         ),
-        onFeedback = {}
+        onFeedback = {},
+        workspaceTabsEnabled = workspaceTabsEnabled,
+        onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange
     )
 }
 

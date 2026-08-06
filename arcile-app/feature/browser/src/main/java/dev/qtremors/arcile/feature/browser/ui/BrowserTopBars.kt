@@ -8,6 +8,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Tab
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
@@ -40,6 +41,8 @@ internal fun BrowserTopBars(
     onBackClick: () -> Unit,
     onSelectionChanged: () -> Unit,
     workspaceTabs: @Composable () -> Unit,
+    workspaceTabsEnabled: Boolean,
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)?,
     onShowPinnedSnackbar: (String) -> Unit
 ) {
     if (showSearchBar) {
@@ -99,6 +102,18 @@ internal fun BrowserTopBars(
                 ),
                 scrollBehavior = scrollBehavior,
                 menuActions = buildList {
+                    if (onWorkspaceTabsEnabledChange != null) {
+                        add(
+                            ArcileTopBarMenuAction(
+                                label = stringResource(R.string.browser_tabs),
+                                icon = Icons.Default.Tab,
+                                selected = workspaceTabsEnabled,
+                                onClick = {
+                                    onWorkspaceTabsEnabledChange(!workspaceTabsEnabled)
+                                }
+                            )
+                        )
+                    }
                     if (appStartPage != null) {
                         add(
                             ArcileTopBarMenuAction(

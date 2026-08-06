@@ -30,6 +30,16 @@ class BrowserViewModelNavigationTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
+    fun `browser status publishes after initialization finishes`() {
+        assertFalse(canPublishBrowserStatus(BrowserInitializationState.Uninitialized))
+        assertFalse(canPublishBrowserStatus(BrowserInitializationState.Restoring))
+        assertTrue(
+            canPublishBrowserStatus(BrowserInitializationState.Failed(UiText.Dynamic("failed")))
+        )
+        assertTrue(canPublishBrowserStatus(BrowserInitializationState.Ready))
+    }
+
+    @Test
     fun `browser stays uninitialized until its page is requested`() =
         runTest(mainDispatcherRule.dispatcher) {
             val internal = browserVolume(
@@ -98,6 +108,123 @@ class BrowserViewModelNavigationTest {
 
             assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
             assertEquals(requestedPath, viewModel.uiState.value.currentPath)
+        }
+
+    @Test
+    fun `process fallback prefers saved tab state over the persisted location`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val savedPath = "${internal.path}/Saved"
+            val persistedPath = "${internal.path}/Persisted"
+            val viewModel = createViewModel(
+                repository = BrowserFakeFileRepository(
+                    volumes = listOf(internal),
+                    filesByPath = mapOf(savedPath to emptyList(), persistedPath to emptyList())
+                ),
+                savedStateHandle = SavedStateHandle(
+                    mapOf(
+                        "currentPath" to savedPath,
+                        "currentVolumeId" to internal.id,
+                        "isCategoryScreen" to false,
+                        "isVolumeRootScreen" to false
+                    )
+                ),
+                initialize = false
+            )
+
+            viewModel.initialize(
+                BrowserEntryRequest(
+                    id = 1L,
+                    entry = BrowserEntry.Path(persistedPath),
+                    preferSavedLocation = true
+                )
+            )
+            advanceUntilIdle()
+
+            assertEquals(savedPath, viewModel.uiState.value.currentPath)
+        }
+
+    @Test
+    fun `primary storage entry opens internal storage when removable storage is present`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val sdCard = browserVolume(
+                "sd",
+                "SD Card",
+                "/storage/1234-5678",
+                isPrimary = false,
+                isRemovable = true
+            )
+            val viewModel = createViewModel(
+                repository = BrowserFakeFileRepository(
+                    volumes = listOf(internal, sdCard),
+                    filesByPath = mapOf(internal.path to emptyList())
+                ),
+                savedStateHandle = SavedStateHandle(),
+                initialize = false
+            )
+
+            viewModel.initialize(
+                BrowserEntryRequest(
+                    id = 1L,
+                    entry = BrowserEntry.PrimaryStorage,
+                    preferSavedLocation = true
+                )
+            )
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(internal.path, viewModel.uiState.value.currentPath)
+            assertEquals(internal.id, viewModel.uiState.value.currentVolumeId)
+            assertFalse(viewModel.uiState.value.isVolumeRootScreen)
+        }
+
+    @Test
+    fun `reused tab slot restarts a failed workspace`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val internal = browserVolume(
+                "primary",
+                "Internal",
+                "/storage/emulated/0",
+                isPrimary = true
+            )
+            val repository = BrowserFakeFileRepository(volumes = listOf(internal)).apply {
+                listFilesResultProvider = { Result.failure(IllegalStateException("unavailable")) }
+            }
+            val viewModel = createViewModel(
+                repository = repository,
+                savedStateHandle = SavedStateHandle(),
+                initialize = false
+            )
+
+            viewModel.initialize(
+                BrowserEntryRequest(id = 1L, entry = BrowserEntry.PrimaryStorage)
+            )
+            advanceUntilIdle()
+            assertTrue(viewModel.initializationState.value is BrowserInitializationState.Failed)
+
+            repository.listFilesResultProvider = { Result.success(emptyList()) }
+            viewModel.initialize(
+                BrowserEntryRequest(
+                    id = 2L,
+                    entry = BrowserEntry.Root(restorePersistentLocation = false),
+                    resetWorkspace = true
+                )
+            )
+            advanceUntilIdle()
+
+            assertEquals(BrowserInitializationState.Ready, viewModel.initializationState.value)
+            assertEquals(internal.path, viewModel.uiState.value.currentPath)
         }
 
     @Test

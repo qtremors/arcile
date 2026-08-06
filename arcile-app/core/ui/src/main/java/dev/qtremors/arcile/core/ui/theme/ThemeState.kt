@@ -61,6 +61,7 @@ data class ThemeState(
     val vibrationsEnabled: Boolean = true,
     val doubleLineFilenames: Boolean = false,
     val marqueeFilenames: Boolean = false,
+    val landscapeDualPaneEnabled: Boolean = false,
     val themePreset: ThemePreset = ThemePreset.NONE,
     val customPrimaryColorHex: String = "#BD93F9",
     val customBackgroundColorHex: String = "#282A36"
