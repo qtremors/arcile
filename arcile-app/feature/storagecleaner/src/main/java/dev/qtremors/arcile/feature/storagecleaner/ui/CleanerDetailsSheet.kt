@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
@@ -55,6 +56,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -78,6 +80,7 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
@@ -93,6 +96,9 @@ import kotlinx.coroutines.withContext
 internal fun CleanerDetailsSheet(
     group: CleanerGroup,
     isCleaning: Boolean,
+    isScanning: Boolean = false,
+    scanProgress: StorageCleanerScanProgress? = null,
+    onRefresh: () -> Unit = {},
     selectedFiles: Set<String>,
     onSelectedFilesChange: (Set<String>) -> Unit,
     onDismiss: () -> Unit,
@@ -106,9 +112,15 @@ internal fun CleanerDetailsSheet(
     backProgress: Float = 0f,
     isBackPredicting: Boolean = false
 ) {
-    var showRiskInfo by remember { mutableStateOf(false) }
-    var showSectionSettings by remember { mutableStateOf(false) }
-    var compareFiles by remember(group) { mutableStateOf<List<CleanerCandidate>?>(null) }
+    var showRiskInfo by rememberSaveable(group.type.name) { mutableStateOf(false) }
+    var showSectionSettings by rememberSaveable(group.type.name) { mutableStateOf(false) }
+    var comparePaths by rememberSaveable(group.type.name) {
+        mutableStateOf(arrayListOf<String>())
+    }
+    val compareFiles = remember(comparePaths, group.candidates) {
+        val candidatesByPath = group.candidates.associateBy(CleanerCandidate::absolutePath)
+        comparePaths.mapNotNull(candidatesByPath::get).takeIf { it.size >= 2 }
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -139,6 +151,19 @@ internal fun CleanerDetailsSheet(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = onRefresh,
+                        enabled = !isScanning && !isCleaning,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = stringResource(
+                                R.string.cleaner_refresh_category,
+                                cleanerTitle(group.type)
+                            )
+                        )
+                    }
                     val settingsClick = { showSectionSettings = true }
                     IconButton(
                         onClick = settingsClick,
@@ -196,9 +221,15 @@ internal fun CleanerDetailsSheet(
             }
 
             HorizontalDivider()
+            if (isScanning) {
+                CleanerScanStatus(
+                    progress = scanProgress,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            }
             CleanerDetailStorageMap(group.candidates, selectedFiles)
 
-            if (group.candidates.isEmpty()) {
+            if (group.candidates.isEmpty() && !isScanning) {
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -230,7 +261,12 @@ internal fun CleanerDetailsSheet(
                             onOpenContainingFolder = onOpenContainingFolder,
                             onCompare = {
                                 val selectedInGroup = filesInGroup.filter { it.absolutePath in selectedFiles }
-                                compareFiles = if (selectedInGroup.size == 2) selectedInGroup else filesInGroup.take(2)
+                                val filesToCompare = if (selectedInGroup.size == 2) {
+                                    selectedInGroup
+                                } else {
+                                    filesInGroup.take(2)
+                                }
+                                comparePaths = ArrayList(filesToCompare.map(CleanerCandidate::absolutePath))
                             },
                             onIgnoreFile = { path ->
                                 onSelectedFilesChange(selectedFiles - path)
@@ -335,7 +371,7 @@ internal fun CleanerDetailsSheet(
             selectedFiles = selectedFiles,
             onSelectedFilesChange = onSelectedFilesChange,
             onRequestClean = { paths ->
-                compareFiles = null
+                comparePaths = arrayListOf()
                 onRequestClean(paths)
             },
             onOpenFile = onOpenFile,
@@ -344,7 +380,7 @@ internal fun CleanerDetailsSheet(
                 onSelectedFilesChange(selectedFiles - path)
                 onIgnorePath(path)
             },
-            onDismiss = { compareFiles = null }
+            onDismiss = { comparePaths = arrayListOf() }
         )
     }
 }

@@ -124,6 +124,8 @@ fun Modifier.bounceClickable(
 fun Modifier.bounceCombinedClickable(
     enabled: Boolean = true,
     role: Role? = Role.Button,
+    onClickLabel: String? = null,
+    onLongClickLabel: String? = null,
     onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ): Modifier = composed {
@@ -151,6 +153,8 @@ fun Modifier.bounceCombinedClickable(
             indication = null,
             enabled = enabled,
             role = role,
+            onClickLabel = onClickLabel,
+            onLongClickLabel = onLongClickLabel,
             onClick = {
                 try {
                     haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)

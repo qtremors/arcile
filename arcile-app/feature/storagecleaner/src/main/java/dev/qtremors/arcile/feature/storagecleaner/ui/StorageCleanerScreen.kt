@@ -58,6 +58,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -120,13 +122,21 @@ internal fun resolveStorageCleanerBackAction(
     else -> StorageCleanerBackAction.NavigateBack
 }
 
+private val cleanerPathSetSaver = Saver<Set<String>, ArrayList<String>>(
+    save = { ArrayList(it) },
+    restore = { it.toSet() }
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun StorageCleanerScreen(
     state: StorageCleanerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
+    onScanGroup: (CleanerGroupType) -> Unit = {},
+    onRefreshGroup: (CleanerGroupType) -> Unit = {},
     onClearThumbnailCache: () -> Unit = {},
+    onRefreshThumbnailCache: () -> Unit = {},
     onCleanFiles: (List<String>, Boolean) -> Unit,
     onUndoClean: (List<String>) -> Unit = {},
     onClearMessages: () -> Unit,
@@ -139,21 +149,27 @@ internal fun StorageCleanerScreen(
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    var activeCleanerGroup by remember { mutableStateOf<CleanerGroupType?>(null) }
-    var confirmCleanerGroup by remember { mutableStateOf<CleanerGroupType?>(null) }
-    var selectedCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
-    var confirmCleanerPaths by remember { mutableStateOf(emptySet<String>()) }
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var showIgnoredItems by remember { mutableStateOf(false) }
-    var highRiskAcknowledged by remember { mutableStateOf(false) }
+    var activeCleanerGroup by rememberSaveable { mutableStateOf<CleanerGroupType?>(null) }
+    var confirmCleanerGroup by rememberSaveable { mutableStateOf<CleanerGroupType?>(null) }
+    var selectedCleanerPaths by rememberSaveable(stateSaver = cleanerPathSetSaver) {
+        mutableStateOf(emptySet())
+    }
+    var confirmCleanerPaths by rememberSaveable(stateSaver = cleanerPathSetSaver) {
+        mutableStateOf(emptySet())
+    }
+    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
+    var showIgnoredItems by rememberSaveable { mutableStateOf(false) }
+    var highRiskAcknowledged by rememberSaveable { mutableStateOf(false) }
 
     val haptics = rememberArcileHaptics()
     fun dismissActiveDetails() {
+        val hadActiveDetails = activeCleanerGroup != null
         activeCleanerGroup = null
         confirmCleanerGroup = null
         selectedCleanerPaths = emptySet()
         confirmCleanerPaths = emptySet()
         highRiskAcknowledged = false
+        if (hadActiveDetails) onRefreshThumbnailCache()
     }
 
     fun dismissDeleteConfirmation() {
@@ -221,6 +237,7 @@ internal fun StorageCleanerScreen(
             confirmCleanerGroup = null
             selectedCleanerPaths = emptySet()
             confirmCleanerPaths = emptySet()
+            onRefreshThumbnailCache()
         }
     }
     LaunchedEffect(state.errorMessage) {
@@ -282,45 +299,58 @@ internal fun StorageCleanerScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
         ) {
-            if (state.isScanning && state.scannedFiles == 0) {
-                CleanerLoading()
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        top = 12.dp,
-                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
-                    )
-                ) {
-                    if (state.isPartial) {
-                        item {
-                            Text(
-                                text = stringResource(R.string.cleaner_partial_results),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                            )
-                        }
-                    }
-
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    top = 12.dp,
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+                )
+            ) {
+                if (state.isScanning) {
                     item {
-                        CleanerThumbnailCacheCard(
-                            state = state.thumbnailCache,
-                            onClear = onClearThumbnailCache
+                        CleanerScanStatus(
+                            progress = state.scanProgress,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
+                }
+                if (state.isPartial) {
+                    item {
+                        Text(
+                            text = stringResource(R.string.cleaner_partial_results),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                }
 
-                    items(CleanerGroupType.entries, key = { it.name }) { type ->
-                        CleanerCategoryCard(
-                            group = state.group(type),
-                            onClick = {
-                                selectedCleanerPaths = emptySet()
-                                confirmCleanerPaths = emptySet()
-                                confirmCleanerGroup = null
-                                activeCleanerGroup = type
-                            }
-                        )
-                    }
+                item {
+                    CleanerThumbnailCacheCard(
+                        state = state.thumbnailCache,
+                        onClear = onClearThumbnailCache
+                    )
+                }
+
+                items(CleanerGroupType.entries, key = { it.name }) { type ->
+                    CleanerCategoryCard(
+                        group = state.group(type),
+                        isScanning = type in state.scanningGroups,
+                        scanProgress = state.scanProgress.takeIf { type in state.scanningGroups },
+                        isLoaded = type in state.loadedGroups,
+                        onLongClick = if (!state.isCleaning && type !in state.scanningGroups) {
+                            { onRefreshGroup(type) }
+                        } else {
+                            null
+                        },
+                        onClick = {
+                            selectedCleanerPaths = emptySet()
+                            confirmCleanerPaths = emptySet()
+                            confirmCleanerGroup = null
+                            activeCleanerGroup = type
+                            onScanGroup(type)
+                        }
+                    )
                 }
             }
         }
@@ -331,6 +361,9 @@ internal fun StorageCleanerScreen(
         CleanerDetailsSheet(
             group = activeGroup,
             isCleaning = state.isCleaning,
+            isScanning = activeGroup.type in state.scanningGroups,
+            scanProgress = state.scanProgress,
+            onRefresh = { onRefreshGroup(activeGroup.type) },
             selectedFiles = selectedCleanerPaths,
             onSelectedFilesChange = { selectedCleanerPaths = it },
             onDismiss = { dismissActiveDetails() },

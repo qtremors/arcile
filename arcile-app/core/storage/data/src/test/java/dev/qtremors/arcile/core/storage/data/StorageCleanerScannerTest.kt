@@ -7,9 +7,11 @@ import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.flow.toList
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -253,6 +255,28 @@ class StorageCleanerScannerTest {
         assertEquals(CleanerRiskLevel.High, packageCandidate.riskLevel)
         assertTrue(packageCandidate.riskReasons.contains(CleanerRiskReason.AppLikeFolder))
         assertFalse(result.group(CleanerGroupType.Junk).contains("internal.log"))
+    }
+
+    @Test
+    fun `category scan streams progress and returns only the requested cleaner`() = runTest {
+        val root = temporaryFolder.newFolder("progress-storage")
+        repeat(300) { index -> File(root, "trace-$index.tmp").writeBytes(byteArrayOf(1)) }
+        File(root, "installer.apk").writeBytes(byteArrayOf(2))
+
+        val updates = scanner.scanGroupUpdates(
+            rootPaths = listOf(root.absolutePath),
+            groupTypes = setOf(CleanerGroupType.Junk),
+            limits = StorageCleanerScanLimits(maxFiles = 1_000)
+        ).toList()
+
+        assertTrue(updates.any {
+            it.progress.phase == StorageCleanerScanPhase.Discovering &&
+                (it.progress.progressFraction ?: 1f) < 1f
+        })
+        val completed = updates.last()
+        assertEquals(StorageCleanerScanPhase.Complete, completed.progress.phase)
+        assertEquals(setOf(CleanerGroupType.Junk), completed.result?.groups?.map { it.type }?.toSet())
+        assertEquals(200, completed.result?.groups?.single()?.candidates?.size)
     }
 
     private fun dev.qtremors.arcile.core.storage.domain.StorageCleanerResult.group(type: CleanerGroupType): List<String> =

@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
+import dev.qtremors.arcile.core.storage.domain.CachedStorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
@@ -43,6 +44,7 @@ import java.io.File
 
 class FakeStorageCleanerScanner : StorageCleanerScanner {
     var result = StorageCleanerResult(groups = emptyList(), scannedFiles = 0, isPartial = false)
+    var cachedResult: CachedStorageCleanerResult? = null
     val scannedRules = mutableListOf<StorageCleanerRules>()
     val invalidatedPaths = mutableListOf<List<String>>()
     override suspend fun scan(
@@ -53,6 +55,15 @@ class FakeStorageCleanerScanner : StorageCleanerScanner {
     ): StorageCleanerResult {
         scannedRules += rules
         return result
+    }
+
+    override suspend fun cachedScanForGroups(
+        rootPaths: List<String>,
+        groupTypes: Set<CleanerGroupType>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): CachedStorageCleanerResult? = cachedResult?.let { cached ->
+        cached.copy(result = cached.result.copy(groups = cached.result.groups.filter { it.type in groupTypes }))
     }
 
     override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
@@ -127,6 +138,7 @@ class StorageCleanerViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         fakeScanner.result = StorageCleanerResult(groups = emptyList(), scannedFiles = 0, isPartial = false)
+        fakeScanner.cachedResult = null
         fakeScanner.scannedRules.clear()
         fakeScanner.invalidatedPaths.clear()
     }
@@ -170,10 +182,85 @@ class StorageCleanerViewModelTest {
             NoOpStorageCleanerPreferencesStore
         )
         advanceUntilIdle()
+        viewModel.scan()
+        advanceUntilIdle()
 
         val apks = viewModel.state.value.group(CleanerGroupType.Apks).candidates
         assertEquals(listOf("keep.apk"), apks.map { it.name })
         assertFalse(viewModel.state.value.isScanning)
+    }
+
+    @Test
+    fun `opening cleaner loads cached categories without starting a scan`() = runTest(dispatcher) {
+        val root = File("internal")
+        val cachedPath = File(root, "cached.apk").absolutePath
+        fakeScanner.cachedResult = CachedStorageCleanerResult(
+            result = StorageCleanerResult(
+                groups = listOf(
+                    CleanerGroup(
+                        CleanerGroupType.Apks,
+                        listOf(
+                            CleanerCandidate(
+                                name = "cached.apk",
+                                absolutePath = cachedPath,
+                                size = 1L,
+                                lastModified = 0L,
+                                groupTypes = setOf(CleanerGroupType.Apks)
+                            )
+                        )
+                    )
+                ),
+                scannedFiles = 1,
+                isPartial = false
+            ),
+            cachedAt = System.currentTimeMillis()
+        )
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume("internal", root, StorageKind.INTERNAL))
+        )
+
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf("cached.apk"), viewModel.state.value.group(CleanerGroupType.Apks).candidates.map { it.name })
+        assertTrue(fakeScanner.scannedRules.isEmpty())
+        assertFalse(viewModel.state.value.isScanning)
+    }
+
+    @Test
+    fun `individual refresh bypasses a fresh category cache`() = runTest(dispatcher) {
+        val root = File("internal")
+        fakeScanner.cachedResult = CachedStorageCleanerResult(
+            result = StorageCleanerResult(
+                groups = listOf(CleanerGroup(CleanerGroupType.Junk, emptyList())),
+                scannedFiles = 10,
+                isPartial = false
+            ),
+            cachedAt = System.currentTimeMillis()
+        )
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume("internal", root, StorageKind.INTERNAL))
+        )
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore
+        )
+        advanceUntilIdle()
+
+        viewModel.scanGroup(CleanerGroupType.Junk)
+        advanceUntilIdle()
+        assertTrue(fakeScanner.scannedRules.isEmpty())
+
+        viewModel.refreshGroup(CleanerGroupType.Junk)
+        advanceUntilIdle()
+        assertEquals(1, fakeScanner.scannedRules.size)
     }
 
     @Test
@@ -188,6 +275,8 @@ class StorageCleanerViewModelTest {
             fakeScanner,
             NoOpStorageCleanerPreferencesStore
         )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Apks)
         advanceUntilIdle()
 
         viewModel.clean(listOf(apkPath))
@@ -230,12 +319,65 @@ class StorageCleanerViewModelTest {
             NoOpStorageCleanerPreferencesStore
         )
         advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Apks)
+        advanceUntilIdle()
 
         viewModel.clean(listOf(apkPath))
         advanceUntilIdle()
 
         assertEquals("blocked", viewModel.state.value.errorMessage)
         assertTrue(viewModel.state.value.group(CleanerGroupType.Apks).candidates.any { it.absolutePath == apkPath })
+    }
+
+    @Test
+    fun `clean hides candidates before the trash operation completes`() = runTest(dispatcher) {
+        val root = File("internal")
+        val apkPath = File(root, "remove.apk").absolutePath
+        val gate = CompletableDeferred<Unit>()
+        val repository = FakeStorageRepositoryBundle(
+            volumes = listOf(volume("internal", root, StorageKind.INTERNAL))
+        ).apply {
+            moveToTrashResultProvider = { _, _ ->
+                gate.await()
+                Result.success(Unit)
+            }
+        }
+        fakeScanner.result = StorageCleanerResult(
+            groups = listOf(
+                CleanerGroup(
+                    CleanerGroupType.Apks,
+                    listOf(
+                        CleanerCandidate(
+                            name = "remove.apk",
+                            absolutePath = apkPath,
+                            size = 1L,
+                            lastModified = 0L,
+                            groupTypes = setOf(CleanerGroupType.Apks)
+                        )
+                    )
+                )
+            ),
+            scannedFiles = 1,
+            isPartial = false
+        )
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore
+        )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Apks)
+        advanceUntilIdle()
+
+        viewModel.clean(listOf(apkPath))
+        runCurrent()
+
+        assertTrue(viewModel.state.value.group(CleanerGroupType.Apks).candidates.isEmpty())
+        assertTrue(viewModel.state.value.isCleaning)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
     }
 
     @Test
@@ -269,6 +411,8 @@ class StorageCleanerViewModelTest {
             fakeScanner,
             NoOpStorageCleanerPreferencesStore
         )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Junk)
         advanceUntilIdle()
 
         viewModel.clean(listOf(logPath), acknowledgedHighRisk = false)
@@ -328,12 +472,14 @@ class StorageCleanerViewModelTest {
                 )
         )
 
-        StorageCleanerViewModel(
+        val viewModel = StorageCleanerViewModel(
             repository.volumeRepository,
             repository.trashRepository,
             fakeScanner,
             FakeStorageCleanerPreferencesStore(rules)
         )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Apks)
         advanceUntilIdle()
 
         assertEquals(rules.normalized(), fakeScanner.scannedRules.last())
@@ -351,6 +497,8 @@ class StorageCleanerViewModelTest {
             fakeScanner,
             preferences
         )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Junk)
         advanceUntilIdle()
         val initialScanCount = fakeScanner.scannedRules.size
 
@@ -391,6 +539,8 @@ class StorageCleanerViewModelTest {
             preferences
         )
         advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Junk)
+        advanceUntilIdle()
 
         viewModel.ignorePath(ignoredPath)
         viewModel.ignorePath(ignoredPath)
@@ -406,13 +556,15 @@ class StorageCleanerViewModelTest {
         val changedPath = File(root, "Download/new.apk").absolutePath
         val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
         val notifier = FakeStorageMutationNotifier()
-        StorageCleanerViewModel(
+        val viewModel = StorageCleanerViewModel(
             repository.volumeRepository,
             repository.trashRepository,
             fakeScanner,
             NoOpStorageCleanerPreferencesStore,
             notifier
         )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Apks)
         advanceUntilIdle()
         val initialScanCount = fakeScanner.scannedRules.size
 
@@ -430,7 +582,7 @@ class StorageCleanerViewModelTest {
             volumes = listOf(volume("internal", File("internal"), StorageKind.INTERNAL))
         )
         val cache = FakeThumbnailCacheService(
-            ThumbnailCacheStats(diskBytes = 512L, loadedCount = 3, failedCount = 1)
+            ThumbnailCacheStats(diskBytes = 512L, memoryBytes = 256L, loadedCount = 3, failedCount = 1)
         )
         val viewModel = StorageCleanerViewModel(
             repository.volumeRepository,
@@ -442,7 +594,16 @@ class StorageCleanerViewModelTest {
         advanceUntilIdle()
 
         assertEquals(512L, viewModel.state.value.thumbnailCache.stats.diskBytes)
+        assertEquals(256L, viewModel.state.value.thumbnailCache.stats.memoryBytes)
+        assertEquals(768L, viewModel.state.value.thumbnailCache.stats.totalBytes)
         assertFalse(viewModel.state.value.thumbnailCache.isLoading)
+
+        cache.currentStats = ThumbnailCacheStats(memoryBytes = 1_024L, loadedCount = 4)
+        viewModel.refreshThumbnailCache()
+        advanceUntilIdle()
+
+        assertEquals(1_024L, viewModel.state.value.thumbnailCache.stats.totalBytes)
+        assertEquals(4, viewModel.state.value.thumbnailCache.stats.loadedCount)
 
         cache.clearGate = CompletableDeferred()
         viewModel.clearThumbnailCache()
@@ -455,7 +616,7 @@ class StorageCleanerViewModelTest {
         cache.clearGate?.complete(Unit)
         advanceUntilIdle()
 
-        assertEquals(0L, viewModel.state.value.thumbnailCache.stats.diskBytes)
+        assertEquals(0L, viewModel.state.value.thumbnailCache.stats.totalBytes)
         assertFalse(viewModel.state.value.thumbnailCache.isClearing)
     }
 

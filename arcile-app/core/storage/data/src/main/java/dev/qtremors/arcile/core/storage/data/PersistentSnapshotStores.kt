@@ -7,6 +7,8 @@ import dev.qtremors.arcile.core.storage.data.db.StorageCleanerSnapshotEntity
 import dev.qtremors.arcile.core.storage.data.db.StorageUsageSnapshotDao
 import dev.qtremors.arcile.core.storage.data.db.StorageUsageSnapshotEntity
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.CachedStorageCleanerResult
+import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
@@ -109,21 +111,28 @@ class StorageCleanerSnapshotStore @Inject constructor(
     suspend fun get(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
-        rules: StorageCleanerRules
-    ): StorageCleanerResult? = withContext(dispatchers.io) {
-        val entity = dao.get(key(rootPaths, limits, rules)) ?: return@withContext null
-        runCatchingPreservingCancellation { json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain() }.getOrNull()
+        rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType> = CleanerGroupType.entries.toSet()
+    ): CachedStorageCleanerResult? = withContext(dispatchers.io) {
+        val entity = dao.get(key(rootPaths, limits, rules, groupTypes)) ?: return@withContext null
+        runCatchingPreservingCancellation {
+            CachedStorageCleanerResult(
+                result = json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain(),
+                cachedAt = entity.cachedAt
+            )
+        }.getOrNull()
     }
 
     suspend fun put(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
         rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType> = CleanerGroupType.entries.toSet(),
         result: StorageCleanerResult
     ) = withContext(dispatchers.io) {
         dao.upsert(
             StorageCleanerSnapshotEntity(
-                key = key(rootPaths, limits, rules),
+                key = key(rootPaths, limits, rules, groupTypes),
                 rootPathsKey = rootPathsKey(rootPaths),
                 payloadJson = json.encodeToString(CachedCleanerResult.from(result)),
                 cachedAt = System.currentTimeMillis()
@@ -135,8 +144,49 @@ class StorageCleanerSnapshotStore @Inject constructor(
         dao.clear()
     }
 
-    private fun key(rootPaths: List<String>, limits: StorageCleanerScanLimits, rules: StorageCleanerRules): String =
-        "cleaner:${rootPathsKey(rootPaths)}:${limits.maxFiles}:${limits.maxDepth}:${limits.maxCandidatesPerGroup}:${limits.largeFileThresholdBytes}:${limits.oldDownloadAgeMs}:${rules.normalized().stableHash()}"
+    suspend fun invalidate(paths: Collection<String>) = withContext(dispatchers.io) {
+        val normalizedPaths = paths.mapTo(hashSetOf()) { File(it).absolutePath }
+        if (normalizedPaths.isEmpty()) {
+            dao.markAllStale()
+            return@withContext
+        }
+        dao.getAll().forEach { entity ->
+            val cached = runCatchingPreservingCancellation {
+                json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain()
+            }.getOrNull() ?: return@forEach
+            val updated = cached.copy(
+                groups = cached.groups.map { group ->
+                    val remaining = group.candidates.filterNot { it.absolutePath in normalizedPaths }
+                    group.copy(
+                        candidates = if (group.type == CleanerGroupType.Duplicates) {
+                            remaining.groupBy { it.duplicateGroupKey ?: it.absolutePath }
+                                .values
+                                .filter { it.size > 1 }
+                                .flatten()
+                        } else {
+                            remaining
+                        }
+                    )
+                }
+            )
+            dao.upsert(
+                entity.copy(
+                    payloadJson = json.encodeToString(CachedCleanerResult.from(updated)),
+                    cachedAt = 0L
+                )
+            )
+        }
+    }
+
+    private fun key(
+        rootPaths: List<String>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType>
+    ): String =
+        "cleaner:${rootPathsKey(rootPaths)}:${groupTypes.map { it.name }.sorted().joinToString(",")}:" +
+            "${limits.maxFiles}:${limits.maxDepth}:${limits.maxCandidatesPerGroup}:" +
+            "${limits.largeFileThresholdBytes}:${limits.oldDownloadAgeMs}:${rules.normalized().stableHash()}"
 
     private fun rootPathsKey(rootPaths: List<String>): String =
         rootPaths.map { File(it).absolutePath }.distinct().sorted().joinToString("|")

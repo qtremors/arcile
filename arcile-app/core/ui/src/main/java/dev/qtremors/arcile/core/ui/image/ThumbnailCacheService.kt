@@ -16,10 +16,13 @@ import kotlinx.coroutines.withContext
 
 data class ThumbnailCacheStats(
     val diskBytes: Long = 0L,
+    val memoryBytes: Long = 0L,
     val loadedCount: Int = 0,
     val failedCount: Int = 0,
     val inFlightCount: Int = 0
-)
+) {
+    val totalBytes: Long get() = (diskBytes + memoryBytes).coerceAtLeast(0L)
+}
 
 interface ThumbnailCacheService {
     suspend fun stats(): Result<ThumbnailCacheStats>
@@ -80,6 +83,7 @@ class DefaultThumbnailCacheService @Inject constructor(
         val state = GlobalThumbnailLoadStateStore.stats()
         return ThumbnailCacheStats(
             diskBytes = diskCacheSize(),
+            memoryBytes = memoryCacheSize(),
             loadedCount = state.loadedCount,
             failedCount = state.failedCount,
             inFlightCount = state.inFlightCount
@@ -88,6 +92,10 @@ class DefaultThumbnailCacheService @Inject constructor(
 
     private suspend fun diskCacheSize(): Long {
         return context.imageLoader.diskCache?.size?.coerceAtLeast(0L) ?: 0L
+    }
+
+    private fun memoryCacheSize(): Long {
+        return context.imageLoader.memoryCache?.size?.toLong()?.coerceAtLeast(0L) ?: 0L
     }
 }
 

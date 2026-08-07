@@ -40,7 +40,14 @@
     <string name="tools_title">Tools &amp; Utilities</string>
     <string name="storage_cleaner_title">Storage Cleaner</string>
     <string name="cleaner_scanning">Scanning indexed storage…</string>
-    <string name="cleaner_partial_results">Some folders could not be scanned. Results may be incomplete.</string>
+    <string name="cleaner_scanning_category">Scanning…</string>
+    <string name="cleaner_checking_duplicates">Checking file contents for duplicates…</string>
+    <string name="cleaner_tap_to_scan">Tap to scan</string>
+    <string name="cleaner_scan_count">%1$d items scanned</string>
+    <string name="cleaner_scan_progress">%1$d items scanned • %2$d%%</string>
+    <string name="cleaner_scan_progress_eta">%1$d items scanned • %2$d%% • about %3$s left</string>
+    <string name="cleaner_partial_results">The scan reached its safety limit. Results may be incomplete.</string>
+    <string name="cleaner_refresh_category">Refresh %1$s</string>
     <string name="cleaner_large_files">Large files</string>
     <string name="cleaner_large_files_desc">Files over 100 MB sorted by size.</string>
     <string name="cleaner_old_downloads">Old downloads</string>

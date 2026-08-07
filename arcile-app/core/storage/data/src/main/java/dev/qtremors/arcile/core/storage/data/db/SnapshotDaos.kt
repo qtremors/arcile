@@ -39,10 +39,15 @@ interface StorageCleanerSnapshotDao {
     @Query("SELECT * FROM storage_cleaner_snapshots WHERE key = :key LIMIT 1")
     suspend fun get(key: String): StorageCleanerSnapshotEntity?
 
+    @Query("SELECT * FROM storage_cleaner_snapshots")
+    suspend fun getAll(): List<StorageCleanerSnapshotEntity>
+
+    @Query("UPDATE storage_cleaner_snapshots SET cached_at = 0")
+    suspend fun markAllStale()
+
     @Upsert
     suspend fun upsert(entity: StorageCleanerSnapshotEntity)
 
     @Query("DELETE FROM storage_cleaner_snapshots")
     suspend fun clear()
 }
-

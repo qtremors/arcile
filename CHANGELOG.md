@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.4
+> **Version:** 1.8.5
 > **Last Updated:** 2026-08-08
 
 ---
+
+## [1.8.5] - 2026-08-08
+
+- **Faster Cleaner Scans**: Added cached, per-category scans with live wavy progress and ETA, optimized for large storage.
+- **Reliable Cleaner Results**: Removed deleted and stale files immediately, skipped Android-protected folders quietly, and fixed thumbnail-cache size reporting.
+- **Preserved Cleaner Navigation**: Kept the active cleaner, duplicate comparison, selections, and dialogs when returning from previews or folders.
 
 ## [1.8.4] - 2026-08-08
 

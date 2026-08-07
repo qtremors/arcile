@@ -11,7 +11,9 @@
     <string name="category_show_file_details">Show file names and info</string>
     <string name="category_show_file_details_description">Turn off for a clean thumbnail-only grid.</string>
     <string name="settings_thumbnail_cache">Thumbnail cache</string>
-    <string name="settings_thumbnail_cache_stats">%1$s disk • %2$d loaded • %3$d failed • %4$d in flight</string>
+    <string name="settings_thumbnail_cache_stats">%1$s total • %2$s memory • %3$s disk • %4$d loaded • %5$d failed • %6$d in flight</string>
+    <string name="settings_thumbnail_cache_calculating">Calculating cache size…</string>
+    <string name="settings_thumbnail_cache_clearing">Clearing thumbnail cache…</string>
     <string name="settings_clear_thumbnail_cache">Clear</string>
     <string name="image_gallery_view_mode_aspect">Aspect ratio grid</string>
     <string name="image_gallery_view_mode_square">Square grid</string>
