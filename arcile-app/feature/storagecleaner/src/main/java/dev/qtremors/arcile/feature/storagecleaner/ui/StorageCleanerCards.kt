@@ -32,7 +32,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
 import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import dev.qtremors.arcile.core.ui.theme.bounceCombinedClickable
+import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
 @Composable
 internal fun CleanerCategoryCard(
@@ -40,22 +40,16 @@ internal fun CleanerCategoryCard(
     isScanning: Boolean = false,
     scanProgress: StorageCleanerScanProgress? = null,
     isLoaded: Boolean = true,
-    onLongClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val type = group.type
     val color = cleanerColor(type)
-    val refreshLabel = stringResource(R.string.cleaner_refresh_category, cleanerTitle(type))
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp)
             .clip(MaterialTheme.shapes.extraLarge)
-            .bounceCombinedClickable(
-                onLongClick = onLongClick,
-                onLongClickLabel = refreshLabel.takeIf { onLongClick != null },
-                onClick = onClick
-            ),
+            .bounceClickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         shape = MaterialTheme.shapes.extraLarge
     ) {

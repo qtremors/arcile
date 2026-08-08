@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.5
-> **Last Updated:** 2026-08-08
+> **Version:** 1.8.6
+> **Last Updated:** 2026-08-09
 
 ---
+
+## [1.8.6] - 2026-08-09
+
+- **Natural Cleaner Refresh**: Added pull-to-refresh to the cleaner overview and every cleaner page, retained detailed scan progress, and removed refresh buttons and hidden hold gestures.
+- **Full Cleaner Pages**: Replaced cleaner bottom sheets with full navigation pages that preserve selections, duplicate comparisons, settings, and return state.
+- **Reliable Cleaner State**: Kept refresh feedback continuous, enabled refresh and retry on empty pages, safely revalidated selections while results reload, and updated cache totals after every return path.
 
 ## [1.8.5] - 2026-08-08
 

@@ -47,7 +47,6 @@
     <string name="cleaner_scan_progress">%1$d items scanned • %2$d%%</string>
     <string name="cleaner_scan_progress_eta">%1$d items scanned • %2$d%% • about %3$s left</string>
     <string name="cleaner_partial_results">The scan reached its safety limit. Results may be incomplete.</string>
-    <string name="cleaner_refresh_category">Refresh %1$s</string>
     <string name="cleaner_large_files">Large files</string>
     <string name="cleaner_large_files_desc">Files over 100 MB sorted by size.</string>
     <string name="cleaner_old_downloads">Old downloads</string>

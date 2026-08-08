@@ -59,6 +59,8 @@ object AppRoutes {
     @Serializable data class ApkLibrary(val volumeId: String? = null)
     @Serializable data class StorageDashboard(val volumeId: String? = null)
     @Serializable object StorageCleaner
+    @Serializable object StorageCleanerOverview
+    @Serializable data class StorageCleanerGroup(val type: String)
     @Serializable object StorageManagement
     @Serializable object QuickAccess
     @Serializable data class ArchiveViewer(val archivePath: String)

@@ -1,221 +1,65 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.CopyAll
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.VideoFile
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.ui.Alignment
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
-import dev.qtremors.arcile.core.storage.domain.CleanerGroup
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
-import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
-import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
-import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerState
-import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.core.ui.theme.spacing
-import dev.qtremors.arcile.core.ui.theme.titleMediumBold
-import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.presentation.formatFileSize
-import coil.compose.SubcomposeAsyncImage
-import androidx.compose.ui.layout.ContentScale
-import dev.qtremors.arcile.core.storage.domain.FileCategories
-import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.ui.getFileIconVector
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.core.ui.rememberDateFormatter
-import java.util.Date
-import java.util.Locale
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.ui.graphics.graphicsLayer
+import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerState
 
-internal enum class StorageCleanerBackAction {
-    DismissIgnoredItems,
-    DismissDeleteConfirmation,
-    DismissDetails,
-    NavigateBack
-}
-
-internal fun resolveStorageCleanerBackAction(
-    showIgnoredItems: Boolean,
-    showDeleteConfirm: Boolean,
-    hasActiveDetails: Boolean
-): StorageCleanerBackAction = when {
-    showIgnoredItems -> StorageCleanerBackAction.DismissIgnoredItems
-    showDeleteConfirm -> StorageCleanerBackAction.DismissDeleteConfirmation
-    hasActiveDetails -> StorageCleanerBackAction.DismissDetails
-    else -> StorageCleanerBackAction.NavigateBack
-}
-
-private val cleanerPathSetSaver = Saver<Set<String>, ArrayList<String>>(
-    save = { ArrayList(it) },
-    restore = { it.toSet() }
-)
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun StorageCleanerScreen(
     state: StorageCleanerState,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
-    onScanGroup: (CleanerGroupType) -> Unit = {},
-    onRefreshGroup: (CleanerGroupType) -> Unit = {},
+    onOpenGroup: (CleanerGroupType) -> Unit = {},
     onClearThumbnailCache: () -> Unit = {},
-    onRefreshThumbnailCache: () -> Unit = {},
-    onCleanFiles: (List<String>, Boolean) -> Unit,
     onUndoClean: (List<String>) -> Unit = {},
     onClearMessages: () -> Unit,
-    onOpenFile: (String) -> Unit = {},
-    onOpenContainingFolder: (String) -> Unit = {},
-    onUpdateSectionRule: (CleanerGroupType, CleanerSectionRule) -> Unit = { _, _ -> },
-    onResetSectionRule: (CleanerGroupType) -> Unit = {},
-    onIgnorePath: (String) -> Unit = {},
     onUnignorePath: (String) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    var activeCleanerGroup by rememberSaveable { mutableStateOf<CleanerGroupType?>(null) }
-    var confirmCleanerGroup by rememberSaveable { mutableStateOf<CleanerGroupType?>(null) }
-    var selectedCleanerPaths by rememberSaveable(stateSaver = cleanerPathSetSaver) {
-        mutableStateOf(emptySet())
-    }
-    var confirmCleanerPaths by rememberSaveable(stateSaver = cleanerPathSetSaver) {
-        mutableStateOf(emptySet())
-    }
-    var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
-    var showIgnoredItems by rememberSaveable { mutableStateOf(false) }
-    var highRiskAcknowledged by rememberSaveable { mutableStateOf(false) }
-
     val haptics = rememberArcileHaptics()
-    fun dismissActiveDetails() {
-        val hadActiveDetails = activeCleanerGroup != null
-        activeCleanerGroup = null
-        confirmCleanerGroup = null
-        selectedCleanerPaths = emptySet()
-        confirmCleanerPaths = emptySet()
-        highRiskAcknowledged = false
-        if (hadActiveDetails) onRefreshThumbnailCache()
-    }
-
-    fun dismissDeleteConfirmation() {
-        showDeleteConfirm = false
-        confirmCleanerGroup = null
-        confirmCleanerPaths = emptySet()
-    }
-
-    var backProgress by remember { mutableStateOf(0f) }
-    var isBackPredicting by remember { mutableStateOf(false) }
-
-    val isBackHandlerEnabled = showIgnoredItems || showDeleteConfirm || activeCleanerGroup != null
-    PredictiveBackHandler(enabled = isBackHandlerEnabled) { progressFlow ->
-        isBackPredicting = true
-        try {
-            progressFlow.collect { backEvent ->
-                backProgress = backEvent.progress
-            }
-            when (resolveStorageCleanerBackAction(showIgnoredItems, showDeleteConfirm, activeCleanerGroup != null)) {
-                StorageCleanerBackAction.DismissIgnoredItems -> showIgnoredItems = false
-                StorageCleanerBackAction.DismissDeleteConfirmation -> dismissDeleteConfirmation()
-                StorageCleanerBackAction.DismissDetails -> dismissActiveDetails()
-                StorageCleanerBackAction.NavigateBack -> onNavigateBack()
-            }
-        } catch (e: Exception) {
-            // Cancelled
-        } finally {
-            isBackPredicting = false
-            backProgress = 0f
-        }
-    }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "refreshRotation")
-    val rotation by if (state.isScanning) {
-        infiniteTransition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(1200, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "refreshRotationAngle"
-        )
-    } else {
-        remember { mutableStateOf(0f) }
-    }
+    var showIgnoredItems by rememberSaveable { mutableStateOf(false) }
+    val isOverviewPullRefreshing = state.isPullToRefreshing &&
+        state.scanningGroups == CleanerGroupType.entries.toSet()
 
     LaunchedEffect(state.successMessage) {
         state.successMessage?.let { message ->
@@ -233,11 +77,6 @@ internal fun StorageCleanerScreen(
                 )
             )
             onClearMessages()
-            activeCleanerGroup = null
-            confirmCleanerGroup = null
-            selectedCleanerPaths = emptySet()
-            confirmCleanerPaths = emptySet()
-            onRefreshThumbnailCache()
         }
     }
     LaunchedEffect(state.errorMessage) {
@@ -263,7 +102,10 @@ internal fun StorageCleanerScreen(
                         onClick = onNavigateBack,
                         modifier = Modifier.clip(CircleShape)
                     ) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
                     }
                 },
                 actions = {
@@ -276,34 +118,34 @@ internal fun StorageCleanerScreen(
                             contentDescription = stringResource(R.string.cleaner_ignored_items)
                         )
                     }
-                    IconButton(
-                        onClick = onRefresh,
-                        enabled = !state.isScanning && !state.isCleaning,
-                        modifier = Modifier.clip(CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = stringResource(R.string.refresh),
-                            modifier = Modifier.graphicsLayer {
-                                rotationZ = rotation
-                            }
-                        )
-                    }
                 },
                 scrollBehavior = scrollBehavior
             )
         }
     ) { padding ->
-        Box(
+        val pullRefreshState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            isRefreshing = isOverviewPullRefreshing,
+            onRefresh = {
+                if (!state.isScanning && !state.isCleaning) onRefresh()
+            },
+            state = pullRefreshState,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = padding.calculateTopPadding())
+                .padding(top = padding.calculateTopPadding()),
+            indicator = {
+                ArcilePullRefreshIndicator(
+                    isRefreshing = isOverviewPullRefreshing,
+                    state = pullRefreshState
+                )
+            }
         ) {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(
                     top = 12.dp,
-                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + MaterialTheme.spacing.screenGutter
+                    bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
+                        MaterialTheme.spacing.screenGutter
                 )
             ) {
                 if (state.isScanning) {
@@ -324,109 +166,23 @@ internal fun StorageCleanerScreen(
                         )
                     }
                 }
-
                 item {
                     CleanerThumbnailCacheCard(
                         state = state.thumbnailCache,
                         onClear = onClearThumbnailCache
                     )
                 }
-
                 items(CleanerGroupType.entries, key = { it.name }) { type ->
                     CleanerCategoryCard(
                         group = state.group(type),
                         isScanning = type in state.scanningGroups,
                         scanProgress = state.scanProgress.takeIf { type in state.scanningGroups },
                         isLoaded = type in state.loadedGroups,
-                        onLongClick = if (!state.isCleaning && type !in state.scanningGroups) {
-                            { onRefreshGroup(type) }
-                        } else {
-                            null
-                        },
-                        onClick = {
-                            selectedCleanerPaths = emptySet()
-                            confirmCleanerPaths = emptySet()
-                            confirmCleanerGroup = null
-                            activeCleanerGroup = type
-                            onScanGroup(type)
-                        }
+                        onClick = { onOpenGroup(type) }
                     )
                 }
             }
         }
-    }
-
-    val activeGroup = activeCleanerGroup?.let(state::group)
-    if (activeGroup != null) {
-        CleanerDetailsSheet(
-            group = activeGroup,
-            isCleaning = state.isCleaning,
-            isScanning = activeGroup.type in state.scanningGroups,
-            scanProgress = state.scanProgress,
-            onRefresh = { onRefreshGroup(activeGroup.type) },
-            selectedFiles = selectedCleanerPaths,
-            onSelectedFilesChange = { selectedCleanerPaths = it },
-            onDismiss = { dismissActiveDetails() },
-            onRequestClean = { paths ->
-                confirmCleanerGroup = activeCleanerGroup
-                activeCleanerGroup = null
-                selectedCleanerPaths = paths
-                confirmCleanerPaths = paths
-                highRiskAcknowledged = false
-                showDeleteConfirm = true
-            },
-            onOpenFile = onOpenFile,
-            onOpenContainingFolder = onOpenContainingFolder,
-            rules = state.rules,
-            onUpdateSectionRule = onUpdateSectionRule,
-            onResetSectionRule = onResetSectionRule,
-            onIgnorePath = onIgnorePath,
-            backProgress = backProgress,
-            isBackPredicting = isBackPredicting && activeCleanerGroup != null
-        )
-    }
-
-    val confirmGroup = confirmCleanerGroup?.let(state::group)
-    if (showDeleteConfirm && confirmGroup != null) {
-        val selectedCandidates = confirmGroup.candidates.filter { it.absolutePath in confirmCleanerPaths }
-        val hasHighRisk = selectedCandidates.any { it.riskLevel == CleanerRiskLevel.High }
-        AlertDialog(
-            onDismissRequest = {
-                dismissDeleteConfirmation()
-            },
-            title = { Text(stringResource(R.string.clean_confirm_title)) },
-            text = {
-                CleanerConfirmContent(
-                    selectedCandidates = selectedCandidates,
-                    hasHighRisk = hasHighRisk,
-                    highRiskAcknowledged = highRiskAcknowledged,
-                    onHighRiskAcknowledgedChange = { highRiskAcknowledged = it }
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDeleteConfirm = false
-                        onCleanFiles(confirmCleanerPaths.toList(), highRiskAcknowledged)
-                        confirmCleanerGroup = null
-                        confirmCleanerPaths = emptySet()
-                    },
-                    enabled = !hasHighRisk || highRiskAcknowledged,
-                    shape = ExpressiveShapes.medium,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text(stringResource(R.string.delete))
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = { dismissDeleteConfirmation() },
-                    shape = ExpressiveShapes.medium
-                ) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
     }
 
     if (showIgnoredItems) {

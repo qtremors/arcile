@@ -62,6 +62,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
         onNavigateBack = { navController.popBackStack() }
     )
     registerStorageCleanerRoute(
+        navController = navController,
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,

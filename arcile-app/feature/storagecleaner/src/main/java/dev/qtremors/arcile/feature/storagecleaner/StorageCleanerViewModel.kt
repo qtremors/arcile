@@ -39,6 +39,7 @@ import kotlinx.coroutines.launch
 internal data class StorageCleanerState(
     val groups: List<CleanerGroup> = CleanerGroupType.entries.map { CleanerGroup(it, emptyList()) },
     val isScanning: Boolean = false,
+    val isPullToRefreshing: Boolean = false,
     val scanningGroups: Set<CleanerGroupType> = emptySet(),
     val loadedGroups: Set<CleanerGroupType> = emptySet(),
     val scanProgress: StorageCleanerScanProgress? = null,
@@ -192,9 +193,14 @@ internal class StorageCleanerViewModel @Inject constructor(
         }
     }
 
-    fun scan() {
+    fun scan(pullToRefresh: Boolean = false) {
         lastOpenedGroup = null
-        startScan(CleanerGroupType.entries.toSet(), force = true, clearMessages = true)
+        startScan(
+            CleanerGroupType.entries.toSet(),
+            force = true,
+            clearMessages = true,
+            pullToRefresh = pullToRefresh
+        )
     }
 
     fun scanGroup(type: CleanerGroupType) {
@@ -202,9 +208,14 @@ internal class StorageCleanerViewModel @Inject constructor(
         startScan(setOf(type), force = false, clearMessages = true)
     }
 
-    fun refreshGroup(type: CleanerGroupType) {
+    fun refreshGroup(type: CleanerGroupType, pullToRefresh: Boolean = false) {
         lastOpenedGroup = type
-        startScan(setOf(type), force = true, clearMessages = true)
+        startScan(
+            setOf(type),
+            force = true,
+            clearMessages = true,
+            pullToRefresh = pullToRefresh
+        )
     }
 
     private suspend fun loadCachedGroups(
@@ -234,14 +245,16 @@ internal class StorageCleanerViewModel @Inject constructor(
     private fun startScan(
         groups: Set<CleanerGroupType>,
         force: Boolean,
-        clearMessages: Boolean
+        clearMessages: Boolean,
+        pullToRefresh: Boolean = false
     ) {
         if (groups.isEmpty()) return
         scanJob?.cancel()
         _state.update { current ->
             current.copy(
                 isScanning = false,
-                scanningGroups = emptySet(),
+                isPullToRefreshing = pullToRefresh,
+                scanningGroups = if (pullToRefresh) groups else emptySet(),
                 scanProgress = null
             )
         }
@@ -257,6 +270,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                     current.copy(
                         groups = current.groups.merge(groups.map { CleanerGroup(it, emptyList()) }),
                         isScanning = false,
+                        isPullToRefreshing = false,
                         scanningGroups = emptySet(),
                         loadedGroups = current.loadedGroups + groups,
                         scanProgress = null
@@ -267,7 +281,22 @@ internal class StorageCleanerViewModel @Inject constructor(
             }
 
             val rules = _state.value.rules
-            val cached = scanner.cachedScanForGroups(indexedPaths, groups, rules = rules)
+            val cached = runCatching {
+                scanner.cachedScanForGroups(indexedPaths, groups, rules = rules)
+            }.getOrElse { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                _state.update { current ->
+                    current.copy(
+                        isScanning = false,
+                        isPullToRefreshing = false,
+                        scanningGroups = emptySet(),
+                        scanProgress = null,
+                        errorMessage = error.message.orEmpty()
+                    )
+                }
+                currentScanGroups = emptySet()
+                return@launch
+            }
             if (cached != null) {
                 _state.update { current ->
                     current.copy(
@@ -289,6 +318,7 @@ internal class StorageCleanerViewModel @Inject constructor(
             _state.update { current ->
                 current.copy(
                     isScanning = true,
+                    isPullToRefreshing = pullToRefresh,
                     scanningGroups = groups,
                     scanProgress = StorageCleanerScanProgress(),
                     errorMessage = null,
@@ -305,6 +335,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                             scannedFiles = update.progress.scannedFiles,
                             isPartial = result?.isPartial ?: current.isPartial,
                             isScanning = !isComplete,
+                            isPullToRefreshing = current.isPullToRefreshing && !isComplete,
                             scanningGroups = if (isComplete) emptySet() else groups,
                             loadedGroups = if (isComplete) current.loadedGroups + groups else current.loadedGroups,
                             scanProgress = update.progress,
@@ -317,6 +348,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                 _state.update { current ->
                     current.copy(
                         isScanning = false,
+                        isPullToRefreshing = false,
                         scanningGroups = emptySet(),
                         scanProgress = null,
                         errorMessage = error.message.orEmpty()
@@ -333,6 +365,7 @@ internal class StorageCleanerViewModel @Inject constructor(
             _state.update { current ->
                 current.copy(
                     isScanning = false,
+                    isPullToRefreshing = false,
                     scanningGroups = emptySet(),
                     scanProgress = null,
                     errorMessage = error.message.orEmpty()
@@ -347,6 +380,11 @@ internal class StorageCleanerViewModel @Inject constructor(
         val uniquePaths = paths.distinct()
         if (uniquePaths.isEmpty()) return
         val selectedCandidates = _state.value.candidatesFor(uniquePaths.toSet())
+        val validatedPaths = selectedCandidates.mapTo(hashSetOf()) { it.absolutePath }
+        if (validatedPaths != uniquePaths.toSet()) {
+            _state.update { it.copy(errorMessage = "Refresh cleaner results before cleanup.") }
+            return
+        }
         if (selectedCandidates.any { it.riskLevel == CleanerRiskLevel.High } && !acknowledgedHighRisk) {
             _state.update { it.copy(errorMessage = "Review high-risk files before cleanup.") }
             return
