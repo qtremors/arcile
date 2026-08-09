@@ -70,8 +70,9 @@ fun DeleteConfirmationDialog(
         DeleteDestination.AndroidSystemConfirmation -> stringResource(R.string.delete_decision_android_description)
         DeleteDestination.MixedBlocked -> stringResource(R.string.delete_decision_mixed_description)
     }
-    val summary = stringResource(
-        R.string.delete_decision_summary,
+    val summary = androidx.compose.ui.res.pluralStringResource(
+        R.plurals.delete_decision_summary,
+        resolvedDecision.selectedCount,
         resolvedDecision.selectedCount,
         formatFileSize(resolvedDecision.totalBytes),
         resolvedDecision.folderCount

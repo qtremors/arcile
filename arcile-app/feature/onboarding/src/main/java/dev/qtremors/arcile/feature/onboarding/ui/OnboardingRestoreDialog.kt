@@ -138,7 +138,7 @@ internal fun OnboardingRestoreDialog(
             title = { Text(stringResource(R.string.settings_backup_restore_complete_title)) },
             text = {
                 OnboardingRestoreItemList(
-                    description = stringResource(R.string.settings_backup_restore_complete_description, state.items.size),
+                    description = androidx.compose.ui.res.pluralStringResource(R.plurals.settings_backup_restore_complete_description, state.items.size, state.items.size),
                     items = state.items,
                     failures = state.failures
                 )

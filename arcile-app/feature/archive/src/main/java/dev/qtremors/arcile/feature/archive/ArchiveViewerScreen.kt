@@ -222,7 +222,7 @@ internal fun ArchiveViewerScreen(
                 title = {
                     if (isInSelectionMode) {
                         Text(
-                            text = stringResource(R.string.selected_count, state.selectedItems.size),
+                            text = androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, state.selectedItems.size, state.selectedItems.size),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

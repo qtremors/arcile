@@ -168,6 +168,14 @@ internal class AudioLibraryViewModel @Inject constructor(
         rebuildPresentation { it.copy(query = query) }
     }
 
+    fun updateFavoriteSearchAliases(aliases: Set<String>) {
+        val normalizedAliases = aliases
+            .mapTo(linkedSetOf()) { it.trim() }
+            .filterTo(linkedSetOf(), String::isNotEmpty)
+        if (_state.value.favoriteSearchAliases == normalizedAliases) return
+        rebuildPresentation { it.copy(favoriteSearchAliases = normalizedAliases) }
+    }
+
     fun updateSearchFilters(filters: SearchFilters) {
         rebuildPresentation { it.copy(searchFilters = filters) }
     }

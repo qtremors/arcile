@@ -6,6 +6,7 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
@@ -41,6 +42,10 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
         val coroutineScope = rememberCoroutineScope()
         LaunchedEffect(viewModel, onFeedback) {
             viewModel.feedbackEvents.collect(onFeedback)
+        }
+        val favoritesSearchLabel = stringResource(R.string.audio_favorites)
+        LaunchedEffect(viewModel, favoritesSearchLabel) {
+            viewModel.updateFavoriteSearchAliases(setOf(favoritesSearchLabel))
         }
         AudioLibraryScreen(
             state = state,

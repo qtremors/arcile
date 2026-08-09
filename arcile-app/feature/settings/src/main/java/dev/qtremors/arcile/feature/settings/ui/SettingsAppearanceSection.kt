@@ -299,7 +299,7 @@ private fun HomeRecentCarouselLimit(
                     text = if (value == 0) {
                         stringResource(R.string.settings_home_recent_carousel_hidden)
                     } else {
-                        stringResource(R.string.settings_home_recent_carousel_count, value)
+                        androidx.compose.ui.res.pluralStringResource(R.plurals.settings_home_recent_carousel_count, value, value)
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

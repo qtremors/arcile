@@ -147,7 +147,12 @@ class VaultImportService : Service() {
             .setContentTitle(getString(R.string.onlyfiles_import_notification_title))
             .setContentText(
                 progress?.let {
-                    getString(R.string.onlyfiles_import_notification_progress, it.completedItems, it.totalItems)
+                    resources.getQuantityString(
+                        R.plurals.onlyfiles_import_notification_progress,
+                        it.totalItems,
+                        it.completedItems,
+                        it.totalItems
+                    )
                 } ?: getString(R.string.onlyfiles_import_notification_preparing)
             )
             .setOngoing(true)

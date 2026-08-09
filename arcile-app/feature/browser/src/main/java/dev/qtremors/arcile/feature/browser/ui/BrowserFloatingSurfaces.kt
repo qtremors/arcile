@@ -405,8 +405,9 @@ private fun BrowserClipboardOperationToolbar(
                                     val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
                                     formatFileSize(remaining.coerceAtLeast(0L))
                                 } else {
-                                    stringResource(
-                                        R.string.transfer_progress_items,
+                                    androidx.compose.ui.res.pluralStringResource(
+                                        R.plurals.transfer_progress_items,
+                                        activeOp.totalItems,
                                         activeOp.completedItems,
                                         activeOp.totalItems
                                     )

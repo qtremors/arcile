@@ -157,8 +157,9 @@ internal fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
                 style = MaterialTheme.typography.titleMediumBold
             )
             Text(
-                text = stringResource(
-                    R.string.storage_usage_map_scan_progress,
+                text = androidx.compose.ui.res.pluralStringResource(
+                    R.plurals.storage_usage_map_scan_progress,
+                    scanState.progress.scannedNodes,
                     scanState.progress.scannedNodes,
                     formatFileSize(scanState.progress.scannedBytes)
                 ),

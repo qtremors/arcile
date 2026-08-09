@@ -111,7 +111,7 @@ internal fun ApkLibraryScreen(
         emptyFoldersDescription = stringResource(R.string.apk_folders_empty_description),
         viewSortFilesTitle = stringResource(R.string.apk_view_sort),
         viewSortFoldersTitle = stringResource(R.string.apk_view_sort_folders),
-        selectedCount = { count -> resources.getString(R.string.apk_selected, count) }
+        selectedCount = { count -> resources.getQuantityString(R.plurals.apk_selected, count, count) }
     )
     FileCategoryLibrary(
         files = state.files,
@@ -259,7 +259,7 @@ private fun ApkFolderItem(
     CategoryFolderGridItem(
         info = CategoryItemInfo(
             title = folder.label,
-            detailLines = listOf(stringResource(R.string.apk_folder_count, folder.itemCount))
+            detailLines = listOf(androidx.compose.ui.res.pluralStringResource(R.plurals.apk_folder_count, folder.itemCount, folder.itemCount))
         ),
         onClick = onClick,
         modifier = modifier

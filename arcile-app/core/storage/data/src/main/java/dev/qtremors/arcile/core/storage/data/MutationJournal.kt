@@ -9,6 +9,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 
 interface MutationJournal {
     fun recordTemporaryPath(path: String)
@@ -31,10 +35,15 @@ class DefaultMutationJournal(
     private val volumeProvider: VolumeProvider,
     private val dispatchers: ArcileDispatchers
 ) : MutationJournal {
-    private val preferences = context.getSharedPreferences("mutation_journal", Context.MODE_PRIVATE)
+    private val store = storeFile(context)
+    private val lock = Any()
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
+    }
+
+    init {
+        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
     }
 
     override fun recordTemporaryPath(path: String) {
@@ -142,28 +151,77 @@ class DefaultMutationJournal(
     }
 
     private fun updateEntries(transform: (List<MutationJournalEntry>) -> List<MutationJournalEntry>) {
-        synchronized(preferences) {
+        synchronized(lock) {
             writeEntries(transform(readEntries()))
         }
     }
 
     private fun readEntries(): List<MutationJournalEntry> {
-        val encoded = preferences.getString(KEY_ENTRIES, null) ?: return emptyList()
-        return runCatchingPreservingCancellation { json.decodeFromString<List<MutationJournalEntry>>(encoded) }
+        if (!store.exists()) return emptyList()
+        if (store.length() > MAX_STORE_BYTES) {
+            AppLogger.w(TAG, "Dropping oversized mutation journal")
+            store.delete()
+            return emptyList()
+        }
+        return runCatchingPreservingCancellation {
+            store.bufferedReader().use { reader ->
+                json.decodeFromString<List<MutationJournalEntry>>(reader.readText())
+            }.takeLast(MAX_ENTRIES)
+        }
             .getOrElse {
-                AppLogger.w("MutationJournal", "Dropping unreadable mutation journal", it)
+                AppLogger.w(TAG, "Dropping unreadable mutation journal", it)
+                store.delete()
                 emptyList()
             }
     }
 
     private fun writeEntries(entries: List<MutationJournalEntry>) {
-        preferences.edit()
-            .putString(KEY_ENTRIES, json.encodeToString(entries))
-            .apply()
+        var bounded = entries.takeLast(MAX_ENTRIES)
+        var encoded = json.encodeToString(bounded).encodeToByteArray()
+        while (encoded.size > MAX_STORE_BYTES && bounded.isNotEmpty()) {
+            bounded = bounded.drop(1)
+            encoded = json.encodeToString(bounded).encodeToByteArray()
+        }
+        if (bounded.isEmpty()) {
+            store.delete()
+            return
+        }
+        store.parentFile?.mkdirs()
+        val pending = File(store.parentFile, "${store.name}.new")
+        try {
+            FileOutputStream(pending).use { output ->
+                output.write(encoded)
+                output.flush()
+                output.fd.sync()
+            }
+            try {
+                Files.move(
+                    pending.toPath(),
+                    store.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE,
+                    StandardCopyOption.REPLACE_EXISTING
+                )
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(pending.toPath(), store.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } finally {
+            pending.delete()
+        }
     }
 
-    private companion object {
-        const val KEY_ENTRIES = "entries"
+    companion object {
+        private const val TAG = "MutationJournal"
+        private const val LEGACY_PREFERENCES = "mutation_journal"
+        private const val STORE_FILE = "mutation_journal.json"
+        private const val MAX_STORE_BYTES = 512 * 1024
+        private const val MAX_ENTRIES = 512
+
+        internal fun storeFile(context: Context) = File(context.noBackupFilesDir, STORE_FILE)
+        internal fun clearForTest(context: Context) {
+            val file = storeFile(context)
+            file.delete()
+            File(file.parentFile, "${file.name}.new").delete()
+        }
     }
 }
 

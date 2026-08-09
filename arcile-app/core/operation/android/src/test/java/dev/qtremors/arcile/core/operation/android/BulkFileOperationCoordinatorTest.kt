@@ -17,9 +17,11 @@ import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.FakeClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -50,6 +52,7 @@ class BulkFileOperationCoordinatorTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        DefaultOperationJournal.clearForTest(context)
         clipboardRepository = FakeClipboardRepository()
         coordinator = ForegroundBulkFileOperationCoordinator(
             context = context,
@@ -187,6 +190,59 @@ class BulkFileOperationCoordinatorTest {
     }
 
     @Test
+    fun `one gibibyte progress storm is coalesced and terminal state flushes exactly`() = testScope.runTest {
+        val journal = RecordingOperationJournal()
+        val progressCoordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = journal,
+            applicationScope = this
+        )
+        var nowMillis = 0L
+        progressCoordinator.progressClock = { nowMillis }
+        val observed = mutableListOf<BulkFileOperationProgress>()
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+            progressCoordinator.events
+                .filterIsInstance<BulkFileOperationEvent.Progress>()
+                .collect { observed += it.progress }
+        }
+        assertTrue(
+            progressCoordinator.startOperation(
+                BulkFileOperationType.COPY,
+                listOf("/large.bin"),
+                "/dest",
+                emptyMap()
+            )
+        )
+        val request = requireNotNull(progressCoordinator.activeRequest.value)
+        var presentedUpdates = 0
+        for (megabytes in 1..1023) {
+            nowMillis += 1L
+            val progress = BulkFileOperationProgress(
+                completedItems = 0,
+                totalItems = 1,
+                currentPath = "/large.bin",
+                bytesCopied = megabytes * 1024L * 1024L,
+                totalBytes = 1024L * 1024L * 1024L
+            )
+            if (progressCoordinator.onOperationProgress(request, progress)) {
+                presentedUpdates += 1
+            }
+        }
+
+        progressCoordinator.onOperationCompleted(request)
+
+        assertTrue("presentation updates should stay below four per second", presentedUpdates <= 3)
+        assertTrue("journal writes should stay below four per second plus terminal flush", journal.progressWrites <= 4)
+        assertEquals(1023L * 1024L * 1024L, journal.lastPersisted?.progress?.bytesCopied)
+        assertEquals(OperationPhase.COMPLETED, journal.lastPersisted?.phase)
+        assertTrue(observed.zipWithNext().all { (before, after) ->
+            (before.bytesCopied ?: 0L) <= (after.bytesCopied ?: 0L)
+        })
+        assertEquals(journal.lastPersisted?.progress, observed.last())
+        collector.cancel()
+    }
+
+    @Test
     fun `checkpoints are written to operation journal`() {
         coordinator.startOperation(BulkFileOperationType.COPY, listOf("/test.txt"), "/dest", emptyMap(), null)
         val request = coordinator.activeRequest.value!!
@@ -284,7 +340,7 @@ class BulkFileOperationCoordinatorTest {
     @Test
     fun `constructor classifies queued running and cancelling interrupted operations as cleanup required`() {
         listOf(OperationPhase.QUEUED, OperationPhase.RUNNING, OperationPhase.CANCELLING).forEach { phase ->
-            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            DefaultOperationJournal.clearForTest(context)
             val journal = DefaultOperationJournal(context)
             journal.upsertActive(request("op-${phase.name.lowercase()}").toJournalRecord(phase))
 
@@ -370,6 +426,41 @@ class BulkFileOperationCoordinatorTest {
         override suspend fun cleanupAbandonedMutations() {
             cleanupCalled = true
         }
+    }
+
+    private class RecordingOperationJournal : OperationJournal {
+        private var active: OperationJournalRecord? = null
+        var progressWrites = 0
+            private set
+        var lastPersisted: OperationJournalRecord? = null
+            private set
+
+        override fun activeRecord(): OperationJournalRecord? = active
+
+        override fun upsertActive(record: OperationJournalRecord) {
+            active = record
+            lastPersisted = record
+        }
+
+        override fun update(
+            operationId: String,
+            transform: (OperationJournalRecord) -> OperationJournalRecord
+        ) {
+            val current = active ?: return
+            if (current.request.operationId != operationId) return
+            val updated = transform(current)
+            if (updated.progress != current.progress) progressWrites += 1
+            active = updated
+            lastPersisted = updated
+        }
+
+        override fun clearActive(operationId: String) {
+            if (active?.request?.operationId == operationId) active = null
+        }
+
+        override fun recoveryRecords(): List<OperationJournalRecord> = emptyList()
+        override fun dismissRecovery(operationId: String) = Unit
+        override fun recoverInterrupted(): List<OperationJournalRecord> = emptyList()
     }
 
     private class DelayingFirstActivityLogStore : ActivityLogStore {

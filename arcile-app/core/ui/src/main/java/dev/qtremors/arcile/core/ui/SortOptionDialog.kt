@@ -193,8 +193,9 @@ fun SortOptionDialog(
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                     Text(
-                                        text = stringResource(
-                                            R.string.browser_layout_grid_columns_value,
+                                        text = androidx.compose.ui.res.pluralStringResource(
+                                            R.plurals.browser_layout_grid_columns_value,
+                                            liveColumnCount,
                                             liveColumnCount
                                         ),
                                         style = MaterialTheme.typography.labelLarge,

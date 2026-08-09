@@ -167,7 +167,7 @@ private fun TransferProgress(activeOp: OperationUiState) {
             formatFileSize(totalBytes)
         )
     } else {
-        stringResource(R.string.transfer_progress_items, activeOp.completedItems, activeOp.totalItems)
+        androidx.compose.ui.res.pluralStringResource(R.plurals.transfer_progress_items, activeOp.totalItems, activeOp.completedItems, activeOp.totalItems)
     }
     Text(
         text = progressText,

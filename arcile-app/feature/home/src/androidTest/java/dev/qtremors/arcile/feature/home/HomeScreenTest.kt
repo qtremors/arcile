@@ -146,6 +146,51 @@ class HomeScreenTest {
         }
     }
 
+    @Test
+    fun homeLayoutDialog_moveControlsUpdateTheAppliedDraft() {
+        var appliedPreferences: HomeLayoutPreferences? = null
+        composeTestRule.setContent {
+            HomeLayoutDialog(
+                preferences = HomeLayoutPreferences(),
+                onDismiss = {},
+                onApply = { appliedPreferences = it }
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move Storage down").performClick()
+        composeTestRule.onNodeWithText("Apply").performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(
+                listOf(HomeSectionIds.CATEGORIES, HomeSectionIds.STORAGE) +
+                    HomeSectionIds.ALL.drop(2),
+                checkNotNull(appliedPreferences).orderedSectionIds
+            )
+        }
+    }
+
+    @Test
+    fun homeLayoutDialog_cancelDiscardsTheCompleteDraft() {
+        var dismissed = false
+        var appliedPreferences: HomeLayoutPreferences? = null
+        composeTestRule.setContent {
+            HomeLayoutDialog(
+                preferences = HomeLayoutPreferences(),
+                onDismiss = { dismissed = true },
+                onApply = { appliedPreferences = it }
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move Storage down").performClick()
+        composeTestRule.onNodeWithContentDescription("Show Categories on Home").performClick()
+        composeTestRule.onNodeWithText("Cancel").performClick()
+
+        composeTestRule.runOnIdle {
+            assertEquals(true, dismissed)
+            assertEquals(null, appliedPreferences)
+        }
+    }
+
     private fun testNavigationIntents() = HomeNavigationIntents(
         openFileBrowser = {},
         navigateToPath = {},

@@ -61,7 +61,7 @@ internal fun RecentSelectionTopBar(
                 contentAlignment = Alignment.CenterStart
             ) {
                 Column {
-                    Text(stringResource(R.string.selected_count, selectedCount))
+                    Text(androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, selectedCount, selectedCount))
                     if (selectedSize != null) {
                         Text(
                             text = selectedSize,

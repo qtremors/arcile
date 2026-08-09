@@ -68,7 +68,9 @@ class BulkFileOperationServiceTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        DefaultOperationJournal.clearForTest(context)
         coordinator = mockk(relaxed = true)
+        every { coordinator.onOperationProgress(any(), any()) } returns true
         clipboardRepository = FakeClipboardRepository()
         trashRepository = FakeTrashRepository()
         fileMutationRepository = FakeFileMutationRepository()
@@ -83,7 +85,6 @@ class BulkFileOperationServiceTest {
         service.fileMutationRepository = fileMutationRepository
         service.archiveRepository = archiveRepository
         service.storageWorkCoordinator = storageWorkCoordinator
-        service.operationJournal = DefaultOperationJournal(context)
     }
 
     @Test
@@ -519,7 +520,7 @@ class BulkFileOperationServiceTest {
         ): Boolean = false
 
         override fun cancelActiveOperation() = Unit
-        override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+        override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = true
         override fun onOperationCheckpoint(
             request: BulkFileOperationRequest,
             stagedPaths: List<String>,

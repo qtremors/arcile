@@ -158,8 +158,9 @@ private fun recoverySummary(state: BrowserUiState): String {
         BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
     }
     val current = recovery.currentPath?.let(::storagePathName)?.takeIf(String::isNotBlank)
-    val progress = stringResource(
-        R.string.transfer_progress_items,
+    val progress = androidx.compose.ui.res.pluralStringResource(
+        R.plurals.transfer_progress_items,
+        recovery.totalItems,
         recovery.completedItems,
         recovery.totalItems
     )

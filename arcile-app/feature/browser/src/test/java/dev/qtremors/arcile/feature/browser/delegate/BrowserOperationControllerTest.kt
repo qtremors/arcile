@@ -168,6 +168,52 @@ class BrowserOperationControllerTest {
     }
 
     @Test
+    fun `recreated controller does not replay terminal events`() = scope.runTest {
+        listOf("completed", "failed", "cancelled").forEach { terminal ->
+            val lateCoordinator = FakeBulkFileOperationCoordinator()
+            lateCoordinator.startOperation(
+                type = BulkFileOperationType.TRASH,
+                sourcePaths = listOf("/old.txt"),
+                destinationPath = null,
+                resolutions = emptyMap(),
+                presentationOwnerId = "late-owner"
+            )
+            val request = requireNotNull(lateCoordinator.activeRequest.value)
+            when (terminal) {
+                "completed" -> lateCoordinator.onOperationCompleted(request)
+                "failed" -> lateCoordinator.onOperationFailed(request, "Old failure")
+                else -> lateCoordinator.onOperationCancelled(request)
+            }
+
+            var lateBusy = false
+            var lateRefreshCount = 0
+            val recreated = BrowserOperationController(
+                initialState = BrowserOperationState(),
+                scope = scope,
+                trashRepository = trashRepository,
+                fileMutationRepository = fileMutationRepository,
+                clipboardRepository = clipboardRepository,
+                clipboardController = ClipboardController(clipboardRepository),
+                coordinator = lateCoordinator,
+                operationOwnerId = "late-owner",
+                onBusyChange = { lateBusy = it },
+                onError = {},
+                refreshAction = { lateRefreshCount += 1 }
+            )
+
+            recreated.startObserving()
+            runCurrent()
+
+            assertFalse(lateBusy)
+            assertNull(recreated.state.value.activeFileOperation)
+            assertNull(recreated.state.value.fileOperationStatusMessage)
+            assertNull(recreated.state.value.pendingUndoAction)
+            assertEquals(0, lateRefreshCount)
+            recreated.stopObserving()
+        }
+    }
+
+    @Test
     fun `owned non clipboard completion preserves queued clipboard`() = scope.runTest {
         val clipboard = ClipboardState(
             ClipboardOperation.COPY,

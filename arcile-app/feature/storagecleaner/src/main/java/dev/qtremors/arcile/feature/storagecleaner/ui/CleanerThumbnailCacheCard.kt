@@ -76,8 +76,9 @@ internal fun CleanerThumbnailCacheCard(
                     text = when {
                         state.isLoading -> stringResource(R.string.settings_thumbnail_cache_calculating)
                         state.isClearing -> stringResource(R.string.settings_thumbnail_cache_clearing)
-                        else -> stringResource(
-                            R.string.settings_thumbnail_cache_stats,
+                        else -> androidx.compose.ui.res.pluralStringResource(
+                            R.plurals.settings_thumbnail_cache_stats,
+                            state.stats.loadedCount,
                             formatFileSize(state.stats.totalBytes),
                             formatFileSize(state.stats.memoryBytes),
                             formatFileSize(state.stats.diskBytes),

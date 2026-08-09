@@ -47,7 +47,7 @@ internal fun AudioFolderCoverDialog(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = folder.title,
+                    text = folder.displayTitle(stringResource(R.string.audio_favorites)),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,

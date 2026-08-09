@@ -42,6 +42,10 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
+private const val PROGRESS_MIN_INTERVAL_MS = 500L
+private const val PROGRESS_HEARTBEAT_INTERVAL_MS = 1_500L
+private const val PROGRESS_BYTE_STEP = 4L * 1024 * 1024
+
 @Singleton
 class ForegroundBulkFileOperationCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
@@ -61,6 +65,9 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private val latestActivityLogSequence = mutableMapOf<String, Long>()
     private var activityLogSequence = 0L
     private var activityLogWriteJob: Job? = null
+    private val progressLock = Any()
+    private var progressState: ProgressState? = null
+    internal var progressClock: () -> Long = System::currentTimeMillis
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
         replay = 0,
@@ -126,6 +133,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
 
     override fun cancelActiveOperation() {
         val request = _activeRequest.value ?: return
+        flushProgress(request)
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
         _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
         val intent = Intent(context, BulkFileOperationService::class.java).apply {
@@ -135,13 +143,21 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         context.startService(intent)
     }
 
-    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
-        if (_activeRequest.value?.operationId == request.operationId) {
-            operationJournal.update(request.operationId) {
-                it.copy(phase = OperationPhase.RUNNING, progress = progress)
-            }
-            _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
-        }
+    override fun onOperationProgress(
+        request: BulkFileOperationRequest,
+        progress: BulkFileOperationProgress
+    ): Boolean = synchronized(progressLock) {
+        if (_activeRequest.value?.operationId != request.operationId) return false
+        val current = progressState
+            ?.takeIf { it.operationId == request.operationId }
+            ?: ProgressState(operationId = request.operationId)
+        if (!progress.isMonotonicAfter(current.latest)) return false
+        val now = progressClock()
+        val next = current.copy(latest = progress)
+        progressState = next
+        if (!next.shouldPublish(progress, now)) return false
+        publishProgressLocked(request, progress, now)
+        true
     }
 
     override fun onOperationCheckpoint(
@@ -152,6 +168,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         trashResultIds: List<String>
     ) {
         if (_activeRequest.value?.operationId != request.operationId) return
+        flushProgress(request)
         operationJournal.update(request.operationId) { record ->
             record.copy(
                 stagedPaths = (record.stagedPaths + stagedPaths).distinct(),
@@ -164,41 +181,48 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
 
     override fun onOperationCancelling(request: BulkFileOperationRequest) {
         if (_activeRequest.value?.operationId == request.operationId) {
+            flushProgress(request)
             operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
             _events.tryEmit(BulkFileOperationEvent.Cancelling(request))
         }
     }
 
     override fun onOperationCompleted(request: BulkFileOperationRequest) {
+        flushProgress(request)
         if (_activeRequest.value?.operationId == request.operationId) {
             _activeRequest.value = null
         }
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.COMPLETED) }
         operationJournal.clearActive(request.operationId)
+        clearProgress(request.operationId)
         recordOperation(request, ActivityLogOperationStatus.COMPLETED)
         settleClipboard(request)
         _events.tryEmit(BulkFileOperationEvent.Completed(request))
     }
 
     override fun onOperationFailed(request: BulkFileOperationRequest, message: String) {
+        flushProgress(request)
         if (_activeRequest.value?.operationId == request.operationId) {
             _activeRequest.value = null
         }
         val error = Exception(message).toArcileError()
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.FAILED, error = message) }
         operationJournal.clearActive(request.operationId)
+        clearProgress(request.operationId)
         recordOperation(request, ActivityLogOperationStatus.FAILED, message)
         settleClipboard(request)
         _events.tryEmit(BulkFileOperationEvent.Failed(request, message, error))
     }
 
     override fun onOperationCancelled(request: BulkFileOperationRequest?) {
+        request?.let(::flushProgress)
         if (request == null || _activeRequest.value?.operationId == request.operationId) {
             _activeRequest.value = null
         }
         request?.let {
             operationJournal.update(it.operationId) { record -> record.copy(phase = OperationPhase.CANCELLED) }
             operationJournal.clearActive(it.operationId)
+            clearProgress(it.operationId)
             recordOperation(it, ActivityLogOperationStatus.CANCELLED)
             settleClipboard(it)
         }
@@ -233,6 +257,9 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private fun startRequest(request: BulkFileOperationRequest): Boolean {
         if (_activeRequest.value != null) return false
         _activeRequest.value = request
+        synchronized(progressLock) {
+            progressState = ProgressState(operationId = request.operationId)
+        }
         operationJournal.upsertActive(request.toJournalRecord(OperationPhase.QUEUED))
         _events.tryEmit(BulkFileOperationEvent.Started(request))
 
@@ -247,6 +274,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             true
         } catch (e: Exception) {
             _activeRequest.value = null
+            clearProgress(request.operationId)
             operationJournal.update(request.operationId) {
                 it.copy(phase = OperationPhase.FAILED, error = e.message)
             }
@@ -265,6 +293,33 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private fun settleClipboard(request: BulkFileOperationRequest) {
         if (request.type != BulkFileOperationType.COPY && request.type != BulkFileOperationType.MOVE) return
         request.clipboardSessionId?.let(clipboardRepository::clearClipboardState)
+    }
+
+    private fun publishProgressLocked(
+        request: BulkFileOperationRequest,
+        progress: BulkFileOperationProgress,
+        nowMillis: Long
+    ) {
+        operationJournal.update(request.operationId) {
+            it.copy(phase = OperationPhase.RUNNING, progress = progress)
+        }
+        _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
+        progressState = requireNotNull(progressState).copy(
+            lastPublished = progress,
+            lastPublishedAtMillis = nowMillis
+        )
+    }
+
+    private fun flushProgress(request: BulkFileOperationRequest) = synchronized(progressLock) {
+        val state = progressState?.takeIf { it.operationId == request.operationId } ?: return
+        val latest = state.latest ?: return
+        if (latest != state.lastPublished) {
+            publishProgressLocked(request, latest, progressClock())
+        }
+    }
+
+    private fun clearProgress(operationId: String) = synchronized(progressLock) {
+        if (progressState?.operationId == operationId) progressState = null
     }
 
     private fun recordOperation(
@@ -330,4 +385,40 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             name.contains(".arcile-replace-") ||
             name.contains(".arcile-archive-") ||
             name.contains(".arcile-import-")
+}
+
+private data class ProgressState(
+    val operationId: String,
+    val latest: BulkFileOperationProgress? = null,
+    val lastPublished: BulkFileOperationProgress? = null,
+    val lastPublishedAtMillis: Long = Long.MIN_VALUE
+) {
+    fun shouldPublish(progress: BulkFileOperationProgress, nowMillis: Long): Boolean {
+        val previous = lastPublished ?: return true
+        if (progress.isFinished) return true
+        val elapsed = if (lastPublishedAtMillis == Long.MIN_VALUE) {
+            Long.MAX_VALUE
+        } else {
+            (nowMillis - lastPublishedAtMillis).coerceAtLeast(0L)
+        }
+        if (elapsed < PROGRESS_MIN_INTERVAL_MS) return false
+        val itemChanged = progress.completedItems != previous.completedItems ||
+            progress.currentPath != previous.currentPath
+        val currentBytes = progress.bytesCopied
+        val previousBytes = previous.bytesCopied
+        val byteStepReached = currentBytes != null && previousBytes != null &&
+            currentBytes - previousBytes >= PROGRESS_BYTE_STEP
+        return itemChanged || byteStepReached || elapsed >= PROGRESS_HEARTBEAT_INTERVAL_MS
+    }
+}
+
+private val BulkFileOperationProgress.isFinished: Boolean
+    get() = totalItems > 0 && completedItems >= totalItems
+
+private fun BulkFileOperationProgress.isMonotonicAfter(previous: BulkFileOperationProgress?): Boolean {
+    if (previous == null) return true
+    if (completedItems < previous.completedItems) return false
+    val previousBytes = previous.bytesCopied
+    val currentBytes = bytesCopied
+    return previousBytes == null || currentBytes == null || currentBytes >= previousBytes
 }

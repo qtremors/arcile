@@ -164,8 +164,36 @@ class AudioLibraryPresentationTest {
         val filtered = buildAudioLibraryState(state.copy(folderFilter = favorites), tracks)
 
         assertEquals(true, favorites.isFavorites)
+        assertEquals(AudioFolderKind.Favorites, favorites.kind)
+        assertEquals("", favorites.title)
+        assertEquals("Favoris", favorites.displayTitle("Favoris"))
         assertEquals(listOf("Favorite"), favorites.tracks.map { it.displayTitle })
         assertEquals(listOf("Favorite"), filtered.visibleTracks.map { it.displayTitle })
+    }
+
+    @Test
+    fun `favorites search follows localized aliases after a locale change`() {
+        val tracks = listOf(
+            track("/Music/One/song.mp3", "Song", "Artist", "Album")
+        )
+        val english = buildAudioLibraryState(
+            AudioLibraryState(
+                query = "favorites",
+                favoritePaths = setOf("/Music/One/song.mp3"),
+                favoriteSearchAliases = setOf("Favorites")
+            ),
+            tracks
+        )
+        val french = buildAudioLibraryState(
+            english.copy(
+                query = "favoris",
+                favoriteSearchAliases = setOf("Favoris")
+            ),
+            tracks
+        )
+
+        assertEquals(AudioFolderKind.Favorites, english.folders.single().kind)
+        assertEquals(AudioFolderKind.Favorites, french.folders.single().kind)
     }
 
     @Test

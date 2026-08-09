@@ -243,8 +243,9 @@ private fun AudioSizeSection(
                                 ((availableWidth.value - 32f) / presentation.gridMinCellSize).toDouble()
                             ).toInt()
                         )
-                        stringResource(
-                            dev.qtremors.arcile.core.ui.R.string.browser_layout_grid_columns_value,
+                        androidx.compose.ui.res.pluralStringResource(
+                            dev.qtremors.arcile.core.ui.R.plurals.browser_layout_grid_columns_value,
+                            columns,
                             columns
                         )
                     },

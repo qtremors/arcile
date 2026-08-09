@@ -381,7 +381,7 @@ private fun AlbumGridItem(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.image_gallery_album_count, album.count),
+                        text = androidx.compose.ui.res.pluralStringResource(R.plurals.image_gallery_album_count, album.count, album.count),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

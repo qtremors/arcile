@@ -1446,7 +1446,7 @@ private fun CategorySizeSection(
                         ((availableWidth.value - 32f) / preferences.gridMinCellSize).toDouble()
                     ).toInt()
                 )
-                stringResource(R.string.browser_layout_grid_columns_value, columns)
+                androidx.compose.ui.res.pluralStringResource(R.plurals.browser_layout_grid_columns_value, columns, columns)
             }
             Text(
                 text = value,

@@ -215,8 +215,9 @@ private fun GalleryClipboardProgressPill(
                                     (total - (activeOperation.bytesCopied ?: 0L)).coerceAtLeast(0L)
                                 )
                             }
-                            ?: stringResource(
-                                R.string.transfer_progress_items,
+                            ?: androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.transfer_progress_items,
+                                activeOperation.totalItems,
                                 activeOperation.completedItems,
                                 activeOperation.totalItems
                             )

@@ -71,7 +71,7 @@ internal fun StorageCleanerGroupScreen(
             haptics.success()
             onFeedback(
                 ArcileFeedbackEvent(
-                    message = UiText.StringResource(R.string.clean_success, listOf(message.cleanedCount)),
+                    message = UiText.PluralResource(R.plurals.clean_success, message.cleanedCount, listOf(message.cleanedCount)),
                     severity = ArcileFeedbackSeverity.Success,
                     actionLabel = message.undoTrashIds.takeIf { it.isNotEmpty() }?.let {
                         UiText.StringResource(R.string.undo)

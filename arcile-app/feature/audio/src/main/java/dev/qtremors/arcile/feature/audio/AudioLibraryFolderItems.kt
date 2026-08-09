@@ -81,18 +81,14 @@ internal fun AudioFolderListItem(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                if (folder.isFavorites) {
-                    stringResource(R.string.audio_favorites)
-                } else {
-                    folder.title
-                },
+                folder.displayTitle(stringResource(R.string.audio_favorites)),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                stringResource(R.string.audio_track_count, folder.tracks.size),
+                androidx.compose.ui.res.pluralStringResource(R.plurals.audio_track_count, folder.tracks.size, folder.tracks.size),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
@@ -164,13 +160,9 @@ internal fun AudioFolderGridItem(
     Box(modifier = modifier) {
         CategoryFolderGridItem(
             info = CategoryItemInfo(
-                title = if (folder.isFavorites) {
-                    stringResource(R.string.audio_favorites)
-                } else {
-                    folder.title
-                },
+                title = folder.displayTitle(stringResource(R.string.audio_favorites)),
                 detailLines = listOf(
-                    stringResource(R.string.audio_track_count, folder.tracks.size),
+                    androidx.compose.ui.res.pluralStringResource(R.plurals.audio_track_count, folder.tracks.size, folder.tracks.size),
                     formatFileSize(folder.totalSize)
                 )
             ),
@@ -274,3 +266,6 @@ private fun AudioFolderOptionsMenu(
         }
     )
 }
+
+internal fun AudioFolder.displayTitle(favoritesTitle: String): String =
+    if (kind == AudioFolderKind.Favorites) favoritesTitle else title

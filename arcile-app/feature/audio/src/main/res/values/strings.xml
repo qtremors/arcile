@@ -18,7 +18,7 @@
     <string name="audio_repeat_one">Repeat one</string>
     <string name="audio_shuffle">Shuffle</string>
     <string name="audio_queue">Queue</string>
-    <string name="audio_queue_count">%1$d items</string>
+    <plurals name="audio_queue_count"><item quantity="one">%1$d item</item><item quantity="other">%1$d items</item></plurals>
     <string name="audio_queue_empty">The playback queue is empty.</string>
     <string name="audio_now_playing">Now playing</string>
     <string name="audio_collapse_player">Collapse player</string>
@@ -26,8 +26,8 @@
     <string name="audio_open_with">Open with</string>
     <string name="audio_share">Share</string>
     <string name="audio_more">More options</string>
-    <string name="audio_track_count">%1$d tracks</string>
-    <string name="audio_folder_count">%1$d folders</string>
+    <plurals name="audio_track_count"><item quantity="one">%1$d track</item><item quantity="other">%1$d tracks</item></plurals>
+    <plurals name="audio_folder_count"><item quantity="one">%1$d folder</item><item quantity="other">%1$d folders</item></plurals>
     <string name="audio_clear_filter">Show all audio</string>
     <string name="audio_refresh">Refresh audio</string>
     <string name="audio_playback_failed">Couldn’t play this audio file.</string>
@@ -43,7 +43,7 @@
     <string name="audio_open_to_audio">Open to Audio</string>
     <string name="audio_open_to_folders">Open to Folders</string>
     <string name="audio_play_selected">Play selected</string>
-    <string name="audio_selected_count">%1$d selected</string>
+    <plurals name="audio_selected_count"><item quantity="one">%1$d selected</item><item quantity="other">%1$d selected</item></plurals>
     <string name="audio_metadata">Audio information</string>
     <string name="audio_metadata_title">Title</string>
     <string name="audio_metadata_artist">Artist</string>
@@ -59,7 +59,7 @@
     <string name="audio_paste_here">Paste here</string>
     <string name="audio_rename">Rename</string>
     <string name="audio_cancel_transfer">Cancel transfer</string>
-    <string name="audio_clipboard_items">%1$d items</string>
+    <plurals name="audio_clipboard_items"><item quantity="one">%1$d item</item><item quantity="other">%1$d items</item></plurals>
     <string name="audio_favorites">Favorites</string>
     <string name="audio_add_to_favorites">Add to favorites</string>
     <string name="audio_remove_from_favorites">Remove from favorites</string>

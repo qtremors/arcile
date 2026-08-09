@@ -102,8 +102,9 @@ internal fun StorageUsageSunburst(
     val selectedForSemantics = selectedNode ?: root
     val chartDescription = stringResource(R.string.storage_usage_map_chart_description, root.name)
     val resetOverviewLabel = stringResource(R.string.storage_usage_map_reset_overview)
-    val selectedState = stringResource(
-        R.string.storage_usage_map_selected_state,
+    val selectedState = androidx.compose.ui.res.pluralStringResource(
+        R.plurals.storage_usage_map_selected_state,
+        selectedForSemantics.childCount,
         selectedForSemantics.name,
         formatFileSize(selectedForSemantics.sizeBytes),
         selectedForSemantics.childCount

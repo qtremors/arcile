@@ -429,6 +429,10 @@ private fun AudioFoldersContent(
         end = 16.dp,
         bottom = contentPadding.calculateBottomPadding()
     )
+    val favoritesTitle = stringResource(R.string.audio_favorites)
+    val folderLabels = remember(state.folders, favoritesTitle) {
+        state.folders.map { it.displayTitle(favoritesTitle) }
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(gridSize.dp),
@@ -477,7 +481,7 @@ private fun AudioFoldersContent(
         }
         ArcileFastScrollbar(
             scrollbarState = scrollbarState,
-            labelForIndex = { index -> state.folders.getOrNull(index)?.title.orEmpty() },
+            labelForIndex = { index -> folderLabels.getOrNull(index).orEmpty() },
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight(),

@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flow
 internal const val ARCHIVE_BUFFER_SIZE = 128 * 1024
 internal const val ARCHIVE_CREATION_PRE_SCAN_MAX_ENTRIES = 2_048
 internal const val ARCHIVE_CREATION_PRE_SCAN_MAX_BYTES = 512L * 1024L * 1024L
+internal const val ARCHIVE_EXTRACTION_FREE_SPACE_RESERVE_BYTES = 50L * 1024L * 1024L
 
 internal data class ArchiveSourceEntry(
     val sourceRoot: File,
@@ -153,6 +154,49 @@ internal class ArchiveSafetyTally(private val safetyPolicy: ArchiveSafetyPolicy)
         } catch (_: UnsafeArchiveEntryException) {
             false
         }
+}
+
+internal class ArchiveExpansionLimiter(
+    private val safetyPolicy: ArchiveSafetyPolicy,
+    compressedBytes: Long,
+    private val availableBytes: Long? = null
+) {
+    private val ratioByteLimit = compressionRatioByteLimit(
+        compressedBytes = compressedBytes.coerceAtLeast(0L),
+        maxCompressionRatio = safetyPolicy.maxCompressionRatio
+    )
+
+    var expandedBytes: Long = 0L
+        private set
+
+    fun accept(byteCount: Int): Long {
+        require(byteCount >= 0) { "Expanded byte count cannot be negative" }
+        val nextSize = try {
+            Math.addExact(expandedBytes, byteCount.toLong())
+        } catch (_: ArithmeticException) {
+            throw UnsafeArchiveEntryException("Archive is too large to process safely")
+        }
+        if (nextSize > safetyPolicy.maxUncompressedBytes) {
+            throw UnsafeArchiveEntryException("Archive is too large to process safely")
+        }
+        if (nextSize > ratioByteLimit) {
+            throw UnsafeArchiveEntryException("Archive compression ratio is too high")
+        }
+        if (availableBytes != null && nextSize > availableBytes) {
+            throw UnsafeArchiveEntryException("Not enough free space to extract this archive safely")
+        }
+        expandedBytes = nextSize
+        return expandedBytes
+    }
+}
+
+private fun compressionRatioByteLimit(compressedBytes: Long, maxCompressionRatio: Double): Long {
+    require(maxCompressionRatio >= 0.0 && !maxCompressionRatio.isNaN()) {
+        "Archive compression ratio limit must be non-negative"
+    }
+    if (maxCompressionRatio.isInfinite()) return Long.MAX_VALUE
+    val limit = compressedBytes.toDouble() * maxCompressionRatio
+    return if (limit >= Long.MAX_VALUE.toDouble()) Long.MAX_VALUE else kotlin.math.floor(limit).toLong()
 }
 
 internal fun rememberCreatedOutput(target: File, createdOutputs: MutableSet<File>) {

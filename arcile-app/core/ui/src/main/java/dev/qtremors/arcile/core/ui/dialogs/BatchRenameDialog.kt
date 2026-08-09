@@ -209,7 +209,7 @@ fun BatchRenameDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = stringResource(R.string.title_batch_rename, files.size),
+                        text = androidx.compose.ui.res.pluralStringResource(R.plurals.title_batch_rename, files.size, files.size),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )

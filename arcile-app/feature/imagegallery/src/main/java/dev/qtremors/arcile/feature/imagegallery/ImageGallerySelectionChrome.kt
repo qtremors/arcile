@@ -16,7 +16,7 @@ internal fun FloatingGallerySelectionTopBar(
     modifier: Modifier = Modifier
 ) {
     CategorySelectionTopBar(
-        selectedCountText = stringResource(R.string.selected_count, selectedCount),
+        selectedCountText = androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, selectedCount, selectedCount),
         selectedSizeText = selectedSize,
         onClearSelection = onClearSelection,
         onSelectAll = onSelectAll,

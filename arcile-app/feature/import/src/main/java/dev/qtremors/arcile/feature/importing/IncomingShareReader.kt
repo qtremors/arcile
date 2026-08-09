@@ -31,8 +31,9 @@ internal object IncomingShareReader {
                         uri = null,
                         displayName = null,
                         reason = IncomingShareFailureReason.TooManyItems,
-                        message = context.getString(
-                            R.string.save_to_arcile_too_many_files,
+                        message = context.resources.getQuantityString(
+                            R.plurals.save_to_arcile_too_many_files,
+                            MAX_IMPORT_ITEMS,
                             MAX_IMPORT_ITEMS
                         )
                     )

@@ -6,8 +6,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
-import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -17,6 +15,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.reorder.ReorderControls
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.utilities.ArcileUtilityCatalog
@@ -88,7 +87,9 @@ fun ToolsScreen(
                     shape = MaterialTheme.shapes.extraLarge,
                     color = if (shown) MaterialTheme.colorScheme.primaryContainer
                     else MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem()
                 ) {
                     Row(
                         Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
@@ -117,14 +118,13 @@ fun ToolsScreen(
                             )
                         }
                         if (shown) {
-                            IconButton(
-                                onClick = { onMoveUtility(definition.id, -1) },
-                                enabled = homeIndex > 0
-                            ) { Icon(Icons.Default.ArrowUpward, stringResource(R.string.tools_move_up)) }
-                            IconButton(
-                                onClick = { onMoveUtility(definition.id, 1) },
-                                enabled = homeIndex < homeUtilityIds.lastIndex
-                            ) { Icon(Icons.Default.ArrowDownward, stringResource(R.string.tools_move_down)) }
+                            ReorderControls(
+                                itemLabel = stringResource(definition.nameRes),
+                                position = homeIndex,
+                                itemCount = homeUtilityIds.size,
+                                onMoveUp = { onMoveUtility(definition.id, -1) },
+                                onMoveDown = { onMoveUtility(definition.id, 1) }
+                            )
                         }
                         Switch(
                             checked = shown,

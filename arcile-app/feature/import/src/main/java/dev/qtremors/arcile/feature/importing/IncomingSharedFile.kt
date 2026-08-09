@@ -49,8 +49,9 @@ internal data class SaveIncomingResult(
             savedCount,
             savedCount
         )
-        savedCount > 0 -> context.getString(
-            R.string.save_to_arcile_partial_saved,
+        savedCount > 0 -> context.resources.getQuantityString(
+            R.plurals.save_to_arcile_partial_saved,
+            savedCount,
             savedCount,
             failures.size
         )

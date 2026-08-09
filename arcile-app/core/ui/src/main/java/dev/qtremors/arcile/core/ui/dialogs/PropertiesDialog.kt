@@ -139,8 +139,9 @@ fun PropertiesDialog(
                         if (model.isSingleItem && model.isDirectory == true && folderFileCount != null && folderTotalBytes != null) {
                             PropertiesRow(
                                 stringResource(R.string.properties_contains),
-                                stringResource(
-                                    R.string.properties_contains_value,
+                                androidx.compose.ui.res.pluralStringResource(
+                                    R.plurals.properties_contains_value,
+                                    folderFileCount.toInt(),
                                     folderFileCount.toInt(),
                                     if (isPartialTotal) {
                                         stringResource(R.string.properties_size_partial, formatFileSize(folderTotalBytes))

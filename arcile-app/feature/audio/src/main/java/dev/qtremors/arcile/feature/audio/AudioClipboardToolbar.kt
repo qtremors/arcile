@@ -128,7 +128,7 @@ internal fun AudioClipboardToolbar(
                                 itemCount
                             )
                         } else {
-                            stringResource(R.string.audio_clipboard_items, itemCount)
+                            androidx.compose.ui.res.pluralStringResource(R.plurals.audio_clipboard_items, itemCount, itemCount)
                         },
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold

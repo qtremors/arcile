@@ -43,7 +43,8 @@ interface BulkFileOperationCoordinator {
         )
 
     fun cancelActiveOperation()
-    fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress)
+    /** Returns true when this update should also be presented to the user. */
+    fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress): Boolean
     fun onOperationCheckpoint(
         request: BulkFileOperationRequest,
         stagedPaths: List<String> = emptyList(),
@@ -82,7 +83,7 @@ object NoOpBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     ): Boolean = false
 
     override fun cancelActiveOperation() = Unit
-    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = false
     override fun onOperationCheckpoint(
         request: BulkFileOperationRequest,
         stagedPaths: List<String>,

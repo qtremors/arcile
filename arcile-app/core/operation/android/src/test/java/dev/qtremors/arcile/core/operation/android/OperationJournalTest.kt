@@ -25,6 +25,7 @@ class OperationJournalTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        DefaultOperationJournal.clearForTest(context)
         journal = DefaultOperationJournal(context)
     }
 
@@ -72,7 +73,7 @@ class OperationJournalTest {
     @Test
     fun `recoverInterrupted converts non-terminal active operations into recovery records`() {
         listOf(OperationPhase.QUEUED, OperationPhase.RUNNING, OperationPhase.CANCELLING).forEach { phase ->
-            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            DefaultOperationJournal.clearForTest(context)
             journal.upsertActive(request("op-${phase.name}").toJournalRecord(phase))
 
             val recovered = journal.recoverInterrupted()
@@ -86,7 +87,7 @@ class OperationJournalTest {
     @Test
     fun `recoverInterrupted does not convert terminal active operations`() {
         listOf(OperationPhase.COMPLETED, OperationPhase.FAILED, OperationPhase.CANCELLED).forEach { phase ->
-            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            DefaultOperationJournal.clearForTest(context)
             journal.upsertActive(request("op-${phase.name}").toJournalRecord(phase))
 
             val recovered = journal.recoverInterrupted()
@@ -114,6 +115,33 @@ class OperationJournalTest {
 
         journal.clearActive("op-4")
 
+        assertNull(journal.activeRecord())
+    }
+
+    @Test
+    fun `journal is bounded in no backup storage and never persists archive password`() {
+        val password = "do-not-persist-this-password"
+        journal.upsertActive(
+            request("op-secret").copy(archivePassword = password)
+                .toJournalRecord(OperationPhase.RUNNING)
+        )
+
+        val store = DefaultOperationJournal.storeFile(context)
+        assertTrue(store.canonicalPath.startsWith(context.noBackupFilesDir.canonicalPath))
+        assertTrue(store.length() <= 1024 * 1024)
+        assertTrue(password !in store.readText())
+        assertNull(DefaultOperationJournal(context).activeRecord()?.request?.archivePassword)
+    }
+
+    @Test
+    fun `obsolete recovery records expire after retention window`() {
+        val expired = request("op-expired").toJournalRecord(OperationPhase.RUNNING).copy(
+            startedAtMillis = 0L,
+            updatedAtMillis = 0L
+        )
+        journal.upsertActive(expired)
+
+        assertTrue(journal.recoverInterrupted().isEmpty())
         assertNull(journal.activeRecord())
     }
 

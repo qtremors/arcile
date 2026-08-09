@@ -10,10 +10,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.UUID
 import javax.inject.Inject
 
@@ -30,6 +33,7 @@ internal class QuickAccessViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(QuickAccessState())
     val state: StateFlow<QuickAccessState> = _state.asStateFlow()
+    private val mutationMutex = Mutex()
 
     init {
         quickAccessRepository.quickAccessItems
@@ -44,11 +48,11 @@ internal class QuickAccessViewModel @Inject constructor(
 
     fun togglePin(item: QuickAccessItem) {
         viewModelScope.launch {
-            val currentItems = _state.value.items
-            val updatedItems = currentItems.map {
-                if (it.id == item.id) it.copy(isPinned = !it.isPinned) else it
+            mutateItems { currentItems ->
+                currentItems.map {
+                    if (it.id == item.id) it.copy(isPinned = !it.isPinned) else it
+                }
             }
-            quickAccessRepository.updateItems(updatedItems)
         }
     }
 
@@ -118,13 +122,30 @@ internal class QuickAccessViewModel @Inject constructor(
         }
     }
 
-    fun updateItemsOrder(orderedPinnedItems: List<QuickAccessItem>) {
+    fun movePinnedItem(itemId: String, direction: Int) {
+        if (direction != -1 && direction != 1) return
         viewModelScope.launch {
-            val currentItems = _state.value.items
-            val pinnedIds = orderedPinnedItems.map { it.id }.toSet()
-            val unpinnedItems = currentItems.filter { it.id !in pinnedIds }
-            val reorderedList = orderedPinnedItems + unpinnedItems
-            quickAccessRepository.updateItems(reorderedList)
+            mutateItems { currentItems ->
+                val pinnedItems = currentItems.filter(QuickAccessItem::isPinned).toMutableList()
+                val currentIndex = pinnedItems.indexOfFirst { it.id == itemId }
+                val targetIndex = currentIndex + direction
+                if (currentIndex == -1 || targetIndex !in pinnedItems.indices) {
+                    currentItems
+                } else {
+                    pinnedItems.add(targetIndex, pinnedItems.removeAt(currentIndex))
+                    pinnedItems + currentItems.filterNot(QuickAccessItem::isPinned)
+                }
+            }
+        }
+    }
+
+    private suspend fun mutateItems(transform: (List<QuickAccessItem>) -> List<QuickAccessItem>) {
+        mutationMutex.withLock {
+            val currentItems = quickAccessRepository.quickAccessItems.first()
+            val updatedItems = transform(currentItems)
+            if (updatedItems != currentItems) {
+                quickAccessRepository.updateItems(updatedItems)
+            }
         }
     }
 }

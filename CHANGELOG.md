@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.8
+> **Version:** 1.8.9
 > **Last Updated:** 2026-08-09
 
 ---
+
+## [1.8.9] - 2026-08-09
+
+- **Consistent Customization Ordering**: Added item-specific move controls across Utilities, Quick Access, and Home layout, with immediate Quick Access saves, position feedback, keyboard focus continuity, and Home draft apply/cancel behavior.
+- **Responsive Date Filters**: Kept date-range fields and actions reachable in short, landscape, large-text, and keyboard-constrained windows.
+- **Localized Audio Favorites**: Made the Audio favorites folder title and search follow the current app language, including live locale changes while the library remains open.
+- **Correct Count Grammar**: Fixed singular and plural wording across file, media, storage, backup, cleaner, and progress surfaces, with locale-aware quantity handling.
+- **Faster Secure Startup**: Removed recursive plaintext-share cleanup from app startup while still making old compatibility copies inaccessible immediately and deleting them safely in the background.
+- **Private Recovery Records**: Moved operation and mutation recovery data out of backups, removed archive passwords from persisted records, bounded retained data, and excluded vault locations from cloud backup and device transfer.
+- **Safer Compressed Extraction**: Enforced real expanded-size, compression-ratio, cancellation, and free-space limits for GZIP, BZIP2, and XZ files without leaving partial output.
+- **Safer Split-APK Installs**: Bounded split-package staging, extracted only device-compatible APKs into unique temporary folders, and cleaned them after every install or interruption path.
+- **Lighter Background Transfers**: Coalesced high-frequency file-operation progress so notifications and durable recovery checkpoints stay useful and exact without repeatedly writing every buffer update.
 
 ## [1.8.8] - 2026-08-09
 

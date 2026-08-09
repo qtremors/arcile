@@ -61,8 +61,9 @@ internal fun SettingsBackupDialogs(
             title = { Text(stringResource(R.string.settings_backup_export_complete_title)) },
             text = {
                 BackupResultList(
-                    description = stringResource(
-                        R.string.settings_backup_export_complete_description,
+                    description = androidx.compose.ui.res.pluralStringResource(
+                        R.plurals.settings_backup_export_complete_description,
+                        state.result.successCount,
                         state.result.successCount
                     ),
                     result = state.result
@@ -77,8 +78,9 @@ internal fun SettingsBackupDialogs(
             title = { Text(stringResource(R.string.settings_backup_restore_complete_title)) },
             text = {
                 BackupResultList(
-                    description = stringResource(
-                        R.string.settings_backup_restore_complete_description,
+                    description = androidx.compose.ui.res.pluralStringResource(
+                        R.plurals.settings_backup_restore_complete_description,
+                        state.result.successCount,
                         state.result.successCount
                     ),
                     result = state.result

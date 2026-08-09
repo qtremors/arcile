@@ -17,17 +17,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
 import java.io.OutputStream
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.NoSuchFileException
+import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 import kotlin.jvm.JvmName
 
 object ExternalFileAccessHelper {
+    private const val TAG = "ExternalFileAccessHelper"
     private const val STAGING_ROOT = "external_access"
     private const val OPEN_STAGING = "open"
     private const val SHARE_STAGING = "share"
     private const val VAULT_FALLBACK_STAGING = "onlyfiles_fallback"
+    private const val VAULT_FALLBACK_CLEANUP_PREFIX = ".onlyfiles_fallback_cleanup_"
     private const val MAX_CACHE_SIZE_BYTES = 500L * 1024 * 1024 // 500MB
     private const val MAX_CACHE_AGE_MS = 6L * 60 * 60 * 1000 // 6 hours
     private const val MAX_SHARE_FILE_BYTES = 256L * 1024 * 1024 // 256MB
@@ -140,6 +147,35 @@ object ExternalFileAccessHelper {
 
     fun clearPrivatePlaintextFallbacks(context: Context) {
         File(context.cacheDir, "$STAGING_ROOT${File.separator}$VAULT_FALLBACK_STAGING").deleteRecursively()
+        clearQuarantinedPrivatePlaintextFallbacks(context)
+    }
+
+    /**
+     * Removes the active fallback path with one same-directory move. The returned result only
+     * reports whether a directory was moved; recursive cleanup belongs on a background scope.
+     */
+    fun quarantinePrivatePlaintextFallbacks(context: Context): Boolean {
+        val stagingRoot = File(context.cacheDir, STAGING_ROOT)
+        val active = File(stagingRoot, VAULT_FALLBACK_STAGING)
+        val quarantined = File(stagingRoot, "$VAULT_FALLBACK_CLEANUP_PREFIX${UUID.randomUUID()}")
+        return try {
+            Files.move(active.toPath(), quarantined.toPath(), StandardCopyOption.ATOMIC_MOVE)
+            true
+        } catch (_: NoSuchFileException) {
+            false
+        } catch (_: AtomicMoveNotSupportedException) {
+            active.renameTo(quarantined)
+        } catch (error: IOException) {
+            AppLogger.w(TAG, "Unable to quarantine private compatibility storage", error)
+            false
+        }
+    }
+
+    fun clearQuarantinedPrivatePlaintextFallbacks(context: Context) {
+        val stagingRoot = File(context.cacheDir, STAGING_ROOT)
+        stagingRoot.listFiles { candidate ->
+            candidate.isDirectory && candidate.name.startsWith(VAULT_FALLBACK_CLEANUP_PREFIX)
+        }?.forEach(File::deleteRecursively)
     }
 
     fun deletePrivatePlaintextFallback(context: Context, id: String): Boolean {

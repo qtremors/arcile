@@ -10,7 +10,10 @@
     <string name="dismiss">Dismiss</string>
     <string name="refresh">Refresh</string>
     <string name="clear_selection">Clear Selection</string>
-    <string name="selected_count">%1$d selected</string>
+    <plurals name="selected_count">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="select_image">Select image</string>
     <string name="deselect_image">Deselect image</string>
     <string name="share">Share</string>
@@ -65,7 +68,10 @@
     <!-- Dialogs -->
     <string name="action_create">Create</string>
     <string name="title_create_folder">Create Folder</string>
-    <string name="title_batch_rename">Batch Rename (%1$d items)</string>
+    <plurals name="title_batch_rename">
+        <item quantity="one">Batch Rename (%1$d item)</item>
+        <item quantity="other">Batch Rename (%1$d items)</item>
+    </plurals>
     <string name="label_find">Find text</string>
     <string name="label_replace_with">Replace with</string>
     <string name="option_regex">Regex</string>
@@ -126,7 +132,10 @@
     <string name="manage_classification">Manage Storage Classification</string>
     <string name="manage_classification_description">"Classify external volumes as SD card, OTG, or reset them."</string>
     <string name="clear_external_access_cache">Clear shared-file cache</string>
-    <string name="clear_external_access_cache_description">%1$d staged file(s) from open/share handoff</string>
+    <plurals name="clear_external_access_cache_description">
+        <item quantity="one">%1$d staged file from open/share handoff</item>
+        <item quantity="other">%1$d staged files from open/share handoff</item>
+    </plurals>
     <string name="section_info">Info</string>
     <string name="about_headline">About</string>
     <string name="about_description">"App info, privacy policy, and changelogs"</string>
@@ -136,9 +145,15 @@
     <string name="settings_backup_restore">Restore settings backup</string>
     <string name="settings_backup_restore_description">Import an Arcile settings backup file. Restart after restore to reload all preferences.</string>
     <string name="settings_backup_export_complete_title">Backup exported</string>
-    <string name="settings_backup_export_complete_description">Saved %1$d preference store(s) to the selected backup file.</string>
+    <plurals name="settings_backup_export_complete_description">
+        <item quantity="one">Saved %1$d preference store to the selected backup file.</item>
+        <item quantity="other">Saved %1$d preference stores to the selected backup file.</item>
+    </plurals>
     <string name="settings_backup_restore_complete_title">Backup restored</string>
-    <string name="settings_backup_restore_complete_description">Restored %1$d preference store(s). Restart Arcile to apply all restored settings.</string>
+    <plurals name="settings_backup_restore_complete_description">
+        <item quantity="one">Restored %1$d preference store. Restart Arcile to apply all restored settings.</item>
+        <item quantity="other">Restored %1$d preference stores. Restart Arcile to apply all restored settings.</item>
+    </plurals>
     <string name="settings_backup_failed_title">Backup failed</string>
     <string name="settings_backup_export_failed">Failed to export settings backup</string>
     <string name="settings_backup_read_failed">Failed to read settings backup</string>
@@ -169,7 +184,10 @@
     <string name="settings_gallery_scrollbar">Media gallery scrollbar</string>
     <string name="settings_gallery_scrollbar_description">Show the fast-scroll scrollbar overlay in Image, Video, and Audio lists and grids.</string>
     <string name="settings_home_recent_carousel_limit">Home recent files</string>
-    <string name="settings_home_recent_carousel_count">Show %1$d recent files</string>
+    <plurals name="settings_home_recent_carousel_count">
+        <item quantity="one">Show %1$d recent file</item>
+        <item quantity="other">Show %1$d recent files</item>
+    </plurals>
     <string name="settings_home_recent_carousel_hidden">Hidden on Home</string>
     <string name="settings_harmonize_colors">Harmonize Colors</string>
     <string name="settings_harmonize_colors_description">Blend category and status colors with the active theme accent color.</string>
@@ -238,9 +256,8 @@
     <string name="home_storage">Storage</string>
     <string name="home_edit_action">Edit Home</string>
     <string name="home_edit_title">Edit Home</string>
-    <string name="home_edit_description">Show, hide, and drag sections into the order you want.</string>
+    <string name="home_edit_description">Show, hide, and arrange sections in the order you want.</string>
     <string name="home_show_section">Show %1$s on Home</string>
-    <string name="home_reorder_section">Reorder %1$s</string>
     <string name="categories">Categories</string>
     <string name="category_images">Images</string>
     <string name="category_videos">Videos</string>
@@ -274,7 +291,10 @@
     <string name="browser_move_tab_right">Move tab right</string>
     <string name="browser_close_other_tabs">Close other tabs</string>
     <string name="browser_close_tab">Close tab</string>
-    <string name="browser_tab_limit_reached">You can keep up to %1$d Browser tabs open.</string>
+    <plurals name="browser_tab_limit_reached">
+        <item quantity="one">You can keep up to %1$d Browser tab open.</item>
+        <item quantity="other">You can keep up to %1$d Browser tabs open.</item>
+    </plurals>
     <string name="open_containing_folder">Open containing folder</string>
     <string name="open">Open</string>
     <string name="open_image">Open image</string>
@@ -286,8 +306,9 @@
     <string name="tools_home_description">Choose which utilities appear on Home. Use the arrows to set their order.</string>
     <string name="tools_visible_on_home">Shown on Home</string>
     <string name="tools_hidden_from_home">Hidden from Home</string>
-    <string name="tools_move_up">Move up</string>
-    <string name="tools_move_down">Move down</string>
+    <string name="reorder_move_up">Move %1$s up</string>
+    <string name="reorder_move_down">Move %1$s down</string>
+    <string name="reorder_position">%1$s, position %2$d of %3$d</string>
     <string name="show_all">Show All</string>
     <string name="recent_files">Recent Files</string>
     <string name="see_all">See All</string>
@@ -347,9 +368,15 @@
     <string name="empty_directory_description">This folder doesn\'t have any files yet. You can create one using the + button.</string>
     <string name="browsing_temp_usb">Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent.</string>
     <string name="browsing_unclassified">Browsing unclassified external storage. It is treated as temporary until classified, and deletions are permanent.</string>
-    <string name="delete_items_title">Delete %1$d item(s)?</string>
+    <plurals name="delete_items_title">
+        <item quantity="one">Delete %1$d item?</item>
+        <item quantity="other">Delete %1$d items?</item>
+    </plurals>
     <string name="delete_items_description">Selected items will be moved to the Trash Bin. You can restore them later.</string>
-    <string name="delete_permanent_title">Permanently delete %1$d item(s)?</string>
+    <plurals name="delete_permanent_title">
+        <item quantity="one">Permanently delete %1$d item?</item>
+        <item quantity="other">Permanently delete %1$d items?</item>
+    </plurals>
     <string name="delete_permanent_description">Selected items will be permanently deleted. This action cannot be undone.</string>
     <string name="mixed_selection_title">Mixed Selection Blocked</string>
     <string name="mixed_selection_description">Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.</string>
@@ -365,9 +392,15 @@
     <string name="browser_layout_list_zoom">List zoom</string>
     <string name="browser_layout_list_zoom_value">%1$d%% density</string>
     <string name="browser_layout_grid_size">Grid size</string>
-    <string name="browser_layout_grid_columns_value">%1$d columns at this width</string>
+    <plurals name="browser_layout_grid_columns_value">
+        <item quantity="one">%1$d column at this width</item>
+        <item quantity="other">%1$d columns at this width</item>
+    </plurals>
     <string name="browser_layout_persistence_hint">Keep this layout for nested folders too</string>
-    <string name="clipboard_feedback">%1$d item(s) %2$s to clipboard</string>
+    <plurals name="clipboard_feedback">
+        <item quantity="one">%1$d item %2$s to clipboard</item>
+        <item quantity="other">%1$d items %2$s to clipboard</item>
+    </plurals>
     <string name="clipboard_copied">copied</string>
     <string name="clipboard_cut">cut</string>
     <string name="clipboard_copied_files">Copied Files</string>
@@ -397,7 +430,10 @@
     <string name="properties_access_partial">Partial</string>
     <string name="properties_access_limited">Limited</string>
     <string name="properties_contains">Contains</string>
-    <string name="properties_contains_value">%1$d files • %2$s</string>
+    <plurals name="properties_contains_value">
+        <item quantity="one">%1$d file • %2$s</item>
+        <item quantity="other">%1$d files • %2$s</item>
+    </plurals>
     <string name="archive_compress_zip">Create archive</string>
     <string name="archive_extract_here">Extract here</string>
     <string name="archive_extract_to_folder">Extract to folder</string>
@@ -410,7 +446,10 @@
     <string name="archive_destination_preview">Extracts to %1$s</string>
     <string name="archive_search_entries">Search archive</string>
     <string name="archive_create_title">Create archive</string>
-    <string name="archive_create_summary">%1$d selected item(s)</string>
+    <plurals name="archive_create_summary">
+        <item quantity="one">%1$d selected item</item>
+        <item quantity="other">%1$d selected items</item>
+    </plurals>
     <string name="archive_name">Archive name</string>
     <string name="archive_filename_preview">File name: %1$s</string>
     <string name="archive_password_title">Archive password</string>
@@ -519,7 +558,10 @@
     <string name="text_editor_save_and_exit">Save &amp; Exit</string>
     <string name="text_editor_discard">Discard</string>
     <string name="text_editor_read_only">Read-Only</string>
-    <string name="text_editor_stats_format">%1$d lines  •  %2$d words  •  %3$d chars</string>
+    <plurals name="text_editor_stats_format">
+        <item quantity="one">%1$d line  •  Words: %2$d  •  Characters: %3$d</item>
+        <item quantity="other">%1$d lines  •  Words: %2$d  •  Characters: %3$d</item>
+    </plurals>
     <string name="text_editor_file_info">Document Info</string>
     <string name="text_editor_save_success">File saved successfully</string>
     <string name="text_editor_save_failed_detail">Failed to save file: %1$s</string>

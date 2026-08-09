@@ -546,7 +546,7 @@ internal fun OnlyFilesSettingsSheet(
                     shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 4),
                     content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache)) },
                     supportingContent = {
-                        Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, formatBytes(state.encryptedThumbnailBytes)))
+                        Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, state.encryptedThumbnailFiles, formatBytes(state.encryptedThumbnailBytes)))
                     },
                     trailingContent = {
                         Box(
@@ -574,7 +574,7 @@ internal fun OnlyFilesSettingsSheet(
                     enabled = state.activeExternalGrants > 0,
                     shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 2, count = 4),
                     content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_active_external_access)) },
-                    supportingContent = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_active_external_access_count, state.activeExternalGrants)) },
+                    supportingContent = { Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_active_external_access_count, state.activeExternalGrants, state.activeExternalGrants)) },
                     trailingContent = {
                         Box(
                             modifier = Modifier.fillMaxHeight(),

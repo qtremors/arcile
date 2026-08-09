@@ -33,6 +33,7 @@ class MutationJournalTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("mutation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        DefaultMutationJournal.clearForTest(context)
         root = createTempStorageRoot("mutation-journal-test")
         volumeProvider = mockk(relaxed = true)
         every { volumeProvider.activeStorageRoots } returns listOf(root.absolutePath)
@@ -53,6 +54,7 @@ class MutationJournalTest {
     fun teardown() {
         root.deleteRecursively()
         context.getSharedPreferences("mutation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        DefaultMutationJournal.clearForTest(context)
     }
 
     @Test
@@ -87,6 +89,17 @@ class MutationJournalTest {
         } finally {
             outside.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `journal uses bounded no backup storage`() {
+        val temp = File(root, ".file.txt.arcile-transfer-pending.tmp").apply { writeText("partial") }
+
+        journal.recordTemporaryPath(temp.absolutePath)
+
+        val store = DefaultMutationJournal.storeFile(context)
+        assertTrue(store.canonicalPath.startsWith(context.noBackupFilesDir.canonicalPath))
+        assertTrue(store.length() <= 512 * 1024)
     }
 
     @Test

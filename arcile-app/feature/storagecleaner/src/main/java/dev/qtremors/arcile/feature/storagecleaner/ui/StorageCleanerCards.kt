@@ -91,7 +91,7 @@ internal fun CleanerCategoryCard(
                     text = if (isScanning) {
                         scanProgressText(scanProgress)
                     } else if (group.candidates.isNotEmpty()) {
-                        stringResource(R.string.cleaner_group_stat, group.candidates.size, formatFileSize(group.totalBytes))
+                        androidx.compose.ui.res.pluralStringResource(R.plurals.cleaner_group_stat, group.candidates.size, group.candidates.size, formatFileSize(group.totalBytes))
                     } else if (!isLoaded) {
                         stringResource(R.string.cleaner_tap_to_scan)
                     } else {
@@ -158,14 +158,15 @@ private fun scanProgressText(progress: StorageCleanerScanProgress?): String {
     val percent = progress?.progressFraction?.let { (it * 100f).toInt().coerceIn(0, 100) }
     val etaMillis = progress?.estimatedRemainingMillis
     return when {
-        etaMillis != null -> stringResource(
-            R.string.cleaner_scan_progress_eta,
+        etaMillis != null -> androidx.compose.ui.res.pluralStringResource(
+            R.plurals.cleaner_scan_progress_eta,
+            scanned,
             scanned,
             percent ?: 0,
             formatEta(etaMillis)
         )
-        percent != null -> stringResource(R.string.cleaner_scan_progress, scanned, percent)
-        else -> stringResource(R.string.cleaner_scan_count, scanned)
+        percent != null -> androidx.compose.ui.res.pluralStringResource(R.plurals.cleaner_scan_progress, scanned, scanned, percent)
+        else -> androidx.compose.ui.res.pluralStringResource(R.plurals.cleaner_scan_count, scanned, scanned)
     }
 }
 

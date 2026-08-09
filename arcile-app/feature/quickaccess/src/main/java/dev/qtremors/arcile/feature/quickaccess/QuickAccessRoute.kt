@@ -24,7 +24,7 @@ internal data class QuickAccessActions(
     val addFilesShortcut: () -> Unit,
     val addAndroidDataShortcut: () -> Unit,
     val addAndroidObbShortcut: () -> Unit,
-    val reorderItems: (List<QuickAccessItem>) -> Unit
+    val movePinnedItem: (String, Int) -> Unit
 )
 
 @Composable
@@ -73,7 +73,7 @@ internal fun QuickAccessRoute(
                     "Android/obb"
                 )
             },
-            reorderItems = viewModel::updateItemsOrder
+            movePinnedItem = viewModel::movePinnedItem
         )
     )
 }

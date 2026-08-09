@@ -98,7 +98,7 @@ internal fun AudioSelectionTopBar(
     modifier: Modifier = Modifier
 ) {
     CategorySelectionTopBar(
-        selectedCountText = stringResource(R.string.audio_selected_count, selectedCount),
+        selectedCountText = androidx.compose.ui.res.pluralStringResource(R.plurals.audio_selected_count, selectedCount, selectedCount),
         selectedSizeText = formatFileSize(selectedSize),
         onClearSelection = onClearSelection,
         onSelectAll = onSelectAll,

@@ -117,7 +117,7 @@ internal fun CreateArchiveDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = stringResource(R.string.archive_create_summary, selectedCount),
+                    text = androidx.compose.ui.res.pluralStringResource(R.plurals.archive_create_summary, selectedCount, selectedCount),
                     style = MaterialTheme.typography.bodyMedium
                 )
                 FileNameInput(

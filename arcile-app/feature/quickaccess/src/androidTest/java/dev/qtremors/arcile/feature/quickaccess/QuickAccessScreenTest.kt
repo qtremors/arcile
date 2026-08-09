@@ -37,11 +37,7 @@ class QuickAccessScreenTest {
             )
         }
 
-        // Verify section headers are displayed
-        composeTestRule.onNodeWithText("SYSTEM FOLDERS").assertIsDisplayed()
-        composeTestRule.onNodeWithText("APP FOLDERS").assertIsDisplayed()
-        composeTestRule.onNodeWithText("FILES APP SECTION").assertIsDisplayed()
-        composeTestRule.onNodeWithText("CUSTOM FOLDERS").assertIsDisplayed()
+        composeTestRule.onNodeWithText("Show on Home").assertIsDisplayed()
 
         // Verify labels are displayed
         composeTestRule.onNodeWithText("Downloads").assertIsDisplayed()
@@ -87,11 +83,39 @@ class QuickAccessScreenTest {
 
         assert(toggledItem == item)
     }
+
+    @Test
+    fun quickAccessScreen_moveControl_persistsImmediately() {
+        var movedItemId = ""
+        var movedDirection = 0
+        val items = listOf(
+            QuickAccessItem("1", "Downloads", "/downloads", QuickAccessType.STANDARD, isPinned = true),
+            QuickAccessItem("2", "Music", "/music", QuickAccessType.STANDARD, isPinned = true)
+        )
+
+        composeTestRule.setContent {
+            QuickAccessScreen(
+                state = QuickAccessState(items = items, isLoading = false),
+                actions = testActions(
+                    movePinnedItem = { id, direction ->
+                        movedItemId = id
+                        movedDirection = direction
+                    }
+                )
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Move Downloads down").performClick()
+
+        assert(movedItemId == "1")
+        assert(movedDirection == 1)
+    }
 }
 
 private fun testActions(
     navigateToPath: (String) -> Unit = {},
-    togglePin: (QuickAccessItem) -> Unit = {}
+    togglePin: (QuickAccessItem) -> Unit = {},
+    movePinnedItem: (String, Int) -> Unit = { _, _ -> }
 ) = QuickAccessActions(
     navigateBack = {},
     navigateToPath = navigateToPath,
@@ -103,5 +127,5 @@ private fun testActions(
     addFilesShortcut = {},
     addAndroidDataShortcut = {},
     addAndroidObbShortcut = {},
-    reorderItems = {}
+    movePinnedItem = movePinnedItem
 )

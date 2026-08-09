@@ -276,8 +276,9 @@ private fun BrowserWorkspacePage(
     val showTabLimitFeedback = {
         onFeedback(
             ArcileFeedbackEvent(
-                message = UiText.StringResource(
-                    R.string.browser_tab_limit_reached,
+                message = UiText.PluralResource(
+                    R.plurals.browser_tab_limit_reached,
+                    MAX_BROWSER_TABS,
                     listOf(MAX_BROWSER_TABS)
                 ),
                 severity = ArcileFeedbackSeverity.Info

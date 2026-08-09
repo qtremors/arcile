@@ -501,6 +501,45 @@ class ExternalFileAccessHelperTest {
     }
 
     @Test
+    fun `private plaintext startup cleanup quarantines immediately and deletes asynchronously`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+        val stagingRoot = File(context.cacheDir, "external_access")
+        val fallbackRoot = File(stagingRoot, "onlyfiles_fallback")
+        val oldPlaintext = (1..80).fold(fallbackRoot) { directory, depth ->
+            File(directory, "depth-$depth")
+        }.resolve("old-plaintext.bin")
+        oldPlaintext.parentFile?.mkdirs()
+        oldPlaintext.writeText("sensitive")
+
+        assertTrue(ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(context))
+
+        assertFalse(fallbackRoot.exists())
+        assertFalse(oldPlaintext.exists())
+        val quarantined = stagingRoot.listFiles().orEmpty().single {
+            it.name.startsWith(".onlyfiles_fallback_cleanup_")
+        }
+        assertTrue(quarantined.walkTopDown().any { it.isFile && it.readText() == "sensitive" })
+
+        val newPlaintext = File(fallbackRoot, "new-id/new-plaintext.bin")
+        newPlaintext.parentFile?.mkdirs()
+        newPlaintext.writeText("new")
+        ExternalFileAccessHelper.clearQuarantinedPrivatePlaintextFallbacks(context)
+
+        assertFalse(quarantined.exists())
+        assertTrue(newPlaintext.exists())
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+    }
+
+    @Test
+    fun `private plaintext startup cleanup is a no-op when no fallback exists`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+
+        assertFalse(ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(context))
+    }
+
+    @Test
     fun `private plaintext fallback rolls back length mismatch`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)

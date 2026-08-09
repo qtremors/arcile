@@ -71,8 +71,9 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
     }
 
-    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress): Boolean {
         _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
+        return true
     }
 
     override fun onOperationCheckpoint(

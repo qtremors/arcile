@@ -70,7 +70,7 @@ internal fun DuplicateGroupCard(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = stringResource(R.string.cleaner_duplicate_count, filesInGroup.size) +
+                        text = androidx.compose.ui.res.pluralStringResource(R.plurals.cleaner_duplicate_count, filesInGroup.size, filesInGroup.size) +
                             " • " + formatFileSize(firstFile.size),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.tertiary,

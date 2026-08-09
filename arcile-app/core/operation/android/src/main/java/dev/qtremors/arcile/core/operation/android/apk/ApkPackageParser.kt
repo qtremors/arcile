@@ -5,9 +5,8 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import java.io.File
-import java.io.FileOutputStream
 import java.util.Locale
-import java.util.zip.ZipFile
+import kotlinx.coroutines.CancellationException
 import kotlin.math.abs
 
 /* ============================================================================
@@ -19,11 +18,19 @@ import kotlin.math.abs
 
 object ApkPackageParser {
 
+    fun cleanupStaging(context: Context, details: ApkPackageDetails?) {
+        cleanupApkStaging(context, details)
+    }
+
+    fun cleanupAbandonedStaging(context: Context) {
+        cleanupAbandonedApkStaging(context)
+    }
+
     /* ------------------------------------------------------------------------
      * Primary Entry Point
      * ------------------------------------------------------------------------ */
 
-    fun parse(context: Context, primaryPath: String, selectedSplitPaths: List<String> = emptyList()): ApkPackageDetails? {
+    suspend fun parse(context: Context, primaryPath: String, selectedSplitPaths: List<String> = emptyList()): ApkPackageDetails? {
         val file = File(primaryPath)
         if (!file.exists()) return null
 
@@ -80,43 +87,28 @@ object ApkPackageParser {
      * Split Archive Container Parsing (.apks, .xapk, .apkm)
      * ------------------------------------------------------------------------ */
 
-    private fun parseSplitArchiveContainer(context: Context, archiveFile: File): ApkPackageDetails? {
-        val tempExtractDir = File(context.cacheDir, "apk_staging_${archiveFile.name.hashCode()}")
-        if (tempExtractDir.exists()) {
-            tempExtractDir.deleteRecursively()
-        }
-        tempExtractDir.mkdirs()
-
-        val extractedApks = mutableListOf<ExtractedApk>()
-
+    private suspend fun parseSplitArchiveContainer(context: Context, archiveFile: File): ApkPackageDetails? {
+        var staging: ApkStagingResult? = null
         try {
-            ZipFile(archiveFile).use { zip ->
-                val entries = zip.entries()
-                while (entries.hasMoreElements()) {
-                    val entry = entries.nextElement()
-                    if (!entry.isDirectory && entry.name.endsWith(".apk", ignoreCase = true)) {
-                        val outputName = "${extractedApks.size.toString().padStart(4, '0')}_${File(entry.name).name}"
-                        val outFile = File(tempExtractDir, outputName)
-                        zip.getInputStream(entry).use { input ->
-                            FileOutputStream(outFile).use { output ->
-                                input.copyTo(output)
-                            }
-                        }
-                        extractedApks.add(ExtractedApk(outFile, entry.name))
-                    }
-                }
-            }
-
-            if (extractedApks.isEmpty()) return null
-
-            val compatibleApks = selectCompatibleArchiveApks(context, extractedApks)
-            if (compatibleApks.isEmpty()) return null
-            val details = parseApkFileList(context, compatibleApks.map(ExtractedApk::file))
-            return details?.copy(
-                totalSizeBytes = archiveFile.length()
+            staging = stageCompatibleArchiveApks(
+                cacheDir = context.cacheDir,
+                archiveFile = archiveFile,
+                target = deviceTarget(context)
             )
+            val details = parseApkFileList(context, staging.apks.map(ExtractedApk::file))
+            if (details == null) {
+                staging.directory.deleteRecursively()
+                return null
+            }
+            return details.copy(
+                totalSizeBytes = archiveFile.length(),
+                stagingDirectoryPath = staging.directory.absolutePath
+            )
+        } catch (cancellation: CancellationException) {
+            staging?.directory?.deleteRecursively()
+            throw cancellation
         } catch (_: Exception) {
-            tempExtractDir.deleteRecursively()
+            staging?.directory?.deleteRecursively()
             return null
         }
     }
@@ -195,19 +187,12 @@ object ApkPackageParser {
         return ext == "apks" || ext == "xapk" || ext == "apkm"
     }
 
-    private fun selectCompatibleArchiveApks(
-        context: Context,
-        extractedApks: List<ExtractedApk>
-    ): List<ExtractedApk> =
-        selectCompatibleArchiveApks(
-            extractedApks = extractedApks,
-            target = ApkArchiveDeviceTarget(
-                supportedAbis = Build.SUPPORTED_ABIS.toList(),
-                densityDpi = context.resources.displayMetrics.densityDpi,
-                language = (context.resources.configuration.locales[0] ?: Locale.getDefault()).language,
-                region = (context.resources.configuration.locales[0] ?: Locale.getDefault()).country
-            )
-        )
+    private fun deviceTarget(context: Context): ApkArchiveDeviceTarget = ApkArchiveDeviceTarget(
+        supportedAbis = Build.SUPPORTED_ABIS.toList(),
+        densityDpi = context.resources.displayMetrics.densityDpi,
+        language = (context.resources.configuration.locales[0] ?: Locale.getDefault()).language,
+        region = (context.resources.configuration.locales[0] ?: Locale.getDefault()).country
+    )
 
     internal fun selectCompatibleArchiveApks(
         extractedApks: List<ExtractedApk>,

@@ -216,8 +216,9 @@ internal fun OnlyFilesMainContent(
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Text(
-                                    stringResource(
-                                        R.string.onlyfiles_batch_progress,
+                                    androidx.compose.ui.res.pluralStringResource(
+                                        R.plurals.onlyfiles_batch_progress,
+                                        progress.totalItems,
                                         progress.completedItems,
                                         progress.totalItems
                                     ),
