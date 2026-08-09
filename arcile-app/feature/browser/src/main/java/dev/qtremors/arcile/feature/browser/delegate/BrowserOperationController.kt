@@ -17,6 +17,8 @@ import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.presentation.userMessage
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.completedFileOperationMessage
 import dev.qtremors.arcile.feature.browser.BrowserOperationState
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.feature.browser.MoveUndoEntry
@@ -24,6 +26,7 @@ import dev.qtremors.arcile.feature.browser.toBrowserRecoveryUiState
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +34,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 internal class BrowserOperationController(
     initialState: BrowserOperationState,
@@ -40,6 +44,7 @@ internal class BrowserOperationController(
     private val clipboardRepository: ClipboardRepository,
     private val clipboardController: ClipboardController,
     private val coordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText?) -> Unit,
     private val refreshAction: () -> Unit
@@ -47,10 +52,13 @@ internal class BrowserOperationController(
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<BrowserOperationState> = _state.asStateFlow()
     private val observationJobs = mutableListOf<Job>()
+    private var terminalClearJob: Job? = null
 
     fun startObserving() {
         stopObserving()
-        hydrateActiveOperation()
+        observationJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            coordinator.activeRequest.collectLatest(::syncActiveRequest)
+        }
         update {
             it.copy(
                 activeRecoveryOperation = coordinator.recoveryRecords.value
@@ -78,6 +86,7 @@ internal class BrowserOperationController(
     fun stopObserving() {
         observationJobs.forEach(Job::cancel)
         observationJobs.clear()
+        terminalClearJob?.cancel()
     }
 
     fun clearStatusMessage() {
@@ -167,30 +176,49 @@ internal class BrowserOperationController(
         update {
             it.copy(
                 fileOperationStatusMessage = status,
+                fileOperationStatusSeverity = ArcileFeedbackSeverity.Success,
                 pendingUndoAction = undoAction
             )
         }
     }
 
-    private fun hydrateActiveOperation() {
-        coordinator.activeRequest.value?.let { request ->
-            update {
-                it.copy(
-                    activeFileOperation = OperationPresentationMapper.map(request)
-                )
-            }
+    private fun syncActiveRequest(request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest?) {
+        val ownedRequest = request?.takeIf { it.presentationOwnerId == operationOwnerId }
+        if (ownedRequest != null) {
+            terminalClearJob?.cancel()
+            onBusyChange(true)
+            update { it.copy(activeFileOperation = OperationPresentationMapper.map(ownedRequest)) }
+        } else if (_state.value.activeFileOperation?.terminalStatus == null) {
+            onBusyChange(false)
+            update { it.copy(activeFileOperation = null) }
         }
     }
 
     private suspend fun handleEvent(event: BulkFileOperationEvent) {
+        val request = when (event) {
+            is BulkFileOperationEvent.Started -> event.request
+            is BulkFileOperationEvent.Progress -> event.request
+            is BulkFileOperationEvent.Cancelling -> event.request
+            is BulkFileOperationEvent.Completed -> event.request
+            is BulkFileOperationEvent.Failed -> event.request
+            is BulkFileOperationEvent.Cancelled -> event.request
+            else -> null
+        }
+        if (request != null && request.presentationOwnerId != operationOwnerId) {
+            if (event is BulkFileOperationEvent.Completed) refreshAction()
+            return
+        }
+        if (event is BulkFileOperationEvent.Cancelled && request == null) return
         when (event) {
             is BulkFileOperationEvent.Started -> {
+                terminalClearJob?.cancel()
                 onBusyChange(true)
                 onError(null)
                 update {
                     it.copy(
                         activeFileOperation = OperationPresentationMapper.map(event.request),
-                        fileOperationStatusMessage = null
+                        fileOperationStatusMessage = null,
+                        fileOperationStatusSeverity = ArcileFeedbackSeverity.Info
                     )
                 }
             }
@@ -220,29 +248,39 @@ internal class BrowserOperationController(
             }
             is BulkFileOperationEvent.Completed -> completeOperation(event)
             is BulkFileOperationEvent.Failed -> {
-                finishClipboardOperation()
+                finishOperation(event.request)
                 update {
                     it.copy(
                         activeFileOperation = it.activeFileOperation?.copy(
                             terminalStatus = OperationCompletionStatus.FAILED
+                        ) ?: OperationPresentationMapper.map(
+                            event.request,
+                            terminalStatus = OperationCompletionStatus.FAILED
                         ),
                         fileOperationStatusMessage = event.error?.userMessage
-                            ?: UiText.StringResource(R.string.error_file_operation_failed)
+                            ?: UiText.StringResource(R.string.error_file_operation_failed),
+                        fileOperationStatusSeverity = ArcileFeedbackSeverity.Error
                     )
                 }
+                scheduleTerminalClear()
             }
             is BulkFileOperationEvent.Cancelled -> {
-                finishClipboardOperation()
+                finishOperation(requireNotNull(event.request))
                 update {
                     it.copy(
                         activeFileOperation = it.activeFileOperation?.copy(
                             terminalStatus = OperationCompletionStatus.CANCELLED
+                        ) ?: OperationPresentationMapper.map(
+                            requireNotNull(event.request),
+                            terminalStatus = OperationCompletionStatus.CANCELLED
                         ),
                         fileOperationStatusMessage = UiText.StringResource(
                             R.string.file_operation_cancelled
-                        )
+                        ),
+                        fileOperationStatusSeverity = ArcileFeedbackSeverity.Info
                     )
                 }
+                scheduleTerminalClear()
             }
             is BulkFileOperationEvent.RecoveryAvailable -> {
                 update {
@@ -293,27 +331,50 @@ internal class BrowserOperationController(
             )
             else -> null
         }
-        finishClipboardOperation()
+        finishOperation(event.request)
         update {
             it.copy(
                 activeFileOperation = it.activeFileOperation?.copy(
                     terminalStatus = OperationCompletionStatus.SUCCESS
+                ) ?: OperationPresentationMapper.map(
+                    event.request,
+                    terminalStatus = OperationCompletionStatus.SUCCESS
                 ),
-                fileOperationStatusMessage = formatCompletedMessage(
-                    event.request.type,
-                    OperationPresentationMapper.itemCount(event.request)
-                ),
+                fileOperationStatusMessage = completedFileOperationMessage(event.request),
+                fileOperationStatusSeverity = ArcileFeedbackSeverity.Success,
                 pendingTrashUndoIds = undoIds.toPersistentList(),
                 pendingUndoAction = undoAction
             )
         }
         refreshAction()
+        scheduleTerminalClear()
     }
 
-    private fun finishClipboardOperation() {
+    private fun finishOperation(request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest) {
         onBusyChange(false)
-        clipboardController.clear()
-        update { it.copy(clipboardState = null) }
+        if (request.type == BulkFileOperationType.COPY || request.type == BulkFileOperationType.MOVE) {
+            request.clipboardSessionId?.let(clipboardController::clear)
+            update { current ->
+                if (current.clipboardState?.sessionId == request.clipboardSessionId) {
+                    current.copy(clipboardState = null)
+                } else {
+                    current
+                }
+            }
+        }
+    }
+
+    private fun scheduleTerminalClear() {
+        terminalClearJob?.cancel()
+        terminalClearJob = scope.launch {
+            delay(TERMINAL_OPERATION_HOLD_MS)
+            update {
+                it.copy(
+                    activeFileOperation = null,
+                    fileOperationStatusMessage = null
+                )
+            }
+        }
     }
 
     private fun undoRename(undo: BrowserUndoAction.Rename) {
@@ -409,24 +470,13 @@ internal class BrowserOperationController(
             BrowserUndoAction.Created(joinStoragePath(destinationPath, name))
         }
 
-    private fun formatCompletedMessage(type: BulkFileOperationType, count: Int): UiText {
-        val pluralRes = when (type) {
-            BulkFileOperationType.COPY -> R.plurals.file_operation_copied_items
-            BulkFileOperationType.MOVE -> R.plurals.file_operation_moved_items
-            BulkFileOperationType.TRASH -> R.plurals.file_operation_trashed_items
-            BulkFileOperationType.DELETE -> R.plurals.file_operation_deleted_items
-            BulkFileOperationType.SHRED -> R.plurals.file_operation_shredded_items
-            BulkFileOperationType.CREATE_FAKE -> R.plurals.file_operation_created_items
-            BulkFileOperationType.EXTRACT_ARCHIVE -> R.plurals.file_operation_extracted_items
-            BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items
-            BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> R.plurals.file_operation_copied_items
-        }
-        return UiText.PluralResource(pluralRes, count, listOf(count))
-    }
-
     private inline fun update(
         transform: (BrowserOperationState) -> BrowserOperationState
     ) {
         _state.update(transform)
+    }
+
+    private companion object {
+        const val TERMINAL_OPERATION_HOLD_MS = 800L
     }
 }

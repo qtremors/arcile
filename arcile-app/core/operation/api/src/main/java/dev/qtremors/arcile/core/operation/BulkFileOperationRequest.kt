@@ -12,7 +12,8 @@ data class SaveToArcileImportItem(
     val uri: String,
     val displayName: String,
     val sizeBytes: Long? = null,
-    val requiresCountedStream: Boolean = false
+    val requiresCountedStream: Boolean = false,
+    val ownsPersistedReadGrant: Boolean = false
 )
 
 @Serializable
@@ -28,7 +29,9 @@ data class BulkFileOperationRequest(
     val archivePassword: String? = null,
     val archiveNameEncoding: ArchiveNameEncoding? = null,
     val archiveCompressionLevel: ArchiveCompressionLevel? = null,
-    val importItems: List<SaveToArcileImportItem> = emptyList()
+    val importItems: List<SaveToArcileImportItem> = emptyList(),
+    val presentationOwnerId: String? = null,
+    val clipboardSessionId: String? = null
 ) {
     val sourceRefs: List<StorageNodeRef>
         get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }

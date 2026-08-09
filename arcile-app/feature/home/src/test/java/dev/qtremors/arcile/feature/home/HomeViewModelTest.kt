@@ -6,12 +6,15 @@ import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.RootStorageUsage
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
+import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.testFile
@@ -87,6 +90,48 @@ class HomeViewModelTest {
         assertFalse(viewModel.state.value.isLoading)
         assertFalse(viewModel.state.value.isCalculatingStorage)
         assertFalse(viewModel.state.value.isPullToRefreshing)
+    }
+
+    @Test
+    fun `root capacity loads only after it is requested`() = runTest(mainDispatcherRule.dispatcher) {
+        val volume = homeVolume(
+            "primary",
+            "primary",
+            "Internal",
+            "/storage/emulated/0",
+            StorageKind.INTERNAL,
+            true,
+            false
+        )
+        val rootUsage = RootStorageUsage(totalBytes = 500L, freeBytes = 125L)
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume)).apply {
+            storageInfoResultProvider = {
+                Result.success(StorageInfo(listOf(volume), rootStorageUsage = rootUsage))
+            }
+        }
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+            io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        val viewModel = HomeViewModel(
+            repository.volumeRepository,
+            repository.storageAnalyticsRepository,
+            repository.searchRepository,
+            HomeFakeStorageClassificationStore(),
+            quickAccessRepo
+        )
+
+        advanceUntilIdle()
+
+        assertTrue(repository.requestedStorageInfoScopes.isEmpty())
+        assertEquals(null, viewModel.state.value.storageInfo?.rootStorageUsage)
+
+        viewModel.loadRootStorageUsage()
+        advanceUntilIdle()
+
+        assertEquals(listOf(StorageScope.AllStorage), repository.requestedStorageInfoScopes)
+        assertEquals(rootUsage, viewModel.state.value.storageInfo?.rootStorageUsage)
+        assertTrue(viewModel.state.value.hasLoadedRootStorageUsage)
+        assertFalse(viewModel.state.value.isRootStorageUsageLoading)
     }
 
     @Test
@@ -412,6 +457,32 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun `home layout updates flow through preferences into state`() = runTest(mainDispatcherRule.dispatcher) {
+        val repository = FakeStorageRepositoryBundle()
+        val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+            io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+        }
+        val utilityStore = HomeFakeUtilityPreferencesStore()
+        val viewModel = HomeViewModel(
+            repository.volumeRepository,
+            repository.storageAnalyticsRepository,
+            repository.searchRepository,
+            HomeFakeStorageClassificationStore(),
+            quickAccessRepo,
+            utilityStore
+        )
+        val updated = HomeLayoutPreferences(
+            orderedSectionIds = HomeSectionIds.ALL.reversed(),
+            enabledSectionIds = setOf(HomeSectionIds.RECENT_FILES, HomeSectionIds.STORAGE)
+        )
+
+        viewModel.updateHomeLayoutPreferences(updated)
+        advanceUntilIdle()
+
+        assertEquals(updated, viewModel.state.value.homeLayoutPreferences)
+    }
+
+    @Test
     fun `display state keeps only today recent files for home carousel limit`() {
         val older = homeFile("older.txt").copy(lastModified = 1L)
         val newer = homeFile("newer.txt").copy(lastModified = 20_000L)
@@ -445,11 +516,17 @@ private class HomeFakeStorageClassificationStore(
 
 private class HomeFakeUtilityPreferencesStore : UtilityPreferencesStore {
     private val ids = MutableStateFlow(listOf("trash", "cleaner"))
+    private val layout = MutableStateFlow(HomeLayoutPreferences())
 
     override val homeUtilityIds = ids.asStateFlow()
+    override val homeLayoutPreferences = layout.asStateFlow()
 
     override suspend fun setHomeUtilityIds(ids: List<String>) {
         this.ids.value = ids
+    }
+
+    override suspend fun setHomeLayoutPreferences(preferences: HomeLayoutPreferences) {
+        layout.value = preferences
     }
 }
 

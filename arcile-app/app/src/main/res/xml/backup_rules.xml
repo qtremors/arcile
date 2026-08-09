@@ -7,6 +7,9 @@
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="trash_crypto_prefs.xml" />
+    <exclude domain="sharedpref" path="operation_journal.xml" />
+    <exclude domain="sharedpref" path="mutation_journal.xml" />
+    <exclude domain="sharedpref" path="onlyfiles_vault_locations.xml" />
     <exclude domain="file" path="datastore/browser_prefs.preferences_pb" />
     <exclude domain="file" path="datastore/quick_access_prefs.preferences_pb" />
     <exclude domain="file" path="datastore/storage_classifications_prefs.preferences_pb" />

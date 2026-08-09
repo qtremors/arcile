@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.matchesSearchFilters
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserSearchState
 import kotlinx.collections.immutable.toPersistentList
@@ -39,7 +40,8 @@ internal class SearchController(
         initialQuery = initialState.browserSearchQuery,
         initialResults = initialState.searchResults,
         debounceMillis = SEARCH_DEBOUNCE_MILLIS,
-        fallbackError = UiText.StringResource(R.string.error_search_failed)
+        fallbackError = UiText.StringResource(R.string.error_search_failed),
+        shouldSearch = { query, filters -> query.isNotBlank() || filters.hasActiveFilters }
     ) { query, filters ->
         search(query, filters, repository)
     }
@@ -73,7 +75,10 @@ internal class SearchController(
         context.archiveFiles?.let { archiveFiles ->
             val normalized = query.trim().lowercase()
             return Result.success(
-                archiveFiles.filter { file -> file.name.lowercase().contains(normalized) }
+                archiveFiles.filter { file ->
+                    (normalized.isEmpty() || file.name.lowercase().contains(normalized)) &&
+                        file.matchesSearchFilters(filters)
+                }
             )
         }
         val storageScope = when {
@@ -82,6 +87,10 @@ internal class SearchController(
                 StorageScope.Category(context.currentVolumeId, context.activeCategoryName)
             context.currentVolumeId != null && context.currentPath.isNotEmpty() ->
                 StorageScope.Path(context.currentVolumeId, context.currentPath)
+            context.currentPath.isNotEmpty() ->
+                return Result.failure(
+                    UnsupportedOperationException("Search is unavailable for this location")
+                )
             else -> StorageScope.AllStorage
         }
         return repository.searchFiles(query, storageScope, filters)

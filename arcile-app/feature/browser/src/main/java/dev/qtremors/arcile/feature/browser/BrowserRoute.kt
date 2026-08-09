@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.browser
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -16,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -23,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserClipboardIntents
@@ -35,10 +38,13 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserScrollBindings
 import dev.qtremors.arcile.feature.browser.ui.BrowserSearchIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserSelectionIntents
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.clipboardStoredFeedback
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.ui.NativeStorageAuthorizationEffect
 import kotlinx.coroutines.launch
 
 sealed interface BrowserEntry {
+    data object PrimaryStorage : BrowserEntry
     data class Root(val restorePersistentLocation: Boolean) : BrowserEntry
     data class Path(
         val path: String,
@@ -48,18 +54,26 @@ sealed interface BrowserEntry {
         val name: String,
         val volumeId: String? = null
     ) : BrowserEntry
-    data class Archive(val path: String) : BrowserEntry
+    data class Archive(
+        val path: String,
+        val entryPrefix: String? = null
+    ) : BrowserEntry
 }
 
 data class BrowserEntryRequest(
     val id: Long,
     val entry: BrowserEntry,
-    val focusPath: String? = null
+    val focusPath: String? = null,
+    val resetWorkspace: Boolean = false,
+    val preferSavedLocation: Boolean = false
 )
 
 data class BrowserRouteStatus(
     val hasActiveLocation: Boolean = false,
-    val isCategoryScreen: Boolean = false
+    val isCategoryScreen: Boolean = false,
+    val title: String = "",
+    val entry: BrowserEntry = BrowserEntry.Root(restorePersistentLocation = false),
+    val isReady: Boolean = true
 )
 
 sealed interface BrowserDestination {
@@ -84,6 +98,10 @@ fun BrowserRoute(
     appStartPage: AppStartPage? = null,
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit,
+    workspaceTabs: @Composable () -> Unit = {},
+    workspaceTabsEnabled: Boolean = false,
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    renderContent: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val viewModel = hiltViewModel<BrowserViewModel>(key = viewModelKey)
@@ -93,8 +111,8 @@ fun BrowserRoute(
     val batchRenameHistory by viewModel.batchRenameHistory.collectAsStateWithLifecycle()
     val state = uiState
     val scope = rememberCoroutineScope()
-    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
-    val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
+    val listState = rememberSaveable(entryRequest?.id, saver = LazyListState.Saver) { LazyListState() }
+    val gridState = rememberSaveable(entryRequest?.id, saver = LazyGridState.Saver) { LazyGridState() }
     val scrollPositionKey = state.scrollPositionKey()
     val saveCurrentScrollPosition = {
         viewModel.saveVisibleScrollPosition(scrollPositionKey, listState, gridState)
@@ -108,24 +126,65 @@ fun BrowserRoute(
         mutableStateOf<String?>(null)
     }
 
-    NativeStorageAuthorizationEffect(
-        requirement = state.operation.pendingAuthorization,
-        onResult = viewModel::handleAuthorizationResult,
-        onUnavailable = viewModel::handleAuthorizationUnavailable
-    )
-
-    LaunchedEffect(hasActiveLocation, uiState.location.isCategoryScreen) {
-        onStatusChange(
-            BrowserRouteStatus(
-                hasActiveLocation = hasActiveLocation,
-                isCategoryScreen = uiState.location.isCategoryScreen
-            )
+    if (renderContent) {
+        NativeStorageAuthorizationEffect(
+            requirement = state.operation.pendingAuthorization,
+            onResult = viewModel::handleAuthorizationResult,
+            onUnavailable = viewModel::handleAuthorizationUnavailable
         )
     }
 
-    LaunchedEffect(isVisible, entryRequest?.id) {
-        if (isVisible) viewModel.initialize(entryRequest)
+    val statusTitle = when {
+        state.archiveContext != null -> state.archiveContext.archiveName
+        state.isCategoryScreen -> state.activeCategoryName
+        state.currentPath.isNotBlank() -> {
+            val currentVolume = state.displayState.currentVolume
+            if (currentVolume != null && currentVolume.path == state.currentPath) {
+                currentVolume.name
+            } else {
+                storagePathName(state.currentPath)
+            }
+        }
+        else -> stringResource(dev.qtremors.arcile.core.ui.R.string.browse_title)
     }
+    val statusEntry = when {
+        state.archiveContext != null -> BrowserEntry.Archive(
+            path = state.archiveContext.archivePath,
+            entryPrefix = state.archiveContext.entryPrefix
+        )
+        state.isCategoryScreen -> BrowserEntry.Category(
+            name = state.activeCategoryName,
+            volumeId = state.currentVolumeId
+        )
+        state.currentPath.isNotBlank() -> BrowserEntry.Path(
+            path = state.currentPath,
+            seedInitialPathHistory = false
+        )
+        else -> BrowserEntry.Root(restorePersistentLocation = false)
+    }
+
+    LaunchedEffect(initializationState, hasActiveLocation, statusTitle, statusEntry) {
+        if (
+            canPublishBrowserStatus(initializationState) &&
+            viewModel.isPreparedEntryRequest(entryRequest)
+        ) {
+            onStatusChange(
+                BrowserRouteStatus(
+                    hasActiveLocation = hasActiveLocation,
+                    isCategoryScreen = uiState.location.isCategoryScreen,
+                    title = statusTitle,
+                    entry = statusEntry,
+                    isReady = initializationState == BrowserInitializationState.Ready
+                )
+            )
+        }
+    }
+
+    LaunchedEffect(isVisible, renderContent, entryRequest?.id) {
+        if (isVisible || !renderContent) viewModel.initialize(entryRequest)
+    }
+
+    if (!renderContent) return
 
     LaunchedEffect(
         entryRequest?.focusPath,
@@ -194,7 +253,7 @@ fun BrowserRoute(
                     onDestination(
                         BrowserDestination.OpenFile(
                             path = path,
-                            surroundingFiles = if (state.browserSearchQuery.isNotBlank()) {
+                            surroundingFiles = if (state.browserSearchQuery.isNotBlank() || state.activeSearchFilters.hasActiveFilters) {
                                 state.searchResults
                             } else {
                                 state.displayState.visibleFiles
@@ -216,7 +275,7 @@ fun BrowserRoute(
             onClearSelection = viewModel::clearSelection,
             onShareSelected = {
                 scope.launch {
-                    val visibleFiles = if (state.browserSearchQuery.isNotBlank()) {
+                    val visibleFiles = if (state.browserSearchQuery.isNotBlank() || state.activeSearchFilters.hasActiveFilters) {
                         state.searchResults
                     } else {
                         state.displayState.visibleFiles
@@ -258,8 +317,16 @@ fun BrowserRoute(
             onToggleSearchFilterMenu = viewModel::toggleSearchFilterMenu
         ),
         clipboard = BrowserClipboardIntents(
-            onCopySelected = viewModel::copySelectedToClipboard,
-            onCutSelected = viewModel::cutSelectedToClipboard,
+            onCopySelected = {
+                viewModel.copySelectedToClipboard().takeIf { it > 0 }?.let { count ->
+                    onFeedback(clipboardStoredFeedback(ClipboardOperation.COPY, count))
+                }
+            },
+            onCutSelected = {
+                viewModel.cutSelectedToClipboard().takeIf { it > 0 }?.let { count ->
+                    onFeedback(clipboardStoredFeedback(ClipboardOperation.CUT, count))
+                }
+            },
             onPasteFromClipboard = viewModel::pasteFromClipboard,
             onCancelClipboard = viewModel::cancelClipboard,
             onRemoveFromClipboard = viewModel::removeFromClipboard,
@@ -326,17 +393,28 @@ fun BrowserRoute(
                 appStartPage = appStartPage,
                 onAppStartPageChange = onAppStartPageChange,
                 isRouteVisible = isVisible,
-                batchRenameHistory = batchRenameHistory
+                batchRenameHistory = batchRenameHistory,
+                workspaceTabs = workspaceTabs,
+                workspaceTabsEnabled = workspaceTabsEnabled,
+                onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange
             )
         } else {
-            BrowserInitializationSurface(
-                state = initializationState,
-                onRetry = viewModel::retryInitialization,
-                modifier = Modifier.fillMaxSize()
-            )
+            Column(modifier = Modifier.fillMaxSize()) {
+                workspaceTabs()
+                BrowserInitializationSurface(
+                    state = initializationState,
+                    onRetry = viewModel::retryInitialization,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .weight(1f)
+                )
+            }
         }
     }
 }
+
+internal fun canPublishBrowserStatus(state: BrowserInitializationState): Boolean =
+    state == BrowserInitializationState.Ready || state is BrowserInitializationState.Failed
 
 private fun BrowserViewModel.saveVisibleScrollPosition(
     key: String,

@@ -1,21 +1,30 @@
 package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.testutil.FakeActivityLogStore
+import dev.qtremors.arcile.testutil.FakeClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -39,13 +48,20 @@ class BulkFileOperationCoordinatorTest {
 
     private lateinit var context: Context
     private lateinit var coordinator: ForegroundBulkFileOperationCoordinator
+    private lateinit var clipboardRepository: FakeClipboardRepository
     private lateinit var testScope: TestScope
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
-        coordinator = ForegroundBulkFileOperationCoordinator(context, DefaultOperationJournal(context))
+        DefaultOperationJournal.clearForTest(context)
+        clipboardRepository = FakeClipboardRepository()
+        coordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = DefaultOperationJournal(context),
+            clipboardRepository = clipboardRepository
+        )
         testScope = TestScope(UnconfinedTestDispatcher())
     }
 
@@ -104,6 +120,55 @@ class BulkFileOperationCoordinatorTest {
 
         assertNull(coordinator.activeRequest.value)
         assertNull(DefaultOperationJournal(context).activeRecord())
+        assertTrue(coordinator.events.replayCache.isEmpty())
+    }
+
+    @Test
+    fun `terminal completion settles clipboard without an event collector`() = testScope.runTest {
+        val clipboard = ClipboardState(
+            operation = ClipboardOperation.COPY,
+            files = listOf(testFile("/source.txt")),
+            sessionId = "clipboard-a"
+        )
+        clipboardRepository.setClipboardState(clipboard)
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            clipboardSessionId = clipboard.sessionId
+        )
+
+        coordinator.onOperationCompleted(requireNotNull(coordinator.activeRequest.value))
+
+        assertNull(clipboardRepository.clipboardState.value)
+    }
+
+    @Test
+    fun `terminal completion preserves a replacement clipboard session`() = testScope.runTest {
+        val original = ClipboardState(
+            operation = ClipboardOperation.COPY,
+            files = listOf(testFile("/source.txt")),
+            sessionId = "clipboard-a"
+        )
+        val replacement = ClipboardState(
+            operation = ClipboardOperation.COPY,
+            files = listOf(testFile("/replacement.txt")),
+            sessionId = "clipboard-b"
+        )
+        clipboardRepository.setClipboardState(original)
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            clipboardSessionId = original.sessionId
+        )
+        clipboardRepository.setClipboardState(replacement)
+
+        coordinator.onOperationCompleted(requireNotNull(coordinator.activeRequest.value))
+
+        assertEquals(replacement, clipboardRepository.clipboardState.value)
     }
 
     @Test
@@ -125,6 +190,59 @@ class BulkFileOperationCoordinatorTest {
         coordinator.onOperationProgress(request, progress)
 
         assertEquals(progress, DefaultOperationJournal(context).activeRecord()?.progress)
+    }
+
+    @Test
+    fun `one gibibyte progress storm is coalesced and terminal state flushes exactly`() = testScope.runTest {
+        val journal = RecordingOperationJournal()
+        val progressCoordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = journal,
+            applicationScope = this
+        )
+        var nowMillis = 0L
+        progressCoordinator.progressClock = { nowMillis }
+        val observed = mutableListOf<BulkFileOperationProgress>()
+        val collector = launch(start = CoroutineStart.UNDISPATCHED) {
+            progressCoordinator.events
+                .filterIsInstance<BulkFileOperationEvent.Progress>()
+                .collect { observed += it.progress }
+        }
+        assertTrue(
+            progressCoordinator.startOperation(
+                BulkFileOperationType.COPY,
+                listOf("/large.bin"),
+                "/dest",
+                emptyMap()
+            )
+        )
+        val request = requireNotNull(progressCoordinator.activeRequest.value)
+        var presentedUpdates = 0
+        for (megabytes in 1..1023) {
+            nowMillis += 1L
+            val progress = BulkFileOperationProgress(
+                completedItems = 0,
+                totalItems = 1,
+                currentPath = "/large.bin",
+                bytesCopied = megabytes * 1024L * 1024L,
+                totalBytes = 1024L * 1024L * 1024L
+            )
+            if (progressCoordinator.onOperationProgress(request, progress)) {
+                presentedUpdates += 1
+            }
+        }
+
+        progressCoordinator.onOperationCompleted(request)
+
+        assertTrue("presentation updates should stay below four per second", presentedUpdates <= 3)
+        assertTrue("journal writes should stay below four per second plus terminal flush", journal.progressWrites <= 4)
+        assertEquals(1023L * 1024L * 1024L, journal.lastPersisted?.progress?.bytesCopied)
+        assertEquals(OperationPhase.COMPLETED, journal.lastPersisted?.phase)
+        assertTrue(observed.zipWithNext().all { (before, after) ->
+            (before.bytesCopied ?: 0L) <= (after.bytesCopied ?: 0L)
+        })
+        assertEquals(journal.lastPersisted?.progress, observed.last())
+        collector.cancel()
     }
 
     @Test
@@ -225,7 +343,7 @@ class BulkFileOperationCoordinatorTest {
     @Test
     fun `constructor classifies queued running and cancelling interrupted operations as cleanup required`() {
         listOf(OperationPhase.QUEUED, OperationPhase.RUNNING, OperationPhase.CANCELLING).forEach { phase ->
-            context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+            DefaultOperationJournal.clearForTest(context)
             val journal = DefaultOperationJournal(context)
             journal.upsertActive(request("op-${phase.name.lowercase()}").toJournalRecord(phase))
 
@@ -294,6 +412,14 @@ class BulkFileOperationCoordinatorTest {
             resolutions = emptyMap()
         )
 
+    private fun testFile(path: String) = FileModel(
+        name = path.substringAfterLast('/'),
+        absolutePath = path,
+        size = 0L,
+        lastModified = 0L,
+        isDirectory = false
+    )
+
     private class RecordingMutationJournal : MutationJournal {
         var cleanupCalled = false
         override fun recordTemporaryPath(path: String) = Unit
@@ -303,6 +429,76 @@ class BulkFileOperationCoordinatorTest {
         override suspend fun cleanupAbandonedMutations() {
             cleanupCalled = true
         }
+    }
+
+    @Test
+    fun `constructor releases owned grants and cleans abandoned imports`() = testScope.runTest {
+        val uri = Uri.parse("content://example/abandoned-import")
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+        val request = BulkFileOperationRequest(
+            operationId = "op-abandoned-import",
+            type = BulkFileOperationType.SAVE_TO_ARCILE_IMPORT,
+            sourcePaths = emptyList(),
+            destinationPath = "/dest",
+            importItems = listOf(
+                SaveToArcileImportItem(
+                    uri = uri.toString(),
+                    displayName = "shared.txt",
+                    ownsPersistedReadGrant = true
+                )
+            )
+        )
+        val journal = DefaultOperationJournal(context)
+        journal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
+
+        val recoveredCoordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = journal,
+            applicationScope = this
+        )
+        advanceUntilIdle()
+
+        assertTrue(context.contentResolver.persistedUriPermissions.isEmpty())
+        assertTrue(recoveredCoordinator.recoveryRecords.value.isEmpty())
+        assertTrue(journal.recoveryRecords().isEmpty())
+    }
+
+    private class RecordingOperationJournal : OperationJournal {
+        private var active: OperationJournalRecord? = null
+        var progressWrites = 0
+            private set
+        var lastPersisted: OperationJournalRecord? = null
+            private set
+
+        override fun activeRecord(): OperationJournalRecord? = active
+
+        override fun upsertActive(record: OperationJournalRecord) {
+            active = record
+            lastPersisted = record
+        }
+
+        override fun update(
+            operationId: String,
+            transform: (OperationJournalRecord) -> OperationJournalRecord
+        ) {
+            val current = active ?: return
+            if (current.request.operationId != operationId) return
+            val updated = transform(current)
+            if (updated.progress != current.progress) progressWrites += 1
+            active = updated
+            lastPersisted = updated
+        }
+
+        override fun clearActive(operationId: String) {
+            if (active?.request?.operationId == operationId) active = null
+        }
+
+        override fun recoveryRecords(): List<OperationJournalRecord> = emptyList()
+        override fun dismissRecovery(operationId: String) = Unit
+        override fun recoverInterrupted(): List<OperationJournalRecord> = emptyList()
     }
 
     private class DelayingFirstActivityLogStore : ActivityLogStore {

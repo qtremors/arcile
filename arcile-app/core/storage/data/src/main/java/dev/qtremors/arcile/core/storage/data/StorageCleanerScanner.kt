@@ -1,23 +1,32 @@
 package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.domain.CachedStorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
-import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
-import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanUpdate
 import java.io.File
+import java.io.RandomAccessFile
 import java.security.MessageDigest
 import java.util.Locale
+import java.util.PriorityQueue
 import javax.inject.Inject
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 
 class DefaultStorageCleanerScanner @Inject constructor(
     private val dispatchers: ArcileDispatchers,
@@ -28,7 +37,33 @@ class DefaultStorageCleanerScanner @Inject constructor(
         limits: StorageCleanerScanLimits,
         rules: StorageCleanerRules
     ): StorageCleanerResult? =
-        snapshotStore?.get(rootPaths, limits, rules)
+        cachedScanWithMetadata(rootPaths, limits, rules)?.result
+
+    override suspend fun cachedScanWithMetadata(
+        rootPaths: List<String>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): CachedStorageCleanerResult? =
+        cachedScanForGroups(rootPaths, CleanerGroupType.entries.toSet(), limits, rules)
+
+    override suspend fun cachedScanForGroups(
+        rootPaths: List<String>,
+        groupTypes: Set<CleanerGroupType>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): CachedStorageCleanerResult? {
+        val store = snapshotStore ?: return null
+        val allGroups = CleanerGroupType.entries.toSet()
+        val cached = (
+            store.get(rootPaths, limits, rules, groupTypes)
+                ?: if (groupTypes != allGroups) store.get(rootPaths, limits, rules, allGroups) else null
+            ) ?: return null
+        return cached.copy(
+            result = cached.result.copy(
+                groups = cached.result.groups.filter { it.type in groupTypes }
+            ).withoutStaleCandidates()
+        )
+    }
 
     override suspend fun scan(
         rootPaths: List<String>,
@@ -36,125 +71,355 @@ class DefaultStorageCleanerScanner @Inject constructor(
         limits: StorageCleanerScanLimits,
         rules: StorageCleanerRules
     ): StorageCleanerResult = withContext(dispatchers.storage) {
+        performScan(
+            rootPaths = rootPaths,
+            now = now,
+            limits = limits,
+            rules = rules,
+            requestedGroups = CleanerGroupType.entries.toSet(),
+            onUpdate = {}
+        )
+    }
+
+    override fun scanUpdates(
+        rootPaths: List<String>,
+        now: Long,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): Flow<StorageCleanerScanUpdate> =
+        scanGroupUpdates(rootPaths, CleanerGroupType.entries.toSet(), now, limits, rules)
+
+    override fun scanGroupUpdates(
+        rootPaths: List<String>,
+        groupTypes: Set<CleanerGroupType>,
+        now: Long,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): Flow<StorageCleanerScanUpdate> = flow {
+        val requestedGroups = groupTypes.ifEmpty { CleanerGroupType.entries.toSet() }
+        val result = performScan(rootPaths, now, limits, rules, requestedGroups) { update -> emit(update) }
+        emit(
+            StorageCleanerScanUpdate(
+                progress = StorageCleanerScanProgress(
+                    phase = StorageCleanerScanPhase.Complete,
+                    scannedFiles = result.scannedFiles,
+                    progressFraction = 1f,
+                    estimatedRemainingMillis = 0L,
+                    completedGroups = requestedGroups
+                ),
+                result = result
+            )
+        )
+    }.flowOn(dispatchers.storage)
+
+    override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
+        snapshotStore?.invalidate(paths)
+    }
+
+    private suspend fun performScan(
+        rootPaths: List<String>,
+        now: Long,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules,
+        requestedGroups: Set<CleanerGroupType>,
+        onUpdate: suspend (StorageCleanerScanUpdate) -> Unit
+    ): StorageCleanerResult {
         val normalizedRules = rules.normalized()
-        val files = mutableListOf<FileSnapshot>()
-        var partial = false
-
-        rootPaths.distinct().forEach { rootPath ->
-            val root = File(rootPath)
-            if (root.exists() && root.isDirectory) {
-                val result = walk(root, limits, files)
-                partial = partial || result
-            }
+        val requestedActiveGroups = requestedGroups.filterTo(linkedSetOf()) {
+            normalizedRules.section(it).enabled
         }
-
-        val scanFiles = files.filterNot { it.absolutePath in normalizedRules.ignoredPaths }
-        val duplicateGroupKeysByPath = findDuplicateGroupKeys(scanFiles)
-
+        if (requestedActiveGroups.isEmpty()) {
+            val emptyResult = currentResult(emptyMap(), requestedGroups, scannedFiles = 0, isPartial = false)
+            snapshotStore?.put(rootPaths, limits, rules, requestedGroups, emptyResult)
+            return emptyResult
+        }
+        val lightweightGroups = CleanerGroupType.entries.toSet() - CleanerGroupType.Duplicates
+        val workGroups = when {
+            CleanerGroupType.Duplicates in requestedGroups -> requestedGroups
+            else -> lightweightGroups
+        }
+        val activeGroups = workGroups.filterTo(linkedSetOf()) { normalizedRules.section(it).enabled }
+        val classificationGroups = activeGroups - CleanerGroupType.Duplicates
+        val needsDuplicates = CleanerGroupType.Duplicates in activeGroups
+        val duplicateFiles = if (needsDuplicates) ArrayList<FileSnapshot>() else null
+        val accumulators = activeGroups.associateWith { CandidateAccumulator(limits.maxCandidatesPerGroup) }
         val largeFileThreshold = normalizedRules.section(CleanerGroupType.LargeFiles)
             .largeFileThresholdBytes ?: limits.largeFileThresholdBytes
         val oldDownloadAgeMs = normalizedRules.section(CleanerGroupType.OldDownloads)
             .oldDownloadAgeMs ?: limits.oldDownloadAgeMs
+        val startedAtNanos = System.nanoTime()
+        var lastProgressNanos = startedAtNanos
+        var monotonicInventoryProgress = 0f
 
-        val grouped = CleanerGroupType.entries.associateWith { mutableListOf<CleanerCandidate>() }
-        scanFiles.forEach { file ->
-            val groups = buildSet {
-                if (file.isDirectory) {
-                    add(CleanerGroupType.EmptyFolders)
-                } else if (isMarkerFile(file)) {
-                    add(CleanerGroupType.MarkerFiles)
-                } else {
-                    if (file.size >= largeFileThreshold) add(CleanerGroupType.LargeFiles)
-                    if (file.isInDownloads && now - file.lastModified >= oldDownloadAgeMs) add(CleanerGroupType.OldDownloads)
-                    if (file.extension == "apk") add(CleanerGroupType.Apks)
-                    if (file.extension in videoExtensions) add(CleanerGroupType.Videos)
-                    if (isJunk(file)) add(CleanerGroupType.Junk)
+        val walkResult = walk(
+            rootPaths = rootPaths,
+            limits = limits,
+            includeDownloadClassification = CleanerGroupType.OldDownloads in activeGroups
+        ) { snapshot, scannedFiles, visitedEntries, pendingEntries ->
+            if (snapshot.absolutePath !in normalizedRules.ignoredPaths) {
+                if (!snapshot.isDirectory) duplicateFiles?.add(snapshot)
+                val matchingGroups = matchingGroups(
+                    file = snapshot,
+                    requestedGroups = classificationGroups,
+                    rules = normalizedRules,
+                    now = now,
+                    largeFileThreshold = largeFileThreshold,
+                    oldDownloadAgeMs = oldDownloadAgeMs
+                )
+                if (matchingGroups.isNotEmpty()) {
+                    val risk = classifyRisk(snapshot)
+                    val candidate = snapshot.toCandidate(matchingGroups, risk)
+                    matchingGroups.forEach { accumulators.getValue(it).add(candidate) }
                 }
-                if (file.absolutePath in duplicateGroupKeysByPath) add(CleanerGroupType.Duplicates)
-            }.filterTo(linkedSetOf()) { group ->
-                normalizedRules.includes(group, file)
             }
 
-            groups.forEach { group ->
-                val risk = classifyRisk(file)
-                grouped.getValue(group) += CleanerCandidate(
-                    name = file.name,
-                    absolutePath = file.absolutePath,
-                    size = file.size,
-                    lastModified = file.lastModified,
-                    groupTypes = groups,
-                    riskLevel = risk.level,
-                    riskReasons = risk.reasons,
-                    isDirectory = file.isDirectory,
-                    duplicateGroupKey = duplicateGroupKeysByPath[file.absolutePath]
+            val currentNanos = System.nanoTime()
+            if (scannedFiles % PROGRESS_FILE_INTERVAL == 0 ||
+                currentNanos - lastProgressNanos >= PROGRESS_TIME_INTERVAL_NANOS
+            ) {
+                val observedFraction = visitedEntries.toFloat() /
+                    (visitedEntries + pendingEntries).coerceAtLeast(1).toFloat()
+                monotonicInventoryProgress = maxOf(monotonicInventoryProgress, observedFraction)
+                val progress = monotonicInventoryProgress.coerceIn(0f, 0.98f) *
+                    if (needsDuplicates) INVENTORY_DUPLICATE_WEIGHT else INVENTORY_ONLY_WEIGHT
+                onUpdate(
+                    StorageCleanerScanUpdate(
+                        progress = progress(
+                            phase = StorageCleanerScanPhase.Discovering,
+                            scannedFiles = scannedFiles,
+                            fraction = progress,
+                            startedAtNanos = startedAtNanos
+                        ),
+                        result = currentResult(accumulators, requestedGroups, scannedFiles, isPartial = false)
+                    )
+                )
+                lastProgressNanos = currentNanos
+            }
+        }
+
+        val completedWithoutDuplicates = (activeGroups - CleanerGroupType.Duplicates).intersect(requestedGroups)
+        if (needsDuplicates) {
+            onUpdate(
+                StorageCleanerScanUpdate(
+                    progress = progress(
+                        phase = StorageCleanerScanPhase.CheckingDuplicates,
+                        scannedFiles = walkResult.scannedFiles,
+                        fraction = INVENTORY_DUPLICATE_WEIGHT,
+                        startedAtNanos = startedAtNanos,
+                        completedGroups = completedWithoutDuplicates
+                    ),
+                    result = currentResult(
+                        accumulators,
+                        requestedGroups,
+                        walkResult.scannedFiles,
+                        walkResult.isPartial
+                    )
+                )
+            )
+            val duplicateGroupKeys = findDuplicateGroupKeys(duplicateFiles.orEmpty()) { duplicateFraction ->
+                val overallFraction = INVENTORY_DUPLICATE_WEIGHT +
+                    (1f - INVENTORY_DUPLICATE_WEIGHT) * duplicateFraction.coerceIn(0f, 0.98f)
+                onUpdate(
+                    StorageCleanerScanUpdate(
+                        progress = progress(
+                            phase = StorageCleanerScanPhase.CheckingDuplicates,
+                            scannedFiles = walkResult.scannedFiles,
+                            fraction = overallFraction,
+                            startedAtNanos = startedAtNanos,
+                            completedGroups = completedWithoutDuplicates
+                        ),
+                        result = currentResult(
+                            accumulators,
+                            requestedGroups,
+                            walkResult.scannedFiles,
+                            walkResult.isPartial
+                        )
+                    )
                 )
             }
-        }
-
-        val resultGroups = CleanerGroupType.entries.map { type ->
-            val sorted = grouped.getValue(type)
-                .distinctBy { it.absolutePath }
-                .sortedWith(compareByDescending<CleanerCandidate> { it.size }.thenBy { it.name.lowercase(Locale.ROOT) })
-                .take(limits.maxCandidatesPerGroup)
-            CleanerGroup(type, sorted)
-        }
-
-        val result = StorageCleanerResult(
-            groups = resultGroups,
-            scannedFiles = files.size,
-            isPartial = partial || files.size >= limits.maxFiles
-        )
-        snapshotStore?.put(rootPaths, limits, rules, result)
-        result
-    }
-
-    override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
-        snapshotStore?.clear()
-    }
-
-    private suspend fun findDuplicateGroupKeys(files: List<FileSnapshot>): Map<String, String> {
-        val duplicates = linkedMapOf<String, String>()
-        val sameSizeGroups = files
-            .filterNot { it.isDirectory }
-            .filter { it.size > 0L }
-            .groupBy { it.size }
-            .filterValues { it.size > 1 }
-
-        sameSizeGroups.values.forEach { sameSizeFiles ->
-            currentCoroutineContext().ensureActive()
-            sameSizeFiles
-                .groupBy { sampleHash(File(it.absolutePath), it.size) }
-                .filterKeys { it != null }
-                .filterValues { it.size > 1 }
+            val duplicateCandidates = duplicateFiles.orEmpty().mapNotNull { file ->
+                val duplicateKey = duplicateGroupKeys[file.absolutePath] ?: return@mapNotNull null
+                if (!normalizedRules.includes(CleanerGroupType.Duplicates, file)) return@mapNotNull null
+                file.toCandidate(
+                    groups = setOf(CleanerGroupType.Duplicates),
+                    risk = classifyRisk(file),
+                    duplicateGroupKey = duplicateKey
+                )
+            }.groupBy { it.duplicateGroupKey }
                 .values
-                .forEach { sampledFiles ->
-                    sampledFiles
-                        .groupBy { fullHash(File(it.absolutePath)) }
-                        .filterKeys { it != null }
-                        .filterValues { it.size > 1 }
-                        .forEach { (hash, matchingFiles) ->
-                            val groupKey = "${matchingFiles.first().size}:$hash"
-                            matchingFiles.forEach { duplicates[it.absolutePath] = groupKey }
-                        }
-                }
+                .filter { it.size > 1 }
+                .sortedByDescending { group -> group.first().size }
+            var remainingCandidates = limits.maxCandidatesPerGroup
+            duplicateCandidates.forEach { duplicateGroup ->
+                if (remainingCandidates < 2) return@forEach
+                val candidatesToAdd = duplicateGroup.take(remainingCandidates)
+                if (candidatesToAdd.size < 2) return@forEach
+                candidatesToAdd.forEach(accumulators.getValue(CleanerGroupType.Duplicates)::add)
+                remainingCandidates -= candidatesToAdd.size
+            }
         }
+
+        val result = currentResult(
+            accumulators = accumulators,
+            requestedGroups = requestedGroups,
+            scannedFiles = walkResult.scannedFiles,
+            isPartial = walkResult.isPartial
+        )
+        snapshotStore?.put(rootPaths, limits, rules, requestedGroups, result)
+        val cachedWorkResult = currentResult(
+            accumulators = accumulators,
+            requestedGroups = workGroups,
+            scannedFiles = walkResult.scannedFiles,
+            isPartial = walkResult.isPartial
+        )
+        cachedWorkResult.groups.forEach { group ->
+            snapshotStore?.put(
+                rootPaths = rootPaths,
+                limits = limits,
+                rules = rules,
+                groupTypes = setOf(group.type),
+                result = cachedWorkResult.copy(groups = listOf(group))
+            )
+        }
+        return result
+    }
+
+    private fun matchingGroups(
+        file: FileSnapshot,
+        requestedGroups: Set<CleanerGroupType>,
+        rules: StorageCleanerRules,
+        now: Long,
+        largeFileThreshold: Long,
+        oldDownloadAgeMs: Long
+    ): Set<CleanerGroupType> = buildSet {
+        if (file.isDirectory) {
+            if (CleanerGroupType.EmptyFolders in requestedGroups) add(CleanerGroupType.EmptyFolders)
+        } else if (isMarkerFile(file)) {
+            if (CleanerGroupType.MarkerFiles in requestedGroups) add(CleanerGroupType.MarkerFiles)
+        } else {
+            if (CleanerGroupType.LargeFiles in requestedGroups && file.size >= largeFileThreshold) {
+                add(CleanerGroupType.LargeFiles)
+            }
+            if (CleanerGroupType.OldDownloads in requestedGroups &&
+                file.isInDownloads && now - file.lastModified >= oldDownloadAgeMs
+            ) {
+                add(CleanerGroupType.OldDownloads)
+            }
+            if (CleanerGroupType.Apks in requestedGroups && file.extension == "apk") add(CleanerGroupType.Apks)
+            if (CleanerGroupType.Videos in requestedGroups && file.extension in videoExtensions) add(CleanerGroupType.Videos)
+            if (CleanerGroupType.Junk in requestedGroups && isJunk(file)) add(CleanerGroupType.Junk)
+        }
+    }.filterTo(linkedSetOf()) { rules.includes(it, file) }
+
+    private fun currentResult(
+        accumulators: Map<CleanerGroupType, CandidateAccumulator>,
+        requestedGroups: Set<CleanerGroupType>,
+        scannedFiles: Int,
+        isPartial: Boolean
+    ): StorageCleanerResult = StorageCleanerResult(
+        groups = CleanerGroupType.entries
+            .filter { it in requestedGroups }
+            .map { type -> CleanerGroup(type, accumulators[type]?.sorted().orEmpty()) },
+        scannedFiles = scannedFiles,
+        isPartial = isPartial
+    )
+
+    private fun progress(
+        phase: StorageCleanerScanPhase,
+        scannedFiles: Int,
+        fraction: Float,
+        startedAtNanos: Long,
+        completedGroups: Set<CleanerGroupType> = emptySet()
+    ): StorageCleanerScanProgress {
+        val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L
+        val etaMillis = if (elapsedMillis >= MIN_ETA_ELAPSED_MILLIS && fraction >= MIN_ETA_PROGRESS) {
+            (elapsedMillis * (1f - fraction) / fraction).toLong().coerceAtLeast(0L)
+        } else {
+            null
+        }
+        return StorageCleanerScanProgress(
+            phase = phase,
+            scannedFiles = scannedFiles,
+            progressFraction = fraction.coerceIn(0f, 1f),
+            estimatedRemainingMillis = etaMillis,
+            completedGroups = completedGroups
+        )
+    }
+
+    private suspend fun findDuplicateGroupKeys(
+        files: List<FileSnapshot>,
+        onProgress: suspend (Float) -> Unit
+    ): Map<String, String> {
+        val duplicates = linkedMapOf<String, String>()
+        val sameSizeGroups = HashMap<Long, MutableList<FileSnapshot>>()
+        files.forEach { file ->
+            if (file.size > 0L) sameSizeGroups.getOrPut(file.size) { ArrayList() }.add(file)
+        }
+        val possibleDuplicates = sameSizeGroups.values.filter { it.size > 1 }
+        val sampleTotal = possibleDuplicates.sumOf { it.size }.coerceAtLeast(1)
+        var sampled = 0
+        val sampleMatches = ArrayList<List<FileSnapshot>>()
+
+        possibleDuplicates.forEach { sameSizeFiles ->
+            currentCoroutineContext().ensureActive()
+            val hashes = HashMap<String, MutableList<FileSnapshot>>()
+            sameSizeFiles.forEach { file ->
+                sampleHash(File(file.absolutePath), file.size)?.let { hash ->
+                    hashes.getOrPut(hash) { ArrayList() }.add(file)
+                }
+                sampled++
+                if (sampled % HASH_PROGRESS_INTERVAL == 0) {
+                    onProgress(SAMPLE_HASH_WEIGHT * sampled / sampleTotal.toFloat())
+                }
+            }
+            hashes.values.filterTo(sampleMatches) { it.size > 1 }
+        }
+
+        val fullTotalBytes = sampleMatches.sumOf { group -> group.sumOf { it.size } }.coerceAtLeast(1L)
+        var fullyHashedBytes = 0L
+        sampleMatches.forEach { sampledFiles ->
+            currentCoroutineContext().ensureActive()
+            val hashes = HashMap<String, MutableList<FileSnapshot>>()
+            sampledFiles.forEach { file ->
+                fullHash(File(file.absolutePath)) { hashedBytes ->
+                    fullyHashedBytes += hashedBytes
+                    onProgress(
+                        SAMPLE_HASH_WEIGHT +
+                            (1f - SAMPLE_HASH_WEIGHT) * fullyHashedBytes / fullTotalBytes.toFloat()
+                    )
+                }?.let { hash ->
+                    hashes.getOrPut(hash) { ArrayList() }.add(file)
+                }
+            }
+            hashes.forEach { (hash, matchingFiles) ->
+                if (matchingFiles.size > 1) {
+                    val groupKey = "${matchingFiles.first().size}:$hash"
+                    matchingFiles.forEach { duplicates[it.absolutePath] = groupKey }
+                }
+            }
+        }
+        onProgress(1f)
         return duplicates
     }
 
     private fun StorageCleanerRules.includes(type: CleanerGroupType, file: FileSnapshot): Boolean {
         val rule = section(type)
         if (!rule.enabled) return false
-        val lowerName = file.name.lowercase(Locale.ROOT)
-        val lowerPath = file.absolutePath.lowercase(Locale.ROOT)
-        return rule.ignoredNamePatterns.none { patternMatches(it, lowerName) } &&
+        if (rule.ignoredNamePatterns.isEmpty() && rule.ignoredPathPatterns.isEmpty()) return true
+        val nameAllowed = rule.ignoredNamePatterns.isEmpty() || run {
+            val lowerName = file.name.lowercase(Locale.ROOT)
+            rule.ignoredNamePatterns.none { patternMatches(it, lowerName) }
+        }
+        val pathAllowed = rule.ignoredPathPatterns.isEmpty() || run {
+            val lowerPath = file.absolutePath.lowercase(Locale.ROOT)
             rule.ignoredPathPatterns.none { patternMatches(it, lowerPath) }
+        }
+        return nameAllowed && pathAllowed
     }
 
     private fun patternMatches(pattern: String, lowerValue: String): Boolean {
         val lowerPattern = pattern.lowercase(Locale.ROOT)
-        if ('*' !in lowerPattern && '?' !in lowerPattern) {
-            return lowerValue.contains(lowerPattern)
-        }
+        if ('*' !in lowerPattern && '?' !in lowerPattern) return lowerValue.contains(lowerPattern)
         val regex = buildString {
             append("^")
             lowerPattern.forEach { char ->
@@ -171,73 +436,95 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
     private fun sampleHash(file: File, size: Long): String? = runCatchingPreservingCancellation {
         val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input ->
-            if (size <= SAMPLE_WINDOW_BYTES * 3L) {
-                input.copyTo(DigestOutputStreamAdapter(digest))
-            } else {
-                updateDigestAt(file, digest, 0L)
-                updateDigestAt(file, digest, (size / 2L - SAMPLE_WINDOW_BYTES / 2L).coerceAtLeast(0L))
-                updateDigestAt(file, digest, (size - SAMPLE_WINDOW_BYTES).coerceAtLeast(0L))
+        if (size <= SAMPLE_WINDOW_BYTES * 3L) {
+            file.inputStream().use { input -> input.copyTo(DigestOutputStreamAdapter(digest)) }
+        } else {
+            RandomAccessFile(file, "r").use { input ->
+                val buffer = ByteArray(SAMPLE_WINDOW_BYTES)
+                updateDigestAt(input, digest, 0L, buffer)
+                updateDigestAt(input, digest, (size / 2L - SAMPLE_WINDOW_BYTES / 2L).coerceAtLeast(0L), buffer)
+                updateDigestAt(input, digest, (size - SAMPLE_WINDOW_BYTES).coerceAtLeast(0L), buffer)
             }
         }
         digest.digest().toHex()
     }.getOrNull()
 
-    private fun updateDigestAt(file: File, digest: MessageDigest, offset: Long) {
-        file.inputStream().use { input ->
-            var remainingSkip = offset
-            while (remainingSkip > 0L) {
-                val skipped = input.skip(remainingSkip)
-                if (skipped <= 0L) return
-                remainingSkip -= skipped
-            }
-            val buffer = ByteArray(SAMPLE_WINDOW_BYTES)
-            val read = input.read(buffer)
-            if (read > 0) digest.update(buffer, 0, read)
-        }
+    private fun updateDigestAt(
+        input: RandomAccessFile,
+        digest: MessageDigest,
+        offset: Long,
+        buffer: ByteArray
+    ) {
+        input.seek(offset)
+        val read = input.read(buffer)
+        if (read > 0) digest.update(buffer, 0, read)
     }
 
-    private fun fullHash(file: File): String? = runCatchingPreservingCancellation {
+    private suspend fun fullHash(file: File, onBytesHashed: suspend (Long) -> Unit): String? = try {
         val digest = MessageDigest.getInstance("SHA-256")
-        file.inputStream().use { input -> input.copyTo(DigestOutputStreamAdapter(digest)) }
+        val buffer = ByteArray(FULL_HASH_BUFFER_BYTES)
+        file.inputStream().use { input ->
+            var bytesSinceProgress = 0L
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read == 0) continue
+                digest.update(buffer, 0, read)
+                bytesSinceProgress += read
+                if (bytesSinceProgress >= HASH_BYTE_PROGRESS_INTERVAL) {
+                    onBytesHashed(bytesSinceProgress)
+                    bytesSinceProgress = 0L
+                }
+            }
+            if (bytesSinceProgress > 0L) onBytesHashed(bytesSinceProgress)
+        }
         digest.digest().toHex()
-    }.getOrNull()
+    } catch (error: Throwable) {
+        error.rethrowIfCancellation()
+        null
+    }
 
-    private class DigestOutputStreamAdapter(
-        private val digest: MessageDigest
-    ) : java.io.OutputStream() {
-        override fun write(b: Int) {
-            digest.update(b.toByte())
-        }
-
-        override fun write(b: ByteArray, off: Int, len: Int) {
-            digest.update(b, off, len)
-        }
+    private class DigestOutputStreamAdapter(private val digest: MessageDigest) : java.io.OutputStream() {
+        override fun write(b: Int) = digest.update(b.toByte())
+        override fun write(b: ByteArray, off: Int, len: Int) = digest.update(b, off, len)
     }
 
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
     private suspend fun walk(
-        root: File,
+        rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
-        out: MutableList<FileSnapshot>
-    ): Boolean {
+        includeDownloadClassification: Boolean,
+        onSnapshot: suspend (FileSnapshot, scannedFiles: Int, visitedEntries: Int, pendingEntries: Int) -> Unit
+    ): WalkResult {
         val pending = ArrayDeque<Pair<File, Int>>()
-        pending.add(root to 0)
+        rootPaths.map { File(it) }
+            .distinctBy { it.absolutePath }
+            .filter { it.exists() && it.isDirectory }
+            .forEach { pending.add(it to 0) }
         var partial = false
+        var scannedFiles = 0
+        var visitedEntries = 0
 
         while (pending.isNotEmpty()) {
             currentCoroutineContext().ensureActive()
-            if (out.size >= limits.maxFiles) return true
+            if (scannedFiles >= limits.maxFiles) return WalkResult(scannedFiles, isPartial = true)
 
             val (current, depth) = pending.removeFirst()
+            visitedEntries++
             if (shouldSkip(current)) continue
 
             if (current.isFile) {
-                out += current.toSnapshot()
+                scannedFiles++
+                onSnapshot(
+                    current.toSnapshot(includeDownloadClassification = includeDownloadClassification),
+                    scannedFiles,
+                    visitedEntries,
+                    pending.size
+                )
                 continue
             }
-
             if (!current.isDirectory) continue
             if (depth >= limits.maxDepth) {
                 partial = true
@@ -251,48 +538,55 @@ class DefaultStorageCleanerScanner @Inject constructor(
                 null
             }
             if (children == null) {
-                partial = true
+                // Scoped-storage and filesystem permissions can make otherwise valid folders
+                // unreadable. Skipping those expected boundaries does not make accessible
+                // cleaner results incomplete.
                 continue
             }
             if (children.isEmpty() && depth > 0) {
-                out += current.toSnapshot(isDirectory = true)
+                scannedFiles++
+                onSnapshot(
+                    current.toSnapshot(
+                        isDirectory = true,
+                        includeDownloadClassification = includeDownloadClassification
+                    ),
+                    scannedFiles,
+                    visitedEntries,
+                    pending.size
+                )
                 continue
             }
             children.forEach { child -> pending.add(child to depth + 1) }
         }
-
-        return partial
+        return WalkResult(scannedFiles, partial)
     }
 
-    private fun File.toSnapshot(isDirectory: Boolean = false): FileSnapshot {
-        val ext = extension.lowercase(Locale.ROOT)
-        val segments = absolutePath.split(File.separatorChar)
+    private fun File.toSnapshot(
+        isDirectory: Boolean = false,
+        includeDownloadClassification: Boolean
+    ): FileSnapshot {
+        val normalizedPath = absolutePath
         return FileSnapshot(
             name = name,
-            absolutePath = absolutePath,
+            absolutePath = normalizedPath,
             size = if (isDirectory) 0L else length().coerceAtLeast(0L),
             lastModified = lastModified(),
-            extension = ext,
-            pathSegments = segments,
-            isInDownloads = segments.any { it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true) },
+            extension = extension.lowercase(Locale.ROOT),
+            isInDownloads = includeDownloadClassification && normalizedPath.split(File.separatorChar).any {
+                it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true)
+            },
             isDirectory = isDirectory
         )
     }
 
     private fun shouldSkip(file: File): Boolean {
         val name = file.name.lowercase(Locale.ROOT)
-        val path = file.absolutePath.lowercase(Locale.ROOT)
-        return name == ".arcile" ||
-            name == ".trash" ||
-            name == ".thumbnails" ||
-            path.contains("${File.separator}.arcile${File.separator}.trash")
+        return name == ".arcile" || name == ".trash" || name == ".thumbnails"
     }
 
     private fun isJunk(file: FileSnapshot): Boolean {
         val lowerName = file.name.lowercase(Locale.ROOT)
-        return file.extension in junkExtensions ||
-            lowerName.endsWith(".tmp") ||
-            lowerName.endsWith(".temp")
+        return file.extension in junkExtensions || lowerName.endsWith(".tmp") || lowerName.endsWith(".temp")
     }
 
     private fun isMarkerFile(file: FileSnapshot): Boolean =
@@ -300,7 +594,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
     private fun classifyRisk(file: FileSnapshot): RiskClassification {
         val reasons = linkedSetOf<CleanerRiskReason>()
-        val lowerSegments = file.pathSegments.map { it.lowercase(Locale.ROOT) }
+        val lowerSegments = file.absolutePath.split(File.separatorChar).map { it.lowercase(Locale.ROOT) }
         val lowerPath = file.absolutePath.lowercase(Locale.ROOT)
         val parentSegments = lowerSegments.dropLast(1)
 
@@ -323,15 +617,12 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
         val level = when {
             reasons.any {
-                it == CleanerRiskReason.ArcileInternal ||
-                    it == CleanerRiskReason.SystemOwnedPath ||
+                it == CleanerRiskReason.ArcileInternal || it == CleanerRiskReason.SystemOwnedPath ||
                     it == CleanerRiskReason.AppLikeFolder
             } -> CleanerRiskLevel.High
             reasons.any {
-                it == CleanerRiskReason.UserFolder ||
-                    it == CleanerRiskReason.MediaFolder ||
-                    it == CleanerRiskReason.LogFile ||
-                    it == CleanerRiskReason.BackupFile ||
+                it == CleanerRiskReason.UserFolder || it == CleanerRiskReason.MediaFolder ||
+                    it == CleanerRiskReason.LogFile || it == CleanerRiskReason.BackupFile ||
                     it == CleanerRiskReason.DumpFile
             } -> CleanerRiskLevel.Review
             else -> CleanerRiskLevel.Low
@@ -345,8 +636,43 @@ class DefaultStorageCleanerScanner @Inject constructor(
         return segments[androidIndex + 1] == "data" || segments[androidIndex + 1] == "obb"
     }
 
-    private fun isPackageLikeSegment(segment: String): Boolean =
-        packageSegmentRegex.matches(segment)
+    private fun isPackageLikeSegment(segment: String): Boolean = packageSegmentRegex.matches(segment)
+
+    private fun FileSnapshot.toCandidate(
+        groups: Set<CleanerGroupType>,
+        risk: RiskClassification,
+        duplicateGroupKey: String? = null
+    ) = CleanerCandidate(
+        name = name,
+        absolutePath = absolutePath,
+        size = size,
+        lastModified = lastModified,
+        groupTypes = groups,
+        riskLevel = risk.level,
+        riskReasons = risk.reasons,
+        isDirectory = isDirectory,
+        duplicateGroupKey = duplicateGroupKey
+    )
+
+    private fun StorageCleanerResult.withoutStaleCandidates(): StorageCleanerResult = copy(
+        groups = groups.map { group ->
+            val existingCandidates = group.candidates.filter { candidate ->
+                val file = File(candidate.absolutePath)
+                file.exists() && file.isDirectory == candidate.isDirectory &&
+                    (candidate.isDirectory || file.length().coerceAtLeast(0L) == candidate.size)
+            }
+            group.copy(
+                candidates = if (group.type == CleanerGroupType.Duplicates) {
+                    existingCandidates.groupBy { it.duplicateGroupKey ?: it.absolutePath }
+                        .values
+                        .filter { it.size > 1 }
+                        .flatten()
+                } else {
+                    existingCandidates
+                }
+            )
+        }
+    )
 
     private data class FileSnapshot(
         val name: String,
@@ -354,7 +680,6 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val size: Long,
         val lastModified: Long,
         val extension: String,
-        val pathSegments: List<String>,
         val isInDownloads: Boolean,
         val isDirectory: Boolean
     )
@@ -363,6 +688,38 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val level: CleanerRiskLevel,
         val reasons: Set<CleanerRiskReason>
     )
+
+    private data class WalkResult(val scannedFiles: Int, val isPartial: Boolean)
+
+    private class CandidateAccumulator(private val limit: Int) {
+        private val candidates = PriorityQueue<CleanerCandidate>(
+            compareBy<CleanerCandidate> { it.size }
+                .thenByDescending { it.name.lowercase(Locale.ROOT) }
+                .thenByDescending { it.absolutePath }
+        )
+
+        fun add(candidate: CleanerCandidate) {
+            if (limit <= 0) return
+            if (candidates.size < limit) {
+                candidates.add(candidate)
+                return
+            }
+            val lowestRanked = candidates.peek() ?: return
+            val isBetter = candidate.size > lowestRanked.size ||
+                (candidate.size == lowestRanked.size &&
+                    candidate.name.lowercase(Locale.ROOT) < lowestRanked.name.lowercase(Locale.ROOT))
+            if (isBetter) {
+                candidates.poll()
+                candidates.add(candidate)
+            }
+        }
+
+        fun sorted(): List<CleanerCandidate> = candidates.sortedWith(
+            compareByDescending<CleanerCandidate> { it.size }
+                .thenBy { it.name.lowercase(Locale.ROOT) }
+                .thenBy { it.absolutePath }
+        )
+    }
 
     private companion object {
         val videoExtensions = FileCategories.Videos.extensions
@@ -373,5 +730,15 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val mediaFolderNames = setOf("dcim", "pictures", "picture", "movies", "movie", "videos", "video")
         val packageSegmentRegex = Regex("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,}")
         const val SAMPLE_WINDOW_BYTES = 4096
+        const val PROGRESS_FILE_INTERVAL = 256
+        const val HASH_PROGRESS_INTERVAL = 16
+        const val FULL_HASH_BUFFER_BYTES = 128 * 1024
+        const val HASH_BYTE_PROGRESS_INTERVAL = 8L * 1024L * 1024L
+        const val PROGRESS_TIME_INTERVAL_NANOS = 200_000_000L
+        const val MIN_ETA_ELAPSED_MILLIS = 750L
+        const val MIN_ETA_PROGRESS = 0.02f
+        const val INVENTORY_DUPLICATE_WEIGHT = 0.72f
+        const val INVENTORY_ONLY_WEIGHT = 0.98f
+        const val SAMPLE_HASH_WEIGHT = 0.4f
     }
 }

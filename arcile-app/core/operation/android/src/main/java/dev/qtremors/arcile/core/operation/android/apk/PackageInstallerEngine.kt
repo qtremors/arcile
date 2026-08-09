@@ -7,7 +7,9 @@ import android.content.pm.PackageInstaller
 import android.os.Build
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
 
 /* ============================================================================
  * PACKAGE INSTALLER ENGINE
@@ -41,8 +44,10 @@ object PackageInstallerEngine {
 
     private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val activeSessionIds = ConcurrentHashMap.newKeySet<Int>()
+    private val activeInstallJob = AtomicReference<Job?>(null)
 
     fun resetState() {
+        activeInstallJob.getAndSet(null)?.cancel()
         _installState.value = ApkInstallState.Idle
     }
 
@@ -78,7 +83,9 @@ object PackageInstallerEngine {
             currentFile = initialStatus
         )
 
-        engineScope.launch {
+        val appContext = context.applicationContext
+        lateinit var installJob: Job
+        installJob = engineScope.launch(start = CoroutineStart.LAZY) {
             var createdSessionId = -1
             var openedSession: PackageInstaller.Session? = null
             try {
@@ -158,8 +165,12 @@ object PackageInstallerEngine {
                 _installState.value = ApkInstallState.Failed(e.localizedMessage ?: "Failed to initiate package installation")
             } finally {
                 runCatching { openedSession?.close() }
+                cleanupApkStaging(appContext, details)
+                activeInstallJob.compareAndSet(installJob, null)
             }
         }
+        activeInstallJob.getAndSet(installJob)?.cancel()
+        installJob.start()
     }
 
     fun onUserConfirmationRequested(sessionId: Int) {

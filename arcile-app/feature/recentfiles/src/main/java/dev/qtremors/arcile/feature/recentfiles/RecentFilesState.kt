@@ -56,10 +56,15 @@ internal fun RecentFilesState.displayRecentFiles(
 
 internal fun RecentFilesState.displaySearchResults(
     source: List<FileModel> = recentFiles
-): List<FileModel> = if (searchQuery.isBlank() || searchResults.isNotEmpty()) {
-    if (searchQuery.isBlank()) {
-        emptyList()
-    } else {
+): List<FileModel> = when {
+    searchQuery.isBlank() && !activeSearchFilters.hasActiveFilters -> emptyList()
+    searchQuery.isBlank() -> buildRecentFilesDisplay(
+        files = source,
+        query = "",
+        filters = activeSearchFilters,
+        presentation = presentation
+    )
+    searchResults.isNotEmpty() -> {
         buildRecentFilesDisplay(
             files = searchResults,
             query = "",
@@ -67,8 +72,7 @@ internal fun RecentFilesState.displaySearchResults(
             presentation = presentation
         )
     }
-} else {
-    emptyList()
+    else -> emptyList()
 }
 
 internal fun RecentFilesState.searchScope(): StorageScope =

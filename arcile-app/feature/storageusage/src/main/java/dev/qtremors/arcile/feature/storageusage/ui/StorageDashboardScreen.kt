@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -56,6 +57,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.storage.MultiColorStorageBar
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.RootStorageUsage
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.feature.storageusage.StorageOverviewState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
@@ -124,6 +126,7 @@ internal fun StorageDashboardScreen(
         state.trashStorageUsage.totalBytes
     }
     val hasTemporaryMountedVolumes = state.allStorageVolumes.any { !it.kind.isIndexed }
+    val rootStorageUsage = state.storageInfo?.rootStorageUsage.takeIf { selectedVolumeId == null }
 
     val categoryColors = LocalCategoryColors.current
     val unassignedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -227,9 +230,11 @@ internal fun StorageDashboardScreen(
                         totalBytes = totalBytes,
                         freeBytes = freeBytes,
                         trashBytes = trashBytes,
+                        rootStorageUsage = rootStorageUsage,
                         singleIndexedVolumeId = singleIndexedVolumeId,
                         unassignedColor = unassignedColor,
-                        onCategoryClick = onCategoryClick
+                        onCategoryClick = onCategoryClick,
+                        onOpenRootStorage = { onOpenPath("/") }
                     )
 
                     if (showLoading && volumes.isEmpty() && categoryStorages.isEmpty()) {
@@ -273,9 +278,11 @@ private fun StorageSummaryTab(
     totalBytes: Long,
     freeBytes: Long,
     trashBytes: Long,
+    rootStorageUsage: RootStorageUsage?,
     singleIndexedVolumeId: String?,
     unassignedColor: Color,
-    onCategoryClick: (String, String?) -> Unit
+    onCategoryClick: (String, String?) -> Unit,
+    onOpenRootStorage: () -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -306,7 +313,7 @@ private fun StorageSummaryTab(
             }
         }
 
-        if (volumes.isEmpty() && !state.isLoading && !state.isCalculatingStorage) {
+        if (volumes.isEmpty() && rootStorageUsage == null && !state.isLoading && !state.isCalculatingStorage) {
             item {
                 EmptyState(
                     variant = EmptyStateVariant.StorageAccess,
@@ -361,6 +368,20 @@ private fun StorageSummaryTab(
                     thickness = 1.dp,
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
+            }
+
+            rootStorageUsage?.let { usage ->
+                item {
+                    RootStorageSummary(
+                        usage = usage,
+                        onClick = onOpenRootStorage
+                    )
+                    androidx.compose.material3.HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                        thickness = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant
+                    )
+                }
             }
 
             if (trashBytes > 0) {
@@ -440,6 +461,51 @@ private fun StorageSummaryTab(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RootStorageSummary(
+    usage: RootStorageUsage,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .bounceClickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Default.AccountTree,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.size(8.dp))
+            Text(
+                text = stringResource(R.string.root_storage),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(
+                R.string.used_of,
+                formatFileSize(usage.usedBytes),
+                formatFileSize(usage.totalBytes)
+            ),
+            style = MaterialTheme.typography.titleLargeBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        MultiColorStorageBar(
+            totalBytes = usage.totalBytes,
+            freeBytes = usage.freeBytes,
+            categoryStorages = emptyList()
+        )
     }
 }
 

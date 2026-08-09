@@ -105,6 +105,11 @@ fun SearchFiltersSheet(
     val categories = listOf(allLabel) + FileCategories.all.map { it.displayName }
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showAdvanced by rememberSaveable { mutableStateOf(currentFilters.hasActiveAdvancedFilters()) }
+    var itemType by rememberSaveable(currentFilters.itemType) { mutableStateOf(currentFilters.itemType) }
+    var fileType by rememberSaveable(currentFilters.fileType) { mutableStateOf(currentFilters.fileType) }
+    var includeHidden by rememberSaveable(currentFilters.includeHidden) {
+        mutableStateOf(currentFilters.includeHidden)
+    }
     var extensionText by rememberSaveable(currentFilters.extensions) {
         mutableStateOf(currentFilters.extensions.joinToString(", "))
     }
@@ -123,7 +128,9 @@ fun SearchFiltersSheet(
     var showDateRangePicker by remember { mutableStateOf(false) }
     var presetName by rememberSaveable(currentFilters.savedPresetName) { mutableStateOf(currentFilters.savedPresetName.orEmpty()) }
 
-    fun advancedFilters(): SearchFilters = currentFilters.copy(
+    fun draftFilters(): SearchFilters = currentFilters.copy(
+        itemType = itemType,
+        fileType = fileType,
         extensions = extensionText.split(',', ' ')
             .map { it.trim().trimStart('.').lowercase() }
             .filter { it.isNotBlank() }
@@ -135,8 +142,25 @@ fun SearchFiltersSheet(
         maxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() },
         minDateMillis = minDateMillis,
         maxDateMillis = maxDateMillis,
+        includeHidden = includeHidden,
         savedPresetName = presetName.trim().ifBlank { null }
     )
+
+    fun clearDraft() {
+        itemType = null
+        fileType = null
+        minSizeText = ""
+        maxSizeText = ""
+        minDateMillis = null
+        maxDateMillis = null
+        extensionText = ""
+        includeHidden = false
+        volumeText = ""
+        folderScopeText = ""
+        mimeText = ""
+        presetName = ""
+        showAdvanced = false
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -158,7 +182,7 @@ fun SearchFiltersSheet(
             ) {
                 Text(stringResource(R.string.search_filters_title), style = MaterialTheme.typography.titleLarge)
                 TextButton(
-                    onClick = { onApplyFilters(SearchFilters()) },
+                    onClick = ::clearDraft,
                     shape = ExpressiveShapes.medium
                 ) {
                     Text(stringResource(R.string.clear_all))
@@ -168,15 +192,15 @@ fun SearchFiltersSheet(
             Text(stringResource(R.string.item_type), style = MaterialTheme.typography.titleMedium)
             val itemTypeOptions = listOf(anyLabel, foldersLabel, filesLabel)
             val currentItemTypeSelected = when {
-                currentFilters.itemType == foldersLabel -> foldersLabel
-                currentFilters.itemType == filesLabel -> filesLabel
+                itemType == foldersLabel -> foldersLabel
+                itemType == filesLabel -> filesLabel
                 else -> anyLabel
             }
             ExpressiveSegmentedRow(
                 options = itemTypeOptions,
                 selectedOption = currentItemTypeSelected,
                 onOptionSelected = { label ->
-                    onApplyFilters(currentFilters.copy(itemType = if (label == anyLabel) null else label))
+                    itemType = if (label == anyLabel) null else label
                 },
                 modifier = Modifier.fillMaxWidth()
             ) { label ->
@@ -187,10 +211,10 @@ fun SearchFiltersSheet(
                 Text(stringResource(R.string.file_type), style = MaterialTheme.typography.titleMedium)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     items(categories) { category ->
-                        val isSelected = if (category == allLabel) currentFilters.fileType == null else currentFilters.fileType == category
+                        val isSelected = if (category == allLabel) fileType == null else fileType == category
                         ExpressiveFilterChip(
                             selected = isSelected,
-                            onClick = { onApplyFilters(currentFilters.copy(fileType = if (category == allLabel) null else category)) },
+                            onClick = { fileType = if (category == allLabel) null else category },
                             label = { Text(category) }
                         )
                     }
@@ -217,12 +241,6 @@ fun SearchFiltersSheet(
                         onClick = {
                             minSizeText = preset.second.first?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
                             maxSizeText = preset.second.second?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
-                            onApplyFilters(
-                                currentFilters.copy(
-                                    minSize = preset.second.first,
-                                    maxSize = preset.second.second
-                                )
-                            )
                         },
                         label = { Text(preset.first) }
                     )
@@ -253,7 +271,7 @@ fun SearchFiltersSheet(
             Text(stringResource(R.string.date_modified), style = MaterialTheme.typography.titleMedium)
             val presets = remember(anyLabel) { getPresetRanges(anyLabel) }
             val selectedPreset = presets.find { (_, dateRange) ->
-                currentFilters.minDateMillis == dateRange.first && currentFilters.maxDateMillis == dateRange.second
+                minDateMillis == dateRange.first && maxDateMillis == dateRange.second
             } ?: presets.first()
 
             LazyRow(
@@ -264,12 +282,8 @@ fun SearchFiltersSheet(
                     ExpressiveFilterChip(
                         selected = selectedPreset.first == preset.first,
                         onClick = {
-                            onApplyFilters(
-                                currentFilters.copy(
-                                    minDateMillis = preset.second.first,
-                                    maxDateMillis = preset.second.second
-                                )
-                            )
+                            minDateMillis = preset.second.first
+                            maxDateMillis = preset.second.second
                         },
                         label = { Text(preset.first) }
                     )
@@ -277,7 +291,7 @@ fun SearchFiltersSheet(
             }
 
             val dateFormatter = rememberDateOnlyFormatter()
-            val customRangeActive = currentFilters.minDateMillis != null || currentFilters.maxDateMillis != null
+            val customRangeActive = minDateMillis != null || maxDateMillis != null
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -297,8 +311,8 @@ fun SearchFiltersSheet(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = if (customRangeActive) {
-                            val startStr = currentFilters.minDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
-                            val endStr = currentFilters.maxDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
+                            val startStr = minDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
+                            val endStr = maxDateMillis?.let { dateFormatter.format(java.util.Date(it)) } ?: "Any"
                             "$startStr - $endStr"
                         } else {
                             "Select custom range"
@@ -310,12 +324,8 @@ fun SearchFiltersSheet(
                 if (customRangeActive) {
                     IconButton(
                         onClick = {
-                            onApplyFilters(
-                                currentFilters.copy(
-                                    minDateMillis = null,
-                                    maxDateMillis = null
-                                )
-                            )
+                            minDateMillis = null
+                            maxDateMillis = null
                         },
                         modifier = Modifier.clip(CircleShape)
                     ) {
@@ -356,18 +366,18 @@ fun SearchFiltersSheet(
                     headlineContent = { Text(stringResource(R.string.filter_include_hidden)) },
                     leadingContent = {
                         Icon(
-                            imageVector = if (currentFilters.includeHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            imageVector = if (includeHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                             contentDescription = null,
-                            tint = if (currentFilters.includeHidden) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            tint = if (includeHidden) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     },
                     trailingContent = {
                         Switch(
-                            checked = currentFilters.includeHidden,
-                            onCheckedChange = { onApplyFilters(currentFilters.copy(includeHidden = it)) },
+                            checked = includeHidden,
+                            onCheckedChange = { includeHidden = it },
                             thumbContent = {
                                 Icon(
-                                    imageVector = if (currentFilters.includeHidden) Icons.Default.Check else Icons.Default.Close,
+                                    imageVector = if (includeHidden) Icons.Default.Check else Icons.Default.Close,
                                     contentDescription = null,
                                     modifier = Modifier.size(SwitchDefaults.IconSize)
                                 )
@@ -380,7 +390,7 @@ fun SearchFiltersSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(ExpressiveShapes.medium)
-                        .bounceClickable { onApplyFilters(currentFilters.copy(includeHidden = !currentFilters.includeHidden)) }
+                        .bounceClickable { includeHidden = !includeHidden }
                 )
                 OutlinedTextField(
                     value = volumeText,
@@ -446,7 +456,10 @@ fun SearchFiltersSheet(
             }
 
             FilledTonalButton(
-                onClick = { onApplyFilters(advancedFilters()) },
+                onClick = {
+                    onApplyFilters(draftFilters())
+                    onDismiss()
+                },
                 modifier = Modifier.align(Alignment.End),
                 shape = ExpressiveShapes.medium
             ) {

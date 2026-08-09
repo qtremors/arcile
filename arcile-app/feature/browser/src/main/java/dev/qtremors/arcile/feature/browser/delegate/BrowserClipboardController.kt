@@ -30,6 +30,7 @@ internal class BrowserClipboardController(
     private val clipboardRepository: ClipboardRepository,
     private val clipboardController: ClipboardController,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val contextProvider: () -> BrowserClipboardContext,
     private val clearSelection: () -> Unit,
     private val onConflicts: (List<dev.qtremors.arcile.core.storage.domain.FileConflict>) -> Unit,
@@ -37,12 +38,12 @@ internal class BrowserClipboardController(
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText?) -> Unit
 ) {
-    fun copySelected() = storeSelection(ClipboardOperation.COPY)
-    fun cutSelected() = storeSelection(ClipboardOperation.CUT)
+    fun copySelected(): Int = storeSelection(ClipboardOperation.COPY)
+    fun cutSelected(): Int = storeSelection(ClipboardOperation.CUT)
 
-    private fun storeSelection(operation: ClipboardOperation) {
+    private fun storeSelection(operation: ClipboardOperation): Int {
         val context = contextProvider()
-        if (context.archiveContext != null) return
+        if (context.archiveContext != null) return 0
         val selectedFiles = context.files
             .filter { it.absolutePath in context.selectedPaths }
             .map { file ->
@@ -52,12 +53,27 @@ internal class BrowserClipboardController(
                     file
                 }
             }
-        if (clipboardController.store(operation, selectedFiles)) clearSelection()
+        return if (clipboardController.store(operation, selectedFiles)) {
+            clearSelection()
+            selectedFiles.size
+        } else {
+            0
+        }
     }
 
     fun cancel() {
-        operationCoordinator.cancelActiveOperation()
-        clipboardController.clear()
+        val activeRequest = operationCoordinator.activeRequest.value
+            ?.takeIf {
+                it.presentationOwnerId == operationOwnerId &&
+                    it.clipboardSessionId != null &&
+                    (it.type == BulkFileOperationType.COPY || it.type == BulkFileOperationType.MOVE)
+            }
+        if (activeRequest != null) {
+            operationCoordinator.cancelActiveOperation()
+            activeRequest.clipboardSessionId?.let(clipboardController::clear)
+        } else {
+            clipboardController.clear()
+        }
         onDismissConflicts()
     }
 
@@ -113,7 +129,9 @@ internal class BrowserClipboardController(
             type = type,
             sourcePaths = clipboard.files.map(FileModel::absolutePath),
             destinationPath = destinationPath,
-            resolutions = resolutions
+            resolutions = resolutions,
+            presentationOwnerId = operationOwnerId,
+            clipboardSessionId = clipboard.sessionId
         )
         onBusyChange(false)
         if (!started) {

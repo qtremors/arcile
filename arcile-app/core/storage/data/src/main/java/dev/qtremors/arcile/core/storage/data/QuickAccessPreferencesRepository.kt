@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.storage.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -26,6 +27,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
     private val dataStore: DataStore<Preferences> = context.dataStore
 ) : QuickAccessPreferencesStore {
     private val QUICK_ACCESS_ITEMS_KEY = stringPreferencesKey("quick_access_items")
+    private val ROOT_DEFAULT_UNPINNED_KEY = booleanPreferencesKey("root_default_unpinned")
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -117,6 +119,14 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 isEnabled = true
             ),
             QuickAccessItem(
+                id = "standard_root_storage",
+                label = "Root Storage",
+                path = "/",
+                type = QuickAccessType.STANDARD,
+                isPinned = false,
+                isEnabled = true
+            ),
+            QuickAccessItem(
                 id = "standard_pictures",
                 label = "Pictures",
                 path = File(root, Environment.DIRECTORY_PICTURES).absolutePath,
@@ -168,13 +178,28 @@ class QuickAccessPreferencesRepository @Inject constructor(
             .filter { it.isEnabled }
     }
 
+    private fun applyRootDefaultMigration(
+        items: List<QuickAccessItem>,
+        migrationCompleted: Boolean
+    ): List<QuickAccessItem> = if (migrationCompleted) {
+        items
+    } else {
+        items.map { item ->
+            if (item.id == "standard_root_storage") item.copy(isPinned = false) else item
+        }
+    }
+
     override val quickAccessItems: Flow<List<QuickAccessItem>> = dataStore.data.map { preferences ->
         val serialized = preferences[QUICK_ACCESS_ITEMS_KEY]
-        if (serialized.isNullOrEmpty()) {
+        val items = if (serialized.isNullOrEmpty()) {
             defaultItems
         } else {
             mergeDefaultAndStored(decodeStoredItems(serialized))
         }
+        applyRootDefaultMigration(
+            items = items,
+            migrationCompleted = preferences[ROOT_DEFAULT_UNPINNED_KEY] == true
+        )
     }
 
     override suspend fun updateItems(items: List<QuickAccessItem>) {
@@ -182,26 +207,35 @@ class QuickAccessPreferencesRepository @Inject constructor(
             val storedTombstones = decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY])
                 .filter { !it.isEnabled && defaultItems.any { defaultItem -> defaultItem.id == it.id } }
             preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString((items + storedTombstones).distinctBy { it.id })
+            preferences[ROOT_DEFAULT_UNPINNED_KEY] = true
         }
     }
 
     override suspend fun addItem(item: QuickAccessItem) {
         dataStore.edit { preferences ->
-            val currentList = decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY])
+            val currentList = applyRootDefaultMigration(
+                decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY]),
+                preferences[ROOT_DEFAULT_UNPINNED_KEY] == true
+            )
             val existing = currentList.firstOrNull { it.id == item.id || it.path == item.path }
-            if (existing == null) {
-                preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(currentList + item)
+            val updatedList = if (existing == null) {
+                currentList + item
             } else if (!existing.isEnabled) {
-                preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(
-                    (currentList.filter { it.id != existing.id } + item).distinctBy { it.id }
-                )
+                currentList.filter { it.id != existing.id } + item
+            } else {
+                currentList
             }
+            preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(updatedList.distinctBy { it.id })
+            preferences[ROOT_DEFAULT_UNPINNED_KEY] = true
         }
     }
 
     override suspend fun removeItem(id: String) {
          dataStore.edit { preferences ->
-            val currentList = decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY])
+            val currentList = applyRootDefaultMigration(
+                decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY]),
+                preferences[ROOT_DEFAULT_UNPINNED_KEY] == true
+            )
             val defaultItem = defaultItems.firstOrNull { it.id == id }
             val tombstone = defaultItem
                 ?.takeIf { it.type != QuickAccessType.STANDARD }
@@ -209,6 +243,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             val newList = (currentList.filter { it.id != id } + listOfNotNull(tombstone))
                 .distinctBy { it.id }
             preferences[QUICK_ACCESS_ITEMS_KEY] = json.encodeToString(newList)
+            preferences[ROOT_DEFAULT_UNPINNED_KEY] = true
         }
     }
 }

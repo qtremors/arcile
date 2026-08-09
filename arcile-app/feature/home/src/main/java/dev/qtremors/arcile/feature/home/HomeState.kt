@@ -11,6 +11,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.isIndexed
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.presentation.filterAndSortFiles
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
@@ -43,12 +44,15 @@ internal data class HomeState(
     val isLoading: Boolean = true,
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
+    val isRootStorageUsageLoading: Boolean = false,
+    val hasLoadedRootStorageUsage: Boolean = false,
     val error: UiText? = null,
     val unclassifiedVolumes: PersistentList<StorageVolume> = persistentListOf(),
     val showClassificationPrompt: Boolean = false,
     val todayStart: Long = 0L,
     val displayState: HomeDisplayState = HomeDisplayState(),
-    val homeUtilityIds: PersistentList<String> = persistentListOf("trash", "cleaner")
+    val homeUtilityIds: PersistentList<String> = persistentListOf("trash", "cleaner"),
+    val homeLayoutPreferences: HomeLayoutPreferences = HomeLayoutPreferences()
 )
 
 internal fun HomeState.withUpdatedDisplayState(): HomeState {

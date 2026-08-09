@@ -148,7 +148,7 @@ fun ArcileTopBar(
         title = {
             Column {
                 Text(
-                    text = if (selectionCount > 0) stringResource(R.string.selected_count, selectionCount) else title,
+                    text = if (selectionCount > 0) androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, selectionCount, selectionCount) else title,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

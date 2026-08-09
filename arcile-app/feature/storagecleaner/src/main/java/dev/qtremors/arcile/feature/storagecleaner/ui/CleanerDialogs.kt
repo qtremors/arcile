@@ -180,7 +180,7 @@ internal fun CleanerConfirmContent(
     onHighRiskAcknowledgedChange: (Boolean) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text(stringResource(R.string.clean_confirm_message, selectedCandidates.size))
+        Text(androidx.compose.ui.res.pluralStringResource(R.plurals.clean_confirm_message, selectedCandidates.size, selectedCandidates.size))
         LazyColumn(
             modifier = Modifier.height(180.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)

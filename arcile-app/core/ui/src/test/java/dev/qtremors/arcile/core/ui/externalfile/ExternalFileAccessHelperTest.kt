@@ -382,6 +382,25 @@ class ExternalFileAccessHelperTest {
     }
 
     @Test
+    fun `createOpenIntent stages readable file from approved system root`() = runTest {
+        configureExternalStorageRoot()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val systemRoot = java.nio.file.Files.createTempDirectory("read-only-system-test").toFile()
+        val source = File(systemRoot, "build.prop").apply { writeText("ro.test=true") }
+        ExternalFileAccessHelper.readOnlySystemRootsOverrideForTest =
+            listOf(systemRoot.canonicalPath)
+        try {
+            val intent = ExternalFileAccessHelper.createOpenIntent(context, source.absolutePath)
+
+            assertEquals(Intent.ACTION_VIEW, intent.action)
+            assertTrue(intent.data.toString().startsWith("content://${context.packageName}.externalfileaccess/"))
+        } finally {
+            ExternalFileAccessHelper.resetReadOnlySystemRootsForTest()
+            systemRoot.deleteRecursively()
+        }
+    }
+
+    @Test
     fun `createOpenIntent rejects app metadata and Android restricted paths`() = runTest {
         configureExternalStorageRoot()
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -479,6 +498,45 @@ class ExternalFileAccessHelperTest {
 
         ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
         assertFalse(staged.exists())
+    }
+
+    @Test
+    fun `private plaintext startup cleanup quarantines immediately and deletes asynchronously`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+        val stagingRoot = File(context.cacheDir, "external_access")
+        val fallbackRoot = File(stagingRoot, "onlyfiles_fallback")
+        val oldPlaintext = (1..80).fold(fallbackRoot) { directory, depth ->
+            File(directory, "depth-$depth")
+        }.resolve("old-plaintext.bin")
+        oldPlaintext.parentFile?.mkdirs()
+        oldPlaintext.writeText("sensitive")
+
+        assertTrue(ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(context))
+
+        assertFalse(fallbackRoot.exists())
+        assertFalse(oldPlaintext.exists())
+        val quarantined = stagingRoot.listFiles().orEmpty().single {
+            it.name.startsWith(".onlyfiles_fallback_cleanup_")
+        }
+        assertTrue(quarantined.walkTopDown().any { it.isFile && it.readText() == "sensitive" })
+
+        val newPlaintext = File(fallbackRoot, "new-id/new-plaintext.bin")
+        newPlaintext.parentFile?.mkdirs()
+        newPlaintext.writeText("new")
+        ExternalFileAccessHelper.clearQuarantinedPrivatePlaintextFallbacks(context)
+
+        assertFalse(quarantined.exists())
+        assertTrue(newPlaintext.exists())
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+    }
+
+    @Test
+    fun `private plaintext startup cleanup is a no-op when no fallback exists`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+
+        assertFalse(ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(context))
     }
 
     @Test

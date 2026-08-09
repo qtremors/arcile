@@ -20,6 +20,7 @@ data class ApkPackageDetails(
     val minSdkVersion: Int = 0,
     val targetSdkVersion: Int = 0,
     val apkPaths: List<String> = emptyList(),
+    val stagingDirectoryPath: String? = null,
     val installedVersionName: String? = null,
     val installedVersionCode: Long? = null
 ) {

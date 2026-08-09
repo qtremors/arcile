@@ -30,14 +30,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
@@ -48,7 +45,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,13 +53,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -72,9 +65,9 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.SearchFiltersSheet
+import dev.qtremors.arcile.core.ui.SearchTopBar
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
-import dev.qtremors.arcile.core.ui.keyboardInputField
 import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -127,114 +120,29 @@ fun CategoryFloatingTopBar(
     modifier: Modifier = Modifier
 ) {
     val haptics = rememberArcileHaptics()
-    val keyboardController = LocalSoftwareKeyboardController.current
-    val focusRequester = remember { FocusRequester() }
     var showOverflow by rememberSaveable { mutableStateOf(false) }
     var showSearchFilters by rememberSaveable { mutableStateOf(false) }
 
     if (showSearchBar) {
-        LaunchedEffect(Unit) {
-            focusRequester.requestFocus()
-            keyboardController?.show()
-        }
         Column(
             modifier = modifier
-                .statusBarsPadding()
-                .padding(vertical = 8.dp)
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.85f),
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 4.dp,
-                shadowElevation = 4.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(48.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val closeSearch = {
+            SearchTopBar(
+                query = query,
+                onQueryChange = onQueryChange,
+                onClose = {
+                    haptics.selectionChanged()
+                    onCloseSearch()
+                },
+                onFilterClick = if (searchFilters != null && onSearchFiltersChange != null) {
+                    {
                         haptics.selectionChanged()
-                        onCloseSearch()
+                        showSearchFilters = true
                     }
-                    IconButton(
-                        onClick = closeSearch,
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .bounceClickable(onClick = closeSearch)
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
-                        )
-                    }
-                    BasicTextField(
-                        value = query,
-                        onValueChange = onQueryChange,
-                        textStyle = MaterialTheme.typography.bodyLarge.copy(
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(horizontal = 8.dp)
-                            .focusRequester(focusRequester)
-                            .keyboardInputField(),
-                        singleLine = true,
-                        decorationBox = { innerTextField ->
-                            if (query.isEmpty()) {
-                                Text(
-                                    text = searchPlaceholder,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                            }
-                            innerTextField()
-                        }
-                    )
-                    val searchActions = buildList {
-                        if (query.isNotEmpty()) {
-                            add(
-                                ToolbarAction(
-                                    icon = Icons.Default.Clear,
-                                    contentDescription = stringResource(R.string.action_clear),
-                                    onClick = {
-                                        haptics.selectionChanged()
-                                        onQueryChange("")
-                                    }
-                                )
-                            )
-                        }
-                        if (searchFilters != null && onSearchFiltersChange != null) {
-                            add(
-                                ToolbarAction(
-                                    icon = Icons.Default.FilterList,
-                                    contentDescription = stringResource(R.string.action_filters),
-                                    onClick = {
-                                        haptics.selectionChanged()
-                                        showSearchFilters = true
-                                    }
-                                )
-                            )
-                        }
-                    }
-                    if (searchActions.isNotEmpty()) {
-                        SplitButtonGroup(
-                            actions = searchActions,
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                            height = 40.dp,
-                            minWidth = 40.dp,
-                            iconSize = 21.dp
-                        )
-                    }
-                }
-            }
+                } else null,
+                placeholder = searchPlaceholder,
+                filtersActive = searchFilters?.hasActiveFilters == true
+            )
             if (searchFilters != null && onSearchFiltersChange != null) {
                 ActiveFiltersRow(
                     filters = searchFilters,

@@ -61,8 +61,9 @@ internal fun SettingsStorageSection(
             content = { Text(stringResource(R.string.clear_external_access_cache)) },
             supportingContent = {
                 Text(
-                    stringResource(
-                        R.string.clear_external_access_cache_description,
+                    androidx.compose.ui.res.pluralStringResource(
+                        R.plurals.clear_external_access_cache_description,
+                        cache.fileCount,
                         cache.fileCount
                     )
                 )

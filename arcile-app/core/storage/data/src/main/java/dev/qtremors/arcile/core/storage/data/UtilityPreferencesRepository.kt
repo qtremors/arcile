@@ -9,6 +9,8 @@ import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
+import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -31,6 +33,8 @@ class UtilityPreferencesRepository(
 ) : UtilityPreferencesStore {
     private val HOME_UTILITY_IDS_KEY = stringSetPreferencesKey("home_utility_ids")
     private val HOME_UTILITY_ORDER_KEY = stringPreferencesKey("home_utility_order")
+    private val HOME_SECTION_ORDER_KEY = stringPreferencesKey("home_section_order")
+    private val HOME_SECTION_ENABLED_KEY = stringSetPreferencesKey("home_section_enabled")
     private val defaultHomeUtilityIds = listOf("trash", "cleaner")
     private val allowedHomeUtilityIds = listOf("trash", "cleaner", "activity", "onlyfiles")
 
@@ -48,6 +52,26 @@ class UtilityPreferencesRepository(
             sanitizeHomeUtilityIds(ordered ?: legacy?.let { ids ->
                 allowedHomeUtilityIds.filter(ids::contains)
             } ?: defaultHomeUtilityIds)
+        }
+        .flowOn(dispatchers.io)
+
+    override val homeLayoutPreferences: Flow<HomeLayoutPreferences> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) {
+                emit(emptyPreferences())
+            } else {
+                throw exception
+            }
+        }
+        .map { prefs ->
+            HomeLayoutPreferences(
+                orderedSectionIds = sanitizeHomeSectionOrder(
+                    prefs[HOME_SECTION_ORDER_KEY]?.split(',').orEmpty()
+                ),
+                enabledSectionIds = prefs[HOME_SECTION_ENABLED_KEY]
+                    ?.filterTo(linkedSetOf()) { it in HomeSectionIds.ALL }
+                    ?: HomeSectionIds.ALL.toSet()
+            )
         }
         .flowOn(dispatchers.io)
 
@@ -88,6 +112,15 @@ class UtilityPreferencesRepository(
         }
     }
 
+    override suspend fun setHomeLayoutPreferences(preferences: HomeLayoutPreferences) {
+        dataStore.edit { prefs ->
+            prefs[HOME_SECTION_ORDER_KEY] =
+                sanitizeHomeSectionOrder(preferences.orderedSectionIds).joinToString(",")
+            prefs[HOME_SECTION_ENABLED_KEY] = preferences.enabledSectionIds
+                .filterTo(linkedSetOf()) { it in HomeSectionIds.ALL }
+        }
+    }
+
     override suspend fun removeBatchRenameHistory(query: String) {
         dataStore.edit { prefs ->
             val remaining = (prefs[BATCH_RENAME_HISTORY_KEY] ?: "")
@@ -109,4 +142,9 @@ class UtilityPreferencesRepository(
 
     private fun sanitizeHomeUtilityIds(ids: List<String>): List<String> =
         ids.filter { it in allowedHomeUtilityIds }.distinct()
+
+    private fun sanitizeHomeSectionOrder(ids: List<String>): List<String> {
+        val knownIds = ids.filter { it in HomeSectionIds.ALL }.distinct()
+        return knownIds + HomeSectionIds.ALL.filterNot(knownIds::contains)
+    }
 }

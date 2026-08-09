@@ -9,8 +9,10 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import io.mockk.coEvery
 import io.mockk.mockk
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
@@ -24,6 +26,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
+import kotlin.random.Random
 
 class ArchiveManagerTest {
     private lateinit var root: File
@@ -129,6 +132,9 @@ class ArchiveManagerTest {
         assertEquals("plain.txt", manager.listArchiveEntries(gzip.absolutePath).getOrThrow().single().path)
         assertEquals("plain.log", manager.listArchiveEntries(bzip.absolutePath).getOrThrow().single().path)
         assertEquals("plain.data", manager.listArchiveEntries(xz.absolutePath).getOrThrow().single().path)
+        assertEquals("gzip body".length.toLong(), manager.listArchiveEntries(gzip.absolutePath).getOrThrow().single().size)
+        assertEquals("bzip body".length.toLong(), manager.listArchiveEntries(bzip.absolutePath).getOrThrow().single().size)
+        assertEquals("xz body".length.toLong(), manager.listArchiveEntries(xz.absolutePath).getOrThrow().single().size)
 
         val destination = File(root, "single-stream-out").apply { mkdirs() }
         assertTrue(manager.extractArchive(gzip.absolutePath, destination.absolutePath).isSuccess)
@@ -138,6 +144,78 @@ class ArchiveManagerTest {
         assertEquals("gzip body", File(destination, "plain.txt").readText())
         assertEquals("bzip body", File(destination, "plain.log").readText())
         assertEquals("xz body", File(destination, "plain.data").readText())
+    }
+
+    @Test
+    fun `single stream extraction rejects expanded size and removes partial targets`() = runTest {
+        val body = Random(1).nextBytes(2_048)
+        val strictManager = managerWith(ArchiveSafetyPolicy(maxUncompressedBytes = 1_024))
+
+        for (format in listOf(ArchiveFormat.GZIP, ArchiveFormat.BZIP2, ArchiveFormat.XZ)) {
+            val archive = compressedFile("oversized.${format.extension}", format, body)
+            val destination = File(root, "oversized-${format.extension}").apply { mkdirs() }
+
+            val result = strictManager.extractArchive(archive.absolutePath, destination.absolutePath)
+
+            assertTrue(result.isFailure)
+            assertTrue(result.exceptionOrNull()?.message?.contains("too large", ignoreCase = true) == true)
+            assertFalse(File(destination, "oversized").exists())
+        }
+    }
+
+    @Test
+    fun `single stream listing and extraction reject high compression ratios`() = runTest {
+        val body = ByteArray(64 * 1_024) { 'a'.code.toByte() }
+        val strictManager = managerWith(
+            ArchiveSafetyPolicy(
+                maxUncompressedBytes = body.size.toLong(),
+                maxCompressionRatio = 2.0
+            )
+        )
+
+        for (format in listOf(ArchiveFormat.GZIP, ArchiveFormat.BZIP2, ArchiveFormat.XZ)) {
+            val archive = compressedFile("ratio.${format.extension}", format, body)
+            val destination = File(root, "ratio-${format.extension}").apply { mkdirs() }
+
+            val listing = strictManager.listArchiveEntries(archive.absolutePath)
+            val extraction = strictManager.extractArchive(archive.absolutePath, destination.absolutePath)
+
+            assertTrue(listing.isFailure)
+            assertTrue(extraction.isFailure)
+            assertTrue(extraction.exceptionOrNull()?.message?.contains("ratio", ignoreCase = true) == true)
+            assertFalse(File(destination, "ratio").exists())
+        }
+    }
+
+    @Test
+    fun `single stream extraction accepts expanded content exactly at the limit`() = runTest {
+        val body = Random(2).nextBytes(1_024)
+        val archive = compressedFile("exact.bin.gz", ArchiveFormat.GZIP, body)
+        val destination = File(root, "exact-out").apply { mkdirs() }
+        val strictManager = managerWith(ArchiveSafetyPolicy(maxUncompressedBytes = body.size.toLong()))
+
+        assertEquals(body.size.toLong(), strictManager.listArchiveEntries(archive.absolutePath).getOrThrow().single().size)
+        assertTrue(strictManager.extractArchive(archive.absolutePath, destination.absolutePath).isSuccess)
+        assertTrue(body.contentEquals(File(destination, "exact.bin").readBytes()))
+    }
+
+    @Test
+    fun `single stream extraction cancellation removes the staged output`() = runTest {
+        val body = Random(3).nextBytes(512 * 1_024)
+        val archive = compressedFile("cancel.bin.xz", ArchiveFormat.XZ, body)
+        val destination = File(root, "cancel-out").apply { mkdirs() }
+        lateinit var extraction: kotlinx.coroutines.Job
+
+        extraction = launch(start = CoroutineStart.LAZY) {
+            manager.extractArchive(archive.absolutePath, destination.absolutePath) {
+                extraction.cancel()
+            }
+        }
+        extraction.start()
+        extraction.join()
+
+        assertTrue(extraction.isCancelled)
+        assertFalse(File(destination, "cancel.bin").exists())
     }
 
     @Test
@@ -621,6 +699,10 @@ class ArchiveManagerTest {
     }
 
     private fun compressedFile(name: String, format: ArchiveFormat, body: String): File {
+        return compressedFile(name, format, body.toByteArray())
+    }
+
+    private fun compressedFile(name: String, format: ArchiveFormat, body: ByteArray): File {
         val archive = File(root, name)
         val output = when (format) {
             ArchiveFormat.GZIP -> GzipCompressorOutputStream(archive.outputStream())
@@ -628,7 +710,7 @@ class ArchiveManagerTest {
             ArchiveFormat.XZ -> XZCompressorOutputStream(archive.outputStream())
             else -> error("Unsupported single-stream test format")
         }
-        output.use { it.write(body.toByteArray()) }
+        output.use { it.write(body) }
         return archive
     }
 

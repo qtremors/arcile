@@ -1,16 +1,16 @@
 package dev.qtremors.arcile.feature.storagecleaner
 
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
-import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasTestTag
-import androidx.compose.ui.test.hasAnyChild
-import androidx.compose.ui.test.hasClickAction
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
@@ -20,14 +20,16 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
-import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerBackAction
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
+import dev.qtremors.arcile.core.ui.image.ThumbnailCacheStats
+import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import dev.qtremors.arcile.feature.storagecleaner.ui.CleanerCandidateRow
 import dev.qtremors.arcile.feature.storagecleaner.ui.DuplicateGroupCard
+import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerGroupScreen
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerScreen
 import dev.qtremors.arcile.feature.storagecleaner.ui.cleanFilePath
-import dev.qtremors.arcile.feature.storagecleaner.ui.resolveStorageCleanerBackAction
-import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,19 +65,12 @@ class StorageCleanerScreenTest {
                 )
             }
         }
-
         composeRule.waitForIdle()
     }
 
     @Test
     fun `candidate checkbox invokes one selection callback`() {
-        val file = CleanerCandidate(
-            name = "single.txt",
-            absolutePath = "/storage/emulated/0/single.txt",
-            size = 1L,
-            lastModified = 0L,
-            groupTypes = setOf(CleanerGroupType.Junk)
-        )
+        val file = candidate(CleanerGroupType.Junk)
         var callbackCount = 0
         composeRule.setContent {
             ArcileTestTheme {
@@ -88,445 +83,323 @@ class StorageCleanerScreenTest {
         }
 
         composeRule.onNode(hasTestTag("checkbox_${file.absolutePath}")).performClick()
-
-        composeRule.runOnIdle {
-            assertEquals(1, callbackCount)
-        }
+        composeRule.runOnIdle { assertEquals(1, callbackCount) }
     }
 
     @Test
-    fun `candidate thumbnail opens file and text opens containing folder without external button`() {
-        val file = CleanerCandidate(
-            name = "model.stl",
-            absolutePath = "/storage/emulated/0/Models/model.stl",
-            size = 1L,
-            lastModified = 0L,
-            groupTypes = setOf(CleanerGroupType.LargeFiles)
-        )
-        var openedFile: String? = null
-        var openedLocation: String? = null
-        var selectionCount = 0
-        composeRule.setContent {
-            ArcileTestTheme {
-                CleanerCandidateRow(
-                    file = file,
-                    selected = false,
-                    onToggle = { selectionCount += 1 },
-                    onOpenFile = { openedFile = it },
-                    onOpenContainingFolder = { openedLocation = it }
-                )
-            }
-        }
-
-        composeRule.onNode(hasTestTag("cleaner_thumbnail_${file.absolutePath}")).performClick()
-        composeRule.onNode(hasTestTag("cleaner_location_${file.absolutePath}")).performClick()
-        composeRule.onAllNodesWithContentDescription("Open with").assertCountEquals(0)
-
-        composeRule.runOnIdle {
-            assertEquals(file.absolutePath, openedFile)
-            assertEquals(file.absolutePath, openedLocation)
-            assertEquals(0, selectionCount)
-        }
-    }
-
-    @Test
-    fun `cleaner back priority dismisses local state before navigation`() {
-        assertEquals(
-            StorageCleanerBackAction.DismissIgnoredItems,
-            resolveStorageCleanerBackAction(showIgnoredItems = true, showDeleteConfirm = true, hasActiveDetails = true)
-        )
-        assertEquals(
-            StorageCleanerBackAction.DismissDeleteConfirmation,
-            resolveStorageCleanerBackAction(showIgnoredItems = false, showDeleteConfirm = true, hasActiveDetails = true)
-        )
-        assertEquals(
-            StorageCleanerBackAction.DismissDetails,
-            resolveStorageCleanerBackAction(showIgnoredItems = false, showDeleteConfirm = false, hasActiveDetails = true)
-        )
-        assertEquals(
-            StorageCleanerBackAction.NavigateBack,
-            resolveStorageCleanerBackAction(showIgnoredItems = false, showDeleteConfirm = false, hasActiveDetails = false)
-        )
-    }
-
-    @Test
-    fun `high risk candidates show warning and require acknowledgement before delete`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                StorageCleanerScreen(
-                    state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Junk,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "debug.log",
-                                        absolutePath = "/storage/emulated/0/Android/data/com.example/cache/debug.log",
-                                        size = 128L,
-                                        lastModified = 0L,
-                                        groupTypes = setOf(CleanerGroupType.Junk),
-                                        riskLevel = CleanerRiskLevel.High,
-                                        riskReasons = setOf(CleanerRiskReason.SystemOwnedPath)
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    onNavigateBack = {},
-                    onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
-                    onClearMessages = {}
-                )
-            }
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
-        composeRule.onNodeWithText("Junk files").performClick()
-        composeRule.onNodeWithText("High risk").assertExists()
-        composeRule.onNodeWithText("System-owned path").assertExists()
-        composeRule.onNode(hasTestTag("checkbox_/storage/emulated/0/Android/data/com.example/cache/debug.log")).performClick()
-        composeRule.onNodeWithText("Move 1 to Trash • 128.0 B").performClick()
-
-        composeRule.onNodeWithText("I reviewed these high-risk files and still want to move them to Trash.").assertExists()
-        composeRule.onNodeWithText("Delete").assertIsNotEnabled()
-    }
-
-    @Test
-    fun `select all skips high risk candidates`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                StorageCleanerScreen(
-                    state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Junk,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "safe.tmp",
-                                        absolutePath = "/storage/emulated/0/cache/safe.tmp",
-                                        size = 64L,
-                                        lastModified = 0L,
-                                        groupTypes = setOf(CleanerGroupType.Junk),
-                                        riskLevel = CleanerRiskLevel.Low,
-                                        riskReasons = setOf(CleanerRiskReason.TemporaryOrCache)
-                                    ),
-                                    CleanerCandidate(
-                                        name = "debug.log",
-                                        absolutePath = "/storage/emulated/0/Android/data/com.example/cache/debug.log",
-                                        size = 128L,
-                                        lastModified = 0L,
-                                        groupTypes = setOf(CleanerGroupType.Junk),
-                                        riskLevel = CleanerRiskLevel.High,
-                                        riskReasons = setOf(CleanerRiskReason.SystemOwnedPath)
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    onNavigateBack = {},
-                    onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
-                    onClearMessages = {}
-                )
-            }
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
-        composeRule.onNodeWithText("Junk files").performClick()
-        composeRule.onAllNodesWithText("Select all")[0].performClick()
-        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").performClick()
-
-        composeRule.onNodeWithText("1 selected file(s) will be moved to Arcile Trash. You can restore them later.").assertExists()
-    }
-
-    @Test
-    fun `cleaner shows thumbnail cache controls`() {
+    fun `overview card opens its page without refresh or long press actions`() {
+        var openedType: CleanerGroupType? = null
         composeRule.setContent {
             ArcileTestTheme {
                 StorageCleanerScreen(
                     state = StorageCleanerState(),
                     onNavigateBack = {},
                     onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
-                    onClearMessages = {}
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Thumbnail cache").assertExists()
-        composeRule.onNodeWithText("Clear").assertExists()
-    }
-
-    @Test
-    fun `duplicate compare sheet opens from duplicate group`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                StorageCleanerScreen(
-                    state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Duplicates,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "same.jpg",
-                                        absolutePath = "/storage/emulated/0/DCIM/same.jpg",
-                                        size = 128L,
-                                        lastModified = 1L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates),
-                                        duplicateGroupKey = "128:test"
-                                    ),
-                                    CleanerCandidate(
-                                        name = "same.jpg",
-                                        absolutePath = "/storage/emulated/0/Download/same.jpg",
-                                        size = 128L,
-                                        lastModified = 2L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates),
-                                        duplicateGroupKey = "128:test"
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    onNavigateBack = {},
-                    onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
-                    onClearMessages = {}
-                )
-            }
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Duplicate files"))
-        composeRule.onNodeWithText("Duplicate files").performClick()
-        composeRule.onNodeWithText("Compare").performClick()
-
-        composeRule.onNodeWithText("Compare duplicates").assertExists()
-        composeRule.onAllNodesWithText("Keep file").assertCountEquals(2)
-    }
-
-    @Test
-    fun `duplicate compare delete icon asks for confirmation before cleaning one file`() {
-        var cleanedPaths: List<String>? = null
-        composeRule.setContent {
-            ArcileTestTheme {
-                StorageCleanerScreen(
-                    state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Duplicates,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "same.jpg",
-                                        absolutePath = "/storage/emulated/0/DCIM/same.jpg",
-                                        size = 128L,
-                                        lastModified = 1L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates),
-                                        duplicateGroupKey = "128:test"
-                                    ),
-                                    CleanerCandidate(
-                                        name = "same.jpg",
-                                        absolutePath = "/storage/emulated/0/Download/same.jpg",
-                                        size = 128L,
-                                        lastModified = 2L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates),
-                                        duplicateGroupKey = "128:test"
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    onNavigateBack = {},
-                    onRefresh = {},
-                    onCleanFiles = { paths, _ -> cleanedPaths = paths },
-                    onUndoClean = {},
-                    onClearMessages = {}
-                )
-            }
-        }
-
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Duplicate files"))
-        composeRule.onNodeWithText("Duplicate files").performClick()
-        composeRule.onNodeWithText("Compare").performClick()
-        composeRule.onAllNodesWithContentDescription("Delete this file")[0].performScrollTo().performClick()
-
-        composeRule.onNodeWithText("Move selected files to Trash?").assertExists()
-        assertEquals(null, cleanedPaths)
-        composeRule.onNodeWithText("Delete").performClick()
-
-        composeRule.waitUntil(timeoutMillis = 3_000) {
-            cleanedPaths != null
-        }
-        assertEquals(listOf("/storage/emulated/0/DCIM/same.jpg"), cleanedPaths)
-    }
-
-    @Test
-    fun `section settings opens from details sheet`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                StorageCleanerScreen(
-                    state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Junk,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "safe.tmp",
-                                        absolutePath = "/storage/emulated/0/cache/safe.tmp",
-                                        size = 64L,
-                                        lastModified = 1_000L,
-                                        groupTypes = setOf(CleanerGroupType.Junk),
-                                        riskLevel = CleanerRiskLevel.Low,
-                                        riskReasons = setOf(CleanerRiskReason.TemporaryOrCache)
-                                    )
-                                )
-                            )
-                        )
-                    ),
-                    onNavigateBack = {},
-                    onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
+                    onOpenGroup = { openedType = it },
                     onClearMessages = {}
                 )
             }
         }
 
         composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
-        composeRule.onNodeWithText("Junk files").performClick()
-        composeRule.onAllNodesWithContentDescription("Junk files rules")[0].performClick()
-
-        composeRule.onNodeWithText("Junk files rules").assertExists()
-        composeRule.onNodeWithText("Changes here apply only to Junk files.").assertExists()
-        composeRule.onNodeWithText("Show this cleaner").assertExists()
-        composeRule.onNodeWithText("Excluded names").assertExists()
-        composeRule.onNodeWithText("Examples: *.iso or cache").assertExists()
-        composeRule.onNodeWithText("Excluded locations").assertExists()
-        composeRule.onNodeWithText("Examples: */WhatsApp/* or Download/Temp").assertExists()
+        val card = composeRule.onNodeWithText("Junk files")
+        assertFalse(card.fetchSemanticsNode().config.contains(SemanticsActions.OnLongClick))
+        card.performClick()
+        composeRule.onAllNodesWithContentDescription("Refresh").assertCountEquals(0)
+        composeRule.runOnIdle { assertEquals(CleanerGroupType.Junk, openedType) }
     }
 
     @Test
-    fun `ignore action reports exact path`() {
-        var ignoredPath: String? = null
+    fun `overview manual refresh retains detailed scan progress`() {
         composeRule.setContent {
             ArcileTestTheme {
                 StorageCleanerScreen(
                     state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Junk,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "safe.tmp",
-                                        absolutePath = "/storage/emulated/0/cache/safe.tmp",
-                                        size = 64L,
-                                        lastModified = 1_000L,
-                                        groupTypes = setOf(CleanerGroupType.Junk),
-                                        riskLevel = CleanerRiskLevel.Low,
-                                        riskReasons = setOf(CleanerRiskReason.TemporaryOrCache)
-                                    )
-                                )
-                            )
+                        isScanning = true,
+                        isPullToRefreshing = true,
+                        scanningGroups = CleanerGroupType.entries.toSet(),
+                        scanProgress = StorageCleanerScanProgress(
+                            scannedFiles = 240,
+                            progressFraction = 0.6f,
+                            estimatedRemainingMillis = 20_000L
                         )
                     ),
                     onNavigateBack = {},
                     onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
-                    onClearMessages = {},
-                    onIgnorePath = { ignoredPath = it }
+                    onClearMessages = {}
                 )
             }
         }
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Junk files"))
-        composeRule.onNodeWithText("Junk files").performClick()
-        composeRule.onNodeWithText("Ignore item").performClick()
-
-        assertEquals("/storage/emulated/0/cache/safe.tmp", ignoredPath)
+        composeRule.onAllNodesWithText(
+            "240 items scanned • 60% • about 20s left",
+            useUnmergedTree = true
+        )[0].assertExists()
     }
 
     @Test
-    fun `ignored items show filename location scope and clear unignore action`() {
+    fun `empty cleaner page keeps scroll semantics for pull refresh`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = stateWith(CleanerGroupType.Junk),
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).assertExists()
+        composeRule.onNodeWithText("Nothing found").assertExists()
+    }
+
+    @Test
+    fun `unloaded cleaner page remains refreshable after failure`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = StorageCleanerState(),
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasScrollAction()).assertExists()
+        composeRule.onNodeWithText("Nothing found").assertExists()
+    }
+
+    @Test
+    fun `overview shows thumbnail cache controls and ignored items`() {
         val ignoredPath = "/storage/emulated/0/Download/APK/MyInsta_v2.apk"
         var restoredPath: String? = null
         composeRule.setContent {
             ArcileTestTheme {
                 StorageCleanerScreen(
                     state = StorageCleanerState(
-                        rules = StorageCleanerRules(ignoredPaths = setOf(ignoredPath))
+                        rules = StorageCleanerRules(ignoredPaths = setOf(ignoredPath)),
+                        thumbnailCache = CleanerThumbnailCacheState(
+                            stats = ThumbnailCacheStats(
+                                diskBytes = 512L,
+                                memoryBytes = 256L,
+                                loadedCount = 3,
+                                failedCount = 1
+                            ),
+                            isLoading = false
+                        )
                     ),
                     onNavigateBack = {},
                     onRefresh = {},
-                    onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
                     onClearMessages = {},
                     onUnignorePath = { restoredPath = it }
                 )
             }
         }
 
+        composeRule.onNodeWithText("Thumbnail cache").assertExists()
         composeRule.onAllNodesWithContentDescription("Ignored everywhere")[0].performClick()
         composeRule.onNodeWithText("MyInsta_v2.apk").assertExists()
-        composeRule.onNodeWithText("Download/APK").assertExists()
-        composeRule.onNodeWithText("These exact files and folders are excluded from every cleaner.").assertExists()
-        composeRule.onNodeWithText("Pattern rules are separate and apply only to the cleaner where you create them.").assertExists()
         composeRule.onNodeWithText("Stop ignoring").performClick()
-
         assertEquals(ignoredPath, restoredPath)
     }
 
     @Test
-    fun `duplicate metadata shows seconds and no dynamic related app label`() {
+    fun `cleaner page shows progress and no refresh button`() {
         composeRule.setContent {
             ArcileTestTheme {
-                StorageCleanerScreen(
+                StorageCleanerGroupScreen(
                     state = StorageCleanerState(
-                        groups = listOf(
-                            CleanerGroup(
-                                CleanerGroupType.Duplicates,
-                                listOf(
-                                    CleanerCandidate(
-                                        name = "same.jpg",
-                                        absolutePath = "/storage/emulated/0/Android/data/com.whatsapp/cache/same.jpg",
-                                        size = 128L,
-                                        lastModified = 1_000L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates),
-                                        riskLevel = CleanerRiskLevel.High,
-                                        riskReasons = setOf(CleanerRiskReason.AppLikeFolder),
-                                        duplicateGroupKey = "128:test"
-                                    ),
-                                    CleanerCandidate(
-                                        name = "same-copy.jpg",
-                                        absolutePath = "/storage/emulated/0/Download/same-copy.jpg",
-                                        size = 128L,
-                                        lastModified = 1_000L,
-                                        groupTypes = setOf(CleanerGroupType.Duplicates),
-                                        duplicateGroupKey = "128:test"
-                                    )
-                                )
-                            )
+                        isScanning = true,
+                        isPullToRefreshing = true,
+                        scanningGroups = setOf(CleanerGroupType.Junk),
+                        scanProgress = StorageCleanerScanProgress(
+                            scannedFiles = 120,
+                            progressFraction = 0.5f,
+                            estimatedRemainingMillis = 10_000L
                         )
                     ),
+                    type = CleanerGroupType.Junk,
                     onNavigateBack = {},
                     onRefresh = {},
                     onCleanFiles = { _, _ -> },
-                    onUndoClean = {},
                     onClearMessages = {}
                 )
             }
         }
 
-        composeRule.onNode(hasScrollAction()).performScrollToNode(hasText("Duplicate files"))
-        composeRule.onNodeWithText("Duplicate files").performClick()
-        composeRule.onNodeWithText("Compare").performClick()
-
-        composeRule.onNode(
-            hasTestTag("cleaner_duplicate_timestamp_/storage/emulated/0/Android/data/com.whatsapp/cache/same.jpg") and
-                hasText(":01", substring = true)
-        ).assertExists()
-        composeRule.onAllNodesWithText("Related to WhatsApp").assertCountEquals(0)
+        composeRule.onNodeWithText("120 items scanned • 50% • about 10s left").assertExists()
+        composeRule.onAllNodesWithContentDescription("Refresh Junk files").assertCountEquals(0)
     }
+
+    @Test
+    fun `high risk candidates require acknowledgement before delete`() {
+        val highRisk = candidate(
+            type = CleanerGroupType.Junk,
+            path = "/storage/emulated/0/Android/data/com.example/cache/debug.log",
+            riskLevel = CleanerRiskLevel.High,
+            reasons = setOf(CleanerRiskReason.SystemOwnedPath)
+        )
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = stateWith(CleanerGroupType.Junk, highRisk),
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasTestTag("checkbox_${highRisk.absolutePath}")).performClick()
+        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").performClick()
+        composeRule.onNodeWithText("I reviewed these high-risk files and still want to move them to Trash.").assertExists()
+        composeRule.onNodeWithText("Delete").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `restored confirmation stays disabled until candidates are validated`() {
+        val highRisk = candidate(
+            type = CleanerGroupType.Junk,
+            path = "/storage/emulated/0/Android/data/com.example/cache/debug.log",
+            riskLevel = CleanerRiskLevel.High,
+            reasons = setOf(CleanerRiskReason.SystemOwnedPath)
+        )
+        val state = mutableStateOf(stateWith(CleanerGroupType.Junk, highRisk))
+        var cleanCalls = 0
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = state.value,
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> cleanCalls += 1 },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasTestTag("checkbox_${highRisk.absolutePath}")).performClick()
+        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").performClick()
+        composeRule.runOnIdle { state.value = StorageCleanerState() }
+        composeRule.onNodeWithText("Delete").assertIsNotEnabled()
+        composeRule.runOnIdle {
+            state.value = stateWith(CleanerGroupType.Junk, highRisk)
+        }
+        composeRule.onNodeWithText("Delete").assertIsNotEnabled()
+        composeRule.runOnIdle { assertEquals(0, cleanCalls) }
+    }
+
+    @Test
+    fun `section settings open from cleaner page`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = stateWith(CleanerGroupType.Junk, candidate(CleanerGroupType.Junk)),
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onAllNodesWithContentDescription("Junk files rules")[0].performClick()
+        composeRule.onNodeWithText("Changes here apply only to Junk files.").assertExists()
+        composeRule.onNodeWithText("Show this cleaner").assertExists()
+        composeRule.onNodeWithText("Excluded names").assertExists()
+    }
+
+    @Test
+    fun `duplicate comparison and selection survive state restoration`() {
+        val restorationTester = StateRestorationTester(composeRule)
+        val first = candidate(
+            type = CleanerGroupType.Duplicates,
+            path = "/storage/emulated/0/DCIM/same-one.jpg",
+            duplicateGroupKey = "128:test"
+        )
+        val second = first.copy(
+            name = "same-two.jpg",
+            absolutePath = "/storage/emulated/0/Download/same-two.jpg",
+            lastModified = 2L
+        )
+        restorationTester.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = stateWith(CleanerGroupType.Duplicates, first, second),
+                    type = CleanerGroupType.Duplicates,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Compare").performClick()
+        composeRule.onAllNodesWithText("Keep file")[0].performClick()
+        restorationTester.emulateSavedInstanceStateRestore()
+
+        composeRule.onNodeWithText("Compare duplicates").assertExists()
+        composeRule.onAllNodesWithText("Keep file").assertCountEquals(1)
+        composeRule.onAllNodesWithText("Move 1 to Trash • 64.0 B").assertCountEquals(2)
+    }
+
+    @Test
+    fun `selection survives while restored cleaner data reloads`() {
+        val file = candidate(CleanerGroupType.Junk)
+        val state = mutableStateOf(stateWith(CleanerGroupType.Junk, file))
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = state.value,
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = {},
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = {}
+                )
+            }
+        }
+
+        composeRule.onNode(hasTestTag("checkbox_${file.absolutePath}")).performClick()
+        composeRule.runOnIdle { state.value = StorageCleanerState() }
+        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").assertDoesNotExist()
+        composeRule.runOnIdle {
+            state.value = stateWith(CleanerGroupType.Junk, file)
+        }
+        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").assertExists()
+    }
+
+    private fun stateWith(type: CleanerGroupType, vararg candidates: CleanerCandidate) =
+        StorageCleanerState(
+            groups = listOf(CleanerGroup(type, candidates.toList())),
+            loadedGroups = setOf(type)
+        )
+
+    private fun candidate(
+        type: CleanerGroupType,
+        path: String = "/storage/emulated/0/cache/safe.tmp",
+        riskLevel: CleanerRiskLevel = CleanerRiskLevel.Low,
+        reasons: Set<CleanerRiskReason> = emptySet(),
+        duplicateGroupKey: String? = null
+    ) = CleanerCandidate(
+        name = path.substringAfterLast('/'),
+        absolutePath = path,
+        size = 64L,
+        lastModified = 1L,
+        groupTypes = setOf(type),
+        riskLevel = riskLevel,
+        riskReasons = reasons,
+        duplicateGroupKey = duplicateGroupKey
+    )
 }

@@ -339,7 +339,7 @@ class RecentFilesViewModelTest {
     }
 
     @Test
-    fun `select all uses displayed recent files in normal mode`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `select all respects active filters without a search query`() = runTest(mainDispatcherRule.dispatcher) {
         val files = listOf(
             recentFile("one.jpg", "/storage/emulated/0/DCIM/one.jpg", mimeType = "image/jpeg"),
             recentFile("two.pdf", "/storage/emulated/0/Download/two.pdf", mimeType = "application/pdf")
@@ -354,7 +354,7 @@ class RecentFilesViewModelTest {
         viewModel.selectAll()
 
         assertEquals(
-            setOf("/storage/emulated/0/DCIM/one.jpg", "/storage/emulated/0/Download/two.pdf"),
+            setOf("/storage/emulated/0/DCIM/one.jpg"),
             viewModel.state.value.selectedFiles
         )
     }

@@ -233,7 +233,7 @@ internal fun TrashScreen(
                     LargeTopAppBar(
                         title = {
                             Text(
-                                text = if (isSelectionMode) stringResource(R.string.selected_count, state.selectedFiles.size) else stringResource(R.string.trash_bin),
+                                text = if (isSelectionMode) androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, state.selectedFiles.size, state.selectedFiles.size) else stringResource(R.string.trash_bin),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )

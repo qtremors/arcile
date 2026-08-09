@@ -4,7 +4,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import android.content.ClipData
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
@@ -91,7 +91,7 @@ fun AboutScreen(
                     ClipData.newPlainText(context.getString(R.string.app_name), text)
                 )
             )
-            Toast.makeText(context, context.getString(R.string.copied_to_clipboard), Toast.LENGTH_SHORT).show()
+            context.showArcileToast(context.getString(R.string.copied_to_clipboard))
         }
     }
 

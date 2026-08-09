@@ -26,6 +26,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -131,7 +133,8 @@ class ImageGalleryViewModelPasteTest {
         val loadCallsBeforeCompletion = fixture.repository.loadCalls
 
         fixture.operationCoordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertTrue(fixture.repository.loadCalls > loadCallsBeforeCompletion)
         assertEquals(
@@ -202,12 +205,15 @@ class ImageGalleryViewModelPasteTest {
         val request = fixture.operationCoordinator.startedRequests.single()
 
         fixture.operationCoordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertEquals(OperationCompletionStatus.SUCCESS, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
         assertNull(fixture.viewModel.state.value.clipboardState)
 
-        fixture.viewModel.clearActiveFileOperation()
+        advanceTimeBy(1)
+        runCurrent()
+        assertNull(fixture.viewModel.state.value.activeFileOperation)
         fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(source)))
         advanceUntilIdle()
         fixture.viewModel.pasteFromClipboard("/storage/emulated/0/Pictures/Album")
@@ -215,12 +221,15 @@ class ImageGalleryViewModelPasteTest {
         val failedRequest = fixture.operationCoordinator.startedRequests.last()
 
         fixture.operationCoordinator.onOperationFailed(failedRequest, "failed")
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertEquals(OperationCompletionStatus.FAILED, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
         assertNull(fixture.viewModel.state.value.clipboardState)
 
-        fixture.viewModel.clearActiveFileOperation()
+        advanceTimeBy(1)
+        runCurrent()
+        assertNull(fixture.viewModel.state.value.activeFileOperation)
         fixture.clipboardRepository.setClipboardState(ClipboardState(ClipboardOperation.COPY, listOf(source)))
         advanceUntilIdle()
         fixture.viewModel.pasteFromClipboard("/storage/emulated/0/Pictures/Album")
@@ -228,7 +237,8 @@ class ImageGalleryViewModelPasteTest {
         val cancelledRequest = fixture.operationCoordinator.startedRequests.last()
 
         fixture.operationCoordinator.onOperationCancelled(cancelledRequest)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertEquals(OperationCompletionStatus.CANCELLED, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
         assertNull(fixture.viewModel.state.value.clipboardState)
@@ -236,7 +246,8 @@ class ImageGalleryViewModelPasteTest {
 
     @Test
     fun `archive operation terminal event does not clear queued clipboard`() = runTest(mainDispatcherRule.dispatcher) {
-        val fixture = createFixture()
+        val savedStateHandle = SavedStateHandle()
+        val fixture = createFixture(savedStateHandle)
         val source = galleryFile("source.jpg", "/storage/emulated/0/DCIM/source.jpg")
         val clipboard = ClipboardState(ClipboardOperation.COPY, listOf(source))
         fixture.clipboardRepository.setClipboardState(clipboard)
@@ -246,13 +257,15 @@ class ImageGalleryViewModelPasteTest {
             type = BulkFileOperationType.CREATE_ARCHIVE,
             sourcePaths = listOf(source.absolutePath),
             destinationPath = "/storage/emulated/0/DCIM/source.zip",
-            resolutions = emptyMap()
+            resolutions = emptyMap(),
+            presentationOwnerId = savedStateHandle["galleryOperationOwnerId"]
         )
         advanceUntilIdle()
         val request = fixture.operationCoordinator.startedRequests.single()
 
         fixture.operationCoordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertEquals(OperationCompletionStatus.SUCCESS, fixture.viewModel.state.value.activeFileOperation?.terminalStatus)
         assertEquals(clipboard, fixture.viewModel.state.value.clipboardState)

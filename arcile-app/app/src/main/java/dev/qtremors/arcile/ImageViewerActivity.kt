@@ -7,41 +7,62 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import dagger.hilt.android.AndroidEntryPoint
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.ui.ExternalViewerLoadScreen
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import dev.qtremors.arcile.core.ui.StandaloneImageViewer
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class ImageViewerActivity : ComponentActivity() {
+    @Inject lateinit var dispatchers: ArcileDispatchers
+    private var target by mutableStateOf<StandaloneImageTarget?>(null)
+    private var loadError by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val target = resolveStandaloneImageTarget(this, intent)
-        if (target == null) {
-            Toast.makeText(this, getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)), Toast.LENGTH_SHORT).show()
-            finish()
-            return
-        }
-
         setContent {
             ArcileTheme(themeState = ThemeState()) {
-                StandaloneImageViewer(
-                    reference = target.reference,
-                    title = target.displayName,
-                    sizeBytes = target.sizeBytes ?: 0L,
-                    mimeType = target.mimeType,
-                    onNavigateBack = { finish() },
-                    onShare = { shareTarget(target) },
-                    onOpenWith = { openTargetWithChooser(target) }
-                )
+                val resolved = target
+                if (resolved == null) {
+                    ExternalViewerLoadScreen(loadError, ::loadTarget)
+                } else {
+                    StandaloneImageViewer(
+                        reference = resolved.reference,
+                        title = resolved.displayName,
+                        sizeBytes = resolved.sizeBytes ?: 0L,
+                        mimeType = resolved.mimeType,
+                        onNavigateBack = { finish() },
+                        onShare = { shareTarget(resolved) },
+                        onOpenWith = { openTargetWithChooser(resolved) }
+                    )
+                }
             }
+        }
+        loadTarget()
+    }
+
+    private fun loadTarget() {
+        loadError = null
+        lifecycleScope.launch {
+            target = resolveStandaloneImageTarget(this@ImageViewerActivity, intent, dispatchers.io)
+            if (target == null) loadError = getString(R.string.error_unsupported_provider)
         }
     }
 
@@ -59,7 +80,7 @@ class ImageViewerActivity : ComponentActivity() {
                 )
             )
             if (!shared) {
-                Toast.makeText(this@ImageViewerActivity, getString(R.string.cannot_open_file, getString(R.string.no_app_found)), Toast.LENGTH_SHORT).show()
+                showArcileToast(getString(R.string.cannot_open_file, getString(R.string.no_app_found)))
             }
         }
     }
@@ -78,7 +99,7 @@ class ImageViewerActivity : ComponentActivity() {
                 )
                 startActivity(Intent.createChooser(openIntent, getString(R.string.image_gallery_open_with)))
             }.onFailure {
-                Toast.makeText(this@ImageViewerActivity, getString(R.string.cannot_open_file, it.localizedMessage ?: ""), Toast.LENGTH_SHORT).show()
+                showArcileToast(getString(R.string.cannot_open_file, it.localizedMessage ?: ""))
             }
         }
     }
@@ -94,29 +115,50 @@ data class StandaloneImageTarget(
 internal fun resolveStandaloneImageTarget(context: Context, intent: Intent): StandaloneImageTarget? {
     if (intent.action != Intent.ACTION_VIEW) return null
     val uri = intent.data ?: return null
-    val mimeType = intent.type
-        ?: context.contentResolver.getType(uri)
-        ?: mimeTypeForUri(uri)
+    val mimeType = intent.type ?: mimeTypeForUri(uri)
     if (mimeType?.startsWith("image/") != true && !uriLooksLikeImage(uri)) return null
+    return when (uri.scheme) {
+        "content" -> StandaloneImageTarget(uri.toString(), uri.lastPathSegment ?: "Image", mimeType, null)
+        "file", null -> {
+            val file = File(uri.path.orEmpty())
+            if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) null
+            else StandaloneImageTarget(file.absolutePath, file.name, mimeType, file.length())
+        }
+        else -> null
+    }
+}
+
+internal suspend fun resolveStandaloneImageTarget(
+    context: Context,
+    intent: Intent,
+    ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
+): StandaloneImageTarget? {
+    if (intent.action != Intent.ACTION_VIEW) return null
+    val uri = intent.data ?: return null
 
     return when (uri.scheme) {
-        "content" -> StandaloneImageTarget(
-            reference = uri.toString(),
-            displayName = queryOpenableColumn(context, uri, OpenableColumns.DISPLAY_NAME) { cursor, index ->
-                cursor.getString(index)
-            } ?: uri.lastPathSegment ?: "Image",
-            mimeType = mimeType,
-            sizeBytes = queryOpenableColumn(context, uri, OpenableColumns.SIZE) { cursor, index ->
-                cursor.getLong(index)
-            }
-        )
-        "file", null -> {
+        "content" -> {
+            val metadata = resolveExternalContentMetadata(
+                context.contentResolver, uri, intent.type, ioDispatcher
+            ).getOrNull() ?: return null
+            val mimeType = metadata.mimeType ?: mimeTypeForUri(uri)
+            if (mimeType?.startsWith("image/") != true && !uriLooksLikeImage(uri)) return null
+            StandaloneImageTarget(
+                reference = uri.toString(),
+                displayName = metadata.displayName ?: uri.lastPathSegment ?: "Image",
+                mimeType = mimeType,
+                sizeBytes = metadata.sizeBytes
+            )
+        }
+        "file", null -> withContext(ioDispatcher) {
             val file = if (uri.scheme == "file") File(uri.path.orEmpty()) else File(uri.toString())
-            if (!file.exists() || !file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return null
+            if (!file.exists() || !file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return@withContext null
+            val mimeType = intent.type ?: mimeTypeForUri(Uri.fromFile(file))
+            if (mimeType?.startsWith("image/") != true && !uriLooksLikeImage(uri)) return@withContext null
             StandaloneImageTarget(
                 reference = file.absolutePath,
                 displayName = file.name,
-                mimeType = mimeType ?: mimeTypeForUri(Uri.fromFile(file)),
+                mimeType = mimeType,
                 sizeBytes = file.length()
             )
         }

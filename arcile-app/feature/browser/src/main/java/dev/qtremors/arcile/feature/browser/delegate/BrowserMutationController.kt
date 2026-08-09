@@ -47,6 +47,7 @@ internal class BrowserMutationController(
     private val fileMutationRepository: FileMutationRepository,
     volumeRepository: VolumeRepository,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val contextProvider: () -> BrowserMutationContext,
     private val clearSelection: () -> Unit,
     private val onBusyChange: (Boolean) -> Unit,
@@ -103,7 +104,8 @@ internal class BrowserMutationController(
                 type = type,
                 sourcePaths = selected,
                 destinationPath = null,
-                resolutions = emptyMap<String, ConflictResolution>()
+                resolutions = emptyMap<String, ConflictResolution>(),
+                presentationOwnerId = operationOwnerId
             )
         },
         onFailure = {}
@@ -120,7 +122,8 @@ internal class BrowserMutationController(
             sourcePaths = listOf(name),
             destinationPath = context.currentPath,
             resolutions = emptyMap<String, ConflictResolution>(),
-            fakeFileSize = size
+            fakeFileSize = size,
+            presentationOwnerId = operationOwnerId
         )
         if (!started) {
             onError(UiText.StringResource(RuntimeR.string.error_operation_already_running))

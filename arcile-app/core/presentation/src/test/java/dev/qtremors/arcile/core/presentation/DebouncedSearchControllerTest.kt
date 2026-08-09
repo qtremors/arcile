@@ -60,6 +60,27 @@ class DebouncedSearchControllerTest {
     }
 
     @Test
+    fun `custom search gate allows filters to run with a blank query`() = runTest {
+        val requests = mutableListOf<Pair<String, Int>>()
+        val controller = DebouncedSearchController(
+            scope = this,
+            initialFilters = 0,
+            debounceMillis = 400,
+            fallbackError = UiText.Dynamic("failed"),
+            shouldSearch = { query, filters -> query.isNotBlank() || filters > 0 }
+        ) { query, filters ->
+            requests += query to filters
+            Result.success(listOf("filtered"))
+        }
+
+        controller.updateFilters(1)
+        advanceUntilIdle()
+
+        assertEquals(listOf("" to 1), requests)
+        assertEquals(listOf("filtered"), controller.state.value.results)
+    }
+
+    @Test
     fun `filters can update without restarting a local search`() = runTest {
         val requests = mutableListOf<Pair<String, Int>>()
         val controller = controller { query, filters ->

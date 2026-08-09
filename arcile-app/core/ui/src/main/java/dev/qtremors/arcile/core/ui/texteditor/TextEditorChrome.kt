@@ -279,7 +279,7 @@ internal fun TextEditorBottomChrome(
                 }
             }
             Text(
-                text = stringResource(R.string.text_editor_stats_format, lines, words, chars),
+                text = androidx.compose.ui.res.pluralStringResource(R.plurals.text_editor_stats_format, lines, lines, words, chars),
                 color = Color.White.copy(alpha = 0.72f),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.align(Alignment.CenterHorizontally)

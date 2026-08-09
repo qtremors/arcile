@@ -38,6 +38,8 @@ class StorageCacheInvalidationObserver @Inject constructor(
     private var invalidationJob: Job? = null
     private val pendingUris = linkedSetOf<Uri>()
     private var pendingBroadInvalidation = false
+    private var pendingCleanerInvalidation = false
+    private var pendingMutationNotification = false
 
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
@@ -53,7 +55,7 @@ class StorageCacheInvalidationObserver @Inject constructor(
                 scheduleInvalidation(null)
                 return
             }
-            uris.forEach(::scheduleInvalidation)
+            uris.forEach { uri -> scheduleInvalidation(uri) }
         }
     }
 
@@ -64,26 +66,39 @@ class StorageCacheInvalidationObserver @Inject constructor(
             true,
             observer
         )
-        scheduleInvalidation(null)
+        scheduleInvalidation(null, invalidateCleaner = false, notifyMutation = false)
     }
 
-    private fun scheduleInvalidation(uri: Uri?) {
+    private fun scheduleInvalidation(
+        uri: Uri?,
+        invalidateCleaner: Boolean = true,
+        notifyMutation: Boolean = true
+    ) {
         synchronized(pendingUris) {
             if (uri == null) {
                 pendingBroadInvalidation = true
             } else {
                 pendingUris += uri
             }
+            pendingCleanerInvalidation = pendingCleanerInvalidation || invalidateCleaner
+            pendingMutationNotification = pendingMutationNotification || notifyMutation
         }
         invalidationJob?.cancel()
         invalidationJob = applicationScope.launch {
             delay(INVALIDATION_DEBOUNCE_MS)
-            val (uris, broadInvalidation) = synchronized(pendingUris) {
-                val snapshot = pendingUris.toList() to pendingBroadInvalidation
+            val (uris, flags) = synchronized(pendingUris) {
+                val snapshot = pendingUris.toList() to Triple(
+                    pendingBroadInvalidation,
+                    pendingCleanerInvalidation,
+                    pendingMutationNotification
+                )
                 pendingUris.clear()
                 pendingBroadInvalidation = false
+                pendingCleanerInvalidation = false
+                pendingMutationNotification = false
                 snapshot
             }
+            val (broadInvalidation, invalidateCleaner, notifyMutation) = flags
 
             if (broadInvalidation) {
                 mediaStoreClient.invalidateCache()
@@ -91,8 +106,8 @@ class StorageCacheInvalidationObserver @Inject constructor(
                 folderStatsStore.clear()
                 recentFilesSnapshotStore.clear()
                 storageUsageSnapshotStore.invalidate(emptyList())
-                storageCleanerSnapshotStore.clear()
-                storageMutationNotifier.notify(emptyList())
+                if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(emptyList())
+                if (notifyMutation) storageMutationNotifier.notify(emptyList())
                 return@launch
             }
 
@@ -117,14 +132,14 @@ class StorageCacheInvalidationObserver @Inject constructor(
                 parentPaths.forEach { parent -> storageNodeDao.deleteChildren(parent) }
                 folderStatsStore.invalidate(affectedPaths)
                 storageUsageSnapshotStore.invalidate(affectedPaths)
-                storageCleanerSnapshotStore.clear()
-                storageMutationNotifier.notify((paths + parentPaths).distinct())
+                if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(paths)
+                if (notifyMutation) storageMutationNotifier.notify((paths + parentPaths).distinct())
             } else {
                 mediaStoreClient.invalidateCache()
                 folderStatsStore.clear()
                 storageUsageSnapshotStore.invalidate(emptyList())
-                storageCleanerSnapshotStore.clear()
-                storageMutationNotifier.notify(emptyList())
+                if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(emptyList())
+                if (notifyMutation) storageMutationNotifier.notify(emptyList())
             }
             if (contentUris.isNotEmpty()) {
                 storageNodeDao.deleteByContentUris(contentUris)

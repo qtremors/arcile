@@ -31,8 +31,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -63,12 +61,16 @@ class BulkFileOperationServiceTest {
     private lateinit var storageWorkCoordinator: DefaultStorageWorkCoordinator
     private lateinit var serviceController: ServiceController<BulkFileOperationService>
     private lateinit var service: BulkFileOperationService
+    private lateinit var requestStore: OperationRequestStore
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
+        DefaultOperationJournal.clearForTest(context)
+        requestStore = OperationRequestStore(context).also { it.clearForTest() }
         coordinator = mockk(relaxed = true)
+        every { coordinator.onOperationProgress(any(), any()) } returns true
         clipboardRepository = FakeClipboardRepository()
         trashRepository = FakeTrashRepository()
         fileMutationRepository = FakeFileMutationRepository()
@@ -83,7 +85,7 @@ class BulkFileOperationServiceTest {
         service.fileMutationRepository = fileMutationRepository
         service.archiveRepository = archiveRepository
         service.storageWorkCoordinator = storageWorkCoordinator
-        service.operationJournal = DefaultOperationJournal(context)
+        service.requestStore = requestStore
     }
 
     @Test
@@ -99,10 +101,7 @@ class BulkFileOperationServiceTest {
         val activeRequestFlow = MutableStateFlow<BulkFileOperationRequest?>(request)
         every { coordinator.activeRequest } returns activeRequestFlow
 
-        val intent = Intent(context, BulkFileOperationService::class.java).apply {
-            action = BulkFileOperationService.ACTION_START
-            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, Json.encodeToString(request))
-        }
+        val intent = startIntent(request)
 
         serviceController.withIntent(intent).startCommand(0, 1)
 
@@ -110,6 +109,23 @@ class BulkFileOperationServiceTest {
         assertEquals(listOf(listOf("/test.txt")), trashRepository.moveToTrashRequests)
         awaitInactiveMutation()
         assertEquals(null, DefaultOperationJournal(context).activeRecord())
+    }
+
+    @Test
+    fun `duplicate delivery of one operation id executes only once`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-duplicate",
+            type = BulkFileOperationType.TRASH,
+            sourcePaths = listOf("/test.txt")
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val intent = startIntent(request)
+
+        serviceController.withIntent(intent).startCommand(0, 1)
+        serviceController.withIntent(intent).startCommand(0, 2)
+
+        verify(timeout = 2_000, exactly = 1) { coordinator.onOperationCompleted(request) }
+        assertEquals(1, trashRepository.moveToTrashRequests.size)
     }
 
     @Test
@@ -155,10 +171,7 @@ class BulkFileOperationServiceTest {
         val activeRequestFlow = MutableStateFlow<BulkFileOperationRequest?>(request)
         every { coordinator.activeRequest } returns activeRequestFlow
 
-        val startIntent = Intent(context, BulkFileOperationService::class.java).apply {
-            action = BulkFileOperationService.ACTION_START
-            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, Json.encodeToString(request))
-        }
+        val startIntent = startIntent(request)
         serviceController.withIntent(startIntent).startCommand(0, 1)
 
         val cancelIntent = Intent(context, BulkFileOperationService::class.java).apply {
@@ -487,8 +500,9 @@ class BulkFileOperationServiceTest {
 
     private fun startIntent(request: BulkFileOperationRequest): Intent =
         Intent(context, BulkFileOperationService::class.java).apply {
+            assertTrue(requestStore.store(request))
             action = BulkFileOperationService.ACTION_START
-            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, Json.encodeToString(request))
+            putExtra(BulkFileOperationService.EXTRA_OPERATION_ID, request.operationId)
         }
 
     private class RecordingBulkFileOperationCoordinator(
@@ -513,11 +527,13 @@ class BulkFileOperationServiceTest {
             archivePassword: String?,
             archiveNameEncoding: ArchiveNameEncoding?,
             archiveCompressionLevel: ArchiveCompressionLevel?,
-            importItems: List<SaveToArcileImportItem>
+            importItems: List<SaveToArcileImportItem>,
+            presentationOwnerId: String?,
+            clipboardSessionId: String?
         ): Boolean = false
 
         override fun cancelActiveOperation() = Unit
-        override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = Unit
+        override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) = true
         override fun onOperationCheckpoint(
             request: BulkFileOperationRequest,
             stagedPaths: List<String>,

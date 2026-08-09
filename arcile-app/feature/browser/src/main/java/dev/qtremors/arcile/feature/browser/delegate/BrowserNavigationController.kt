@@ -148,6 +148,22 @@ internal class BrowserNavigationController(
         }
     }
 
+    fun openPrimaryStorage(errorMessage: UiText? = null) {
+        val primaryVolume = state.value.storageVolumes.firstOrNull { it.isPrimary }
+        if (primaryVolume == null) {
+            openFileBrowser(errorMessage = errorMessage)
+            return
+        }
+        navigationPersistence.clear()
+        loadDirectory(
+            path = primaryVolume.path,
+            volumeId = primaryVolume.id,
+            clearHistory = true,
+            errorMessage = errorMessage,
+            persistAsLastOpened = false
+        )
+    }
+
     fun openVolumeRoots(errorMessage: UiText? = null) {
         navigationPersistence.clear()
         onLocationChanged()
@@ -170,21 +186,31 @@ internal class BrowserNavigationController(
         }
     }
 
-    fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) {
+    fun navigateToSpecificFolder(
+        path: String,
+        seedInitialPathHistory: Boolean = true,
+        allowDirectPath: Boolean = false
+    ) {
         if (ArchiveFormat.isSupported(path)) {
             openArchive(path, seedHistory = seedInitialPathHistory)
             return
         }
         val volume = findVolumeForPath(path)
-        if (volume == null) {
+        val directPathAllowed = allowDirectPath || path.normalizeStorageSeparators() == "/"
+        if (volume == null && !directPathAllowed) {
             openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
             return
         }
         navigationPersistence.clear()
-        if (seedInitialPathHistory && path != volume.path) {
+        if (seedInitialPathHistory && volume != null && path != volume.path) {
             navigationPersistence.push(BrowserHistoryEntry.Directory(volume.path))
         }
-        loadDirectory(path, volume.id, clearHistory = false)
+        loadDirectory(
+            path = path,
+            volumeId = volume?.id,
+            clearHistory = false,
+            allowDirectPath = directPathAllowed
+        )
     }
 
     fun navigateToCategory(categoryName: String, volumeId: String? = null) {
@@ -241,10 +267,8 @@ internal class BrowserNavigationController(
             when (val previous = navigationPersistence.pop()) {
                 is BrowserHistoryEntry.Directory -> {
                     val volume = findVolumeForPath(previous.path)
-                    if (volume != null) {
-                        loadDirectory(previous.path, volume.id, clearHistory = false)
-                        return true
-                    }
+                    loadDirectory(previous.path, volume?.id, clearHistory = false)
+                    return true
                 }
                 is BrowserHistoryEntry.Archive -> {
                     loadArchiveEntries(
@@ -266,11 +290,14 @@ internal class BrowserNavigationController(
             val parentPath = currentPath
                 ?.let(::storageParentPath)
                 ?.takeIf {
-                    it.isNotBlank() && volume != null && currentPath != volume.path &&
-                        isStorageDescendantOrSelf(it, volume.path)
+                    it.isNotBlank() && when {
+                        volume != null -> currentPath != volume.path &&
+                            isStorageDescendantOrSelf(it, volume.path)
+                        else -> isStorageDescendantOrSelf(it, "/")
+                    }
                 }
-            if (parentPath != null && volume != null) {
-                loadDirectory(parentPath, volume.id, clearHistory = false)
+            if (parentPath != null) {
+                loadDirectory(parentPath, volume?.id, clearHistory = false)
                 return true
             }
         }

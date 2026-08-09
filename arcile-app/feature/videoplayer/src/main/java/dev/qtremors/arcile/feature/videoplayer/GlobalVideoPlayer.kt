@@ -39,7 +39,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -50,8 +49,6 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.currentStateAsState
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
@@ -96,6 +93,7 @@ internal fun GlobalVideoPlayer(
     var resumeWhenReady by rememberSaveable(mediaItems) { mutableStateOf(autoPlay) }
     var playbackError by remember(mediaItems) { mutableStateOf<PlaybackException?>(null) }
     var playbackState by remember(mediaItems) { mutableIntStateOf(Player.STATE_IDLE) }
+    var isPlaying by remember(mediaItems) { mutableStateOf(false) }
     var seekFeedback by remember { mutableStateOf<String?>(null) }
 
     Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
@@ -121,8 +119,13 @@ internal fun GlobalVideoPlayer(
                         playbackState = state
                         if (state == Player.STATE_READY) playbackError = null
                     }
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                    }
                 }
                 player.addListener(listener)
+                playbackState = player.playbackState
+                isPlaying = player.isPlaying
                 onMediaItemChanged(player.currentMediaItemIndex.coerceAtLeast(0))
                 onDispose {
                     savedIndex = player.currentMediaItemIndex.coerceAtLeast(0)
@@ -171,6 +174,10 @@ internal fun GlobalVideoPlayer(
             if (playbackState == Player.STATE_BUFFERING) {
                 LoadingIndicator(color = Color.White)
             }
+            VideoViewerWindowEffects(
+                keepScreenOn = isPlaying || playbackState == Player.STATE_BUFFERING,
+                immersive = false
+            )
             if (playbackState == Player.STATE_ENDED) {
                 TextButton(onClick = {
                     player.seekTo(player.currentMediaItemIndex.coerceAtLeast(0), 0L)
@@ -224,15 +231,10 @@ internal fun GlobalVideoViewer(
     session: VideoPlaybackSession,
     onNavigateBack: () -> Unit,
 ) {
-    val view = LocalView.current
-    DisposableEffect(view) {
-        val window = view.context.findActivity()?.window
-        val controller = window?.let { WindowInsetsControllerCompat(it, view) }
-        controller?.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller?.hide(WindowInsetsCompat.Type.systemBars())
-        onDispose { controller?.show(WindowInsetsCompat.Type.systemBars()) }
-    }
+    VideoViewerWindowEffects(
+        keepScreenOn = false,
+        onBackgrounded = onNavigateBack.takeIf { session.securityScopeId != null }
+    )
     var activeIndex by rememberSaveable(session) { mutableIntStateOf(session.startIndex) }
     var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }
     val resizeModes = remember { intArrayOf(
@@ -287,7 +289,7 @@ internal fun GlobalVideoViewer(
 
 private const val DOUBLE_TAP_SEEK_MILLIS = 10_000L
 
-private tailrec fun Context.findActivity(): Activity? = when (this) {
+internal tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null

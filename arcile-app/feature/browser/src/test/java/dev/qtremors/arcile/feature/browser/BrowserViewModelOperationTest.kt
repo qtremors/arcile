@@ -13,6 +13,8 @@ import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -94,7 +96,8 @@ class BrowserViewModelOperationTest {
 
         val request = coordinator.activeRequest.value!!
         coordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         viewModel.clearActiveFileOperation()
         assertNull(viewModel.uiState.value.activeFileOperation)
@@ -131,7 +134,8 @@ class BrowserViewModelOperationTest {
 
         val request = coordinator.activeRequest.value!!
         coordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
         viewModel.undoLastOperation()
         advanceUntilIdle()
 
@@ -160,7 +164,8 @@ class BrowserViewModelOperationTest {
 
         val request = coordinator.activeRequest.value!!
         coordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
         viewModel.undoLastOperation()
         advanceUntilIdle()
 
@@ -197,7 +202,8 @@ class BrowserViewModelOperationTest {
         )
 
         coordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertEquals(listOf("after.txt"), viewModel.uiState.value.files.map { it.name })
         assertEquals(UiText.PluralResource(R.plurals.file_operation_created_items, 1, listOf(1)), viewModel.uiState.value.fileOperationStatusMessage)
@@ -240,7 +246,8 @@ class BrowserViewModelOperationTest {
         )
 
         coordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertEquals(BulkFileOperationType.COPY, request.type)
         assertEquals(listOf("copied.txt"), viewModel.uiState.value.files.map { it.name })

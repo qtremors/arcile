@@ -20,13 +20,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -35,7 +35,7 @@ import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
-import kotlinx.coroutines.delay
+import dev.qtremors.arcile.core.ui.R as CoreUiR
 
 @Composable
 internal fun AudioClipboardToolbar(
@@ -43,17 +43,10 @@ internal fun AudioClipboardToolbar(
     canPaste: Boolean,
     onPaste: () -> Unit,
     onCancel: () -> Unit,
-    onShowContents: () -> Unit,
-    onClearCompleted: () -> Unit
+    onShowContents: () -> Unit
 ) {
     val clipboard = state.clipboardState
     val operation = state.activeFileOperation
-    LaunchedEffect(operation?.terminalStatus) {
-        if (operation?.terminalStatus != null) {
-            delay(800L)
-            onClearCompleted()
-        }
-    }
     Row(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
@@ -128,7 +121,15 @@ internal fun AudioClipboardToolbar(
                 Column {
                     val itemCount = operation?.totalItems ?: clipboard?.files?.size ?: 0
                     Text(
-                        stringResource(R.string.audio_clipboard_items, itemCount),
+                        if (operation == null) {
+                            pluralStringResource(
+                                CoreUiR.plurals.clipboard_items_ready_to_paste,
+                                itemCount,
+                                itemCount
+                            )
+                        } else {
+                            androidx.compose.ui.res.pluralStringResource(R.plurals.audio_clipboard_items, itemCount, itemCount)
+                        },
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )

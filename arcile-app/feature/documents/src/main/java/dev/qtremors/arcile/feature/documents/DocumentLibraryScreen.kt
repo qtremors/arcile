@@ -112,7 +112,7 @@ internal fun DocumentLibraryScreen(
         emptyFoldersDescription = stringResource(R.string.documents_folders_empty_description),
         viewSortFilesTitle = stringResource(R.string.documents_view_sort),
         viewSortFoldersTitle = stringResource(R.string.documents_view_sort_folders),
-        selectedCount = { count -> resources.getString(R.string.documents_selected, count) }
+        selectedCount = { count -> resources.getQuantityString(R.plurals.documents_selected, count, count) }
     )
     FileCategoryLibrary(
         files = state.files,
@@ -277,7 +277,7 @@ private fun DocumentFolderItem(
     CategoryFolderGridItem(
         info = CategoryItemInfo(
             title = folder.label,
-            detailLines = listOf(stringResource(R.string.documents_folder_count, folder.itemCount))
+            detailLines = listOf(androidx.compose.ui.res.pluralStringResource(R.plurals.documents_folder_count, folder.itemCount, folder.itemCount))
         ),
         onClick = onClick,
         modifier = modifier

@@ -86,7 +86,6 @@ internal fun AudioLibraryScreen(
     onRemoveFromClipboard: (String) -> Unit,
     onResolvePasteConflicts: (Map<String, ConflictResolution>) -> Unit,
     onDismissPasteConflictDialog: () -> Unit,
-    onClearActiveFileOperation: () -> Unit,
     onPlay: (String) -> Unit,
     onPlaySelection: (Collection<String>) -> Unit,
     onShareSelected: (List<AudioTrack>, () -> Unit) -> Unit,
@@ -99,7 +98,9 @@ internal fun AudioLibraryScreen(
         state.tracks.filter { it.file.absolutePath in state.selectedPaths }
     }
     val isSelectionMode = selectedTracks.isNotEmpty()
-    var showSearchBar by rememberSaveable { mutableStateOf(state.query.isNotEmpty()) }
+    var showSearchBar by rememberSaveable {
+        mutableStateOf(state.query.isNotEmpty() || state.searchFilters.hasActiveFilters)
+    }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
@@ -276,7 +277,6 @@ internal fun AudioLibraryScreen(
                     onPaste = onPaste,
                     onCancelClipboard = onCancelClipboard,
                     onShowClipboardContents = { showClipboardContents = true },
-                    onClearActiveFileOperation = onClearActiveFileOperation,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }

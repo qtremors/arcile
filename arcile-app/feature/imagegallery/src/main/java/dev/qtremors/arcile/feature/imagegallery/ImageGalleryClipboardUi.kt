@@ -22,7 +22,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -41,9 +40,6 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import kotlinx.coroutines.delay
-
-private const val PROGRESS_PILL_TERMINAL_HOLD_MS = 800L
 private const val PROGRESS_PILL_WIDTH_DP = 192
 
 @Composable
@@ -52,18 +48,10 @@ internal fun GalleryClipboardOperationToolbar(
     pasteDestinationPath: String?,
     onPasteToAlbum: (String) -> Unit,
     onCancelClipboard: () -> Unit,
-    onShowClipboardContents: () -> Unit,
-    onClearActiveFileOperation: () -> Unit
+    onShowClipboardContents: () -> Unit
 ) {
     val clipboard = state.clipboardState
     val activeOperation = state.activeFileOperation
-
-    LaunchedEffect(activeOperation?.terminalStatus) {
-        if (activeOperation?.terminalStatus != null) {
-            delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
-            onClearActiveFileOperation()
-        }
-    }
 
     val toolbarActions = when {
         activeOperation != null && activeOperation.terminalStatus == null -> listOf(
@@ -206,7 +194,11 @@ private fun GalleryClipboardProgressPill(
                     val itemCount = activeOperation?.totalItems ?: clipboardItemCount
                     Text(
                         text = pluralStringResource(
-                            R.plurals.clipboard_item_count,
+                            if (activeOperation == null) {
+                                R.plurals.clipboard_items_ready_to_paste
+                            } else {
+                                R.plurals.clipboard_item_count
+                            },
                             itemCount,
                             itemCount
                         ),
@@ -223,8 +215,9 @@ private fun GalleryClipboardProgressPill(
                                     (total - (activeOperation.bytesCopied ?: 0L)).coerceAtLeast(0L)
                                 )
                             }
-                            ?: stringResource(
-                                R.string.transfer_progress_items,
+                            ?: androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.transfer_progress_items,
+                                activeOperation.totalItems,
                                 activeOperation.completedItems,
                                 activeOperation.totalItems
                             )

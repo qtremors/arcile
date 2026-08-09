@@ -57,7 +57,9 @@ internal fun buildAudioLibraryState(
                 it.file.absolutePath in current.favoritePaths
             }
             val favoritesMatch = query.isBlank() ||
-                "favorites".contains(query, ignoreCase = true) ||
+                current.favoriteSearchAliases.any { alias ->
+                    alias.contains(query, ignoreCase = true)
+                } ||
                 favoriteTracks.any { track ->
                     track.displayTitle.contains(query, ignoreCase = true) ||
                         track.artist.orEmpty().contains(query, ignoreCase = true)
@@ -66,12 +68,12 @@ internal fun buildAudioLibraryState(
                 listOf(
                     AudioFolder(
                         key = AUDIO_FAVORITES_FOLDER_KEY,
-                        title = "Favorites",
+                        title = "",
                         subtitle = null,
                         tracks = favoriteTracks.sortedBy {
                             it.displayTitle.lowercase(Locale.getDefault())
                         },
-                        isFavorites = true
+                        kind = AudioFolderKind.Favorites
                     )
                 ) + visibleFolders
             } else {

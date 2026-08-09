@@ -2,13 +2,22 @@
     <string name="storage_usage_map_unavailable_title">Usage map unavailable</string>
     <string name="storage_usage_map_unavailable_description">Temporary storage stays browsable, but folder usage mapping is available only for indexed internal storage and SD cards.</string>
     <string name="storage_usage_map_scanning">Scanning folders</string>
-    <string name="storage_usage_map_scan_progress">%1$d items • %2$s found</string>
+    <plurals name="storage_usage_map_scan_progress">
+        <item quantity="one">%1$d item • %2$s found</item>
+        <item quantity="other">%1$d items • %2$s found</item>
+    </plurals>
     <string name="storage_usage_map_error_title">Could not scan storage</string>
     <string name="storage_usage_map_error_description">Try refreshing, or open the folder in the browser.</string>
     <string name="storage_usage_map_chart_description">Storage usage chart for %1$s</string>
-    <string name="storage_usage_map_selected_state">%1$s selected, %2$s, %3$d items</string>
+    <plurals name="storage_usage_map_selected_state">
+        <item quantity="one">%1$s selected, %2$s, %3$d item</item>
+        <item quantity="other">%1$s selected, %2$s, %3$d items</item>
+    </plurals>
     <string name="storage_usage_map_select_segment">Select %1$s</string>
     <string name="storage_usage_map_reset_overview">Reset storage overview</string>
     <string name="storage_usage_map_segments_heading">Storage segments</string>
-    <string name="storage_usage_map_segment_description">%1$s, %2$s, %3$d items</string>
+    <plurals name="storage_usage_map_segment_description">
+        <item quantity="one">%1$s, %2$s, %3$d item</item>
+        <item quantity="other">%1$s, %2$s, %3$d items</item>
+    </plurals>
 </resources>

@@ -26,7 +26,8 @@ object PathSafety {
         val canonical = file.canonicalPath
         val isAllowed = activeStorageRoots.any { root ->
             val canonicalRoot = runCatchingPreservingCancellation { File(root).canonicalPath }.getOrDefault(root)
-            canonical == canonicalRoot || canonical.startsWith(canonicalRoot + File.separator)
+            val rootPrefix = if (canonicalRoot.endsWith(File.separator)) canonicalRoot else canonicalRoot + File.separator
+            canonical == canonicalRoot || canonical.startsWith(rootPrefix)
         }
 
         if (!isAllowed) {
@@ -42,7 +43,8 @@ object PathSafety {
             .map(::File)
             .map { runCatchingPreservingCancellation { it.canonicalFile }.getOrDefault(it.absoluteFile) }
             .filter { root ->
-                canonical.path == root.path || canonical.path.startsWith(root.path + File.separator)
+                val rootPrefix = if (root.path.endsWith(File.separator)) root.path else root.path + File.separator
+                canonical.path == root.path || canonical.path.startsWith(rootPrefix)
             }
             .maxByOrNull { it.path.length }
             ?: return listOf(canonical.absolutePath)

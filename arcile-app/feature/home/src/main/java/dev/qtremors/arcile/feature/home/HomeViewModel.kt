@@ -18,6 +18,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
@@ -56,6 +57,7 @@ internal class HomeViewModel @Inject constructor(
 
     private val recentsPreviewLimit = 50
     private var refreshJob: Job? = null
+    private var rootStorageUsageJob: Job? = null
     private var pendingSilentRefresh = false
     private var pendingSilentForceAnalytics = false
     private var lastAnalyticsRefreshTime = 0L
@@ -114,6 +116,12 @@ internal class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            utilityPreferencesStore.homeLayoutPreferences.collectLatest { preferences ->
+                _state.update { it.copy(homeLayoutPreferences = preferences) }
+            }
+        }
+
+        viewModelScope.launch {
             bulkFileOperationCoordinator.events.collect { event ->
                 val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
                 if (request.type.refreshesHomeAnalytics()) {
@@ -136,7 +144,10 @@ internal class HomeViewModel @Inject constructor(
                         _state.update {
                             it.copy(
                                 allStorageVolumes = volumes.toPersistentList(),
-                                storageInfo = StorageInfo(volumes)
+                                storageInfo = StorageInfo(
+                                    volumes = volumes,
+                                    rootStorageUsage = it.storageInfo?.rootStorageUsage
+                                )
                             ).withUpdatedDisplayState()
                         }
                         loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
@@ -241,10 +252,14 @@ internal class HomeViewModel @Inject constructor(
                     }
                 }
                 val storageResultDef = if (shouldRefreshAnalytics) async {
-                    storageAnalyticsRepository.getStorageInfo(StorageScope.AllStorage).also { result ->
+                    storageAnalyticsRepository.getMountedStorageInfo(StorageScope.AllStorage).also { result ->
                         result.onSuccess { info ->
                             _state.update {
-                                it.copy(storageInfo = info).withUpdatedDisplayState()
+                                it.copy(
+                                    storageInfo = info.copy(
+                                        rootStorageUsage = it.storageInfo?.rootStorageUsage
+                                    )
+                                ).withUpdatedDisplayState()
                             }
                         }
                     }
@@ -305,6 +320,36 @@ internal class HomeViewModel @Inject constructor(
         }
     }
 
+    fun loadRootStorageUsage() {
+        val currentState = _state.value
+        if (
+            currentState.hasLoadedRootStorageUsage ||
+            currentState.storageInfo?.rootStorageUsage != null ||
+            rootStorageUsageJob?.isActive == true
+        ) {
+            return
+        }
+
+        _state.update { it.copy(isRootStorageUsageLoading = true) }
+        rootStorageUsageJob = viewModelScope.launch {
+            val result = storageAnalyticsRepository.getStorageInfo(StorageScope.AllStorage)
+            _state.update { state ->
+                val rootUsage = result.getOrNull()?.rootStorageUsage
+                val storageInfo = (state.storageInfo ?: StorageInfo(state.allStorageVolumes))
+                    .copy(rootStorageUsage = rootUsage)
+                state.copy(
+                    storageInfo = storageInfo,
+                    isRootStorageUsageLoading = false,
+                    hasLoadedRootStorageUsage = true
+                ).withUpdatedDisplayState()
+            }
+        }.also { job ->
+            job.invokeOnCompletion {
+                if (rootStorageUsageJob === job) rootStorageUsageJob = null
+            }
+        }
+    }
+
     fun loadDashboardCategoryBreakdown(selectedVolumeId: String? = null) {
         dashboardController.load(selectedVolumeId)
     }
@@ -323,6 +368,12 @@ internal class HomeViewModel @Inject constructor(
 
     fun hideClassificationPrompt(storageKey: String) {
         classificationController.suppress(storageKey)
+    }
+
+    fun updateHomeLayoutPreferences(preferences: HomeLayoutPreferences) {
+        viewModelScope.launch {
+            utilityPreferencesStore.setHomeLayoutPreferences(preferences)
+        }
     }
 
     fun updateHomeSearchQuery(query: String) {

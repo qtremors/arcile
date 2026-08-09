@@ -75,8 +75,9 @@ internal fun StorageUsageSegmentList(
                 }
                 val sizeText = formatFileSize(node.sizeBytes)
                 val shareText = String.format(locale, "%.1f%%", share)
-                val segmentDescription = stringResource(
-                    R.string.storage_usage_map_segment_description,
+                val segmentDescription = androidx.compose.ui.res.pluralStringResource(
+                    R.plurals.storage_usage_map_segment_description,
+                    node.childCount,
                     node.name,
                     formatFileSize(node.sizeBytes),
                     node.childCount

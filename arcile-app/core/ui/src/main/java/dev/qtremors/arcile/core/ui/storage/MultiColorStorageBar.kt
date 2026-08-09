@@ -69,8 +69,7 @@ fun MultiColorStorageBar(
             .testTag(if (isCalculating) "storage_bar_loading" else "storage_bar")
     ) {
         if (hasData || isCalculating) {
-            val hasSegmentData = categoryStorages.any { it.sizeBytes > 0L } || trashBytes > 0L
-            val showSegments = hasData && animationTrigger && hasSegmentData
+            val showSegments = hasData && animationTrigger
             AnimatedContent(
                 targetState = showSegments,
                 transitionSpec = {

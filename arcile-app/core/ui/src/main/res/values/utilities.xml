@@ -8,15 +8,15 @@
     <string name="onlyfiles_import_notification_channel">OnlyFiles imports</string>
     <string name="onlyfiles_import_notification_title">Importing into OnlyFiles</string>
     <string name="onlyfiles_import_notification_preparing">Preparing encrypted import</string>
-    <string name="onlyfiles_import_notification_progress">Encrypted %1$d of %2$d files</string>
+    <plurals name="onlyfiles_import_notification_progress"><item quantity="one">Encrypted %1$d of %2$d file</item><item quantity="other">Encrypted %1$d of %2$d files</item></plurals>
     <string name="onlyfiles_settings_section">Privacy</string>
     <string name="onlyfiles_settings_description">Open and manage your encrypted vaults</string>
     <string name="onlyfiles_screenshot_protection">Protect unlocked vault screens</string>
     <string name="onlyfiles_screenshot_protection_description">Block screenshots and screen recording while a vault is unlocked. Enabled by default.</string>
     <string name="onlyfiles_encrypted_thumbnail_cache">Encrypted vault thumbnails</string>
-    <string name="onlyfiles_encrypted_thumbnail_cache_stats">%1$d files • %2$s</string>
+    <plurals name="onlyfiles_encrypted_thumbnail_cache_stats"><item quantity="one">%1$d file • %2$s</item><item quantity="other">%1$d files • %2$s</item></plurals>
     <string name="onlyfiles_active_external_access">Active external access</string>
-    <string name="onlyfiles_active_external_access_count">%1$d active grant(s)</string>
+    <plurals name="onlyfiles_active_external_access_count"><item quantity="one">%1$d active grant</item><item quantity="other">%1$d active grants</item></plurals>
     <string name="onlyfiles_revoke_all">Revoke all</string>
     <string name="onlyfiles_security_disclosure_title">OnlyFiles security disclosure</string>
     <string name="onlyfiles_unaudited_short">Arcile’s vault format has not received an independent security audit.</string>

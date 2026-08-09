@@ -81,9 +81,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import kotlinx.coroutines.delay
-
-private const val PROGRESS_PILL_TERMINAL_HOLD_MS = 800L
 private const val PROGRESS_PILL_WIDTH_DP = 192
 
 @Composable
@@ -200,7 +197,6 @@ internal fun BrowserFloatingSurfaces(
                 state = state,
                 dialogVisibility = dialogVisibility,
                 clipboardIntents = clipboardIntents,
-                operationIntents = operationIntents,
                 onOperationSucceeded = onOperationSucceeded,
                 onOperationFailed = onOperationFailed,
                 onProgressClick = { showDetailedProgressSheet = true }
@@ -238,7 +234,6 @@ private fun BrowserClipboardOperationToolbar(
     state: BrowserUiState,
     dialogVisibility: BrowserDialogVisibility,
     clipboardIntents: BrowserClipboardIntents,
-    operationIntents: BrowserOperationIntents,
     onOperationSucceeded: () -> Unit,
     onOperationFailed: () -> Unit,
     onProgressClick: () -> Unit
@@ -250,14 +245,10 @@ private fun BrowserClipboardOperationToolbar(
         when (activeOp?.terminalStatus) {
             OperationCompletionStatus.SUCCESS -> {
                 onOperationSucceeded()
-                delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
-                operationIntents.onClearActiveFileOperation()
             }
             OperationCompletionStatus.FAILED,
             OperationCompletionStatus.CANCELLED -> {
                 onOperationFailed()
-                delay(PROGRESS_PILL_TERMINAL_HOLD_MS)
-                operationIntents.onClearActiveFileOperation()
             }
             null -> Unit
         }
@@ -390,7 +381,15 @@ private fun BrowserClipboardOperationToolbar(
                                 BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
                                 else -> {
                                     val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
-                                    pluralStringResource(R.plurals.clipboard_item_count, itemCount, itemCount)
+                                    pluralStringResource(
+                                        if (activeOp == null) {
+                                            R.plurals.clipboard_items_ready_to_paste
+                                        } else {
+                                            R.plurals.clipboard_item_count
+                                        },
+                                        itemCount,
+                                        itemCount
+                                    )
                                 }
                             }
                             Text(
@@ -406,8 +405,9 @@ private fun BrowserClipboardOperationToolbar(
                                     val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
                                     formatFileSize(remaining.coerceAtLeast(0L))
                                 } else {
-                                    stringResource(
-                                        R.string.transfer_progress_items,
+                                    androidx.compose.ui.res.pluralStringResource(
+                                        R.plurals.transfer_progress_items,
+                                        activeOp.totalItems,
                                         activeOp.completedItems,
                                         activeOp.totalItems
                                     )

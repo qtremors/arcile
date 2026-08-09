@@ -12,6 +12,7 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.ClipboardController
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
+import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -70,6 +71,15 @@ class BrowserClipboardControllerTest {
         }
         io.mockk.every { repository.clearClipboardState() } answers {
             state.update { it.copy(clipboardState = null) }
+        }
+        io.mockk.every { repository.clearClipboardState(any()) } answers {
+            val sessionId = firstArg<String>()
+            if (state.value.clipboardState?.sessionId == sessionId) {
+                state.update { it.copy(clipboardState = null) }
+                true
+            } else {
+                false
+            }
         }
 
         bulkFileOperationCoordinator = mockk(relaxed = true)
@@ -161,14 +171,42 @@ class BrowserClipboardControllerTest {
 
     @Test
     fun `cancelClipboard clears state and cancels active operations`() {
-        state.value = state.value.copy(
-            clipboardState = ClipboardState(ClipboardOperation.COPY, listOf(mockk()))
+        val clipboard = ClipboardState(ClipboardOperation.COPY, listOf(mockk()))
+        state.value = state.value.copy(clipboardState = clipboard)
+        io.mockk.every { bulkFileOperationCoordinator.activeRequest } returns MutableStateFlow(
+            BulkFileOperationRequest(
+                operationId = "paste",
+                type = BulkFileOperationType.COPY,
+                sourcePaths = listOf("/test.txt"),
+                presentationOwnerId = null,
+                clipboardSessionId = clipboard.sessionId
+            )
         )
 
         delegate.cancel()
 
         assertNull(state.value.clipboardState)
         coVerify(exactly = 1) { bulkFileOperationCoordinator.cancelActiveOperation() }
+    }
+
+    @Test
+    fun `cancelClipboard does not cancel an operation owned by another screen`() {
+        state.value = state.value.copy(
+            clipboardState = ClipboardState(ClipboardOperation.COPY, listOf(mockk()))
+        )
+        io.mockk.every { bulkFileOperationCoordinator.activeRequest } returns MutableStateFlow(
+            BulkFileOperationRequest(
+                operationId = "gallery-paste",
+                type = BulkFileOperationType.COPY,
+                sourcePaths = listOf("/photo.jpg"),
+                presentationOwnerId = "gallery-owner"
+            )
+        )
+
+        delegate.cancel()
+
+        assertNull(state.value.clipboardState)
+        coVerify(exactly = 0) { bulkFileOperationCoordinator.cancelActiveOperation() }
     }
 
     @Test
@@ -195,7 +233,11 @@ class BrowserClipboardControllerTest {
             currentPath = "/dest"
         )
         coEvery { repository.detectCopyConflicts(listOf("/test.txt"), "/dest") } returns Result.success(emptyList())
-        coEvery { bulkFileOperationCoordinator.startOperation(any(), any(), any(), any()) } returns true
+        coEvery {
+            bulkFileOperationCoordinator.startOperation(
+                any(), any(), any(), any(), clipboardSessionId = any()
+            )
+        } returns true
 
         delegate.paste()
 
@@ -206,7 +248,8 @@ class BrowserClipboardControllerTest {
                 type = BulkFileOperationType.COPY,
                 sourcePaths = listOf("/test.txt"),
                 destinationPath = "/dest",
-                resolutions = emptyMap()
+                resolutions = emptyMap(),
+                clipboardSessionId = state.value.clipboardState!!.sessionId
             )
         }
     }
@@ -227,7 +270,11 @@ class BrowserClipboardControllerTest {
         assertFalse(state.value.isLoading)
         assertTrue(state.value.showConflictDialog)
         assertEquals(conflicts, state.value.pasteConflicts)
-        coVerify(exactly = 0) { bulkFileOperationCoordinator.startOperation(any(), any(), any(), any()) }
+        coVerify(exactly = 0) {
+            bulkFileOperationCoordinator.startOperation(
+                any(), any(), any(), any(), clipboardSessionId = any()
+            )
+        }
     }
 
     @Test
@@ -240,7 +287,11 @@ class BrowserClipboardControllerTest {
             showConflictDialog = true,
             pasteConflicts = listOf(FileConflict("/test.txt", file, existing)).toPersistentList()
         )
-        coEvery { bulkFileOperationCoordinator.startOperation(any(), any(), any(), any()) } returns true
+        coEvery {
+            bulkFileOperationCoordinator.startOperation(
+                any(), any(), any(), any(), clipboardSessionId = any()
+            )
+        } returns true
 
         val resolutions = mapOf("/test.txt" to ConflictResolution.REPLACE)
         delegate.resolveConflicts(resolutions)
@@ -254,7 +305,8 @@ class BrowserClipboardControllerTest {
                 type = BulkFileOperationType.MOVE,
                 sourcePaths = listOf("/test.txt"),
                 destinationPath = "/dest",
-                resolutions = resolutions
+                resolutions = resolutions,
+                clipboardSessionId = state.value.clipboardState!!.sessionId
             )
         }
     }
@@ -267,7 +319,11 @@ class BrowserClipboardControllerTest {
             currentPath = "/dest"
         )
         coEvery { repository.detectCopyConflicts(listOf("/test.txt"), "/dest") } returns Result.success(emptyList())
-        coEvery { bulkFileOperationCoordinator.startOperation(any(), any(), any(), any()) } returns false
+        coEvery {
+            bulkFileOperationCoordinator.startOperation(
+                any(), any(), any(), any(), clipboardSessionId = any()
+            )
+        } returns false
 
         delegate.paste()
 

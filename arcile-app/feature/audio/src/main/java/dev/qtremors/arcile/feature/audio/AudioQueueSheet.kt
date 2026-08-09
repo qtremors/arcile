@@ -63,7 +63,7 @@ internal fun AudioQueueSheet(
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(
-                    stringResource(R.string.audio_queue_count, queue.size),
+                    androidx.compose.ui.res.pluralStringResource(R.plurals.audio_queue_count, queue.size, queue.size),
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

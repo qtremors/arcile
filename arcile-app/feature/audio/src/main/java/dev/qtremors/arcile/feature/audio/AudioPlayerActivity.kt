@@ -8,10 +8,9 @@ import android.content.IntentFilter
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import android.view.Gravity
 import android.view.WindowManager
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -53,14 +52,16 @@ import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.ui.ExternalViewerLoadScreen
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.ThemePreferences
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import java.io.File
 import javax.inject.Inject
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -76,11 +77,15 @@ class AudioPlayerActivity : ComponentActivity() {
     @Inject
     internal lateinit var themePreferences: ThemePreferences
 
+    @Inject
+    internal lateinit var dispatchers: ArcileDispatchers
+
     private var queue by mutableStateOf<List<AudioTrack>>(emptyList())
     private var initialPath by mutableStateOf<String?>(null)
     private var playerLaunchId by mutableStateOf(0)
     private var miniPlayerBottomClearanceDp = 0
     private var queueLoadJob: Job? = null
+    private var loadError by mutableStateOf<String?>(null)
     private val closePlayerReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == ACTION_CLOSE_AUDIO_PLAYER) finish()
@@ -95,7 +100,6 @@ class AudioPlayerActivity : ComponentActivity() {
             IntentFilter(ACTION_CLOSE_AUDIO_PLAYER),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
-        if (!openIntent(intent)) return
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setPlayerWindowExpanded(false)
         setContent {
@@ -108,9 +112,7 @@ class AudioPlayerActivity : ComponentActivity() {
                     it.file.absolutePath == playbackState.currentMediaId
                 } ?: queue.firstOrNull { it.file.absolutePath == initialPath }
                 if (current == null) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
-                    }
+                    ExternalViewerLoadScreen(loadError) { openIntent(intent) }
                 } else {
                     StandaloneAudioPlayer(
                         track = current,
@@ -127,6 +129,7 @@ class AudioPlayerActivity : ComponentActivity() {
                 }
             }
         }
+        openIntent(intent)
     }
 
     override fun onDestroy() {
@@ -137,9 +140,8 @@ class AudioPlayerActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        if (openIntent(intent)) {
-            setPlayerWindowExpanded(false)
-        }
+        openIntent(intent)
+        setPlayerWindowExpanded(false)
     }
 
     private fun setPlayerWindowExpanded(expanded: Boolean) {
@@ -165,27 +167,29 @@ class AudioPlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun openIntent(intent: Intent): Boolean {
-        val target = resolveStandaloneAudioTarget(this, intent)
-        if (target == null) {
-            Toast.makeText(
-                this,
-                getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)),
-                Toast.LENGTH_SHORT
-            ).show()
-            finish()
-            return false
-        }
+    private fun openIntent(intent: Intent) {
         queueLoadJob?.cancel()
         playerLaunchId += 1
+        queue = emptyList()
+        initialPath = null
+        loadError = null
         miniPlayerBottomClearanceDp = intent.getIntExtra(EXTRA_BOTTOM_CLEARANCE_DP, 0)
-        val immediateTrack = target.toBasicAudioTrack()
-        queue = listOf(immediateTrack)
-        initialPath = target.reference
-        if (intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)) {
-            playback.playQueue(queue, target.reference)
-        }
         queueLoadJob = lifecycleScope.launch {
+            val target = resolveStandaloneAudioTarget(
+                this@AudioPlayerActivity,
+                intent,
+                dispatchers.io
+            )
+            if (target == null) {
+                loadError = getString(R.string.error_unsupported_provider)
+                return@launch
+            }
+            val immediateTrack = target.toBasicAudioTrack()
+            queue = listOf(immediateTrack)
+            initialPath = target.reference
+            if (intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)) {
+                playback.playQueue(queue, target.reference)
+            }
             val tracks = buildQueue(
                 target,
                 intent.getStringArrayListExtra(EXTRA_QUEUE_PATHS).orEmpty()
@@ -198,17 +202,15 @@ class AudioPlayerActivity : ComponentActivity() {
                 playback.expandQueue(tracks, target.reference)
             }
         }
-        return true
     }
 
     private suspend fun buildQueue(
         target: StandaloneAudioTarget,
         contextPaths: List<String>
-    ): List<AudioTrack> = withContext(Dispatchers.IO) {
+    ): List<AudioTrack> = withContext(dispatchers.io) {
         if (target.uri.scheme == "content" && target.internalPath == null) {
             return@withContext listOf(
-                target.withProviderMetadata(this@AudioPlayerActivity)
-                    .toAudioTrack(this@AudioPlayerActivity)
+                target.toAudioTrack(this@AudioPlayerActivity)
             )
         }
         val indexed = repository.getTracks(StorageScope.AllStorage).getOrNull().orEmpty()
@@ -260,7 +262,7 @@ class AudioPlayerActivity : ComponentActivity() {
     }
 
     private fun showFailure() {
-        Toast.makeText(this, getString(R.string.cannot_open_file, ""), Toast.LENGTH_SHORT).show()
+        showArcileToast(getString(R.string.cannot_open_file, ""))
     }
 }
 
@@ -451,18 +453,23 @@ fun createAudioPlayerIntent(
 }
 
 fun canResolveStandaloneAudio(context: Context, intent: Intent): Boolean =
-    resolveStandaloneAudioTarget(context, intent) != null
+    intent.action == Intent.ACTION_VIEW && intent.data != null && (
+        intent.type?.startsWith("audio/") == true ||
+            intent.data?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in FileCategories.Audio.extensions
+        )
 
-private fun resolveStandaloneAudioTarget(
+private suspend fun resolveStandaloneAudioTarget(
     context: Context,
-    intent: Intent
+    intent: Intent,
+    ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
 ): StandaloneAudioTarget? {
     if (intent.action != Intent.ACTION_VIEW) return null
     intent.getStringExtra(EXTRA_INTERNAL_PATH)?.takeIf(String::isNotBlank)?.let { path ->
+        return withContext(ioDispatcher) {
         val file = File(path)
-        if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return null
-        if (file.extension.lowercase() !in FileCategories.Audio.extensions) return null
-        return StandaloneAudioTarget(
+        if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return@withContext null
+        if (file.extension.lowercase() !in FileCategories.Audio.extensions) return@withContext null
+        StandaloneAudioTarget(
             reference = file.absolutePath,
             uri = Uri.fromFile(file),
             displayName = file.name,
@@ -470,23 +477,27 @@ private fun resolveStandaloneAudioTarget(
             sizeBytes = file.length(),
             internalPath = file.absolutePath
         )
+        }
     }
     val uri = intent.data ?: return null
-    val mimeType = intent.type ?: context.contentResolver.getType(uri)
     val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase().orEmpty()
-    if (mimeType?.startsWith("audio/") != true && extension !in FileCategories.Audio.extensions) return null
     return when (uri.scheme) {
-        "content" -> StandaloneAudioTarget(
-            reference = uri.toString(),
-            uri = uri,
-            displayName = uri.lastPathSegment ?: "Audio",
-            mimeType = mimeType,
-            sizeBytes = null,
-            internalPath = null
-        )
-        "file", null -> {
+        "content" -> {
+            val metadata = resolveExternalContentMetadata(
+                context.contentResolver, uri, intent.type, ioDispatcher
+            ).getOrNull() ?: return null
+            if (metadata.mimeType?.startsWith("audio/") != true && extension !in FileCategories.Audio.extensions) return null
+            StandaloneAudioTarget(
+                reference = uri.toString(), uri = uri,
+                displayName = metadata.displayName ?: uri.lastPathSegment ?: "Audio",
+                mimeType = metadata.mimeType, sizeBytes = metadata.sizeBytes, internalPath = null
+            )
+        }
+        "file", null -> withContext(ioDispatcher) {
             val file = File(uri.path.orEmpty())
-            if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return null
+            if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return@withContext null
+            val mimeType = intent.type
+            if (mimeType?.startsWith("audio/") != true && extension !in FileCategories.Audio.extensions) return@withContext null
             StandaloneAudioTarget(
                 file.absolutePath,
                 Uri.fromFile(file),
@@ -499,16 +510,6 @@ private fun resolveStandaloneAudioTarget(
         else -> null
     }
 }
-
-private fun StandaloneAudioTarget.withProviderMetadata(context: Context): StandaloneAudioTarget =
-    copy(
-        displayName = queryAudioColumn(context, uri, OpenableColumns.DISPLAY_NAME) {
-            getString(it)
-        } ?: displayName,
-        sizeBytes = queryAudioColumn(context, uri, OpenableColumns.SIZE) {
-            getLong(it)
-        } ?: sizeBytes
-    )
 
 private fun StandaloneAudioTarget.toBasicAudioTrack(): AudioTrack {
     val extension = displayName.substringAfterLast('.', "").lowercase()
@@ -566,18 +567,6 @@ private data class AudioMetadataValues(
 
 private fun AudioTrack?.orFallback(fallback: AudioTrack): AudioTrack = this ?: fallback
 
-private fun <T> queryAudioColumn(
-    context: Context,
-    uri: Uri,
-    column: String,
-    read: android.database.Cursor.(Int) -> T
-): T? = runCatching {
-    context.contentResolver.query(uri, arrayOf(column), null, null, null)?.use { cursor ->
-        if (!cursor.moveToFirst()) return@use null
-        val index = cursor.getColumnIndex(column)
-        if (index < 0 || cursor.isNull(index)) null else cursor.read(index)
-    }
-}.getOrNull()
 
 private const val EXTRA_INTERNAL_PATH =
     "dev.qtremors.arcile.feature.audio.extra.INTERNAL_PATH"

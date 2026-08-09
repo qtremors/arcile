@@ -132,7 +132,9 @@ internal fun RecentFilesScreen(
         }
     }
 
-    var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
+    var showSearchBar by rememberSaveable {
+        mutableStateOf(state.searchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
+    }
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
 
@@ -159,7 +161,8 @@ internal fun RecentFilesScreen(
         }
     }
 
-    val filesToDisplay = if (showSearchBar) state.searchResults else state.displayedRecentFiles
+    val searchActive = state.searchQuery.isNotBlank() || state.activeSearchFilters.hasActiveFilters
+    val filesToDisplay = if (showSearchBar && searchActive) state.searchResults else state.displayedRecentFiles
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
@@ -189,7 +192,8 @@ internal fun RecentFilesScreen(
                                 onClearSearch()
                             },
                             onFilterClick = { showFilterSheet = true },
-                            placeholder = stringResource(R.string.search_recent_files_placeholder)
+                            placeholder = stringResource(R.string.search_recent_files_placeholder),
+                            filtersActive = state.activeSearchFilters.hasActiveFilters
                         )
                         ActiveFiltersRow(
                             filters = state.activeSearchFilters,
@@ -278,11 +282,15 @@ internal fun RecentFilesScreen(
                                 LoadingIndicator()
                             }
                         }
-                        showSearchBar && state.searchQuery.isNotEmpty() && state.searchResults.isEmpty() -> {
+                        showSearchBar && searchActive && state.searchResults.isEmpty() -> {
                             EmptyState(
                                 variant = EmptyStateVariant.Search,
                                 title = stringResource(R.string.no_results_found),
-                                description = stringResource(R.string.no_results_description, state.searchQuery),
+                                description = if (state.searchQuery.isBlank()) {
+                                    stringResource(R.string.no_results_for_filters)
+                                } else {
+                                    stringResource(R.string.no_results_description, state.searchQuery)
+                                },
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

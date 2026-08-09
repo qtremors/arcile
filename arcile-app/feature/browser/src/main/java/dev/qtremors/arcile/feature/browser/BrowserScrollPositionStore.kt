@@ -20,6 +20,11 @@ internal class BrowserScrollPositionStore(
         persist()
     }
 
+    fun clear() {
+        positions.clear()
+        persist()
+    }
+
     private fun persist() {
         savedStateHandle[SAVED_SCROLL_POSITIONS_KEY] = positions.entries
             .map { entry -> encode(entry.key, entry.value) }

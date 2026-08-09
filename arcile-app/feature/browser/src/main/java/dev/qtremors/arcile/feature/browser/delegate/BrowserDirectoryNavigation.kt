@@ -20,10 +20,13 @@ internal fun BrowserNavigationController.loadDirectory(
     volumeId: String?,
     clearHistory: Boolean,
     errorMessage: UiText? = null,
-    persistAsLastOpened: Boolean = true
+    persistAsLastOpened: Boolean = true,
+    allowDirectPath: Boolean = false
 ) {
     val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
-    if (resolvedVolumeId == null) {
+    val isContinuingDirectPath = state.value.currentVolumeId == null &&
+        state.value.currentPath.isDirectLocalPath()
+    if (resolvedVolumeId == null && !allowDirectPath && !isContinuingDirectPath) {
         openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
         return
     }
@@ -43,7 +46,7 @@ internal fun BrowserNavigationController.loadDirectory(
     }
     saveNavStateIfActive(generation)
     activeLoadJob = viewModelScope.launch {
-        if (persistAsLastOpened) {
+        if (persistAsLastOpened && resolvedVolumeId != null) {
             browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
         }
         val preferences = browserPreferencesRepository.locationPreferencesFlow.first()
@@ -72,7 +75,11 @@ internal fun BrowserNavigationController.loadDirectory(
             } else {
                 loadedFiles
             }
-            val folderPaths = page.files.filter(FileModel::isDirectory).map(FileModel::absolutePath)
+            val folderPaths = if (resolvedVolumeId == null) {
+                emptyList()
+            } else {
+                page.files.filter(FileModel::isDirectory).map(FileModel::absolutePath)
+            }
             val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
             if (!isActiveLoad(generation)) return@collect
             val now = System.currentTimeMillis()
@@ -100,3 +107,6 @@ internal fun BrowserNavigationController.loadDirectory(
         }
     }
 }
+
+private fun String.isDirectLocalPath(): Boolean =
+    replace('\\', '/').startsWith('/')

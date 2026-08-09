@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.os.Process
 import android.os.StrictMode
 import android.os.Trace
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -147,7 +147,7 @@ class MainActivity : ComponentActivity() {
                 if (!path.isContentReference() &&
                     !ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))
                 ) {
-                    Toast.makeText(this@MainActivity, getString(R.string.cannot_open_sensitive_files), Toast.LENGTH_SHORT).show()
+                    showArcileToast(getString(R.string.cannot_open_sensitive_files))
                     return@launch
                 }
                 startActivity(ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path))
@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.e("Arcile", "Failed to open file", e)
                 val reason = e.localizedMessage ?: getString(R.string.no_app_found)
-                Toast.makeText(this@MainActivity, getString(R.string.cannot_open_file, reason), Toast.LENGTH_SHORT).show()
+                showArcileToast(getString(R.string.cannot_open_file, reason))
             }
         }
     }
@@ -166,7 +166,7 @@ class MainActivity : ComponentActivity() {
                 if (!path.isContentReference() &&
                     !ExternalFileAccessHelper.isAllowedUserFile(this@MainActivity, java.io.File(path))
                 ) {
-                    Toast.makeText(this@MainActivity, getString(R.string.cannot_open_sensitive_files), Toast.LENGTH_SHORT).show()
+                    showArcileToast(getString(R.string.cannot_open_sensitive_files))
                     return@launch
                 }
                 val intent = ExternalFileAccessHelper.createOpenIntent(this@MainActivity, path)
@@ -180,7 +180,7 @@ class MainActivity : ComponentActivity() {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 AppLogger.e("Arcile", "Failed to open file with chooser", e)
                 val reason = e.localizedMessage ?: getString(R.string.no_app_found)
-                Toast.makeText(this@MainActivity, getString(R.string.cannot_open_file, reason), Toast.LENGTH_SHORT).show()
+                showArcileToast(getString(R.string.cannot_open_file, reason))
             }
         }
     }

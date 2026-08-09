@@ -60,10 +60,10 @@ class DefaultVolumeProvider(
 
     init {
         runCatchingPreservingCancellation {
-            _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+            updateActiveStorageRoots(discoverPlatformVolumes())
         }.onFailure { error ->
             applicationScope.launch(dispatchers.io) {
-                _activeStorageRoots.set(discoverPlatformVolumes().map { it.path })
+                updateActiveStorageRoots(discoverPlatformVolumes())
             }
         }
     }
@@ -149,9 +149,13 @@ class DefaultVolumeProvider(
         val volumes = discovered.values.sortedWith(
             compareBy<StorageVolume> { !it.isPrimary }.thenBy { it.name.lowercase(Locale.US) }
         )
-        _activeStorageRoots.set(volumes.map { it.path })
+        updateActiveStorageRoots(volumes)
         cachedVolumes.set(volumes)
         return volumes
+    }
+
+    private fun updateActiveStorageRoots(volumes: List<StorageVolume>) {
+        _activeStorageRoots.set(volumes.map(StorageVolume::path).distinct())
     }
 
     private fun primaryStorageCapacity(): Pair<Long, Long>? {

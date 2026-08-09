@@ -38,7 +38,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserUiState
-import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
@@ -79,7 +78,10 @@ internal fun BrowserScreen(
     appStartPage: AppStartPage? = null,
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     isRouteVisible: Boolean = true,
-    batchRenameHistory: List<String> = emptyList()
+    batchRenameHistory: List<String> = emptyList(),
+    workspaceTabs: @Composable () -> Unit = {},
+    workspaceTabsEnabled: Boolean = false,
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
@@ -102,7 +104,10 @@ internal fun BrowserScreen(
     val dialogVisibility = rememberBrowserDialogVisibility()
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumeRestoreTick by remember { mutableStateOf(0) }
-    var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
+    var showSearchBar by rememberSaveable {
+        mutableStateOf(state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
+    }
+    var workspaceTabsVisible by rememberSaveable { mutableStateOf(true) }
     
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
@@ -167,6 +172,41 @@ internal fun BrowserScreen(
         )
     }
     BrowserScrollEffects(state, scroll, resumeRestoreTick)
+    LaunchedEffect(state.browserViewMode, listState, gridState) {
+        var previousIndex = 0
+        var previousOffset = 0
+        snapshotFlow {
+            if (state.browserViewMode == FileViewMode.GRID) {
+                BrowserTabsScrollCapture(
+                    gridState.isScrollInProgress,
+                    gridState.firstVisibleItemIndex,
+                    gridState.firstVisibleItemScrollOffset
+                )
+            } else {
+                BrowserTabsScrollCapture(
+                    listState.isScrollInProgress,
+                    listState.firstVisibleItemIndex,
+                    listState.firstVisibleItemScrollOffset
+                )
+            }
+        }.distinctUntilChanged().collect { capture ->
+            val atTop = capture.index == 0 && capture.offset == 0
+            if (atTop) {
+                workspaceTabsVisible = true
+            } else if (capture.isScrollInProgress) {
+                val movingForward = capture.index > previousIndex ||
+                    (capture.index == previousIndex && capture.offset > previousOffset)
+                val movingBackward = capture.index < previousIndex ||
+                    (capture.index == previousIndex && capture.offset < previousOffset)
+                when {
+                    movingForward -> workspaceTabsVisible = false
+                    movingBackward -> workspaceTabsVisible = true
+                }
+            }
+            previousIndex = capture.index
+            previousOffset = capture.offset
+        }
+    }
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
     val switchCategoryFolderTab: (Int) -> Unit = { direction ->
@@ -179,8 +219,8 @@ internal fun BrowserScreen(
         }
     }
 
-    LaunchedEffect(state.browserSearchQuery) {
-        if (state.browserSearchQuery.isNotEmpty()) {
+    LaunchedEffect(state.browserSearchQuery, state.activeSearchFilters) {
+        if (state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters) {
             showSearchBar = true
         }
     }
@@ -264,21 +304,6 @@ internal fun BrowserScreen(
         }
     }
 
-    LaunchedEffect(state.clipboardState) {
-        state.clipboardState?.let { clipboard ->
-            val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
-            val count = clipboard.files.size
-            if (isRouteVisible) {
-                onFeedback(
-                    ArcileFeedbackEvent(
-                        message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
-                        severity = ArcileFeedbackSeverity.Info
-                    )
-                )
-            }
-        }
-    }
-
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
@@ -295,7 +320,7 @@ internal fun BrowserScreen(
                 onFeedback(
                     ArcileFeedbackEvent(
                         message = message,
-                        severity = ArcileFeedbackSeverity.Success,
+                        severity = state.fileOperationStatusSeverity,
                         actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
                         onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
                         onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }
@@ -357,6 +382,10 @@ internal fun BrowserScreen(
                     onAppStartPageChange = onAppStartPageChange,
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
+                    workspaceTabs = workspaceTabs,
+                    workspaceTabsVisible = workspaceTabsVisible,
+                    workspaceTabsEnabled = workspaceTabsEnabled,
+                    onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange,
                     onShowPinnedSnackbar = { label ->
                         if (isRouteVisible) {
                             onFeedback(
@@ -455,3 +484,9 @@ internal fun BrowserScreen(
         batchRenameHistory = batchRenameHistory
     )
 }
+
+private data class BrowserTabsScrollCapture(
+    val isScrollInProgress: Boolean,
+    val index: Int,
+    val offset: Int
+)

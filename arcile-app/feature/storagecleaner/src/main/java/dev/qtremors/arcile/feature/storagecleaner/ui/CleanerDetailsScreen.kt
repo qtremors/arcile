@@ -1,7 +1,5 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
-import android.graphics.Bitmap
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,135 +11,105 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tune
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import dev.qtremors.arcile.core.ui.theme.sheet
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
-import androidx.compose.foundation.Image
-import androidx.compose.ui.graphics.asImageBitmap
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
 import androidx.compose.ui.draw.clip
-import dev.qtremors.arcile.core.ui.loadApplicationIconBitmap
-import dev.qtremors.arcile.core.ui.keyboardInputField
-import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
-import dev.qtremors.arcile.core.ui.rememberDateFormatter
-import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
-import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
-import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.util.Date
-import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-internal fun CleanerDetailsSheet(
+internal fun CleanerDetailsScreen(
     group: CleanerGroup,
     isCleaning: Boolean,
+    isLoaded: Boolean = true,
+    isScanning: Boolean = false,
+    isPullToRefreshing: Boolean = false,
+    scanProgress: StorageCleanerScanProgress? = null,
+    onRefresh: () -> Unit = {},
+    onNavigateBack: () -> Unit,
     selectedFiles: Set<String>,
     onSelectedFilesChange: (Set<String>) -> Unit,
-    onDismiss: () -> Unit,
     onRequestClean: (Set<String>) -> Unit,
     onOpenFile: (String) -> Unit = {},
     onOpenContainingFolder: (String) -> Unit = {},
     rules: StorageCleanerRules = StorageCleanerRules(),
     onUpdateSectionRule: (CleanerGroupType, CleanerSectionRule) -> Unit = { _, _ -> },
     onResetSectionRule: (CleanerGroupType) -> Unit = {},
-    onIgnorePath: (String) -> Unit = {},
-    backProgress: Float = 0f,
-    isBackPredicting: Boolean = false
+    onIgnorePath: (String) -> Unit = {}
 ) {
-    var showRiskInfo by remember { mutableStateOf(false) }
-    var showSectionSettings by remember { mutableStateOf(false) }
-    var compareFiles by remember(group) { mutableStateOf<List<CleanerCandidate>?>(null) }
+    var showRiskInfo by rememberSaveable(group.type.name) { mutableStateOf(false) }
+    var showSectionSettings by rememberSaveable(group.type.name) { mutableStateOf(false) }
+    var comparePaths by rememberSaveable(group.type.name) {
+        mutableStateOf(arrayListOf<String>())
+    }
+    val compareFiles = remember(comparePaths, group.candidates) {
+        val candidatesByPath = group.candidates.associateBy(CleanerCandidate::absolutePath)
+        comparePaths.mapNotNull(candidatesByPath::get).takeIf { it.size >= 2 }
+    }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        shape = ExpressiveShapes.sheet
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .graphicsLayer {
-                    if (isBackPredicting) {
-                        translationY = backProgress * size.height.toFloat()
-                        alpha = 1f - backProgress
-                    }
-                }
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = cleanerTitle(group.type),
-                    style = MaterialTheme.typography.titleMediumBold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val settingsClick = { showSectionSettings = true }
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(cleanerTitle(group.type)) },
+                navigationIcon = {
                     IconButton(
-                        onClick = settingsClick,
+                        onClick = onNavigateBack,
+                        modifier = Modifier.clip(CircleShape)
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back)
+                        )
+                    }
+                },
+                actions = {
+                    IconButton(
+                        onClick = { showSectionSettings = true },
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Icon(
@@ -152,9 +120,8 @@ internal fun CleanerDetailsSheet(
                             )
                         )
                     }
-                    val riskInfoClick = { showRiskInfo = true }
                     IconButton(
-                        onClick = riskInfoClick,
+                        onClick = { showRiskInfo = true },
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Icon(
@@ -162,20 +129,52 @@ internal fun CleanerDetailsSheet(
                             contentDescription = stringResource(R.string.cleaner_risk_info_title)
                         )
                     }
-                    val selectableCandidates = remember(group.candidates) {
-                        group.candidates.filterNot { it.riskLevel == CleanerRiskLevel.High }
+                }
+            )
+        }
+    ) { padding ->
+        val pullRefreshState = rememberPullToRefreshState()
+        PullToRefreshBox(
+            isRefreshing = isPullToRefreshing,
+            onRefresh = {
+                if (!isScanning && !isCleaning) onRefresh()
+            },
+            state = pullRefreshState,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            indicator = {
+                ArcilePullRefreshIndicator(
+                    isRefreshing = isPullToRefreshing,
+                    state = pullRefreshState
+                )
+            }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp)
+            ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val selectableCandidates = remember(group.candidates) {
+                    group.candidates.filterNot { it.riskLevel == CleanerRiskLevel.High }
+                }
+                Checkbox(
+                    checked = selectableCandidates.isNotEmpty() &&
+                        selectableCandidates.all { it.absolutePath in selectedFiles },
+                    onCheckedChange = { checked ->
+                        onSelectedFilesChange(if (checked) {
+                            selectedFiles + selectableCandidates.map { it.absolutePath }
+                        } else {
+                            selectedFiles - selectableCandidates.map { it.absolutePath }.toSet()
+                        })
                     }
-                    Checkbox(
-                        checked = selectableCandidates.isNotEmpty() &&
-                            selectableCandidates.all { it.absolutePath in selectedFiles },
-                        onCheckedChange = { checked ->
-                            onSelectedFilesChange(if (checked) {
-                                selectedFiles + selectableCandidates.map { it.absolutePath }
-                            } else {
-                                selectedFiles - selectableCandidates.map { it.absolutePath }.toSet()
-                            })
-                        }
-                    )
+                )
                 Text(
                     text = stringResource(R.string.cleaner_select_all),
                     style = MaterialTheme.typography.bodyMedium,
@@ -192,24 +191,31 @@ internal fun CleanerDetailsSheet(
                         }
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
-                }
             }
 
             HorizontalDivider()
+            if (isScanning) {
+                CleanerScanStatus(
+                    progress = scanProgress,
+                    modifier = Modifier.padding(vertical = 12.dp)
+                )
+            }
             CleanerDetailStorageMap(group.candidates, selectedFiles)
 
-            if (group.candidates.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = stringResource(R.string.cleaner_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            if (group.candidates.isEmpty() && !isScanning) {
+                LazyColumn(modifier = Modifier.weight(1f)) {
+                    item {
+                        Box(
+                            modifier = Modifier.fillParentMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = stringResource(R.string.cleaner_empty),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             } else if (group.type == CleanerGroupType.Duplicates) {
                 val duplicateGroups = remember(group.candidates) {
@@ -230,7 +236,12 @@ internal fun CleanerDetailsSheet(
                             onOpenContainingFolder = onOpenContainingFolder,
                             onCompare = {
                                 val selectedInGroup = filesInGroup.filter { it.absolutePath in selectedFiles }
-                                compareFiles = if (selectedInGroup.size == 2) selectedInGroup else filesInGroup.take(2)
+                                val filesToCompare = if (selectedInGroup.size == 2) {
+                                    selectedInGroup
+                                } else {
+                                    filesInGroup.take(2)
+                                }
+                                comparePaths = ArrayList(filesToCompare.map(CleanerCandidate::absolutePath))
                             },
                             onIgnoreFile = { path ->
                                 onSelectedFilesChange(selectedFiles - path)
@@ -279,7 +290,7 @@ internal fun CleanerDetailsSheet(
 
             Button(
                 onClick = { onRequestClean(selectedFiles) },
-                enabled = selectedFiles.isNotEmpty() && !isCleaning,
+                enabled = isLoaded && selectedFiles.isNotEmpty() && !isCleaning && !isScanning,
                 shape = ExpressiveShapes.medium,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                 modifier = Modifier
@@ -292,6 +303,7 @@ internal fun CleanerDetailsSheet(
                 Text(
                     text = stringResource(R.string.clean_selected_summary, selectedFiles.size, formatFileSize(totalSelectedSize))
                 )
+            }
             }
         }
     }
@@ -335,7 +347,7 @@ internal fun CleanerDetailsSheet(
             selectedFiles = selectedFiles,
             onSelectedFilesChange = onSelectedFilesChange,
             onRequestClean = { paths ->
-                compareFiles = null
+                comparePaths = arrayListOf()
                 onRequestClean(paths)
             },
             onOpenFile = onOpenFile,
@@ -344,7 +356,7 @@ internal fun CleanerDetailsSheet(
                 onSelectedFilesChange(selectedFiles - path)
                 onIgnorePath(path)
             },
-            onDismiss = { compareFiles = null }
+            onDismiss = { comparePaths = arrayListOf() }
         )
     }
 }

@@ -5,6 +5,8 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.stringResource
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
@@ -12,6 +14,8 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.clipboardStoredFeedback
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.navigation.AppRoutes
 import kotlinx.coroutines.launch
 
@@ -36,6 +40,13 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
         val state by viewModel.state.collectAsStateWithLifecycle()
         val playback by viewModel.playback.state.collectAsStateWithLifecycle()
         val coroutineScope = rememberCoroutineScope()
+        LaunchedEffect(viewModel, onFeedback) {
+            viewModel.feedbackEvents.collect(onFeedback)
+        }
+        val favoritesSearchLabel = stringResource(R.string.audio_favorites)
+        LaunchedEffect(viewModel, favoritesSearchLabel) {
+            viewModel.updateFavoriteSearchAliases(setOf(favoritesSearchLabel))
+        }
         AudioLibraryScreen(
             state = state,
             playback = playback,
@@ -59,8 +70,16 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onSelectAll = viewModel::selectAllVisible,
             onInvertSelection = viewModel::invertSelection,
             onClearSelection = viewModel::clearSelection,
-            onCopySelection = viewModel::copySelection,
-            onCutSelection = viewModel::cutSelection,
+            onCopySelection = {
+                viewModel.copySelection().takeIf { it > 0 }?.let { count ->
+                    onFeedback(clipboardStoredFeedback(ClipboardOperation.COPY, count))
+                }
+            },
+            onCutSelection = {
+                viewModel.cutSelection().takeIf { it > 0 }?.let { count ->
+                    onFeedback(clipboardStoredFeedback(ClipboardOperation.CUT, count))
+                }
+            },
             onRenameSelection = viewModel::renameSelected,
             onDeleteSelection = viewModel::requestDeleteSelected,
             onConfirmDelete = viewModel::confirmDeleteSelected,
@@ -76,7 +95,6 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onRemoveFromClipboard = viewModel::removeFromClipboard,
             onResolvePasteConflicts = viewModel::resolvePasteConflicts,
             onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
-            onClearActiveFileOperation = viewModel::clearActiveFileOperation,
             onPlay = { path ->
                 val queue = state.visibleTracks.takeIf(List<AudioTrack>::isNotEmpty) ?: state.tracks
                 queue.firstOrNull { it.file.absolutePath == path }?.let {

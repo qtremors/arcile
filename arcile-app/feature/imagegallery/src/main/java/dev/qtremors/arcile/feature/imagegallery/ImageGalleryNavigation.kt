@@ -17,6 +17,8 @@ import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.clipboardStoredFeedback
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import kotlinx.coroutines.launch
 
 sealed interface GalleryDestination {
@@ -56,6 +58,9 @@ fun NavGraphBuilder.registerImageGalleryRoute(
             )
             .collectAsStateWithLifecycle()
         val coroutineScope = rememberCoroutineScope()
+        LaunchedEffect(viewModel, onFeedback) {
+            viewModel.feedbackEvents.collect(onFeedback)
+        }
         LaunchedEffect(viewerReturnPath) {
             viewerReturnPath?.let { path ->
                 viewModel.setViewerReturnPath(path)
@@ -129,8 +134,16 @@ fun NavGraphBuilder.registerImageGalleryRoute(
                 togglePinnedAlbum = viewModel::togglePinnedAlbum
             ),
             clipboardActions = GalleryClipboardActions(
-                copySelected = viewModel::copySelectedToClipboard,
-                cutSelected = viewModel::cutSelectedToClipboard,
+                copySelected = {
+                    viewModel.copySelectedToClipboard().takeIf { it > 0 }?.let { count ->
+                        onFeedback(clipboardStoredFeedback(ClipboardOperation.COPY, count))
+                    }
+                },
+                cutSelected = {
+                    viewModel.cutSelectedToClipboard().takeIf { it > 0 }?.let { count ->
+                        onFeedback(clipboardStoredFeedback(ClipboardOperation.CUT, count))
+                    }
+                },
                 pasteToAlbum = viewModel::pasteFromClipboard,
                 cancel = viewModel::cancelClipboard,
                 remove = viewModel::removeFromClipboard,

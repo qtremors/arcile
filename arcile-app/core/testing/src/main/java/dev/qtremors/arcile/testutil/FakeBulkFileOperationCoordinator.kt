@@ -19,7 +19,7 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     override val activeRequest = _activeRequest
     private val _recoveryRecords = MutableStateFlow<List<OperationRecoveryRecord>>(emptyList())
     override val recoveryRecords = _recoveryRecords
-    private val _events = MutableSharedFlow<BulkFileOperationEvent>(replay = 1, extraBufferCapacity = 16)
+    private val _events = MutableSharedFlow<BulkFileOperationEvent>(extraBufferCapacity = 16)
     override val events = _events
 
     val startedRequests = mutableListOf<BulkFileOperationRequest>()
@@ -38,11 +38,15 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         archivePassword: String?,
         archiveNameEncoding: ArchiveNameEncoding?,
         archiveCompressionLevel: ArchiveCompressionLevel?,
-        importItems: List<SaveToArcileImportItem>
+        importItems: List<SaveToArcileImportItem>,
+        presentationOwnerId: String?,
+        clipboardSessionId: String?
     ): Boolean {
         if (!startResult) return false
         val request = BulkFileOperationRequest(
             operationId = "test-op-${startedRequests.size}",
+            presentationOwnerId = presentationOwnerId,
+            clipboardSessionId = clipboardSessionId,
             type = type,
             sourcePaths = sourcePaths,
             destinationPath = destinationPath,
@@ -67,8 +71,9 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
     }
 
-    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+    override fun onOperationProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress): Boolean {
         _events.tryEmit(BulkFileOperationEvent.Progress(request, progress))
+        return true
     }
 
     override fun onOperationCheckpoint(
@@ -96,6 +101,10 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
     override fun onOperationCancelled(request: BulkFileOperationRequest?) {
         _activeRequest.value = null
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
+    }
+
+    fun clearActiveRequestWithoutEvent() {
+        _activeRequest.value = null
     }
 
     override fun retryRecoveredOperation(operationId: String): Boolean {

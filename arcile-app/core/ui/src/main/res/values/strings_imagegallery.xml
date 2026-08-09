@@ -11,7 +11,12 @@
     <string name="category_show_file_details">Show file names and info</string>
     <string name="category_show_file_details_description">Turn off for a clean thumbnail-only grid.</string>
     <string name="settings_thumbnail_cache">Thumbnail cache</string>
-    <string name="settings_thumbnail_cache_stats">%1$s disk • %2$d loaded • %3$d failed • %4$d in flight</string>
+    <plurals name="settings_thumbnail_cache_stats">
+        <item quantity="one">%1$s total • %2$s memory • %3$s disk • Loaded: %4$d • Failed: %5$d • In flight: %6$d</item>
+        <item quantity="other">%1$s total • %2$s memory • %3$s disk • Loaded: %4$d • Failed: %5$d • In flight: %6$d</item>
+    </plurals>
+    <string name="settings_thumbnail_cache_calculating">Calculating cache size…</string>
+    <string name="settings_thumbnail_cache_clearing">Clearing thumbnail cache…</string>
     <string name="settings_clear_thumbnail_cache">Clear</string>
     <string name="image_gallery_view_mode_aspect">Aspect ratio grid</string>
     <string name="image_gallery_view_mode_square">Square grid</string>
@@ -30,7 +35,10 @@
     <string name="image_gallery_open_to_albums">Open to Albums</string>
     <string name="image_gallery_tab_photos">Photos</string>
     <string name="image_gallery_tab_albums">Albums</string>
-    <string name="image_gallery_album_count">%1$d items</string>
+    <plurals name="image_gallery_album_count">
+        <item quantity="one">%1$d item</item>
+        <item quantity="other">%1$d items</item>
+    </plurals>
     <string name="image_gallery_metadata_title">Details</string>
     <string name="image_gallery_metadata_label_title">Title</string>
     <string name="image_gallery_metadata_label_date">Date</string>

@@ -18,6 +18,10 @@ class AppRoutesTest {
         assertEquals(AppRoutes.Plugins, json.decodeFromString<AppRoutes.Plugins>(json.encodeToString(AppRoutes.Plugins)))
         assertEquals(AppRoutes.Trash, json.decodeFromString<AppRoutes.Trash>(json.encodeToString(AppRoutes.Trash)))
         assertEquals(
+            AppRoutes.StorageCleanerOverview,
+            json.decodeFromString<AppRoutes.StorageCleanerOverview>(json.encodeToString(AppRoutes.StorageCleanerOverview))
+        )
+        assertEquals(
             AppRoutes.StorageManagement,
             json.decodeFromString<AppRoutes.StorageManagement>(json.encodeToString(AppRoutes.StorageManagement))
         )
@@ -61,7 +65,12 @@ class AppRoutesTest {
         val documents = AppRoutes.DocumentLibrary("primary")
         assertEquals(documents, json.decodeFromString<AppRoutes.DocumentLibrary>(json.encodeToString(documents)))
         val apks = AppRoutes.ApkLibrary("primary")
+        val cleanerGroup = AppRoutes.StorageCleanerGroup("Junk")
         assertEquals(apks, json.decodeFromString<AppRoutes.ApkLibrary>(json.encodeToString(apks)))
+        assertEquals(
+            cleanerGroup,
+            json.decodeFromString<AppRoutes.StorageCleanerGroup>(json.encodeToString(cleanerGroup))
+        )
         assertEquals(externalBrowserEntry, json.decodeFromString<AppRoutes.Main>(json.encodeToString(externalBrowserEntry)))
     }
 }

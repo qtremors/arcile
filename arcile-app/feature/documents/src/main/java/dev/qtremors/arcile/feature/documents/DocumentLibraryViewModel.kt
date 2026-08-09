@@ -25,13 +25,18 @@ import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.preferenceSuffix
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.launch
+import java.util.UUID
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 @HiltViewModel
 internal class DocumentLibraryViewModel @Inject constructor(
@@ -48,6 +53,10 @@ internal class DocumentLibraryViewModel @Inject constructor(
     private val volumeId = savedStateHandle.get<String>("volumeId")?.takeIf(String::isNotBlank)
     private val _state = MutableStateFlow(DocumentLibraryState())
     val state: StateFlow<DocumentLibraryState> = _state.asStateFlow()
+    private val _feedbackEvents = MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 8)
+    val feedbackEvents = _feedbackEvents.asSharedFlow()
+    private val operationOwnerId = savedStateHandle.get<String>(OPERATION_OWNER_ID_KEY)
+        ?: "documents:${UUID.randomUUID()}".also { savedStateHandle[OPERATION_OWNER_ID_KEY] = it }
     private val fileActions = CategoryFileActionController(
         scope = viewModelScope,
         state = _state,
@@ -57,6 +66,7 @@ internal class DocumentLibraryViewModel @Inject constructor(
         volumeRepository = volumeRepository,
         archivePathResolver = archivePathResolver,
         operationCoordinator = operationCoordinator,
+        operationOwnerId = operationOwnerId,
         files = DocumentLibraryState::allFiles,
         selectedPaths = DocumentLibraryState::selectedPaths,
         actionState = DocumentLibraryState::fileActions,
@@ -74,10 +84,14 @@ internal class DocumentLibraryViewModel @Inject constructor(
                 )
             )
         },
+        onOperationFeedback = _feedbackEvents::tryEmit,
         reload = ::load
     )
 
     init {
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            operationCoordinator.activeRequest.collectLatest(fileActions::syncActiveRequest)
+        }
         viewModelScope.launch {
             clipboardRepository.clipboardState.collectLatest(fileActions::syncClipboard)
         }
@@ -229,8 +243,8 @@ internal class DocumentLibraryViewModel @Inject constructor(
         }
     }
 
-    fun copySelection() = fileActions.copySelection()
-    fun cutSelection() = fileActions.cutSelection()
+    fun copySelection(): Int = fileActions.copySelection()
+    fun cutSelection(): Int = fileActions.cutSelection()
     fun requestDelete() = fileActions.requestDelete()
     fun confirmDelete() = fileActions.confirmDelete()
     fun dismissDelete() = fileActions.dismissDelete()
@@ -249,4 +263,8 @@ internal class DocumentLibraryViewModel @Inject constructor(
     fun clearActiveOperation() = fileActions.clearActiveOperation()
     fun clearActionError() = fileActions.clearError()
     fun clearError() = _state.update { it.copy(error = null) }
+
+    private companion object {
+        const val OPERATION_OWNER_ID_KEY = "documentOperationOwnerId"
+    }
 }

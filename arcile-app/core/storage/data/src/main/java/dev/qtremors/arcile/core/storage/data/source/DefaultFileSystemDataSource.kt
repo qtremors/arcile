@@ -67,6 +67,7 @@ class DefaultFileSystemDataSource(
     private val fileListingComparator = compareBy<File> { !it.isDirectory }
         .thenBy { it.name.lowercase() }
     private val fileModelMapper = LocalFileModelMapper()
+    private val androidRootDirectoryResolver = AndroidRootDirectoryResolver()
     private val secureFileEraser = SecureFileEraser {
         secureOverwriteOverrideForTest
     }
@@ -84,10 +85,6 @@ class DefaultFileSystemDataSource(
         finalizeMutation = { path -> finalizeMutation(path) },
         fileModelMapper = fileModelMapper
     )
-
-    private fun validatePath(file: File): Result<Unit> {
-        return PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
-    }
 
     private fun validateDestructivePath(file: File): Result<Unit> {
         return PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
@@ -141,19 +138,16 @@ class DefaultFileSystemDataSource(
     override fun list(path: StorageNodePath, pageSize: Int): Flow<ListingPage> = flow {
         try {
             val directory = File(path.absolutePath)
-            validatePath(directory).onFailure {
-                emit(ListingPage.failed(path, it))
-                return@flow
-            }
-
-            if (!directory.exists() || !directory.isDirectory) {
+            val isFilesystemRoot = directory.absolutePath == File.separator
+            val isKnownRootEntry = isKnownAndroidRootEntry(directory)
+            if (!isKnownRootEntry && (!directory.exists() || !directory.isDirectory)) {
                 emit(ListingPage.failed(path, IllegalArgumentException("Path is not a valid directory")))
                 return@flow
             }
 
-            val children = directory.listFiles()
+            val children = listDirectoryChildren(directory)
                 ?: run {
-                    emit(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
+                    emit(ListingPage.failed(path, SecurityException("Access denied: cannot read directory")))
                     return@flow
                 }
 
@@ -163,7 +157,11 @@ class DefaultFileSystemDataSource(
             }
 
             val scannedAt = System.currentTimeMillis()
-            storageNodeDao?.run {
+            val directoryAllowsMutations = PathSafety.validatePath(
+                directory,
+                volumeProvider.activeStorageRoots
+            ).isSuccess
+            storageNodeDao?.takeIf { !isFilesystemRoot && directoryAllowsMutations }?.run {
                 val volumes = volumeProvider.currentVolumes()
                 deleteChildren(directory.absolutePath)
                 upsert(children.map { child ->
@@ -179,7 +177,18 @@ class DefaultFileSystemDataSource(
                 path = path,
                 files = children.asSequence()
                 .sortedWith(fileListingComparator)
-                .map(fileModelMapper::toFileModel)
+                .map { child ->
+                    fileModelMapper.toFileModel(
+                        file = child,
+                        isDirectory = isFilesystemRoot || child.isDirectory,
+                        allowMutations = directoryAllowsMutations &&
+                            PathSafety.validatePath(
+                                child,
+                                volumeProvider.activeStorageRoots,
+                                PathSafety.OperationPolicy.MUTATE
+                            ).isSuccess
+                    )
+                }
                 .toList(),
                 pageSize = pageSize
             ) { page -> emit(page) }
@@ -192,6 +201,17 @@ class DefaultFileSystemDataSource(
             emit(ListingPage.failed(path, FileOperationException.Unknown(cause = e)))
         }
     }.flowOn(dispatchers.io)
+
+    private fun listDirectoryChildren(directory: File): Array<File>? {
+        if (directory.absolutePath != File.separator) return directory.listFiles()
+
+        // SELinux can deny readdir("/") while still allowing traversal of individual
+        // top-level locations. Probe Android's stable root entries without privileges.
+        return androidRootDirectoryResolver.children(directory)
+    }
+
+    private fun isKnownAndroidRootEntry(file: File): Boolean =
+        androidRootDirectoryResolver.isKnownEntry(file)
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> = withContext(dispatchers.io) {
         try {

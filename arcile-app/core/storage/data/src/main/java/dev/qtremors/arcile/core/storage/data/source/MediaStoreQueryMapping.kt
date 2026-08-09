@@ -161,10 +161,15 @@ internal fun Cursor.readMediaStoreFileRow(): MediaStoreFileRow {
     )
 }
 
-internal fun rowMatchesScope(row: MediaStoreFileRow, scope: StorageScope, volumes: List<StorageVolume>): Boolean {
-    if (row.displayName.startsWith(".")) return false
+internal fun rowMatchesScope(
+    row: MediaStoreFileRow,
+    scope: StorageScope,
+    volumes: List<StorageVolume>,
+    includeHidden: Boolean = false
+): Boolean {
+    if (!includeHidden && row.displayName.startsWith(".")) return false
     row.verifiedLocalPath(volumes)?.let { path ->
-        return !path.contains("/.") && matchesScope(path, scope, volumes)
+        return (includeHidden || !path.contains("/.")) && matchesScope(path, scope, volumes)
     }
     if (!row.rawPath.isNullOrBlank() && row.volumeName == null) {
         return scope is StorageScope.AllStorage

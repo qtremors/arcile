@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 import javax.inject.Inject
 
 @HiltViewModel
@@ -34,6 +35,8 @@ internal class ArchiveViewerViewModel @Inject constructor(
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator
 ) : ViewModel() {
     private val archivePath = savedStateHandle.get<String>("archivePath").orEmpty()
+    private val operationOwnerId = savedStateHandle.get<String>(OPERATION_OWNER_ID_KEY)
+        ?: "archive:${UUID.randomUUID()}".also { savedStateHandle[OPERATION_OWNER_ID_KEY] = it }
 
     private val _state = MutableStateFlow(ArchiveViewerState(archivePath = archivePath))
     val state: StateFlow<ArchiveViewerState> = _state.asStateFlow()
@@ -275,7 +278,8 @@ internal class ArchiveViewerViewModel @Inject constructor(
             resolutions = resolutions,
             archiveEntryPrefix = prefix,
             archivePassword = password ?: _state.value.archivePassword,
-            archiveNameEncoding = _state.value.nameEncoding
+            archiveNameEncoding = _state.value.nameEncoding,
+            presentationOwnerId = operationOwnerId
         )
     }
 
@@ -371,6 +375,12 @@ internal class ArchiveViewerViewModel @Inject constructor(
     }
 
     private fun dev.qtremors.arcile.core.operation.BulkFileOperationRequest.isCurrentArchiveExtraction(): Boolean =
-        type == BulkFileOperationType.EXTRACT_ARCHIVE && sourcePaths.firstOrNull() == archivePath
+        presentationOwnerId == operationOwnerId &&
+            type == BulkFileOperationType.EXTRACT_ARCHIVE &&
+            sourcePaths.firstOrNull() == archivePath
+
+    private companion object {
+        const val OPERATION_OWNER_ID_KEY = "archiveOperationOwnerId"
+    }
 
 }

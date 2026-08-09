@@ -31,6 +31,7 @@ internal class BrowserInitializer(
     private var pendingInitialRequest: BrowserEntryRequest? = null
     private var queuedEntryRequest: BrowserEntryRequest? = null
     private var lastHandledEntryRequestId: Long? = null
+    private var initializationGeneration = 0L
     private var volumeObservationJob: Job? = null
 
     init {
@@ -52,6 +53,17 @@ internal class BrowserInitializer(
         } else {
             queuedEntryRequest = entryRequest
         }
+    }
+
+    fun reset(entryRequest: BrowserEntryRequest) {
+        initializationRequested = true
+        initializationStarted = false
+        pendingInitialRequest = entryRequest
+        queuedEntryRequest = null
+        lastHandledEntryRequestId = null
+        _state.value = BrowserInitializationState.Restoring
+        if (!hasObservedVolumes) observeStorageVolumes()
+        tryStartInitialization()
     }
 
     fun retry() {
@@ -100,8 +112,12 @@ internal class BrowserInitializer(
     private fun tryStartInitialization() {
         if (!initializationRequested || !hasObservedVolumes || initializationStarted) return
         initializationStarted = true
+        initializationGeneration += 1
+        val generation = initializationGeneration
         val request = pendingInitialRequest
-        if (request != null) {
+        if (request?.preferSavedLocation == true && restoreSavedLocation()) {
+            lastHandledEntryRequestId = request.id
+        } else if (request != null) {
             lastHandledEntryRequestId = request.id
             openEntry(request.entry)
         } else {
@@ -109,6 +125,7 @@ internal class BrowserInitializer(
         }
         scope.launch {
             val restoredState = navigation.state.first { !it.isLoading }
+            if (generation != initializationGeneration) return@launch
             _state.value = restoredState.error?.let(BrowserInitializationState::Failed)
                 ?: BrowserInitializationState.Ready
             if (state.value == BrowserInitializationState.Ready) {
@@ -121,11 +138,20 @@ internal class BrowserInitializer(
     }
 
     private fun restoreSavedLocationOrDefault() {
+        if (!restoreSavedLocation()) navigation.initializeFromArgs()
+    }
+
+    private fun restoreSavedLocation(): Boolean {
         when (val location = navigation.restoreLocationFromState()) {
             StorageBrowserLocation.Roots -> navigation.openVolumeRoots()
             is StorageBrowserLocation.Directory -> navigation.navigateToSpecificFolder(
                 location.pathScope.absolutePath,
                 seedInitialPathHistory = false
+            )
+            is StorageBrowserLocation.DirectDirectory -> navigation.navigateToSpecificFolder(
+                location.path.absolutePath,
+                seedInitialPathHistory = false,
+                allowDirectPath = true
             )
             is StorageBrowserLocation.Category -> navigation.navigateToCategory(
                 location.categoryScope.categoryName,
@@ -136,8 +162,9 @@ internal class BrowserInitializer(
                 entryPrefix = location.entryPrefix,
                 seedHistory = false
             )
-            null -> navigation.initializeFromArgs()
+            null -> return false
         }
+        return true
     }
 
     private fun handleEntryRequest(request: BrowserEntryRequest) {
@@ -147,7 +174,11 @@ internal class BrowserInitializer(
 
     private fun openEntry(entry: BrowserEntry) {
         when (entry) {
-            is BrowserEntry.Archive -> navigation.openArchive(entry.path)
+            BrowserEntry.PrimaryStorage -> navigation.openPrimaryStorage()
+            is BrowserEntry.Archive -> navigation.openArchive(
+                archivePath = entry.path,
+                entryPrefix = entry.entryPrefix
+            )
             is BrowserEntry.Category -> navigation.navigateToCategory(entry.name, entry.volumeId)
             is BrowserEntry.Path -> navigation.navigateToSpecificFolder(
                 entry.path,

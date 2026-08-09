@@ -10,6 +10,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -40,6 +41,7 @@ internal fun AppApkInstallerDialog(
     val lifecycleOwner = LocalLifecycleOwner.current
     val installState by PackageInstallerEngine.installState.collectAsState()
     var details by remember(target) { mutableStateOf<ApkPackageDetails?>(null) }
+    val currentDetails by rememberUpdatedState(details)
 
     LaunchedEffect(target) {
         PackageInstallerEngine.resetState()
@@ -68,8 +70,16 @@ internal fun AppApkInstallerDialog(
         }
     }
 
+    DisposableEffect(target) {
+        onDispose {
+            PackageInstallerEngine.resetState()
+            ApkPackageParser.cleanupStaging(context, currentDetails)
+        }
+    }
+
     val handleDismiss = {
         PackageInstallerEngine.resetState()
+        ApkPackageParser.cleanupStaging(context, details)
         onDismiss()
     }
 

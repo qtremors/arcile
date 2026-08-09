@@ -33,6 +33,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,6 +59,7 @@ internal class OnlyFilesViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
+    private var exitInProgress = false
 
     private val folderPicker by lazy {
         OnlyFilesFolderPickerController(
@@ -328,10 +330,25 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun lockAll() {
-        _state.value.vaults.forEach { GlobalVideoPlaybackSessions.removeSecurityScope(vaultSecurityScope(it.id)) }
-        SensitiveMemory.clear()
-        clearSensitiveUiState()
+        prepareForLockAll()
         viewModelScope.launch { repository.lockAll() }
+    }
+
+    fun lockAllAndExit(onLocked: () -> Unit) {
+        if (exitInProgress) return
+        exitInProgress = true
+        prepareForLockAll()
+        viewModelScope.launch {
+            try {
+                repository.lockAll()
+                onLocked()
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                exitInProgress = false
+                showError(error)
+            }
+        }
     }
 
     fun beginImportSelection(): Boolean = imports.begin()
@@ -378,6 +395,12 @@ internal class OnlyFilesViewModel @Inject constructor(
                 healthReport = null
             )
         }
+    }
+
+    private fun prepareForLockAll() {
+        _state.value.vaults.forEach { GlobalVideoPlaybackSessions.removeSecurityScope(vaultSecurityScope(it.id)) }
+        SensitiveMemory.clear()
+        clearSensitiveUiState()
     }
 
     private fun runBusy(block: suspend () -> Unit) {

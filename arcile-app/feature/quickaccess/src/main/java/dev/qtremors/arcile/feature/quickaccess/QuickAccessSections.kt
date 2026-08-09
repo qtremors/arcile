@@ -4,12 +4,16 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.core.ui.R
@@ -21,7 +25,17 @@ internal fun QuickAccessSections(
     actions: QuickAccessActions,
     modifier: Modifier = Modifier
 ) {
-    val sections = remember(state.items) { state.items.toQuickAccessSections() }
+    val pinnedItems = remember(state.items) { state.items.filter(QuickAccessItem::isPinned) }
+    val hiddenSections = remember(state.items) {
+        state.items.filterNot(QuickAccessItem::isPinned).toQuickAccessSections()
+    }
+    val shownOnHomeTitle = stringResource(R.string.quick_access_show_on_home)
+    val storageTitle = stringResource(R.string.quick_access_section_storage)
+    val customTitle = stringResource(R.string.quick_access_section_custom)
+    val systemTitle = stringResource(R.string.quick_access_section_system)
+    val appsTitle = stringResource(R.string.quick_access_section_apps)
+    val filesTitle = stringResource(R.string.quick_access_section_files)
+
     LazyColumn(
         modifier = modifier,
         contentPadding = PaddingValues(
@@ -29,54 +43,85 @@ internal fun QuickAccessSections(
                 MaterialTheme.spacing.toolbarBottomGap
         )
     ) {
-        item {
-            QuickAccessSection(
-                title = stringResource(R.string.quick_access_section_custom),
-                items = sections.custom,
-                actions = actions
-            )
-        }
-        item {
-            QuickAccessSection(
-                title = stringResource(R.string.quick_access_section_system),
-                items = sections.system,
-                actions = actions
-            )
-        }
-        item {
-            QuickAccessSection(
-                title = stringResource(R.string.quick_access_section_apps),
-                items = sections.apps,
-                actions = actions
-            )
-        }
-        item {
-            QuickAccessSection(
-                title = stringResource(R.string.quick_access_section_files),
-                items = sections.files,
-                actions = actions
-            )
-        }
+        quickAccessSection(
+            title = shownOnHomeTitle,
+            items = pinnedItems,
+            actions = actions,
+            orderedPinnedCount = pinnedItems.size
+        )
+        quickAccessSection(
+            title = storageTitle,
+            items = hiddenSections.storage,
+            actions = actions
+        )
+        quickAccessSection(
+            title = customTitle,
+            items = hiddenSections.custom,
+            actions = actions
+        )
+        quickAccessSection(
+            title = systemTitle,
+            items = hiddenSections.system,
+            actions = actions
+        )
+        quickAccessSection(
+            title = appsTitle,
+            items = hiddenSections.apps,
+            actions = actions
+        )
+        quickAccessSection(
+            title = filesTitle,
+            items = hiddenSections.files,
+            actions = actions
+        )
     }
 }
 
-@Composable
-private fun QuickAccessSection(
+private fun LazyListScope.quickAccessSection(
     title: String,
     items: List<QuickAccessItem>,
-    actions: QuickAccessActions
+    actions: QuickAccessActions,
+    orderedPinnedCount: Int? = null
 ) {
-    QuickAccessSectionGroup(
-        title = title,
+    if (items.isEmpty()) return
+
+    item(key = "header_$title") {
+        SectionHeader(title)
+    }
+    itemsIndexed(
         items = items,
-        onNavigateToPath = actions.navigateToPath,
-        onNavigateToSaf = actions.navigateToSaf,
-        onTogglePin = actions.togglePin,
-        onRemoveItem = actions.removeItem
-    )
+        key = { _, item -> item.id }
+    ) { index, item ->
+        QuickAccessListItem(
+            item = item,
+            index = index,
+            count = items.size,
+            onNavigate = {
+                if (
+                    item.type == QuickAccessType.SAF_TREE ||
+                    item.type == QuickAccessType.EXTERNAL_HANDOFF ||
+                    item.type == QuickAccessType.FILES_APP
+                ) {
+                    actions.navigateToSaf(item.path)
+                } else {
+                    actions.navigateToPath(item.path)
+                }
+            },
+            onTogglePin = { actions.togglePin(item) },
+            onRemove = { actions.removeItem(item) },
+            reorderPosition = orderedPinnedCount?.let { index },
+            reorderCount = orderedPinnedCount ?: 0,
+            onMoveUp = { actions.movePinnedItem(item.id, -1) },
+            onMoveDown = { actions.movePinnedItem(item.id, 1) },
+            modifier = Modifier
+                .padding(horizontal = 16.dp, vertical = 3.dp)
+                .animateItem()
+        )
+    }
 }
 
 internal data class QuickAccessSectionItems(
+    val storage: List<QuickAccessItem>,
     val custom: List<QuickAccessItem>,
     val system: List<QuickAccessItem>,
     val apps: List<QuickAccessItem>,
@@ -85,8 +130,14 @@ internal data class QuickAccessSectionItems(
 
 internal fun List<QuickAccessItem>.toQuickAccessSections(): QuickAccessSectionItems =
     QuickAccessSectionItems(
+        storage = filter { it.id == ARCILE_STORAGE_ID || it.id == ROOT_STORAGE_ID },
         custom = filter { it.type == QuickAccessType.CUSTOM },
-        system = filter { it.type == QuickAccessType.STANDARD && !it.isAppFolderShortcut() },
+        system = filter {
+            it.type == QuickAccessType.STANDARD &&
+                it.id != ARCILE_STORAGE_ID &&
+                it.id != ROOT_STORAGE_ID &&
+                !it.isAppFolderShortcut()
+        },
         apps = filter { it.type == QuickAccessType.STANDARD && it.isAppFolderShortcut() },
         files = filter {
             it.type == QuickAccessType.FILES_APP ||
@@ -101,3 +152,5 @@ private fun QuickAccessItem.isAppFolderShortcut(): Boolean =
         path.contains("whatsapp", ignoreCase = true)
 
 private const val WHATSAPP_MEDIA_ID = "standard_whatsapp_media"
+private const val ARCILE_STORAGE_ID = "internal_all_files"
+internal const val ROOT_STORAGE_ID = "standard_root_storage"

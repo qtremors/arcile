@@ -530,6 +530,7 @@ class ArchitectureBoundaryTest {
             "dev/qtremors/arcile/presentation/ui/AppUtilityRouteRegistration.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
             "dev/qtremors/arcile/presentation/ui/ArchiveDestinationMapper.kt",
+            "dev/qtremors/arcile/presentation/ui/BrowserTabsCoordinator.kt",
             "dev/qtremors/arcile/presentation/ui/GalleryDestinationMapper.kt",
             "dev/qtremors/arcile/presentation/ui/MainRoute.kt",
             "dev/qtremors/arcile/presentation/ui/MainShellCoordinator.kt",

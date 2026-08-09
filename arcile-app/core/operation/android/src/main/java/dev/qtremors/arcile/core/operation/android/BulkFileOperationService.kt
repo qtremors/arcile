@@ -37,8 +37,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -63,9 +61,6 @@ class BulkFileOperationService : Service() {
     lateinit var storageWorkCoordinator: StorageWorkCoordinator
 
     @Inject
-    lateinit var operationJournal: OperationJournal
-
-    @Inject
     lateinit var mutationJournal: MutationJournal
 
     @Inject
@@ -73,6 +68,9 @@ class BulkFileOperationService : Service() {
 
     @Inject
     lateinit var dispatchers: ArcileDispatchers
+
+    @Inject
+    lateinit var requestStore: OperationRequestStore
 
     private val serviceScope: CoroutineScope by lazy {
         CoroutineScope(SupervisorJob() + serviceDispatchers.io)
@@ -88,15 +86,11 @@ class BulkFileOperationService : Service() {
                 storage = Dispatchers.IO
             )
         }
-    private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
-    private var lastNotificationUpdateAt = 0L
     private var notificationMetrics = NotificationMetrics()
     private val notificationLock = Any()
     private var notificationOperationId: String? = null
-    private val serviceOperationJournal: OperationJournal
-        get() = if (::operationJournal.isInitialized) operationJournal else NoOpOperationJournal()
     private val serviceMutationJournal: MutationJournal
         get() = if (::mutationJournal.isInitialized) mutationJournal else NoOpMutationJournal()
 
@@ -109,7 +103,6 @@ class BulkFileOperationService : Service() {
                 val cancelOperationId = intent.getStringExtra(EXTRA_OPERATION_ID)
                 val request = currentRequest
                 if (request != null && cancelOperationId == request.operationId) {
-                    serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLING) }
                     coordinator.onOperationCancelling(request)
                     currentOperationJob?.cancel(CancellationException("Bulk file operation cancelled by user"))
                     stopForegroundAndRemoveNotification(request.operationId)
@@ -118,12 +111,13 @@ class BulkFileOperationService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START -> {
-                val requestJson = intent.getStringExtra(EXTRA_REQUEST_JSON) ?: return START_NOT_STICKY
-                val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
+                val operationId = intent.getStringExtra(EXTRA_OPERATION_ID) ?: return START_NOT_STICKY
+                if (currentRequest?.operationId == operationId || currentOperationJob?.isActive == true) {
+                    return START_NOT_STICKY
+                }
+                val request = requestStore.claim(operationId) ?: return START_NOT_STICKY
                 currentRequest = request
                 notificationMetrics = NotificationMetrics(startedAtMillis = System.currentTimeMillis())
-                lastNotificationUpdateAt = 0L
-                serviceOperationJournal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
                 synchronized(notificationLock) {
                     notificationOperationId = request.operationId
                     startForeground(NOTIFICATION_ID, buildNotification(request))
@@ -138,26 +132,22 @@ class BulkFileOperationService : Service() {
                                 requireNotNull(request.destinationPath) { "Destination path is required for copy" },
                                 request.resolutions
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.MOVE -> clipboardRepository.moveFiles(
                                 request.sourcePaths,
                                 requireNotNull(request.destinationPath) { "Destination path is required for move" },
                                 request.resolutions
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.TRASH -> trashRepository.moveToTrash(request.sourcePaths) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(
                                 request.sourcePaths
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Permanent delete") },
@@ -166,8 +156,7 @@ class BulkFileOperationService : Service() {
                             BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(
                                 request.sourcePaths
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Secure shred") },
@@ -178,8 +167,7 @@ class BulkFileOperationService : Service() {
                                 request.sourcePaths.first(),
                                 requireNotNull(request.fakeFileSize)
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.EXTRACT_ARCHIVE -> archiveRepository.extractArchive(
                                 archivePath = request.sourcePaths.first(),
@@ -189,8 +177,7 @@ class BulkFileOperationService : Service() {
                                 nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
                                 resolutions = request.resolutions
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.CREATE_ARCHIVE -> archiveRepository.createArchive(
                                 sourcePaths = request.sourcePaths,
@@ -200,35 +187,28 @@ class BulkFileOperationService : Service() {
                                 nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
                                 compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
                             ) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> importSharedFiles(request) { progress ->
-                                coordinator.onOperationProgress(request, progress)
-                                updateNotification(request, progress)
+                                handleProgress(request, progress)
                             }
                         }
 
                         result.onSuccess {
-                            serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.COMPLETED) }
                             coordinator.onOperationCompleted(request)
-                            serviceOperationJournal.clearActive(request.operationId)
                         }.onFailure { error ->
                             if (error is CancellationException) throw error
-                            serviceOperationJournal.update(request.operationId) {
-                                it.copy(phase = OperationPhase.FAILED, error = error.message)
-                            }
                             coordinator.onOperationFailed(
                                 request,
                                 operationFailureMessage(error)
                             )
-                            serviceOperationJournal.clearActive(request.operationId)
                         }
                     } catch (_: CancellationException) {
-                        serviceOperationJournal.update(request.operationId) { it.copy(phase = OperationPhase.CANCELLED) }
                         coordinator.onOperationCancelled(request)
-                        serviceOperationJournal.clearActive(request.operationId)
                     } finally {
+                        SaveToArcileUriGrantManager(contentResolver)
+                            .releaseOwnedPersistableReadGrants(request.importItems)
+                        requestStore.retire(request.operationId)
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
@@ -248,16 +228,15 @@ class BulkFileOperationService : Service() {
         super.onDestroy()
     }
 
+    private fun handleProgress(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
+        if (coordinator.onOperationProgress(request, progress)) {
+            updateNotification(request, progress)
+        }
+    }
+
     private fun updateNotification(request: BulkFileOperationRequest, progress: BulkFileOperationProgress) {
         synchronized(notificationLock) {
             if (notificationOperationId != request.operationId) return
-            serviceOperationJournal.update(request.operationId) {
-                it.copy(phase = OperationPhase.RUNNING, progress = progress)
-            }
-            val now = System.currentTimeMillis()
-            val finished = progress.completedItems >= progress.totalItems
-            if (!finished && now - lastNotificationUpdateAt < NOTIFICATION_UPDATE_THROTTLE_MS) return
-            lastNotificationUpdateAt = now
             getSystemService(NotificationManager::class.java).notify(
                 NOTIFICATION_ID,
                 buildNotification(request, progress)
@@ -444,12 +423,10 @@ class BulkFileOperationService : Service() {
     companion object {
         const val ACTION_START = "dev.qtremors.arcile.action.START_BULK_FILE_OPERATION"
         const val ACTION_CANCEL = "dev.qtremors.arcile.action.CANCEL_BULK_FILE_OPERATION"
-        const val EXTRA_REQUEST_JSON = "bulk_request_json"
         const val EXTRA_OPERATION_ID = "bulk_operation_id"
 
         private const val CHANNEL_ID = "bulk_file_operations"
         private const val NOTIFICATION_ID = 1001
-        private const val NOTIFICATION_UPDATE_THROTTLE_MS = 500L
         private const val BRAND_ACCENT_COLOR = 0xFF0878F8.toInt()
     }
 

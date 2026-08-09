@@ -21,6 +21,7 @@ class ThemePreferences(private val context: Context) {
         val VIBRATIONS_ENABLED_KEY = booleanPreferencesKey("vibrations_enabled")
         val DOUBLE_LINE_FILENAMES_KEY = booleanPreferencesKey("double_line_filenames")
         val MARQUEE_FILENAMES_KEY = booleanPreferencesKey("marquee_filenames")
+        val LANDSCAPE_DUAL_PANE_KEY = booleanPreferencesKey("landscape_dual_pane")
         val THEME_PRESET_KEY = stringPreferencesKey("theme_preset")
         val CUSTOM_PRIMARY_KEY = stringPreferencesKey("custom_primary_hex")
         val CUSTOM_BACKGROUND_KEY = stringPreferencesKey("custom_bg_hex")
@@ -33,6 +34,7 @@ class ThemePreferences(private val context: Context) {
         val vibrations = preferences[VIBRATIONS_ENABLED_KEY] ?: true
         val doubleLine = preferences[DOUBLE_LINE_FILENAMES_KEY] ?: false
         val marquee = preferences[MARQUEE_FILENAMES_KEY] ?: false
+        val landscapeDualPane = preferences[LANDSCAPE_DUAL_PANE_KEY] ?: false
         val themePresetStr = preferences[THEME_PRESET_KEY] ?: ThemePreset.NONE.name
         val customPrimary = preferences[CUSTOM_PRIMARY_KEY] ?: "#BD93F9"
         val customBackground = preferences[CUSTOM_BACKGROUND_KEY] ?: "#282A36"
@@ -44,6 +46,7 @@ class ThemePreferences(private val context: Context) {
             vibrationsEnabled = vibrations,
             doubleLineFilenames = doubleLine,
             marqueeFilenames = marquee,
+            landscapeDualPaneEnabled = landscapeDualPane,
             themePreset = ThemePreset.values().find { it.name == themePresetStr } ?: ThemePreset.NONE,
             customPrimaryColorHex = customPrimary,
             customBackgroundColorHex = customBackground
@@ -58,6 +61,7 @@ class ThemePreferences(private val context: Context) {
             preferences[VIBRATIONS_ENABLED_KEY] = state.vibrationsEnabled
             preferences[DOUBLE_LINE_FILENAMES_KEY] = state.doubleLineFilenames
             preferences[MARQUEE_FILENAMES_KEY] = state.marqueeFilenames
+            preferences[LANDSCAPE_DUAL_PANE_KEY] = state.landscapeDualPaneEnabled
             preferences[THEME_PRESET_KEY] = state.themePreset.name
             preferences[CUSTOM_PRIMARY_KEY] = state.customPrimaryColorHex
             preferences[CUSTOM_BACKGROUND_KEY] = state.customBackgroundColorHex

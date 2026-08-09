@@ -37,12 +37,16 @@ class PreferencesBackupManagerTest {
         val browserPrefs = File(dataStoreDir, "browser_prefs.preferences_pb").apply {
             writeBytes(byteArrayOf(1, 2, 3, 4))
         }
+        val browserTabs = File(dataStoreDir, "browser_tabs.preferences_pb").apply {
+            writeBytes(byteArrayOf(12, 13, 14))
+        }
         val themePreferences = ThemePreferences(context)
         themePreferences.saveThemeState(
             ThemeState(
                 themeMode = ThemeMode.DARK,
                 accentColor = AccentColor.GREEN,
-                harmonizeColors = false
+                harmonizeColors = false,
+                landscapeDualPaneEnabled = true
             )
         )
         val utilityPrefs = File(dataStoreDir, "utility_prefs.preferences_pb").apply {
@@ -52,21 +56,25 @@ class PreferencesBackupManagerTest {
 
         val exportResult = manager.exportTo(Uri.fromFile(backupFile)).getOrThrow()
         browserPrefs.writeBytes(byteArrayOf(9, 9, 9))
+        browserTabs.writeBytes(byteArrayOf(15, 16, 17))
         themePreferences.saveThemeState(ThemeState(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.RED))
         utilityPrefs.writeBytes(byteArrayOf(10, 11, 12))
 
         val preview = manager.preview(Uri.fromFile(backupFile)).getOrThrow()
         val restoreResult = manager.restoreFrom(Uri.fromFile(backupFile)).getOrThrow()
 
-        assertEquals(3, exportResult.successCount)
-        assertEquals(9, preview.items.size)
-        assertEquals(9, restoreResult.successCount)
+        assertEquals(4, exportResult.successCount)
+        assertEquals(10, preview.items.size)
+        assertEquals(10, restoreResult.successCount)
         assertTrue(backupFile.readText().contains("\"browser_prefs\""))
+        assertTrue(backupFile.readText().contains("\"browser_tabs\""))
         assertEquals(listOf(1, 2, 3, 4), browserPrefs.readBytes().map { it.toInt() })
+        assertEquals(listOf(12, 13, 14), browserTabs.readBytes().map { it.toInt() })
         assertEquals(listOf(5, 6, 7), utilityPrefs.readBytes().map { it.toInt() })
         assertEquals(ThemeMode.DARK, themePreferences.themeState.first().themeMode)
         assertEquals(AccentColor.GREEN, themePreferences.themeState.first().accentColor)
         assertEquals(false, themePreferences.themeState.first().harmonizeColors)
+        assertTrue(themePreferences.themeState.first().landscapeDualPaneEnabled)
     }
 
     @Test

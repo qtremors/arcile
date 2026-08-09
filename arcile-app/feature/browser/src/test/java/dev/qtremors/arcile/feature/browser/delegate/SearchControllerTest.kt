@@ -103,6 +103,38 @@ class SearchControllerTest {
     }
 
     @Test
+    fun `active filters search even when query is blank`() = testScope.runTest {
+        val filters = SearchFilters(extensions = setOf("pdf"))
+        val files = listOf(FileModel("report.pdf", "/report.pdf", 0L, 0L, false, "pdf", false))
+        coEvery { repository.searchFiles(any(), any(), any()) } returns Result.success(files)
+
+        controller.updateFilters(filters)
+        advanceTimeBy(401)
+
+        assertEquals(files, controller.state.value.searchResults)
+        coVerify(exactly = 1) { repository.searchFiles("", any(), eq(filters)) }
+    }
+
+    @Test
+    fun `direct filesystem location reports indexed search as unavailable`() = testScope.runTest {
+        context = context.copy(
+            currentPath = "/",
+            currentVolumeId = null,
+            isVolumeRootScreen = false
+        )
+
+        controller.updateQuery("system")
+        advanceTimeBy(401)
+
+        assertEquals(
+            UiText.Dynamic("Search is unavailable for this location"),
+            controller.state.value.error
+        )
+        assertTrue(controller.state.value.searchResults.isEmpty())
+        coVerify(exactly = 0) { repository.searchFiles(any(), any(), any()) }
+    }
+
+    @Test
     fun `repository failure clears searching and emits error`() = testScope.runTest {
         coEvery { repository.searchFiles(any(), any(), any()) } returns
             Result.failure(IllegalStateException("search unavailable"))

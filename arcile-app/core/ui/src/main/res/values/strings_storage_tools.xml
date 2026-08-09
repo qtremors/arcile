@@ -40,7 +40,13 @@
     <string name="tools_title">Tools &amp; Utilities</string>
     <string name="storage_cleaner_title">Storage Cleaner</string>
     <string name="cleaner_scanning">Scanning indexed storage…</string>
-    <string name="cleaner_partial_results">Some folders could not be scanned. Results may be incomplete.</string>
+    <string name="cleaner_scanning_category">Scanning…</string>
+    <string name="cleaner_checking_duplicates">Checking file contents for duplicates…</string>
+    <string name="cleaner_tap_to_scan">Tap to scan</string>
+    <plurals name="cleaner_scan_count"><item quantity="one">%1$d item scanned</item><item quantity="other">%1$d items scanned</item></plurals>
+    <plurals name="cleaner_scan_progress"><item quantity="one">%1$d item scanned • %2$d%%</item><item quantity="other">%1$d items scanned • %2$d%%</item></plurals>
+    <plurals name="cleaner_scan_progress_eta"><item quantity="one">%1$d item scanned • %2$d%% • about %3$s left</item><item quantity="other">%1$d items scanned • %2$d%% • about %3$s left</item></plurals>
+    <string name="cleaner_partial_results">The scan reached its safety limit. Results may be incomplete.</string>
     <string name="cleaner_large_files">Large files</string>
     <string name="cleaner_large_files_desc">Files over 100 MB sorted by size.</string>
     <string name="cleaner_old_downloads">Old downloads</string>
@@ -58,12 +64,12 @@
     <string name="cleaner_junk">Junk files</string>
     <string name="cleaner_junk_desc">Temporary, log, backup, and cache-like files.</string>
     <string name="cleaner_empty">Nothing found</string>
-    <string name="cleaner_group_stat">%1$d files • %2$s</string>
-    <string name="cleaner_duplicate_count">%1$d files</string>
+    <plurals name="cleaner_group_stat"><item quantity="one">%1$d file • %2$s</item><item quantity="other">%1$d files • %2$s</item></plurals>
+    <plurals name="cleaner_duplicate_count"><item quantity="one">%1$d file</item><item quantity="other">%1$d files</item></plurals>
     <string name="cleaner_select_all">Select all</string>
     <string name="clean_selected_summary">Move %1$d to Trash • %2$s</string>
     <string name="clean_confirm_title">Move selected files to Trash?</string>
-    <string name="clean_confirm_message">%1$d selected file(s) will be moved to Arcile Trash. You can restore them later.</string>
+    <plurals name="clean_confirm_message"><item quantity="one">%1$d selected file will be moved to Arcile Trash. You can restore it later.</item><item quantity="other">%1$d selected files will be moved to Arcile Trash. You can restore them later.</item></plurals>
     <string name="cleaner_confirm_file_detail">%1$s • %2$s risk</string>
     <string name="cleaner_high_risk_acknowledge">I reviewed these high-risk files and still want to move them to Trash.</string>
     <string name="cleaner_risk_low">Low risk</string>
@@ -113,7 +119,7 @@
     <string name="cleaner_add_pattern">Add pattern</string>
     <string name="cleaner_large_threshold_mb">Large file threshold (MB)</string>
     <string name="cleaner_old_download_age_days">Old download age (days)</string>
-    <string name="clean_success">Moved %1$d file(s) to Trash</string>
+    <plurals name="clean_success"><item quantity="one">Moved %1$d file to Trash</item><item quantity="other">Moved %1$d files to Trash</item></plurals>
     <string name="clean_failed">Could not clean selected files</string>
 
     <!-- Additional Deletion & Trash Bin -->
@@ -123,7 +129,7 @@
     <string name="delete_destination_permanent">Destination: Permanent delete</string>
     <string name="delete_destination_android">Destination: Android system confirmation</string>
     <string name="delete_destination_mixed">Mixed delete blocked</string>
-    <string name="delete_decision_summary">%1$d items • %2$s • %3$d folders</string>
+    <plurals name="delete_decision_summary"><item quantity="one">%1$d item • %2$s • Folders: %3$d</item><item quantity="other">%1$d items • %2$s • Folders: %3$d</item></plurals>
     <string name="delete_decision_trash_description">Selected items will be moved to the Trash Bin. You can restore them later.</string>
     <string name="delete_decision_permanent_description">Selected items will be permanently deleted. This action cannot be undone.</string>
     <string name="delete_decision_android_description">Android will show the final system confirmation before deleting these items.</string>
@@ -172,6 +178,8 @@
     <string name="add_android_data">Add Android/data</string>
     <string name="add_android_obb">Add Android/obb</string>
     <string name="quick_access_section_system">System Folders</string>
+    <string name="quick_access_section_storage">Storage</string>
+    <string name="root_storage">Root Storage</string>
     <string name="quick_access_section_apps">App Folders</string>
     <string name="quick_access_section_files">Files App Section</string>
     <string name="quick_access_section_custom">Custom Folders</string>
@@ -183,11 +191,6 @@
     <string name="quick_access_remove_message">Are you sure you want to remove %1$s from Quick Access?</string>
     <string name="quick_access_show_on_home">Show on Home</string>
     <string name="quick_access_pinned">Pinned \'%1$s\' to Quick Access</string>
-    <string name="quick_access_arrange_title">Arrange Order</string>
-    <string name="quick_access_arrange_description">Arrange the order of enabled quick access shortcuts on the home screen.</string>
-    <string name="quick_access_arrange_order">Arrange Order</string>
-    <string name="quick_access_move_up">Move up</string>
-    <string name="quick_access_move_down">Move down</string>
     <string name="remove">Remove</string>
     <string name="toggle_pin">Toggle Home shortcut</string>
     <string name="search_filters_title">Search Filters</string>
@@ -264,7 +267,7 @@
     <string name="transfer_eta_minutes">%1$dm %2$ds remaining</string>
     <string name="transfer_eta_seconds">%1$ds remaining</string>
     <string name="transfer_progress_bytes">%1$s / %2$s</string>
-    <string name="transfer_progress_items">%1$d / %2$d items</string>
+    <plurals name="transfer_progress_items"><item quantity="one">%1$d / %2$d item</item><item quantity="other">%1$d / %2$d items</item></plurals>
     <string name="file_operation_progress_percent">%1$d%% • %2$s</string>
     <string name="transfer_cancel_operation">Cancel operation</string>
     <string name="transfer_file_queue">File queue</string>

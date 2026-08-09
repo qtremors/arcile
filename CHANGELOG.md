@@ -1,10 +1,78 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.0
-> **Last Updated:** 2026-08-02
+> **Version:** 1.9.0
+> **Last Updated:** 2026-08-09
 
 ---
+
+## [1.9.0] - 2026-08-09
+
+- **Safe Cross-Storage Moves**: Kept fully verified destination copies when source cleanup only partially succeeds, recorded the remaining cleanup for safe retry, and retained rollback before source deletion begins.
+- **Responsive External Viewers**: Opened shared images, PDFs, videos, and audio without blocking the interface on storage providers, with readability checks, timeouts, and retryable failure states.
+- **Reliable Large Operations**: Stored bounded bulk-operation requests privately and handed services only a durable ID, preventing oversized selections from exceeding Android transaction limits or running twice.
+- **Safe Deep Folder Handling**: Made storage analysis and directory copies cancellable and cycle-aware without recursive stack growth, with bounded partial analysis for unusually large trees.
+- **Temporary Share Access**: Released only the document permissions acquired for Save to Arcile after rejection, completion, failure, cancellation, or interrupted-operation cleanup.
+
+## [1.8.9] - 2026-08-09
+
+- **Consistent Customization Ordering**: Added item-specific move controls across Utilities, Quick Access, and Home layout, with immediate Quick Access saves, position feedback, keyboard focus continuity, and Home draft apply/cancel behavior.
+- **Responsive Date Filters**: Kept date-range fields and actions reachable in short, landscape, large-text, and keyboard-constrained windows.
+- **Localized Audio Favorites**: Made the Audio favorites folder title and search follow the current app language, including live locale changes while the library remains open.
+- **Correct Count Grammar**: Fixed singular and plural wording across file, media, storage, backup, cleaner, and progress surfaces, with locale-aware quantity handling.
+- **Faster Secure Startup**: Removed recursive plaintext-share cleanup from app startup while still making old compatibility copies inaccessible immediately and deleting them safely in the background.
+- **Private Recovery Records**: Moved operation and mutation recovery data out of backups, removed archive passwords from persisted records, bounded retained data, and excluded vault locations from cloud backup and device transfer.
+- **Safer Compressed Extraction**: Enforced real expanded-size, compression-ratio, cancellation, and free-space limits for GZIP, BZIP2, and XZ files without leaving partial output.
+- **Safer Split-APK Installs**: Bounded split-package staging, extracted only device-compatible APKs into unique temporary folders, and cleaned them after every install or interruption path.
+- **Lighter Background Transfers**: Coalesced high-frequency file-operation progress so notifications and durable recovery checkpoints stay useful and exact without repeatedly writing every buffer update.
+
+## [1.8.8] - 2026-08-09
+
+- **Complete Search Overhaul**: Extended the redesigned search pill to Audio, Images, Video Gallery, APKs, Documents, shared category pages, and archive browsing, with separate app-bar-aligned back controls and clearer PDF match navigation.
+- **Reliable Filter-Only Results**: Restored filter-only search state, applied filter-sheet changes only after confirmation, included requested hidden MediaStore results, and added accurate empty-state feedback without typed text.
+- **Polished Viewer Behavior**: Kept the notification shade and navigation bar hidden during video playback, locked every vault when Arcile is backgrounded or OnlyFiles is exited, safely closed encrypted playback before locking, and reported PDF search failures clearly.
+- **Smoother, Consistent Feedback**: Animated Browser tab space while collapsing and standardized the remaining category snackbar presentation.
+- **Timely File Operation Feedback**: Showed copy and cut confirmation on the initiating screen, prevented completed operations from resurfacing elsewhere, kept cross-screen file lists current, distinguished queued clipboard items from live progress, and cleared only the clipboard session used by each paste.
+
+## [1.8.7] - 2026-08-09
+
+- **Complete PDF Controls**: Added pinch zoom, highlighted native text search on supported Android versions, a keep-screen-on toggle, and system printing.
+- **Reliable Video Playback**: Kept immersive video playback awake, restored hidden system bars, and safely closed encrypted OnlyFiles videos when the device locks.
+- **Roomier Browser and Search**: Made Browser tabs slide away while scrolling and return on downward gestures, redesigned every search bar, and enabled filters without typed text.
+- **Consistent Feedback**: Routed all 22 activity-level toast fallbacks through one shared presentation and retained the app-wide expressive snackbar treatment for in-app feedback.
+
+## [1.8.6] - 2026-08-09
+
+- **Natural Cleaner Refresh**: Added pull-to-refresh to the cleaner overview and every cleaner page, retained detailed scan progress, and removed refresh buttons and hidden hold gestures.
+- **Full Cleaner Pages**: Replaced cleaner bottom sheets with full navigation pages that preserve selections, duplicate comparisons, settings, and return state.
+- **Reliable Cleaner State**: Kept refresh feedback continuous, enabled refresh and retry on empty pages, safely revalidated selections while results reload, and updated cache totals after every return path.
+
+## [1.8.5] - 2026-08-08
+
+- **Faster Cleaner Scans**: Added cached, per-category scans with live wavy progress and ETA, optimized for large storage.
+- **Reliable Cleaner Results**: Removed deleted and stale files immediately, skipped Android-protected folders quietly, and fixed thumbnail-cache size reporting.
+- **Preserved Cleaner Navigation**: Kept the active cleaner, duplicate comparison, selections, and dialogs when returning from previews or folders.
+
+## [1.8.4] - 2026-08-08
+
+- **Configurable Browser Tabs**: Made tabs disabled by default with a Browser overflow toggle; hiding them preserves each Browser page's tab state.
+- **Landscape Dual Pane**: Added an optional Appearance setting that shows Browser 1 and Browser 2 side by side at equal width in landscape and returns to the last-focused Browser page in portrait.
+- **Refined Browser Tabs**: Added left/right ordering actions, reduced the tab strip's vertical footprint, and added leading spacing before the first tab.
+
+## [1.8.3] - 2026-08-08
+
+- **Independent Browser Tabs**: Added click-controlled tabs inside each existing Browser page, with independent locations, real folder, category, and archive names, protected pinned tabs, and page-specific persistence across launches.
+
+## [1.8.2] - 2026-08-08
+
+- **Custom Home Layout**: Added an Edit Home overflow action with a card dialog for showing, hiding, resetting, and drag-reordering Storage, Categories, Quick Access, Utilities, and Recent Files.
+- **Consistent Home Spacing**: Standardized section gutters and vertical spacing, omitted the top title when no header action is needed, and retained clear titles beside Manage, Show All, and See All actions.
+
+## [1.8.1] - 2026-08-08
+
+- **Root Storage Browsing**: Added an opt-in Root Storage shortcut for browsing system paths available through standard Android permissions, without root or Shizuku. This is limited access, not full privileged root storage support.
+- **Root Storage Usage**: Added a continuously swipeable Home card with matching layout and a System legend, loaded only when shown. Dashboard reporting remains separate from mounted-storage totals.
+- **Protected Location Handling**: Added back navigation outside detected storage volumes, reported denied folders instead of showing misleading empty results, and cached root discovery to avoid repeated permission probes.
 
 ## [1.8.0] - 2026-08-02
 

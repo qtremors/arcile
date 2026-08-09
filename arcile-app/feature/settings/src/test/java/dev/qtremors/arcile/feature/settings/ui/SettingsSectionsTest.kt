@@ -65,6 +65,15 @@ class SettingsSectionsTest {
     }
 
     @Test
+    fun `landscape dual pane setting updates independently`() {
+        val original = ThemeState(marqueeFilenames = true)
+        val updated = original.withLandscapeDualPane(true)
+
+        assertTrue(updated.landscapeDualPaneEnabled)
+        assertTrue(updated.marqueeFilenames)
+    }
+
+    @Test
     fun `busy external cache cannot launch a second clear`() {
         var clearCount = 0
         composeRule.setContent {

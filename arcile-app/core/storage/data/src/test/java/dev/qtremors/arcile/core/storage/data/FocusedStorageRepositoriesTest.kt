@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
 import dev.qtremors.arcile.core.storage.data.manager.TrashTarget
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
+import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
@@ -21,6 +22,7 @@ import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
+import dev.qtremors.arcile.core.storage.domain.RootStorageUsage
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageScope
@@ -137,7 +139,8 @@ class FocusedStorageRepositoriesTest {
             mediaStoreClient,
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
-            testDispatchers()
+            testDispatchers(),
+            RootStorageUsageProvider { null }
         )
 
         try {
@@ -150,6 +153,38 @@ class FocusedStorageRepositoriesTest {
             repository.searchFiles("match", scope, filters)
 
             assertEquals(Triple("match", scope, filters), mediaStoreClient.lastSearchRequest)
+        } finally {
+            database.close()
+        }
+    }
+
+    @Test
+    fun `root capacity is excluded from mounted-only storage info`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val database = Room.inMemoryDatabaseBuilder(context, ArcileDatabase::class.java)
+            .allowMainThreadQueries()
+            .build()
+        val volume = testVolume("primary", "/storage/emulated/0", kind = StorageKind.INTERNAL)
+        val rootUsage = RootStorageUsage(totalBytes = 500L, freeBytes = 125L)
+        val repository = DefaultMediaRepository(
+            RecordingVolumeProvider(listOf(volume)),
+            RecordingMediaStoreClient(),
+            RecordingTrashManager(),
+            RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
+            testDispatchers(),
+            RootStorageUsageProvider { rootUsage }
+        )
+
+        try {
+            val allStorage = repository.getStorageInfo(StorageScope.AllStorage).getOrThrow()
+            val mountedStorage = repository.getMountedStorageInfo(StorageScope.AllStorage).getOrThrow()
+            val mountedVolume = repository.getStorageInfo(StorageScope.Volume(volume.id)).getOrThrow()
+
+            assertEquals(rootUsage, allStorage.rootStorageUsage)
+            assertEquals(listOf(volume), allStorage.volumes)
+            assertEquals(null, mountedStorage.rootStorageUsage)
+            assertEquals(listOf(volume), mountedStorage.volumes)
+            assertEquals(null, mountedVolume.rootStorageUsage)
         } finally {
             database.close()
         }
@@ -189,7 +224,8 @@ class FocusedStorageRepositoriesTest {
                 mediaStoreClient,
                 RecordingTrashManager(),
                 snapshotStore,
-                testDispatchers()
+                testDispatchers(),
+                RootStorageUsageProvider { null }
             )
 
             val result = repository.getRecentFiles(scope, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()

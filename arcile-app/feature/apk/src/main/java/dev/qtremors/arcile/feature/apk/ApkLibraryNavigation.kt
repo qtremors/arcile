@@ -2,12 +2,15 @@ package dev.qtremors.arcile.feature.apk
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.clipboardStoredFeedback
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryFileActionCallbacks
 import kotlinx.coroutines.launch
@@ -23,6 +26,9 @@ fun NavGraphBuilder.registerApkLibraryRoute(
         val viewModel = hiltViewModel<ApkLibraryViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val scope = rememberCoroutineScope()
+        LaunchedEffect(viewModel, onFeedback) {
+            viewModel.feedbackEvents.collect(onFeedback)
+        }
         ApkLibraryScreen(
             state = state,
             onNavigateBack = onNavigateBack,
@@ -55,8 +61,16 @@ fun NavGraphBuilder.registerApkLibraryRoute(
             onFeedback = onFeedback,
             fileActions = CategoryLibraryFileActionCallbacks(
                 state = state.fileActions,
-                onCopy = viewModel::copySelection,
-                onCut = viewModel::cutSelection,
+                onCopy = {
+                    viewModel.copySelection().takeIf { it > 0 }?.let { count ->
+                        onFeedback(clipboardStoredFeedback(ClipboardOperation.COPY, count))
+                    }
+                },
+                onCut = {
+                    viewModel.cutSelection().takeIf { it > 0 }?.let { count ->
+                        onFeedback(clipboardStoredFeedback(ClipboardOperation.CUT, count))
+                    }
+                },
                 onDelete = viewModel::requestDelete,
                 onConfirmDelete = viewModel::confirmDelete,
                 onDismissDelete = viewModel::dismissDelete,

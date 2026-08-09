@@ -177,6 +177,12 @@ class FakeClipboardRepository : ClipboardRepository {
         _clipboardState.value = state
     }
 
+    override fun clearClipboardState(sessionId: String): Boolean {
+        if (_clipboardState.value?.sessionId != sessionId) return false
+        _clipboardState.value = null
+        return true
+    }
+
     var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
@@ -291,6 +297,11 @@ class FakeStorageRepositoryBundle(
         get() = storageAnalyticsRepository.storageInfoResultProvider
         set(value) {
             storageAnalyticsRepository.storageInfoResultProvider = value
+        }
+    var mountedStorageInfoResultProvider: (suspend (StorageScope) -> Result<StorageInfo>)?
+        get() = storageAnalyticsRepository.mountedStorageInfoResultProvider
+        set(value) {
+            storageAnalyticsRepository.mountedStorageInfoResultProvider = value
         }
     var recentFilesResultProvider: (suspend (StorageScope, Int, Int, Long) -> Result<List<FileModel>>)?
         get() = storageAnalyticsRepository.recentFilesResultProvider
@@ -412,6 +423,8 @@ class FakeStorageRepositoryBundle(
         get() = storageAnalyticsRepository.requestedRecentScopes
     val requestedStorageInfoScopes: MutableList<StorageScope>
         get() = storageAnalyticsRepository.requestedStorageInfoScopes
+    val requestedMountedStorageInfoScopes: MutableList<StorageScope>
+        get() = storageAnalyticsRepository.requestedMountedStorageInfoScopes
     val requestedCategoryScopes: MutableList<StorageScope>
         get() = storageAnalyticsRepository.requestedCategoryScopes
     val invalidateAnalyticsCacheCalls: Int

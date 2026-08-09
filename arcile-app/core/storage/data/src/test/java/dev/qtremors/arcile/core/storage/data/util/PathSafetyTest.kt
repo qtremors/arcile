@@ -40,6 +40,14 @@ class PathSafetyTest {
     }
 
     @Test
+    fun `validatePath allows descendants when filesystem root is allowed`() {
+        val filesystemRoot = root.toPath().root.toFile()
+
+        assertTrue(PathSafety.validatePath(root, listOf(filesystemRoot.absolutePath)).isSuccess)
+        assertTrue(PathSafety.validatePath(outside, listOf(filesystemRoot.absolutePath)).isSuccess)
+    }
+
+    @Test
     fun `validatePath rejects sibling paths with matching prefixes`() {
         val sibling = File(root.parentFile, "${root.name}-sibling").apply { mkdirs() }
 

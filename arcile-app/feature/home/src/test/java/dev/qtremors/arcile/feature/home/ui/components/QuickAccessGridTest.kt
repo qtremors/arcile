@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.feature.home.ui.components
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountTree
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.core.ui.packageNameForQuickAccessItem
@@ -64,5 +66,17 @@ class QuickAccessGridTest {
         )
 
         assertEquals("dev.qtremors.arcile", packageNameForQuickAccessItem(item))
+    }
+
+    @Test
+    fun `root storage uses filesystem tree icon when pinned`() {
+        val item = QuickAccessItem(
+            id = "standard_root_storage",
+            label = "Root Storage",
+            path = "/",
+            type = QuickAccessType.STANDARD
+        )
+
+        assertEquals(Icons.Outlined.AccountTree, iconForHomeQuickAccessItem(item))
     }
 }

@@ -88,7 +88,7 @@ internal class RecentFilesViewModel @Inject constructor(
                         searchQuery = searchState.query,
                         activeSearchFilters = searchState.filters,
                         searchResults = if (searchState.query.isBlank()) {
-                            emptyList()
+                            current.copy(activeSearchFilters = searchState.filters).displaySearchResults()
                         } else {
                             buildRecentFilesDisplay(
                                 files = searchState.results,
@@ -197,7 +197,7 @@ internal class RecentFilesViewModel @Inject constructor(
                         displayedRecentFiles = it.displayRecentFiles(newFiles),
                         currentOffset = offset,
                         hasMore = files.size == 50,
-                        searchResults = if (it.searchQuery.isNotBlank()) {
+                        searchResults = if (it.searchQuery.isNotBlank() || it.activeSearchFilters.hasActiveFilters) {
                             it.displaySearchResults(newFiles)
                         } else emptyList()
                     )
@@ -262,7 +262,7 @@ internal class RecentFilesViewModel @Inject constructor(
 
     fun selectAll() {
         _state.update { currentState ->
-            val allPaths = if (currentState.searchQuery.isNotBlank()) {
+            val allPaths = if (currentState.searchQuery.isNotBlank() || currentState.activeSearchFilters.hasActiveFilters) {
                 currentState.searchResults.map { it.absolutePath }
             } else {
                 currentState.displayedRecentFiles.map { it.absolutePath }

@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -49,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -61,12 +64,15 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import dev.qtremors.arcile.feature.home.HomeState
@@ -87,16 +93,89 @@ internal fun StorageSummaryCard(
     state: HomeState,
     onNavigateToPath: (String) -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
-    onOpenFileBrowser: () -> Unit
+    onOpenFileBrowser: () -> Unit,
+    onRootStoragePageVisible: () -> Unit
 ) {
     val volumes = state.allStorageVolumes.ifEmpty { state.storageInfo?.volumes ?: emptyList() }
-    
+    val rootStorageUsage = state.storageInfo?.rootStorageUsage
+
+    val pagerState = rememberPagerState(
+        initialPage = STORAGE_SUMMARY_INITIAL_PAGE,
+        pageCount = { STORAGE_SUMMARY_PAGER_PAGE_COUNT }
+    )
+    var mountedStoragePageHeightPx by remember { mutableIntStateOf(0) }
+    val mountedStoragePageHeight = with(LocalDensity.current) {
+        mountedStoragePageHeightPx.toDp()
+    }
+    val settledStoragePage = pagerState.settledPage % STORAGE_SUMMARY_PAGE_COUNT
+    LaunchedEffect(settledStoragePage) {
+        if (settledStoragePage == ROOT_STORAGE_PAGE) {
+            onRootStoragePageVisible()
+        }
+    }
+    Box(modifier = Modifier.fillMaxWidth()) {
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = mountedStoragePageHeight)
+                .testTag("storage_summary_pager"),
+            verticalAlignment = Alignment.CenterVertically
+        ) { page ->
+            when (page % STORAGE_SUMMARY_PAGE_COUNT) {
+                MOUNTED_STORAGE_PAGE -> MountedStorageSummaryCard(
+                    state = state,
+                    volumes = volumes,
+                    onNavigateToPath = onNavigateToPath,
+                    onOpenStorageDashboard = onOpenStorageDashboard,
+                    onOpenFileBrowser = onOpenFileBrowser,
+                    modifier = Modifier.onSizeChanged { size ->
+                        mountedStoragePageHeightPx = size.height
+                    }
+                )
+
+                ROOT_STORAGE_PAGE -> RootStorageUsageCard(
+                    usage = rootStorageUsage,
+                    isLoading = state.isRootStorageUsageLoading,
+                    hasLoadCompleted = state.hasLoadedRootStorageUsage,
+                    onClick = { onNavigateToPath("/") },
+                    modifier = Modifier.padding(
+                        horizontal = MaterialTheme.spacing.medium
+                    )
+                )
+            }
+        }
+        AnimatedVisibility(
+            visible = pagerState.isScrollInProgress,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 4.dp),
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            StorageSummaryPageIndicator(
+                selectedPage = pagerState.currentPage % STORAGE_SUMMARY_PAGE_COUNT
+            )
+        }
+    }
+}
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun MountedStorageSummaryCard(
+    state: HomeState,
+    volumes: List<StorageVolume>,
+    onNavigateToPath: (String) -> Unit,
+    onOpenStorageDashboard: (String?) -> Unit,
+    onOpenFileBrowser: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     if (volumes.size > 1) {
         // Multi-storage layout
         val indexedVolumes = volumes.filter { it.kind.isIndexed }
         val soleIndexedVolumeId = indexedVolumes.singleOrNull()?.id
-        Column(modifier = Modifier.padding(horizontal = MaterialTheme.spacing.medium, vertical = MaterialTheme.spacing.small)) {
-            volumes.forEach { volume ->
+        Column(modifier = modifier.padding(horizontal = MaterialTheme.spacing.medium)) {
+            volumes.forEachIndexed { index, volume ->
                 val volumeCategories = state.categoryStoragesByVolume[volume.id]
                     ?: if (volume.id == soleIndexedVolumeId) state.categoryStorages else emptyList()
                 val volumeTrashBytes = state.trashStorageUsage.byVolumeId[volume.id]
@@ -113,7 +192,9 @@ internal fun StorageSummaryCard(
                         }
                     }
                 )
-                Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                if (index < volumes.lastIndex) {
+                    Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
+                }
             }
         }
     } else {
@@ -124,10 +205,10 @@ internal fun StorageSummaryCard(
         val used = total - free
 
         Card(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .heightIn(min = 144.dp)
-                .padding(MaterialTheme.spacing.medium)
+                .padding(horizontal = MaterialTheme.spacing.medium)
                 .clip(MaterialTheme.shapes.extraLarge)
                 .bounceCombinedClickable(
                     onClick = onOpenFileBrowser,
@@ -235,8 +316,41 @@ internal fun StorageSummaryCard(
         }
     }
 }
+
 @Composable
-private fun CategoryLegendPlaceholder() {
+private fun StorageSummaryPageIndicator(selectedPage: Int) {
+    Row(
+        modifier = Modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(STORAGE_SUMMARY_PAGE_COUNT) { page ->
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 3.dp)
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(
+                        MaterialTheme.colorScheme.primary.copy(
+                            alpha = if (page == selectedPage) 1f else 0.35f
+                        )
+                    )
+            )
+        }
+    }
+}
+
+private const val MOUNTED_STORAGE_PAGE = 0
+private const val ROOT_STORAGE_PAGE = 1
+private const val STORAGE_SUMMARY_PAGE_COUNT = 2
+private const val STORAGE_SUMMARY_PAGER_PAGE_COUNT = Int.MAX_VALUE
+private const val STORAGE_SUMMARY_INITIAL_PAGE =
+    STORAGE_SUMMARY_PAGER_PAGE_COUNT / 2 - (STORAGE_SUMMARY_PAGER_PAGE_COUNT / 2 % STORAGE_SUMMARY_PAGE_COUNT)
+
+@Composable
+internal fun CategoryLegendPlaceholder(
+    contentColor: Color = MaterialTheme.colorScheme.onPrimaryContainer
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.space12)
@@ -247,8 +361,8 @@ private fun CategoryLegendPlaceholder() {
                     .width(88.dp)
                     .height(14.dp)
                     .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.10f))
-                    .shimmer(visible = true, highlightColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f))
+                    .background(contentColor.copy(alpha = 0.10f))
+                    .shimmer(visible = true, highlightColor = contentColor.copy(alpha = 0.12f))
             )
         }
     }
@@ -289,8 +403,7 @@ internal fun MultiColorStorageBar(
         if (hasData || isCalculating) {
             Box(modifier = Modifier.fillMaxSize()) {
                 // Data Layer (Segments / Indeterminate progress)
-                val hasSegmentData = categoryStorages.any { it.sizeBytes > 0L } || trashBytes > 0L
-                val showSegments = hasData && animationTrigger && hasSegmentData
+                val showSegments = hasData && animationTrigger
 
                 AnimatedContent(
                     targetState = showSegments,

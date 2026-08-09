@@ -14,6 +14,11 @@ import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
+internal enum class AudioFolderKind {
+    Directory,
+    Favorites
+}
+
 internal data class AudioFolder(
     val key: String,
     val title: String,
@@ -21,8 +26,9 @@ internal data class AudioFolder(
     val tracks: List<AudioTrack>,
     val customCoverPath: String? = null,
     val isPinned: Boolean = false,
-    val isFavorites: Boolean = false
+    val kind: AudioFolderKind = AudioFolderKind.Directory
 ) {
+    val isFavorites: Boolean get() = kind == AudioFolderKind.Favorites
     val coverTrack: AudioTrack
         get() = tracks.firstOrNull { it.file.absolutePath == customCoverPath }
             ?: tracks.maxByOrNull { it.file.lastModified }
@@ -57,6 +63,7 @@ internal data class AudioLibraryState(
     val favoritePaths: Set<String> = emptySet(),
     val pinnedFolderPaths: Set<String> = emptySet(),
     val folderCoverPaths: Map<String, String> = emptyMap(),
+    val favoriteSearchAliases: Set<String> = emptySet(),
     val folderFilter: AudioFolder? = null,
     val selectedPaths: Set<String> = emptySet(),
     val showTrashConfirmation: Boolean = false,

@@ -11,6 +11,18 @@
         <item quantity="one">%d item</item>
         <item quantity="other">%d items</item>
     </plurals>
+    <plurals name="clipboard_items_ready_to_paste">
+        <item quantity="one">%d item ready to paste</item>
+        <item quantity="other">%d items ready to paste</item>
+    </plurals>
+    <plurals name="clipboard_copied_items">
+        <item quantity="one">%d item copied to clipboard</item>
+        <item quantity="other">%d items copied to clipboard</item>
+    </plurals>
+    <plurals name="clipboard_cut_items">
+        <item quantity="one">%d item cut to clipboard</item>
+        <item quantity="other">%d items cut to clipboard</item>
+    </plurals>
     <plurals name="file_operation_processing_background">
         <item quantity="one">Processing %d item in the background</item>
         <item quantity="other">Processing %d items in the background</item>

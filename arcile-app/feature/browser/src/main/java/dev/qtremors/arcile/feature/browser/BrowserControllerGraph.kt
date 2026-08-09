@@ -64,7 +64,8 @@ internal fun createBrowserControllerGraph(
     volumeRepository: VolumeRepository,
     browserPreferencesRepository: BrowserLocationPreferencesStore,
     savedStateHandle: SavedStateHandle,
-    bulkFileCoordinator: BulkFileOperationCoordinator
+    bulkFileCoordinator: BulkFileOperationCoordinator,
+    operationOwnerId: String
 ): BrowserControllerGraph {
     lateinit var coordinator: BrowserCoordinator
     val transient = BrowserTransientController()
@@ -132,6 +133,7 @@ internal fun createBrowserControllerGraph(
         clipboardRepository = clipboardRepository,
         clipboardController = clipboardPresentation,
         coordinator = bulkFileCoordinator,
+        operationOwnerId = operationOwnerId,
         onBusyChange = { transient.setBusy(BrowserBusySource.OPERATION, it) },
         onError = transient::reportError,
         refreshAction = { coordinator.refreshAfterMutation() }
@@ -141,6 +143,7 @@ internal fun createBrowserControllerGraph(
         clipboardRepository = clipboardRepository,
         clipboardController = clipboardPresentation,
         operationCoordinator = bulkFileCoordinator,
+        operationOwnerId = operationOwnerId,
         contextProvider = {
             val current = navigation.state.value
             BrowserClipboardContext(
@@ -164,6 +167,7 @@ internal fun createBrowserControllerGraph(
         archiveRepository = archiveRepository,
         archivePathResolver = archivePathResolver,
         operationCoordinator = bulkFileCoordinator,
+        operationOwnerId = operationOwnerId,
         contextProvider = {
             val current = navigation.state.value
             BrowserArchiveWorkflowContext(
@@ -185,6 +189,7 @@ internal fun createBrowserControllerGraph(
         fileMutationRepository = fileMutationRepository,
         volumeRepository = volumeRepository,
         operationCoordinator = bulkFileCoordinator,
+        operationOwnerId = operationOwnerId,
         contextProvider = {
             val current = navigation.state.value
             BrowserMutationContext(

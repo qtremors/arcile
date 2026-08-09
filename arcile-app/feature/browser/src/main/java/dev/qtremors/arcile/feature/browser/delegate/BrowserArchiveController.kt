@@ -54,6 +54,7 @@ internal class BrowserArchiveController(
     private val archiveRepository: ArchiveRepository,
     private val archivePathResolver: ArchivePathResolver,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val contextProvider: () -> BrowserArchiveWorkflowContext,
     private val clearSelection: () -> Unit,
     private val onWorkflowChanged: (BrowserArchiveWorkflowState) -> Unit,
@@ -86,6 +87,7 @@ internal class BrowserArchiveController(
             is BulkFileOperationEvent.Cancelled -> event.request
             else -> null
         } ?: return
+        if (request.presentationOwnerId != operationOwnerId) return
 
         val creation = pendingCreation
         if (request.type == BulkFileOperationType.CREATE_ARCHIVE &&
@@ -313,7 +315,8 @@ internal class BrowserArchiveController(
             resolutions = step.resolutions,
             archiveEntryPrefix = request.entryPrefix,
             archivePassword = request.password,
-            archiveNameEncoding = request.nameEncoding
+            archiveNameEncoding = request.nameEncoding,
+            presentationOwnerId = operationOwnerId
         )
         if (started) {
             if (clearSelectionAfterStart) clearSelection()
@@ -379,7 +382,8 @@ internal class BrowserArchiveController(
             resolutions = emptyMap(),
             archiveFormat = creation.format,
             archivePassword = creation.password,
-            archiveCompressionLevel = creation.compressionLevel
+            archiveCompressionLevel = creation.compressionLevel,
+            presentationOwnerId = operationOwnerId
         )
         if (!started) {
             pendingCreation = null

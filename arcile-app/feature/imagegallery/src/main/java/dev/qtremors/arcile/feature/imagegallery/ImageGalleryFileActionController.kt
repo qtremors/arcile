@@ -9,6 +9,7 @@ import dev.qtremors.arcile.core.presentation.OperationPresentationMapper
 import dev.qtremors.arcile.core.presentation.SelectionPropertiesLoader
 import dev.qtremors.arcile.core.presentation.SelectionReducer
 import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.presentation.userMessage
 import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.ArchiveCollisionStyle
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
@@ -24,6 +25,8 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.fileOperationFeedback
 import dev.qtremors.arcile.core.presentation.delegate.DeleteFlowDelegate
 import dev.qtremors.arcile.core.presentation.delegate.DeleteStateCallbacks
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
@@ -33,6 +36,7 @@ import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,6 +44,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 internal class ImageGalleryFileActionController(
     initialState: ImageGalleryFileActionState,
@@ -49,12 +54,14 @@ internal class ImageGalleryFileActionController(
     private val clipboardRepository: ClipboardRepository,
     private val volumeRepository: VolumeRepository,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val archivePathResolver: ArchivePathResolver,
     private val files: () -> List<FileModel>,
     private val displayedPaths: () -> List<String>,
     private val onStateChange: (ImageGalleryFileActionState) -> Unit,
     private val onBusyChange: (Boolean) -> Unit,
     private val onError: (UiText?) -> Unit,
+    private val onOperationFeedback: (ArcileFeedbackEvent) -> Unit = {},
     private val onPathsRemoved: (List<String>) -> Unit,
     private val onRefreshRequested: () -> Unit
 ) {
@@ -62,6 +69,7 @@ internal class ImageGalleryFileActionController(
     private val _state = MutableStateFlow(initialState)
     val state: StateFlow<ImageGalleryFileActionState> = _state.asStateFlow()
     private val observationJobs = mutableListOf<Job>()
+    private var terminalClearJob: Job? = null
     private val propertiesLoader = SelectionPropertiesLoader(
         scope = scope,
         repository = fileBrowserRepository,
@@ -88,13 +96,22 @@ internal class ImageGalleryFileActionController(
         fileBrowserRepository = fileBrowserRepository,
         callbacks = deleteCallbacks(),
         startBulkDeleteOperation = { type, selected ->
-            operationCoordinator.startOperation(type, selected, null, emptyMap())
+            operationCoordinator.startOperation(
+                type,
+                selected,
+                null,
+                emptyMap(),
+                presentationOwnerId = operationOwnerId
+            )
         },
         onFailure = onRefreshRequested
     )
 
     fun startObserving() {
         stopObserving()
+        observationJobs += scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            operationCoordinator.activeRequest.collectLatest(::syncActiveRequest)
+        }
         observationJobs += scope.launch {
             clipboardRepository.clipboardState.collectLatest { clipboard ->
                 update { it.copy(clipboardState = clipboard) }
@@ -108,6 +125,23 @@ internal class ImageGalleryFileActionController(
     fun stopObserving() {
         observationJobs.forEach(Job::cancel)
         observationJobs.clear()
+        terminalClearJob?.cancel()
+    }
+
+    private fun syncActiveRequest(
+        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest?
+    ) {
+        val ownedRequest = request?.takeIf {
+            it.presentationOwnerId == operationOwnerId && it.type in galleryTrackedOperationTypes
+        }
+        if (ownedRequest != null) {
+            terminalClearJob?.cancel()
+            onBusyChange(true)
+            update { it.copy(activeFileOperation = OperationPresentationMapper.map(ownedRequest)) }
+        } else if (_state.value.activeFileOperation?.terminalStatus == null) {
+            onBusyChange(false)
+            update { it.copy(activeFileOperation = null) }
+        }
     }
 
     fun toggleSelection(path: String) {
@@ -213,13 +247,17 @@ internal class ImageGalleryFileActionController(
 
     fun dismissProperties() = propertiesLoader.dismiss()
 
-    fun copySelected() = storeSelection(ClipboardOperation.COPY)
-    fun cutSelected() = storeSelection(ClipboardOperation.CUT)
+    fun copySelected(): Int = storeSelection(ClipboardOperation.COPY)
+    fun cutSelected(): Int = storeSelection(ClipboardOperation.CUT)
 
-    private fun storeSelection(operation: ClipboardOperation) {
+    private fun storeSelection(operation: ClipboardOperation): Int {
         val selected = state.value.selectedFiles
-        if (clipboardController.store(operation, files().filter { it.absolutePath in selected })) {
+        val selectedFiles = files().filter { it.absolutePath in selected }
+        return if (clipboardController.store(operation, selectedFiles)) {
             clearSelection()
+            selectedFiles.size
+        } else {
+            0
         }
     }
 
@@ -277,8 +315,18 @@ internal class ImageGalleryFileActionController(
     }
 
     fun cancelClipboard() {
-        operationCoordinator.cancelActiveOperation()
-        clipboardController.clear()
+        val activeRequest = operationCoordinator.activeRequest.value
+            ?.takeIf {
+                it.presentationOwnerId == operationOwnerId &&
+                    it.clipboardSessionId != null &&
+                    it.type in galleryClipboardOperationTypes
+            }
+        if (activeRequest != null) {
+            operationCoordinator.cancelActiveOperation()
+            activeRequest.clipboardSessionId?.let(clipboardController::clear)
+        } else {
+            clipboardController.clear()
+        }
         dismissConflictDialog()
     }
 
@@ -307,7 +355,8 @@ internal class ImageGalleryFileActionController(
                 destinationPath = destination,
                 resolutions = emptyMap(),
                 archiveFormat = ArchiveFormat.ZIP,
-                archiveCompressionLevel = ArchiveCompressionLevel.STORE
+                archiveCompressionLevel = ArchiveCompressionLevel.STORE,
+                presentationOwnerId = operationOwnerId
             )
             clearSelection()
         }
@@ -347,7 +396,9 @@ internal class ImageGalleryFileActionController(
                 type = type,
                 sourcePaths = clipboard.files.map(FileModel::absolutePath),
                 destinationPath = destination,
-                resolutions = resolutions
+                resolutions = resolutions,
+                presentationOwnerId = operationOwnerId,
+                clipboardSessionId = clipboard.sessionId
             )
         ) {
             onBusyChange(false)
@@ -374,10 +425,12 @@ internal class ImageGalleryFileActionController(
             is BulkFileOperationEvent.Failed -> event.request
             is BulkFileOperationEvent.Cancelled -> event.request
             else -> null
-        }
-        if (request != null && request.type !in galleryTrackedOperationTypes) return
+        } ?: return
+        if (request.presentationOwnerId != operationOwnerId) return
+        if (request.type !in galleryTrackedOperationTypes) return
         when (event) {
             is BulkFileOperationEvent.Started -> {
+                terminalClearJob?.cancel()
                 onBusyChange(true)
                 onError(null)
                 update { it.copy(activeFileOperation = OperationPresentationMapper.map(event.request)) }
@@ -405,11 +458,12 @@ internal class ImageGalleryFileActionController(
             is BulkFileOperationEvent.Failed -> finishOperation(
                 event.request.type,
                 OperationCompletionStatus.FAILED,
-                event.request
+                event.request,
+                event.error?.userMessage
+                    ?: event.message.takeIf(String::isNotBlank)?.let(UiText::Dynamic)
             )
             is BulkFileOperationEvent.Cancelled -> {
-                val cancelled = event.request
-                finishOperation(cancelled?.type, OperationCompletionStatus.CANCELLED, cancelled)
+                finishOperation(request.type, OperationCompletionStatus.CANCELLED, request)
             }
             is BulkFileOperationEvent.RecoveryAvailable,
             is BulkFileOperationEvent.RecoveryCleanupCompleted,
@@ -420,18 +474,32 @@ internal class ImageGalleryFileActionController(
     private fun finishOperation(
         type: BulkFileOperationType?,
         status: OperationCompletionStatus,
-        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest?
+        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest?,
+        error: UiText? = null
     ) {
         onBusyChange(false)
-        if (type == null || type in galleryClipboardOperationTypes) clipboardController.clear()
+        val clipboardSessionId = request?.clipboardSessionId
+        if (type != null && type in galleryClipboardOperationTypes && clipboardSessionId != null) {
+            clipboardController.clear(clipboardSessionId)
+        }
         update {
             it.copy(
-                clipboardState = if (type == null || type in galleryClipboardOperationTypes) null else it.clipboardState,
+                clipboardState = if (it.clipboardState?.sessionId == clipboardSessionId) {
+                    null
+                } else {
+                    it.clipboardState
+                },
                 activeFileOperation = it.activeFileOperation?.copy(terminalStatus = status)
                     ?: request?.let { operation ->
                         OperationPresentationMapper.map(operation, terminalStatus = status)
                     }
             )
+        }
+        request?.let { onOperationFeedback(fileOperationFeedback(it, status, error)) }
+        terminalClearJob?.cancel()
+        terminalClearJob = scope.launch {
+            delay(TERMINAL_OPERATION_HOLD_MS)
+            clearActiveOperation()
         }
     }
 
@@ -481,5 +549,9 @@ internal class ImageGalleryFileActionController(
     ) {
         _state.update(transform)
         onStateChange(_state.value)
+    }
+
+    private companion object {
+        const val TERMINAL_OPERATION_HOLD_MS = 800L
     }
 }

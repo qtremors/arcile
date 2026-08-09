@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
+import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
 import java.util.ArrayDeque
@@ -38,8 +39,12 @@ internal class BrowserNavigationPersistence(
                 val path = savedStateHandle.get<String>("currentPath")
                     ?.takeIf(String::isNotEmpty)
                     ?: return null
-                val restoredVolumeId = volumeId?.takeIf(String::isNotEmpty) ?: return null
-                StorageBrowserLocation.Directory(StorageScope.Path(restoredVolumeId, path))
+                val restoredVolumeId = volumeId?.takeIf(String::isNotEmpty)
+                if (restoredVolumeId != null) {
+                    StorageBrowserLocation.Directory(StorageScope.Path(restoredVolumeId, path))
+                } else {
+                    StorageBrowserLocation.DirectDirectory(StorageNodePath.of(path))
+                }
             }
         }
     }

@@ -35,6 +35,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.ui.Alignment
@@ -103,6 +104,7 @@ import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessState
 import dev.qtremors.arcile.core.ui.QuickAccessAppIcon
+import dev.qtremors.arcile.core.ui.reorder.ReorderControls
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
@@ -119,48 +121,6 @@ internal fun SectionHeader(title: String) {
 }
 
 @Composable
-internal fun QuickAccessSectionGroup(
-    title: String,
-    items: List<QuickAccessItem>,
-    onNavigateToPath: (String) -> Unit,
-    onNavigateToSaf: (String) -> Unit,
-    onTogglePin: (QuickAccessItem) -> Unit,
-    onRemoveItem: (QuickAccessItem) -> Unit
-) {
-    if (items.isEmpty()) return
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        SectionHeader(title)
-
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
-        ) {
-            items.forEachIndexed { index, item ->
-                QuickAccessListItem(
-                    item = item,
-                    index = index,
-                    count = items.size,
-                    onNavigate = {
-                        if (item.type == QuickAccessType.SAF_TREE ||
-                            item.type == QuickAccessType.EXTERNAL_HANDOFF ||
-                            item.type == QuickAccessType.FILES_APP) {
-                            onNavigateToSaf(item.path)
-                        } else {
-                            onNavigateToPath(item.path)
-                        }
-                    },
-                    onTogglePin = { onTogglePin(item) },
-                    onRemove = { onRemoveItem(item) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 internal fun QuickAccessListItem(
     item: QuickAccessItem,
     index: Int,
@@ -168,6 +128,10 @@ internal fun QuickAccessListItem(
     onNavigate: () -> Unit,
     onTogglePin: () -> Unit,
     onRemove: () -> Unit,
+    reorderPosition: Int? = null,
+    reorderCount: Int = 0,
+    onMoveUp: () -> Unit = {},
+    onMoveDown: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val haptics = rememberArcileHaptics()
@@ -252,8 +216,17 @@ internal fun QuickAccessListItem(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    if (reorderPosition != null) {
+                        ReorderControls(
+                            itemLabel = item.label,
+                            position = reorderPosition,
+                            itemCount = reorderCount,
+                            onMoveUp = onMoveUp,
+                            onMoveDown = onMoveDown
+                        )
+                    }
                     val showOnHomeLabel = stringResource(R.string.quick_access_show_on_home)
                     val showOnHomeContentDescription = stringResource(
                         R.string.quick_access_home_toggle_description,
@@ -309,6 +282,7 @@ internal fun QuickAccessListItem(
 }
 
 internal fun iconForQuickAccessItem(item: QuickAccessItem): ImageVector {
+    if (item.id == ROOT_STORAGE_ID) return Icons.Default.AccountTree
     return when (item.type) {
         QuickAccessType.SAF_TREE -> Icons.Default.FolderSpecial
         QuickAccessType.EXTERNAL_HANDOFF -> Icons.Default.FolderSpecial

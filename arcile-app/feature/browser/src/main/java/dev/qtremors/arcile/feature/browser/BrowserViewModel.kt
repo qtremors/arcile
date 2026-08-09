@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import java.util.UUID
 @HiltViewModel
 internal class BrowserViewModel @Inject constructor(
     private val fileBrowserRepository: FileBrowserRepository,
@@ -71,6 +72,8 @@ internal class BrowserViewModel @Inject constructor(
         }
     }
     private val scrollPositionStore = BrowserScrollPositionStore(savedStateHandle)
+    private val operationOwnerId = savedStateHandle.get<String>(OPERATION_OWNER_ID_KEY)
+        ?: "browser:${UUID.randomUUID()}".also { savedStateHandle[OPERATION_OWNER_ID_KEY] = it }
     private val controllers = createBrowserControllerGraph(
         scope = viewModelScope,
         fileBrowserRepository = fileBrowserRepository,
@@ -83,7 +86,8 @@ internal class BrowserViewModel @Inject constructor(
         volumeRepository = volumeRepository,
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
-        bulkFileCoordinator = bulkFileCoordinator
+        bulkFileCoordinator = bulkFileCoordinator,
+        operationOwnerId = operationOwnerId
     )
     private val navigationController = controllers.navigation
     private val searchController = controllers.search
@@ -114,6 +118,7 @@ internal class BrowserViewModel @Inject constructor(
         navigation = navigationController
     )
     val initializationState: StateFlow<BrowserInitializationState> = initializer.state
+    private var lastPreparedEntryRequestId: Long? = null
 
     init {
         operationController.startObserving()
@@ -143,8 +148,35 @@ internal class BrowserViewModel @Inject constructor(
         }
     }
 
-    fun initialize(entryRequest: BrowserEntryRequest?) = initializer.initialize(entryRequest)
+    fun initialize(entryRequest: BrowserEntryRequest?) {
+        val newRequest = entryRequest?.takeIf { it.id != lastPreparedEntryRequestId }
+        if (newRequest != null) {
+            selectionController.clear()
+            searchController.updateQuery("")
+            searchController.updateFilters(SearchFilters())
+            searchController.setFilterMenuVisible(false)
+            propertiesController.dismiss()
+            conflictController.dismiss()
+            mutationController.dismissDeleteConfirmation()
+            controllers.transient.clearError()
+            if (newRequest.resetWorkspace) {
+                scrollPositionStore.clear()
+                archiveController.dismissWorkflow()
+                navigationController.dismissArchivePasswordPrompt()
+                revealController.clear()
+            }
+        }
+        lastPreparedEntryRequestId = entryRequest?.id
+        if (newRequest?.resetWorkspace == true) {
+            initializer.reset(newRequest)
+        } else {
+            initializer.initialize(entryRequest)
+        }
+    }
     fun retryInitialization() = initializer.retry()
+    fun isPreparedEntryRequest(entryRequest: BrowserEntryRequest?): Boolean =
+        entryRequest == null || entryRequest.id == lastPreparedEntryRequestId
+
     fun openFileBrowser(restorePersistentLocation: Boolean = false, errorMessage: String? = null) =
         navigationController.openFileBrowser(restorePersistentLocation, errorMessage?.let(UiText::Dynamic))
 
@@ -272,8 +304,8 @@ internal class BrowserViewModel @Inject constructor(
     fun dismissRecoveredOperation(operationId: String) = operationController.dismissRecoveredOperation(operationId)
     fun openPropertiesForSelection() = propertiesController.openForSelection()
     fun dismissProperties() = propertiesController.dismiss()
-    fun copySelectedToClipboard() = pasteController.copySelected()
-    fun cutSelectedToClipboard() = pasteController.cutSelected()
+    fun copySelectedToClipboard(): Int = pasteController.copySelected()
+    fun cutSelectedToClipboard(): Int = pasteController.cutSelected()
     fun cancelClipboard() = pasteController.cancel()
     fun pasteFromClipboard() = pasteController.paste()
     fun removeFromClipboard(path: String) = pasteController.remove(path)
@@ -319,6 +351,10 @@ internal class BrowserViewModel @Inject constructor(
         operationController.stopObserving()
         archiveController.stopObserving()
         super.onCleared()
+    }
+
+    private companion object {
+        const val OPERATION_OWNER_ID_KEY = "browserOperationOwnerId"
     }
 
 }
