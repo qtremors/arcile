@@ -340,6 +340,7 @@
     <string name="search_category_placeholder">Search %1$s...</string>
     <string name="no_results_found">No results found</string>
     <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
+    <string name="no_results_for_filters">No files match the selected filters. Try clearing or changing a filter.</string>
     <string name="empty_state_generic_title">Nothing to show</string>
     <string name="empty_state_generic_description">There is no content available for this view.</string>
     <string name="empty_directory">Empty Directory</string>

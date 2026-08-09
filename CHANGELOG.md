@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.6
+> **Version:** 1.8.7
 > **Last Updated:** 2026-08-09
 
 ---
+
+## [1.8.7] - 2026-08-09
+
+- **Complete PDF Controls**: Added pinch zoom, highlighted native text search on supported Android versions, a keep-screen-on toggle, and system printing.
+- **Reliable Video Playback**: Kept immersive video playback awake, restored hidden system bars, and safely closed encrypted OnlyFiles videos when the device locks.
+- **Roomier Browser and Search**: Made Browser tabs slide away while scrolling and return on downward gestures, redesigned every search bar, and enabled filters without typed text.
+- **Consistent Feedback**: Routed all 22 activity-level toast fallbacks through one shared presentation and retained the app-wide expressive snackbar treatment for in-app feedback.
 
 ## [1.8.6] - 2026-08-09
 

@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -29,14 +29,12 @@ class TextEditorActivity : ComponentActivity() {
         enableEdgeToEdge()
         val target = resolveStandaloneTextTarget(this, intent)
         if (target == null) {
-            Toast.makeText(
-                this,
+            showArcileToast(
                 getString(
                     R.string.cannot_open_file,
                     getString(R.string.error_unsupported_provider)
-                ),
-                Toast.LENGTH_SHORT
-            ).show()
+                )
+            )
             finish()
             return
         }
@@ -89,11 +87,7 @@ class TextEditorActivity : ComponentActivity() {
     }
 
     private fun showFailure() {
-        Toast.makeText(
-            this,
-            getString(R.string.cannot_open_file, getString(R.string.no_app_found)),
-            Toast.LENGTH_SHORT
-        ).show()
+        showArcileToast(getString(R.string.cannot_open_file, getString(R.string.no_app_found)))
     }
 }
 

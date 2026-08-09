@@ -6,7 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
@@ -25,7 +25,7 @@ internal class VideoViewerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val target = resolveExternalVideoTarget(this, intent)
         if (target == null) {
-            Toast.makeText(this, getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)), Toast.LENGTH_SHORT).show()
+            showArcileToast(getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)))
             finish()
             return
         }
@@ -72,7 +72,7 @@ internal class VideoViewerActivity : ComponentActivity() {
     }
 
     private fun showFailure() {
-        Toast.makeText(this, getString(R.string.cannot_open_file, ""), Toast.LENGTH_SHORT).show()
+        showArcileToast(getString(R.string.cannot_open_file, ""))
     }
 }
 

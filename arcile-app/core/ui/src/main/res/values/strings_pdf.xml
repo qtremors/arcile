@@ -10,4 +10,14 @@
     <string name="pdf_pages">Pages</string>
     <string name="pdf_size">Size</string>
     <string name="pdf_cannot_open">This PDF could not be rendered</string>
+    <string name="pdf_search">Search PDF</string>
+    <string name="pdf_search_hint">Find in PDF</string>
+    <string name="pdf_search_previous">Previous match</string>
+    <string name="pdf_search_next">Next match</string>
+    <string name="pdf_searching">Searching…</string>
+    <string name="pdf_search_no_results">No matches</string>
+    <string name="pdf_search_requires_android_15">Requires Android 15+</string>
+    <string name="pdf_keep_screen_on">Keep screen on</string>
+    <string name="pdf_print">Print</string>
+    <string name="pdf_print_failed">Unable to start printing</string>
 </resources>

@@ -228,6 +228,11 @@ internal fun VideoViewerPlaybackSurface(
             var playbackError by remember { mutableStateOf<PlaybackException?>(null) }
             var isBuffering by remember { mutableStateOf(true) }
             var playbackEnded by remember { mutableStateOf(false) }
+            VideoViewerWindowEffects(
+                keepScreenOn = isPlaying || isBuffering,
+                immersive = true,
+                onDeviceLocked = onNavigateBack.takeIf { session.securityScopeId != null }
+            )
             var resumeAfterLifecyclePause by remember(player) { mutableStateOf(true) }
             var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }
             val resizeModes = remember {

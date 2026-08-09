@@ -25,6 +25,7 @@ class DebouncedSearchController<T, F>(
     initialResults: List<T> = emptyList(),
     private val debounceMillis: Long,
     private val fallbackError: UiText,
+    private val shouldSearch: (query: String, filters: F) -> Boolean = { query, _ -> query.isNotBlank() },
     private val search: suspend (query: String, filters: F) -> Result<List<T>>
 ) {
     private val _state = MutableStateFlow(
@@ -46,13 +47,13 @@ class DebouncedSearchController<T, F>(
 
     fun updateFilters(filters: F, restartSearch: Boolean = true) {
         _state.update { it.copy(filters = filters) }
-        if (restartSearch && _state.value.query.isNotBlank()) {
+        if (restartSearch && shouldSearch(_state.value.query, _state.value.filters)) {
             scheduleSearch()
         }
     }
 
     fun refresh() {
-        if (_state.value.query.isNotBlank()) {
+        if (shouldSearch(_state.value.query, _state.value.filters)) {
             scheduleSearch()
         }
     }
@@ -65,7 +66,7 @@ class DebouncedSearchController<T, F>(
         val generation = ++requestGeneration
         searchJob?.cancel()
         val current = _state.value
-        if (current.query.isBlank()) {
+        if (!shouldSearch(current.query, current.filters)) {
             _state.update {
                 it.copy(
                     results = emptyList(),

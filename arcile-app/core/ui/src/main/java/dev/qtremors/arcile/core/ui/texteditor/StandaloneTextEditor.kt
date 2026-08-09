@@ -2,7 +2,7 @@ package dev.qtremors.arcile.core.ui.texteditor
 
 import android.content.Context
 import android.net.Uri
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedContent
@@ -173,22 +173,17 @@ fun StandaloneTextEditor(
         }
         if (draftResult.isFailure && !draftFailureShown) {
             draftFailureShown = true
-            Toast.makeText(
-                context,
+            context.showArcileToast(
                 context.getString(R.string.text_editor_draft_failed),
-                Toast.LENGTH_LONG
-            ).show()
+                longDuration = true
+            )
         }
     }
 
     val attemptBack: () -> Unit = {
         when {
             infoVisible -> infoVisible = false
-            isSaving -> Toast.makeText(
-                context,
-                context.getString(R.string.text_editor_wait_for_save),
-                Toast.LENGTH_SHORT
-            ).show()
+            isSaving -> context.showArcileToast(context.getString(R.string.text_editor_wait_for_save))
             isDirty -> showUnsavedDialog = true
             else -> onNavigateBack()
         }
@@ -257,23 +252,18 @@ fun StandaloneTextEditor(
                     withContext(Dispatchers.IO) {
                         if (noNewEdits) clearDraft(context, reference)
                     }
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.text_editor_save_success),
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    context.showArcileToast(context.getString(R.string.text_editor_save_success))
                     if (noNewEdits) onSuccess()
                 },
                 onFailure = { error ->
                     if (error is CancellationException) throw error
-                    Toast.makeText(
-                        context,
+                    context.showArcileToast(
                         context.getString(
                             R.string.text_editor_save_failed_detail,
                             error.localizedMessage ?: context.getString(R.string.text_editor_unknown_error)
                         ),
-                        Toast.LENGTH_LONG
-                    ).show()
+                        longDuration = true
+                    )
                 }
             )
         }

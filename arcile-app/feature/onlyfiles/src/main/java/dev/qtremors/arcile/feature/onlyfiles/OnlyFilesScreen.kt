@@ -245,7 +245,8 @@ private fun OnlyFilesScreen(
                     onQueryChange = viewModel::updateSearch,
                     onClose = { showSearch = false; viewModel.updateSearch("") },
                     onFilterClick = viewModel::toggleRecursiveSearch,
-                    placeholder = stringResource(R.string.onlyfiles_search)
+                    placeholder = stringResource(R.string.onlyfiles_search),
+                    filtersActive = state.recursiveSearch
                 )
             } else Column {
                 if (state.selectedNodeIds.isNotEmpty()) {

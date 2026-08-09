@@ -1,6 +1,11 @@
 package dev.qtremors.arcile.feature.browser.ui
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -41,6 +46,7 @@ internal fun BrowserTopBars(
     onBackClick: () -> Unit,
     onSelectionChanged: () -> Unit,
     workspaceTabs: @Composable () -> Unit,
+    workspaceTabsVisible: Boolean,
     workspaceTabsEnabled: Boolean,
     onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)?,
     onShowPinnedSnackbar: (String) -> Unit
@@ -60,14 +66,15 @@ internal fun BrowserTopBars(
                     searchIntents.onClearSearch()
                 },
                 onFilterClick = { searchIntents.onToggleSearchFilterMenu(true) },
-                placeholder = searchPlaceholder
+                placeholder = searchPlaceholder,
+                filtersActive = state.activeSearchFilters.hasActiveFilters
             )
 
             ActiveFiltersRow(
                 filters = state.activeSearchFilters,
                 onClearFilter = { clearedFilters -> searchIntents.onSearchFiltersChange(clearedFilters) }
             )
-            workspaceTabs()
+            CollapsingWorkspaceTabs(workspaceTabsVisible, workspaceTabs)
         }
     } else {
         Column {
@@ -170,7 +177,21 @@ internal fun BrowserTopBars(
                     }
                 )
             )
-            workspaceTabs()
+            CollapsingWorkspaceTabs(workspaceTabsVisible, workspaceTabs)
         }
+    }
+}
+
+@Composable
+private fun CollapsingWorkspaceTabs(
+    visible: Boolean,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = slideInVertically { -it } + fadeIn(),
+        exit = slideOutVertically { -it } + fadeOut()
+    ) {
+        content()
     }
 }

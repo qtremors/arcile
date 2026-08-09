@@ -7,7 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.lifecycle.lifecycleScope
@@ -25,7 +25,7 @@ class ImageViewerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val target = resolveStandaloneImageTarget(this, intent)
         if (target == null) {
-            Toast.makeText(this, getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)), Toast.LENGTH_SHORT).show()
+            showArcileToast(getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)))
             finish()
             return
         }
@@ -59,7 +59,7 @@ class ImageViewerActivity : ComponentActivity() {
                 )
             )
             if (!shared) {
-                Toast.makeText(this@ImageViewerActivity, getString(R.string.cannot_open_file, getString(R.string.no_app_found)), Toast.LENGTH_SHORT).show()
+                showArcileToast(getString(R.string.cannot_open_file, getString(R.string.no_app_found)))
             }
         }
     }
@@ -78,7 +78,7 @@ class ImageViewerActivity : ComponentActivity() {
                 )
                 startActivity(Intent.createChooser(openIntent, getString(R.string.image_gallery_open_with)))
             }.onFailure {
-                Toast.makeText(this@ImageViewerActivity, getString(R.string.cannot_open_file, it.localizedMessage ?: ""), Toast.LENGTH_SHORT).show()
+                showArcileToast(getString(R.string.cannot_open_file, it.localizedMessage ?: ""))
             }
         }
     }

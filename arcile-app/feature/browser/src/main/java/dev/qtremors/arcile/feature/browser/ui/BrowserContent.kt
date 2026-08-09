@@ -89,7 +89,9 @@ internal fun BrowserContent(
 ) {
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
-    val searchHasCompleted = showSearchBar && state.browserSearchQuery.isNotEmpty() && !state.isSearching
+    val searchHasCompleted = showSearchBar &&
+        (state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters) &&
+        !state.isSearching
     val targetKey = BrowserContentKey(
         isSearch = searchHasCompleted,
         path = state.currentPath,
@@ -287,7 +289,11 @@ private fun BrowserSearchResults(
         EmptyState(
             variant = EmptyStateVariant.Search,
             title = stringResource(R.string.no_results_found),
-            description = stringResource(R.string.no_results_description, state.browserSearchQuery),
+            description = if (state.browserSearchQuery.isBlank()) {
+                stringResource(R.string.no_results_for_filters)
+            } else {
+                stringResource(R.string.no_results_description, state.browserSearchQuery)
+            },
             modifier = Modifier.fillMaxSize()
         )
     } else {

@@ -11,7 +11,7 @@ import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.Gravity
 import android.view.WindowManager
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -168,11 +168,9 @@ class AudioPlayerActivity : ComponentActivity() {
     private fun openIntent(intent: Intent): Boolean {
         val target = resolveStandaloneAudioTarget(this, intent)
         if (target == null) {
-            Toast.makeText(
-                this,
-                getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)),
-                Toast.LENGTH_SHORT
-            ).show()
+            showArcileToast(
+                getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider))
+            )
             finish()
             return false
         }
@@ -260,7 +258,7 @@ class AudioPlayerActivity : ComponentActivity() {
     }
 
     private fun showFailure() {
-        Toast.makeText(this, getString(R.string.cannot_open_file, ""), Toast.LENGTH_SHORT).show()
+        showArcileToast(getString(R.string.cannot_open_file, ""))
     }
 }
 

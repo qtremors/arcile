@@ -41,7 +41,11 @@ fun NavGraphBuilder.registerRecentFilesRoute(
         val viewModel = hiltViewModel<RecentFilesViewModel>()
         val state by viewModel.state.collectAsStateWithLifecycle()
         val coroutineScope = rememberCoroutineScope()
-        val openFiles = if (state.searchQuery.isNotBlank()) state.searchResults else state.displayedRecentFiles
+        val openFiles = if (state.searchQuery.isNotBlank() || state.activeSearchFilters.hasActiveFilters) {
+            state.searchResults
+        } else {
+            state.displayedRecentFiles
+        }
         RecentFilesScreen(
             state = state,
             navigationActions = dev.qtremors.arcile.feature.recentfiles.ui.RecentNavigationActions(

@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.audio.canResolveStandaloneAudio
 
@@ -13,7 +13,7 @@ class FileOpenActivity : Activity() {
         super.onCreate(savedInstanceState)
         val viewerActivityName = resolveStandaloneViewerActivityName(this, intent)
         if (viewerActivityName == null) {
-            Toast.makeText(this, getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)), Toast.LENGTH_SHORT).show()
+            showArcileToast(getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)))
             finish()
             return
         }

@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.importing
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
+import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
@@ -37,11 +37,10 @@ class SaveToArcileActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val preflight = IncomingShareReader.preflightFromIntent(this, intent)
         if (preflight.accepted.isEmpty()) {
-            Toast.makeText(
-                this,
+            showArcileToast(
                 preflight.messageOrDefault(getString(R.string.save_to_arcile_no_files)),
-                Toast.LENGTH_LONG
-            ).show()
+                longDuration = true
+            )
             finish()
             return
         }
@@ -114,23 +113,18 @@ class SaveToArcileActivity : ComponentActivity() {
     }
 
     private fun showDefaultSaved() {
-        Toast.makeText(
-            this,
-            getString(R.string.save_to_arcile_default_saved),
-            Toast.LENGTH_SHORT
-        ).show()
+        showArcileToast(getString(R.string.save_to_arcile_default_saved))
     }
 
     private fun handleImportStarted(result: SaveIncomingResult) {
-        Toast.makeText(this, result.userMessage(this), Toast.LENGTH_LONG).show()
+        showArcileToast(result.userMessage(this), longDuration = true)
         if (result.queued || result.savedCount > 0 || result.failures.isEmpty()) finish()
     }
 
     private fun showImportFailure(error: Throwable) {
-        Toast.makeText(
-            this,
+        showArcileToast(
             getString(R.string.save_to_arcile_failed, error.message ?: ""),
-            Toast.LENGTH_LONG
-        ).show()
+            longDuration = true
+        )
     }
 }

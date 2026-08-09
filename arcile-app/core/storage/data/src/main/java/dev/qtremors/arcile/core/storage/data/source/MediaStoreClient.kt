@@ -343,7 +343,9 @@ class DefaultMediaStoreClient(
         scope: StorageScope,
         filters: SearchFilters?
     ): Result<List<FileModel>> = withContext(dispatchers.io) {
-        if (query.isBlank()) return@withContext Result.success(emptyList())
+        if (query.isBlank() && filters?.hasActiveFilters != true) {
+            return@withContext Result.success(emptyList())
+        }
         val searchFilters = filters
 
         try {
@@ -380,10 +382,13 @@ class DefaultMediaStoreClient(
                         }
 
                         if (current != rootDir &&
-                            current.name.contains(query, ignoreCase = true) &&
+                            (query.isBlank() || current.name.contains(query, ignoreCase = true)) &&
                             (searchFilters?.includeHidden == true || !current.name.startsWith("."))
                         ) {
-                            filesList.add(current.toFileModel())
+                            val candidate = current.toFileModel()
+                            if (searchFilters == null || candidate.matchesSearchFilters(searchFilters, allVolumes)) {
+                                filesList.add(candidate)
+                            }
                             if (filesList.size >= MAX_PATH_SEARCH_RESULTS) {
                                 break
                             }
@@ -403,8 +408,12 @@ class DefaultMediaStoreClient(
             } else {
                 val uri = MediaStore.Files.getContentUri("external")
                 val projection = mediaProjection()
-                val selectionBuilder = StringBuilder("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
-                val selectionArgs = mutableListOf("%$query%")
+                val selectionParts = mutableListOf<String>()
+                val selectionArgs = mutableListOf<String>()
+                if (query.isNotBlank()) {
+                    selectionParts.add("${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?")
+                    selectionArgs.add("%$query%")
+                }
                 
                 if (scope is StorageScope.Category) {
                     val category = FileCategories.find(scope.categoryName)
@@ -427,15 +436,18 @@ class DefaultMediaStoreClient(
                         }
 
                         if (categoryClauses.isNotEmpty()) {
-                            selectionBuilder.append(" AND (${categoryClauses.joinToString(" OR ")})")
+                            selectionParts.add("(${categoryClauses.joinToString(" OR ")})")
                         }
                     }
                 }
                 
+                val selection = selectionParts.joinToString(" AND ").takeIf(String::isNotEmpty)
                 val sortOrder = "MAX(${MediaStore.Files.FileColumns.DATE_MODIFIED}, ${MediaStore.Files.FileColumns.DATE_ADDED}) DESC"
                 val bundle = android.os.Bundle().apply {
-                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selectionBuilder.toString())
-                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
+                    selection?.let {
+                        putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, it)
+                        putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray())
+                    }
                     putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
                     putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, MAX_PATH_SEARCH_RESULTS)
                 }
@@ -444,7 +456,7 @@ class DefaultMediaStoreClient(
                     context.contentResolver.query(uri, projection, bundle, null)
                 } else {
                     @Suppress("DEPRECATION")
-                    context.contentResolver.query(uri, projection, selectionBuilder.toString(), selectionArgs.toTypedArray(), "$sortOrder LIMIT $MAX_PATH_SEARCH_RESULTS")
+                    context.contentResolver.query(uri, projection, selection, selectionArgs.toTypedArray(), "$sortOrder LIMIT $MAX_PATH_SEARCH_RESULTS")
                 }
 
                 cursor?.use { c ->

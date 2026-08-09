@@ -106,6 +106,7 @@ internal fun BrowserScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumeRestoreTick by remember { mutableStateOf(0) }
     var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
+    var workspaceTabsVisible by rememberSaveable { mutableStateOf(true) }
     
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
@@ -170,6 +171,41 @@ internal fun BrowserScreen(
         )
     }
     BrowserScrollEffects(state, scroll, resumeRestoreTick)
+    LaunchedEffect(state.browserViewMode, listState, gridState) {
+        var previousIndex = 0
+        var previousOffset = 0
+        snapshotFlow {
+            if (state.browserViewMode == FileViewMode.GRID) {
+                BrowserTabsScrollCapture(
+                    gridState.isScrollInProgress,
+                    gridState.firstVisibleItemIndex,
+                    gridState.firstVisibleItemScrollOffset
+                )
+            } else {
+                BrowserTabsScrollCapture(
+                    listState.isScrollInProgress,
+                    listState.firstVisibleItemIndex,
+                    listState.firstVisibleItemScrollOffset
+                )
+            }
+        }.distinctUntilChanged().collect { capture ->
+            val atTop = capture.index == 0 && capture.offset == 0
+            if (atTop) {
+                workspaceTabsVisible = true
+            } else if (capture.isScrollInProgress) {
+                val movingForward = capture.index > previousIndex ||
+                    (capture.index == previousIndex && capture.offset > previousOffset)
+                val movingBackward = capture.index < previousIndex ||
+                    (capture.index == previousIndex && capture.offset < previousOffset)
+                when {
+                    movingForward -> workspaceTabsVisible = false
+                    movingBackward -> workspaceTabsVisible = true
+                }
+            }
+            previousIndex = capture.index
+            previousOffset = capture.offset
+        }
+    }
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
     val switchCategoryFolderTab: (Int) -> Unit = { direction ->
@@ -361,6 +397,7 @@ internal fun BrowserScreen(
                     onBackClick = handleBrowserBack,
                     onSelectionChanged = { haptics.selectionChanged() },
                     workspaceTabs = workspaceTabs,
+                    workspaceTabsVisible = workspaceTabsVisible,
                     workspaceTabsEnabled = workspaceTabsEnabled,
                     onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange,
                     onShowPinnedSnackbar = { label ->
@@ -461,3 +498,9 @@ internal fun BrowserScreen(
         batchRenameHistory = batchRenameHistory
     )
 }
+
+private data class BrowserTabsScrollCapture(
+    val isScrollInProgress: Boolean,
+    val index: Int,
+    val offset: Int
+)

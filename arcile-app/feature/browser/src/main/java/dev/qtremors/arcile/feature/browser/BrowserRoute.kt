@@ -251,7 +251,7 @@ fun BrowserRoute(
                     onDestination(
                         BrowserDestination.OpenFile(
                             path = path,
-                            surroundingFiles = if (state.browserSearchQuery.isNotBlank()) {
+                            surroundingFiles = if (state.browserSearchQuery.isNotBlank() || state.activeSearchFilters.hasActiveFilters) {
                                 state.searchResults
                             } else {
                                 state.displayState.visibleFiles
@@ -273,7 +273,7 @@ fun BrowserRoute(
             onClearSelection = viewModel::clearSelection,
             onShareSelected = {
                 scope.launch {
-                    val visibleFiles = if (state.browserSearchQuery.isNotBlank()) {
+                    val visibleFiles = if (state.browserSearchQuery.isNotBlank() || state.activeSearchFilters.hasActiveFilters) {
                         state.searchResults
                     } else {
                         state.displayState.visibleFiles
