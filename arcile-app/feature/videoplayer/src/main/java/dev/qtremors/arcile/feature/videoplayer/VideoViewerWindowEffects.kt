@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.videoplayer
 
-import android.app.KeyguardManager
 import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -16,11 +15,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 internal fun VideoViewerWindowEffects(
     keepScreenOn: Boolean,
     immersive: Boolean = true,
-    onDeviceLocked: (() -> Unit)? = null
+    onBackgrounded: (() -> Unit)? = null
 ) {
     val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val currentOnDeviceLocked = rememberUpdatedState(onDeviceLocked)
+    val currentOnBackgrounded = rememberUpdatedState(onBackgrounded)
 
     DisposableEffect(view, keepScreenOn) {
         view.keepScreenOn = keepScreenOn
@@ -30,12 +29,15 @@ internal fun VideoViewerWindowEffects(
     DisposableEffect(view, lifecycleOwner, immersive) {
         val activity = view.context.findActivity()
         val window = activity?.window
-        val controller = window?.let { WindowInsetsControllerCompat(it, view) }
+        val systemUiView = window?.decorView ?: view
+        val controller = window?.let { WindowInsetsControllerCompat(it, systemUiView) }
+        val previousSystemUiVisibility = systemUiView.systemUiVisibility
+        val previousSystemBarsBehavior = controller?.systemBarsBehavior
         fun enterImmersiveMode() {
             if (!immersive) return
             @Suppress("DEPRECATION")
             run {
-                view.systemUiVisibility =
+                systemUiView.systemUiVisibility =
                     View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
                         View.SYSTEM_UI_FLAG_FULLSCREEN or
                         View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
@@ -51,12 +53,7 @@ internal fun VideoViewerWindowEffects(
             when (event) {
                 Lifecycle.Event.ON_START,
                 Lifecycle.Event.ON_RESUME -> enterImmersiveMode()
-                Lifecycle.Event.ON_STOP -> {
-                    val keyguardManager = activity?.getSystemService(KeyguardManager::class.java)
-                    if (keyguardManager?.isKeyguardLocked == true) {
-                        currentOnDeviceLocked.value?.invoke()
-                    }
-                }
+                Lifecycle.Event.ON_STOP -> currentOnBackgrounded.value?.invoke()
                 else -> Unit
             }
         }
@@ -66,7 +63,8 @@ internal fun VideoViewerWindowEffects(
             lifecycleOwner.lifecycle.removeObserver(observer)
             if (immersive) {
                 @Suppress("DEPRECATION")
-                run { view.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE }
+                run { systemUiView.systemUiVisibility = previousSystemUiVisibility }
+                previousSystemBarsBehavior?.let { controller?.systemBarsBehavior = it }
                 controller?.show(WindowInsetsCompat.Type.systemBars())
             }
         }

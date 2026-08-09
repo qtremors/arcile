@@ -231,7 +231,7 @@ internal fun VideoViewerPlaybackSurface(
             VideoViewerWindowEffects(
                 keepScreenOn = isPlaying || isBuffering,
                 immersive = true,
-                onDeviceLocked = onNavigateBack.takeIf { session.securityScopeId != null }
+                onBackgrounded = onNavigateBack.takeIf { session.securityScopeId != null }
             )
             var resumeAfterLifecyclePause by remember(player) { mutableStateOf(true) }
             var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }

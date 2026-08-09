@@ -147,7 +147,6 @@ internal fun ImageGalleryScreen(
     val onPasteToAlbum = clipboardActions.pasteToAlbum
     val onCancelClipboard = clipboardActions.cancel
     val onRemoveFromClipboard = clipboardActions.remove
-    val onClearActiveFileOperation = clipboardActions.clearActiveOperation
     val onResolvePasteConflicts = clipboardActions.resolveConflicts
     val onDismissPasteConflictDialog = clipboardActions.dismissConflictDialog
     val onRenameFile = fileActions.rename
@@ -155,7 +154,9 @@ internal fun ImageGalleryScreen(
     val onSetAlbumCover = fileActions.setAlbumCover
     val haptics = rememberArcileHaptics()
     val isSelectionMode = state.selectedFiles.isNotEmpty()
-    var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
+    var showSearchBar by rememberSaveable {
+        mutableStateOf(state.searchQuery.isNotEmpty() || state.searchFilters.hasActiveFilters)
+    }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }

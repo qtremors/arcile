@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.OperationUiState
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
@@ -52,6 +53,7 @@ internal data class BrowserOperationState(
     val activeFileOperation: OperationUiState? = null,
     val activeRecoveryOperation: BrowserOperationRecoveryUiState? = null,
     val fileOperationStatusMessage: UiText? = null,
+    val fileOperationStatusSeverity: ArcileFeedbackSeverity = ArcileFeedbackSeverity.Info,
     val pendingTrashUndoIds: PersistentList<String> = persistentListOf(),
     val pendingUndoAction: BrowserUndoAction? = null,
     val pendingAuthorization: StorageAuthorizationRequirement? = null
@@ -116,6 +118,7 @@ internal data class BrowserUiState(
     val activeFileOperation = operation.activeFileOperation
     val activeRecoveryOperation get() = operation.activeRecoveryOperation
     val fileOperationStatusMessage get() = operation.fileOperationStatusMessage
+    val fileOperationStatusSeverity get() = operation.fileOperationStatusSeverity
     val pendingTrashUndoIds get() = operation.pendingTrashUndoIds
     val pendingUndoAction get() = operation.pendingUndoAction
 }

@@ -10,6 +10,7 @@ import android.provider.MediaStore
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
@@ -218,6 +219,39 @@ class MediaStoreClientTest {
 
         assertEquals(fsPath("storage", "emulated", "0", "Pictures", "photo.jpg"), result.single().absolutePath)
         assertEquals(StorageNodeRef.MEDIA_STORE_BACKEND_ID, result.single().nodeRef.backendId)
+    }
+
+    @Test
+    fun `filter-only search includes hidden MediaStore rows when requested`() = runTest {
+        val baseContext = ApplicationProvider.getApplicationContext<Context>()
+        val primaryRoot = fsPath("storage", "emulated", "0")
+        val resolver = mockk<ContentResolver>()
+        every {
+            resolver.query(any(), any(), any<Bundle>(), isNull())
+        } returns recentCursor(
+            data = fsPath("storage", "emulated", "0", ".private", ".notes.txt"),
+            displayName = ".notes.txt",
+            relativePath = ".private/",
+            volumeName = MediaStore.VOLUME_EXTERNAL_PRIMARY,
+            size = 64L,
+            mimeType = "text/plain"
+        )
+        val context = TestContext(baseContext, temporaryFolder.root, resolver)
+        val client = DefaultMediaStoreClient(
+            context = context,
+            volumeProvider = FakeVolumeProvider(
+                listOf(storageVolume("primary", primaryRoot, isPrimary = true))
+            )
+        )
+
+        val result = client.searchFiles(
+            query = "",
+            scope = StorageScope.AllStorage,
+            filters = SearchFilters(includeHidden = true)
+        ).getOrThrow()
+
+        assertEquals(listOf(".notes.txt"), result.map { it.name })
+        assertTrue(result.single().isHidden)
     }
 
     private fun assertCategorySize(data: List<CategoryStorage>, name: String, expectedSize: Long) {

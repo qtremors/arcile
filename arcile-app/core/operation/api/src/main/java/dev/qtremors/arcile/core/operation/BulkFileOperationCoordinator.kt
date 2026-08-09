@@ -25,7 +25,9 @@ interface BulkFileOperationCoordinator {
         archivePassword: String? = null,
         archiveNameEncoding: ArchiveNameEncoding? = null,
         archiveCompressionLevel: ArchiveCompressionLevel? = null,
-        importItems: List<SaveToArcileImportItem> = emptyList()
+        importItems: List<SaveToArcileImportItem> = emptyList(),
+        presentationOwnerId: String? = null,
+        clipboardSessionId: String? = null
     ): Boolean
 
     fun startImportOperation(
@@ -74,7 +76,9 @@ object NoOpBulkFileOperationCoordinator : BulkFileOperationCoordinator {
         archivePassword: String?,
         archiveNameEncoding: ArchiveNameEncoding?,
         archiveCompressionLevel: ArchiveCompressionLevel?,
-        importItems: List<SaveToArcileImportItem>
+        importItems: List<SaveToArcileImportItem>,
+        presentationOwnerId: String?,
+        clipboardSessionId: String?
     ): Boolean = false
 
     override fun cancelActiveOperation() = Unit

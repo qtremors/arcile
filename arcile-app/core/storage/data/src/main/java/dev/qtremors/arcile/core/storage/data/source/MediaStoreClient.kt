@@ -462,7 +462,13 @@ class DefaultMediaStoreClient(
                 cursor?.use { c ->
                     while (c.moveToNext()) {
                         val row = c.readMediaStoreFileRow()
-                        if (rowMatchesScope(row, scope, volumes)) {
+                        if (rowMatchesScope(
+                                row = row,
+                                scope = scope,
+                                volumes = volumes,
+                                includeHidden = searchFilters?.includeHidden == true
+                            )
+                        ) {
                             filesList.add(row.toFileModel(volumes))
                         }
                     }

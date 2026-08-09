@@ -128,7 +128,6 @@ internal fun AudioLibraryBottomBar(
     onPaste: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShowClipboardContents: () -> Unit,
-    onClearActiveFileOperation: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val isSelectionMode = selectedTracks.isNotEmpty()
@@ -149,8 +148,7 @@ internal fun AudioLibraryBottomBar(
                     canPaste = state.folderFilter != null,
                     onPaste = onPaste,
                     onCancel = onCancelClipboard,
-                    onShowContents = onShowClipboardContents,
-                    onClearCompleted = onClearActiveFileOperation
+                    onShowContents = onShowClipboardContents
                 )
             } else {
                 CategoryNavigationBar(

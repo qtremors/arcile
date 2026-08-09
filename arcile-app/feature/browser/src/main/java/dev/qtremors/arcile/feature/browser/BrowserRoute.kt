@@ -38,6 +38,8 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserScrollBindings
 import dev.qtremors.arcile.feature.browser.ui.BrowserSearchIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserSelectionIntents
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.clipboardStoredFeedback
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.ui.NativeStorageAuthorizationEffect
 import kotlinx.coroutines.launch
 
@@ -315,8 +317,16 @@ fun BrowserRoute(
             onToggleSearchFilterMenu = viewModel::toggleSearchFilterMenu
         ),
         clipboard = BrowserClipboardIntents(
-            onCopySelected = viewModel::copySelectedToClipboard,
-            onCutSelected = viewModel::cutSelectedToClipboard,
+            onCopySelected = {
+                viewModel.copySelectedToClipboard().takeIf { it > 0 }?.let { count ->
+                    onFeedback(clipboardStoredFeedback(ClipboardOperation.COPY, count))
+                }
+            },
+            onCutSelected = {
+                viewModel.cutSelectedToClipboard().takeIf { it > 0 }?.let { count ->
+                    onFeedback(clipboardStoredFeedback(ClipboardOperation.CUT, count))
+                }
+            },
             onPasteFromClipboard = viewModel::pasteFromClipboard,
             onCancelClipboard = viewModel::cancelClipboard,
             onRemoveFromClipboard = viewModel::removeFromClipboard,

@@ -18,6 +18,8 @@ class ClipboardController(
         repository.clearClipboardState()
     }
 
+    fun clear(sessionId: String): Boolean = repository.clearClipboardState(sessionId)
+
     fun remove(path: String) {
         val clipboard = repository.clipboardState.value ?: return
         val remaining = clipboard.files.filterNot { it.absolutePath == path }

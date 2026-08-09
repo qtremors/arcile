@@ -27,6 +27,8 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -58,6 +60,15 @@ class BrowserOperationControllerTest {
         every { clipboardRepository.clearClipboardState() } answers {
             clipboardState.value = null
         }
+        every { clipboardRepository.clearClipboardState(any()) } answers {
+            val sessionId = firstArg<String>()
+            if (clipboardState.value?.sessionId == sessionId) {
+                clipboardState.value = null
+                true
+            } else {
+                false
+            }
+        }
         coEvery { clipboardRepository.moveFiles(any(), any()) } returns Result.success(Unit)
         fileMutationRepository = mockk(relaxed = true)
         trashRepository = mockk(relaxed = true)
@@ -81,10 +92,11 @@ class BrowserOperationControllerTest {
 
     @Test
     fun `progress and completion update owned operation state`() = scope.runTest {
-        clipboardState.value = ClipboardState(
+        val clipboard = ClipboardState(
             ClipboardOperation.COPY,
             listOf(file("/source.txt"))
         )
+        clipboardState.value = clipboard
         controller.startObserving()
         advanceUntilIdle()
 
@@ -92,7 +104,8 @@ class BrowserOperationControllerTest {
             type = BulkFileOperationType.COPY,
             sourcePaths = listOf("/source.txt"),
             destinationPath = "/dest",
-            resolutions = emptyMap()
+            resolutions = emptyMap(),
+            clipboardSessionId = clipboard.sessionId
         )
         advanceUntilIdle()
         val request = coordinator.activeRequest.value!!
@@ -107,7 +120,8 @@ class BrowserOperationControllerTest {
         assertEquals(2, controller.state.value.activeFileOperation?.totalItems)
 
         coordinator.onOperationCompleted(request)
-        advanceUntilIdle()
+        advanceTimeBy(799)
+        runCurrent()
 
         assertFalse(busy)
         assertEquals(
@@ -117,6 +131,124 @@ class BrowserOperationControllerTest {
         assertNull(controller.state.value.clipboardState)
         assertEquals(1, refreshCount)
         assertNull(latestError)
+        advanceTimeBy(1)
+        runCurrent()
+        assertNull(controller.state.value.activeFileOperation)
+        assertNull(controller.state.value.fileOperationStatusMessage)
+        controller.stopObserving()
+    }
+
+    @Test
+    fun `foreign operation events do not populate browser ui or clear clipboard`() = scope.runTest {
+        val clipboard = ClipboardState(
+            ClipboardOperation.COPY,
+            listOf(file("/queued.txt"))
+        )
+        clipboardState.value = clipboard
+        controller.startObserving()
+        advanceUntilIdle()
+
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/gallery.jpg"),
+            destinationPath = "/Pictures",
+            resolutions = emptyMap(),
+            presentationOwnerId = "gallery-owner"
+        )
+        val request = requireNotNull(coordinator.activeRequest.value)
+        coordinator.onOperationCompleted(request)
+        runCurrent()
+
+        assertNull(controller.state.value.activeFileOperation)
+        assertNull(controller.state.value.fileOperationStatusMessage)
+        assertEquals(clipboard, controller.state.value.clipboardState)
+        assertEquals(clipboard, clipboardState.value)
+        assertEquals(1, refreshCount)
+        controller.stopObserving()
+    }
+
+    @Test
+    fun `owned non clipboard completion preserves queued clipboard`() = scope.runTest {
+        val clipboard = ClipboardState(
+            ClipboardOperation.COPY,
+            listOf(file("/queued.txt"))
+        )
+        clipboardState.value = clipboard
+        controller.startObserving()
+        advanceUntilIdle()
+
+        coordinator.startOperation(
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/archive.zip",
+            resolutions = emptyMap()
+        )
+        val request = requireNotNull(coordinator.activeRequest.value)
+        coordinator.onOperationCompleted(request)
+        advanceTimeBy(799)
+        runCurrent()
+
+        assertEquals(clipboard, controller.state.value.clipboardState)
+        assertEquals(clipboard, clipboardState.value)
+        assertEquals(
+            OperationCompletionStatus.SUCCESS,
+            controller.state.value.activeFileOperation?.terminalStatus
+        )
+        controller.stopObserving()
+    }
+
+    @Test
+    fun `active request state clears progress when terminal event is unavailable`() = scope.runTest {
+        controller.startObserving()
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap()
+        )
+        runCurrent()
+        assertTrue(busy)
+        assertTrue(controller.state.value.activeFileOperation != null)
+
+        coordinator.clearActiveRequestWithoutEvent()
+        runCurrent()
+
+        assertFalse(busy)
+        assertNull(controller.state.value.activeFileOperation)
+        controller.stopObserving()
+    }
+
+    @Test
+    fun `clipboard completion preserves a replacement clipboard session`() = scope.runTest {
+        val original = ClipboardState(
+            ClipboardOperation.COPY,
+            listOf(file("/source.txt")),
+            sessionId = "clipboard-a"
+        )
+        val replacement = ClipboardState(
+            ClipboardOperation.COPY,
+            listOf(file("/replacement.txt")),
+            sessionId = "clipboard-b"
+        )
+        clipboardState.value = original
+        controller.startObserving()
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            clipboardSessionId = original.sessionId
+        )
+        val request = requireNotNull(coordinator.activeRequest.value)
+        clipboardState.value = replacement
+        runCurrent()
+
+        coordinator.onOperationCompleted(request)
+        advanceTimeBy(799)
+        runCurrent()
+
+        assertEquals(replacement, clipboardState.value)
+        assertEquals(replacement, controller.state.value.clipboardState)
         controller.stopObserving()
     }
 

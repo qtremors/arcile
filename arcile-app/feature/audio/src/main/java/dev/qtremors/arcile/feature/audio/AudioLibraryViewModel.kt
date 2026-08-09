@@ -23,8 +23,11 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -34,6 +37,8 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import java.util.UUID
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 @HiltViewModel
 internal class AudioLibraryViewModel @Inject constructor(
@@ -55,6 +60,10 @@ internal class AudioLibraryViewModel @Inject constructor(
     private var preferencesApplied = false
     private val _state = MutableStateFlow(AudioLibraryState())
     val state: StateFlow<AudioLibraryState> = _state.asStateFlow()
+    private val _feedbackEvents = MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 8)
+    val feedbackEvents = _feedbackEvents.asSharedFlow()
+    private val operationOwnerId = savedStateHandle.get<String>(OPERATION_OWNER_ID_KEY)
+        ?: "audio:${UUID.randomUUID()}".also { savedStateHandle[OPERATION_OWNER_ID_KEY] = it }
     private val fileActions = AudioLibraryFileActions(
         scope = viewModelScope,
         state = _state,
@@ -64,12 +73,17 @@ internal class AudioLibraryViewModel @Inject constructor(
         volumeRepository = volumeRepository,
         archivePathResolver = archivePathResolver,
         operationCoordinator = operationCoordinator,
+        operationOwnerId = operationOwnerId,
         playback = playback,
         reload = { load(refresh = true) },
+        onOperationFeedback = _feedbackEvents::tryEmit,
         rebuildPresentation = ::rebuildPresentation
     )
 
     init {
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
+            operationCoordinator.activeRequest.collectLatest(fileActions::syncActiveRequest)
+        }
         viewModelScope.launch {
             clipboardRepository.clipboardState.collectLatest { clipboard ->
                 _state.update { it.copy(clipboardState = clipboard) }
@@ -284,8 +298,8 @@ internal class AudioLibraryViewModel @Inject constructor(
     fun selectAllVisible() = fileActions.selectAllVisible()
     fun invertSelection() = fileActions.invertSelection()
     fun clearSelection() = fileActions.clearSelection()
-    fun copySelection() = fileActions.copySelection()
-    fun cutSelection() = fileActions.cutSelection()
+    fun copySelection(): Int = fileActions.copySelection()
+    fun cutSelection(): Int = fileActions.cutSelection()
     fun removeFromClipboard(path: String) = fileActions.removeFromClipboard(path)
     fun requestDeleteSelected() = fileActions.requestDeleteSelected()
     fun confirmDeleteSelected() = fileActions.confirmDeleteSelected()
@@ -323,6 +337,10 @@ internal class AudioLibraryViewModel @Inject constructor(
                 _state.value = presented
             }
         }
+    }
+
+    private companion object {
+        const val OPERATION_OWNER_ID_KEY = "audioOperationOwnerId"
     }
 
 }

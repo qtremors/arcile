@@ -30,10 +30,14 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.normalizeStoragePath
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.fileOperationFeedback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 data class CategoryFileActionState(
     val clipboardState: ClipboardState? = null,
@@ -63,14 +67,17 @@ class CategoryFileActionController<S>(
     volumeRepository: VolumeRepository,
     private val archivePathResolver: ArchivePathResolver,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val files: (S) -> List<FileModel>,
     private val selectedPaths: (S) -> Set<String>,
     private val actionState: (S) -> CategoryFileActionState,
     private val withSelection: (S, Set<String>) -> S,
     private val withActions: (S, CategoryFileActionState) -> S,
     private val withoutPaths: (S, Set<String>) -> S,
+    private val onOperationFeedback: (ArcileFeedbackEvent) -> Unit = {},
     private val reload: () -> Unit
 ) {
+    private var terminalClearJob: Job? = null
     private val clipboardController = ClipboardController(clipboardRepository)
     private val propertiesLoader = SelectionPropertiesLoader(
         scope = scope,
@@ -97,16 +104,36 @@ class CategoryFileActionController<S>(
         fileBrowserRepository = fileBrowserRepository,
         callbacks = deleteCallbacks(),
         startBulkDeleteOperation = { type, paths ->
-            operationCoordinator.startOperation(type, paths, null, emptyMap())
+            operationCoordinator.startOperation(
+                type,
+                paths,
+                null,
+                emptyMap(),
+                presentationOwnerId = operationOwnerId
+            )
         },
         onFailure = reload
     )
 
+    fun syncActiveRequest(
+        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest?
+    ) {
+        val ownedRequest = request?.takeIf {
+            it.presentationOwnerId == operationOwnerId && it.type in trackedOperationTypes
+        }
+        if (ownedRequest != null) {
+            terminalClearJob?.cancel()
+            updateActions { it.copy(activeOperation = OperationPresentationMapper.map(ownedRequest)) }
+        } else if (actionState(state.value).activeOperation?.terminalStatus == null) {
+            updateActions { it.copy(activeOperation = null) }
+        }
+    }
+
     fun syncClipboard(clipboard: ClipboardState?) =
         updateActions { it.copy(clipboardState = clipboard) }
 
-    fun copySelection() = storeSelection(ClipboardOperation.COPY)
-    fun cutSelection() = storeSelection(ClipboardOperation.CUT)
+    fun copySelection(): Int = storeSelection(ClipboardOperation.COPY)
+    fun cutSelection(): Int = storeSelection(ClipboardOperation.CUT)
     fun removeFromClipboard(path: String) = clipboardController.remove(path)
     fun requestDelete() = deleteFlow.requestDeleteSelected()
     fun confirmDelete() = deleteFlow.confirmDeleteSelected()
@@ -165,8 +192,18 @@ class CategoryFileActionController<S>(
     }
 
     fun cancelClipboard() {
-        operationCoordinator.cancelActiveOperation()
-        clipboardController.clear()
+        val activeRequest = operationCoordinator.activeRequest.value
+            ?.takeIf {
+                it.presentationOwnerId == operationOwnerId &&
+                    it.clipboardSessionId != null &&
+                    it.type in clipboardOperationTypes
+            }
+        if (activeRequest != null) {
+            operationCoordinator.cancelActiveOperation()
+            activeRequest.clipboardSessionId?.let(clipboardController::clear)
+        } else {
+            clipboardController.clear()
+        }
         dismissPasteConflictDialog()
     }
 
@@ -212,7 +249,8 @@ class CategoryFileActionController<S>(
                     destinationPath = destination,
                     resolutions = emptyMap(),
                     archiveFormat = ArchiveFormat.ZIP,
-                    archiveCompressionLevel = ArchiveCompressionLevel.STORE
+                    archiveCompressionLevel = ArchiveCompressionLevel.STORE,
+                    presentationOwnerId = operationOwnerId
                 )
             ) {
                 clearSelection()
@@ -232,12 +270,15 @@ class CategoryFileActionController<S>(
             is BulkFileOperationEvent.Cancelled -> event.request
             else -> null
         } ?: return
+        if (event is BulkFileOperationEvent.Completed) {
+            if (request.type in deleteOperationTypes || request.type == BulkFileOperationType.MOVE) {
+                removePaths(request.sourcePaths)
+            }
+            if (request.type in deleteOperationTypes || request.type in trackedOperationTypes) reload()
+        }
+        if (request.presentationOwnerId != operationOwnerId) return
         if (request.type in deleteOperationTypes) {
             when (event) {
-                is BulkFileOperationEvent.Completed -> {
-                    removePaths(event.request.sourcePaths)
-                    reload()
-                }
                 is BulkFileOperationEvent.Failed ->
                     setError(UiText.StringResource(R.string.error_file_operation_failed))
                 else -> Unit
@@ -248,6 +289,7 @@ class CategoryFileActionController<S>(
         when (event) {
             is BulkFileOperationEvent.Started ->
                 updateActions {
+                    terminalClearJob?.cancel()
                     it.copy(activeOperation = OperationPresentationMapper.map(event.request))
                 }
             is BulkFileOperationEvent.Progress ->
@@ -269,10 +311,9 @@ class CategoryFileActionController<S>(
                             isCancelling = true
                         )
                     )
-                }
+            }
             is BulkFileOperationEvent.Completed -> {
-                if (request.type in clipboardOperationTypes) clipboardController.clear()
-                if (request.type == BulkFileOperationType.MOVE) removePaths(request.sourcePaths)
+                request.clipboardSessionId?.let(clipboardController::clear)
                 updateActions {
                     it.copy(
                         activeOperation = OperationPresentationMapper.map(
@@ -281,22 +322,26 @@ class CategoryFileActionController<S>(
                         )
                     )
                 }
-                reload()
+                publishTerminalFeedback(request, OperationCompletionStatus.SUCCESS)
             }
             is BulkFileOperationEvent.Failed -> {
-                if (request.type in clipboardOperationTypes) clipboardController.clear()
+                request.clipboardSessionId?.let(clipboardController::clear)
                 updateActions {
                     it.copy(
                         activeOperation = OperationPresentationMapper.map(
                             request,
                             terminalStatus = OperationCompletionStatus.FAILED
-                        ),
-                        error = UiText.StringResource(R.string.error_file_operation_failed)
+                        )
                     )
                 }
+                publishTerminalFeedback(
+                    request,
+                    OperationCompletionStatus.FAILED,
+                    UiText.StringResource(R.string.error_file_operation_failed)
+                )
             }
             is BulkFileOperationEvent.Cancelled -> {
-                if (request.type in clipboardOperationTypes) clipboardController.clear()
+                request.clipboardSessionId?.let(clipboardController::clear)
                 updateActions {
                     it.copy(
                         activeOperation = OperationPresentationMapper.map(
@@ -305,16 +350,22 @@ class CategoryFileActionController<S>(
                         )
                     )
                 }
+                publishTerminalFeedback(request, OperationCompletionStatus.CANCELLED)
             }
             else -> Unit
         }
     }
 
-    private fun storeSelection(operation: ClipboardOperation) {
+    private fun storeSelection(operation: ClipboardOperation): Int {
         val current = state.value
         val selection = selectedPaths(current)
         val selectedFiles = files(current).filter { it.absolutePath in selection }
-        if (clipboardController.store(operation, selectedFiles)) clearSelection()
+        return if (clipboardController.store(operation, selectedFiles)) {
+            clearSelection()
+            selectedFiles.size
+        } else {
+            0
+        }
     }
 
     private fun executePaste(
@@ -331,7 +382,9 @@ class CategoryFileActionController<S>(
             type = type,
             sourcePaths = clipboard.files.map(FileModel::absolutePath),
             destinationPath = destination,
-            resolutions = resolutions
+            resolutions = resolutions,
+            presentationOwnerId = operationOwnerId,
+            clipboardSessionId = clipboard.sessionId
         )
         updateActions {
             it.copy(
@@ -342,6 +395,19 @@ class CategoryFileActionController<S>(
                     UiText.StringResource(RuntimeR.string.error_operation_already_running)
                 }
             )
+        }
+    }
+
+    private fun publishTerminalFeedback(
+        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest,
+        status: OperationCompletionStatus,
+        error: UiText? = null
+    ) {
+        onOperationFeedback(fileOperationFeedback(request, status, error))
+        terminalClearJob?.cancel()
+        terminalClearJob = scope.launch {
+            delay(TERMINAL_OPERATION_HOLD_MS)
+            clearActiveOperation()
         }
     }
 
@@ -406,6 +472,7 @@ class CategoryFileActionController<S>(
     }
 
     private companion object {
+        const val TERMINAL_OPERATION_HOLD_MS = 800L
         val trackedOperationTypes = setOf(
             BulkFileOperationType.COPY,
             BulkFileOperationType.MOVE,

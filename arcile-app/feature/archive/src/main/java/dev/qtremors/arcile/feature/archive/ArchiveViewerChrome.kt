@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Unarchive
@@ -45,7 +46,8 @@ import androidx.compose.material3.IconButton
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -160,12 +162,29 @@ internal fun ArchiveContextHeader(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        OutlinedTextField(
+        TextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
             modifier = Modifier.fillMaxWidth().keyboardInputField(),
             singleLine = true,
-            label = { Text(stringResource(R.string.archive_search_entries)) }
+            placeholder = { Text(stringResource(R.string.archive_search_entries)) },
+            leadingIcon = {
+                Icon(Icons.Default.Search, contentDescription = null)
+            },
+            trailingIcon = if (searchQuery.isNotEmpty()) {
+                {
+                    IconButton(onClick = { onSearchQueryChange("") }) {
+                        Icon(Icons.Default.Close, stringResource(R.string.action_clear))
+                    }
+                }
+            } else null,
+            shape = MaterialTheme.shapes.extraLarge,
+            colors = TextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                focusedIndicatorColor = Color.Transparent,
+                unfocusedIndicatorColor = Color.Transparent
+            )
         )
         Text(
             text = stringResource(R.string.archive_destination_preview, extractionDestination),

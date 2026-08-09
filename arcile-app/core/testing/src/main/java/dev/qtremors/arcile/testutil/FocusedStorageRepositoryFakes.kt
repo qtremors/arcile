@@ -177,6 +177,12 @@ class FakeClipboardRepository : ClipboardRepository {
         _clipboardState.value = state
     }
 
+    override fun clearClipboardState(sessionId: String): Boolean {
+        if (_clipboardState.value?.sessionId != sessionId) return false
+        _clipboardState.value = null
+        return true
+    }
+
     var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null

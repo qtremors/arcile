@@ -4,8 +4,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -189,8 +192,12 @@ private fun CollapsingWorkspaceTabs(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = slideInVertically { -it } + fadeIn(),
-        exit = slideOutVertically { -it } + fadeOut()
+        enter = slideInVertically { -it } +
+            expandVertically(expandFrom = Alignment.Top) +
+            fadeIn(),
+        exit = slideOutVertically { -it } +
+            shrinkVertically(shrinkTowards = Alignment.Top) +
+            fadeOut()
     ) {
         content()
     }

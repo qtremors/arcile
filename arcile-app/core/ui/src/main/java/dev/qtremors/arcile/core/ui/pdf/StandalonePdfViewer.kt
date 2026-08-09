@@ -452,8 +452,8 @@ fun StandalonePdfViewer(
             ) {
                 val statusText = when (searchStatus) {
                     PdfSearchStatus.Searching -> stringResource(R.string.pdf_searching)
-                    PdfSearchStatus.NoResults,
-                    PdfSearchStatus.Failed -> stringResource(R.string.pdf_search_no_results)
+                    PdfSearchStatus.NoResults -> stringResource(R.string.pdf_search_no_results)
+                    PdfSearchStatus.Failed -> stringResource(R.string.pdf_search_failed)
                     PdfSearchStatus.Unsupported -> stringResource(R.string.pdf_search_requires_android_15)
                     null -> null
                 }

@@ -29,10 +29,14 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.normalizeStoragePath
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.fileOperationFeedback
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 internal class AudioLibraryFileActions(
     private val scope: CoroutineScope,
@@ -43,10 +47,13 @@ internal class AudioLibraryFileActions(
     volumeRepository: VolumeRepository,
     private val archivePathResolver: ArchivePathResolver,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val operationOwnerId: String? = null,
     private val playback: AudioPlaybackController,
     private val reload: () -> Unit,
+    private val onOperationFeedback: (ArcileFeedbackEvent) -> Unit = {},
     private val rebuildPresentation: ((AudioLibraryState) -> AudioLibraryState) -> Unit
 ) {
+    private var terminalClearJob: Job? = null
     private val clipboardController = ClipboardController(clipboardRepository)
     private val propertiesLoader = SelectionPropertiesLoader(
         scope = scope,
@@ -75,10 +82,30 @@ internal class AudioLibraryFileActions(
         fileBrowserRepository = fileBrowserRepository,
         callbacks = deleteCallbacks(),
         startBulkDeleteOperation = { type, selected ->
-            operationCoordinator.startOperation(type, selected, null, emptyMap())
+            operationCoordinator.startOperation(
+                type,
+                selected,
+                null,
+                emptyMap(),
+                presentationOwnerId = operationOwnerId
+            )
         },
         onFailure = reload
     )
+
+    fun syncActiveRequest(
+        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest?
+    ) {
+        val ownedRequest = request?.takeIf {
+            it.presentationOwnerId == operationOwnerId && it.type in trackedOperationTypes
+        }
+        if (ownedRequest != null) {
+            terminalClearJob?.cancel()
+            state.update { it.copy(activeFileOperation = OperationPresentationMapper.map(ownedRequest)) }
+        } else if (state.value.activeFileOperation?.terminalStatus == null) {
+            state.update { it.copy(activeFileOperation = null) }
+        }
+    }
 
     fun toggleSelection(path: String) {
         propertiesLoader.dismiss()
@@ -141,16 +168,16 @@ internal class AudioLibraryFileActions(
         }
     }
 
-    fun copySelection() = storeSelection(ClipboardOperation.COPY)
+    fun copySelection(): Int = storeSelection(ClipboardOperation.COPY)
 
-    fun cutSelection() = storeSelection(ClipboardOperation.CUT)
+    fun cutSelection(): Int = storeSelection(ClipboardOperation.CUT)
 
-    private fun storeSelection(operation: ClipboardOperation) {
+    private fun storeSelection(operation: ClipboardOperation): Int {
         val selected = state.value.selectedPaths
         val files = state.value.tracks
             .map { it.file }
             .filter { it.absolutePath in selected }
-        if (clipboardController.store(operation, files)) {
+        return if (clipboardController.store(operation, files)) {
             rebuildPresentation {
                 it.copy(
                     selectedPaths = emptySet(),
@@ -158,6 +185,9 @@ internal class AudioLibraryFileActions(
                     folderFilter = null
                 )
             }
+            files.size
+        } else {
+            0
         }
     }
 
@@ -235,8 +265,18 @@ internal class AudioLibraryFileActions(
     }
 
     fun cancelClipboard() {
-        operationCoordinator.cancelActiveOperation()
-        clipboardController.clear()
+        val activeRequest = operationCoordinator.activeRequest.value
+            ?.takeIf {
+                it.presentationOwnerId == operationOwnerId &&
+                    it.clipboardSessionId != null &&
+                    it.type in clipboardOperationTypes
+            }
+        if (activeRequest != null) {
+            operationCoordinator.cancelActiveOperation()
+            activeRequest.clipboardSessionId?.let(clipboardController::clear)
+        } else {
+            clipboardController.clear()
+        }
         dismissPasteConflictDialog()
     }
 
@@ -295,7 +335,8 @@ internal class AudioLibraryFileActions(
                 destinationPath = destination,
                 resolutions = emptyMap(),
                 archiveFormat = ArchiveFormat.ZIP,
-                archiveCompressionLevel = ArchiveCompressionLevel.STORE
+                archiveCompressionLevel = ArchiveCompressionLevel.STORE,
+                presentationOwnerId = operationOwnerId
             )
             if (started) {
                 clearSelection()
@@ -325,7 +366,9 @@ internal class AudioLibraryFileActions(
             type = type,
             sourcePaths = clipboard.files.map(FileModel::absolutePath),
             destinationPath = destination,
-            resolutions = resolutions
+            resolutions = resolutions,
+            presentationOwnerId = operationOwnerId,
+            clipboardSessionId = clipboard.sessionId
         )
         state.update {
             it.copy(
@@ -351,13 +394,16 @@ internal class AudioLibraryFileActions(
             is BulkFileOperationEvent.Cancelled -> event.request
             else -> null
         } ?: return
+        if (event is BulkFileOperationEvent.Completed) {
+            if (request.type in deleteOperationTypes || request.type == BulkFileOperationType.MOVE) {
+                playback.removeQueueItems(request.sourcePaths)
+                removePaths(request.sourcePaths)
+            }
+            if (request.type in deleteOperationTypes || request.type in trackedOperationTypes) reload()
+        }
+        if (request.presentationOwnerId != operationOwnerId) return
         if (request.type in deleteOperationTypes) {
             when (event) {
-                is BulkFileOperationEvent.Completed -> {
-                    playback.removeQueueItems(event.request.sourcePaths)
-                    removePaths(event.request.sourcePaths)
-                    reload()
-                }
                 is BulkFileOperationEvent.Failed ->
                     state.update {
                         it.copy(
@@ -373,10 +419,12 @@ internal class AudioLibraryFileActions(
         }
         if (request.type !in trackedOperationTypes) return
         when (event) {
-            is BulkFileOperationEvent.Started ->
+            is BulkFileOperationEvent.Started -> {
+                terminalClearJob?.cancel()
                 state.update {
                     it.copy(activeFileOperation = OperationPresentationMapper.map(event.request))
                 }
+            }
             is BulkFileOperationEvent.Progress ->
                 state.update {
                     it.copy(
@@ -396,15 +444,9 @@ internal class AudioLibraryFileActions(
                             isCancelling = true
                         )
                     )
-                }
+            }
             is BulkFileOperationEvent.Completed -> {
-                if (event.request.type in clipboardOperationTypes) {
-                    clipboardController.clear()
-                }
-                if (event.request.type == BulkFileOperationType.MOVE) {
-                    playback.removeQueueItems(event.request.sourcePaths)
-                    removePaths(event.request.sourcePaths)
-                }
+                event.request.clipboardSessionId?.let(clipboardController::clear)
                 state.update {
                     it.copy(
                         activeFileOperation = OperationPresentationMapper.map(
@@ -413,29 +455,26 @@ internal class AudioLibraryFileActions(
                         )
                     )
                 }
-                reload()
+                publishTerminalFeedback(event.request, OperationCompletionStatus.SUCCESS)
             }
             is BulkFileOperationEvent.Failed -> {
-                if (event.request.type in clipboardOperationTypes) {
-                    clipboardController.clear()
-                }
+                event.request.clipboardSessionId?.let(clipboardController::clear)
                 state.update {
                     it.copy(
                         activeFileOperation = OperationPresentationMapper.map(
                             event.request,
                             terminalStatus = OperationCompletionStatus.FAILED
-                        ),
-                        error = event.message
-                            .takeIf(String::isNotBlank)
-                            ?.let(UiText::Dynamic)
-                            ?: UiText.StringResource(R.string.error_file_operation_failed)
+                        )
                     )
                 }
+                publishTerminalFeedback(
+                    event.request,
+                    OperationCompletionStatus.FAILED,
+                    event.message.takeIf(String::isNotBlank)?.let(UiText::Dynamic)
+                )
             }
             is BulkFileOperationEvent.Cancelled -> {
-                if (request.type in clipboardOperationTypes) {
-                    clipboardController.clear()
-                }
+                request.clipboardSessionId?.let(clipboardController::clear)
                 state.update {
                     it.copy(
                         activeFileOperation = OperationPresentationMapper.map(
@@ -444,8 +483,22 @@ internal class AudioLibraryFileActions(
                         )
                     )
                 }
+                publishTerminalFeedback(request, OperationCompletionStatus.CANCELLED)
             }
             else -> Unit
+        }
+    }
+
+    private fun publishTerminalFeedback(
+        request: dev.qtremors.arcile.core.operation.BulkFileOperationRequest,
+        status: OperationCompletionStatus,
+        error: UiText? = null
+    ) {
+        onOperationFeedback(fileOperationFeedback(request, status, error))
+        terminalClearJob?.cancel()
+        terminalClearJob = scope.launch {
+            delay(TERMINAL_OPERATION_HOLD_MS)
+            clearActiveFileOperation()
         }
     }
 
@@ -512,6 +565,7 @@ internal class AudioLibraryFileActions(
     }
 
     private companion object {
+        const val TERMINAL_OPERATION_HOLD_MS = 800L
         val trackedOperationTypes = setOf(
             BulkFileOperationType.COPY,
             BulkFileOperationType.MOVE,

@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.7
+> **Version:** 1.8.8
 > **Last Updated:** 2026-08-09
 
 ---
+
+## [1.8.8] - 2026-08-09
+
+- **Complete Search Overhaul**: Extended the redesigned search pill to Audio, Images, Video Gallery, APKs, Documents, shared category pages, and archive browsing, with separate app-bar-aligned back controls and clearer PDF match navigation.
+- **Reliable Filter-Only Results**: Restored filter-only search state, applied filter-sheet changes only after confirmation, included requested hidden MediaStore results, and added accurate empty-state feedback without typed text.
+- **Polished Viewer Behavior**: Kept the notification shade and navigation bar hidden during video playback, locked every vault when Arcile is backgrounded or OnlyFiles is exited, safely closed encrypted playback before locking, and reported PDF search failures clearly.
+- **Smoother, Consistent Feedback**: Animated Browser tab space while collapsing and standardized the remaining category snackbar presentation.
+- **Timely File Operation Feedback**: Showed copy and cut confirmation on the initiating screen, prevented completed operations from resurfacing elsewhere, kept cross-screen file lists current, distinguished queued clipboard items from live progress, and cleared only the clipboard session used by each paste.
 
 ## [1.8.7] - 2026-08-09
 

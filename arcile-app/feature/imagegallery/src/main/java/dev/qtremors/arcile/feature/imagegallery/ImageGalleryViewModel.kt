@@ -22,10 +22,13 @@ import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -34,6 +37,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import java.util.UUID
 
 @HiltViewModel
 internal class ImageGalleryViewModel @Inject constructor(
@@ -59,6 +63,10 @@ internal class ImageGalleryViewModel @Inject constructor(
         )
     )
     val state: StateFlow<ImageGalleryState> = _state.asStateFlow()
+    private val _feedbackEvents = MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 8)
+    val feedbackEvents = _feedbackEvents.asSharedFlow()
+    private val operationOwnerId = savedStateHandle.get<String>(OPERATION_OWNER_ID_KEY)
+        ?: "gallery:${UUID.randomUUID()}".also { savedStateHandle[OPERATION_OWNER_ID_KEY] = it }
 
     private val fileActions = ImageGalleryFileActionController(
         initialState = _state.value.fileActions,
@@ -68,12 +76,14 @@ internal class ImageGalleryViewModel @Inject constructor(
         clipboardRepository = clipboardRepository,
         volumeRepository = volumeRepository,
         operationCoordinator = bulkFileOperationCoordinator,
+        operationOwnerId = operationOwnerId,
         archivePathResolver = archivePathResolver,
         files = { _state.value.files },
         displayedPaths = { _state.value.displayedFiles.map(FileModel::absolutePath) },
         onStateChange = { actions -> _state.update { it.copy(fileActions = actions) } },
         onBusyChange = { busy -> _state.update { it.copy(isRefreshing = busy) } },
         onError = { error -> _state.update { it.copy(error = error) } },
+        onOperationFeedback = _feedbackEvents::tryEmit,
         onPathsRemoved = { paths -> _state.update { it.withoutGalleryPaths(paths) } },
         onRefreshRequested = { loadImages(forceRefresh = true, silent = true) }
     )
@@ -263,8 +273,8 @@ internal class ImageGalleryViewModel @Inject constructor(
     fun toggleShred() = fileActions.toggleShred()
     fun openPropertiesForSelection() = fileActions.openProperties()
     fun dismissProperties() = fileActions.dismissProperties()
-    fun copySelectedToClipboard() = fileActions.copySelected()
-    fun cutSelectedToClipboard() = fileActions.cutSelected()
+    fun copySelectedToClipboard(): Int = fileActions.copySelected()
+    fun cutSelectedToClipboard(): Int = fileActions.cutSelected()
     fun pasteFromClipboard(path: String?) = fileActions.paste(path)
     fun resolvePasteConflicts(resolutions: Map<String, ConflictResolution>) =
         fileActions.resolveConflicts(resolutions)
@@ -281,6 +291,7 @@ internal class ImageGalleryViewModel @Inject constructor(
     }
 
     private companion object {
+        const val OPERATION_OWNER_ID_KEY = "galleryOperationOwnerId"
         val refreshTypes = setOf(
             BulkFileOperationType.MOVE,
             BulkFileOperationType.COPY,

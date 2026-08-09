@@ -38,7 +38,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserUiState
-import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
@@ -105,7 +104,9 @@ internal fun BrowserScreen(
     val dialogVisibility = rememberBrowserDialogVisibility()
     val lifecycleOwner = LocalLifecycleOwner.current
     var resumeRestoreTick by remember { mutableStateOf(0) }
-    var showSearchBar by rememberSaveable { mutableStateOf(state.browserSearchQuery.isNotEmpty()) }
+    var showSearchBar by rememberSaveable {
+        mutableStateOf(state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
+    }
     var workspaceTabsVisible by rememberSaveable { mutableStateOf(true) }
     
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
@@ -218,8 +219,8 @@ internal fun BrowserScreen(
         }
     }
 
-    LaunchedEffect(state.browserSearchQuery) {
-        if (state.browserSearchQuery.isNotEmpty()) {
+    LaunchedEffect(state.browserSearchQuery, state.activeSearchFilters) {
+        if (state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters) {
             showSearchBar = true
         }
     }
@@ -303,21 +304,6 @@ internal fun BrowserScreen(
         }
     }
 
-    LaunchedEffect(state.clipboardState) {
-        state.clipboardState?.let { clipboard ->
-            val action = if (clipboard.operation == ClipboardOperation.COPY) context.getString(R.string.clipboard_copied) else context.getString(R.string.clipboard_cut)
-            val count = clipboard.files.size
-            if (isRouteVisible) {
-                onFeedback(
-                    ArcileFeedbackEvent(
-                        message = UiText.Dynamic(context.getString(R.string.clipboard_feedback, count, action)),
-                        severity = ArcileFeedbackSeverity.Info
-                    )
-                )
-            }
-        }
-    }
-
     LaunchedEffect(state.error) {
         state.error?.let { errorMsg ->
             onClearError()
@@ -334,7 +320,7 @@ internal fun BrowserScreen(
                 onFeedback(
                     ArcileFeedbackEvent(
                         message = message,
-                        severity = ArcileFeedbackSeverity.Success,
+                        severity = state.fileOperationStatusSeverity,
                         actionLabel = state.pendingUndoAction?.let { UiText.StringResource(R.string.undo) },
                         onAction = state.pendingUndoAction?.let { { onUndoLastOperation() } },
                         onDismiss = state.pendingUndoAction?.let { { onClearPendingUndo() } }

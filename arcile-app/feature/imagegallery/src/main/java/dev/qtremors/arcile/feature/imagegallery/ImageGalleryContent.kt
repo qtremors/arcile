@@ -206,7 +206,11 @@ internal fun ImageGalleryContent(
                 EmptyState(
                     variant = EmptyStateVariant.Search,
                     title = stringResource(R.string.no_results_found),
-                    description = stringResource(R.string.no_results_description, state.searchQuery),
+                    description = if (state.searchQuery.isBlank() && state.searchFilters.hasActiveFilters) {
+                        stringResource(R.string.no_results_for_filters)
+                    } else {
+                        stringResource(R.string.no_results_description, state.searchQuery)
+                    },
                     modifier = Modifier.fillMaxSize()
                 )
             }

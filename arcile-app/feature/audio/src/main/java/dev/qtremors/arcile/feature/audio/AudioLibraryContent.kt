@@ -122,7 +122,9 @@ internal fun AudioLibraryPage(
                 }
             }
             isEmpty && !state.isLoading -> AudioEmptyState(
-                hasFilter = state.query.isNotBlank() || state.folderFilter != null
+                hasFilter = state.query.isNotBlank() ||
+                    state.searchFilters.hasActiveFilters ||
+                    state.folderFilter != null
             )
             showingTracks -> AudioTracksContent(
                 state = state,

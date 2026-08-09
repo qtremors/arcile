@@ -28,7 +28,9 @@ data class BulkFileOperationRequest(
     val archivePassword: String? = null,
     val archiveNameEncoding: ArchiveNameEncoding? = null,
     val archiveCompressionLevel: ArchiveCompressionLevel? = null,
-    val importItems: List<SaveToArcileImportItem> = emptyList()
+    val importItems: List<SaveToArcileImportItem> = emptyList(),
+    val presentationOwnerId: String? = null,
+    val clipboardSessionId: String? = null
 ) {
     val sourceRefs: List<StorageNodeRef>
         get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }

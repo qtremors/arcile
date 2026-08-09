@@ -11,7 +11,11 @@ import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.testutil.FakeActivityLogStore
+import dev.qtremors.arcile.testutil.FakeClipboardRepository
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,13 +43,19 @@ class BulkFileOperationCoordinatorTest {
 
     private lateinit var context: Context
     private lateinit var coordinator: ForegroundBulkFileOperationCoordinator
+    private lateinit var clipboardRepository: FakeClipboardRepository
     private lateinit var testScope: TestScope
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
-        coordinator = ForegroundBulkFileOperationCoordinator(context, DefaultOperationJournal(context))
+        clipboardRepository = FakeClipboardRepository()
+        coordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = DefaultOperationJournal(context),
+            clipboardRepository = clipboardRepository
+        )
         testScope = TestScope(UnconfinedTestDispatcher())
     }
 
@@ -104,6 +114,55 @@ class BulkFileOperationCoordinatorTest {
 
         assertNull(coordinator.activeRequest.value)
         assertNull(DefaultOperationJournal(context).activeRecord())
+        assertTrue(coordinator.events.replayCache.isEmpty())
+    }
+
+    @Test
+    fun `terminal completion settles clipboard without an event collector`() = testScope.runTest {
+        val clipboard = ClipboardState(
+            operation = ClipboardOperation.COPY,
+            files = listOf(testFile("/source.txt")),
+            sessionId = "clipboard-a"
+        )
+        clipboardRepository.setClipboardState(clipboard)
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            clipboardSessionId = clipboard.sessionId
+        )
+
+        coordinator.onOperationCompleted(requireNotNull(coordinator.activeRequest.value))
+
+        assertNull(clipboardRepository.clipboardState.value)
+    }
+
+    @Test
+    fun `terminal completion preserves a replacement clipboard session`() = testScope.runTest {
+        val original = ClipboardState(
+            operation = ClipboardOperation.COPY,
+            files = listOf(testFile("/source.txt")),
+            sessionId = "clipboard-a"
+        )
+        val replacement = ClipboardState(
+            operation = ClipboardOperation.COPY,
+            files = listOf(testFile("/replacement.txt")),
+            sessionId = "clipboard-b"
+        )
+        clipboardRepository.setClipboardState(original)
+        coordinator.startOperation(
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source.txt"),
+            destinationPath = "/dest",
+            resolutions = emptyMap(),
+            clipboardSessionId = original.sessionId
+        )
+        clipboardRepository.setClipboardState(replacement)
+
+        coordinator.onOperationCompleted(requireNotNull(coordinator.activeRequest.value))
+
+        assertEquals(replacement, clipboardRepository.clipboardState.value)
     }
 
     @Test
@@ -293,6 +352,14 @@ class BulkFileOperationCoordinatorTest {
             destinationPath = "/dest",
             resolutions = emptyMap()
         )
+
+    private fun testFile(path: String) = FileModel(
+        name = path.substringAfterLast('/'),
+        absolutePath = path,
+        size = 0L,
+        lastModified = 0L,
+        isDirectory = false
+    )
 
     private class RecordingMutationJournal : MutationJournal {
         var cleanupCalled = false

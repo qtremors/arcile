@@ -124,6 +124,8 @@ internal fun GlobalVideoPlayer(
                     }
                 }
                 player.addListener(listener)
+                playbackState = player.playbackState
+                isPlaying = player.isPlaying
                 onMediaItemChanged(player.currentMediaItemIndex.coerceAtLeast(0))
                 onDispose {
                     savedIndex = player.currentMediaItemIndex.coerceAtLeast(0)
@@ -231,7 +233,7 @@ internal fun GlobalVideoViewer(
 ) {
     VideoViewerWindowEffects(
         keepScreenOn = false,
-        onDeviceLocked = onNavigateBack.takeIf { session.securityScopeId != null }
+        onBackgrounded = onNavigateBack.takeIf { session.securityScopeId != null }
     )
     var activeIndex by rememberSaveable(session) { mutableIntStateOf(session.startIndex) }
     var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }

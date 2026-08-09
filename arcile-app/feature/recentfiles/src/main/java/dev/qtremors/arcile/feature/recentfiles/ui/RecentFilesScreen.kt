@@ -132,7 +132,9 @@ internal fun RecentFilesScreen(
         }
     }
 
-    var showSearchBar by rememberSaveable { mutableStateOf(state.searchQuery.isNotEmpty()) }
+    var showSearchBar by rememberSaveable {
+        mutableStateOf(state.searchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
+    }
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
 

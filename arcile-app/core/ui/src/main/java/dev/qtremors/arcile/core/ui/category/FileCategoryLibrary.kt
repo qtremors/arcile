@@ -63,7 +63,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -107,6 +106,7 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.core.ui.ExpressiveSegmentedRow
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
@@ -125,7 +125,6 @@ import dev.qtremors.arcile.core.ui.scrollbar.LazyGridScrollbarState
 import dev.qtremors.arcile.core.ui.scrollbar.LazyListScrollbarState
 import dev.qtremors.arcile.core.ui.scrollbar.ScrollbarState
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.floor
 import kotlin.math.max
@@ -235,7 +234,9 @@ fun FileCategoryLibrary(
     onOpenFile: (FileModel) -> Unit,
     onOpenFolder: (CategoryFolderSummary) -> Unit
 ) {
-    var searchVisible by rememberSaveable { mutableStateOf(false) }
+    var searchVisible by rememberSaveable {
+        mutableStateOf(query.isNotBlank() || searchFilters.hasActiveFilters)
+    }
     var optionsVisible by rememberSaveable { mutableStateOf(false) }
     val shellState = rememberCategoryLibraryShellState()
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
@@ -432,8 +433,7 @@ fun FileCategoryLibrary(
                                 folderFilterPath?.let(fileActions.onPasteToFolder)
                             },
                             onCancel = fileActions.onCancelClipboard,
-                            onShowContents = { showClipboardContents = true },
-                            onClearCompleted = fileActions.onClearActiveOperation
+                            onShowContents = { showClipboardContents = true }
                         )
                     } else {
                         CategoryNavigationBar(
@@ -576,7 +576,7 @@ fun FileCategoryLibrary(
             }
         }
 
-        SnackbarHost(
+        ArcileSnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -950,17 +950,10 @@ private fun CategoryClipboardToolbar(
     canPaste: Boolean,
     onPaste: () -> Unit,
     onCancel: () -> Unit,
-    onShowContents: () -> Unit,
-    onClearCompleted: () -> Unit
+    onShowContents: () -> Unit
 ) {
     val clipboard = state.clipboardState
     val operation = state.activeOperation
-    LaunchedEffect(operation?.terminalStatus) {
-        if (operation?.terminalStatus != null) {
-            delay(800L)
-            onClearCompleted()
-        }
-    }
     Row(
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
@@ -1036,7 +1029,11 @@ private fun CategoryClipboardToolbar(
                     val itemCount = operation?.totalItems ?: clipboard?.files?.size ?: 0
                     Text(
                         text = androidx.compose.ui.res.pluralStringResource(
-                            R.plurals.clipboard_item_count,
+                            if (operation == null) {
+                                R.plurals.clipboard_items_ready_to_paste
+                            } else {
+                                R.plurals.clipboard_item_count
+                            },
                             itemCount,
                             itemCount
                         ),

@@ -513,7 +513,9 @@ class BulkFileOperationServiceTest {
             archivePassword: String?,
             archiveNameEncoding: ArchiveNameEncoding?,
             archiveCompressionLevel: ArchiveCompressionLevel?,
-            importItems: List<SaveToArcileImportItem>
+            importItems: List<SaveToArcileImportItem>,
+            presentationOwnerId: String?,
+            clipboardSessionId: String?
         ): Boolean = false
 
         override fun cancelActiveOperation() = Unit

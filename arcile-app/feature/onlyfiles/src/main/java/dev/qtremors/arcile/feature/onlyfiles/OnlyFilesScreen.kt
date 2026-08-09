@@ -135,7 +135,7 @@ internal fun OnlyFilesRoute(
     OnlyFilesScreen(
         state = state,
         viewModel = viewModel,
-        onNavigateBack = onNavigateBack,
+        onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
         onPlayVideo = onPlayVideo,
         onImportFiles = viewModel::beginLocalFileImport,
         onImportFolder = viewModel::beginLocalFolderImport,
@@ -171,15 +171,6 @@ private fun OnlyFilesScreen(
     var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
-    val backHandlerEnabled = state.pendingConflict != null ||
-            state.selectedNodeIds.isNotEmpty() ||
-            showSearch ||
-            state.searchQuery.isNotEmpty() ||
-            state.localPicker != null ||
-            state.folderPicker != null ||
-            state.viewer != null ||
-            state.selectedVault != null
-
     val navigateBackThroughState = {
         when {
             state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
@@ -193,9 +184,10 @@ private fun OnlyFilesScreen(
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
             state.viewer != null -> viewModel.navigateUp()
             state.selectedVault != null -> viewModel.navigateUp()
+            else -> onNavigateBack()
         }
     }
-    PredictiveBackHandler(enabled = backHandlerEnabled) { progressFlow ->
+    PredictiveBackHandler(enabled = true) { progressFlow ->
         try {
             isBackPredicting = true
             progressFlow.collect { event -> predictiveBackProgress = event.progress }

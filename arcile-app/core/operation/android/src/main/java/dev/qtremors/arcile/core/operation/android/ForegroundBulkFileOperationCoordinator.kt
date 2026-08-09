@@ -19,7 +19,9 @@ import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.NoOpClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
@@ -47,7 +49,8 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val activityLogStore: ActivityLogStore? = null,
     @param:ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
-    @param:DeferOperationJournalRecovery private val deferJournalRecovery: Boolean = false
+    @param:DeferOperationJournalRecovery private val deferJournalRecovery: Boolean = false,
+    private val clipboardRepository: ClipboardRepository = NoOpClipboardRepository
 ) : BulkFileOperationCoordinator {
     private val json = Json { ignoreUnknownKeys = true }
     private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
@@ -60,7 +63,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private var activityLogWriteJob: Job? = null
 
     private val _events = MutableSharedFlow<BulkFileOperationEvent>(
-        replay = 1,
+        replay = 0,
         extraBufferCapacity = 64,
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
@@ -96,12 +99,16 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         archivePassword: String?,
         archiveNameEncoding: ArchiveNameEncoding?,
         archiveCompressionLevel: ArchiveCompressionLevel?,
-        importItems: List<SaveToArcileImportItem>
+        importItems: List<SaveToArcileImportItem>,
+        presentationOwnerId: String?,
+        clipboardSessionId: String?
     ): Boolean {
         if (_activeRequest.value != null) return false
 
         val request = BulkFileOperationRequest(
             operationId = UUID.randomUUID().toString(),
+            presentationOwnerId = presentationOwnerId,
+            clipboardSessionId = clipboardSessionId,
             type = type,
             sourcePaths = sourcePaths,
             destinationPath = destinationPath,
@@ -169,6 +176,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.COMPLETED) }
         operationJournal.clearActive(request.operationId)
         recordOperation(request, ActivityLogOperationStatus.COMPLETED)
+        settleClipboard(request)
         _events.tryEmit(BulkFileOperationEvent.Completed(request))
     }
 
@@ -180,6 +188,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         operationJournal.update(request.operationId) { it.copy(phase = OperationPhase.FAILED, error = message) }
         operationJournal.clearActive(request.operationId)
         recordOperation(request, ActivityLogOperationStatus.FAILED, message)
+        settleClipboard(request)
         _events.tryEmit(BulkFileOperationEvent.Failed(request, message, error))
     }
 
@@ -191,6 +200,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             operationJournal.update(it.operationId) { record -> record.copy(phase = OperationPhase.CANCELLED) }
             operationJournal.clearActive(it.operationId)
             recordOperation(it, ActivityLogOperationStatus.CANCELLED)
+            settleClipboard(it)
         }
         _events.tryEmit(BulkFileOperationEvent.Cancelled(request))
     }
@@ -240,6 +250,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             operationJournal.update(request.operationId) {
                 it.copy(phase = OperationPhase.FAILED, error = e.message)
             }
+            settleClipboard(request)
             _events.tryEmit(
                 BulkFileOperationEvent.Failed(
                     request,
@@ -249,6 +260,11 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             )
             false
         }
+    }
+
+    private fun settleClipboard(request: BulkFileOperationRequest) {
+        if (request.type != BulkFileOperationType.COPY && request.type != BulkFileOperationType.MOVE) return
+        request.clipboardSessionId?.let(clipboardRepository::clearClipboardState)
     }
 
     private fun recordOperation(

@@ -120,8 +120,7 @@ private fun GalleryNavigationOrClipboardBar(
             pasteDestinationPath = albumPastePath.takeIf { currentTab == CategoryLibraryPage.FOLDERS },
             onPasteToAlbum = clipboardActions.pasteToAlbum,
             onCancelClipboard = clipboardActions.cancel,
-            onShowClipboardContents = onShowClipboardContents,
-            onClearActiveFileOperation = clipboardActions.clearActiveOperation
+            onShowClipboardContents = onShowClipboardContents
         )
         return
     }

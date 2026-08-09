@@ -13,12 +13,21 @@ import kotlinx.coroutines.flow.asStateFlow
 class DefaultClipboardRepository(
     private val fileSystemDataSource: FileSystemDataSource
 ) : ClipboardRepository {
+    private val stateLock = Any()
     private val mutableClipboardState = MutableStateFlow<ClipboardState?>(null)
     override val clipboardState: StateFlow<ClipboardState?> =
         mutableClipboardState.asStateFlow()
 
     override fun setClipboardState(state: ClipboardState?) {
-        mutableClipboardState.value = state
+        synchronized(stateLock) {
+            mutableClipboardState.value = state
+        }
+    }
+
+    override fun clearClipboardState(sessionId: String): Boolean = synchronized(stateLock) {
+        if (mutableClipboardState.value?.sessionId != sessionId) return@synchronized false
+        mutableClipboardState.value = null
+        true
     }
 
     override suspend fun detectCopyConflicts(
