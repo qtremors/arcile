@@ -11,10 +11,12 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeNoException
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
+import java.nio.file.Files
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StorageUsageScannerTest {
@@ -139,6 +141,37 @@ class StorageUsageScannerTest {
         scanner.scanStorageUsage(missing.absolutePath).collect { states += it }
 
         assertTrue(states.last() is StorageUsageScanState.Error)
+    }
+
+    @Test
+    fun `scanner returns a partial result when its node budget is exhausted`() = runTest {
+        val root = temporaryFolder.newFolder("budgeted")
+        repeat(100) { index -> File(root, "file-$index.bin").writeBytes(ByteArray(4)) }
+
+        val loaded = scanner.scanStorageUsage(
+            root.absolutePath,
+            StorageUsageScanLimits(maxVisitedNodes = 12, maxScanDurationMillis = 60_000L)
+        ).loadedState()
+
+        assertEquals(StorageUsageScanStatus.Partial, loaded.root.status)
+        assertTrue(loaded.root.sizeBytes < 400L)
+        assertEquals(100, loaded.root.childCount)
+    }
+
+    @Test
+    fun `scanner terminates a symbolic link directory cycle`() = runTest {
+        val root = temporaryFolder.newFolder("cycle")
+        File(root, "payload.bin").writeBytes(ByteArray(7))
+        try {
+            Files.createSymbolicLink(File(root, "loop").toPath(), root.toPath())
+        } catch (error: Exception) {
+            assumeNoException(error)
+        }
+
+        val loaded = scanner.scanStorageUsage(root.absolutePath).loadedState()
+
+        assertEquals(7L, loaded.root.sizeBytes)
+        assertEquals(StorageUsageScanStatus.Partial, loaded.root.status)
     }
 
     private suspend fun kotlinx.coroutines.flow.Flow<StorageUsageScanState>.loadedState(): StorageUsageScanState.Loaded {

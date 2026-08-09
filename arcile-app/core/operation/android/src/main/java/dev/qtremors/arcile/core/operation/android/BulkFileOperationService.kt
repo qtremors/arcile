@@ -37,8 +37,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -71,6 +69,9 @@ class BulkFileOperationService : Service() {
     @Inject
     lateinit var dispatchers: ArcileDispatchers
 
+    @Inject
+    lateinit var requestStore: OperationRequestStore
+
     private val serviceScope: CoroutineScope by lazy {
         CoroutineScope(SupervisorJob() + serviceDispatchers.io)
     }
@@ -85,7 +86,6 @@ class BulkFileOperationService : Service() {
                 storage = Dispatchers.IO
             )
         }
-    private val json = Json { ignoreUnknownKeys = true }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null
     private var notificationMetrics = NotificationMetrics()
@@ -111,8 +111,11 @@ class BulkFileOperationService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START -> {
-                val requestJson = intent.getStringExtra(EXTRA_REQUEST_JSON) ?: return START_NOT_STICKY
-                val request = json.decodeFromString<BulkFileOperationRequest>(requestJson)
+                val operationId = intent.getStringExtra(EXTRA_OPERATION_ID) ?: return START_NOT_STICKY
+                if (currentRequest?.operationId == operationId || currentOperationJob?.isActive == true) {
+                    return START_NOT_STICKY
+                }
+                val request = requestStore.claim(operationId) ?: return START_NOT_STICKY
                 currentRequest = request
                 notificationMetrics = NotificationMetrics(startedAtMillis = System.currentTimeMillis())
                 synchronized(notificationLock) {
@@ -203,6 +206,9 @@ class BulkFileOperationService : Service() {
                     } catch (_: CancellationException) {
                         coordinator.onOperationCancelled(request)
                     } finally {
+                        SaveToArcileUriGrantManager(contentResolver)
+                            .releaseOwnedPersistableReadGrants(request.importItems)
+                        requestStore.retire(request.operationId)
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
@@ -417,7 +423,6 @@ class BulkFileOperationService : Service() {
     companion object {
         const val ACTION_START = "dev.qtremors.arcile.action.START_BULK_FILE_OPERATION"
         const val ACTION_CANCEL = "dev.qtremors.arcile.action.CANCEL_BULK_FILE_OPERATION"
-        const val EXTRA_REQUEST_JSON = "bulk_request_json"
         const val EXTRA_OPERATION_ID = "bulk_operation_id"
 
         private const val CHANNEL_ID = "bulk_file_operations"

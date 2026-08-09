@@ -1,11 +1,14 @@
 package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
+import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
@@ -426,6 +429,41 @@ class BulkFileOperationCoordinatorTest {
         override suspend fun cleanupAbandonedMutations() {
             cleanupCalled = true
         }
+    }
+
+    @Test
+    fun `constructor releases owned grants and cleans abandoned imports`() = testScope.runTest {
+        val uri = Uri.parse("content://example/abandoned-import")
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION
+        )
+        val request = BulkFileOperationRequest(
+            operationId = "op-abandoned-import",
+            type = BulkFileOperationType.SAVE_TO_ARCILE_IMPORT,
+            sourcePaths = emptyList(),
+            destinationPath = "/dest",
+            importItems = listOf(
+                SaveToArcileImportItem(
+                    uri = uri.toString(),
+                    displayName = "shared.txt",
+                    ownsPersistedReadGrant = true
+                )
+            )
+        )
+        val journal = DefaultOperationJournal(context)
+        journal.upsertActive(request.toJournalRecord(OperationPhase.RUNNING))
+
+        val recoveredCoordinator = ForegroundBulkFileOperationCoordinator(
+            context = context,
+            operationJournal = journal,
+            applicationScope = this
+        )
+        advanceUntilIdle()
+
+        assertTrue(context.contentResolver.persistedUriPermissions.isEmpty())
+        assertTrue(recoveredCoordinator.recoveryRecords.value.isEmpty())
+        assertTrue(journal.recoveryRecords().isEmpty())
     }
 
     private class RecordingOperationJournal : OperationJournal {

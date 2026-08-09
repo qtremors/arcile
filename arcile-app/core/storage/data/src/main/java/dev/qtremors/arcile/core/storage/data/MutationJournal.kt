@@ -19,6 +19,8 @@ interface MutationJournal {
     fun forgetTemporaryPath(path: String)
     fun recordTrashFallback(sourcePath: String, payloadPath: String, metadataPath: String)
     fun forgetTrashFallback(payloadPath: String, metadataPath: String)
+    fun recordSourceCleanup(sourcePath: String, destinationPath: String) = Unit
+    fun forgetSourceCleanup(sourcePath: String, destinationPath: String) = Unit
     suspend fun cleanupAbandonedMutations()
 }
 
@@ -81,6 +83,30 @@ class DefaultMutationJournal(
         }
     }
 
+    override fun recordSourceCleanup(sourcePath: String, destinationPath: String) {
+        updateEntries { entries ->
+            entries.filterNot {
+                it.type == EntryType.SOURCE_CLEANUP &&
+                    it.sourcePath == sourcePath &&
+                    it.destinationPath == destinationPath
+            } + MutationJournalEntry(
+                type = EntryType.SOURCE_CLEANUP,
+                sourcePath = sourcePath,
+                destinationPath = destinationPath
+            )
+        }
+    }
+
+    override fun forgetSourceCleanup(sourcePath: String, destinationPath: String) {
+        updateEntries { entries ->
+            entries.filterNot {
+                it.type == EntryType.SOURCE_CLEANUP &&
+                    it.sourcePath == sourcePath &&
+                    it.destinationPath == destinationPath
+            }
+        }
+    }
+
     override suspend fun cleanupAbandonedMutations() = withContext(dispatchers.io) {
         val roots = volumeProvider.activeStorageRoots.map { File(it).canonicalFile }
         val remaining = mutableListOf<MutationJournalEntry>()
@@ -89,6 +115,7 @@ class DefaultMutationJournal(
                 when (entry.type) {
                     EntryType.TEMPORARY_PATH -> cleanupTemporaryPath(entry, roots, remaining)
                     EntryType.TRASH_FALLBACK -> cleanupTrashFallback(entry, roots, remaining)
+                    EntryType.SOURCE_CLEANUP -> cleanupSourceCleanup(entry, roots, remaining)
                 }
             } catch (e: Exception) {
                 e.rethrowIfCancellation()
@@ -130,6 +157,23 @@ class DefaultMutationJournal(
             deleteFileOrDirectory(payload)
             metadata.delete()
         }
+    }
+
+    private suspend fun cleanupSourceCleanup(
+        entry: MutationJournalEntry,
+        roots: List<File>,
+        remaining: MutableList<MutationJournalEntry>
+    ) {
+        val source = entry.sourcePath?.let(::File) ?: return
+        val destination = entry.destinationPath?.let(::File) ?: return
+        if (!source.exists()) return
+        if (!destination.exists() || !isWithinRoots(source, roots) || !isWithinRoots(destination, roots)) {
+            remaining += entry
+            return
+        }
+
+        val result = deleteSourceTree(source)
+        if (!result.isComplete) remaining += entry
     }
 
     private fun deleteFileOrDirectory(file: File) {
@@ -230,6 +274,7 @@ private data class MutationJournalEntry(
     val type: EntryType,
     val path: String? = null,
     val sourcePath: String? = null,
+    val destinationPath: String? = null,
     val payloadPath: String? = null,
     val metadataPath: String? = null
 )
@@ -237,5 +282,6 @@ private data class MutationJournalEntry(
 @Serializable
 private enum class EntryType {
     TEMPORARY_PATH,
-    TRASH_FALLBACK
+    TRASH_FALLBACK,
+    SOURCE_CLEANUP
 }

@@ -18,6 +18,8 @@ import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.LinkedHashMap
 import javax.inject.Inject
 import kotlin.math.max
@@ -61,7 +63,7 @@ class DefaultStorageUsageScanner @Inject constructor(
             return@flow
         }
 
-        val node = scanFile(rootFile, depth = 0, limits = limits, progress = progress) { currentPath ->
+        val node = scanTree(rootFile, limits = limits, progress = progress) { currentPath ->
             if (!emittedSnapshot) {
                 emit(StorageUsageScanState.Loading(progress.snapshot(currentPath)))
             }
@@ -110,84 +112,82 @@ class DefaultStorageUsageScanner @Inject constructor(
         }
     }
 
-    private suspend fun scanFile(
-        file: File,
-        depth: Int,
+    private suspend fun scanTree(
+        root: File,
         limits: StorageUsageScanLimits,
         progress: Progress,
         publishProgress: suspend (String) -> Unit
     ): StorageUsageNode {
-        currentCoroutineContext().ensureActive()
-        progress.scannedNodes += 1
-        if (progress.scannedNodes % PROGRESS_GRANULARITY == 0) {
-            publishProgress(file.absolutePath)
+        val startedAtNanos = System.nanoTime()
+        val visitedDirectories = hashSetOf<String>()
+        val stack = ArrayDeque<ScanFrame>().apply { addLast(ScanFrame(root, depth = 0)) }
+        var rootNode: StorageUsageNode? = null
+        var budgetExhausted = false
+
+        fun complete(node: StorageUsageNode) {
+            stack.removeLast()
+            stack.lastOrNull()?.childNodes?.add(node) ?: run { rootNode = node }
         }
 
-        if (!file.isDirectory) {
-            val size = safeLength(file)
-            progress.scannedBytes += size
-            return StorageUsageNode(
-                name = file.name.ifBlank { file.absolutePath },
-                path = file.absolutePath,
-                sizeBytes = size,
-                kind = StorageUsageNodeKind.File,
-                childCount = 0
-            )
-        }
+        while (stack.isNotEmpty()) {
+            currentCoroutineContext().ensureActive()
+            val frame = stack.last()
+            if (!frame.entered) {
+                val elapsedMillis = (System.nanoTime() - startedAtNanos) / 1_000_000L
+                if (progress.scannedNodes >= limits.maxVisitedNodes.coerceAtLeast(1) ||
+                    elapsedMillis >= limits.maxScanDurationMillis.coerceAtLeast(1L)
+                ) {
+                    budgetExhausted = true
+                    complete(frame.partialNode())
+                    continue
+                }
+                progress.scannedNodes += 1
+                if (progress.scannedNodes % PROGRESS_GRANULARITY == 0) {
+                    publishProgress(frame.file.absolutePath)
+                }
+                if (!frame.file.isDirectory) {
+                    val size = safeLength(frame.file)
+                    progress.scannedBytes += size
+                    complete(frame.fileNode(size))
+                    continue
+                }
+                val identity = directoryIdentity(frame.file)
+                if (identity == null || !visitedDirectories.add(identity)) {
+                    complete(frame.unavailableNode())
+                    continue
+                }
+                val listed = try {
+                    frame.file.listFiles()
+                } catch (error: Exception) {
+                    error.rethrowIfCancellation()
+                    null
+                }
+                if (listed == null) {
+                    complete(frame.unavailableNode())
+                    continue
+                }
+                frame.children = listed.filterNot { it.name == ".thumbnails" }
+                frame.entered = true
+            }
 
-        val listedChildren = try {
-            file.listFiles()
+            if (budgetExhausted || frame.nextChildIndex >= frame.children.size) {
+                complete(frame.folderNode(limits, budgetExhausted))
+            } else {
+                val child = frame.children[frame.nextChildIndex++]
+                stack.addLast(ScanFrame(child, frame.depth + 1))
+            }
+        }
+        return requireNotNull(rootNode)
+    }
+
+    private fun directoryIdentity(file: File): String? =
+        try {
+            val attributes = Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+            attributes.fileKey()?.let { "key:$it" } ?: file.toPath().toRealPath().toString()
         } catch (error: Exception) {
             error.rethrowIfCancellation()
             null
         }
-        val children = listedChildren?.filterNot { it.name == ".thumbnails" }.orEmpty()
-
-        if (listedChildren == null) {
-            return StorageUsageNode(
-                name = file.name.ifBlank { file.absolutePath },
-                path = file.absolutePath,
-                sizeBytes = 0L,
-                kind = StorageUsageNodeKind.Folder,
-                childCount = 0,
-                status = StorageUsageScanStatus.Unavailable
-            )
-        }
-
-        val retainChildren = depth < limits.maxDepth
-        val childNodes = if (retainChildren) mutableListOf<StorageUsageNode>() else null
-        var totalBytes = 0L
-        var status = StorageUsageScanStatus.Ready
-        for (child in children) {
-            val childNode = scanFile(child, depth + 1, limits, progress, publishProgress)
-            totalBytes += childNode.sizeBytes
-            if (childNode.status != StorageUsageScanStatus.Ready) {
-                status = StorageUsageScanStatus.Partial
-            }
-            childNodes?.add(childNode)
-        }
-
-        val sortedChildren = childNodes?.let {
-            groupSmallChildren(
-                children = it.sortedByDescending(StorageUsageNode::sizeBytes),
-                parentPath = file.absolutePath,
-                limits = limits
-            )
-        }.orEmpty()
-        if (!retainChildren && children.isNotEmpty()) {
-            status = StorageUsageScanStatus.Partial
-        }
-
-        return StorageUsageNode(
-            name = file.name.ifBlank { file.absolutePath },
-            path = file.absolutePath,
-            sizeBytes = totalBytes,
-            kind = StorageUsageNodeKind.Folder,
-            childCount = children.size,
-            status = status,
-            children = sortedChildren
-        )
-    }
 
     private fun groupSmallChildren(
         children: List<StorageUsageNode>,
@@ -243,6 +243,69 @@ class DefaultStorageUsageScanner @Inject constructor(
             scannedBytes = scannedBytes,
             currentPath = currentPath
         )
+    }
+
+    private inner class ScanFrame(
+        val file: File,
+        val depth: Int,
+        var entered: Boolean = false,
+        var children: List<File> = emptyList(),
+        var nextChildIndex: Int = 0,
+        val childNodes: MutableList<StorageUsageNode> = mutableListOf()
+    ) {
+        fun fileNode(size: Long) = StorageUsageNode(
+            name = displayName(),
+            path = file.absolutePath,
+            sizeBytes = size,
+            kind = StorageUsageNodeKind.File,
+            childCount = 0
+        )
+
+        fun unavailableNode() = StorageUsageNode(
+            name = displayName(),
+            path = file.absolutePath,
+            sizeBytes = 0L,
+            kind = StorageUsageNodeKind.Folder,
+            childCount = 0,
+            status = StorageUsageScanStatus.Unavailable
+        )
+
+        fun partialNode() = StorageUsageNode(
+            name = displayName(),
+            path = file.absolutePath,
+            sizeBytes = 0L,
+            kind = if (file.isDirectory) StorageUsageNodeKind.Folder else StorageUsageNodeKind.File,
+            childCount = 0,
+            status = StorageUsageScanStatus.Partial
+        )
+
+        fun folderNode(limits: StorageUsageScanLimits, budgetExhausted: Boolean): StorageUsageNode {
+            val retainChildren = depth < limits.maxDepth
+            val totalBytes = childNodes.sumOf(StorageUsageNode::sizeBytes)
+            val visibleChildren = if (retainChildren) {
+                groupSmallChildren(
+                    children = childNodes.sortedByDescending(StorageUsageNode::sizeBytes),
+                    parentPath = file.absolutePath,
+                    limits = limits
+                )
+            } else {
+                emptyList()
+            }
+            val partial = budgetExhausted || nextChildIndex < children.size ||
+                childNodes.any { it.status != StorageUsageScanStatus.Ready } ||
+                (!retainChildren && children.isNotEmpty())
+            return StorageUsageNode(
+                name = displayName(),
+                path = file.absolutePath,
+                sizeBytes = totalBytes,
+                kind = StorageUsageNodeKind.Folder,
+                childCount = children.size,
+                status = if (partial) StorageUsageScanStatus.Partial else StorageUsageScanStatus.Ready,
+                children = visibleChildren
+            )
+        }
+
+        private fun displayName(): String = file.name.ifBlank { file.absolutePath }
     }
 
     private companion object {

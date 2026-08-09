@@ -99,7 +99,7 @@ Run Gradle commands from `arcile-app/` (`gradlew.bat` on Windows):
 Install debug APK via ADB:
 
 ```bash
-adb install -r app/build/outputs/apk/debug/Arcile-1.8.2-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-1.9.0-debug.apk
 ```
 
 ### Release Signing
@@ -176,7 +176,7 @@ arcile/
 ├── CHANGELOG.md                                 # Stable release changelog
 ├── DEVELOPMENT.md                               # Architecture & development guide
 ├── Releases.md                                  # Stable user-facing release notes
-├── TASKS.md                                     # Roadmap, tracker of issues and features
+├── TASKS.md                                     # Prioritized work queue and completed release tasks
 └── README.md                                    # Main entry point overview
 ```
 
@@ -192,7 +192,7 @@ arcile/
 | [arcile-app/docs/ONLYFILES_FORMAT_AND_SECURITY.md](arcile-app/docs/ONLYFILES_FORMAT_AND_SECURITY.md) | OnlyFiles format, security boundaries, recovery limits, and backup guidance |
 | [beta/CHANGELOG-BETA.md](beta/CHANGELOG-BETA.md) | Archived version history from the beta phase |
 | [beta/RELEASES-BETA.md](beta/RELEASES-BETA.md) | Archived release notes from the beta phase |
-| [TASKS.md](TASKS.md) | Audit findings, planned features, and known issues |
+| [TASKS.md](TASKS.md) | Prioritized active work and completed release tasks |
 | [PRIVACY.md](PRIVACY.md) | Privacy policy |
 | [LICENSE.md](LICENSE.md) | License terms and attribution |
 

@@ -142,4 +142,35 @@ class MutationJournalTest {
         assertTrue(payload.exists())
         assertTrue(metadata.exists())
     }
+
+    @Test
+    fun `cleanup retries pending move source deletion idempotently`() = runTest {
+        val source = File(root, "partially-deleted-source").apply { mkdirs() }
+        File(source, "remaining.txt").writeText("remaining")
+        val destination = File(root, "verified-destination").apply { mkdirs() }
+        File(destination, "remaining.txt").writeText("remaining")
+
+        journal.recordSourceCleanup(source.absolutePath, destination.absolutePath)
+        journal.cleanupAbandonedMutations()
+        journal.cleanupAbandonedMutations()
+
+        assertFalse(source.exists())
+        assertTrue(destination.exists())
+        assertTrue(File(destination, "remaining.txt").exists())
+        assertFalse(DefaultMutationJournal.storeFile(context).exists())
+    }
+
+    @Test
+    fun `cleanup keeps source when verified destination is unavailable`() = runTest {
+        val source = File(root, "source-without-destination").apply { mkdirs() }
+        File(source, "keep.txt").writeText("keep")
+        val missingDestination = File(root, "missing-destination")
+
+        journal.recordSourceCleanup(source.absolutePath, missingDestination.absolutePath)
+        journal.cleanupAbandonedMutations()
+
+        assertTrue(source.exists())
+        assertTrue(File(source, "keep.txt").exists())
+        assertTrue(DefaultMutationJournal.storeFile(context).exists())
+    }
 }

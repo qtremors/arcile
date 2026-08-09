@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.8.0
-> **Last Updated:** 2026-08-02
+> **Version:** 1.9.0
+> **Last Updated:** 2026-08-09
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v1.9.0](#v190) | 2026-08-09 | Customizable workspaces, complete search and viewer controls, safer file operations, faster storage tools, and release reliability |
 | [v1.8.0](#v180) | 2026-08-02 | Category UI parity, native PDF and document tools, Markdown editor, dual browser workspaces, and unified audio playback |
 | [v1.7.0](#v170) | 2026-07-26 | Complete audio library and background player, PowerRename, split APK installation, richer video controls, and consistent media workflows |
 | [v1.6.0](#v160) | 2026-07-23 | Encrypted OnlyFiles vaults, native video browsing and playback, visual storage insights, and refined Trash interactions |
@@ -15,6 +16,53 @@
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
 
 ---
+
+# v1.9.0
+
+**Release Date:** August 9, 2026
+
+**Previous public release:** v1.8.0
+
+**Development range included:** v1.8.1 through v1.9.0
+
+**Known issues & roadmap:** Track active issues and ongoing engineering tasks in [TASKS.md](TASKS.md).
+
+Arcile v1.9.0 makes the main workspace more personal, expands search and native viewer controls, overhauls Storage Cleaner navigation, and hardens large or interrupted file operations.
+
+## What's New Since v1.8.0
+
+### Customizable Home and Browser
+
+- **Custom Home layout:** Show, hide, reset, and reorder Home sections while preserving Apply and Cancel behavior.
+- **Accessible ordering controls:** Reorder Utilities, Quick Access items, and Home sections with consistent item-specific controls, immediate feedback, and keyboard or assistive-technology support.
+- **Independent Browser tabs:** Keep separate locations, history, selection, search, and scroll position in each Browser workspace, with configurable tab visibility and ordering.
+- **Landscape dual pane:** Optionally show both Browser workspaces side by side in landscape and return to the last-focused workspace in portrait.
+- **Root Storage shortcut:** Opt into browsing and measuring system paths available through normal Android permissions, with honest access limits and protected-location feedback.
+
+### Search, Viewers, and Media
+
+- **Complete search experience:** Use the redesigned search and filters across Browser, Audio, Images, Videos, APKs, Documents, and archives, including reliable filter-only results and accurate empty states.
+- **Expanded PDF tools:** Pinch to zoom, search native PDF text on supported Android versions, keep the screen awake, and print through Android.
+- **Reliable media viewing:** Keep video immersive and awake, preserve viewer context, and lock encrypted OnlyFiles playback safely when Arcile leaves the foreground.
+- **Responsive external opens:** Shared images, PDFs, videos, and audio now validate storage access away from the interface, with bounded waits and a retryable error state.
+- **Localized presentation:** Audio Favorites and user-visible item counts now follow the selected language and locale-aware grammar.
+
+### Storage Cleaner and File Safety
+
+- **Full Cleaner pages:** Review every cleaner category on a dedicated page with pull-to-refresh, live progress, retained selections, duplicate comparison, settings, and reliable return state.
+- **Faster Cleaner scans:** Reuse cached per-category results, show progress and ETA, and remove deleted or stale items immediately.
+- **Safe cross-storage moves:** Keep a fully verified destination if source cleanup only partially succeeds, and retain exact cleanup state for a safe retry.
+- **Safe deep folders:** Analyze and copy unusually deep directory trees without recursive stack growth, stop cycles, honor cancellation, and return bounded partial analysis when necessary.
+- **Reliable large operations:** Store bounded bulk requests privately and hand Android services only a durable ID, preventing oversized Binder transactions and duplicate execution.
+- **Temporary share access:** Release only the document permissions acquired by Save to Arcile after every terminal or interrupted path.
+
+### Security, Performance, and Reliability
+
+- **Private recovery state:** Keep operation and mutation recovery data out of backups, omit archive passwords, bound retention, and exclude vault locations from cloud backup and device transfer.
+- **Safer archive extraction:** Enforce expanded-size, compression-ratio, cancellation, and free-space limits for GZIP, BZIP2, and XZ streams without leaving partial output.
+- **Safer split-APK installs:** Bound package staging, extract only compatible APKs into unique temporary folders, and clean staging after completion or interruption.
+- **Lighter background work:** Coalesce high-frequency transfer progress and remove recursive plaintext cleanup from the startup path while preserving exact final state and secure cleanup.
+- **Usable date filters:** Keep date-range fields and actions reachable in short, landscape, large-text, and keyboard-constrained windows.
 
 # v1.8.0
 

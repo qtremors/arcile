@@ -3,6 +3,8 @@ package dev.qtremors.arcile.core.storage.data.source
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
+import dev.qtremors.arcile.core.storage.data.SourceCleanupIncompleteException
+import dev.qtremors.arcile.core.storage.data.deleteSourceTree
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import kotlinx.coroutines.currentCoroutineContext
@@ -11,6 +13,8 @@ import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
 import java.util.UUID
 
@@ -20,6 +24,7 @@ class FileTransferEngine(
     private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
     private val checksumFile: (File) -> ByteArray = ::calculateSha256,
     private val afterCopy: (File, File) -> Unit = { _, _ -> },
+    private val deleteSourceEntry: (File) -> Boolean = { file -> file.delete() },
     private val mutationJournal: MutationJournal = NoOpMutationJournal()
 ) {
     private companion object {
@@ -128,6 +133,7 @@ class FileTransferEngine(
             val shouldReplace = resolutions[sourceFile.absolutePath] == ConflictResolution.REPLACE
             val success = if (targetFile.exists()) false else rename(sourceFile, targetFile)
             if (!success) {
+                var sourceCleanupStarted = false
                 try {
                     tracker.currentPath = sourceFile.absolutePath
                     copyAtomically(
@@ -142,13 +148,20 @@ class FileTransferEngine(
                         return Result.failure(IOException("Failed to verify moved ${if (sourceFile.isDirectory) "directory" else "file"} before deleting source"))
                     }
                     ensureOperationActive()
-                    val deleted = if (sourceFile.isDirectory) sourceFile.deleteRecursively() else sourceFile.delete()
-                    if (!deleted) {
-                        deleteTarget(targetFile)
-                        return Result.failure(Exception("Failed to delete source ${if (sourceFile.isDirectory) "directory" else "file"} after copy"))
+                    mutationJournal.recordSourceCleanup(sourceFile.absolutePath, targetFile.absolutePath)
+                    sourceCleanupStarted = true
+                    val cleanup = deleteSourceTree(sourceFile, deleteSourceEntry)
+                    if (!cleanup.isComplete) {
+                        throw SourceCleanupIncompleteException(
+                            sourcePath = sourceFile.absolutePath,
+                            destinationPath = targetFile.absolutePath,
+                            remainingSourcePaths = cleanup.remainingPaths,
+                            cause = cleanup.failure
+                        )
                     }
+                    mutationJournal.forgetSourceCleanup(sourceFile.absolutePath, targetFile.absolutePath)
                 } catch (e: Exception) {
-                    deleteTarget(targetFile)
+                    if (!sourceCleanupStarted) deleteTarget(targetFile)
                     e.rethrowIfCancellation()
                     return Result.failure(e)
                 }
@@ -177,6 +190,7 @@ class FileTransferEngine(
         val tracker = ProgressTracker(listOf(source.absolutePath), estimateTotalBytes(listOf(source.absolutePath)), onProgress)
         val renameSuccess = attemptRename && !target.exists() && rename(source, target)
         if (!renameSuccess) {
+            var sourceCleanupStarted = false
             try {
                 tracker.currentPath = source.absolutePath
                 copyAtomically(
@@ -191,13 +205,20 @@ class FileTransferEngine(
                     return Result.failure(IOException("Failed to verify moved ${if (source.isDirectory) "directory" else "file"} before deleting source"))
                 }
                 ensureOperationActive()
-                val deleted = if (source.isDirectory) source.deleteRecursively() else source.delete()
-                if (!deleted) {
-                    deleteTarget(target)
-                    return Result.failure(IOException("Failed to delete source ${if (source.isDirectory) "directory" else "file"} after copy"))
+                mutationJournal.recordSourceCleanup(source.absolutePath, target.absolutePath)
+                sourceCleanupStarted = true
+                val cleanup = deleteSourceTree(source, deleteSourceEntry)
+                if (!cleanup.isComplete) {
+                    throw SourceCleanupIncompleteException(
+                        sourcePath = source.absolutePath,
+                        destinationPath = target.absolutePath,
+                        remainingSourcePaths = cleanup.remainingPaths,
+                        cause = cleanup.failure
+                    )
                 }
+                mutationJournal.forgetSourceCleanup(source.absolutePath, target.absolutePath)
             } catch (e: Exception) {
-                deleteTarget(target)
+                if (!sourceCleanupStarted) deleteTarget(target)
                 e.rethrowIfCancellation()
                 return Result.failure(e)
             }
@@ -314,23 +335,40 @@ class FileTransferEngine(
         target: File,
         onBytesCopied: suspend (Long) -> Unit
     ) {
-        ensureOperationActive()
-        validateMutationPath(source).getOrThrow()
-        validateMutationPath(target).getOrThrow()
-        if (!target.mkdirs()) {
-            throw IllegalStateException("Failed to create directory: ${target.absolutePath}")
-        }
+        val pending = ArrayDeque<Pair<File, File>>()
+        val copiedDirectories = mutableListOf<Pair<File, File>>()
+        val visitedDirectories = hashSetOf<String>()
+        pending.addLast(source to target)
 
-        source.listFiles()?.forEach { child ->
+        while (pending.isNotEmpty()) {
             ensureOperationActive()
-            val childTarget = File(target, child.name)
-            if (child.isDirectory) {
-                copyDirectoryCancellable(child, childTarget, onBytesCopied)
-            } else {
-                copyFileCancellable(child, childTarget, onBytesCopied)
+            val (sourceDirectory, targetDirectory) = pending.removeLast()
+            validateMutationPath(sourceDirectory).getOrThrow()
+            validateMutationPath(targetDirectory).getOrThrow()
+            val identity = directoryIdentity(sourceDirectory)
+            if (!visitedDirectories.add(identity)) {
+                throw IOException("Cannot copy a directory tree containing a cycle: ${sourceDirectory.absolutePath}")
+            }
+            if (!targetDirectory.mkdirs() && !targetDirectory.isDirectory) {
+                throw IOException("Failed to create directory: ${targetDirectory.absolutePath}")
+            }
+            copiedDirectories += sourceDirectory to targetDirectory
+            val children = sourceDirectory.listFiles()
+                ?: throw IOException("Unable to read directory while copying: ${sourceDirectory.absolutePath}")
+            children.forEach { child ->
+                ensureOperationActive()
+                val childTarget = File(targetDirectory, child.name)
+                if (child.isDirectory) {
+                    pending.addLast(child to childTarget)
+                } else {
+                    copyFileCancellable(child, childTarget, onBytesCopied)
+                }
             }
         }
-        target.setLastModified(source.lastModified())
+        copiedDirectories.asReversed().forEach { (sourceDirectory, targetDirectory) ->
+            ensureOperationActive()
+            targetDirectory.setLastModified(sourceDirectory.lastModified())
+        }
     }
 
     private fun createStagingTarget(target: File): File {
@@ -392,6 +430,7 @@ class FileTransferEngine(
 
         var sourceFileCount = 0
         val pending = ArrayDeque<File>()
+        val visitedDirectories = hashSetOf<String>()
         pending.add(source)
         while (pending.isNotEmpty()) {
             ensureOperationActive()
@@ -399,8 +438,11 @@ class FileTransferEngine(
             val relativePath = current.relativeTo(source).path.takeUnless { it == "." }.orEmpty()
             val targetChild = if (relativePath.isBlank()) target else File(target, relativePath)
             if (current.isDirectory) {
+                val identity = runCatching { directoryIdentity(current) }.getOrElse { return false }
+                if (!visitedDirectories.add(identity)) return false
                 if (!targetChild.isDirectory) return false
-                current.listFiles()?.forEach { pending.addLast(it) }
+                val children = current.listFiles() ?: return false
+                children.forEach { pending.addLast(it) }
             } else {
                 sourceFileCount += 1
                 if (!targetChild.isFile || !verifyFileIntegrity(current, targetChild, policy)) return false
@@ -424,18 +466,33 @@ class FileTransferEngine(
     private suspend fun countFilesStreaming(root: File): Int {
         var count = 0
         val pending = ArrayDeque<File>()
+        val visitedDirectories = hashSetOf<String>()
         pending.add(root)
         while (pending.isNotEmpty()) {
             ensureOperationActive()
             val current = pending.removeFirst()
             if (current.isDirectory) {
-                current.listFiles()?.forEach { pending.addLast(it) }
+                val identity = directoryIdentity(current)
+                if (!visitedDirectories.add(identity)) {
+                    throw IOException("Directory cycle detected while verifying: ${current.absolutePath}")
+                }
+                val children = current.listFiles()
+                    ?: throw IOException("Unable to read directory while verifying: ${current.absolutePath}")
+                children.forEach { pending.addLast(it) }
             } else {
                 count += 1
             }
         }
         return count
     }
+
+    private fun directoryIdentity(directory: File): String =
+        try {
+            val attributes = Files.readAttributes(directory.toPath(), BasicFileAttributes::class.java)
+            attributes.fileKey()?.let { "key:$it" } ?: directory.toPath().toRealPath().toString()
+        } catch (error: Exception) {
+            throw IOException("Unable to identify directory: ${directory.absolutePath}", error)
+        }
 
     private fun deleteTarget(target: File) {
         if (target.isDirectory) target.deleteRecursively() else target.delete()

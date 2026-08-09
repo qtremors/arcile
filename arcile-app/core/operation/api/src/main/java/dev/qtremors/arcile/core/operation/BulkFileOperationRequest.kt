@@ -12,7 +12,8 @@ data class SaveToArcileImportItem(
     val uri: String,
     val displayName: String,
     val sizeBytes: Long? = null,
-    val requiresCountedStream: Boolean = false
+    val requiresCountedStream: Boolean = false,
+    val ownsPersistedReadGrant: Boolean = false
 )
 
 @Serializable

@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.8.9
+> **Version:** 1.9.0
 > **Last Updated:** 2026-08-09
 
 ---
+
+## [1.9.0] - 2026-08-09
+
+- **Safe Cross-Storage Moves**: Kept fully verified destination copies when source cleanup only partially succeeds, recorded the remaining cleanup for safe retry, and retained rollback before source deletion begins.
+- **Responsive External Viewers**: Opened shared images, PDFs, videos, and audio without blocking the interface on storage providers, with readability checks, timeouts, and retryable failure states.
+- **Reliable Large Operations**: Stored bounded bulk-operation requests privately and handed services only a durable ID, preventing oversized selections from exceeding Android transaction limits or running twice.
+- **Safe Deep Folder Handling**: Made storage analysis and directory copies cancellable and cycle-aware without recursive stack growth, with bounded partial analysis for unusually large trees.
+- **Temporary Share Access**: Released only the document permissions acquired for Save to Arcile after rejection, completion, failure, cancellation, or interrupted-operation cleanup.
 
 ## [1.8.9] - 2026-08-09
 

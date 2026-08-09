@@ -569,6 +569,7 @@
     <string name="text_editor_draft_failed">Could not preserve the unsaved draft</string>
     <string name="text_editor_load_failed">Failed to load text file</string>
     <string name="retry">Retry</string>
+    <string name="external_file_opening">Opening file…</string>
     <string name="text_editor_format_heading">Heading</string>
     <string name="text_editor_format_bold">Bold</string>
     <string name="text_editor_format_italic">Italic</string>

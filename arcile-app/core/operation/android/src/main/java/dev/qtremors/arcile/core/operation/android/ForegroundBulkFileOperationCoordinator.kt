@@ -35,8 +35,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
 import java.util.UUID
 import java.io.File
 import javax.inject.Inject
@@ -50,13 +48,13 @@ private const val PROGRESS_BYTE_STEP = 4L * 1024 * 1024
 class ForegroundBulkFileOperationCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val operationJournal: OperationJournal = DefaultOperationJournal(context),
+    private val requestStore: OperationRequestStore = OperationRequestStore(context),
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val activityLogStore: ActivityLogStore? = null,
     @param:ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
     @param:DeferOperationJournalRecovery private val deferJournalRecovery: Boolean = false,
     private val clipboardRepository: ClipboardRepository = NoOpClipboardRepository
 ) : BulkFileOperationCoordinator {
-    private val json = Json { ignoreUnknownKeys = true }
     private val _activeRequest = MutableStateFlow<BulkFileOperationRequest?>(null)
     override val activeRequest: StateFlow<BulkFileOperationRequest?> = _activeRequest.asStateFlow()
     private val _recoveryRecords = MutableStateFlow<List<OperationRecoveryRecord>>(emptyList())
@@ -86,11 +84,25 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
 
     private fun hydrateRecoveredOperations() {
         val recoveredRecords = operationJournal.recoverInterrupted().map { it.toRecoveryRecord() }
+        val abandonedImports = recoveredRecords.filter {
+            it.request.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT
+        }
+        abandonedImports.forEach { record ->
+            SaveToArcileUriGrantManager(context.contentResolver)
+                .releaseOwnedPersistableReadGrants(record.request.importItems)
+            cleanupCheckpointPaths(record.stagedPaths)
+            operationJournal.dismissRecovery(record.request.operationId)
+            requestStore.retire(record.request.operationId)
+        }
+        if (abandonedImports.isNotEmpty()) {
+            applicationScope.launch { mutationJournal.cleanupAbandonedMutations() }
+        }
+        val retryableRecords = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
         if (_activeRequest.value == null) {
             _activeRequest.value = operationJournal.activeRecord()?.request
         }
-        _recoveryRecords.value = recoveredRecords
-        recoveredRecords.forEach { record ->
+        _recoveryRecords.value = retryableRecords
+        retryableRecords.forEach { record ->
             _events.tryEmit(BulkFileOperationEvent.RecoveryAvailable(record))
         }
     }
@@ -243,6 +255,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             cleanupCheckpointPaths(record.stagedPaths)
             mutationJournal.cleanupAbandonedMutations()
             operationJournal.dismissRecovery(operationId)
+            requestStore.retire(operationId)
             _recoveryRecords.value = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
             _events.tryEmit(BulkFileOperationEvent.RecoveryCleanupCompleted(operationId))
         }
@@ -250,12 +263,14 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
 
     override fun dismissRecoveredOperation(operationId: String) {
         operationJournal.dismissRecovery(operationId)
+        requestStore.retire(operationId)
         _recoveryRecords.value = operationJournal.recoveryRecords().map { it.toRecoveryRecord() }
         _events.tryEmit(BulkFileOperationEvent.RecoveryDismissed(operationId))
     }
 
     private fun startRequest(request: BulkFileOperationRequest): Boolean {
         if (_activeRequest.value != null) return false
+        if (!requestStore.store(request)) return false
         _activeRequest.value = request
         synchronized(progressLock) {
             progressState = ProgressState(operationId = request.operationId)
@@ -265,7 +280,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
 
         val intent = Intent(context, BulkFileOperationService::class.java).apply {
             action = BulkFileOperationService.ACTION_START
-            putExtra(BulkFileOperationService.EXTRA_REQUEST_JSON, json.encodeToString(request))
+            putExtra(BulkFileOperationService.EXTRA_OPERATION_ID, request.operationId)
         }
         return try {
             ContextCompat.startForegroundService(context, intent)
@@ -273,6 +288,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             recordOperation(request, ActivityLogOperationStatus.RUNNING)
             true
         } catch (e: Exception) {
+            requestStore.retire(request.operationId)
             _activeRequest.value = null
             clearProgress(request.operationId)
             operationJournal.update(request.operationId) {

@@ -10,6 +10,7 @@ import androidx.compose.material3.Surface
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
+import dev.qtremors.arcile.core.operation.android.SaveToArcileUriGrantManager
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
@@ -79,37 +80,37 @@ class SaveToArcileActivity : ComponentActivity() {
         destinationPath: String,
         incoming: List<IncomingSharedFile>
     ): Result<SaveIncomingResult> {
-        persistReadableUriPermissions(incoming)
+        val grantManager = SaveToArcileUriGrantManager(contentResolver)
+        val ownedGrantUris = persistReadableUriPermissions(incoming, grantManager)
+        val importItems = incoming.map { item ->
+            SaveToArcileImportItem(
+                uri = item.uri.toString(),
+                displayName = item.displayName,
+                sizeBytes = item.sizeBytes,
+                requiresCountedStream = item.requiresCountedStream,
+                ownsPersistedReadGrant = item.uri.toString() in ownedGrantUris
+            )
+        }
         val started = bulkFileOperationCoordinator.startImportOperation(
             destinationPath = destinationPath,
-            importItems = incoming.map { item ->
-                SaveToArcileImportItem(
-                    uri = item.uri.toString(),
-                    displayName = item.displayName,
-                    sizeBytes = item.sizeBytes,
-                    requiresCountedStream = item.requiresCountedStream
-                )
-            }
+            importItems = importItems
         )
         return if (started) {
             Result.success(SaveIncomingResult(savedCount = 0, failures = emptyList(), queued = true))
         } else {
+            grantManager.releaseOwnedPersistableReadGrants(importItems)
             Result.failure(IllegalStateException(getString(R.string.file_operation_already_running)))
         }
     }
 
-    private fun persistReadableUriPermissions(incoming: List<IncomingSharedFile>) {
+    private fun persistReadableUriPermissions(
+        incoming: List<IncomingSharedFile>,
+        grantManager: SaveToArcileUriGrantManager
+    ): Set<String> {
         val requiredFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or
             Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
-        if (intent.flags and requiredFlags != requiredFlags) return
-        incoming.forEach { item ->
-            runCatching {
-                contentResolver.takePersistableUriPermission(
-                    item.uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-            }
-        }
+        if (intent.flags and requiredFlags != requiredFlags) return emptySet()
+        return grantManager.acquirePersistableReadGrants(incoming.map { it.uri })
     }
 
     private fun showDefaultSaved() {

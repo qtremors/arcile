@@ -9,42 +9,62 @@ import android.provider.OpenableColumns
 import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.lifecycleScope
+import dagger.hilt.android.AndroidEntryPoint
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.ui.ExternalViewerLoadScreen
 import androidx.media3.common.MediaItem
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
+import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import java.io.File
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
 
+@AndroidEntryPoint
 internal class VideoViewerActivity : ComponentActivity() {
+    @Inject lateinit var dispatchers: ArcileDispatchers
+    private var target by mutableStateOf<ExternalVideoTarget?>(null)
+    private var loadError by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val target = resolveExternalVideoTarget(this, intent)
-        if (target == null) {
-            showArcileToast(getString(R.string.cannot_open_file, getString(R.string.error_unsupported_provider)))
-            finish()
-            return
-        }
         setContent {
             ArcileTheme(ThemeState()) {
-                GlobalVideoViewer(
-                    VideoPlaybackSession(
-                        listOf(
-                            VideoPlaybackItem(
-                                MediaItem.fromUri(target.uri),
-                                target.displayName,
-                                onShare = { share(target) },
-                                onOpenWith = { openWith(target) }
+                val resolved = target
+                if (resolved == null) ExternalViewerLoadScreen(loadError, ::loadTarget) else {
+                    GlobalVideoViewer(
+                        VideoPlaybackSession(
+                            listOf(
+                                VideoPlaybackItem(
+                                    MediaItem.fromUri(resolved.uri),
+                                    resolved.displayName,
+                                    onShare = { share(resolved) },
+                                    onOpenWith = { openWith(resolved) }
+                                )
                             )
-                        )
-                    ),
-                    ::finish
-                )
+                        ),
+                        ::finish
+                    )
+                }
             }
+        }
+        loadTarget()
+    }
+
+    private fun loadTarget() {
+        loadError = null
+        lifecycleScope.launch {
+            target = resolveExternalVideoTarget(this@VideoViewerActivity, intent, dispatchers.io)
+            if (target == null) loadError = getString(R.string.error_unsupported_provider)
         }
     }
 
@@ -78,29 +98,39 @@ internal class VideoViewerActivity : ComponentActivity() {
 
 private data class ExternalVideoTarget(val reference: ExternalFileAccessHelper.ExternalFileReference, val uri: Uri, val displayName: String)
 
-private fun resolveExternalVideoTarget(context: Context, intent: Intent): ExternalVideoTarget? {
+private suspend fun resolveExternalVideoTarget(
+    context: Context,
+    intent: Intent,
+    ioDispatcher: kotlinx.coroutines.CoroutineDispatcher
+): ExternalVideoTarget? {
     if (intent.action != Intent.ACTION_VIEW) return null
     val uri = intent.data ?: return null
-    val mime = intent.type ?: context.contentResolver.getType(uri)
     val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase().orEmpty()
-    if (mime?.startsWith("video/") != true && extension !in VIDEO_EXTENSIONS) return null
-    val name = if (uri.scheme == "content") {
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
-            cursor.takeIf { it.moveToFirst() }?.getString(0)
-        } ?: uri.lastPathSegment ?: "Video"
-    } else {
-        File(uri.path.orEmpty()).name
-    }
-    val reference = when (uri.scheme) {
-        "content" -> ExternalFileAccessHelper.ExternalFileReference(uri.toString(), name, mimeType = mime)
-        "file", null -> {
-            val file = File(uri.path.orEmpty())
-            if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return null
-            ExternalFileAccessHelper.ExternalFileReference(file.absolutePath, file.name, mimeType = mime)
+    return when (uri.scheme) {
+        "content" -> {
+            val metadata = resolveExternalContentMetadata(
+                context.contentResolver, uri, intent.type, ioDispatcher
+            ).getOrNull() ?: return null
+            val mime = metadata.mimeType
+            if (mime?.startsWith("video/") != true && extension !in VIDEO_EXTENSIONS) return null
+            val name = metadata.displayName ?: uri.lastPathSegment ?: "Video"
+            val reference = ExternalFileAccessHelper.ExternalFileReference(
+                uri.toString(), name, metadata.sizeBytes, mime
+            )
+            ExternalVideoTarget(reference, uri, name)
         }
-        else -> return null
+        "file", null -> withContext(ioDispatcher) {
+            val file = File(uri.path.orEmpty())
+            if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return@withContext null
+            val mime = intent.type
+            if (mime?.startsWith("video/") != true && extension !in VIDEO_EXTENSIONS) return@withContext null
+            val reference = ExternalFileAccessHelper.ExternalFileReference(
+                file.absolutePath, file.name, file.length(), mime
+            )
+            ExternalVideoTarget(reference, Uri.fromFile(file), file.name)
+        }
+        else -> null
     }
-    return ExternalVideoTarget(reference, uri, name)
 }
 
 private val VIDEO_EXTENSIONS = setOf("mp4", "mkv", "webm", "avi", "mov", "m4v", "3gp", "ts", "mts", "m2ts")
