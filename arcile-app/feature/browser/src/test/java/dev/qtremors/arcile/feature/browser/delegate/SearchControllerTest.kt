@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.feature.browser.BrowserSearchState
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -25,6 +26,7 @@ class SearchControllerTest {
     private lateinit var testScope: TestScope
     private var context = BrowserSearchContext(
         currentPath = "",
+        currentNodeRef = null,
         currentVolumeId = null,
         isVolumeRootScreen = true,
         isCategoryScreen = false,
@@ -132,6 +134,93 @@ class SearchControllerTest {
         )
         assertTrue(controller.state.value.searchResults.isEmpty())
         coVerify(exactly = 0) { repository.searchFiles(any(), any(), any()) }
+    }
+
+    @Test
+    fun `privileged directory search uses its exact Root node`() = testScope.runTest {
+        val root = StorageNodeRef.root("/data/user/0", "/data/user/0")
+        val match = FileModel(
+            name = "settings.xml",
+            absolutePath = "/data/user/0/settings.xml",
+            nodeRef = StorageNodeRef.root(
+                "/data/user/0/settings.xml",
+                "/data/user/0/settings.xml"
+            )
+        )
+        context = context.copy(
+            currentPath = "/data/user/0",
+            currentNodeRef = root,
+            currentVolumeId = null,
+            isVolumeRootScreen = false
+        )
+        coEvery { repository.searchNode(any(), any(), any(), any()) } returns Result.success(listOf(match))
+
+        controller.updateQuery("settings")
+        advanceTimeBy(401)
+
+        assertEquals(listOf(match), controller.state.value.searchResults)
+        coVerify(exactly = 1) { repository.searchNode("settings", root, any(), any()) }
+        coVerify(exactly = 0) { repository.searchFiles(any(), any(), any()) }
+    }
+
+    @Test
+    fun `privileged node wins over its optional indexed volume id`() = testScope.runTest {
+        val root = StorageNodeRef.root(
+            displayPath = "/storage/emulated/0/Android/data",
+            remoteCanonicalIdentity = "/storage/emulated/0/Android/data",
+            volumeId = "primary"
+        )
+        context = context.copy(
+            currentPath = root.displayPath.absolutePath,
+            currentNodeRef = root,
+            currentVolumeId = "primary",
+            isVolumeRootScreen = false
+        )
+        coEvery { repository.searchNode(any(), any(), any(), any()) } returns Result.success(emptyList())
+
+        controller.updateQuery("cache")
+        advanceTimeBy(401)
+
+        coVerify(exactly = 1) { repository.searchNode("cache", root, any(), any()) }
+        coVerify(exactly = 0) { repository.searchFiles(any(), any(), any()) }
+    }
+
+    @Test
+    fun `privileged directory filters are forwarded to Shizuku search`() = testScope.runTest {
+        val root = StorageNodeRef.shizuku("/data/local/tmp", "/data/local/tmp")
+        val filters = SearchFilters(extensions = setOf("log"), includeHidden = true)
+        context = context.copy(
+            currentPath = "/data/local/tmp",
+            currentNodeRef = root,
+            currentVolumeId = null,
+            isVolumeRootScreen = false
+        )
+        coEvery { repository.searchNode(any(), any(), any(), any()) } returns Result.success(emptyList())
+
+        controller.updateQuery("service")
+        controller.updateFilters(filters)
+        advanceTimeBy(401)
+
+        coVerify(exactly = 1) { repository.searchNode("service", root, filters, any()) }
+    }
+
+    @Test
+    fun `privileged search failure surfaces backend feedback`() = testScope.runTest {
+        val root = StorageNodeRef.root("/data", "/data")
+        context = context.copy(
+            currentPath = "/data",
+            currentNodeRef = root,
+            currentVolumeId = null,
+            isVolumeRootScreen = false
+        )
+        coEvery { repository.searchNode(any(), any(), any(), any()) } returns
+            Result.failure(IllegalStateException("Root service stopped"))
+
+        controller.updateQuery("package")
+        advanceTimeBy(401)
+
+        assertEquals(UiText.Dynamic("Root service stopped"), controller.state.value.error)
+        assertTrue(controller.state.value.searchResults.isEmpty())
     }
 
     @Test

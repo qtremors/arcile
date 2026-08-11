@@ -87,6 +87,7 @@ internal fun createBrowserControllerGraph(
             val current = navigation.state.value
             BrowserSearchContext(
                 currentPath = current.currentPath,
+                currentNodeRef = current.currentNodeRef,
                 currentVolumeId = current.currentVolumeId,
                 isVolumeRootScreen = current.isVolumeRootScreen,
                 isCategoryScreen = current.isCategoryScreen,

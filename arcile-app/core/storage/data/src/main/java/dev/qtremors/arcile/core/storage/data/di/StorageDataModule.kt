@@ -87,6 +87,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Singleton
+import javax.inject.Provider
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -415,14 +416,16 @@ object StorageDataModule {
         trashManager: TrashManager,
         recentFilesSnapshotStore: RecentFilesSnapshotStore,
         dispatchers: ArcileDispatchers,
-        rootStorageUsageProvider: RootStorageUsageProvider
+        rootStorageUsageProvider: RootStorageUsageProvider,
+        fileSystemDataSource: Provider<FileSystemDataSource>
     ): DefaultMediaRepository = DefaultMediaRepository(
         volumeProvider,
         mediaStoreClient,
         trashManager,
         recentFilesSnapshotStore,
         dispatchers,
-        rootStorageUsageProvider
+        rootStorageUsageProvider,
+        fileSystemDataSource
     )
 
     @Provides

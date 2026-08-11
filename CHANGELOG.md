@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.4
+> **Version:** 1.9.5
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.5] - 2026-08-11
+
+- **Protected Folder Search**: Added recursive search with existing filters inside the current Root or Shizuku directory, while preserving each result's original backend.
+- **Bounded Privileged Scans**: Added depth, entry, result, and duration limits with cycle detection, inaccessible-branch handling, and cancellation-safe traversal.
+- **Stable Cached Identity**: Preserved canonical backend identity and capabilities in cached file and usage results, including Unicode, newline, and delimiter-containing paths.
 
 ---
 

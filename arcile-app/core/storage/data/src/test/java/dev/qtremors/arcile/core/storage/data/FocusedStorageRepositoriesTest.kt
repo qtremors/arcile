@@ -49,6 +49,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import javax.inject.Provider
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -141,7 +142,8 @@ class FocusedStorageRepositoriesTest {
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
             testDispatchers(),
-            RootStorageUsageProvider { null }
+            RootStorageUsageProvider { null },
+            Provider { RecordingFileSystemDataSource() }
         )
 
         try {
@@ -173,7 +175,8 @@ class FocusedStorageRepositoriesTest {
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
             testDispatchers(),
-            RootStorageUsageProvider { rootUsage }
+            RootStorageUsageProvider { rootUsage },
+            Provider { RecordingFileSystemDataSource() }
         )
 
         try {
@@ -226,7 +229,8 @@ class FocusedStorageRepositoriesTest {
                 RecordingTrashManager(),
                 snapshotStore,
                 testDispatchers(),
-                RootStorageUsageProvider { null }
+                RootStorageUsageProvider { null },
+                Provider { RecordingFileSystemDataSource() }
             )
 
             val result = repository.getRecentFiles(scope, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()
