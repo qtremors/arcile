@@ -91,7 +91,7 @@ class PrivilegedFileModelMapper(
             canDelete = deletable,
             canTrash = moveable &&
                 pathPolicy.classify(entry.path).getOrNull() == PrivilegedPathScope.USER_STORAGE,
-            canArchive = ordinaryFile && readable,
+            canArchive = (ordinaryFile || directory) && readable,
             canRename = renameable,
             canCopy = copyable,
             canMove = moveable,

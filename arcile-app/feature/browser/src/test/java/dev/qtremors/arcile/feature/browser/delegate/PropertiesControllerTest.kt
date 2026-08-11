@@ -2,13 +2,17 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveSummary
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
 import dev.qtremors.arcile.feature.browser.BrowserPropertiesState
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -81,6 +85,42 @@ class PropertiesControllerTest {
         assertFalse(controller.state.value.isLoading)
         assertEquals(32L, controller.state.value.properties?.totalBytes)
         assertEquals("photos.zip/photos", controller.state.value.properties?.pathSummary)
+    }
+
+    @Test
+    fun `protected archive properties load metadata through retained node identity`() = scope.runTest {
+        val archive = StorageNodeRef.root(
+            displayPath = "/data/local/tmp/private.zip",
+            remoteCanonicalIdentity = "/data/local/tmp/private.zip"
+        )
+        val selected = file("private.zip", archive.displayPath.absolutePath, 100).copy(nodeRef = archive)
+        context = BrowserPropertiesContext(
+            selectedPaths = listOf(selected.absolutePath),
+            files = listOf(selected),
+            archiveContext = null
+        )
+        coEvery { fileBrowserRepository.getNodeSelectionProperties(listOf(archive)) } returns
+            Result.success(properties(selected.name, selected.absolutePath, selected.size))
+        val summary = ArchiveSummary(
+            archivePath = selected.absolutePath,
+            format = ArchiveFormat.ZIP,
+            archiveSize = 100,
+            totalUncompressedSize = 300,
+            fileCount = 2,
+            folderCount = 1,
+            newestModifiedAt = null,
+            oldestModifiedAt = null,
+            hasUnreadableEntries = false
+        )
+        coEvery { archiveRepository.getArchiveMetadata(archive, null, any()) } returns
+            Result.success(summary)
+
+        controller.openForSelection()
+        advanceUntilIdle()
+
+        assertEquals(summary, controller.state.value.properties?.archiveSummary)
+        coVerify(exactly = 1) { archiveRepository.getArchiveMetadata(archive, null, any()) }
+        coVerify(exactly = 0) { archiveRepository.getArchiveMetadata(selected.absolutePath) }
     }
 
     @Test

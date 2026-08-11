@@ -266,7 +266,14 @@ internal class BrowserNavigationController(
             val prefix = archive.entryPrefix?.trimEnd('/')?.takeIf { it.isNotBlank() }
             if (prefix != null) {
                 val parent = prefix.substringBeforeLast('/', missingDelimiterValue = "").takeIf { it.isNotBlank() }
-                loadArchiveEntries(archive.archivePath, parent, archive.password, archive.nameEncoding, pushHistory = false)
+                loadArchiveEntries(
+                    archive.archivePath,
+                    archive.archiveNodeRef,
+                    parent,
+                    archive.password,
+                    archive.nameEncoding,
+                    pushHistory = false
+                )
                 return true
             }
             val parentPath = storageParentPath(archive.archivePath)
@@ -293,6 +300,7 @@ internal class BrowserNavigationController(
                 is BrowserHistoryEntry.Archive -> {
                     loadArchiveEntries(
                         archivePath = previous.archivePath,
+                        archiveNodeRef = previous.archiveNodeRef,
                         entryPrefix = previous.entryPrefix,
                         password = state.value.archiveContext?.takeIf { it.archivePath == previous.archivePath }?.password,
                         nameEncoding = state.value.archiveContext?.takeIf { it.archivePath == previous.archivePath }?.nameEncoding
@@ -340,6 +348,7 @@ internal class BrowserNavigationController(
                 val archive = state.value.archiveContext ?: return
                 loadArchiveEntries(
                     archivePath = archive.archivePath,
+                    archiveNodeRef = archive.archiveNodeRef,
                     entryPrefix = archive.entryPrefix,
                     password = archive.password,
                     nameEncoding = archive.nameEncoding,

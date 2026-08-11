@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.6
+> **Version:** 1.9.7
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.7] - 2026-08-11
+
+- **Protected Archive Workflows**: Added Root and Shizuku browsing, metadata, conflict detection, extraction, and creation for ZIP, TAR-family, and 7z archives while keeping protected paths behind authorized descriptors.
+- **Safe Cross-Backend Publication**: Added private compatibility workspaces, recognizable partial outputs, final renames, conflict-safe folder aliases, replacement rollback, and cleanup after failures or interruptions.
+- **Persistent Archive Identity**: Kept archive and destination backends through browser history, restored sessions, properties, durable foreground requests, and service restarts instead of retrying protected files as local paths.
 
 ---
 

@@ -13,6 +13,9 @@ import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
@@ -137,6 +140,65 @@ class BulkFileOperationCoordinatorTest {
         assertEquals(StorageNodeRef.ROOT_BACKEND_ID, durable?.sourceRefs?.single()?.backendId)
         assertEquals(StorageNodeRef.SHIZUKU_BACKEND_ID, durable?.destinationRef?.backendId)
         assertFalse(durable?.sourceRefs?.single()?.capabilities?.canShare ?: true)
+    }
+
+    @Test
+    fun `startArchiveNodeOperation retains format options and protected identities durably`() {
+        val archive = StorageNodeRef.root(
+            displayPath = "/data/local/tmp/private.zip",
+            remoteCanonicalIdentity = "/data/local/tmp/private.zip"
+        )
+        val destination = StorageNodeRef.root(
+            displayPath = "/data/local/tmp/output",
+            remoteCanonicalIdentity = "/data/local/tmp/output"
+        )
+
+        val accepted = coordinator.startArchiveNodeOperation(
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourceNodes = listOf(archive),
+            destinationNode = destination,
+            resolutions = mapOf("same.txt" to ConflictResolution.REPLACE),
+            archiveFormat = ArchiveFormat.ZIP,
+            archiveEntryPrefix = "selected/folder",
+            archivePassword = "secret",
+            archiveNameEncoding = ArchiveNameEncoding.WINDOWS_1252,
+            archiveCompressionLevel = ArchiveCompressionLevel.MAXIMUM,
+            presentationOwnerId = "browser-archive"
+        )
+
+        assertTrue(accepted)
+        val active = requireNotNull(coordinator.activeRequest.value)
+        assertEquals(listOf(archive), active.sourceRefs)
+        assertEquals(destination, active.destinationRef)
+        assertEquals(ArchiveFormat.ZIP, active.archiveFormat)
+        assertEquals("selected/folder", active.archiveEntryPrefix)
+        assertEquals("secret", active.archivePassword)
+        assertEquals(ArchiveNameEncoding.WINDOWS_1252, active.archiveNameEncoding)
+        assertEquals(ArchiveCompressionLevel.MAXIMUM, active.archiveCompressionLevel)
+        assertEquals(mapOf("same.txt" to ConflictResolution.REPLACE), active.resolutions)
+        assertEquals("browser-archive", active.presentationOwnerId)
+
+        val durable = requireNotNull(OperationRequestStore(context).claim(active.operationId))
+        assertEquals(active, durable)
+        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, durable.sourceRefs.single().backendId)
+        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, durable.destinationRef?.backendId)
+    }
+
+    @Test
+    fun `startArchiveNodeOperation rejects non archive type before durable handoff`() {
+        val source = StorageNodeRef.root("/data/source", "/data/source")
+        val destination = StorageNodeRef.root("/data/destination", "/data/destination")
+
+        val failure = runCatching {
+            coordinator.startArchiveNodeOperation(
+                type = BulkFileOperationType.COPY,
+                sourceNodes = listOf(source),
+                destinationNode = destination
+            )
+        }.exceptionOrNull()
+
+        assertTrue(failure is IllegalArgumentException)
+        assertNull(coordinator.activeRequest.value)
     }
 
     @Test

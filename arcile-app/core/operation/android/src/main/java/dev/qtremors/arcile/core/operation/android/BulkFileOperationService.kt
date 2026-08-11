@@ -199,25 +199,47 @@ class BulkFileOperationService : Service() {
                                 request.sourcePaths.first(),
                                 requireNotNull(request.fakeFileSize)
                             ) { progress -> handleProgress(request, progress) }
-                            BulkFileOperationType.EXTRACT_ARCHIVE -> archiveRepository.extractArchive(
-                                archivePath = request.sourcePaths.first(),
-                                destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
-                                entryPrefix = request.archiveEntryPrefix,
-                                password = request.archivePassword,
-                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
-                                resolutions = request.resolutions
-                            ) { progress ->
-                                handleProgress(request, progress)
+                            BulkFileOperationType.EXTRACT_ARCHIVE -> if (
+                                request.sourceNodeRefs.isNotEmpty() && request.destinationNodeRef != null
+                            ) {
+                                archiveRepository.extractArchive(
+                                    archive = request.sourceRefs.first(),
+                                    destination = requireNotNull(request.destinationRef),
+                                    entryPrefix = request.archiveEntryPrefix,
+                                    password = request.archivePassword,
+                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                    resolutions = request.resolutions
+                                ) { progress -> handleProgress(request, progress) }
+                            } else {
+                                archiveRepository.extractArchive(
+                                    archivePath = request.sourcePaths.first(),
+                                    destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
+                                    entryPrefix = request.archiveEntryPrefix,
+                                    password = request.archivePassword,
+                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                    resolutions = request.resolutions
+                                ) { progress -> handleProgress(request, progress) }
                             }
-                            BulkFileOperationType.CREATE_ARCHIVE -> archiveRepository.createArchive(
-                                sourcePaths = request.sourcePaths,
-                                destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
-                                format = requireNotNull(request.archiveFormat) { "Archive format is required" },
-                                password = request.archivePassword,
-                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
-                                compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
-                            ) { progress ->
-                                handleProgress(request, progress)
+                            BulkFileOperationType.CREATE_ARCHIVE -> if (
+                                request.sourceNodeRefs.isNotEmpty() && request.destinationNodeRef != null
+                            ) {
+                                archiveRepository.createArchive(
+                                    sources = request.sourceRefs,
+                                    destinationArchive = requireNotNull(request.destinationRef),
+                                    format = requireNotNull(request.archiveFormat) { "Archive format is required" },
+                                    password = request.archivePassword,
+                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                    compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
+                                ) { progress -> handleProgress(request, progress) }
+                            } else {
+                                archiveRepository.createArchive(
+                                    sourcePaths = request.sourcePaths,
+                                    destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
+                                    format = requireNotNull(request.archiveFormat) { "Archive format is required" },
+                                    password = request.archivePassword,
+                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                    compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
+                                ) { progress -> handleProgress(request, progress) }
                             }
                             BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> importSharedFiles(request) { progress ->
                                 handleProgress(request, progress)

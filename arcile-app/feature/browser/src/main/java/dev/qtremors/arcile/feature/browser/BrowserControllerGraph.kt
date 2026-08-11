@@ -174,7 +174,9 @@ internal fun createBrowserControllerGraph(
             BrowserArchiveWorkflowContext(
                 archiveContext = current.archiveContext,
                 currentPath = current.currentPath,
-                selectedPaths = selection.state.value.selectedFiles
+                selectedPaths = selection.state.value.selectedFiles,
+                currentNodeRef = current.currentNodeRef,
+                files = current.files
             )
         },
         clearSelection = selection::clear,

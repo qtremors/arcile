@@ -42,6 +42,9 @@ import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.db.StorageUsageSnapshotDao
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailDao
 import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
+import dev.qtremors.arcile.core.storage.data.manager.ArchiveNodeWorkspaceBridge
+import dev.qtremors.arcile.core.storage.data.manager.BackendAwareArchiveManager
+import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveNodeIo
 import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
 import dev.qtremors.arcile.core.storage.data.manager.PrivilegedTrashController
@@ -249,16 +252,31 @@ object StorageDataModule {
     @Provides
     @Singleton
     fun provideArchiveManager(
+        @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
         mutationJournal: MutationJournal,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        fileSystemDataSource: FileSystemDataSource,
+        privilegedFileSystemDataSource: PrivilegedFileSystemDataSource
     ): ArchiveManager {
-        return DefaultArchiveManager(
+        val workspaceRoot = java.io.File(context.cacheDir, "archive-workspaces")
+        val codec = DefaultArchiveManager(
             volumeProvider,
             mutationFinalizer,
             dispatchers = dispatchers,
-            mutationJournal = mutationJournal
+            mutationJournal = mutationJournal,
+            additionalSafeRoots = listOf(workspaceRoot.absolutePath)
+        )
+        return BackendAwareArchiveManager(
+            codec = codec,
+            bridge = ArchiveNodeWorkspaceBridge(
+                io = DefaultArchiveNodeIo(
+                    fileSystem = fileSystemDataSource,
+                    privileged = privilegedFileSystemDataSource
+                ),
+                workspaceRoot = workspaceRoot
+            )
         )
     }
 

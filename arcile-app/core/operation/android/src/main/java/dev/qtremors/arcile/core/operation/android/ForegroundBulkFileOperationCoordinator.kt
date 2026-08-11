@@ -168,6 +168,41 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         return startRequest(request)
     }
 
+    override fun startArchiveNodeOperation(
+        type: BulkFileOperationType,
+        sourceNodes: List<StorageNodeRef>,
+        destinationNode: StorageNodeRef,
+        resolutions: Map<String, ConflictResolution>,
+        archiveFormat: ArchiveFormat?,
+        archiveEntryPrefix: String?,
+        archivePassword: String?,
+        archiveNameEncoding: ArchiveNameEncoding?,
+        archiveCompressionLevel: ArchiveCompressionLevel?,
+        presentationOwnerId: String?
+    ): Boolean {
+        if (_activeRequest.value != null) return false
+        require(type == BulkFileOperationType.EXTRACT_ARCHIVE || type == BulkFileOperationType.CREATE_ARCHIVE) {
+            "Archive node requests require an archive operation type"
+        }
+        require(sourceNodes.isNotEmpty()) { "Archive request has no sources" }
+        val request = BulkFileOperationRequest(
+            operationId = UUID.randomUUID().toString(),
+            type = type,
+            sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
+            destinationPath = destinationNode.displayPath.absolutePath,
+            resolutions = resolutions,
+            archiveFormat = archiveFormat,
+            archiveEntryPrefix = archiveEntryPrefix,
+            archivePassword = archivePassword?.takeIf(String::isNotEmpty),
+            archiveNameEncoding = archiveNameEncoding,
+            archiveCompressionLevel = archiveCompressionLevel,
+            presentationOwnerId = presentationOwnerId,
+            sourceNodeRefs = sourceNodes.map(OperationStorageNodeRef::from),
+            destinationNodeRef = OperationStorageNodeRef.from(destinationNode)
+        )
+        return startRequest(request)
+    }
+
     override fun startCreateFakeNodeOperation(
         parent: StorageNodeRef,
         name: String,

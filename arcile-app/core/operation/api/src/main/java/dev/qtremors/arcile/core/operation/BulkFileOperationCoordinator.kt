@@ -47,6 +47,30 @@ interface BulkFileOperationCoordinator {
         clipboardSessionId = clipboardSessionId
     )
 
+    fun startArchiveNodeOperation(
+        type: BulkFileOperationType,
+        sourceNodes: List<StorageNodeRef>,
+        destinationNode: StorageNodeRef,
+        resolutions: Map<String, ConflictResolution> = emptyMap(),
+        archiveFormat: ArchiveFormat? = null,
+        archiveEntryPrefix: String? = null,
+        archivePassword: String? = null,
+        archiveNameEncoding: ArchiveNameEncoding? = null,
+        archiveCompressionLevel: ArchiveCompressionLevel? = null,
+        presentationOwnerId: String? = null
+    ): Boolean = startOperation(
+        type = type,
+        sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
+        destinationPath = destinationNode.displayPath.absolutePath,
+        resolutions = resolutions,
+        archiveFormat = archiveFormat,
+        archiveEntryPrefix = archiveEntryPrefix,
+        archivePassword = archivePassword,
+        archiveNameEncoding = archiveNameEncoding,
+        archiveCompressionLevel = archiveCompressionLevel,
+        presentationOwnerId = presentationOwnerId
+    )
+
     fun startCreateFakeNodeOperation(
         parent: StorageNodeRef,
         name: String,

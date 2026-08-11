@@ -543,6 +543,83 @@ class BulkFileOperationServiceTest {
     }
 
     @Test
+    fun `service routes protected extraction through retained node identities`() {
+        val archive = StorageNodeRef.root(
+            displayPath = "/data/local/tmp/archive.zip",
+            remoteCanonicalIdentity = "/data/local/tmp/archive.zip"
+        )
+        val destination = StorageNodeRef.root(
+            displayPath = "/data/local/tmp/out",
+            remoteCanonicalIdentity = "/data/local/tmp/out"
+        )
+        val request = BulkFileOperationRequest(
+            operationId = "op-node-extract",
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf(archive.displayPath.absolutePath),
+            destinationPath = destination.displayPath.absolutePath,
+            resolutions = mapOf("same.txt" to ConflictResolution.KEEP_BOTH),
+            archiveEntryPrefix = "selected",
+            archivePassword = "secret",
+            archiveNameEncoding = ArchiveNameEncoding.WINDOWS_1252,
+            sourceNodeRefs = listOf(OperationStorageNodeRef.from(archive)),
+            destinationNodeRef = OperationStorageNodeRef.from(destination)
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        assertTrue(archiveRepository.extractArchiveRequests.isEmpty())
+        val routed = archiveRepository.nodeExtractArchiveRequests.single()
+        assertEquals(archive, routed.archive)
+        assertEquals(destination, routed.destination)
+        assertEquals("selected", routed.entryPrefix)
+        assertEquals("secret", routed.password)
+        assertEquals(ArchiveNameEncoding.WINDOWS_1252, routed.nameEncoding)
+        assertEquals(mapOf("same.txt" to ConflictResolution.KEEP_BOTH), routed.resolutions)
+    }
+
+    @Test
+    fun `service routes protected archive creation through retained node identities`() {
+        val first = StorageNodeRef.shizuku(
+            displayPath = "/storage/emulated/0/Android/data/one.txt",
+            remoteCanonicalIdentity = "/storage/emulated/0/Android/data/one.txt"
+        )
+        val second = StorageNodeRef.shizuku(
+            displayPath = "/storage/emulated/0/Android/data/folder",
+            remoteCanonicalIdentity = "/storage/emulated/0/Android/data/folder"
+        )
+        val archive = StorageNodeRef.shizuku(
+            displayPath = "/storage/emulated/0/Download/output.7z",
+            remoteCanonicalIdentity = "/storage/emulated/0/Download/output.7z"
+        )
+        val request = BulkFileOperationRequest(
+            operationId = "op-node-create",
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = listOf(first.displayPath.absolutePath, second.displayPath.absolutePath),
+            destinationPath = archive.displayPath.absolutePath,
+            archiveFormat = ArchiveFormat.SEVEN_Z,
+            archivePassword = "secret",
+            archiveNameEncoding = ArchiveNameEncoding.UTF_8,
+            archiveCompressionLevel = ArchiveCompressionLevel.MAXIMUM,
+            sourceNodeRefs = listOf(first, second).map(OperationStorageNodeRef::from),
+            destinationNodeRef = OperationStorageNodeRef.from(archive)
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        assertTrue(archiveRepository.createArchiveRequests.isEmpty())
+        val routed = archiveRepository.nodeCreateArchiveRequests.single()
+        assertEquals(listOf(first, second), routed.sources)
+        assertEquals(archive, routed.destinationArchive)
+        assertEquals(ArchiveFormat.SEVEN_Z, routed.format)
+        assertEquals("secret", routed.password)
+        assertEquals(ArchiveCompressionLevel.MAXIMUM, routed.compressionLevel)
+    }
+
+    @Test
     fun `service imports shared files through foreground operation`() {
         val source = File(context.cacheDir, "shared-source.txt").apply {
             writeText("shared payload")

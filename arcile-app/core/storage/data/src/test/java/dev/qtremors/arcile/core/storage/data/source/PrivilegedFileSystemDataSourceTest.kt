@@ -151,9 +151,11 @@ class PrivilegedFileSystemDataSourceTest {
         assertTrue(documentCapabilities.canMove)
         assertTrue(documentCapabilities.canDelete)
         assertTrue(documentCapabilities.canTrash)
+        assertTrue(documentCapabilities.canArchive)
         assertTrue(directoryCapabilities.canMove)
         assertTrue(directoryCapabilities.canDelete)
         assertTrue(directoryCapabilities.canTrash)
+        assertTrue(directoryCapabilities.canArchive)
     }
 
     @Test
