@@ -511,6 +511,19 @@ class PrivilegedFileSystemDataSource(
         mapper.toFileModel(entry, client.session)
     }
 
+    override suspend fun openNodeInput(node: StorageNodeRef): Result<StorageNodeInput> =
+        openNode(node, dev.qtremors.arcile.core.privilege.PrivilegedOpenMode.READ).mapCatching { handle ->
+            val input = handle.input
+            if (input == null) {
+                handle.close()
+                error("Privileged read handle has no input stream")
+            }
+            StorageNodeInput(
+                stream = input,
+                closeAction = handle::close
+            )
+        }
+
     internal suspend fun openNode(
         node: StorageNodeRef,
         mode: dev.qtremors.arcile.core.privilege.PrivilegedOpenMode

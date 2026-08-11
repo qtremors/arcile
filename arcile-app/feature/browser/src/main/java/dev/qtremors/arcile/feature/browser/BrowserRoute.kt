@@ -25,6 +25,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
@@ -84,6 +85,8 @@ sealed interface BrowserDestination {
         val surroundingFiles: List<FileModel>
     ) : BrowserDestination
     data class OpenFileWith(val path: String) : BrowserDestination
+    data class AnalyzeStorage(val root: StorageNodeRef) : BrowserDestination
+    data class CleanStorage(val root: StorageNodeRef) : BrowserDestination
 }
 
 @Composable
@@ -267,7 +270,13 @@ fun BrowserRoute(
                 saveCurrentScrollPosition()
                 viewModel.selectFolderTab(path)
             },
-            onToggleHiddenFiles = viewModel::toggleHiddenFiles
+            onToggleHiddenFiles = viewModel::toggleHiddenFiles,
+            onAnalyzeStorage = {
+                state.currentScopeNode()?.let { onDestination(BrowserDestination.AnalyzeStorage(it)) }
+            },
+            onCleanStorage = {
+                state.currentScopeNode()?.let { onDestination(BrowserDestination.CleanStorage(it)) }
+            }
         ),
         selection = BrowserSelectionIntents(
             onToggleSelection = viewModel::toggleSelection,
@@ -411,6 +420,12 @@ fun BrowserRoute(
             }
         }
     }
+}
+
+private fun BrowserUiState.currentScopeNode(): StorageNodeRef? = when {
+    currentPath.isBlank() || isCategoryScreen || isVolumeRootScreen || archiveContext != null -> null
+    currentNodeRef != null -> currentNodeRef
+    else -> runCatching { StorageNodeRef.local(currentPath, currentVolumeId) }.getOrNull()
 }
 
 internal fun canPublishBrowserStatus(state: BrowserInitializationState): Boolean =

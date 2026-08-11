@@ -17,6 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.navigation
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.storagecleaner.ui.StorageCleanerGroupScreen
@@ -124,5 +125,27 @@ private fun sharedStorageCleanerViewModel(
     val parentEntry = remember(entry) {
         navController.getBackStackEntry<AppRoutes.StorageCleaner>()
     }
-    return hiltViewModel(parentEntry)
+    val route = parentEntry.toRoute<AppRoutes.StorageCleaner>()
+    val scope = remember(route) { route.toStorageNodeRef() }
+    val viewModel = hiltViewModel<StorageCleanerViewModel>(parentEntry)
+    LaunchedEffect(scope?.canonicalIdentity?.value, scope?.backendId) {
+        viewModel.configureExplicitScope(scope)
+    }
+    return viewModel
+}
+
+internal fun AppRoutes.StorageCleaner.toStorageNodeRef(): StorageNodeRef? {
+    val path = scopePath?.takeIf(String::isNotBlank) ?: return null
+    return when (scopeBackendId) {
+        null,
+        StorageNodeRef.LOCAL_BACKEND_ID -> StorageNodeRef.local(path)
+        StorageNodeRef.ROOT_BACKEND_ID,
+        StorageNodeRef.SHIZUKU_BACKEND_ID -> StorageNodeRef.privileged(
+            backendId = requireNotNull(scopeBackendId),
+            displayPath = path,
+            remoteCanonicalIdentity = scopeBackendIdentity?.takeIf(String::isNotBlank)
+                ?: return null
+        )
+        else -> null
+    }
 }

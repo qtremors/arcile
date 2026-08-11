@@ -40,6 +40,9 @@ class BackendAwareFileSystemDataSource(
     override suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> =
         withDataSource(node) { it.inspectNode(node) }
 
+    override suspend fun openNodeInput(node: StorageNodeRef): Result<StorageNodeInput> =
+        withDataSource(node) { it.openNodeInput(node) }
+
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> =
         activeDataSource().createDirectory(parentPath, name)
 

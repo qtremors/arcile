@@ -186,6 +186,21 @@ class StorageCleanerSnapshotStore @Inject constructor(
         }.getOrNull()
     }
 
+    suspend fun getNodes(
+        roots: List<StorageNodeRef>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType> = CleanerGroupType.entries.toSet()
+    ): CachedStorageCleanerResult? = withContext(dispatchers.io) {
+        val entity = dao.get(nodeKey(roots, limits, rules, groupTypes)) ?: return@withContext null
+        runCatchingPreservingCancellation {
+            CachedStorageCleanerResult(
+                result = json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain(),
+                cachedAt = entity.cachedAt
+            )
+        }.getOrNull()
+    }
+
     suspend fun put(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
@@ -197,6 +212,23 @@ class StorageCleanerSnapshotStore @Inject constructor(
             StorageCleanerSnapshotEntity(
                 key = key(rootPaths, limits, rules, groupTypes),
                 rootPathsKey = rootPathsKey(rootPaths),
+                payloadJson = json.encodeToString(CachedCleanerResult.from(result)),
+                cachedAt = System.currentTimeMillis()
+            )
+        )
+    }
+
+    suspend fun putNodes(
+        roots: List<StorageNodeRef>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType> = CleanerGroupType.entries.toSet(),
+        result: StorageCleanerResult
+    ) = withContext(dispatchers.io) {
+        dao.upsert(
+            StorageCleanerSnapshotEntity(
+                key = nodeKey(roots, limits, rules, groupTypes),
+                rootPathsKey = rootNodesKey(roots),
                 payloadJson = json.encodeToString(CachedCleanerResult.from(result)),
                 cachedAt = System.currentTimeMillis()
             )
@@ -241,6 +273,49 @@ class StorageCleanerSnapshotStore @Inject constructor(
         }
     }
 
+    suspend fun invalidateNodes(nodes: Collection<StorageNodeRef>) = withContext(dispatchers.io) {
+        if (nodes.isEmpty()) {
+            dao.markAllStale()
+            return@withContext
+        }
+        val changed = nodes.distinctBy { it.canonicalIdentity.value }
+        dao.getAll().forEach { entity ->
+            val cached = runCatchingPreservingCancellation {
+                json.decodeFromString<CachedCleanerResult>(entity.payloadJson).toDomain()
+            }.getOrNull() ?: return@forEach
+            val updated = cached.copy(
+                groups = cached.groups.map { group ->
+                    val remaining = group.candidates.filterNot { candidate ->
+                        val candidateNode = candidate.nodeRef ?: return@filterNot false
+                        changed.any { node ->
+                            node.backendId == candidateNode.backendId &&
+                                pathsOverlap(
+                                    node.displayPath.absolutePath,
+                                    candidateNode.displayPath.absolutePath
+                                )
+                        }
+                    }
+                    group.copy(
+                        candidates = if (group.type == CleanerGroupType.Duplicates) {
+                            remaining.groupBy { it.duplicateGroupKey ?: it.absolutePath }
+                                .values
+                                .filter { it.size > 1 }
+                                .flatten()
+                        } else {
+                            remaining
+                        }
+                    )
+                }
+            )
+            dao.upsert(
+                entity.copy(
+                    payloadJson = json.encodeToString(CachedCleanerResult.from(updated)),
+                    cachedAt = 0L
+                )
+            )
+        }
+    }
+
     private fun key(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
@@ -251,8 +326,32 @@ class StorageCleanerSnapshotStore @Inject constructor(
             "${limits.maxFiles}:${limits.maxDepth}:${limits.maxCandidatesPerGroup}:" +
             "${limits.largeFileThresholdBytes}:${limits.oldDownloadAgeMs}:${rules.normalized().stableHash()}"
 
+    private fun nodeKey(
+        roots: List<StorageNodeRef>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType>
+    ): String =
+        "cleaner:${rootNodesKey(roots)}:${groupTypes.map { it.name }.sorted().joinToString(",")}:" +
+            "${limits.maxFiles}:${limits.maxDepth}:${limits.maxCandidatesPerGroup}:" +
+            "${limits.largeFileThresholdBytes}:${limits.oldDownloadAgeMs}:${rules.normalized().stableHash()}"
+
     private fun rootPathsKey(rootPaths: List<String>): String =
         rootPaths.map { File(it).absolutePath }.distinct().sorted().joinToString("|")
+
+    private fun rootNodesKey(roots: List<StorageNodeRef>): String =
+        roots.map { StorageNodePersistenceIdentity.from(it).encode() }
+            .distinct()
+            .sorted()
+            .joinToString("|")
+
+    private fun pathsOverlap(first: String, second: String): Boolean {
+        val normalizedFirst = first.trimEnd('/', '\\')
+        val normalizedSecond = second.trimEnd('/', '\\')
+        return normalizedFirst == normalizedSecond ||
+            normalizedFirst.startsWith("$normalizedSecond/") ||
+            normalizedSecond.startsWith("$normalizedFirst/")
+    }
 
     private fun StorageCleanerRules.stableHash(): String =
         Json.encodeToString(this).sha256()

@@ -6,6 +6,17 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
+import java.io.Closeable
+import java.io.FileInputStream
+import java.io.InputStream
+
+class StorageNodeInput(
+    val stream: InputStream,
+    private val closeAction: () -> Unit = stream::close
+) : Closeable {
+    override fun close() = closeAction()
+}
 
 interface FileSystemDataSource : DirectoryListingDataSource {
     fun getStandardFolders(): Map<String, String?>
@@ -42,6 +53,14 @@ interface FileSystemDataSource : DirectoryListingDataSource {
 
     suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> =
         Result.failure(UnsupportedOperationException("Node inspection is unavailable for ${node.backendId}"))
+
+    suspend fun openNodeInput(node: StorageNodeRef): Result<StorageNodeInput> = runCatching {
+        require(!node.isPrivileged) {
+            "Protected node content requires backend-aware storage support"
+        }
+        val input = FileInputStream(node.displayPath.absolutePath)
+        StorageNodeInput(input)
+    }
 
     suspend fun listNodeFiles(directory: StorageNodeRef): Result<List<FileModel>> =
         listFiles(directory.displayPath.absolutePath)

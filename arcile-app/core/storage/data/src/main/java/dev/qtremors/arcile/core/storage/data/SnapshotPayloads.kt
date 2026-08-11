@@ -198,7 +198,8 @@ internal data class CachedCleanerCandidate(
     val riskLevel: String,
     val riskReasons: Set<String>,
     val isDirectory: Boolean,
-    val duplicateGroupKey: String?
+    val duplicateGroupKey: String?,
+    val nodeRef: CachedStorageNodeRef? = null
 ) {
     fun toDomain(): CleanerCandidate =
         CleanerCandidate(
@@ -210,7 +211,8 @@ internal data class CachedCleanerCandidate(
             riskLevel = CleanerRiskLevel.valueOf(riskLevel),
             riskReasons = riskReasons.mapTo(linkedSetOf()) { CleanerRiskReason.valueOf(it) },
             isDirectory = isDirectory,
-            duplicateGroupKey = duplicateGroupKey
+            duplicateGroupKey = duplicateGroupKey,
+            nodeRef = nodeRef?.toDomain()
         )
 
     companion object {
@@ -224,7 +226,8 @@ internal data class CachedCleanerCandidate(
                 riskLevel = candidate.riskLevel.name,
                 riskReasons = candidate.riskReasons.mapTo(linkedSetOf()) { it.name },
                 isDirectory = candidate.isDirectory,
-                duplicateGroupKey = candidate.duplicateGroupKey
+                duplicateGroupKey = candidate.duplicateGroupKey,
+                nodeRef = candidate.nodeRef?.let(CachedStorageNodeRef::from)
             )
     }
 }

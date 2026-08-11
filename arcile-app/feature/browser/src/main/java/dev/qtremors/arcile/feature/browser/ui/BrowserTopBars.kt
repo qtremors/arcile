@@ -17,6 +17,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Tab
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Storage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
@@ -44,6 +46,8 @@ internal fun BrowserTopBars(
     mutationIntents: BrowserMutationIntents,
     clipboardIntents: BrowserClipboardIntents,
     onToggleHiddenFiles: () -> Unit,
+    onAnalyzeStorage: () -> Unit,
+    onCleanStorage: () -> Unit,
     appStartPage: AppStartPage?,
     onAppStartPageChange: (AppStartPage) -> Unit,
     onBackClick: () -> Unit,
@@ -112,6 +116,27 @@ internal fun BrowserTopBars(
                 ),
                 scrollBehavior = scrollBehavior,
                 menuActions = buildList {
+                    if (
+                        state.currentPath.isNotBlank() &&
+                        !state.isCategoryScreen &&
+                        !state.isVolumeRootScreen &&
+                        state.archiveContext == null
+                    ) {
+                        add(
+                            ArcileTopBarMenuAction(
+                                label = stringResource(R.string.tool_analyze),
+                                icon = Icons.Default.Storage,
+                                onClick = onAnalyzeStorage
+                            )
+                        )
+                        add(
+                            ArcileTopBarMenuAction(
+                                label = stringResource(R.string.storage_cleaner_title),
+                                icon = Icons.Default.DeleteSweep,
+                                onClick = onCleanStorage
+                            )
+                        )
+                    }
                     if (onWorkspaceTabsEnabledChange != null) {
                         add(
                             ArcileTopBarMenuAction(

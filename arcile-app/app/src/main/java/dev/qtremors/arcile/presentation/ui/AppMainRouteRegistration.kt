@@ -35,6 +35,12 @@ internal fun NavGraphBuilder.registerMainRoute(
                         destination.surroundingFiles
                     )
                     is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
+                    is BrowserDestination.AnalyzeStorage -> navController.navigate(
+                        destination.root.toStorageDashboardRoute()
+                    )
+                    is BrowserDestination.CleanStorage -> navController.navigate(
+                        destination.root.toStorageCleanerRoute()
+                    )
                     BrowserDestination.ExitToHome -> Unit
                 }
             },
@@ -122,7 +128,7 @@ private fun handleHomeDestination(
             popUpTo<AppRoutes.Main> { saveState = true }
             launchSingleTop = true
         }
-        HomeDestination.Cleaner -> navController.navigate(AppRoutes.StorageCleaner) {
+        HomeDestination.Cleaner -> navController.navigate(AppRoutes.StorageCleaner()) {
             popUpTo<AppRoutes.Main> { saveState = true }
             launchSingleTop = true
         }

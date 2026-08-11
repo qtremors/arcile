@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.7
+> **Version:** 1.9.8
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.8] - 2026-08-11
+
+- **Explicit Protected Storage Analysis**: Added folder-level Root and Shizuku usage maps and cleaner entry points while keeping protected areas opt-in instead of scanning them automatically.
+- **Descriptor-Based Cleaner Verification**: Added bounded protected traversal, large-file detection, duplicate sampling, full-content verification, cycle handling, and partial-result reporting without reopening protected paths locally.
+- **Backend-Safe Cleaner Recovery**: Preserved protected file identity in cached cleaner results, Trash operations, undo refreshes, rule changes, and mutation invalidation so identical paths from different backends remain separate.
 
 ---
 
