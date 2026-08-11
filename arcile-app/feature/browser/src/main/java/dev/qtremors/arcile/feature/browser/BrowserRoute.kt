@@ -240,9 +240,9 @@ fun BrowserRoute(
     val screenIntents = BrowserIntents(
         navigation = BrowserNavigationIntents(
             onNavigateBack = navigateBack,
-            onNavigateTo = { path ->
+            onNavigateTo = { path, nodeRef ->
                 saveCurrentScrollPosition()
-                viewModel.navigateToFolder(path)
+                viewModel.navigateToFolder(path, nodeRef)
             },
             onOpenFile = { path ->
                 saveCurrentScrollPosition()

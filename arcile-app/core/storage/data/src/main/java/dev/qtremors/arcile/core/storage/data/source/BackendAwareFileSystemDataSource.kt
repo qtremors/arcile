@@ -16,7 +16,8 @@ import kotlinx.coroutines.flow.flowOf
 class BackendAwareFileSystemDataSource(
     private val local: FileSystemDataSource,
     private val privileged: PrivilegedFileSystemDataSource,
-    private val privilegeCoordinator: PrivilegeCoordinator
+    private val privilegeCoordinator: PrivilegeCoordinator,
+    private val crossBackendTransferEngine: CrossBackendTransferEngine
 ) : FileSystemDataSource {
     override fun getStandardFolders(): Map<String, String?> =
         activeDataSource().getStandardFolders()
@@ -95,10 +96,14 @@ class BackendAwareFileSystemDataSource(
     override suspend fun detectNodeCopyConflicts(
         sources: Collection<StorageNodeRef>,
         destination: StorageNodeRef
-    ): Result<List<FileConflict>> = sameBackendDataSource(sources, destination).fold(
-        onSuccess = { it.detectNodeCopyConflicts(sources, destination) },
-        onFailure = { Result.failure(it) }
-    )
+    ): Result<List<FileConflict>> = if (usesOneBackend(sources, destination)) {
+        dataSourceFor(destination).fold(
+            onSuccess = { it.detectNodeCopyConflicts(sources, destination) },
+            onFailure = { Result.failure(it) }
+        )
+    } else {
+        crossBackendTransferEngine.detectConflicts(sources, destination)
+    }
 
     override suspend fun copyFiles(
         sourcePaths: List<String>,
@@ -117,10 +122,14 @@ class BackendAwareFileSystemDataSource(
         destination: StorageNodeRef,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = sameBackendDataSource(sources, destination).fold(
-        onSuccess = { it.copyNodes(sources, destination, resolutions, onProgress) },
-        onFailure = { Result.failure(it) }
-    )
+    ): Result<Unit> = if (usesOneBackend(sources, destination)) {
+        dataSourceFor(destination).fold(
+            onSuccess = { it.copyNodes(sources, destination, resolutions, onProgress) },
+            onFailure = { Result.failure(it) }
+        )
+    } else {
+        crossBackendTransferEngine.copy(sources, destination, resolutions, onProgress)
+    }
 
     override suspend fun moveFiles(
         sourcePaths: List<String>,
@@ -139,10 +148,14 @@ class BackendAwareFileSystemDataSource(
         destination: StorageNodeRef,
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<Unit> = sameBackendDataSource(sources, destination).fold(
-        onSuccess = { it.moveNodes(sources, destination, resolutions, onProgress) },
-        onFailure = { Result.failure(it) }
-    )
+    ): Result<Unit> = if (usesOneBackend(sources, destination)) {
+        dataSourceFor(destination).fold(
+            onSuccess = { it.moveNodes(sources, destination, resolutions, onProgress) },
+            onFailure = { Result.failure(it) }
+        )
+    } else {
+        crossBackendTransferEngine.move(sources, destination, resolutions, onProgress)
+    }
 
     override suspend fun createFakeFile(
         parentPath: String,
@@ -193,16 +206,13 @@ class BackendAwareFileSystemDataSource(
         onFailure = { Result.failure(it) }
     )
 
-    private fun sameBackendDataSource(
+    private fun usesOneBackend(
         sources: Collection<StorageNodeRef>,
         destination: StorageNodeRef
-    ): Result<FileSystemDataSource> {
+    ): Boolean {
         val backendIds = sources.mapTo(mutableSetOf(), StorageNodeRef::backendId)
         backendIds += destination.backendId
-        if (backendIds.size != 1) {
-            return Result.failure(BackendRoutingFailure.CrossBackendTransferRequired(backendIds))
-        }
-        return dataSourceFor(destination)
+        return backendIds.size == 1
     }
 
     private suspend fun groupedMutation(
@@ -243,9 +253,6 @@ sealed class BackendRoutingFailure(message: String) : IllegalStateException(mess
     class DedicatedBackendRequired(backendId: String) :
         BackendRoutingFailure("Storage backend $backendId requires its dedicated repository")
 
-    class CrossBackendTransferRequired(backendIds: Set<String>) : BackendRoutingFailure(
-        "Cross-backend descriptor transfer is required for ${backendIds.sorted().joinToString()}"
-    )
 }
 
 private inline fun <T, R> Result<T>.flatMap(transform: (T) -> Result<R>): Result<R> = fold(

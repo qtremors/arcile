@@ -4,6 +4,8 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserNavigationEvent
 import dev.qtremors.arcile.feature.browser.reduce
@@ -21,12 +23,16 @@ internal fun BrowserNavigationController.loadDirectory(
     clearHistory: Boolean,
     errorMessage: UiText? = null,
     persistAsLastOpened: Boolean = true,
-    allowDirectPath: Boolean = false
+    allowDirectPath: Boolean = false,
+    nodeRef: StorageNodeRef? = null
 ) {
+    val requestedNodeRef = nodeRef
+        ?: state.value.currentNodeRef?.takeIf { state.value.currentPath == path }
+        ?: state.value.currentNodeRef?.forNavigationPath(path)
     val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
     val isContinuingDirectPath = state.value.currentVolumeId == null &&
         state.value.currentPath.isDirectLocalPath()
-    if (resolvedVolumeId == null && !allowDirectPath && !isContinuingDirectPath) {
+    if (resolvedVolumeId == null && !allowDirectPath && !isContinuingDirectPath && requestedNodeRef?.isPrivileged != true) {
         openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
         return
     }
@@ -39,7 +45,7 @@ internal fun BrowserNavigationController.loadDirectory(
     val generation = nextLoadGeneration()
     if (!preserveCurrentListing) onLocationChanged()
     update {
-        it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId)).withValues(
+        it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId, requestedNodeRef)).withValues(
             isLoading = true,
             error = errorMessage
         ).withUpdatedDisplayState()
@@ -54,7 +60,9 @@ internal fun BrowserNavigationController.loadDirectory(
         applyPresentation(preferences.getPresentationForPath(path), generation)
 
         val loadedFiles = mutableListOf<FileModel>()
-        fileBrowserRepository.listFilePages(path).collect { page ->
+        val pages = requestedNodeRef?.let { fileBrowserRepository.listNodePages(it) }
+            ?: fileBrowserRepository.listFilePages(path)
+        pages.collect { page ->
             if (!isActiveLoad(generation)) return@collect
             page.error?.let { error ->
                 update {
@@ -94,6 +102,7 @@ internal fun BrowserNavigationController.loadDirectory(
             }
             update {
                 it.withValues(
+                    currentNodeRef = page.directoryRef ?: requestedNodeRef,
                     isLoading = !page.isComplete,
                     isPullToRefreshing = if (page.isComplete) false else it.isPullToRefreshing,
                     files = updatedFiles.toPersistentList(),
@@ -106,6 +115,17 @@ internal fun BrowserNavigationController.loadDirectory(
             if (page.isComplete) saveNavStateIfActive(generation)
         }
     }
+}
+
+private fun StorageNodeRef.forNavigationPath(path: String): StorageNodeRef = when {
+    isPrivileged -> StorageNodeRef.privileged(
+        backendId = backendId,
+        displayPath = path,
+        remoteCanonicalIdentity = path,
+        volumeId = volumeId?.value,
+        capabilities = capabilities
+    )
+    else -> StorageNodeRef.local(path, volumeId = volumeId?.value, capabilities = capabilities)
 }
 
 private fun String.isDirectLocalPath(): Boolean =

@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.2
+> **Version:** 1.9.3
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.3] - 2026-08-11
+
+- **Safe Cross-Backend Transfers**: Added staged descriptor streaming between Normal, Root, and Shizuku storage, including nested folders, conflict choices, partial-output cleanup, and source retention when move cleanup fails.
+- **Persistent Privileged Browsing**: Kept Root and Shizuku directory identity through folder navigation, history, and restored browser sessions instead of falling back to local-only access.
+- **Backend-Aware File Actions**: Preserved storage identity through foreground copy, move, delete, shred, and fake-file operations so protected locations continue using their selected backend.
 
 ---
 

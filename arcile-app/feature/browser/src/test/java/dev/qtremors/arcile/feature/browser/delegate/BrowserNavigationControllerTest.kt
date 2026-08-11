@@ -68,7 +68,12 @@ class BrowserNavigationControllerTest {
             every { locationPreferencesFlow } returns kotlinx.coroutines.flow.flowOf(BrowserLocationPreferences())
             coEvery { updateLastOpenedLocation(any(), any()) } returns Unit
         }
-        savedStateHandle = mockk(relaxed = true)
+        savedStateHandle = mockk(relaxed = true) {
+            every { get<String>("currentBackendId") } returns null
+            every { get<String>("currentCanonicalIdentity") } returns null
+            every { get<String>("currentBackendIdentity") } returns null
+            every { get<String>("currentNodeVolumeId") } returns null
+        }
         
         delegate = BrowserNavigationController(
             initialState = BrowserNavigationState().withValues(

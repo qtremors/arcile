@@ -6,6 +6,8 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -196,20 +198,28 @@ internal class BrowserNavigationController(
             return
         }
         val volume = findVolumeForPath(path)
-        val directPathAllowed = allowDirectPath || path.normalizeStorageSeparators() == "/"
+        val restoredNodeRef = navigationPersistence.restoredCurrentNodeRef(path)
+        val directPathAllowed = allowDirectPath || path.normalizeStorageSeparators() == "/" ||
+            restoredNodeRef?.isPrivileged == true
         if (volume == null && !directPathAllowed) {
             openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
             return
         }
         navigationPersistence.clear()
         if (seedInitialPathHistory && volume != null && path != volume.path) {
-            navigationPersistence.push(BrowserHistoryEntry.Directory(volume.path))
+            navigationPersistence.push(
+                BrowserHistoryEntry.Directory(
+                    volume.path,
+                    StorageNodeRef.local(volume.path, volumeId = volume.id)
+                )
+            )
         }
         loadDirectory(
             path = path,
             volumeId = volume?.id,
             clearHistory = false,
-            allowDirectPath = directPathAllowed
+            allowDirectPath = directPathAllowed,
+            nodeRef = restoredNodeRef
         )
     }
 
@@ -218,7 +228,7 @@ internal class BrowserNavigationController(
         loadCategory(categoryName, volumeId)
     }
 
-    fun navigateToFolder(path: String) {
+    fun navigateToFolder(path: String, nodeRef: StorageNodeRef? = null) {
         state.value.archiveContext?.let {
             if (path.startsWith(ARCHIVE_VIRTUAL_PREFIX)) {
                 ArchiveEntryThumbnailData.entryPathFromVirtualPath(path)?.let(::openArchiveFolder)
@@ -239,7 +249,12 @@ internal class BrowserNavigationController(
         if (state.value.currentPath.isNotEmpty() && state.value.currentPath != path) {
             state.value.historyEntry()?.let(navigationPersistence::push)
         }
-        loadDirectory(path, state.value.currentVolumeId, clearHistory = false)
+        loadDirectory(
+            path,
+            state.value.currentVolumeId,
+            clearHistory = false,
+            nodeRef = nodeRef
+        )
     }
 
     fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean {
@@ -267,7 +282,12 @@ internal class BrowserNavigationController(
             when (val previous = navigationPersistence.pop()) {
                 is BrowserHistoryEntry.Directory -> {
                     val volume = findVolumeForPath(previous.path)
-                    loadDirectory(previous.path, volume?.id, clearHistory = false)
+                    loadDirectory(
+                        previous.path,
+                        volume?.id,
+                        clearHistory = false,
+                        nodeRef = previous.nodeRef
+                    )
                     return true
                 }
                 is BrowserHistoryEntry.Archive -> {

@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.FileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.supportsTrash
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.withContext
@@ -87,6 +88,46 @@ class DefaultFileMutationRepository(
         newName: String
     ): Result<FileModel> = fileSystemDataSource.renameFile(path, newName)
 
+    override suspend fun createNodeDirectory(
+        parent: StorageNodeRef,
+        name: String
+    ): Result<FileModel> = fileSystemDataSource.createNodeDirectory(parent, name)
+
+    override suspend fun createNodeFile(
+        parent: StorageNodeRef,
+        name: String
+    ): Result<FileModel> = fileSystemDataSource.createNodeFile(parent, name)
+
+    override suspend fun createFakeNodeFile(
+        parent: StorageNodeRef,
+        name: String,
+        size: Long,
+        onProgress: ((FileOperationProgress) -> Unit)?
+    ): Result<FileModel> = fileSystemDataSource.createFakeNodeFile(parent, name, size, onProgress)
+
+    override suspend fun deleteNodesPermanentlyDetailed(
+        nodes: List<StorageNodeRef>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> = runDetailedNodeMutationWithProgress(
+        nodes = nodes,
+        mutate = { fileSystemDataSource.deleteNodesPermanentlyDetailed(listOf(it)) },
+        onProgress = onProgress
+    )
+
+    override suspend fun shredNodesDetailed(
+        nodes: List<StorageNodeRef>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> = runDetailedNodeMutationWithProgress(
+        nodes = nodes,
+        mutate = { fileSystemDataSource.shredNodesDetailed(listOf(it)) },
+        onProgress = onProgress
+    )
+
+    override suspend fun renameNode(
+        node: StorageNodeRef,
+        newName: String
+    ): Result<FileModel> = fileSystemDataSource.renameNode(node, newName)
+
     override suspend fun batchRenameFiles(
         renames: List<Pair<String, String>>
     ): Result<List<Pair<String, String>>> = withContext(dispatchers.io) {
@@ -166,6 +207,47 @@ class DefaultFileMutationRepository(
                 FileOperationProgress(
                     completedItems = index + 1,
                     totalItems = paths.size,
+                    currentPath = path
+                )
+            )
+        }
+        return Result.success(
+            BatchMutationResult(
+                succeededPaths = succeeded,
+                skippedPaths = skipped,
+                failedItems = failed,
+                cleanupRequiredPaths = cleanupRequired
+            )
+        )
+    }
+
+    private suspend fun runDetailedNodeMutationWithProgress(
+        nodes: List<StorageNodeRef>,
+        mutate: suspend (StorageNodeRef) -> Result<BatchMutationResult>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> {
+        val succeeded = mutableListOf<String>()
+        val skipped = mutableListOf<String>()
+        val failed = mutableListOf<dev.qtremors.arcile.core.storage.domain.BatchMutationFailure>()
+        val cleanupRequired = mutableListOf<String>()
+        nodes.forEachIndexed { index, node ->
+            val path = node.displayPath.absolutePath
+            onProgress(
+                FileOperationProgress(
+                    completedItems = index,
+                    totalItems = nodes.size,
+                    currentPath = path
+                )
+            )
+            val itemResult = mutate(node).getOrElse { return Result.failure(it) }
+            succeeded += itemResult.succeededPaths
+            skipped += itemResult.skippedPaths
+            failed += itemResult.failedItems
+            cleanupRequired += itemResult.cleanupRequiredPaths
+            onProgress(
+                FileOperationProgress(
+                    completedItems = index + 1,
+                    totalItems = nodes.size,
                     currentPath = path
                 )
             )

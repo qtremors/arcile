@@ -19,6 +19,8 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.FakeClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,6 +58,7 @@ class BulkFileOperationCoordinatorTest {
         context = ApplicationProvider.getApplicationContext()
         context.getSharedPreferences("operation_journal", Context.MODE_PRIVATE).edit().clear().commit()
         DefaultOperationJournal.clearForTest(context)
+        OperationRequestStore(context).clearForTest()
         clipboardRepository = FakeClipboardRepository()
         coordinator = ForegroundBulkFileOperationCoordinator(
             context = context,
@@ -91,6 +94,94 @@ class BulkFileOperationCoordinatorTest {
         
         assertFalse(result)
         assertEquals(BulkFileOperationType.COPY, coordinator.activeRequest.value?.type)
+    }
+
+    @Test
+    fun `startNodeOperation retains backend identity in active and durable requests`() {
+        val source = StorageNodeRef.root(
+            displayPath = "/data/user/0/com.example/files/private.txt",
+            remoteCanonicalIdentity = "/data/user/0/com.example/files/private.txt",
+            capabilities = StorageNodeCapabilities(
+                canRead = true,
+                canWrite = false,
+                canDelete = false,
+                canMove = false,
+                canShare = false
+            )
+        )
+        val destination = StorageNodeRef.shizuku(
+            displayPath = "/storage/emulated/0/Documents",
+            remoteCanonicalIdentity = "/storage/emulated/0/Documents",
+            volumeId = "primary"
+        )
+
+        val accepted = coordinator.startNodeOperation(
+            type = BulkFileOperationType.COPY,
+            sourceNodes = listOf(source),
+            destinationNode = destination,
+            presentationOwnerId = "browser",
+            clipboardSessionId = "clipboard-node-session"
+        )
+
+        assertTrue(accepted)
+        val active = requireNotNull(coordinator.activeRequest.value)
+        assertEquals(listOf(source), active.sourceRefs)
+        assertEquals(destination, active.destinationRef)
+        assertEquals(listOf(source.displayPath.absolutePath), active.sourcePaths)
+        assertEquals(destination.displayPath.absolutePath, active.destinationPath)
+        assertEquals("browser", active.presentationOwnerId)
+        assertEquals("clipboard-node-session", active.clipboardSessionId)
+
+        val durable = OperationRequestStore(context).claim(active.operationId)
+        assertEquals(active, durable)
+        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, durable?.sourceRefs?.single()?.backendId)
+        assertEquals(StorageNodeRef.SHIZUKU_BACKEND_ID, durable?.destinationRef?.backendId)
+        assertFalse(durable?.sourceRefs?.single()?.capabilities?.canShare ?: true)
+    }
+
+    @Test
+    fun `startCreateFakeNodeOperation retains privileged parent identity and size`() {
+        val parent = StorageNodeRef.root(
+            displayPath = "/storage/emulated/0/Download",
+            remoteCanonicalIdentity = "/storage/emulated/0/Download"
+        )
+
+        val accepted = coordinator.startCreateFakeNodeOperation(
+            parent = parent,
+            name = "placeholder.bin",
+            size = 32L * 1024 * 1024,
+            presentationOwnerId = "browser"
+        )
+
+        assertTrue(accepted)
+        val request = requireNotNull(coordinator.activeRequest.value)
+        assertEquals(BulkFileOperationType.CREATE_FAKE, request.type)
+        assertEquals(listOf("placeholder.bin"), request.sourcePaths)
+        assertEquals(parent.displayPath.absolutePath, request.destinationPath)
+        assertEquals(parent, request.destinationRef)
+        assertEquals(32L * 1024 * 1024, request.fakeFileSize)
+    }
+
+    @Test
+    fun `busy coordinator rejects node request without replacing active path request`() {
+        assertTrue(
+            coordinator.startOperation(
+                type = BulkFileOperationType.COPY,
+                sourcePaths = listOf("/storage/emulated/0/first.txt"),
+                destinationPath = "/storage/emulated/0/Documents",
+                resolutions = emptyMap()
+            )
+        )
+        val original = requireNotNull(coordinator.activeRequest.value)
+
+        val accepted = coordinator.startNodeOperation(
+            type = BulkFileOperationType.DELETE,
+            sourceNodes = listOf(StorageNodeRef.root("/system/build.prop", "/system/build.prop")),
+            destinationNode = null
+        )
+
+        assertFalse(accepted)
+        assertEquals(original, coordinator.activeRequest.value)
     }
 
     @Test

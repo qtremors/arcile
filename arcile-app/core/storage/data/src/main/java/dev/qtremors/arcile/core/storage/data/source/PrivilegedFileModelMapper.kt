@@ -73,13 +73,13 @@ class PrivilegedFileModelMapper(
             session,
             entry
         ).allowed
-        val copyable = readable && pathPolicy.evaluate(
+        val copyable = (ordinaryFile || directory) && readable && pathPolicy.evaluate(
             entry.path,
             PrivilegedPathOperation.COPY_SOURCE,
             session,
             entry
         ).allowed
-        val moveable = deletable && pathPolicy.evaluate(
+        val moveable = (ordinaryFile || directory) && deletable && pathPolicy.evaluate(
             entry.path,
             PrivilegedPathOperation.MOVE_SOURCE,
             session,

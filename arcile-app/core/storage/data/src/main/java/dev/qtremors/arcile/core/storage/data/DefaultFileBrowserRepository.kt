@@ -32,6 +32,15 @@ class DefaultFileBrowserRepository(
                 flowOf(ListingPage.failed(StorageNodePath.of(File("/").absolutePath), it))
             }
 
+    override suspend fun listNodeFiles(
+        directory: dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+    ): Result<List<FileModel>> = fileSystemDataSource.listNodeFiles(directory)
+
+    override fun listNodePages(
+        directory: dev.qtremors.arcile.core.storage.domain.StorageNodeRef,
+        pageSize: Int
+    ): Flow<ListingPage> = fileSystemDataSource.list(directory, pageSize)
+
     override suspend fun getCachedFolderStats(
         paths: Collection<String>
     ): Map<String, FolderStats> = folderStatsStore.getCached(paths)

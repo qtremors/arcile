@@ -60,7 +60,7 @@ fun FileGrid(
     FileGridRows(
         rows = rows,
         selectedFiles = selectedFiles,
-        onNavigateTo = onNavigateTo,
+        onNavigateTo = { onNavigateTo(it.absolutePath) },
         onOpenFile = onOpenFile,
         onToggleSelection = onToggleSelection,
         onSelectMultiple = onSelectMultiple,
@@ -78,7 +78,7 @@ fun FileGrid(
 fun FileGridRows(
     rows: List<FileRowUiModel>,
     selectedFiles: Set<String>,
-    onNavigateTo: (String) -> Unit,
+    onNavigateTo: (FileModel) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
@@ -139,7 +139,7 @@ fun FileGridRows(
                         onToggleSelection(file.absolutePath)
                         haptics.selectionChanged()
                     } else if (file.isDirectory) {
-                        onNavigateTo(file.absolutePath)
+                        onNavigateTo(file)
                     } else {
                         onOpenFile(file.absolutePath)
                     }
@@ -159,7 +159,7 @@ fun FileGridRows(
                     lastInteractedIndex = index
                 },
                 onOpenDirectly = {
-                    if (file.isDirectory) onNavigateTo(file.absolutePath) else onOpenFile(file.absolutePath)
+                    if (file.isDirectory) onNavigateTo(file) else onOpenFile(file.absolutePath)
                 },
                 onToggleSelectionDirectly = {
                     val wasEmpty = selectedFiles.isEmpty()

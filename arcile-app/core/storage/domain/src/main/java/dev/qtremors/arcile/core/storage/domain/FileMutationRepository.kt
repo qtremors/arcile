@@ -47,4 +47,31 @@ interface FileMutationRepository {
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun batchRenameFiles(renames: List<Pair<String, String>>): Result<List<Pair<String, String>>> =
         Result.success(emptyList())
+
+    suspend fun createNodeDirectory(parent: StorageNodeRef, name: String): Result<FileModel> =
+        createDirectory(parent.displayPath.absolutePath, name)
+    suspend fun createNodeFile(parent: StorageNodeRef, name: String): Result<FileModel> =
+        createFile(parent.displayPath.absolutePath, name)
+    suspend fun createFakeNodeFile(
+        parent: StorageNodeRef,
+        name: String,
+        size: Long,
+        onProgress: ((FileOperationProgress) -> Unit)? = null
+    ): Result<FileModel> = createFakeFile(parent.displayPath.absolutePath, name, size, onProgress)
+    suspend fun deleteNodesPermanentlyDetailed(
+        nodes: List<StorageNodeRef>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> = deletePermanentlyDetailed(
+        nodes.map { it.displayPath.absolutePath },
+        onProgress
+    )
+    suspend fun shredNodesDetailed(
+        nodes: List<StorageNodeRef>,
+        onProgress: (FileOperationProgress) -> Unit
+    ): Result<BatchMutationResult> = shredDetailed(
+        nodes.map { it.displayPath.absolutePath },
+        onProgress
+    )
+    suspend fun renameNode(node: StorageNodeRef, newName: String): Result<FileModel> =
+        renameFile(node.displayPath.absolutePath, newName)
 }

@@ -742,7 +742,7 @@ private fun BrowserScreen(
         intents = BrowserIntents(
             navigation = BrowserNavigationIntents(
                 onNavigateBack,
-                onNavigateTo,
+                { path, _ -> onNavigateTo(path) },
                 onOpenFile,
                 onRefresh = {},
                 onSelectFolderTab = {}

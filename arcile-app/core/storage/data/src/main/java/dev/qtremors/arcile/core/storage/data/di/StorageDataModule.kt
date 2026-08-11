@@ -49,6 +49,7 @@ import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.DefaultFileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.BackendAwareFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.CrossBackendTransferEngine
 import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
@@ -303,11 +304,25 @@ object StorageDataModule {
     fun provideFileSystemDataSource(
         local: DefaultFileSystemDataSource,
         privileged: PrivilegedFileSystemDataSource,
-        privilegeCoordinator: PrivilegeCoordinator
+        privilegeCoordinator: PrivilegeCoordinator,
+        crossBackendTransferEngine: CrossBackendTransferEngine
     ): FileSystemDataSource = BackendAwareFileSystemDataSource(
         local = local,
         privileged = privileged,
-        privilegeCoordinator = privilegeCoordinator
+        privilegeCoordinator = privilegeCoordinator,
+        crossBackendTransferEngine = crossBackendTransferEngine
+    )
+
+    @Provides
+    @Singleton
+    fun provideCrossBackendTransferEngine(
+        local: DefaultFileSystemDataSource,
+        privileged: PrivilegedFileSystemDataSource,
+        dispatchers: ArcileDispatchers
+    ): CrossBackendTransferEngine = CrossBackendTransferEngine(
+        local = local,
+        privileged = privileged,
+        dispatchers = dispatchers
     )
 
     @Provides

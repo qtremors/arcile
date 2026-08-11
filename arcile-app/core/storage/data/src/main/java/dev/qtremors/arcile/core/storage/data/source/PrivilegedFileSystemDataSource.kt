@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.privilege.PrivilegedFileClient
 import dev.qtremors.arcile.core.privilege.PrivilegedFileClientProvider
 import dev.qtremors.arcile.core.privilege.PrivilegedFileEntry
 import dev.qtremors.arcile.core.privilege.PrivilegedFileFailure
+import dev.qtremors.arcile.core.privilege.PrivilegedFileHandle
 import dev.qtremors.arcile.core.privilege.PrivilegedFileType
 import dev.qtremors.arcile.core.privilege.PrivilegedOperationId
 import dev.qtremors.arcile.core.privilege.PrivilegedOperationProgress
@@ -73,6 +74,7 @@ class PrivilegedFileSystemDataSource(
             emit(ListingPage.failed(directory.displayPath, IllegalArgumentException("Path is not a directory")))
             return@flow
         }
+        val resolvedDirectoryRef = mapper.toFileModel(entry, client.session).nodeRef
 
         val boundedPageSize = pageSize.coerceIn(1, MAX_DIRECTORY_PAGE_SIZE)
         var token: String? = null
@@ -88,7 +90,8 @@ class PrivilegedFileSystemDataSource(
                     path = directory.displayPath,
                     files = remotePage.entries.map { mapper.toFileModel(it, client.session) },
                     pageIndex = pageIndex,
-                    isComplete = token == null
+                    isComplete = token == null,
+                    directoryRef = resolvedDirectoryRef
                 )
             )
             pageIndex += 1
@@ -502,7 +505,32 @@ class PrivilegedFileSystemDataSource(
         Result.success(BatchMutationResult(succeededPaths = succeeded, failedItems = failures))
     }
 
-    private fun clientFor(node: StorageNodeRef): Result<PrivilegedFileClient> {
+    internal suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = runResult {
+        val client = clientFor(node).getOrThrow()
+        val entry = client.canonicalizeAndLstat(node.displayPath.absolutePath).getOrThrow()
+        mapper.toFileModel(entry, client.session)
+    }
+
+    internal suspend fun openNode(
+        node: StorageNodeRef,
+        mode: dev.qtremors.arcile.core.privilege.PrivilegedOpenMode
+    ): Result<PrivilegedFileHandle> = runResult {
+        val client = clientFor(node).getOrThrow()
+        val entry = client.canonicalizeAndLstat(node.displayPath.absolutePath).getOrThrow()
+        pathPolicy.validate(
+            entry.path,
+            if (mode == dev.qtremors.arcile.core.privilege.PrivilegedOpenMode.READ) {
+                PrivilegedPathOperation.READ
+            } else {
+                PrivilegedPathOperation.WRITE
+            },
+            client.session,
+            entry
+        ).getOrThrow()
+        client.open(entry.path, mode).getOrThrow()
+    }
+
+    internal fun clientFor(node: StorageNodeRef): Result<PrivilegedFileClient> {
         if (!node.isPrivileged) {
             return Result.failure(IllegalArgumentException("Storage node is not privileged"))
         }

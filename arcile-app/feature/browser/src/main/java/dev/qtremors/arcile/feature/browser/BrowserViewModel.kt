@@ -192,7 +192,10 @@ internal class BrowserViewModel @Inject constructor(
     fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
         navigationController.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationController.navigateToCategory(categoryName, volumeId)
-    fun navigateToFolder(path: String) = navigationController.navigateToFolder(path)
+    fun navigateToFolder(
+        path: String,
+        nodeRef: dev.qtremors.arcile.core.storage.domain.StorageNodeRef? = null
+    ) = navigationController.navigateToFolder(path, nodeRef)
     fun openArchive(path: String) = navigationController.openArchive(path)
     fun submitArchivePassword(password: String) = navigationController.submitArchivePassword(password)
     fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean =
