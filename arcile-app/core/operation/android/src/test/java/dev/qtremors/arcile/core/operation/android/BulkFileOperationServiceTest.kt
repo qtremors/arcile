@@ -215,6 +215,56 @@ class BulkFileOperationServiceTest {
     }
 
     @Test
+    fun `trash request with node payload preserves backend identity and progress`() {
+        val source = StorageNodeRef.root(
+            displayPath = "/storage/emulated/0/Documents/private.txt",
+            remoteCanonicalIdentity = "/storage/emulated/0/Documents/private.txt"
+        )
+        val request = BulkFileOperationRequest(
+            operationId = "node-trash-service",
+            type = BulkFileOperationType.TRASH,
+            sourcePaths = listOf(source.displayPath.absolutePath),
+            sourceNodeRefs = listOf(OperationStorageNodeRef.from(source))
+        )
+        val reported = BulkFileOperationProgress(
+            completedItems = 1,
+            totalItems = 1,
+            currentPath = source.displayPath.absolutePath
+        )
+        trashRepository.moveNodesToTrashResultProvider = { nodes, onProgress ->
+            assertEquals(listOf(source), nodes)
+            onProgress?.invoke(reported)
+            Result.success(Unit)
+        }
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationProgress(request, reported) }
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        awaitInactiveMutation()
+        assertEquals(listOf(listOf(source)), trashRepository.moveNodesToTrashRequests)
+        assertTrue(trashRepository.moveToTrashRequests.isEmpty())
+    }
+
+    @Test
+    fun `path trash request keeps legacy path dispatch when node payload is absent`() {
+        val request = BulkFileOperationRequest(
+            operationId = "path-trash-service",
+            type = BulkFileOperationType.TRASH,
+            sourcePaths = listOf("/storage/emulated/0/Documents/local.txt")
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+
+        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
+        awaitInactiveMutation()
+        assertEquals(listOf(request.sourcePaths), trashRepository.moveToTrashRequests)
+        assertTrue(trashRepository.moveNodesToTrashRequests.isEmpty())
+    }
+
+    @Test
     fun `fake file request with node parent dispatches privileged creation`() {
         val parent = StorageNodeRef.root(
             displayPath = "/storage/emulated/0/Download",

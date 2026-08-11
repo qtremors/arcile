@@ -106,7 +106,7 @@ internal class BrowserMutationController(
             val nodes = contextProvider().files
                 .filter { it.absolutePath in selected }
                 .map(FileModel::nodeRef)
-            if (nodes.size == selected.size && type != BulkFileOperationType.TRASH) {
+            if (nodes.size == selected.size) {
                 operationCoordinator.startNodeOperation(
                     type = type,
                     sourceNodes = nodes,

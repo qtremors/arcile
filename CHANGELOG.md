@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.5
+> **Version:** 1.9.6
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.6] - 2026-08-11
+
+- **Backend-Aware Privileged Trash**: Added same-volume Trash support for Root and Shizuku user-storage files and folders while preserving their backend identity through foreground operations.
+- **Safe Move And Restore Recovery**: Stored app-private recovery metadata before each move, reconciled interrupted outcomes, avoided identifier collisions, and restored with conflict-safe renaming or destination selection.
+- **Reconnect-Aware Trash**: Kept cached privileged Trash items visible while their backend is unavailable, blocked unsafe restore attempts with clear guidance, and resumed live status after reconnection.
 
 ---
 

@@ -44,6 +44,8 @@ import dev.qtremors.arcile.core.storage.data.db.ThumbnailDao
 import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
 import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
+import dev.qtremors.arcile.core.storage.data.manager.PrivilegedTrashController
+import dev.qtremors.arcile.core.storage.data.manager.PrivilegedTrashMetadataStore
 import dev.qtremors.arcile.core.storage.data.provider.DefaultVolumeProvider
 import dev.qtremors.arcile.core.storage.data.provider.DefaultRootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
@@ -86,6 +88,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
+import java.io.File
 import javax.inject.Singleton
 import javax.inject.Provider
 
@@ -221,14 +224,25 @@ object StorageDataModule {
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
         mutationJournal: MutationJournal,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        fileSystemDataSource: FileSystemDataSource
     ): TrashManager {
+        val privilegedTrash = PrivilegedTrashController(
+            fileSystemDataSource = fileSystemDataSource,
+            volumeProvider = volumeProvider,
+            mutationFinalizer = mutationFinalizer,
+            metadataStore = PrivilegedTrashMetadataStore(
+                File(context.filesDir, "privileged-trash")
+            ),
+            dispatchers = dispatchers
+        )
         return DefaultTrashManager(
             context,
             volumeProvider,
             mutationFinalizer,
             dispatchers = dispatchers,
-            mutationJournal = mutationJournal
+            mutationJournal = mutationJournal,
+            privilegedTrashController = privilegedTrash
         )
     }
 

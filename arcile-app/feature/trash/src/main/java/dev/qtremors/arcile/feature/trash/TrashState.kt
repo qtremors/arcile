@@ -81,7 +81,10 @@ internal fun applyTrashPresentation(
         TrashFilter.NEEDS_DESTINATION ->
             items.filter { it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED }
         TrashFilter.RECOVERED ->
-            items.filter { it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM }
+            items.filter {
+                it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM ||
+                    it.restoreStatus == TrashRestoreStatus.BACKEND_UNAVAILABLE
+            }
     }
     val comparator = when (sortOption) {
         TrashSortOption.DELETED_NEWEST -> compareByDescending<TrashMetadata> { it.deletionTime }
@@ -118,6 +121,9 @@ internal fun List<TrashMetadata>.toPropertiesModel(): TrashPropertiesUiModel {
     } else {
         rows += "Recovered items" to count {
             it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM
+        }.toString()
+        rows += "Backend unavailable" to count {
+            it.restoreStatus == TrashRestoreStatus.BACKEND_UNAVAILABLE
         }.toString()
         rows += "Need destination" to count {
             it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||

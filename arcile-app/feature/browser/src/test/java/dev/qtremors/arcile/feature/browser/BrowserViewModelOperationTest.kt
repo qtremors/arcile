@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
@@ -300,6 +301,39 @@ class BrowserViewModelOperationTest {
         assertEquals(BulkFileOperationType.TRASH, coordinator.startedRequests.single().type)
         assertEquals(listOf("/storage/emulated/0/alpha.txt"), coordinator.startedRequests.single().sourcePaths)
         assertTrue(viewModel.uiState.value.selectedFiles.isEmpty())
+    }
+
+    @Test
+    fun `moveSelectedToTrash preserves Root node identity in foreground request`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val rootNode = StorageNodeRef.root(
+            displayPath = "/storage/emulated/0/private.txt",
+            remoteCanonicalIdentity = "root-device-identity"
+        )
+        val rootFile = browserFile("private.txt", rootNode.displayPath.absolutePath).copy(nodeRef = rootNode)
+        val coordinator = FakeBulkFileOperationCoordinator()
+        val viewModel = createViewModel(
+            repository = BrowserFakeFileRepository(
+                volumes = listOf(internal),
+                filesByPath = mapOf(internal.path to listOf(rootFile))
+            ),
+            browserPreferencesRepository = FakeFilePreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true)),
+            bulkFileOperationCoordinator = coordinator
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder(internal.path)
+        advanceUntilIdle()
+        viewModel.toggleSelection(rootFile.absolutePath)
+        viewModel.moveSelectedToTrash()
+        advanceUntilIdle()
+
+        val request = coordinator.startedRequests.single()
+        assertEquals(BulkFileOperationType.TRASH, request.type)
+        assertEquals(listOf(rootNode), request.sourceRefs)
+        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, request.sourceRefs.single().backendId)
+        assertEquals("root-device-identity", request.sourceRefs.single().backendIdentity)
     }
 
     @Test

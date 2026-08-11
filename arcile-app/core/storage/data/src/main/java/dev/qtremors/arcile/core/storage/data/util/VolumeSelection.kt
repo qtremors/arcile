@@ -40,7 +40,12 @@ fun resolveVolumeForPath(path: String, volumes: List<StorageVolume>): StorageVol
     }
     return volumes
         .sortedByDescending { it.path.length }
-        .firstOrNull { canonicalPath == it.path || canonicalPath.startsWith(it.path + File.separator) }
+        .firstOrNull { volume ->
+            val root = volume.path.trimEnd('/', '\\')
+            canonicalPath == root ||
+                canonicalPath.startsWith("$root/") ||
+                canonicalPath.startsWith("$root\\")
+        }
 }
 
 fun matchesScope(path: String, scope: StorageScope, volumes: List<StorageVolume>): Boolean {

@@ -2,6 +2,7 @@ package dev.qtremors.arcile.testutil
 
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toStorageMutationResult
@@ -9,6 +10,8 @@ import dev.qtremors.arcile.core.storage.domain.toStorageMutationResult
 class FakeTrashRepository : TrashRepository {
     var moveToTrashResultProvider:
         (suspend (List<String>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
+    var moveNodesToTrashResultProvider:
+        (suspend (List<StorageNodeRef>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var restoreFromTrashResultProvider:
         (suspend (List<String>, String?) -> Result<Unit>)? = null
     var restoreFromTrashMutationResultProvider:
@@ -18,6 +21,7 @@ class FakeTrashRepository : TrashRepository {
     var deletePermanentlyFromTrashResult: Result<Unit> = Result.failure(NotImplementedError())
 
     val moveToTrashRequests = mutableListOf<List<String>>()
+    val moveNodesToTrashRequests = mutableListOf<List<StorageNodeRef>>()
     val restoreFromTrashRequests = mutableListOf<RestoreRequest>()
     val emptyTrashCalls = mutableListOf<Unit>()
     val deletePermanentlyFromTrashRequests = mutableListOf<List<String>>()
@@ -30,6 +34,14 @@ class FakeTrashRepository : TrashRepository {
     ): Result<Unit> {
         moveToTrashRequests += paths
         return moveToTrashResultProvider?.invoke(paths, onProgress) ?: Result.success(Unit)
+    }
+
+    override suspend fun moveNodesToTrash(
+        nodes: List<StorageNodeRef>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> {
+        moveNodesToTrashRequests += nodes
+        return moveNodesToTrashResultProvider?.invoke(nodes, onProgress) ?: Result.success(Unit)
     }
 
     override suspend fun restoreFromTrash(

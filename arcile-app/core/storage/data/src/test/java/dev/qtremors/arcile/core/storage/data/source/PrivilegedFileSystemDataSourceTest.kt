@@ -139,6 +139,72 @@ class PrivilegedFileSystemDataSourceTest {
         client.close()
     }
 
+    @Test
+    fun `ordinary user storage files expose privileged trash capability`() {
+        val mapper = PrivilegedFileModelMapper(policy())
+        val document = file("/storage/emulated/0/Documents/report.txt")
+        val directory = directory("/storage/emulated/0/Documents/Project")
+
+        val documentCapabilities = mapper.toFileModel(document, rootSession).nodeRef.capabilities
+        val directoryCapabilities = mapper.toFileModel(directory, rootSession).nodeRef.capabilities
+
+        assertTrue(documentCapabilities.canMove)
+        assertTrue(documentCapabilities.canDelete)
+        assertTrue(documentCapabilities.canTrash)
+        assertTrue(directoryCapabilities.canMove)
+        assertTrue(directoryCapabilities.canDelete)
+        assertTrue(directoryCapabilities.canTrash)
+    }
+
+    @Test
+    fun `Android application storage can move but never advertises trash`() {
+        val mapper = PrivilegedFileModelMapper(policy())
+        val otherAppFile = file(
+            "/storage/emulated/0/Android/data/com.example/cache/private.bin"
+        )
+
+        val rootCapabilities = mapper.toFileModel(otherAppFile, rootSession).nodeRef.capabilities
+        val shellCapabilities = mapper.toFileModel(otherAppFile, shellSession).nodeRef.capabilities
+
+        assertTrue(rootCapabilities.canMove)
+        assertTrue(rootCapabilities.canDelete)
+        assertFalse(rootCapabilities.canTrash)
+        assertTrue(shellCapabilities.canMove)
+        assertTrue(shellCapabilities.canDelete)
+        assertFalse(shellCapabilities.canTrash)
+    }
+
+    @Test
+    fun `enabled protected writes do not turn private app data into trashable storage`() {
+        val writablePrivatePolicy = PrivilegedPathPolicy(
+            packageName = "dev.qtremors.arcile",
+            protectedWritesEnabled = { true },
+            storageRoots = { listOf("/storage/emulated/0") }
+        )
+        val mapper = PrivilegedFileModelMapper(writablePrivatePolicy)
+        val anotherApp = file("/data/user/0/com.example/files/database.db")
+
+        val capabilities = mapper.toFileModel(anotherApp, rootSession).nodeRef.capabilities
+
+        assertTrue(capabilities.canMove)
+        assertTrue(capabilities.canDelete)
+        assertFalse(capabilities.canTrash)
+    }
+
+    @Test
+    fun `Arcile private storage remains non-trashable even for Root`() {
+        val mapper = PrivilegedFileModelMapper(policy())
+        val ownMetadata = file(
+            "/data/user/0/dev.qtremors.arcile/files/privileged-trash/item.json"
+        )
+
+        val capabilities = mapper.toFileModel(ownMetadata, rootSession).nodeRef.capabilities
+
+        assertFalse(capabilities.canMove)
+        assertFalse(capabilities.canDelete)
+        assertFalse(capabilities.canTrash)
+    }
+
     private fun source(client: FakeClient): PrivilegedFileSystemDataSource {
         val dispatcher = UnconfinedTestDispatcher()
         return PrivilegedFileSystemDataSource(

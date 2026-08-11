@@ -153,8 +153,14 @@ class BulkFileOperationService : Service() {
                                     request.resolutions
                                 ) { progress -> handleProgress(request, progress) }
                             }
-                            BulkFileOperationType.TRASH -> trashRepository.moveToTrash(request.sourcePaths) { progress ->
-                                handleProgress(request, progress)
+                            BulkFileOperationType.TRASH -> if (request.sourceNodeRefs.isNotEmpty()) {
+                                trashRepository.moveNodesToTrash(request.sourceRefs) { progress ->
+                                    handleProgress(request, progress)
+                                }
+                            } else {
+                                trashRepository.moveToTrash(request.sourcePaths) { progress ->
+                                    handleProgress(request, progress)
+                                }
                             }
                             BulkFileOperationType.DELETE -> if (request.sourceNodeRefs.isNotEmpty()) {
                                 fileMutationRepository.deleteNodesPermanentlyDetailed(

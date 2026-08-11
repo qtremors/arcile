@@ -10,7 +10,9 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
+import dev.qtremors.arcile.core.operation.OperationStorageNodeRef
 import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -58,6 +60,32 @@ class FakeBulkFileOperationCoordinator : BulkFileOperationCoordinator {
             archiveNameEncoding = archiveNameEncoding,
             archiveCompressionLevel = archiveCompressionLevel,
             importItems = importItems
+        )
+        startedRequests += request
+        _activeRequest.value = request
+        _events.tryEmit(BulkFileOperationEvent.Started(request))
+        return true
+    }
+
+    override fun startNodeOperation(
+        type: BulkFileOperationType,
+        sourceNodes: List<StorageNodeRef>,
+        destinationNode: StorageNodeRef?,
+        resolutions: Map<String, ConflictResolution>,
+        presentationOwnerId: String?,
+        clipboardSessionId: String?
+    ): Boolean {
+        if (!startResult) return false
+        val request = BulkFileOperationRequest(
+            operationId = "test-op-${startedRequests.size}",
+            presentationOwnerId = presentationOwnerId,
+            clipboardSessionId = clipboardSessionId,
+            type = type,
+            sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
+            destinationPath = destinationNode?.displayPath?.absolutePath,
+            resolutions = resolutions,
+            sourceNodeRefs = sourceNodes.map(OperationStorageNodeRef::from),
+            destinationNodeRef = destinationNode?.let(OperationStorageNodeRef::from)
         )
         startedRequests += request
         _activeRequest.value = request

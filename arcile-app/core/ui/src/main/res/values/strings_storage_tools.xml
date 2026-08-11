@@ -30,6 +30,7 @@
     <string name="trash_restore_original_description">This item will be restored to its original folder.</string>
     <string name="trash_restore_rename_description">An item with the same name exists in the original folder. The restored item will be renamed.</string>
     <string name="trash_restore_destination_description">You’ll choose a folder for this item because its original location is unavailable.</string>
+    <string name="trash_restore_backend_unavailable_description">Reconnect the original Root or Shizuku backend before restoring this item.</string>
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>

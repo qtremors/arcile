@@ -12,12 +12,16 @@ import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
+import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.testutil.createTempStorageRoot
 import dev.qtremors.arcile.testutil.testVolume
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -79,11 +83,14 @@ class TrashManagerTest {
         root.deleteRecursively()
     }
 
-    private fun newTrashManager(): DefaultTrashManager {
+    private fun newTrashManager(
+        privilegedTrashController: PrivilegedTrashController? = null
+    ): DefaultTrashManager {
         return DefaultTrashManager(
             context,
             volumeProvider,
-            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore),
+            privilegedTrashController = privilegedTrashController
         )
     }
 
@@ -384,6 +391,182 @@ class TrashManagerTest {
 
         assertEquals(0L, usage.totalBytes)
         assertTrue(usage.byVolumeId.isEmpty())
+    }
+
+    @Test
+    fun `privileged move routes complete node targets without local path access`() = runTest {
+        val controller = mockk<PrivilegedTrashController>()
+        val node = StorageNodeRef.root(
+            displayPath = "/data/user/0/dev.qtremors.arcile/files/private.txt",
+            remoteCanonicalIdentity = "root-private"
+        )
+        val targets = listOf(TrashTarget(node.displayPath.absolutePath, node))
+        coEvery { controller.moveToTrash(targets, any()) } returns Result.success(Unit)
+        val manager = newTrashManager(controller)
+
+        val result = manager.moveToTrashTargets(targets)
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) { controller.moveToTrash(targets, null) }
+        assertFalse(File(node.displayPath.absolutePath).exists())
+    }
+
+    @Test
+    fun `mixed local and privileged move is rejected before either backend changes`() = runTest {
+        val controller = mockk<PrivilegedTrashController>(relaxed = true)
+        val local = File(root, "local.txt").apply { writeText("local") }
+        val privileged = StorageNodeRef.shizuku(
+            displayPath = "/storage/emulated/0/Documents/shell.txt",
+            remoteCanonicalIdentity = "shell-file"
+        )
+        val manager = newTrashManager(controller)
+
+        val result = manager.moveToTrashTargets(
+            listOf(
+                TrashTarget(local.absolutePath),
+                TrashTarget(privileged.displayPath.absolutePath, privileged)
+            )
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("cannot share"))
+        assertTrue(local.exists())
+        coVerify(exactly = 0) { controller.moveToTrash(any(), any()) }
+    }
+
+    @Test
+    fun `privileged restore ids route without scanning local metadata`() = runTest {
+        val controller = mockk<PrivilegedTrashController>()
+        coEvery {
+            controller.restore(listOf("privileged:root-one"), "/storage/emulated/0/Recovered")
+        } returns Result.success(Unit)
+        val manager = newTrashManager(controller)
+
+        val result = manager.restoreFromTrash(
+            listOf("privileged:root-one"),
+            "/storage/emulated/0/Recovered"
+        )
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) {
+            controller.restore(listOf("privileged:root-one"), "/storage/emulated/0/Recovered")
+        }
+    }
+
+    @Test
+    fun `mixed local and privileged restore is rejected without partial restoration`() = runTest {
+        val controller = mockk<PrivilegedTrashController>(relaxed = true)
+        val manager = newTrashManager(controller)
+
+        val result = manager.restoreFromTrash(listOf("local-one", "privileged:root-one"), null)
+
+        assertTrue(result.isFailure)
+        assertTrue(result.exceptionOrNull()?.message.orEmpty().contains("separately"))
+        coVerify(exactly = 0) { controller.restore(any(), any()) }
+    }
+
+    @Test
+    fun `trash listing combines local and privileged records newest first`() = runTest {
+        val local = File(root, "local.txt").apply { writeText("1234") }
+        val controller = mockk<PrivilegedTrashController>()
+        val privileged = privilegedItem(
+            id = "privileged:root-one",
+            deletionTime = Long.MAX_VALUE
+        )
+        coEvery { controller.list() } returns Result.success(listOf(privileged))
+        val manager = newTrashManager(controller)
+        assertTrue(manager.moveToTrash(listOf(local.absolutePath)).isSuccess)
+
+        val listed = manager.getTrashFiles().getOrThrow()
+
+        assertEquals(2, listed.size)
+        assertEquals("privileged:root-one", listed.first().id)
+        assertTrue(listed.last().id != privileged.id)
+        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, listed.first().fileModel.nodeRef.backendId)
+    }
+
+    @Test
+    fun `trash usage combines local and privileged bytes on the same volume`() = runTest {
+        val local = File(root, "local.bin").apply { writeText("1234") }
+        val controller = mockk<PrivilegedTrashController>()
+        coEvery { controller.storageUsage() } returns Result.success(
+            TrashStorageUsage(totalBytes = 6L, byVolumeId = mapOf("primary" to 6L))
+        )
+        val manager = newTrashManager(controller)
+        assertTrue(manager.moveToTrash(listOf(local.absolutePath)).isSuccess)
+
+        val usage = manager.getTrashStorageUsage().getOrThrow()
+
+        assertEquals(10L, usage.totalBytes)
+        assertEquals(mapOf("primary" to 10L), usage.byVolumeId)
+    }
+
+    @Test
+    fun `empty trash clears local records before privileged records`() = runTest {
+        val local = File(root, "local.txt").apply { writeText("delete") }
+        val controller = mockk<PrivilegedTrashController>()
+        coEvery { controller.empty() } returns Result.success(Unit)
+        coEvery { controller.list() } returns Result.success(emptyList())
+        val manager = newTrashManager(controller)
+        assertTrue(manager.moveToTrash(listOf(local.absolutePath)).isSuccess)
+
+        val result = manager.emptyTrash()
+
+        assertTrue(result.isSuccess)
+        assertTrue(manager.getTrashFiles().getOrThrow().isEmpty())
+        coVerify(exactly = 1) { controller.empty() }
+    }
+
+    @Test
+    fun `permanent delete splits local and privileged ids by owner`() = runTest {
+        val local = File(root, "local.txt").apply { writeText("delete") }
+        val controller = mockk<PrivilegedTrashController>()
+        coEvery { controller.list() } returns Result.success(emptyList())
+        coEvery { controller.delete(listOf("privileged:root-one")) } returns Result.success(Unit)
+        val manager = newTrashManager(controller)
+        assertTrue(manager.moveToTrash(listOf(local.absolutePath)).isSuccess)
+        val localId = manager.getTrashFiles().getOrThrow().single().id
+
+        val result = manager.deletePermanentlyFromTrash(
+            listOf(localId, "privileged:root-one")
+        )
+
+        assertTrue(result.isSuccess)
+        assertTrue(manager.getTrashFiles().getOrThrow().isEmpty())
+        coVerify(exactly = 1) { controller.delete(listOf("privileged:root-one")) }
+    }
+
+    @Test
+    fun `privileged controller failure remains visible to manager caller`() = runTest {
+        val failure = IllegalStateException("Root service disconnected")
+        val controller = mockk<PrivilegedTrashController>()
+        coEvery { controller.list() } returns Result.failure(failure)
+        val manager = newTrashManager(controller)
+
+        val result = manager.getTrashFiles()
+
+        assertTrue(result.isFailure)
+        assertEquals(failure, result.exceptionOrNull())
+    }
+
+    private fun privilegedItem(id: String, deletionTime: Long): TrashMetadata {
+        val path = "/storage/emulated/0/.arcile/.trash/root-one/private.txt"
+        return TrashMetadata(
+            id = id,
+            originalPath = "/storage/emulated/0/Documents/private.txt",
+            deletionTime = deletionTime,
+            fileModel = FileModel(
+                name = "private.txt",
+                absolutePath = path,
+                size = 6L,
+                isDirectory = false,
+                extension = "txt",
+                nodeRef = StorageNodeRef.root(path, "root-payload")
+            ),
+            sourceVolumeId = "primary",
+            sourceStorageKind = StorageKind.INTERNAL,
+            restoreStatus = TrashRestoreStatus.ORIGINAL_AVAILABLE
+        )
     }
 
     private class RecordingMutationJournal : MutationJournal {

@@ -113,6 +113,12 @@ internal class TrashViewModel @Inject constructor(
         val selectedTrashIds = requestedTrashIds.distinct()
         if (selectedTrashIds.isEmpty()) return
         val selectedItems = _state.value.trashFiles.filter { it.id in requestedTrashIds }
+        if (selectedItems.any { it.restoreStatus == TrashRestoreStatus.BACKEND_UNAVAILABLE }) {
+            _state.update {
+                it.copy(error = UiText.Dynamic("Reconnect the original storage backend before restoring this item"))
+            }
+            return
+        }
         val undoPaths = selectedItems.mapNotNull { it.originalPath.takeIf(String::isNotBlank) }
         val hasDestinationRequiredItems = selectedItems.any {
             it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||
