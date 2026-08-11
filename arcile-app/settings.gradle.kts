@@ -20,6 +20,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://jitpack.io")
     }
 }
 
@@ -28,6 +29,8 @@ include(":app")
 include(":core:runtime")
 include(":core:operation:api")
 include(":core:operation:android")
+include(":core:privilege:api")
+include(":core:privilege:android")
 include(":core:plugin:android")
 include(":core:navigation:api")
 include(":core:presentation")

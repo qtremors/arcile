@@ -1,10 +1,15 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.0
-> **Last Updated:** 2026-08-09
+> **Version:** 1.9.1
+> **Last Updated:** 2026-08-11
 
 ---
+
+## [1.9.1] - 2026-08-11
+
+- **Secure Privileged Access Core**: Added capability-verified Root and Shizuku service connections with effective-UID checks, bounded directory pages, descriptor-based file access, cancellation, and typed failures.
+- **Safe Remote File Operations**: Kept recursive deletion from following symbolic links, rejected traversal and special-file misuse, bounded Binder payloads, and separated selected access preference from the active backend.
 
 ## [1.9.0] - 2026-08-09
 
