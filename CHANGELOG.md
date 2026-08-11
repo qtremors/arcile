@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.8
+> **Version:** 1.9.9
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.9] - 2026-08-11
+
+- **Protected File Viewing**: Added secure Root and Shizuku previews, playback, thumbnails, PDF viewing and printing, APK inspection, and internal metadata access through expiring path-free content grants.
+- **Read-Only External Handoffs**: Added fresh, time-limited grants for opening and sharing protected files with other apps without exposing storage paths or write access.
+- **Safe Protected Text Editing**: Added atomic saves for editable protected text files, preserving the original when writing, syncing, or replacement fails.
 
 ---
 

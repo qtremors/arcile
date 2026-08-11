@@ -21,7 +21,9 @@ internal sealed interface AppFileOpenResolution {
     data class EditText(val path: String) : AppFileOpenResolution
     data class InstallApk(
         val path: String,
-        val splitPaths: List<String> = emptyList()
+        val splitPaths: List<String> = emptyList(),
+        val contentUri: String? = null,
+        val displayName: String? = null
     ) : AppFileOpenResolution
     data class External(
         val path: String,

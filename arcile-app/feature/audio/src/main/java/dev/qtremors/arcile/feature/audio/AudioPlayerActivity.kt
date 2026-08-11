@@ -50,8 +50,11 @@ import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentGrantPurpose
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.ui.ExternalViewerLoadScreen
 import dev.qtremors.arcile.core.ui.R
@@ -68,6 +71,9 @@ import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint
 class AudioPlayerActivity : ComponentActivity() {
+    @Inject
+    internal lateinit var privilegedContentAccessManager: PrivilegedContentAccessManager
+
     @Inject
     internal lateinit var playback: AudioPlaybackController
 
@@ -233,9 +239,11 @@ class AudioPlayerActivity : ComponentActivity() {
 
     private fun share(file: FileModel) {
         lifecycleScope.launch {
+            val reference = runCatching { file.toHandoffReference() }
+                .getOrElse { return@launch showFailure() }
             val target = ExternalFileAccessHelper.createShareTargets(
                 this@AudioPlayerActivity,
-                listOf(file.absolutePath)
+                listOf(reference)
             ).singleOrNull() ?: return@launch showFailure()
             val shareIntent = Intent(Intent.ACTION_SEND).apply {
                 type = target.mimeType
@@ -254,11 +262,37 @@ class AudioPlayerActivity : ComponentActivity() {
             runCatching {
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     this@AudioPlayerActivity,
-                    file.absolutePath
+                    file.toHandoffReference()
                 )
                 startActivity(Intent.createChooser(openIntent, file.name))
             }.onFailure { showFailure() }
         }
+    }
+
+    private suspend fun FileModel.toHandoffReference(): ExternalFileAccessHelper.ExternalFileReference {
+        val sourceNode = nodeRef
+        val handoffNode = if (sourceNode.isPrivileged) {
+            val grant = privilegedContentAccessManager.issue(
+                node = sourceNode,
+                displayName = name,
+                mimeType = mimeType,
+                sizeBytes = size.takeIf { it > 0L },
+                modifiedAtMillis = lastModified.takeIf { it > 0L },
+                purpose = PrivilegedContentGrantPurpose.EXTERNAL_HANDOFF,
+                lifetimeMillis = PrivilegedContentAccessManager.DEFAULT_EXTERNAL_GRANT_LIFETIME_MILLIS,
+                expectedConsumerUid = null
+            ).getOrThrow()
+            sourceNode.copy(contentUri = grant.contentUri)
+        } else {
+            sourceNode
+        }
+        return ExternalFileAccessHelper.ExternalFileReference(
+            path = absolutePath,
+            displayName = name,
+            sizeBytes = size,
+            mimeType = mimeType,
+            nodeRef = handoffNode
+        )
     }
 
     private fun showFailure() {
@@ -436,17 +470,34 @@ data class StandaloneAudioTarget(
     val displayName: String,
     val mimeType: String?,
     val sizeBytes: Long?,
-    val internalPath: String?
+    val internalPath: String?,
+    val nodeRef: StorageNodeRef? = null
 )
 
 fun createAudioPlayerIntent(
     context: Context,
     path: String,
     contextPaths: List<String> = emptyList(),
-    startPlayback: Boolean = true
+    startPlayback: Boolean = true,
+    contentUri: String? = null,
+    mimeType: String? = null,
+    displayName: String? = null,
+    nodeRef: StorageNodeRef? = null
 ): Intent = Intent(context, AudioPlayerActivity::class.java).apply {
     action = Intent.ACTION_VIEW
-    putExtra(EXTRA_INTERNAL_PATH, path)
+    if (contentUri.isNullOrBlank()) {
+        putExtra(EXTRA_INTERNAL_PATH, path)
+    } else {
+        setDataAndType(Uri.parse(contentUri), mimeType ?: "audio/*")
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        putExtra(EXTRA_DISPLAY_NAME, displayName)
+        nodeRef?.takeIf { it.isPrivileged }?.let { node ->
+            putExtra(EXTRA_NODE_BACKEND_ID, node.backendId)
+            putExtra(EXTRA_NODE_DISPLAY_PATH, node.displayPath.absolutePath)
+            putExtra(EXTRA_NODE_BACKEND_IDENTITY, node.backendIdentity)
+        }
+    }
+
     putStringArrayListExtra(EXTRA_QUEUE_PATHS, ArrayList(contextPaths))
     putExtra(EXTRA_START_PLAYBACK, startPlayback)
     putExtra(EXTRA_BOTTOM_CLEARANCE_DP, IN_APP_PLAYER_BOTTOM_CLEARANCE_DP)
@@ -479,6 +530,7 @@ private suspend fun resolveStandaloneAudioTarget(
         )
         }
     }
+
     val uri = intent.data ?: return null
     val extension = uri.lastPathSegment?.substringAfterLast('.', "")?.lowercase().orEmpty()
     return when (uri.scheme) {
@@ -489,8 +541,14 @@ private suspend fun resolveStandaloneAudioTarget(
             if (metadata.mimeType?.startsWith("audio/") != true && extension !in FileCategories.Audio.extensions) return null
             StandaloneAudioTarget(
                 reference = uri.toString(), uri = uri,
-                displayName = metadata.displayName ?: uri.lastPathSegment ?: "Audio",
-                mimeType = metadata.mimeType, sizeBytes = metadata.sizeBytes, internalPath = null
+                displayName = intent.getStringExtra(EXTRA_DISPLAY_NAME)
+                    ?: metadata.displayName
+                    ?: uri.lastPathSegment
+                    ?: "Audio",
+                mimeType = metadata.mimeType,
+                sizeBytes = metadata.sizeBytes,
+                internalPath = null,
+                nodeRef = intent.privilegedNodeRef(uri.toString())
             )
         }
         "file", null -> withContext(ioDispatcher) {
@@ -513,7 +571,7 @@ private suspend fun resolveStandaloneAudioTarget(
 
 private fun StandaloneAudioTarget.toBasicAudioTrack(): AudioTrack {
     val extension = displayName.substringAfterLast('.', "").lowercase()
-    val nodeRef = if (uri.scheme == "content") {
+    val nodeRef = nodeRef ?: if (uri.scheme == "content") {
         StorageNodeRef.mediaStore(
             id = uri.toString().hashCode().toLong(),
             volumeName = null,
@@ -534,6 +592,20 @@ private fun StandaloneAudioTarget.toBasicAudioTrack(): AudioTrack {
         ),
         title = displayName.substringBeforeLast('.', displayName)
     )
+}
+
+private fun Intent.privilegedNodeRef(contentUri: String): StorageNodeRef? {
+    val backendId = getStringExtra(EXTRA_NODE_BACKEND_ID) ?: return null
+    val displayPath = getStringExtra(EXTRA_NODE_DISPLAY_PATH) ?: return null
+    val backendIdentity = getStringExtra(EXTRA_NODE_BACKEND_IDENTITY) ?: return null
+    if (backendId !in setOf(StorageNodeRef.ROOT_BACKEND_ID, StorageNodeRef.SHIZUKU_BACKEND_ID)) {
+        return null
+    }
+    return StorageNodeRef.privileged(
+        backendId = backendId,
+        displayPath = displayPath,
+        remoteCanonicalIdentity = backendIdentity
+    ).copy(contentUri = contentUri)
 }
 
 private fun StandaloneAudioTarget.toAudioTrack(context: Context): AudioTrack {
@@ -576,6 +648,14 @@ private const val EXTRA_START_PLAYBACK =
     "dev.qtremors.arcile.feature.audio.extra.START_PLAYBACK"
 private const val EXTRA_BOTTOM_CLEARANCE_DP =
     "dev.qtremors.arcile.feature.audio.extra.BOTTOM_CLEARANCE_DP"
+private const val EXTRA_DISPLAY_NAME =
+    "dev.qtremors.arcile.feature.audio.extra.DISPLAY_NAME"
+private const val EXTRA_NODE_BACKEND_ID =
+    "dev.qtremors.arcile.feature.audio.extra.NODE_BACKEND_ID"
+private const val EXTRA_NODE_DISPLAY_PATH =
+    "dev.qtremors.arcile.feature.audio.extra.NODE_DISPLAY_PATH"
+private const val EXTRA_NODE_BACKEND_IDENTITY =
+    "dev.qtremors.arcile.feature.audio.extra.NODE_BACKEND_IDENTITY"
 private const val IN_APP_PLAYER_BOTTOM_CLEARANCE_DP = 80
 internal const val ACTION_CLOSE_AUDIO_PLAYER =
     "dev.qtremors.arcile.feature.audio.action.CLOSE_PLAYER"

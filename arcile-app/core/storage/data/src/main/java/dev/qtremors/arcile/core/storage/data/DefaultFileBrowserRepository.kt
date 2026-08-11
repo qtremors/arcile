@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data
 
 import android.webkit.MimeTypeMap
+import android.os.Process
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -9,18 +10,23 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentGrantPurpose
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class DefaultFileBrowserRepository(
     private val fileSystemDataSource: FileSystemDataSource,
     private val folderStatsStore: FolderStatsStore,
-    private val dispatchers: ArcileDispatchers
+    private val dispatchers: ArcileDispatchers,
+    private val privilegedContentAccessManager: PrivilegedContentAccessManager? = null
 ) : FileBrowserRepository {
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         fileSystemDataSource.listFiles(path)
@@ -34,12 +40,40 @@ class DefaultFileBrowserRepository(
 
     override suspend fun listNodeFiles(
         directory: dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-    ): Result<List<FileModel>> = fileSystemDataSource.listNodeFiles(directory)
+    ): Result<List<FileModel>> = fileSystemDataSource.listNodeFiles(directory).mapCatching { files ->
+        attachProtectedPreviewGrants(files)
+    }
 
     override fun listNodePages(
         directory: dev.qtremors.arcile.core.storage.domain.StorageNodeRef,
         pageSize: Int
-    ): Flow<ListingPage> = fileSystemDataSource.list(directory, pageSize)
+    ): Flow<ListingPage> = fileSystemDataSource.list(directory, pageSize).map { page ->
+        if (page.error != null) page else page.copy(files = attachProtectedPreviewGrants(page.files))
+    }
+
+    private suspend fun attachProtectedPreviewGrants(files: List<FileModel>): List<FileModel> {
+        val manager = privilegedContentAccessManager ?: return files
+        return files.map { file ->
+            if (
+                file.isDirectory ||
+                !file.nodeRef.isPrivileged ||
+                !file.nodeRef.capabilities.canRead ||
+                file.nodeRef.contentUri != null
+            ) {
+                return@map file
+            }
+            val grant = manager.issue(
+                node = file.nodeRef,
+                displayName = file.name,
+                mimeType = file.mimeType,
+                sizeBytes = file.size,
+                modifiedAtMillis = file.lastModified,
+                purpose = PrivilegedContentGrantPurpose.INTERNAL_PREVIEW,
+                expectedConsumerUid = Process.myUid()
+            ).getOrNull() ?: return@map file
+            file.copy(nodeRef = file.nodeRef.copy(contentUri = grant.contentUri))
+        }
+    }
 
     override suspend fun getCachedFolderStats(
         paths: Collection<String>

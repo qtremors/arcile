@@ -22,11 +22,13 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.OutputStream
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -207,6 +209,109 @@ class PrivilegedFileSystemDataSourceTest {
         assertFalse(capabilities.canTrash)
     }
 
+    @Test
+    fun `atomic replacement reads source writes synced sibling and renames only after close`() = runTest {
+        val path = "/storage/emulated/0/Documents/note.txt"
+        val client = FakeClient(rootSession).apply {
+            add(file(path), "old text".toByteArray())
+        }
+        val source = source(client)
+        val replacement = "complete replacement".toByteArray()
+
+        val result = source.replaceNodeContentAtomically(rootRef(path), replacement)
+
+        assertTrue(result.isSuccess)
+        assertEquals(PrivilegedOpenMode.READ, client.openCalls.first().second)
+        assertEquals(PrivilegedOpenMode.WRITE_TRUNCATE, client.openCalls[1].second)
+        val rename = client.renameCalls.single()
+        assertTrue(rename.first.startsWith("/storage/emulated/0/Documents/.note.txt.arcile-"))
+        assertTrue(rename.first.endsWith(".tmp"))
+        assertEquals(path, rename.second)
+        assertArrayEquals(replacement, client.contents[path])
+        assertFalse(client.entries.keys.any { it.endsWith(".tmp") })
+        assertTrue(client.closedWritePaths.contains(rename.first))
+    }
+
+    @Test
+    fun `atomic replacement preserves original when sibling write fails`() = runTest {
+        val path = "/storage/emulated/0/Documents/note.txt"
+        val original = "original remains".toByteArray()
+        val client = FakeClient(rootSession).apply {
+            add(file(path), original)
+            failWrites = true
+        }
+
+        val result = source(client).replaceNodeContentAtomically(
+            rootRef(path),
+            "new content".toByteArray()
+        )
+
+        assertTrue(result.isFailure)
+        assertArrayEquals(original, client.contents[path])
+        assertTrue(client.renameCalls.isEmpty())
+        assertFalse(client.entries.keys.any { it.endsWith(".tmp") })
+        assertEquals(1, client.deletedPaths.size)
+    }
+
+    @Test
+    fun `atomic replacement preserves original and removes sibling when rename fails`() = runTest {
+        val path = "/storage/emulated/0/Documents/note.txt"
+        val original = "before rename".toByteArray()
+        val client = FakeClient(rootSession).apply {
+            add(file(path), original)
+            failRenames = true
+        }
+
+        val result = source(client).replaceNodeContentAtomically(
+            rootRef(path),
+            "after rename".toByteArray()
+        )
+
+        assertTrue(result.isFailure)
+        assertArrayEquals(original, client.contents[path])
+        assertEquals(1, client.renameCalls.size)
+        assertEquals(1, client.deletedPaths.size)
+        assertFalse(client.entries.keys.any { it.endsWith(".tmp") })
+    }
+
+    @Test
+    fun `atomic replacement rejects changed canonical identity before creating sibling`() = runTest {
+        val path = "/storage/emulated/0/Documents/note.txt"
+        val client = FakeClient(rootSession).apply {
+            add(file(path).copy(canonicalIdentity = "/different/inode"))
+        }
+
+        val result = source(client).replaceNodeContentAtomically(
+            rootRef(path),
+            "not written".toByteArray()
+        )
+
+        assertTrue(result.isFailure)
+        assertTrue(client.createdPaths.isEmpty())
+        assertTrue(client.openCalls.isEmpty())
+        assertTrue(client.renameCalls.isEmpty())
+    }
+
+    @Test
+    fun `atomic replacement preserves source when read descriptor cannot open`() = runTest {
+        val path = "/storage/emulated/0/Documents/note.txt"
+        val original = "readable before disconnect".toByteArray()
+        val client = FakeClient(rootSession).apply {
+            add(file(path), original)
+            failReadOpen = true
+        }
+
+        val result = source(client).replaceNodeContentAtomically(
+            rootRef(path),
+            "never written".toByteArray()
+        )
+
+        assertTrue(result.isFailure)
+        assertArrayEquals(original, client.contents[path])
+        assertTrue(client.createdPaths.isEmpty())
+        assertTrue(client.renameCalls.isEmpty())
+    }
+
     private fun source(client: FakeClient): PrivilegedFileSystemDataSource {
         val dispatcher = UnconfinedTestDispatcher()
         return PrivilegedFileSystemDataSource(
@@ -290,9 +395,17 @@ private class FakeClient(
     val createdPaths = mutableListOf<String>()
     val copyCalls = mutableListOf<Pair<String, String>>()
     val renameCalls = mutableListOf<Pair<String, String>>()
+    val openCalls = mutableListOf<Pair<String, PrivilegedOpenMode>>()
+    val closedWritePaths = mutableListOf<String>()
+    val deletedPaths = mutableListOf<String>()
+    val contents = linkedMapOf<String, ByteArray>()
+    var failWrites = false
+    var failRenames = false
+    var failReadOpen = false
 
-    fun add(entry: PrivilegedFileEntry) {
+    fun add(entry: PrivilegedFileEntry, content: ByteArray? = null) {
         entries[entry.path] = entry
+        content?.let { contents[entry.path] = it.copyOf() }
     }
 
     override suspend fun handshake() = PrivilegedHandshake(
@@ -331,16 +444,53 @@ private class FakeClient(
         return Result.success(PrivilegedFileSystemDataSourceTest.directory(path).also(::add))
     }
 
-    override suspend fun open(path: String, mode: PrivilegedOpenMode): Result<PrivilegedFileHandle> =
-        Result.success(object : PrivilegedFileHandle {
+    override suspend fun open(path: String, mode: PrivilegedOpenMode): Result<PrivilegedFileHandle> {
+        openCalls += path to mode
+        if (mode == PrivilegedOpenMode.READ && failReadOpen) {
+            return Result.failure(PrivilegedFileFailure.BackendDisconnected())
+        }
+        val writeBuffer = ByteArrayOutputStream()
+        val writeOutput = object : OutputStream() {
+            private var closed = false
+            override fun write(value: Int) {
+                if (failWrites) throw java.io.IOException("simulated write failure")
+                writeBuffer.write(value)
+            }
+
+            override fun write(bytes: ByteArray, offset: Int, length: Int) {
+                if (failWrites) throw java.io.IOException("simulated write failure")
+                writeBuffer.write(bytes, offset, length)
+            }
+
+            override fun close() {
+                if (closed) return
+                closed = true
+                if (!failWrites) {
+                    contents[path] = writeBuffer.toByteArray()
+                    entries[path]?.let { entries[path] = it.copy(size = writeBuffer.size().toLong()) }
+                    closedWritePaths += path
+                }
+            }
+        }
+        val input = if (mode == PrivilegedOpenMode.READ) {
+            ByteArrayInputStream(contents[path] ?: byteArrayOf())
+        } else {
+            null
+        }
+        return Result.success(object : PrivilegedFileHandle {
             override val mode = mode
-            override val input = if (mode == PrivilegedOpenMode.READ) ByteArrayInputStream(byteArrayOf()) else null
-            override val output = if (mode != PrivilegedOpenMode.READ) ByteArrayOutputStream() else null
-            override fun close() = Unit
+            override val input = input
+            override val output = if (mode != PrivilegedOpenMode.READ) writeOutput else null
+            override fun close() {
+                input?.close()
+                output?.close()
+            }
         })
+    }
 
     override suspend fun rename(sourcePath: String, destinationPath: String): Result<Unit> {
         renameCalls += sourcePath to destinationPath
+        if (failRenames) return Result.failure(PrivilegedFileFailure.IoFailure("simulated rename failure"))
         val source = entries.remove(sourcePath)
             ?: return Result.failure(PrivilegedFileFailure.PathMissing(sourcePath))
         entries[destinationPath] = source.copy(
@@ -348,6 +498,7 @@ private class FakeClient(
             canonicalIdentity = destinationPath,
             displayName = destinationPath.substringAfterLast('/')
         )
+        contents.remove(sourcePath)?.let { contents[destinationPath] = it }
         return Result.success(Unit)
     }
 
@@ -375,9 +526,12 @@ private class FakeClient(
         onProgress: ((PrivilegedOperationProgress) -> Unit)?
     ): Result<Unit> = rename(sourcePath, destinationPath)
 
-    override suspend fun delete(path: String): Result<Unit> =
-        if (entries.remove(path) != null) Result.success(Unit)
+    override suspend fun delete(path: String): Result<Unit> {
+        deletedPaths += path
+        contents.remove(path)
+        return if (entries.remove(path) != null) Result.success(Unit)
         else Result.failure(PrivilegedFileFailure.PathMissing(path))
+    }
 
     override suspend fun deleteRecursively(
         path: String,

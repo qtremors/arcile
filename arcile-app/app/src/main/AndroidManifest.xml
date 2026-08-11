@@ -104,6 +104,12 @@
         </activity>
 
         <activity
+            android:name=".ProtectedPdfViewerActivity"
+            android:exported="false"
+            android:label="${appLabel}"
+            android:theme="@style/Theme.Arcile" />
+
+        <activity
             android:name=".TextEditorActivity"
             android:exported="true"
             android:label="${appLabel}"
@@ -122,6 +128,12 @@
                 <data android:mimeType="text/*" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".ProtectedTextEditorActivity"
+            android:exported="false"
+            android:label="${appLabel}"
+            android:theme="@style/Theme.Arcile" />
 
         <activity
             android:name=".FileOpenActivity"

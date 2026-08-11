@@ -23,6 +23,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import java.util.UUID
+import java.io.FileOutputStream
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
@@ -541,6 +542,92 @@ class PrivilegedFileSystemDataSource(
             entry
         ).getOrThrow()
         client.open(entry.path, mode).getOrThrow()
+    }
+
+    /**
+     * Replaces a protected regular file without truncating the original first. The source is
+     * opened for reading before any write, the complete replacement is synced through a sibling
+     * descriptor, and the backend performs the final atomic rename.
+     */
+    internal suspend fun replaceNodeContentAtomically(
+        node: StorageNodeRef,
+        content: ByteArray
+    ): Result<FileModel> = runResult {
+        val client = clientFor(node).getOrThrow()
+        val source = client.canonicalizeAndLstat(node.displayPath.absolutePath).getOrThrow()
+        check(source.type == PrivilegedFileType.REGULAR_FILE) {
+            "Atomic text save supports regular files only"
+        }
+        check(
+            mapper.toFileModel(source, client.session).nodeRef.canonicalIdentity ==
+                node.canonicalIdentity
+        ) { "Protected file changed before saving" }
+        pathPolicy.validate(source.path, PrivilegedPathOperation.READ, client.session, source)
+            .getOrThrow()
+        pathPolicy.validate(source.path, PrivilegedPathOperation.WRITE, client.session, source)
+            .getOrThrow()
+        pathPolicy.validate(source.path, PrivilegedPathOperation.RENAME_DESTINATION, client.session, source)
+            .getOrThrow()
+
+        // Opening the current source proves it is still readable through this backend at save time.
+        client.open(source.path, dev.qtremors.arcile.core.privilege.PrivilegedOpenMode.READ)
+            .getOrThrow()
+            .close()
+
+        val parent = parentPath(source.path)
+        val temporaryName = ".${source.displayName}.arcile-${UUID.randomUUID()}.tmp"
+        val temporaryPath = childPath(parent, temporaryName)
+        pathPolicy.validate(
+            temporaryPath,
+            PrivilegedPathOperation.CREATE_FILE,
+            client.session
+        ).getOrThrow()
+        pathPolicy.validate(
+            temporaryPath,
+            PrivilegedPathOperation.RENAME_SOURCE,
+            client.session
+        ).getOrThrow()
+
+        var temporaryCreated = false
+        try {
+            val temporary = client.createFile(temporaryPath).getOrThrow()
+            temporaryCreated = true
+            pathPolicy.validate(
+                temporary.path,
+                PrivilegedPathOperation.WRITE,
+                client.session,
+                temporary
+            ).getOrThrow()
+            val handle = client.open(
+                temporary.path,
+                dev.qtremors.arcile.core.privilege.PrivilegedOpenMode.WRITE_TRUNCATE
+            ).getOrThrow()
+            try {
+                val output = handle.output ?: error("Privileged write handle has no output stream")
+                output.write(content)
+                output.flush()
+                (output as? FileOutputStream)?.fd?.sync()
+            } finally {
+                handle.close()
+            }
+            client.rename(temporary.path, source.path).getOrThrow()
+            temporaryCreated = false
+            mapper.toFileModel(
+                client.canonicalizeAndLstat(source.path).getOrThrow(),
+                client.session
+            )
+        } finally {
+            if (temporaryCreated) {
+                runCatching {
+                    pathPolicy.validate(
+                        temporaryPath,
+                        PrivilegedPathOperation.DELETE,
+                        client.session
+                    ).getOrThrow()
+                    client.delete(temporaryPath).getOrThrow()
+                }
+            }
+        }
     }
 
     internal fun clientFor(node: StorageNodeRef): Result<PrivilegedFileClient> {

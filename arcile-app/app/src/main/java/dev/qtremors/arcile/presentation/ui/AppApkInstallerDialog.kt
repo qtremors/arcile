@@ -46,7 +46,13 @@ internal fun AppApkInstallerDialog(
     LaunchedEffect(target) {
         PackageInstallerEngine.resetState()
         withContext(Dispatchers.IO) {
-            details = ApkPackageParser.parse(context, target.path, target.splitPaths)
+            details = target.contentUri?.let { contentUri ->
+                ApkPackageParser.parseContentUri(
+                    context = context,
+                    contentUri = contentUri,
+                    displayName = target.displayName ?: target.path.substringAfterLast('/')
+                )
+            } ?: ApkPackageParser.parse(context, target.path, target.splitPaths)
         }
     }
 

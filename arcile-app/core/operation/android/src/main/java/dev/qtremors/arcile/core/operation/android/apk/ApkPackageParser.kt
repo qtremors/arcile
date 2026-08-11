@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.net.Uri
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -45,6 +46,39 @@ object ApkPackageParser {
             file.extension.lowercase() == "apk" -> parseSingleApkFile(context, file)
 
             else -> null
+        }
+    }
+
+    /** Stages bytes read through a capability URI only where PackageManager requires a file path. */
+    suspend fun parseContentUri(
+        context: Context,
+        contentUri: String,
+        displayName: String
+    ): ApkPackageDetails? {
+        var sourceDirectory: File? = null
+        return try {
+            val (directory, source) = stageContentApkPackage(
+                context = context,
+                uri = Uri.parse(contentUri),
+                displayName = displayName
+            )
+            sourceDirectory = directory
+            val parsed = parse(context, source.absolutePath)
+            if (parsed == null) {
+                directory.deleteRecursively()
+                null
+            } else if (parsed.stagingDirectoryPath == null) {
+                parsed.copy(stagingDirectoryPath = directory.absolutePath)
+            } else {
+                directory.deleteRecursively()
+                parsed
+            }
+        } catch (cancellation: CancellationException) {
+            sourceDirectory?.deleteRecursively()
+            throw cancellation
+        } catch (_: Exception) {
+            sourceDirectory?.deleteRecursively()
+            null
         }
     }
 

@@ -18,6 +18,8 @@ import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.DefaultArchiveRepository
 import dev.qtremors.arcile.core.storage.data.DefaultClipboardRepository
 import dev.qtremors.arcile.core.storage.data.DefaultFileBrowserRepository
+import dev.qtremors.arcile.core.storage.data.DefaultPrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.data.DefaultPrivilegedTextFileEditor
 import dev.qtremors.arcile.core.storage.data.DefaultFileMutationRepository
 import dev.qtremors.arcile.core.storage.data.DefaultMediaRepository
 import dev.qtremors.arcile.core.storage.data.DefaultAudioLibraryRepository
@@ -70,6 +72,8 @@ import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.domain.PrivilegedTextFileEditor
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
@@ -203,6 +207,26 @@ object StorageDataModule {
     ): VolumeProvider {
         return DefaultVolumeProvider(context, classificationRepository, applicationScope, dispatchers)
     }
+
+    @Provides
+    @Singleton
+    fun providePrivilegedContentAccessManager(
+        @ApplicationContext context: Context,
+        privilegedFileSystemDataSource: PrivilegedFileSystemDataSource,
+        @ApplicationScope applicationScope: CoroutineScope,
+        dispatchers: ArcileDispatchers
+    ): PrivilegedContentAccessManager = DefaultPrivilegedContentAccessManager(
+        context = context,
+        dataSource = privilegedFileSystemDataSource,
+        applicationScope = applicationScope,
+        dispatchers = dispatchers
+    )
+
+    @Provides
+    @Singleton
+    fun providePrivilegedTextFileEditor(
+        privilegedFileSystemDataSource: PrivilegedFileSystemDataSource
+    ): PrivilegedTextFileEditor = DefaultPrivilegedTextFileEditor(privilegedFileSystemDataSource)
 
     @Provides
     @Singleton
@@ -422,9 +446,15 @@ object StorageDataModule {
     fun provideFileBrowserRepository(
         fileSystemDataSource: FileSystemDataSource,
         folderStatsStore: FolderStatsStore,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        privilegedContentAccessManager: PrivilegedContentAccessManager
     ): FileBrowserRepository =
-        DefaultFileBrowserRepository(fileSystemDataSource, folderStatsStore, dispatchers)
+        DefaultFileBrowserRepository(
+            fileSystemDataSource = fileSystemDataSource,
+            folderStatsStore = folderStatsStore,
+            dispatchers = dispatchers,
+            privilegedContentAccessManager = privilegedContentAccessManager
+        )
 
     @Provides
     @Singleton

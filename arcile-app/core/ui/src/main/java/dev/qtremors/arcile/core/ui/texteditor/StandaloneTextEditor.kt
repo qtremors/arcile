@@ -104,7 +104,9 @@ fun StandaloneTextEditor(
     onNavigateBack: () -> Unit,
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    loadContent: (suspend () -> String)? = null,
+    persistContent: (suspend (String) -> Result<Unit>)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -134,7 +136,9 @@ fun StandaloneTextEditor(
     LaunchedEffect(reference, loadRequest) {
         loadState = TextLoadState.Loading
         val loaded = withContext(Dispatchers.IO) {
-            runCatching { readTextFileContent(context, reference) }
+            runCatching {
+                loadContent?.invoke() ?: readTextFileContent(context, reference)
+            }
         }
         loaded.fold(
             onSuccess = { sourceText ->
@@ -242,7 +246,8 @@ fun StandaloneTextEditor(
         isSaving = true
         coroutineScope.launch {
             val result = withContext(Dispatchers.IO) {
-                writeAndVerifyTextFile(context, reference, snapshot)
+                persistContent?.invoke(snapshot)
+                    ?: writeAndVerifyTextFile(context, reference, snapshot)
             }
             isSaving = false
             result.fold(

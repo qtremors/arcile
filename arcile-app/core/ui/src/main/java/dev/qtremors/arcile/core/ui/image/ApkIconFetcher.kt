@@ -13,34 +13,47 @@ import coil.fetch.Fetcher
 import coil.request.Options
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import java.io.File
+import java.io.FileOutputStream
+import android.net.Uri
 
 class ApkIconFetcher(
     private val data: File,
-    private val options: Options
+    private val options: Options,
+    private val contentUri: String? = null,
+    private val declaredSizeBytes: Long? = null,
+    private val declaredExtension: String = data.extension
 ) : Fetcher {
     @Suppress("DEPRECATION")
     override suspend fun fetch(): FetchResult? {
-        if (!data.exists() || !data.isFile || data.length() > ThumbnailPolicy.MAX_APK_BYTES) return null
+        if (contentUri == null && (!data.exists() || !data.isFile)) return null
+        if ((declaredSizeBytes ?: data.length()) > ThumbnailPolicy.MAX_APK_BYTES) return null
         return ThumbnailWorkCoordinator.withExpensivePermit {
-            withApkPreviewFile(options.context, data) { apkFile ->
-                val packageManager = options.context.packageManager
-                val packageInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
-                    ?: return@withApkPreviewFile null
-                val appInfo = packageInfo.applicationInfo
-                    ?: return@withApkPreviewFile null
-                appInfo.sourceDir = apkFile.absolutePath
-                appInfo.publicSourceDir = apkFile.absolutePath
-                val icon = appInfo.loadIcon(packageManager)
-                    ?: return@withApkPreviewFile null
-                val targetSize = ThumbnailTargetSize.fromOptions(
-                    options,
-                    maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX
-                )
-                DrawableResult(
-                    drawable = icon.toBoundedDrawable(options.context, targetSize),
-                    isSampled = true,
-                    dataSource = DataSource.DISK
-                )
+            withApkCapabilityFile(
+                context = options.context,
+                source = data,
+                contentUri = contentUri,
+                extension = declaredExtension
+            ) { capabilityFile ->
+                withApkPreviewFile(options.context, capabilityFile) { apkFile ->
+                    val packageManager = options.context.packageManager
+                    val packageInfo = packageManager.getPackageArchiveInfo(apkFile.absolutePath, 0)
+                        ?: return@withApkPreviewFile null
+                    val appInfo = packageInfo.applicationInfo
+                        ?: return@withApkPreviewFile null
+                    appInfo.sourceDir = apkFile.absolutePath
+                    appInfo.publicSourceDir = apkFile.absolutePath
+                    val icon = appInfo.loadIcon(packageManager)
+                        ?: return@withApkPreviewFile null
+                    val targetSize = ThumbnailTargetSize.fromOptions(
+                        options,
+                        maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX
+                    )
+                    DrawableResult(
+                        drawable = icon.toBoundedDrawable(options.context, targetSize),
+                        isSampled = true,
+                        dataSource = DataSource.DISK
+                    )
+                }
             }
         }
     }
@@ -58,11 +71,48 @@ class ApkIconFetcher(
     class KeyFactory : Fetcher.Factory<ThumbnailKey> {
         override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.type == ThumbnailType.Apk) {
-                ApkIconFetcher(data.file, options)
+                ApkIconFetcher(
+                    data = data.file,
+                    options = options,
+                    contentUri = data.contentUri,
+                    declaredSizeBytes = data.sizeBytes,
+                    declaredExtension = data.extension
+                )
             } else {
                 null
             }
         }
+    }
+}
+
+internal inline fun <T> withApkCapabilityFile(
+    context: Context,
+    source: File,
+    contentUri: String?,
+    extension: String,
+    block: (File) -> T?
+): T? {
+    if (contentUri.isNullOrBlank()) return block(source)
+    val safeExtension = extension.lowercase().takeIf { it in FileCategories.APKs.extensions }
+        ?: return null
+    val temporary = File.createTempFile("arcile_capability_apk_", ".$safeExtension", context.cacheDir)
+    return try {
+        context.contentResolver.openInputStream(Uri.parse(contentUri))?.use { input ->
+            FileOutputStream(temporary).use { output ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                var total = 0L
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    total += count
+                    require(total <= ThumbnailPolicy.MAX_APK_BYTES)
+                    output.write(buffer, 0, count)
+                }
+            }
+        } ?: return null
+        block(temporary)
+    } finally {
+        temporary.delete()
     }
 }
 
