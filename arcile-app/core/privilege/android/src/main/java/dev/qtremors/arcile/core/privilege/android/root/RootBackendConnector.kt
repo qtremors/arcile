@@ -21,6 +21,7 @@ import dev.qtremors.arcile.core.privilege.android.remote.IPrivilegedFileService
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -30,7 +31,8 @@ import kotlinx.coroutines.withTimeout
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-internal class RootBackendConnector @Inject constructor(
+@Singleton
+class RootBackendConnector @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val facade: RootFacade,
     private val dispatchers: ArcileDispatchers
@@ -129,6 +131,7 @@ private class RootConnection(
 ) : BackendConnection {
     override val backendId = PrivilegeBackendId.ROOT
     override val deathEvents = pending.deathEvents
+    override fun activate(generation: Long) = client.activate(generation)
     override suspend fun close() = pending.close()
 }
 

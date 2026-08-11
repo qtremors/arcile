@@ -22,6 +22,7 @@ import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellableContinuation
@@ -35,7 +36,8 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import rikka.shizuku.Shizuku
 
-internal class ShizukuBackendConnector @Inject constructor(
+@Singleton
+class ShizukuBackendConnector @Inject constructor(
     @ApplicationContext context: Context,
     private val facade: ShizukuFacade,
     private val dispatchers: ArcileDispatchers
@@ -150,6 +152,7 @@ private class ShizukuConnection(
 ) : BackendConnection {
     override val backendId = PrivilegeBackendId.SHIZUKU
     override val deathEvents = pending.deathEvents
+    override fun activate(generation: Long) = client.activate(generation)
     override suspend fun close() = pending.close()
 }
 

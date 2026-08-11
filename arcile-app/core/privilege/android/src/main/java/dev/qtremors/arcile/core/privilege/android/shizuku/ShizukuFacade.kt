@@ -11,7 +11,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import rikka.shizuku.Shizuku
 
-internal interface ShizukuFacade {
+interface ShizukuFacade {
     fun isManagerInstalled(): Boolean
     fun isBinderAlive(): Boolean
     fun apiVersion(): Int
@@ -23,7 +23,7 @@ internal interface ShizukuFacade {
     fun addBinderDeadListener(listener: () -> Unit): Closeable
 }
 
-internal class AndroidShizukuFacade @Inject constructor(
+class AndroidShizukuFacade @Inject constructor(
     @param:ApplicationContext private val context: Context
 ) : ShizukuFacade {
     private val permissionRequestCode = AtomicInteger(24_000)

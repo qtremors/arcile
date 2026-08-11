@@ -31,11 +31,18 @@ import java.io.OutputStream
 import kotlinx.coroutines.withContext
 
 internal class BinderPrivilegedFileClient(
-    override val session: PrivilegeSession,
+    initialSession: PrivilegeSession,
     private val service: IPrivilegedFileService,
     private val dispatchers: ArcileDispatchers,
     private val closeConnection: () -> Unit
 ) : PrivilegedFileClient {
+    override var session: PrivilegeSession = initialSession
+        private set
+
+    internal fun activate(generation: Long): PrivilegedFileClient {
+        session = session.copy(generation = generation)
+        return this
+    }
     override suspend fun handshake(): PrivilegedHandshake = call { service.handshake().toDomain() }.getOrThrow()
 
     override suspend fun canonicalizeAndLstat(path: String): Result<PrivilegedFileEntry> =

@@ -37,3 +37,8 @@ interface PrivilegeCoordinator {
     /** Captures the immutable backend generation used by one operation. */
     fun captureSession(): Result<PrivilegeSession>
 }
+
+interface PrivilegedFileClientProvider {
+    fun activeClient(): Result<PrivilegedFileClient>
+    fun clientFor(session: PrivilegeSession): Result<PrivilegedFileClient>
+}

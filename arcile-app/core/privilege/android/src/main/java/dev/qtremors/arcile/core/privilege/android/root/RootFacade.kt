@@ -7,7 +7,7 @@ import com.topjohnwu.superuser.ipc.RootService
 import java.io.File
 import javax.inject.Inject
 
-internal interface RootFacade {
+interface RootFacade {
     /** Returns true/false for a manager decision and null when authorization has not been requested. */
     fun cachedAuthorization(): Boolean?
     fun isRootBinaryAvailable(): Boolean
@@ -15,7 +15,7 @@ internal interface RootFacade {
     fun unbind(connection: ServiceConnection)
 }
 
-internal class LibsuRootFacade @Inject constructor() : RootFacade {
+class LibsuRootFacade @Inject constructor() : RootFacade {
     override fun cachedAuthorization(): Boolean? = runCatching { Shell.isAppGrantedRoot() }.getOrNull()
 
     override fun isRootBinaryAvailable(): Boolean {

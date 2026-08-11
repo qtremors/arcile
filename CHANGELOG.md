@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.1
+> **Version:** 1.9.2
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.2] - 2026-08-11
+
+- **Reliable Backend Selection**: Added passive Root-to-Shizuku-to-Normal selection, explicit-mode failure handling, backend death recovery, and generation isolation so an operation cannot switch providers midway.
+- **Backend-Aware Storage Routing**: Preserved Root and Shizuku identity in listed files, bounded remote directory pages, and routed retained references and same-backend core operations without treating protected paths as missing local files.
+- **Protected Privileged Paths**: Kept system and virtual filesystems read-only, protected storage roots and Arcile private areas, required Root plus an advanced opt-in for other apps' private-data writes, and rejected traversal and unsupported special files.
 
 ---
 

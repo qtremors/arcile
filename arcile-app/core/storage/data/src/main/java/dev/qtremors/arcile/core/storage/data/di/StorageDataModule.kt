@@ -48,9 +48,15 @@ import dev.qtremors.arcile.core.storage.data.provider.DefaultRootStorageUsagePro
 import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.DefaultFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.BackendAwareFileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.PrivilegedFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.PrivilegedPathPolicy
+import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
+import dev.qtremors.arcile.core.privilege.PrivilegePreferences
+import dev.qtremors.arcile.core.privilege.PrivilegedFileClientProvider
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
@@ -75,6 +81,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Singleton
 
 @Module
@@ -238,14 +247,14 @@ object StorageDataModule {
 
     @Provides
     @Singleton
-    fun provideFileSystemDataSource(
+    fun provideLocalFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
         mutationJournal: MutationJournal,
         storageNodeDao: StorageNodeDao,
         dispatchers: ArcileDispatchers
-    ): FileSystemDataSource {
+    ): DefaultFileSystemDataSource {
         return DefaultFileSystemDataSource(
             context,
             volumeProvider,
@@ -255,6 +264,51 @@ object StorageDataModule {
             mutationJournal = mutationJournal
         )
     }
+
+    @Provides
+    @Singleton
+    fun providePrivilegedPathPolicy(
+        @ApplicationContext context: Context,
+        volumeProvider: VolumeProvider,
+        privilegePreferences: PrivilegePreferences,
+        @ApplicationScope applicationScope: CoroutineScope
+    ): PrivilegedPathPolicy {
+        val protectedWritesEnabled = AtomicBoolean(false)
+        applicationScope.launch {
+            privilegePreferences.state.collectLatest { preference ->
+                protectedWritesEnabled.set(preference.protectedFilesystemWritesEnabled)
+            }
+        }
+        return PrivilegedPathPolicy(
+            packageName = context.packageName,
+            protectedWritesEnabled = protectedWritesEnabled::get,
+            storageRoots = { volumeProvider.activeStorageRoots }
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun providePrivilegedFileSystemDataSource(
+        clientProvider: PrivilegedFileClientProvider,
+        pathPolicy: PrivilegedPathPolicy,
+        dispatchers: ArcileDispatchers
+    ): PrivilegedFileSystemDataSource = PrivilegedFileSystemDataSource(
+        clientProvider = clientProvider,
+        pathPolicy = pathPolicy,
+        dispatchers = dispatchers
+    )
+
+    @Provides
+    @Singleton
+    fun provideFileSystemDataSource(
+        local: DefaultFileSystemDataSource,
+        privileged: PrivilegedFileSystemDataSource,
+        privilegeCoordinator: PrivilegeCoordinator
+    ): FileSystemDataSource = BackendAwareFileSystemDataSource(
+        local = local,
+        privileged = privileged,
+        privilegeCoordinator = privilegeCoordinator
+    )
 
     @Provides
     @Singleton
