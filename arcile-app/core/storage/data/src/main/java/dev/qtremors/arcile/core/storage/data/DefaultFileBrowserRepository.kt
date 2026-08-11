@@ -10,9 +10,9 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import java.io.File
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.withContext
@@ -29,7 +29,7 @@ class DefaultFileBrowserRepository(
         runCatchingPreservingCancellation { StorageNodePath.of(path) }
             .map { fileSystemDataSource.list(it, pageSize) }
             .getOrElse {
-                flowOf(ListingPage.failed(StorageNodePath.of(File("/").absolutePath), it))
+                flowOf(ListingPage.failed(StorageNodePath.of("/"), it))
             }
 
     override suspend fun listNodeFiles(
@@ -49,41 +49,59 @@ class DefaultFileBrowserRepository(
         folderStatsStore.queue(paths)
     }
 
+    override suspend fun getCachedNodeFolderStats(
+        nodes: Collection<StorageNodeRef>
+    ): Map<String, FolderStats> = folderStatsStore.getCachedNodes(nodes)
+
+    override fun queueNodeFolderStats(nodes: List<StorageNodeRef>) {
+        folderStatsStore.queueNodes(nodes)
+    }
+
     override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> =
         folderStatsStore.observeUpdates()
 
     override suspend fun getSelectionProperties(
         paths: List<String>
+    ): Result<SelectionProperties> = runCatchingPreservingCancellation {
+        paths.distinct().map(StorageNodeRef::local)
+    }.fold(
+        onSuccess = { getNodeSelectionProperties(it) },
+        onFailure = { Result.failure(it) }
+    )
+
+    override suspend fun getNodeSelectionProperties(
+        nodes: List<StorageNodeRef>
     ): Result<SelectionProperties> = withContext(dispatchers.io) {
         try {
-            val selectedFiles = paths.distinct().map(::File)
-            require(selectedFiles.isNotEmpty()) { "No items selected" }
-            val existingFiles = selectedFiles.filter(File::exists)
-            require(existingFiles.isNotEmpty()) { "Selected items are no longer available" }
-
-            val scansByPath = existingFiles.associate { file ->
-                file.absolutePath to PropertiesScanner.scan(file)
+            val selectedNodes = nodes.distinctBy { it.canonicalIdentity }
+            require(selectedNodes.isNotEmpty()) { "No items selected" }
+            val scanner = StorageNodePropertiesScanner(fileSystemDataSource)
+            val completedScans = buildList {
+                selectedNodes.forEach { node ->
+                    scanner.scan(node).getOrNull()?.let(::add)
+                }
             }
-            val missingSelection = existingFiles.size != selectedFiles
-                .distinctBy(File::getAbsolutePath)
-                .size
+            require(completedScans.isNotEmpty()) { "Selected items are no longer available" }
+
+            val missingSelection = completedScans.size != selectedNodes.size
+            val scans = completedScans.map(StorageNodePropertiesScan::aggregate)
             val accessStatus = when {
-                scansByPath.values.any { it.selectedDirectoryUnavailable } ->
+                scans.any { it.selectedDirectoryUnavailable } ->
                     PropertiesAccessStatus.Limited
-                scansByPath.values.any { it.descendantReadFailed } || missingSelection ->
+                scans.any { it.descendantReadFailed } || missingSelection ->
                     PropertiesAccessStatus.Partial
                 else -> PropertiesAccessStatus.Full
             }
             Result.success(
-                if (existingFiles.size == 1) {
+                if (completedScans.size == 1) {
                     singleSelectionProperties(
-                        existingFiles.first(),
-                        scansByPath.getValue(existingFiles.first().absolutePath),
+                        completedScans.first().root,
+                        completedScans.first().aggregate,
                         accessStatus,
                         missingSelection
                     )
                 } else {
-                    multipleSelectionProperties(existingFiles, scansByPath, accessStatus)
+                    multipleSelectionProperties(completedScans, accessStatus)
                 }
             )
         } catch (error: Exception) {
@@ -93,7 +111,7 @@ class DefaultFileBrowserRepository(
     }
 
     private fun singleSelectionProperties(
-        file: File,
+        file: FileModel,
         scan: PropertiesScanResult,
         accessStatus: PropertiesAccessStatus,
         missingSelection: Boolean
@@ -108,8 +126,10 @@ class DefaultFileBrowserRepository(
             totalBytes = scan.totalBytes,
             newestModifiedAt = scan.newestModifiedAt,
             oldestModifiedAt = scan.oldestModifiedAt,
-            mimeTypeSummary = if (file.isFile && extension.isNotEmpty()) {
-                MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension)
+            mimeTypeSummary = if (!file.isDirectory) {
+                file.mimeType ?: extension.takeIf(String::isNotEmpty)?.let {
+                    MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)
+                }
             } else {
                 null
             },
@@ -140,28 +160,47 @@ class DefaultFileBrowserRepository(
     }
 
     private fun multipleSelectionProperties(
-        files: List<File>,
-        scansByPath: Map<String, PropertiesScanResult>,
+        completedScans: List<StorageNodePropertiesScan>,
         accessStatus: PropertiesAccessStatus
     ): SelectionProperties {
-        val scans = scansByPath.values
+        val files = completedScans.map(StorageNodePropertiesScan::root)
+        val scans = completedScans.map(StorageNodePropertiesScan::aggregate)
         return SelectionProperties(
             displayName = "${files.size} items",
-            pathSummary = files.mapNotNull(File::getParent).distinct().singleOrNull()
-                ?: files.first().parent.orEmpty(),
+            pathSummary = files.mapNotNull { it.absolutePath.storageParentPath() }
+                .distinct()
+                .singleOrNull()
+                ?: files.first().absolutePath.storageParentPath().orEmpty(),
             itemCount = files.size,
-            fileCount = scans.sumOf { it.fileCount }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-            folderCount = scans.sumOf { it.folderCount }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
-            totalBytes = scans.sumOf { it.totalBytes },
+            fileCount = scans.saturatedSumOf(PropertiesScanResult::fileCount)
+                .coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            folderCount = scans.saturatedSumOf(PropertiesScanResult::folderCount)
+                .coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            totalBytes = scans.saturatedSumOf(PropertiesScanResult::totalBytes),
             newestModifiedAt = scans.mapNotNull { it.newestModifiedAt }.maxOrNull(),
             oldestModifiedAt = scans.mapNotNull { it.oldestModifiedAt }.minOrNull(),
             mimeTypeSummary = null,
             extensionSummary = null,
-            hiddenCount = scans.sumOf { it.hiddenCount }.coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+            hiddenCount = scans.saturatedSumOf(PropertiesScanResult::hiddenCount)
+                .coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
             accessStatus = accessStatus,
             folderStats = null,
             isSingleItem = false,
             isDirectory = null
         )
     }
+
+    private fun List<PropertiesScanResult>.saturatedSumOf(
+        value: (PropertiesScanResult) -> Long
+    ): Long = fold(0L) { total, scan ->
+        val next = value(scan).coerceAtLeast(0L)
+        if (next > Long.MAX_VALUE - total) Long.MAX_VALUE else total + next
+    }
+}
+
+private fun String.storageParentPath(): String? {
+    val normalized = trimEnd('/', '\\')
+    val separator = maxOf(normalized.lastIndexOf('/'), normalized.lastIndexOf('\\'))
+    if (separator < 0) return null
+    return normalized.substring(0, separator).ifEmpty { normalized.substring(0, 1) }
 }

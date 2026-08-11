@@ -1,8 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.3
+> **Version:** 1.9.4
 > **Last Updated:** 2026-08-11
+
+---
+
+## [1.9.4] - 2026-08-11
+
+- **Privileged File Details**: Added backend-aware properties and folder totals for Root and Shizuku files, including partial-access reporting, cycle protection, bounded scans, and identity-safe caching.
+- **Reliable Batch Rename**: Kept Root and Shizuku identity through batch staging, rollback, completion, and undo instead of retrying protected files through local storage.
+- **Consistent Folder Insights**: Loaded cached folder sizes and background totals while browsing privileged directories, without colliding with identical paths from another access method.
 
 ---
 

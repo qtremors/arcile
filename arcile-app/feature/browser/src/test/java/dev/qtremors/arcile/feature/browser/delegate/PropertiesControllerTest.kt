@@ -51,8 +51,9 @@ class PropertiesControllerTest {
     @Test
     fun `repository properties load into owned state`() = scope.runTest {
         val path = "/root/report.pdf"
-        context = BrowserPropertiesContext(listOf(path), listOf(file("report.pdf", path, 12)), null)
-        coEvery { fileBrowserRepository.getSelectionProperties(listOf(path)) } returns
+        val selectedFile = file("report.pdf", path, 12)
+        context = BrowserPropertiesContext(listOf(path), listOf(selectedFile), null)
+        coEvery { fileBrowserRepository.getNodeSelectionProperties(listOf(selectedFile.nodeRef)) } returns
             Result.success(properties("report.pdf", path, 12))
 
         controller.openForSelection()
@@ -86,8 +87,11 @@ class PropertiesControllerTest {
     fun `dismiss cancels pending load and late result cannot reopen dialog`() = scope.runTest {
         val path = "/root/slow.txt"
         val result = CompletableDeferred<Result<SelectionProperties>>()
-        context = BrowserPropertiesContext(listOf(path), listOf(file("slow.txt", path, 1)), null)
-        coEvery { fileBrowserRepository.getSelectionProperties(listOf(path)) } coAnswers { result.await() }
+        val selectedFile = file("slow.txt", path, 1)
+        context = BrowserPropertiesContext(listOf(path), listOf(selectedFile), null)
+        coEvery { fileBrowserRepository.getNodeSelectionProperties(listOf(selectedFile.nodeRef)) } coAnswers {
+            result.await()
+        }
 
         controller.openForSelection()
         controller.dismiss()

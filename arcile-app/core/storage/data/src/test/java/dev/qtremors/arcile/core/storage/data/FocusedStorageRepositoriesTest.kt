@@ -24,6 +24,7 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.RootStorageUsage
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -420,6 +421,17 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
 
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(emptyList())
+    override suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = runCatching {
+        val file = File(node.displayPath.absolutePath)
+        require(file.exists()) { "Path does not exist: ${file.absolutePath}" }
+        file.toModel(node)
+    }
+    override suspend fun listNodeFiles(directory: StorageNodeRef): Result<List<FileModel>> = runCatching {
+        val file = File(directory.displayPath.absolutePath)
+        require(file.isDirectory) { "Not a directory: ${file.absolutePath}" }
+        requireNotNull(file.listFiles()) { "Directory is unavailable: ${file.absolutePath}" }
+            .map { child -> child.toModel() }
+    }
     override fun list(path: StorageNodePath, pageSize: Int): Flow<ListingPage> =
         flowOf(ListingPage(path, emptyList(), pageIndex = 0, isComplete = true))
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", isDirectory = true))
@@ -456,6 +468,18 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
         moveRequests += TransferCall(sourcePaths, destinationPath, resolutions)
         return Result.success(Unit)
     }
+
+    private fun File.toModel(node: StorageNodeRef = StorageNodeRef.local(absolutePath)): FileModel =
+        FileModel(
+            name = name,
+            absolutePath = absolutePath,
+            size = if (isFile) length() else 0L,
+            lastModified = lastModified(),
+            isDirectory = isDirectory,
+            extension = extension.lowercase(),
+            isHidden = name.startsWith('.'),
+            nodeRef = node
+        )
 }
 
 private class RecordingFolderStatsStore : FolderStatsStore {

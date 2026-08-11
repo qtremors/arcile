@@ -16,5 +16,12 @@ interface FileBrowserRepository : SelectionPropertiesRepository {
     ): Flow<ListingPage> = listFilePages(directory.displayPath.absolutePath, pageSize)
     suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats>
     fun queueFolderStats(paths: List<String>)
+    suspend fun getCachedNodeFolderStats(
+        nodes: Collection<StorageNodeRef>
+    ): Map<String, FolderStats> = getCachedFolderStats(
+        nodes.map { it.displayPath.absolutePath }
+    )
+    fun queueNodeFolderStats(nodes: List<StorageNodeRef>) =
+        queueFolderStats(nodes.map { it.displayPath.absolutePath })
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
 }

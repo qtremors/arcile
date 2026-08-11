@@ -18,7 +18,8 @@ data class FolderStats(
 @Immutable
 data class FolderStatUpdate(
     val path: String,
-    val stats: FolderStats
+    val stats: FolderStats,
+    val nodeRef: StorageNodeRef? = null
 )
 
 object FolderStatsCachePolicy {

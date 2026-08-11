@@ -30,6 +30,7 @@ import dev.qtremors.arcile.core.storage.data.StorageClassificationRepository
 import dev.qtremors.arcile.core.storage.data.RecentFilesSnapshotStore
 import dev.qtremors.arcile.core.storage.data.StorageCleanerSnapshotStore
 import dev.qtremors.arcile.core.storage.data.StorageUsageSnapshotStore
+import dev.qtremors.arcile.core.storage.data.StorageNodeFolderStatsCalculator
 import dev.qtremors.arcile.core.storage.data.DefaultThumbnailCacheStore
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheStore
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
@@ -361,11 +362,15 @@ object StorageDataModule {
         @ApplicationContext context: Context,
         folderStatsDao: FolderStatsDao,
         storageWorkCoordinator: StorageWorkCoordinator,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        fileSystemDataSource: javax.inject.Provider<FileSystemDataSource>
     ): FolderStatsStore {
         return DefaultFolderStatsStore(
             context,
             folderStatsDao = folderStatsDao,
+            nodeCalculator = { node ->
+                StorageNodeFolderStatsCalculator(fileSystemDataSource.get()).calculate(node)
+            },
             workerScope = CoroutineScope(SupervisorJob() + dispatchers.storage),
             storageWorkCoordinator = storageWorkCoordinator
         )

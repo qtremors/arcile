@@ -505,7 +505,7 @@ class PrivilegedFileSystemDataSource(
         Result.success(BatchMutationResult(succeededPaths = succeeded, failedItems = failures))
     }
 
-    internal suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = runResult {
+    override suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = runResult {
         val client = clientFor(node).getOrThrow()
         val entry = client.canonicalizeAndLstat(node.displayPath.absolutePath).getOrThrow()
         mapper.toFileModel(entry, client.session)

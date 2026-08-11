@@ -23,6 +23,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
@@ -147,6 +148,10 @@ class BrowserFakeFileRepository(
         get() = delegate.copyConflictRequests.lastOrNull()?.destinationPath
     val lastQueuedFolderStats: List<String>?
         get() = delegate.queuedFolderStatsRequests.lastOrNull()
+    val lastQueuedFolderStatNodes: List<StorageNodeRef>?
+        get() = delegate.queuedNodeFolderStatsRequests.lastOrNull()
+    val lastCachedFolderStatNodes: List<StorageNodeRef>?
+        get() = delegate.cachedNodeFolderStatsRequests.lastOrNull()
     val lastRenamePath: String?
         get() = delegate.renameRequests.lastOrNull()?.first
     val lastRenameNewName: String?

@@ -130,51 +130,58 @@ class DefaultFileMutationRepository(
 
     override suspend fun batchRenameFiles(
         renames: List<Pair<String, String>>
-    ): Result<List<Pair<String, String>>> = withContext(dispatchers.io) {
-        val transaction = renames.map { (originalPath, finalName) ->
-            val parent = originalPath.substringBeforeLast('/', "")
-            val temporaryName = ".arcile_tmp_${UUID.randomUUID()}"
-            BatchRenameTransactionEntry(
-                originalPath = originalPath,
-                originalName = originalPath.substringAfterLast('/'),
+    ): Result<List<Pair<String, String>>> = batchRenameNodes(
+        renames.map { (path, name) -> StorageNodeRef.local(path) to name }
+    ).map { completed ->
+        completed.map { (original, renamed) ->
+            original.displayPath.absolutePath to renamed.displayPath.absolutePath
+        }
+    }
+
+    override suspend fun batchRenameNodes(
+        renames: List<Pair<StorageNodeRef, String>>
+    ): Result<List<Pair<StorageNodeRef, StorageNodeRef>>> = withContext(dispatchers.io) {
+        val transaction = renames.map { (originalNode, finalName) ->
+            NodeBatchRenameTransactionEntry(
+                originalNode = originalNode,
+                originalName = originalNode.displayPath.absolutePath.storageName(),
                 finalName = finalName,
-                temporaryName = temporaryName,
-                temporaryPath = if (parent.isEmpty()) temporaryName else "$parent/$temporaryName"
+                temporaryName = ".arcile_tmp_${UUID.randomUUID()}"
             )
         }
         try {
             for (entry in transaction) {
                 entry.phase = BatchRenamePhase.STAGING
-                val result = fileSystemDataSource.renameFile(entry.originalPath, entry.temporaryName)
+                val result = fileSystemDataSource.renameNode(entry.originalNode, entry.temporaryName)
                 if (result.isFailure) {
                     entry.phase = BatchRenamePhase.ORIGINAL
                     val failure = result.exceptionOrNull()
                         ?: Exception("Failed temporary rename for ${entry.originalPath}")
-                    rollbackBatchRename(transaction)
+                    rollbackNodeBatchRename(transaction)
                     return@withContext Result.failure(failure)
                 }
-                entry.currentPath = result.getOrThrow().absolutePath
+                entry.currentNode = result.getOrThrow().nodeRef
                 entry.phase = BatchRenamePhase.STAGED
             }
 
             for (entry in transaction) {
                 entry.phase = BatchRenamePhase.FINALIZING
-                val result = fileSystemDataSource.renameFile(entry.currentPath, entry.finalName)
+                val result = fileSystemDataSource.renameNode(entry.currentNode, entry.finalName)
                 if (result.isFailure) {
                     entry.phase = BatchRenamePhase.STAGED
                     val failure = result.exceptionOrNull()
                         ?: Exception("Failed final rename for ${entry.originalPath}")
-                    rollbackBatchRename(transaction)
+                    rollbackNodeBatchRename(transaction)
                     return@withContext Result.failure(failure)
                 }
-                entry.currentPath = result.getOrThrow().absolutePath
+                entry.currentNode = result.getOrThrow().nodeRef
                 entry.phase = BatchRenamePhase.FINAL
             }
 
-            Result.success(transaction.map { it.originalPath to it.currentPath })
+            Result.success(transaction.map { it.originalNode to it.currentNode })
         } catch (e: Exception) {
             withContext(NonCancellable) {
-                rollbackBatchRename(transaction)
+                rollbackNodeBatchRename(transaction)
             }
             e.rethrowIfCancellation()
             Result.failure(e)
@@ -262,25 +269,30 @@ class DefaultFileMutationRepository(
         )
     }
 
-    private suspend fun rollbackBatchRename(transaction: List<BatchRenameTransactionEntry>) {
+    private suspend fun rollbackNodeBatchRename(
+        transaction: List<NodeBatchRenameTransactionEntry>
+    ) {
         transaction.asReversed().forEach { entry ->
             if (entry.phase == BatchRenamePhase.FINAL) {
-                fileSystemDataSource.renameFile(entry.currentPath, entry.temporaryName)
+                fileSystemDataSource.renameNode(entry.currentNode, entry.temporaryName)
                     .onSuccess { restored ->
-                        entry.currentPath = restored.absolutePath
+                        entry.currentNode = restored.nodeRef
                         entry.phase = BatchRenamePhase.STAGED
                     }
             } else if (entry.phase == BatchRenamePhase.FINALIZING) {
-                val restaged = fileSystemDataSource.renameFile(entry.finalPath, entry.temporaryName)
+                val restaged = fileSystemDataSource.renameNode(
+                    entry.finalNode,
+                    entry.temporaryName
+                )
                 if (restaged.isSuccess) {
                     restaged.onSuccess { restored ->
-                        entry.currentPath = restored.absolutePath
+                        entry.currentNode = restored.nodeRef
                         entry.phase = BatchRenamePhase.STAGED
                     }
                 } else {
-                    fileSystemDataSource.renameFile(entry.temporaryPath, entry.originalName)
+                    fileSystemDataSource.renameNode(entry.temporaryNode, entry.originalName)
                         .onSuccess { restored ->
-                            entry.currentPath = restored.absolutePath
+                            entry.currentNode = restored.nodeRef
                             entry.phase = BatchRenamePhase.ORIGINAL
                         }
                 }
@@ -288,12 +300,15 @@ class DefaultFileMutationRepository(
         }
         transaction.asReversed().forEach { entry ->
             if (entry.phase == BatchRenamePhase.STAGING) {
-                fileSystemDataSource.renameFile(entry.temporaryPath, entry.originalName)
-                entry.phase = BatchRenamePhase.ORIGINAL
-            } else if (entry.phase == BatchRenamePhase.STAGED) {
-                fileSystemDataSource.renameFile(entry.currentPath, entry.originalName)
+                fileSystemDataSource.renameNode(entry.temporaryNode, entry.originalName)
                     .onSuccess { restored ->
-                        entry.currentPath = restored.absolutePath
+                        entry.currentNode = restored.nodeRef
+                        entry.phase = BatchRenamePhase.ORIGINAL
+                    }
+            } else if (entry.phase == BatchRenamePhase.STAGED) {
+                fileSystemDataSource.renameNode(entry.currentNode, entry.originalName)
+                    .onSuccess { restored ->
+                        entry.currentNode = restored.nodeRef
                         entry.phase = BatchRenamePhase.ORIGINAL
                     }
             }
@@ -309,15 +324,45 @@ private enum class BatchRenamePhase {
     FINAL
 }
 
-private data class BatchRenameTransactionEntry(
-    val originalPath: String,
+private data class NodeBatchRenameTransactionEntry(
+    val originalNode: StorageNodeRef,
     val originalName: String,
     val finalName: String,
     val temporaryName: String,
-    val temporaryPath: String,
-    val finalPath: String = originalPath.substringBeforeLast('/', "").let { parent ->
-        if (parent.isEmpty()) finalName else "$parent/$finalName"
-    },
-    var currentPath: String = originalPath,
+    var currentNode: StorageNodeRef = originalNode,
     var phase: BatchRenamePhase = BatchRenamePhase.ORIGINAL
-)
+) {
+    val originalPath: String get() = originalNode.displayPath.absolutePath
+    val temporaryNode: StorageNodeRef get() = originalNode.anticipatedSibling(temporaryName)
+    val finalNode: StorageNodeRef get() = originalNode.anticipatedSibling(finalName)
+}
+
+private fun String.storageName(): String =
+    trimEnd('/', '\\').substringAfterLast('/').substringAfterLast('\\')
+
+private fun StorageNodeRef.anticipatedSibling(name: String): StorageNodeRef {
+    val path = displayPath.absolutePath
+    val separatorIndex = maxOf(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+    val renamedPath = if (separatorIndex < 0) name else path.substring(0, separatorIndex + 1) + name
+    return when (backendId) {
+        StorageNodeRef.ROOT_BACKEND_ID,
+        StorageNodeRef.SHIZUKU_BACKEND_ID -> StorageNodeRef.privileged(
+            backendId = backendId,
+            displayPath = renamedPath,
+            remoteCanonicalIdentity = backendIdentity
+                ?.let { identity ->
+                    val identitySeparator = maxOf(identity.lastIndexOf('/'), identity.lastIndexOf('\\'))
+                    if (identitySeparator < 0) name
+                    else identity.substring(0, identitySeparator + 1) + name
+                }
+                ?: renamedPath,
+            volumeId = volumeId?.value,
+            capabilities = capabilities
+        )
+        else -> StorageNodeRef.local(
+            path = renamedPath,
+            volumeId = volumeId?.value,
+            capabilities = capabilities
+        )
+    }
+}

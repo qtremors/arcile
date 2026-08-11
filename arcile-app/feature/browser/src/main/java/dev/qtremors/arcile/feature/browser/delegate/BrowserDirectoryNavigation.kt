@@ -83,16 +83,19 @@ internal fun BrowserNavigationController.loadDirectory(
             } else {
                 loadedFiles
             }
-            val folderPaths = if (resolvedVolumeId == null) {
-                emptyList()
+            val shouldLoadFolderStats = resolvedVolumeId != null ||
+                requestedNodeRef?.backendId == StorageNodeRef.ROOT_BACKEND_ID ||
+                requestedNodeRef?.backendId == StorageNodeRef.SHIZUKU_BACKEND_ID
+            val folderNodes = if (shouldLoadFolderStats) {
+                page.files.filter(FileModel::isDirectory).map(FileModel::nodeRef)
             } else {
-                page.files.filter(FileModel::isDirectory).map(FileModel::absolutePath)
+                emptyList()
             }
-            val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
+            val cachedStats = fileBrowserRepository.getCachedNodeFolderStats(folderNodes)
             if (!isActiveLoad(generation)) return@collect
             val now = System.currentTimeMillis()
-            val pathsToQueue = folderPaths.filter { folderPath ->
-                val cached = cachedStats[folderPath] ?: return@filter true
+            val nodesToQueue = folderNodes.filter { folderNode ->
+                val cached = cachedStats[folderNode.displayPath.absolutePath] ?: return@filter true
                 val ttl = if (cached.status == FolderStatsStatus.Unavailable) {
                     FolderStatsCachePolicy.FAILURE_TTL_MS
                 } else {
@@ -100,6 +103,7 @@ internal fun BrowserNavigationController.loadDirectory(
                 }
                 now - cached.cachedAt > ttl
             }
+            val pathsToQueue = nodesToQueue.map { it.displayPath.absolutePath }
             update {
                 it.withValues(
                     currentNodeRef = page.directoryRef ?: requestedNodeRef,
@@ -111,7 +115,7 @@ internal fun BrowserNavigationController.loadDirectory(
                         (it.folderStatsLoadingPaths + pathsToQueue).toPersistentSet()
                 ).withUpdatedDisplayState()
             }
-            fileBrowserRepository.queueFolderStats(pathsToQueue)
+            fileBrowserRepository.queueNodeFolderStats(nodesToQueue)
             if (page.isComplete) saveNavStateIfActive(generation)
         }
     }

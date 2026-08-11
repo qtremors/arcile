@@ -13,10 +13,12 @@ import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationOperation
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.feature.browser.BrowserOperationState
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.feature.browser.MoveUndoEntry
+import dev.qtremors.arcile.feature.browser.RenameUndoEntry
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -334,6 +336,62 @@ class BrowserOperationControllerTest {
     }
 
     @Test
+    fun `privileged rename undo uses renamed node instead of local path`() = scope.runTest {
+        val original = rootNode("/system/a.conf")
+        val renamed = rootNode("/system/one.conf")
+        coEvery { fileMutationRepository.renameNode(renamed, "a.conf") } returns
+            Result.success(file("/system/a.conf", original))
+        controller = operationController(
+            BrowserOperationState(
+                pendingUndoAction = BrowserUndoAction.Rename(
+                    originalPath = "/system/a.conf",
+                    renamedPath = "/system/one.conf",
+                    originalNode = original,
+                    renamedNode = renamed
+                )
+            )
+        )
+
+        controller.undoLastOperation()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { fileMutationRepository.renameNode(renamed, "a.conf") }
+        coVerify(exactly = 0) { fileMutationRepository.renameFile(any(), any()) }
+        assertEquals(1, refreshCount)
+        assertNull(controller.state.value.pendingUndoAction)
+    }
+
+    @Test
+    fun `privileged batch rename undo retains each renamed node`() = scope.runTest {
+        val firstOriginal = rootNode("/system/a.conf")
+        val secondOriginal = rootNode("/system/b.conf")
+        val firstRenamed = rootNode("/system/one.conf")
+        val secondRenamed = rootNode("/system/two.conf")
+        val reverse = listOf(firstRenamed to "a.conf", secondRenamed to "b.conf")
+        coEvery { fileMutationRepository.batchRenameNodes(reverse) } returns Result.success(
+            listOf(firstRenamed to firstOriginal, secondRenamed to secondOriginal)
+        )
+        controller = operationController(
+            BrowserOperationState(
+                pendingUndoAction = BrowserUndoAction.BatchRename(
+                    persistentListOf(
+                        RenameUndoEntry("/system/a.conf", "/system/one.conf", firstOriginal, firstRenamed),
+                        RenameUndoEntry("/system/b.conf", "/system/two.conf", secondOriginal, secondRenamed)
+                    )
+                )
+            )
+        )
+
+        controller.undoLastOperation()
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { fileMutationRepository.batchRenameNodes(reverse) }
+        coVerify(exactly = 0) { fileMutationRepository.batchRenameFiles(any()) }
+        assertEquals(1, refreshCount)
+        assertNull(controller.state.value.pendingUndoAction)
+    }
+
+    @Test
     fun `trash undo exposes neutral authorization and ignores stale result ids`() = scope.runTest {
         val requirement = authorizationRequirement("undo-request")
         coEvery { trashRepository.restoreFromTrash(listOf("trash-1")) } returns
@@ -428,12 +486,18 @@ class BrowserOperationControllerTest {
         operation = StorageAuthorizationOperation.RESTORE_TRASH
     )
 
-    private fun file(path: String) = FileModel(
+    private fun file(path: String, nodeRef: StorageNodeRef = StorageNodeRef.local(path)) = FileModel(
         name = path.substringAfterLast('/'),
         absolutePath = path,
         size = 0,
         lastModified = 0,
         isDirectory = false,
-        extension = path.substringAfterLast('.', "")
+        extension = path.substringAfterLast('.', ""),
+        nodeRef = nodeRef
+    )
+
+    private fun rootNode(path: String): StorageNodeRef = StorageNodeRef.root(
+        displayPath = path,
+        remoteCanonicalIdentity = path
     )
 }

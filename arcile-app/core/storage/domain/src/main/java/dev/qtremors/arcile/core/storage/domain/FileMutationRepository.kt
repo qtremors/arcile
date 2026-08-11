@@ -47,6 +47,9 @@ interface FileMutationRepository {
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
     suspend fun batchRenameFiles(renames: List<Pair<String, String>>): Result<List<Pair<String, String>>> =
         Result.success(emptyList())
+    suspend fun batchRenameNodes(
+        renames: List<Pair<StorageNodeRef, String>>
+    ): Result<List<Pair<StorageNodeRef, StorageNodeRef>>> = Result.success(emptyList())
 
     suspend fun createNodeDirectory(parent: StorageNodeRef, name: String): Result<FileModel> =
         createDirectory(parent.displayPath.absolutePath, name)

@@ -191,7 +191,12 @@ internal class BrowserMutationController(
                 clearSelection()
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
-                    BrowserUndoAction.Rename(path, renamed.absolutePath)
+                    BrowserUndoAction.Rename(
+                        originalPath = path,
+                        renamedPath = renamed.absolutePath,
+                        originalNode = selectedNode,
+                        renamedNode = selectedNode?.let { renamed.nodeRef }
+                    )
                 )
             }.onFailure { error ->
                 onError(
@@ -205,10 +210,17 @@ internal class BrowserMutationController(
     fun batchRename(renames: List<Pair<FileModel, String>>) {
         if (contextProvider().isArchive || renames.isEmpty()) return
         scope.launch {
-            val targets = renames.map { it.first.absolutePath to it.second }
-            fileMutationRepository.batchRenameFiles(targets).onSuccess { completed ->
+            val targets = renames.map { it.first.nodeRef to it.second }
+            fileMutationRepository.batchRenameNodes(targets).onSuccess { completed ->
                 clearSelection()
-                val undoEntries = completed.map { RenameUndoEntry(it.first, it.second) }.toPersistentList()
+                val undoEntries = completed.map { (original, renamed) ->
+                    RenameUndoEntry(
+                        originalPath = original.displayPath.absolutePath,
+                        renamedPath = renamed.displayPath.absolutePath,
+                        originalNode = original,
+                        renamedNode = renamed
+                    )
+                }.toPersistentList()
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
                     BrowserUndoAction.BatchRename(undoEntries)

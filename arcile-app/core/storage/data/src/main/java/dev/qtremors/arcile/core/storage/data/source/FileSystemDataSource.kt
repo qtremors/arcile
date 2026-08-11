@@ -40,6 +40,9 @@ interface FileSystemDataSource : DirectoryListingDataSource {
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<FileModel>
 
+    suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> =
+        Result.failure(UnsupportedOperationException("Node inspection is unavailable for ${node.backendId}"))
+
     suspend fun listNodeFiles(directory: StorageNodeRef): Result<List<FileModel>> =
         listFiles(directory.displayPath.absolutePath)
 

@@ -48,11 +48,16 @@ class FakeFileBrowserRepository(
 
     var filesByPath: Map<String, List<FileModel>> = initialFilesByPath
     var cachedFolderStats: Map<String, FolderStats> = emptyMap()
+    var cachedNodeFolderStats: Map<String, FolderStats> = emptyMap()
     var listFilesResultProvider: (suspend (String) -> Result<List<FileModel>>)? = null
     var listFilePagesProvider: ((String, Int) -> Flow<ListingPage>)? = null
     var selectionPropertiesResultProvider: (suspend (List<String>) -> Result<SelectionProperties>)? = null
+    var nodeSelectionPropertiesResultProvider: (suspend (List<StorageNodeRef>) -> Result<SelectionProperties>)? = null
 
     val queuedFolderStatsRequests = mutableListOf<List<String>>()
+    val queuedNodeFolderStatsRequests = mutableListOf<List<StorageNodeRef>>()
+    val cachedNodeFolderStatsRequests = mutableListOf<List<StorageNodeRef>>()
+    val nodeSelectionPropertiesRequests = mutableListOf<List<StorageNodeRef>>()
 
     fun emitFolderStatUpdate(update: FolderStatUpdate) {
         folderStatUpdates.tryEmit(update)
@@ -73,14 +78,38 @@ class FakeFileBrowserRepository(
     override suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats> =
         paths.mapNotNull { path -> cachedFolderStats[path]?.let { path to it } }.toMap()
 
+    override suspend fun getCachedNodeFolderStats(
+        nodes: Collection<StorageNodeRef>
+    ): Map<String, FolderStats> {
+        cachedNodeFolderStatsRequests += nodes.toList()
+        return nodes.mapNotNull { node ->
+            val path = node.displayPath.absolutePath
+            (cachedNodeFolderStats[path] ?: cachedFolderStats[path])?.let { path to it }
+        }.toMap()
+    }
+
     override fun queueFolderStats(paths: List<String>) {
         queuedFolderStatsRequests += paths
+    }
+
+    override fun queueNodeFolderStats(nodes: List<StorageNodeRef>) {
+        queuedNodeFolderStatsRequests += nodes
+        queuedFolderStatsRequests += nodes.map { it.displayPath.absolutePath }
     }
 
     override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> = folderStatUpdates
 
     override suspend fun getSelectionProperties(paths: List<String>): Result<SelectionProperties> =
         selectionPropertiesResultProvider?.invoke(paths) ?: Result.success(defaultSelectionProperties(paths))
+
+    override suspend fun getNodeSelectionProperties(
+        nodes: List<StorageNodeRef>
+    ): Result<SelectionProperties> {
+        nodeSelectionPropertiesRequests += nodes
+        return nodeSelectionPropertiesResultProvider?.invoke(nodes)
+            ?: selectionPropertiesResultProvider?.invoke(nodes.map { it.displayPath.absolutePath })
+            ?: Result.success(defaultSelectionProperties(nodes.map { it.displayPath.absolutePath }))
+    }
 }
 
 class FakeFileMutationRepository : FileMutationRepository {
@@ -93,6 +122,9 @@ class FakeFileMutationRepository : FileMutationRepository {
     var shredResult: Result<Unit> = Result.success(Unit)
     var shredDetailedResultProvider: (suspend (List<String>) -> Result<BatchMutationResult>)? = null
     var renameFileResultProvider: (suspend (String, String) -> Result<FileModel>)? = null
+    var renameNodeResultProvider: (suspend (StorageNodeRef, String) -> Result<FileModel>)? = null
+    var batchRenameFilesResultProvider: (suspend (List<Pair<String, String>>) -> Result<List<Pair<String, String>>>)? = null
+    var batchRenameNodesResultProvider: (suspend (List<Pair<StorageNodeRef, String>>) -> Result<List<Pair<StorageNodeRef, StorageNodeRef>>>)? = null
     var createFakeNodeFileResultProvider: (suspend (StorageNodeRef, String, Long, ((BulkFileOperationProgress) -> Unit)?) -> Result<FileModel>)? = null
     var deleteNodesDetailedResultProvider: (suspend (List<StorageNodeRef>) -> Result<BatchMutationResult>)? = null
     var shredNodesDetailedResultProvider: (suspend (List<StorageNodeRef>) -> Result<BatchMutationResult>)? = null
@@ -104,6 +136,9 @@ class FakeFileMutationRepository : FileMutationRepository {
     val deletePermanentlyRequests = mutableListOf<List<String>>()
     val shredRequests = mutableListOf<List<String>>()
     val renameRequests = mutableListOf<Pair<String, String>>()
+    val renameNodeRequests = mutableListOf<Pair<StorageNodeRef, String>>()
+    val batchRenameRequests = mutableListOf<List<Pair<String, String>>>()
+    val batchRenameNodeRequests = mutableListOf<List<Pair<StorageNodeRef, String>>>()
     val createFakeNodeFileRequests = mutableListOf<CreateFakeNodeFileRequest>()
     val deleteNodeRequests = mutableListOf<List<StorageNodeRef>>()
     val shredNodeRequests = mutableListOf<List<StorageNodeRef>>()
@@ -176,6 +211,35 @@ class FakeFileMutationRepository : FileMutationRepository {
         return renameFileResultProvider?.invoke(path, newName) ?: Result.failure(NotImplementedError())
     }
 
+    override suspend fun renameNode(node: StorageNodeRef, newName: String): Result<FileModel> {
+        renameNodeRequests += node to newName
+        return renameNodeResultProvider?.invoke(node, newName)
+            ?: renameFileResultProvider?.invoke(node.displayPath.absolutePath, newName)
+            ?: Result.failure(NotImplementedError())
+    }
+
+    override suspend fun batchRenameFiles(
+        renames: List<Pair<String, String>>
+    ): Result<List<Pair<String, String>>> {
+        batchRenameRequests += renames
+        return batchRenameFilesResultProvider?.invoke(renames)
+            ?: Result.success(
+                renames.map { (path, name) ->
+                    path to siblingPath(path, name)
+                }
+            )
+    }
+
+    override suspend fun batchRenameNodes(
+        renames: List<Pair<StorageNodeRef, String>>
+    ): Result<List<Pair<StorageNodeRef, StorageNodeRef>>> {
+        batchRenameNodeRequests += renames
+        return batchRenameNodesResultProvider?.invoke(renames)
+            ?: Result.success(
+                renames.map { (node, name) -> node to renamedNode(node, name) }
+            )
+    }
+
     override suspend fun createFakeNodeFile(
         parent: StorageNodeRef,
         name: String,
@@ -203,6 +267,34 @@ class FakeFileMutationRepository : FileMutationRepository {
         shredNodeRequests += nodes
         return shredNodesDetailedResultProvider?.invoke(nodes)
             ?: Result.success(BatchMutationResult(succeededPaths = nodes.map { it.displayPath.absolutePath }))
+    }
+
+    private fun renamedNode(node: StorageNodeRef, name: String): StorageNodeRef {
+        val path = siblingPath(node.displayPath.absolutePath, name)
+        return when (node.backendId) {
+            StorageNodeRef.ROOT_BACKEND_ID -> StorageNodeRef.root(
+                displayPath = path,
+                remoteCanonicalIdentity = path,
+                volumeId = node.volumeId?.value,
+                capabilities = node.capabilities
+            )
+            StorageNodeRef.SHIZUKU_BACKEND_ID -> StorageNodeRef.shizuku(
+                displayPath = path,
+                remoteCanonicalIdentity = path,
+                volumeId = node.volumeId?.value,
+                capabilities = node.capabilities
+            )
+            else -> StorageNodeRef.local(
+                path = path,
+                volumeId = node.volumeId?.value,
+                capabilities = node.capabilities
+            )
+        }
+    }
+
+    private fun siblingPath(path: String, name: String): String {
+        val separator = maxOf(path.lastIndexOf('/'), path.lastIndexOf('\\'))
+        return if (separator < 0) name else path.substring(0, separator + 1) + name
     }
 }
 
@@ -529,6 +621,10 @@ class FakeStorageRepositoryBundle(
         get() = trashRepository.deletePermanentlyFromTrashRequests
     val queuedFolderStatsRequests: MutableList<List<String>>
         get() = fileBrowserRepository.queuedFolderStatsRequests
+    val queuedNodeFolderStatsRequests: MutableList<List<StorageNodeRef>>
+        get() = fileBrowserRepository.queuedNodeFolderStatsRequests
+    val cachedNodeFolderStatsRequests: MutableList<List<StorageNodeRef>>
+        get() = fileBrowserRepository.cachedNodeFolderStatsRequests
 
     fun emitVolumes(volumes: List<StorageVolume>) {
         volumeRepository.emitVolumes(volumes)

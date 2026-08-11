@@ -101,7 +101,14 @@ internal class PropertiesController(
             return
         }
 
-        localLoader.open(context.selectedPaths)
+        val selectedNodes = context.files
+            .filter { it.absolutePath in context.selectedPaths }
+            .map(FileModel::nodeRef)
+        if (selectedNodes.size == context.selectedPaths.size) {
+            localLoader.openNodes(selectedNodes)
+        } else {
+            localLoader.open(context.selectedPaths)
+        }
     }
 
     fun dismiss() {
