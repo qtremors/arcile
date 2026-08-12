@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Storage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserUiState
@@ -117,6 +118,7 @@ internal fun BrowserTopBars(
                 scrollBehavior = scrollBehavior,
                 menuActions = buildList {
                     if (
+                        state.currentNodeRef?.isPrivileged == true &&
                         state.currentPath.isNotBlank() &&
                         !state.isCategoryScreen &&
                         !state.isVolumeRootScreen &&
@@ -124,14 +126,14 @@ internal fun BrowserTopBars(
                     ) {
                         add(
                             ArcileTopBarMenuAction(
-                                label = stringResource(R.string.tool_analyze),
+                                label = stringResource(R.string.browser_analyze_this_folder),
                                 icon = Icons.Default.Storage,
                                 onClick = onAnalyzeStorage
                             )
                         )
                         add(
                             ArcileTopBarMenuAction(
-                                label = stringResource(R.string.storage_cleaner_title),
+                                label = stringResource(R.string.browser_clean_this_folder),
                                 icon = Icons.Default.DeleteSweep,
                                 onClick = onCleanStorage
                             )

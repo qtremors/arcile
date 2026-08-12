@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.privilege.PrivilegedFileHandle
 import dev.qtremors.arcile.core.privilege.PrivilegedFileFailure
 import dev.qtremors.arcile.core.privilege.PrivilegedOpenMode
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.PrivilegedFileSystemDataSource
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
@@ -254,7 +255,7 @@ internal class ArchiveNodeWorkspaceBridge(
             return published
         } catch (error: Throwable) {
             error.rethrowIfCancellation()
-            runCatching { io.delete(partial) }
+            runCatchingPreservingCancellation { io.delete(partial) }
             throw error
         }
     }
@@ -641,9 +642,13 @@ internal class ArchivePublishTransaction(
     }
 
     suspend fun rollback() {
-        createdNodes.asReversed().forEach { node -> runCatching { io.delete(node) } }
+        createdNodes.asReversed().forEach { node ->
+            runCatchingPreservingCancellation { io.delete(node) }
+        }
         replacements.asReversed().forEach { replacement ->
-            runCatching { io.rename(replacement.backup, replacement.originalName) }
+            runCatchingPreservingCancellation {
+                io.rename(replacement.backup, replacement.originalName)
+            }
         }
         replacements.clear()
         createdNodes.clear()

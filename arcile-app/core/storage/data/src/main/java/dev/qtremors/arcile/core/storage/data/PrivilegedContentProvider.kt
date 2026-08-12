@@ -98,6 +98,7 @@ class PrivilegedContentProvider : ContentProvider() {
                     Handler(proxyThread.looper)
                 )
         } catch (error: Exception) {
+            error.rethrowIfCancellation()
             granted.reader.close()
             throw FileNotFoundException(error.message)
         }

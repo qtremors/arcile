@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -54,13 +55,14 @@ interface FileSystemDataSource : DirectoryListingDataSource {
     suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> =
         Result.failure(UnsupportedOperationException("Node inspection is unavailable for ${node.backendId}"))
 
-    suspend fun openNodeInput(node: StorageNodeRef): Result<StorageNodeInput> = runCatching {
-        require(!node.isPrivileged) {
-            "Protected node content requires backend-aware storage support"
+    suspend fun openNodeInput(node: StorageNodeRef): Result<StorageNodeInput> =
+        runCatchingPreservingCancellation {
+            require(!node.isPrivileged) {
+                "Protected node content requires backend-aware storage support"
+            }
+            val input = FileInputStream(node.displayPath.absolutePath)
+            StorageNodeInput(input)
         }
-        val input = FileInputStream(node.displayPath.absolutePath)
-        StorageNodeInput(input)
-    }
 
     suspend fun listNodeFiles(directory: StorageNodeRef): Result<List<FileModel>> =
         listFiles(directory.displayPath.absolutePath)

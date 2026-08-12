@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import android.net.Uri
 import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
+import dev.qtremors.arcile.core.privilege.PrivilegeMode
+import dev.qtremors.arcile.core.privilege.PrivilegePreferences
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
@@ -19,6 +22,7 @@ import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalStagingCache
 import dev.qtremors.arcile.feature.settings.ui.SettingsExternalCacheState
+import dev.qtremors.arcile.feature.settings.ui.SettingsAccessState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +31,9 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 @HiltViewModel
 internal class SettingsViewModel @Inject constructor(
@@ -34,7 +41,9 @@ internal class SettingsViewModel @Inject constructor(
     private val recentFilesPreferencesStore: RecentFilesPreferencesStore,
     private val galleryPreferencesStore: GalleryPreferencesStore,
     private val preferencesBackupManager: PreferencesBackupGateway,
-    private val externalStagingCache: ExternalStagingCache
+    private val externalStagingCache: ExternalStagingCache,
+    private val privilegePreferences: PrivilegePreferences,
+    private val privilegeCoordinator: PrivilegeCoordinator
 ) : ViewModel() {
     val browserPreferences = combine(
         browserPreferencesStore.locationPreferencesFlow,
@@ -48,6 +57,27 @@ internal class SettingsViewModel @Inject constructor(
 
     private val _externalCache = MutableStateFlow(SettingsExternalCacheState())
     val externalCache: StateFlow<SettingsExternalCacheState> = _externalCache.asStateFlow()
+
+    private val accessActionMutex = Mutex()
+    private val accessActionBusy = MutableStateFlow(false)
+    private val accessActionFailure = MutableStateFlow<UiText?>(null)
+    val accessState: StateFlow<SettingsAccessState> = combine(
+        privilegePreferences.state,
+        privilegeCoordinator.state,
+        accessActionBusy,
+        accessActionFailure
+    ) { preference, access, busy, failure ->
+        SettingsAccessState(
+            preference = preference,
+            access = access,
+            isBusy = busy,
+            actionFailure = failure
+        )
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        SettingsAccessState()
+    )
 
     init {
         refreshExternalCache()
@@ -123,6 +153,27 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun selectAccessMode(mode: PrivilegeMode) = runAccessAction {
+        privilegeCoordinator.selectMode(
+            mode = mode,
+            requestAuthorization = mode == PrivilegeMode.ROOT || mode == PrivilegeMode.SHIZUKU
+        )
+    }
+
+    fun reconnectAccess() = runAccessAction {
+        privilegeCoordinator.reconnect(requestAuthorization = true)
+    }
+
+    fun useNormalAccess() = runAccessAction {
+        privilegeCoordinator.useNormal()
+    }
+
+    fun updateProtectedFilesystemWrites(enabled: Boolean) {
+        viewModelScope.launch {
+            privilegePreferences.setProtectedFilesystemWritesEnabled(enabled)
+        }
+    }
+
     fun exportPreferences(uri: Uri) {
         viewModelScope.launch {
             _backupState.value = PreferencesBackupUiState.Busy
@@ -170,6 +221,26 @@ internal class SettingsViewModel @Inject constructor(
 
     fun clearBackupState() {
         _backupState.value = PreferencesBackupUiState.Idle
+    }
+
+    private fun runAccessAction(action: suspend () -> Unit) {
+        viewModelScope.launch {
+            accessActionMutex.withLock {
+                accessActionBusy.value = true
+                accessActionFailure.value = null
+                try {
+                    action()
+                } catch (error: CancellationException) {
+                    throw error
+                } catch (error: Throwable) {
+                    accessActionFailure.value = UiText.StringResource(
+                        R.string.settings_access_action_failed
+                    )
+                } finally {
+                    accessActionBusy.value = false
+                }
+            }
+        }
     }
 }
 

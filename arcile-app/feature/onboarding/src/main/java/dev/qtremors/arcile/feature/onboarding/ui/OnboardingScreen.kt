@@ -91,6 +91,7 @@ import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import androidx.activity.compose.PredictiveBackHandler
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.theme.spacing
+import dev.qtremors.arcile.core.privilege.PrivilegeMode
 import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -103,6 +104,8 @@ internal fun OnboardingScreen(
     onBack: () -> Unit,
     onStepSelected: (OnboardingStep) -> Unit,
     onOpenStoragePermissionSettings: () -> Unit,
+    onAccessModeSelected: (PrivilegeMode) -> Unit = {},
+    onReconnectAccess: () -> Unit = {},
     onRequestNotificationPermission: () -> Unit,
     showOlderAndroidWarning: Boolean = false,
     restoreState: OnboardingRestoreState = OnboardingRestoreState.Idle,
@@ -213,6 +216,8 @@ internal fun OnboardingScreen(
                         restoreState = restoreState,
                         onChooseRestoreBackup = onChooseRestoreBackup,
                         onOpenStoragePermissionSettings = onOpenStoragePermissionSettings,
+                        onAccessModeSelected = onAccessModeSelected,
+                        onReconnectAccess = onReconnectAccess,
                         onRequestNotificationPermission = onRequestNotificationPermission,
                         showOlderAndroidWarning = showOlderAndroidWarning
                     )

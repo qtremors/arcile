@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.source
 
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
 import dev.qtremors.arcile.core.storage.data.SourceCleanupIncompleteException
@@ -438,7 +439,9 @@ class FileTransferEngine(
             val relativePath = current.relativeTo(source).path.takeUnless { it == "." }.orEmpty()
             val targetChild = if (relativePath.isBlank()) target else File(target, relativePath)
             if (current.isDirectory) {
-                val identity = runCatching { directoryIdentity(current) }.getOrElse { return false }
+                val identity = runCatchingPreservingCancellation {
+                    directoryIdentity(current)
+                }.getOrElse { return false }
                 if (!visitedDirectories.add(identity)) return false
                 if (!targetChild.isDirectory) return false
                 val children = current.listFiles() ?: return false
@@ -491,6 +494,7 @@ class FileTransferEngine(
             val attributes = Files.readAttributes(directory.toPath(), BasicFileAttributes::class.java)
             attributes.fileKey()?.let { "key:$it" } ?: directory.toPath().toRealPath().toString()
         } catch (error: Exception) {
+            error.rethrowIfCancellation()
             throw IOException("Unable to identify directory: ${directory.absolutePath}", error)
         }
 

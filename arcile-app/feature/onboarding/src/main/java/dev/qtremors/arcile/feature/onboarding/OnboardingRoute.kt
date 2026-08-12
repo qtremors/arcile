@@ -20,12 +20,15 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItemStatus
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
+import dev.qtremors.arcile.core.privilege.PrivilegeMode
 
 @Composable
 fun OnboardingRoute(
     currentThemeState: ThemeState,
     onThemeChange: (ThemeState) -> Unit,
     hasStoragePermission: Boolean,
+    keepApplicationContentVisible: Boolean = hasStoragePermission,
     onOpenStoragePermissionSettings: () -> Unit,
     onRestartApp: () -> Unit,
     appContent: @Composable () -> Unit,
@@ -96,6 +99,17 @@ fun OnboardingRoute(
             onBack = viewModel::back,
             onStepSelected = viewModel::setStep,
             onOpenStoragePermissionSettings = onOpenStoragePermissionSettings,
+            onAccessModeSelected = { mode ->
+                viewModel.selectAccessMode(mode)
+                if (
+                    mode == PrivilegeMode.NORMAL &&
+                    state.accessBackends[dev.qtremors.arcile.core.privilege.PrivilegeBackendId.NORMAL]
+                        ?.connectionState != PrivilegeConnectionState.READY
+                ) {
+                    onOpenStoragePermissionSettings()
+                }
+            },
+            onReconnectAccess = viewModel::reconnectAccess,
             onRequestNotificationPermission = {
                 if (notificationPermissionRequired) {
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -117,7 +131,7 @@ fun OnboardingRoute(
             },
             onRestartApp = onRestartApp
         )
-        hasStoragePermission -> appContent()
+        keepApplicationContentVisible -> appContent()
         else -> permissionContent()
     }
 }

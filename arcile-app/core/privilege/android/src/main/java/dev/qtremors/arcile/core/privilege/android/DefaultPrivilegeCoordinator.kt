@@ -143,6 +143,30 @@ class DefaultPrivilegeCoordinator @Inject constructor(
         val probes = probeAll()
         val activeBackend = mutableState.value.activeBackend
         val connection = currentConnection
+
+        if (activeBackend == PrivilegeBackendId.NORMAL && connection == null) {
+            val normalProbe = probes.getValue(PrivilegeBackendId.NORMAL)
+            mutableState.value = if (
+                normalProbe.connectionState == PrivilegeConnectionState.READY
+            ) {
+                mutableState.value.copy(
+                    preferredMode = preference.mode,
+                    backendStates = probes.toMap(),
+                    lastFailure = null
+                )
+            } else {
+                generation += 1
+                PrivilegeState(
+                    preferredMode = preference.mode,
+                    activeBackend = PrivilegeBackendId.NORMAL,
+                    connectionGeneration = generation,
+                    backendStates = probes.toMap(),
+                    lastFailure = normalProbe.failure
+                )
+            }
+            return
+        }
+
         if (connection != null && activeBackend != null) {
             val activeProbe = probes.getValue(activeBackend)
             if (isConnectionStillUsable(activeBackend, activeProbe)) {
@@ -289,23 +313,26 @@ class DefaultPrivilegeCoordinator @Inject constructor(
         }
     }
 
-    private fun probeAll(): MutableMap<PrivilegeBackendId, PrivilegeBackendState> = mutableMapOf(
-        PrivilegeBackendId.ROOT to rootConnector.probe(),
-        PrivilegeBackendId.SHIZUKU to shizukuConnector.probe(),
-        PrivilegeBackendId.NORMAL to PrivilegeBackendState(
-            backendId = PrivilegeBackendId.NORMAL,
-            connectionState = if (normalAccess.isReady()) {
-                PrivilegeConnectionState.READY
-            } else {
-                PrivilegeConnectionState.PERMISSION_REQUIRED
-            },
-            failure = if (normalAccess.isReady()) {
-                null
-            } else {
-                PrivilegeFailure.Failed("All-files access is required for Normal storage")
-            }
+    private fun probeAll(): MutableMap<PrivilegeBackendId, PrivilegeBackendState> {
+        val normalReady = normalAccess.isReady()
+        return mutableMapOf(
+            PrivilegeBackendId.ROOT to rootConnector.probe(),
+            PrivilegeBackendId.SHIZUKU to shizukuConnector.probe(),
+            PrivilegeBackendId.NORMAL to PrivilegeBackendState(
+                backendId = PrivilegeBackendId.NORMAL,
+                connectionState = if (normalReady) {
+                    PrivilegeConnectionState.READY
+                } else {
+                    PrivilegeConnectionState.PERMISSION_REQUIRED
+                },
+                failure = if (normalReady) {
+                    null
+                } else {
+                    PrivilegeFailure.Failed("All-files access is required for Normal storage")
+                }
+            )
         )
-    )
+    }
 
     private fun isConnectionStillUsable(
         backendId: PrivilegeBackendId,

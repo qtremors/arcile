@@ -36,7 +36,8 @@ internal fun SettingsScreen(
     navigationActions: SettingsNavigationActions,
     preferenceActions: SettingsPreferenceActions,
     backupActions: SettingsBackupActions,
-    storageActions: SettingsStorageActions
+    storageActions: SettingsStorageActions,
+    accessActions: SettingsAccessActions
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     ArcileScreenScaffold(
@@ -78,6 +79,12 @@ internal fun SettingsScreen(
                     theme = state.theme,
                     preferences = state.preferences,
                     actions = preferenceActions
+                )
+            }
+            item {
+                SettingsAccessSection(
+                    state = state.access,
+                    actions = accessActions
                 )
             }
             item {

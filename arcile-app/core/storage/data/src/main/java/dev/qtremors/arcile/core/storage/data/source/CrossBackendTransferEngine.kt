@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.privilege.PrivilegedOpenMode
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
@@ -270,7 +271,7 @@ class CrossBackendTransferEngine(
                 owner = handle
             )
         }
-        node.backendId == StorageNodeRef.LOCAL_BACKEND_ID -> runCatching {
+        node.backendId == StorageNodeRef.LOCAL_BACKEND_ID -> runCatchingPreservingCancellation {
             val stream = FileInputStream(File(node.displayPath.absolutePath))
             InputLease(stream, stream)
         }
@@ -284,7 +285,7 @@ class CrossBackendTransferEngine(
                 owner = handle
             )
         }
-        node.backendId == StorageNodeRef.LOCAL_BACKEND_ID -> runCatching {
+        node.backendId == StorageNodeRef.LOCAL_BACKEND_ID -> runCatchingPreservingCancellation {
             val stream = FileOutputStream(File(node.displayPath.absolutePath), false)
             OutputLease(stream, stream)
         }

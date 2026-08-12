@@ -219,11 +219,13 @@ internal fun SettingsSwitchRow(
     switchTag: String,
     rowTag: String,
     leadingIcon: ImageVector? = null,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit
 ) {
     SegmentedListItem(
         checked = checked,
         onCheckedChange = onCheckedChange,
+        enabled = enabled,
         shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = index, count = count),
         leadingContent = if (leadingIcon != null) {
             {
@@ -249,6 +251,7 @@ internal fun SettingsSwitchRow(
                 ExpressiveSwitch(
                     checked = checked,
                     onCheckedChange = onCheckedChange,
+                    enabled = enabled,
                     modifier = Modifier.testTag(switchTag)
                 )
             }

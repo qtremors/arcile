@@ -162,7 +162,8 @@ internal class BrowserNavigationController(
             volumeId = primaryVolume.id,
             clearHistory = true,
             errorMessage = errorMessage,
-            persistAsLastOpened = false
+            persistAsLastOpened = false,
+            inheritCurrentNodeRef = false
         )
     }
 

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.source
 
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.privilege.PrivilegeCapability
 import dev.qtremors.arcile.core.privilege.PrivilegeSession
 import dev.qtremors.arcile.core.privilege.PrivilegedFileEntry
@@ -162,7 +163,7 @@ class PrivilegedPathPolicy(
         )
     }
 
-    fun normalize(path: String): Result<String> = runCatching {
+    fun normalize(path: String): Result<String> = runCatchingPreservingCancellation {
         require(path.isNotBlank()) { "Path must not be blank" }
         require(path.indexOf('\u0000') < 0) { "Path must not contain NUL" }
         require(path.startsWith('/')) { "Privileged paths must be absolute" }

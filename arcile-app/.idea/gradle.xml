@@ -31,6 +31,9 @@
             <option value="$PROJECT_DIR$/core/plugin" />
             <option value="$PROJECT_DIR$/core/plugin/android" />
             <option value="$PROJECT_DIR$/core/presentation" />
+            <option value="$PROJECT_DIR$/core/privilege" />
+            <option value="$PROJECT_DIR$/core/privilege/android" />
+            <option value="$PROJECT_DIR$/core/privilege/api" />
             <option value="$PROJECT_DIR$/core/runtime" />
             <option value="$PROJECT_DIR$/core/storage" />
             <option value="$PROJECT_DIR$/core/storage/data" />

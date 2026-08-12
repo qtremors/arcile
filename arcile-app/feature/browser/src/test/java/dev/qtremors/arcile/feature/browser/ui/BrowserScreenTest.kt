@@ -15,6 +15,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.presentation.OperationUiState
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
@@ -86,6 +87,43 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("Browser tabs").performClick()
 
         assertEquals(true, requestedState)
+    }
+
+    @Test
+    fun `browser overflow hides scoped storage actions for a local folder`() {
+        setBrowserContent(
+            browserUiState(
+                currentPath = "/storage/emulated/0/Documents",
+                currentVolumeId = "primary",
+                isLoading = false
+            )
+        )
+
+        composeRule.onNodeWithContentDescription("More options").performClick()
+
+        composeRule.onAllNodesWithText("Analyze This Folder").assertCountEquals(0)
+        composeRule.onAllNodesWithText("Clean This Folder").assertCountEquals(0)
+    }
+
+    @Test
+    fun `browser overflow names scoped storage actions for a Shizuku folder`() {
+        setBrowserContent(
+            browserUiState(
+                currentPath = "/storage/emulated/0/Android/data",
+                currentVolumeId = "primary",
+                currentNodeRef = StorageNodeRef.shizuku(
+                    displayPath = "/storage/emulated/0/Android/data",
+                    remoteCanonicalIdentity = "/storage/emulated/0/Android/data",
+                    volumeId = "primary"
+                ),
+                isLoading = false
+            )
+        )
+
+        composeRule.onNodeWithContentDescription("More options").performClick()
+
+        composeRule.onNodeWithText("Analyze This Folder").assertExists()
+        composeRule.onNodeWithText("Clean This Folder").assertExists()
     }
 
     @Test
@@ -702,6 +740,39 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("notes.txt").performClick()
         assertEquals(filePath, toggledPath)
     }
+
+    private fun setBrowserContent(state: BrowserUiState) {
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = state,
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+    }
 }
 
 @androidx.compose.runtime.Composable
@@ -830,6 +901,7 @@ private fun BrowserScreen(
 private fun browserUiState(
     currentPath: String = "",
     currentVolumeId: String? = null,
+    currentNodeRef: StorageNodeRef? = null,
     isVolumeRootScreen: Boolean = false,
     isCategoryScreen: Boolean = false,
     activeCategoryName: String = "",
@@ -849,6 +921,7 @@ private fun browserUiState(
     val navigation = BrowserNavigationState().withValues(
         currentPath = currentPath,
         currentVolumeId = currentVolumeId,
+        currentNodeRef = currentNodeRef,
         isVolumeRootScreen = isVolumeRootScreen,
         isCategoryScreen = isCategoryScreen,
         activeCategoryName = activeCategoryName,

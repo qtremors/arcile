@@ -2,7 +2,20 @@
 
 > **Project:** Arcile
 > **Version:** 1.9.9
-> **Last Updated:** 2026-08-11
+> **Last Updated:** 2026-08-13
+
+---
+
+## [1.9.10] - 2026-08-11
+
+- **Storage Provider Setup**: Added Automatic, Root, Shizuku, and Normal Android selection to onboarding and Settings, with live connection state, effective privilege, reconnect, permission, manager, and explicit Normal fallback actions.
+- **Protected Write Controls**: Added a Root-only protected app-data write preference with an explicit safety warning while keeping system partitions and virtual filesystems read-only.
+- **Provider-Aware App Access**: Allowed Arcile to open through a ready Root or Shizuku connection without requiring Normal Android all-files permission, with passive access refreshes whenever the app resumes.
+- **Context-Preserving Recovery**: Kept the current browser location and in-progress interface state visible when Root, Shizuku, or Normal access disappears, with clear reconnect and permission recovery actions.
+- **Explicit Normal Fallback**: Added a user-controlled switch from protected storage to Normal access that waits for permission and changes location only after the fallback is explicitly completed.
+- **Reliable Normal Recovery**: Fixed the explicit Normal fallback after Root or Shizuku access is lost so it leaves the protected location and opens local primary storage immediately.
+- **Scoped Protected Folder Tools**: Limited folder analysis and cleanup shortcuts to Root and Shizuku locations, with labels that clearly identify the current folder as their scope.
+- **Interruption-Safe Storage Recovery**: Preserved coroutine cancellation during archive rollback, cross-backend streams, protected content access, and temporary-file cleanup instead of converting interruptions into ordinary failures.
 
 ---
 

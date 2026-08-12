@@ -163,18 +163,186 @@ class DefaultPrivilegeCoordinatorTest {
         )
     }
 
+    @Test
+    fun `refresh probes every backend and Normal access exactly once`() = runTest {
+        val root = FakeConnector(PrivilegeBackendId.ROOT)
+        val shizuku = FakeConnector(PrivilegeBackendId.SHIZUKU)
+        val normal = CountingNormalAccessGateway(ready = true)
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.NORMAL)),
+            root = root,
+            shizuku = shizuku,
+            normalAccess = normal
+        )
+        coordinator.start()
+        val rootAfterStart = root.probeCalls
+        val shizukuAfterStart = shizuku.probeCalls
+        val normalAfterStart = normal.checks
+
+        coordinator.refresh()
+
+        assertEquals(rootAfterStart + 1, root.probeCalls)
+        assertEquals(shizukuAfterStart + 1, shizuku.probeCalls)
+        assertEquals(normalAfterStart + 1, normal.checks)
+    }
+
+    @Test
+    fun `resume refresh retains Normal identity after all-files access is revoked`() = runTest {
+        val normal = CountingNormalAccessGateway(ready = true)
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.NORMAL)),
+            normalAccess = normal
+        )
+        coordinator.start()
+        val readyGeneration = coordinator.state.value.connectionGeneration
+        normal.ready = false
+
+        coordinator.refresh()
+
+        assertEquals(PrivilegeBackendId.NORMAL, coordinator.state.value.activeBackend)
+        assertEquals(
+            PrivilegeConnectionState.PERMISSION_REQUIRED,
+            coordinator.state.value.connectionState
+        )
+        assertTrue(coordinator.state.value.connectionGeneration > readyGeneration)
+        assertTrue(coordinator.state.value.lastFailure is PrivilegeFailure.Failed)
+    }
+
+    @Test
+    fun `resume refresh restores retained Normal backend after permission returns`() = runTest {
+        val normal = CountingNormalAccessGateway(ready = true)
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.NORMAL)),
+            normalAccess = normal
+        )
+        coordinator.start()
+        normal.ready = false
+        coordinator.refresh()
+        val disconnectedGeneration = coordinator.state.value.connectionGeneration
+        normal.ready = true
+
+        coordinator.refresh()
+
+        assertEquals(PrivilegeBackendId.NORMAL, coordinator.state.value.activeBackend)
+        assertEquals(PrivilegeConnectionState.READY, coordinator.state.value.connectionState)
+        assertEquals(disconnectedGeneration, coordinator.state.value.connectionGeneration)
+        assertNull(coordinator.state.value.lastFailure)
+    }
+
+    @Test
+    fun `resume refresh keeps live Root connection without reconnecting`() = runTest {
+        val root = FakeConnector(PrivilegeBackendId.ROOT).apply { enqueueSuccess() }
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.ROOT)),
+            root = root
+        )
+        coordinator.start()
+        val session = coordinator.captureSession().getOrThrow()
+
+        coordinator.refresh()
+
+        assertEquals(listOf(false), root.authorizationRequests)
+        assertEquals(session, coordinator.captureSession().getOrThrow())
+        assertTrue(root.latestConnection!!.isOpen)
+    }
+
+    @Test
+    fun `resume refresh disconnects Root after authorization revocation`() = runTest {
+        val root = FakeConnector(PrivilegeBackendId.ROOT).apply { enqueueSuccess() }
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.ROOT)),
+            root = root
+        )
+        coordinator.start()
+        val session = coordinator.captureSession().getOrThrow()
+        root.probeState = PrivilegeBackendState(
+            backendId = PrivilegeBackendId.ROOT,
+            connectionState = PrivilegeConnectionState.PERMISSION_DENIED,
+            failure = PrivilegeFailure.RootPermissionDenied()
+        )
+
+        coordinator.refresh()
+
+        assertEquals(PrivilegeBackendId.ROOT, coordinator.state.value.activeBackend)
+        assertEquals(PrivilegeConnectionState.DISCONNECTED, coordinator.state.value.connectionState)
+        assertTrue(coordinator.state.value.lastFailure is PrivilegeFailure.RootPermissionDenied)
+        assertTrue(coordinator.clientFor(session).isFailure)
+        assertFalse(root.latestConnection!!.isOpen)
+        assertEquals(listOf(false), root.authorizationRequests)
+    }
+
+    @Test
+    fun `resume refresh detects stopped Shizuku without automatic fallback`() = runTest {
+        val shizuku = FakeConnector(PrivilegeBackendId.SHIZUKU).apply { enqueueSuccess() }
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.SHIZUKU)),
+            shizuku = shizuku
+        )
+        coordinator.start()
+        shizuku.probeState = PrivilegeBackendState(
+            backendId = PrivilegeBackendId.SHIZUKU,
+            connectionState = PrivilegeConnectionState.INSTALLED_BUT_STOPPED,
+            failure = PrivilegeFailure.ShizukuNotRunning()
+        )
+
+        coordinator.refresh()
+
+        assertEquals(PrivilegeBackendId.SHIZUKU, coordinator.state.value.activeBackend)
+        assertEquals(PrivilegeConnectionState.DISCONNECTED, coordinator.state.value.connectionState)
+        assertTrue(coordinator.state.value.lastFailure is PrivilegeFailure.ShizukuNotRunning)
+        assertEquals(listOf(false), shizuku.authorizationRequests)
+    }
+
+    @Test
+    fun `refresh of disconnected backend never reconnects without explicit action`() = runTest {
+        val root = FakeConnector(PrivilegeBackendId.ROOT).apply { enqueueSuccess() }
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.ROOT)),
+            root = root
+        )
+        coordinator.start()
+        root.latestConnection!!.die()
+        runCurrent()
+        root.enqueueSuccess()
+
+        coordinator.refresh()
+
+        assertEquals(listOf(false), root.authorizationRequests)
+        assertEquals(PrivilegeConnectionState.DISCONNECTED, coordinator.state.value.connectionState)
+    }
+
+    @Test
+    fun `explicit reconnect replaces disconnected generation`() = runTest {
+        val root = FakeConnector(PrivilegeBackendId.ROOT).apply { enqueueSuccess() }
+        val coordinator = coordinator(
+            preferences = FakePreferences(PrivilegePreferenceState(mode = PrivilegeMode.ROOT)),
+            root = root
+        )
+        coordinator.start()
+        val original = coordinator.captureSession().getOrThrow()
+        root.latestConnection!!.die()
+        runCurrent()
+        root.enqueueSuccess()
+
+        coordinator.reconnect(requestAuthorization = true)
+
+        val replacement = coordinator.captureSession().getOrThrow()
+        assertTrue(replacement.generation > original.generation)
+        assertEquals(listOf(false, true), root.authorizationRequests)
+        assertTrue(coordinator.clientFor(original).isFailure)
+    }
+
     private fun TestScope.coordinator(
         preferences: FakePreferences = FakePreferences(),
         root: FakeConnector = FakeConnector(PrivilegeBackendId.ROOT),
         shizuku: FakeConnector = FakeConnector(PrivilegeBackendId.SHIZUKU),
-        normalReady: Boolean = true
+        normalReady: Boolean = true,
+        normalAccess: NormalStorageAccessGateway = CountingNormalAccessGateway(normalReady)
     ) = DefaultPrivilegeCoordinator(
         preferences = preferences,
         rootConnector = root,
         shizukuConnector = shizuku,
-        normalAccess = object : NormalStorageAccessGateway {
-            override fun isReady() = normalReady
-        },
+        normalAccess = normalAccess,
         applicationScope = backgroundScope
     )
 }
@@ -209,11 +377,17 @@ private class FakeConnector(
     private val results = ArrayDeque<Result<BackendConnection>>()
     val authorizationRequests = mutableListOf<Boolean>()
     var latestConnection: FakeConnection? = null
-
-    override fun probe() = PrivilegeBackendState(
+    var probeCalls = 0
+        private set
+    var probeState = PrivilegeBackendState(
         backendId = backendId,
         connectionState = PrivilegeConnectionState.DISCONNECTED
     )
+
+    override fun probe(): PrivilegeBackendState {
+        probeCalls += 1
+        return probeState
+    }
 
     override suspend fun connect(requestAuthorization: Boolean): Result<BackendConnection> {
         authorizationRequests += requestAuthorization
@@ -229,6 +403,18 @@ private class FakeConnector(
 
     fun enqueueFailure(failure: PrivilegeFailure) {
         results.addLast(Result.failure(failure))
+    }
+}
+
+private class CountingNormalAccessGateway(
+    var ready: Boolean
+) : NormalStorageAccessGateway {
+    var checks = 0
+        private set
+
+    override fun isReady(): Boolean {
+        checks += 1
+        return ready
     }
 }
 

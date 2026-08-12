@@ -24,11 +24,16 @@ internal fun BrowserNavigationController.loadDirectory(
     errorMessage: UiText? = null,
     persistAsLastOpened: Boolean = true,
     allowDirectPath: Boolean = false,
-    nodeRef: StorageNodeRef? = null
+    nodeRef: StorageNodeRef? = null,
+    inheritCurrentNodeRef: Boolean = true
 ) {
     val requestedNodeRef = nodeRef
-        ?: state.value.currentNodeRef?.takeIf { state.value.currentPath == path }
-        ?: state.value.currentNodeRef?.forNavigationPath(path)
+        ?: state.value.currentNodeRef
+            ?.takeIf { inheritCurrentNodeRef }
+            ?.let { currentNodeRef ->
+                currentNodeRef.takeIf { state.value.currentPath == path }
+                    ?: currentNodeRef.forNavigationPath(path)
+            }
     val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
     val isContinuingDirectPath = state.value.currentVolumeId == null &&
         state.value.currentPath.isDirectLocalPath()

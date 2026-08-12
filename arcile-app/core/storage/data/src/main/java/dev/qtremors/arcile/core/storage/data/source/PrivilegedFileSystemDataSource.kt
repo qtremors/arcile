@@ -13,6 +13,7 @@ import dev.qtremors.arcile.core.privilege.PrivilegedOperationId
 import dev.qtremors.arcile.core.privilege.PrivilegedOperationProgress
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.storage.domain.BatchMutationFailure
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -618,7 +619,7 @@ class PrivilegedFileSystemDataSource(
             )
         } finally {
             if (temporaryCreated) {
-                runCatching {
+                runCatchingPreservingCancellation {
                     pathPolicy.validate(
                         temporaryPath,
                         PrivilegedPathOperation.DELETE,
