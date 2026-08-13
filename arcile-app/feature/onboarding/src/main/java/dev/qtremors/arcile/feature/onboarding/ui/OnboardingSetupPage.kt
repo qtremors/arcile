@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Category
@@ -39,7 +40,6 @@ import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.RestoreFromTrash
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SettingsBackupRestore
@@ -417,7 +417,7 @@ private fun StorageAccessProviderRow(
             Icon(
                 imageVector = when (mode) {
                     PrivilegeMode.AUTOMATIC -> Icons.Default.Settings
-                    PrivilegeMode.ROOT -> Icons.Default.PrivacyTip
+                    PrivilegeMode.ROOT -> Icons.Default.Android
                     PrivilegeMode.SHIZUKU -> Icons.Default.Bolt
                     PrivilegeMode.NORMAL -> Icons.Default.Storage
                 },

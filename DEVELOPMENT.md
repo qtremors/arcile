@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 1.9.0 | **Last Updated:** 2026-08-09
+**Version:** 2.0.0 | **Last Updated:** 2026-08-13
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -10,6 +10,7 @@
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Technology Stack](#technology-stack)
 - [Project Structure](#project-structure)
 - [Runtime Flow](#runtime-flow)
 - [Core Concepts](#core-concepts)
@@ -77,11 +78,29 @@ graph TD
 | **Encrypted Vault Boundary** | OnlyFiles keeps vault catalog, authenticated sessions, transactions, cryptography, and external plaintext grants behind neutral `core:vault:*` contracts. Presentation code never handles vault keys or raw storage layout. |
 | **Opaque Media Sessions** | The global video route carries only an in-memory session token. Source paths, content URIs, vault references, queues, and cleanup ownership remain outside navigation state. |
 
+## Technology Stack
+
+| Area | Technology |
+|------|------------|
+| Language and toolchain | Kotlin 2.4.10, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.5.0, Android Gradle Plugin 9.3.1, KSP 2.3.11 |
+| Android platform | compileSdk/targetSdk 37, minSdk 30, AndroidX Core, Lifecycle, Activity, SplashScreen |
+| UI | Jetpack Compose BOM 2026.06.01, Material 3 1.5.0-alpha25, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor |
+| State and architecture | Feature-owned MVVM, StateFlow, Kotlin Coroutines, immutable collections, Hilt/Dagger |
+| Navigation | Navigation Compose with Kotlin Serialization typed routes |
+| Persistence | Room cache database and DataStore Preferences |
+| Storage | Android filesystem APIs, MediaStore, Storage Access Framework, FileProvider/content grants, Root through libsu, Shizuku |
+| Media and metadata | Media3, Coil 2, ExifInterface, platform PDF and media APIs |
+| Archives | Apache Commons Compress, Tukaani XZ, Zip4j |
+| Vault cryptography | Android Keystore and Bouncy Castle |
+| Tests | JUnit 4, AndroidX Test, Espresso, Robolectric, MockK, Turbine, ArchUnit |
+
+Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intentionally remains on its compatible 2.x line; a Coil 3 update is a separate source migration rather than a version-only upgrade. MaterialKolor remains on its stable 4.x line while 5.x is preview-only.
+
 ---
 
 ## Project Structure
 
-Arcile's codebase is divided into **34 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
+Arcile's codebase is divided into **38 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
 
 ```text
 arcile/
@@ -113,9 +132,11 @@ arcile/
 │   │       └── src/main/                        # Design system, external-file and metadata adapters
 │   ├── feature/
 │   │   ├── activitylog/                         # Operation history
+│   │   ├── apk/                                 # APK and split-package inspection and installation
 │   │   ├── archive/                             # Archive viewer and extraction workflows
 │   │   ├── audio/                               # Audio library, file actions, playback service, and player UI
 │   │   ├── browser/                             # Browser route, state slices, controllers, file UI
+│   │   ├── documents/                           # Documents library, text/Markdown editor, and PDF viewing
 │   │   ├── home/                                # Home dashboard and shortcuts
 │   │   ├── imagegallery/                        # Independent Gallery and Viewer routes
 │   │   ├── import/                              # Save-to-Arcile share target
@@ -135,7 +156,7 @@ arcile/
 ├── beta/                                        # Beta phase archived changelog & releases
 ├── CHANGELOG.md                                 # Stable release changelog
 ├── DEVELOPMENT.md                               # Architecture & development guide (This Document)
-├── Releases.md                                  # Stable user-facing release notes
+├── RELEASES.md                                  # Stable user-facing release notes
 ├── TASKS.md                                     # Prioritized work queue and completed release tasks
 └── README.md                                    # Main entry point overview
 ```
@@ -681,6 +702,12 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 ### 16. Video Player (`feature/videoplayer`)
 - Owns the global Media3 viewer route and standalone video Activity. It consumes neutral, opaque playback sessions and does not depend on producer features.
 
+### 17. Documents (`feature/documents`)
+- Owns the Documents category library, document/folder search and presentation, and file actions. Native text, Markdown, and PDF activities remain shared app or UI capabilities so external intents and other producers use the same viewers.
+
+### 18. APK (`feature/apk`)
+- Owns the APK and split-package category library, package/folder presentation, search, selection, and file actions. Package parsing, bounded staging, device-compatible split selection, and Package Installer sessions remain in `core:operation:android`.
+
 ---
 
 ## Naming Conventions
@@ -720,12 +747,14 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 190 |
-| **Version Name** | `1.9.0` |
+| **Version Code** | 200 |
+| **Version Name** | `2.0.0` |
 | **Java Target** | JVM 11 |
-| **Kotlin Version** | 2.2.10 |
-| **AGP Version** | 9.2.1 |
-| **Compose BOM** | 2026.05.00 |
+| **Gradle Version** | 9.5.0 |
+| **Gradle JVM** | JDK 21 |
+| **Kotlin Version** | 2.4.10 |
+| **AGP Version** | 9.3.1 |
+| **Compose BOM** | 2026.06.01 |
 
 ### Manifest Declarations
 
@@ -863,19 +892,40 @@ Vault changes require crypto golden vectors, transaction/recovery tests, deep-tr
 
 ## Build & Release Engineering
 
-To package Arcile:
+Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `gradlew.bat` on Windows.
 
 ```bash
-# Generate the Debug APK
+# Configure the project and verify the wrapper/toolchain
+./gradlew help
+
+# Generate the debug APK
 ./gradlew :app:assembleDebug
 
-# Generate the signed, minified Release APK
+# Install the debug APK after a successful build
+adb install -r app/build/outputs/apk/debug/Arcile-2.0.0-debug.apk
+
+# Run app unit and Robolectric tests
+./gradlew :app:testDebugUnitTest
+
+# Run release-oriented lint, strings, and convention gates
+./gradlew :app:lintDebug checkProductionStrings :app:verifyArcileBuildConventions
+
+# Generate the signed, minified release APK
 ./gradlew :app:assembleRelease
 ```
 
+Release signing reads `signing.properties`, with `local.properties` as a fallback. Never commit signing credentials or keystores.
+
+```properties
+signing.storeFile=/absolute/path/to/my-release-key.jks
+signing.storePassword=your_store_password
+signing.keyAlias=your_key_alias
+signing.keyPassword=your_key_password
+```
+
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-1.9.0-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-1.9.0.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.0.0-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.0.0.apk`
 
 ---
 

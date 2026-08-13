@@ -79,14 +79,32 @@ internal fun VaultActionsMenu(
         mutableListOf<@Composable () -> Unit>().apply {
             add {
                 ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_quick_health_check)) },
+                    text = {
+                        Column {
+                            Text(stringResource(R.string.onlyfiles_quick_health_check))
+                            Text(
+                                text = stringResource(R.string.onlyfiles_quick_health_check_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
                     leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
                     onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.QUICK) } }
                 )
             }
             add {
                 ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_full_health_check)) },
+                    text = {
+                        Column {
+                            Text(stringResource(R.string.onlyfiles_full_health_check))
+                            Text(
+                                text = stringResource(R.string.onlyfiles_full_health_check_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    },
                     leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
                     onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.FULL) } }
                 )

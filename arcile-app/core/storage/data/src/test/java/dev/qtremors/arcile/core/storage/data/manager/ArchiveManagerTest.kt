@@ -37,7 +37,9 @@ class ArchiveManagerTest {
 
     @Before
     fun setup() {
-        root = createTempDir(prefix = "archive-manager-test").canonicalFile
+        root = kotlin.io.path.createTempDirectory(
+            prefix = "archive-manager-test"
+        ).toFile().canonicalFile
         volumeProvider = object : VolumeProvider {
             override val activeStorageRoots: List<String> = listOf(root.absolutePath)
             override fun observeStorageVolumes(): Flow<List<StorageVolume>> = flowOf(emptyList())

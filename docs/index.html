@@ -27,6 +27,11 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="antialiased selection:bg-m3-primary selection:text-m3-onPrimary">
+    <svg aria-hidden="true" class="absolute w-0 h-0 overflow-hidden" focusable="false">
+        <symbol id="icon-discord" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z"/>
+        </symbol>
+    </svg>
     <div class="scroll-wrapper">
 
     <!-- Navigation (M3 Top App Bar style) -->
@@ -43,12 +48,17 @@
                     <a href="#design" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Design</a>
                     <a href="#tech" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Tech</a>
                     <a href="#developers" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Developer</a>
+                    <a href="#credits" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Credits</a>
                     <a href="#faq" class="text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">FAQ</a>
                 </div>
                 <div class="flex items-center gap-2 sm:gap-4">
                     <a href="https://github.com/qtremors/arcile" target="_blank" class="hidden sm:flex items-center gap-2 text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">
                         <i data-lucide="github" class="w-5 h-5"></i>
                         Source
+                    </a>
+                    <a href="https://discord.gg/QgUjuNj9U8" target="_blank" rel="noopener noreferrer" class="hidden sm:flex items-center gap-2 text-sm font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">
+                        <svg aria-hidden="true" class="w-5 h-5"><use href="#icon-discord"></use></svg>
+                        Discord
                     </a>
                     <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="hidden sm:flex px-6 py-2.5 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-sm hover:bg-m3-primaryContainer hover:text-m3-onPrimaryContainer transition-colors items-center gap-2">
                         <span class="download-btn-text">Download APK</span>
@@ -69,11 +79,16 @@
             <a href="#design" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Design</a>
             <a href="#tech" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Tech</a>
             <a href="#developers" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Developer</a>
+            <a href="#credits" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">Credits</a>
             <a href="#faq" class="mobile-link text-xl font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">FAQ</a>
             <div class="w-16 h-px bg-m3-surfaceContainerHighest my-2"></div>
             <a href="https://github.com/qtremors/arcile" target="_blank" class="mobile-link flex items-center gap-2 text-lg font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">
                 <i data-lucide="github" class="w-5 h-5"></i>
                 Source
+            </a>
+            <a href="https://discord.gg/QgUjuNj9U8" target="_blank" rel="noopener noreferrer" class="mobile-link flex items-center gap-2 text-lg font-medium text-m3-onSurfaceVariant hover:text-m3-onSurface transition-colors">
+                <svg aria-hidden="true" class="w-5 h-5"><use href="#icon-discord"></use></svg>
+                Discord
             </a>
             <a href="https://github.com/qtremors/arcile/releases" target="_blank" class="mobile-link px-8 py-3 rounded-full bg-m3-primary text-m3-onPrimary font-medium text-base hover:bg-m3-primaryContainer transition-colors flex items-center gap-2">
                 <span class="download-btn-text">Download APK</span>
@@ -509,7 +524,7 @@
             <div class="flex flex-wrap justify-center gap-4 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
                 <div class="px-6 py-4 bg-m3-surfaceContainerHigh rounded-full flex items-center gap-3">
                     <i data-lucide="code-2" class="w-5 h-5 text-[#7F52FF]"></i>
-                    <span class="text-m3-onSurface font-medium">Kotlin 2.2.10</span>
+                    <span class="text-m3-onSurface font-medium">Kotlin 2.4.10</span>
                 </div>
                 <div class="px-6 py-4 bg-m3-surfaceContainerHigh rounded-full flex items-center gap-3">
                     <i data-lucide="layers" class="w-5 h-5 text-[#4285F4]"></i>
@@ -526,7 +541,7 @@
             </div>
             
             <p class="mt-10 text-m3-onSurfaceVariant text-base max-w-3xl mx-auto leading-relaxed reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-200">
-                Architected with 33 modular Gradle modules, unidirectional data flow, clean MVVM separation, and Jetpack libraries for native Android performance.
+                Architected with 38 modular Gradle modules, unidirectional data flow, clean MVVM separation, and Jetpack libraries for native Android performance.
             </p>
         </div>
     </section>
@@ -556,7 +571,56 @@
                         <a href="https://qtremors.github.io" target="_blank" class="p-3 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface hover:text-m3-primary transition-colors">
                             <i data-lucide="globe" class="w-6 h-6"></i>
                         </a>
+                        <a href="https://discord.gg/QgUjuNj9U8" target="_blank" rel="noopener noreferrer" aria-label="Discord community" class="p-3 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface hover:text-m3-primary transition-colors">
+                            <svg aria-hidden="true" class="w-6 h-6"><use href="#icon-discord"></use></svg>
+                        </a>
                     </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Credits Section -->
+    <section id="credits" class="relative z-10 py-24 bg-m3-surface">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-12 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
+                <h2 class="text-3xl md:text-5xl font-display font-medium text-m3-onSurface mb-4">Credits</h2>
+                <p class="text-m3-onSurfaceVariant text-lg max-w-3xl mx-auto">Arcile stands on the work of open-source maintainers and Android platform teams.</p>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 reveal opacity-0 translate-y-8 transition-all duration-700 ease-out delay-100">
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 m3-card">
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-5">Android app</h3>
+                    <p class="text-m3-onSurfaceVariant leading-relaxed">
+                        Built with <a href="https://kotlinlang.org/" target="_blank" class="text-m3-primary hover:underline">Kotlin</a>,
+                        <a href="https://developer.android.com/compose" target="_blank" class="text-m3-primary hover:underline">Jetpack Compose</a>,
+                        <a href="https://m3.material.io/" target="_blank" class="text-m3-primary hover:underline">Material 3</a>, AndroidX,
+                        <a href="https://dagger.dev/hilt/" target="_blank" class="text-m3-primary hover:underline">Hilt</a>,
+                        <a href="https://developer.android.com/training/data-storage/room" target="_blank" class="text-m3-primary hover:underline">Room</a>,
+                        <a href="https://developer.android.com/media/media3" target="_blank" class="text-m3-primary hover:underline">Media3</a>,
+                        <a href="https://coil-kt.github.io/coil/" target="_blank" class="text-m3-primary hover:underline">Coil</a>, and
+                        <a href="https://github.com/jordond/MaterialKolor" target="_blank" class="text-m3-primary hover:underline">MaterialKolor</a>.
+                    </p>
+                    <p class="text-m3-onSurfaceVariant leading-relaxed mt-4">
+                        Archive, encryption, and protected-storage support use
+                        <a href="https://commons.apache.org/proper/commons-compress/" target="_blank" class="text-m3-primary hover:underline">Apache Commons Compress</a>,
+                        <a href="https://tukaani.org/xz/java.html" target="_blank" class="text-m3-primary hover:underline">Tukaani XZ</a>,
+                        <a href="https://github.com/srikanth-lingala/zip4j" target="_blank" class="text-m3-primary hover:underline">Zip4j</a>,
+                        <a href="https://www.bouncycastle.org/" target="_blank" class="text-m3-primary hover:underline">Bouncy Castle</a>,
+                        <a href="https://github.com/RikkaApps/Shizuku-API" target="_blank" class="text-m3-primary hover:underline">Shizuku</a>, and
+                        <a href="https://github.com/topjohnwu/libsu" target="_blank" class="text-m3-primary hover:underline">libsu</a>.
+                    </p>
+                </div>
+                <div class="bg-m3-surfaceContainer rounded-[32px] p-8 m3-card">
+                    <h3 class="text-2xl font-medium text-m3-onSurface mb-5">Website and design</h3>
+                    <p class="text-m3-onSurfaceVariant leading-relaxed">
+                        The website uses <a href="https://tailwindcss.com/" target="_blank" class="text-m3-primary hover:underline">Tailwind CSS</a>,
+                        <a href="https://lucide.dev/" target="_blank" class="text-m3-primary hover:underline">Lucide</a>, and
+                        <a href="https://simpleicons.org/" target="_blank" class="text-m3-primary hover:underline">Simple Icons</a>, with
+                        <a href="https://fonts.google.com/specimen/Roboto" target="_blank" class="text-m3-primary hover:underline">Roboto</a>,
+                        <a href="https://fonts.google.com/specimen/Outfit" target="_blank" class="text-m3-primary hover:underline">Outfit</a>, and
+                        <a href="https://fonts.google.com/icons" target="_blank" class="text-m3-primary hover:underline">Material Symbols</a> from Google Fonts.
+                    </p>
+                    <p class="text-m3-onSurfaceVariant leading-relaxed mt-4">Each project remains the property of its respective authors and is used under its own license. Full runtime-library details are available inside Arcile under Settings → About → Open Source Licenses.</p>
                 </div>
             </div>
         </div>
@@ -650,7 +714,7 @@
                         </div>
                         <div class="faq-content">
                             <div class="faq-inner px-6 pb-5">
-                                <p class="text-m3-onSurfaceVariant leading-relaxed">Yes. Arcile is source-available under the Tremors Source License (TSL). You can view the source code, open issue reports, suggest features, or participate in discussions on our official <a href="https://github.com/qtremors/arcile/issues" target="_blank" class="text-m3-primary hover:underline">GitHub Issues</a> repository page.</p>
+                                <p class="text-m3-onSurfaceVariant leading-relaxed">Yes. Arcile is source-available under the Tremors Source License (TSL). View the source, report bugs through <a href="https://github.com/qtremors/arcile/issues" target="_blank" class="text-m3-primary hover:underline">GitHub Issues</a>, or join the <a href="https://discord.gg/QgUjuNj9U8" target="_blank" rel="noopener noreferrer" class="text-m3-primary hover:underline">Discord community</a>.</p>
                             </div>
                         </div>
                     </div>
@@ -703,6 +767,9 @@
                         <a href="https://qtremors.github.io" target="_blank" class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center text-m3-onSurfaceVariant hover:text-m3-onSurface hover:bg-m3-outlineVariant transition-all">
                             <i data-lucide="globe" class="w-5 h-5"></i>
                         </a>
+                        <a href="https://discord.gg/QgUjuNj9U8" target="_blank" rel="noopener noreferrer" aria-label="Discord community" class="w-10 h-10 rounded-full bg-m3-surfaceContainerHighest flex items-center justify-center text-m3-onSurfaceVariant hover:text-m3-onSurface hover:bg-m3-outlineVariant transition-all">
+                            <svg aria-hidden="true" class="w-5 h-5"><use href="#icon-discord"></use></svg>
+                        </a>
                     </div>
                 </div>
                 
@@ -737,7 +804,7 @@
     </footer>
 
     <!-- Frameworks -->
-    <script src="https://cdn.tailwindcss.com?version=3.4.1"></script>
+    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script src="https://unpkg.com/lucide@0.477.0/dist/umd/lucide.min.js"></script>
 
     <!-- Custom Logic -->

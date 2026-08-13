@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.videoplayer
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -17,14 +18,19 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.sizeIn
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -47,11 +53,11 @@ import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -104,14 +110,11 @@ internal data class VideoViewerChromeActions(
     val onShare: (FileModel) -> Unit,
     val onPlayPauseToggle: () -> Unit,
     val onSeek: (Long) -> Unit,
+    val onScrubStateChange: (Boolean) -> Unit,
     val onResizeModeToggle: () -> Unit,
     val onToggleThumbnails: () -> Unit = {}
 )
 
-// ──────────────────────────────────────────────────────────────
-// Top Chrome – matches ImageViewerTopChrome layout exactly:
-// floating rounded pill with statusBarsPadding
-// ──────────────────────────────────────────────────────────────
 @Composable
 internal fun VideoViewerTopChrome(
     visible: Boolean,
@@ -132,7 +135,7 @@ internal fun VideoViewerTopChrome(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .statusBarsPadding()
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             if (currentFile != null) {
@@ -146,33 +149,24 @@ internal fun VideoViewerTopChrome(
                         .background(Color.Black.copy(alpha = 0.5f))
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    val titleText = currentFile.name
+                    Text(
+                        text = if (titleText.isBlank()) positionText else "$positionText • $titleText",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        maxLines = 1,
+                        overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
+                        modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
+                    )
+                    if (dateText.isNotEmpty() || resolutionText.isNotEmpty() || sizeText.isNotEmpty()) {
                         Text(
-                            text = currentFile.name,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = Color.White,
-                            maxLines = 1,
-                            modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-                        )
-                    }
-
-                    val detailsText = buildList {
-                        if (positionText.isNotBlank()) add(positionText)
-                        if (dateText.isNotBlank()) add(dateText)
-                        if (resolutionText.isNotBlank()) add(resolutionText)
-                        if (sizeText.isNotBlank()) add(sizeText)
-                    }.joinToString("  •  ")
-
-                    if (detailsText.isNotBlank()) {
-                        Text(
-                            text = detailsText,
+                            text = listOf(resolutionText, sizeText, dateText)
+                                .filter { it.isNotBlank() }
+                                .joinToString(" • "),
+                            color = Color.White.copy(alpha = 0.7f),
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.75f),
                             maxLines = 1,
+                            overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
                             modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                         )
                     }
@@ -360,7 +354,12 @@ internal fun VideoViewerBottomChrome(
             if (currentFile != null) {
                 var isSeeking by remember(currentFile.absolutePath) { mutableStateOf(false) }
                 var sliderValue by remember(currentFile.absolutePath) { mutableFloatStateOf(0f) }
+                var showRemainingTime by remember(currentFile.absolutePath) { mutableStateOf(false) }
                 val seekState = videoSeekState(playbackPosition, playbackDuration)
+
+                DisposableEffect(currentFile.absolutePath, actions) {
+                    onDispose { actions.onScrubStateChange(false) }
+                }
 
                 Row(
                     modifier = Modifier
@@ -369,8 +368,24 @@ internal fun VideoViewerBottomChrome(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    val currentText = formatPlaybackTime(if (isSeeking) (sliderValue * playbackDuration).toLong() else playbackPosition)
-                    val totalText = formatPlaybackTime(playbackDuration)
+                    val displayedPosition = if (isSeeking) {
+                        videoScrubTargetPosition(sliderValue, playbackDuration)
+                    } else {
+                        playbackPosition
+                    }
+                    val currentText = formatPlaybackTime(displayedPosition)
+                    val totalText = videoPlaybackEndTimeText(
+                        position = displayedPosition,
+                        duration = playbackDuration,
+                        showRemaining = showRemainingTime
+                    )
+                    val timerToggleDescription = stringResource(
+                        if (showRemainingTime) {
+                            R.string.video_player_show_total_time
+                        } else {
+                            R.string.video_player_show_remaining_time
+                        }
+                    )
 
                     Text(
                         text = currentText,
@@ -378,16 +393,23 @@ internal fun VideoViewerBottomChrome(
                         color = Color.White.copy(alpha = 0.85f)
                     )
 
-                    Slider(
+                    FastVideoScrubSlider(
                         value = if (isSeeking) sliderValue else seekState.progress,
                         enabled = seekState.canSeek,
-                        onValueChange = {
+                        onScrubStart = {
                             isSeeking = true
-                            sliderValue = it
+                            actions.onScrubStateChange(true)
                         },
-                        onValueChangeFinished = {
+                        onScrub = { progress ->
+                            sliderValue = progress
+                            actions.onSeek(videoScrubTargetPosition(progress, playbackDuration))
+                        },
+                        onScrubEnd = { progress ->
+                            sliderValue = progress
+                            val targetPosition = videoScrubTargetPosition(progress, playbackDuration)
+                            actions.onSeek(targetPosition)
                             isSeeking = false
-                            actions.onSeek((sliderValue * playbackDuration).toLong())
+                            actions.onScrubStateChange(false)
                         },
                         colors = SliderDefaults.colors(
                             thumbColor = Color.White,
@@ -400,11 +422,23 @@ internal fun VideoViewerBottomChrome(
                         modifier = Modifier.weight(1f)
                     )
 
-                    Text(
-                        text = totalText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.85f)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .semantics { contentDescription = timerToggleDescription }
+                            .bounceClickable(enabled = seekState.canSeek) {
+                                showRemainingTime = !showRemainingTime
+                            }
+                            .padding(horizontal = 6.dp, vertical = 4.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = totalText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.85f)
+                        )
+                    }
                 }
             }
 
@@ -434,6 +468,13 @@ internal fun VideoViewerBottomChrome(
                         else -> R.string.video_player_resize_fill
                     }
                 )
+                val nextResizeDescription = stringResource(
+                    when (nextVideoResizeModeIndex(resizeModeIndex)) {
+                        0 -> R.string.video_player_resize_fit
+                        1 -> R.string.video_player_resize_zoom
+                        else -> R.string.video_player_resize_fill
+                    }
+                )
                 val toolbarActions = remember(
                     currentFile,
                     isFavorite,
@@ -448,6 +489,8 @@ internal fun VideoViewerBottomChrome(
                     playDescription,
                     pauseDescription,
                     resizeDescription,
+                    nextResizeDescription,
+                    context,
                     actions
                 ) {
                     buildList {
@@ -491,6 +534,11 @@ internal fun VideoViewerBottomChrome(
                                 onClick = {
                                     haptics.selectionChanged()
                                     actions.onResizeModeToggle()
+                                    Toast.makeText(
+                                        context,
+                                        nextResizeDescription,
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
                             )
                         )

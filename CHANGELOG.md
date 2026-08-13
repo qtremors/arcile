@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.9
-> **Last Updated:** 2026-08-13
+> **Version:** 2.0.0
+> **Last Updated:** 2026-08-14
 
 ---
+
+## [2.0.0] - 2026-08-13
+
+- **Video Playback**: Kept titles clear of display cutouts, preserved gallery order and the selected thumbnail position, kept the cached thumbnail visible throughout each video and surface handoff until the matching first frame, limited background playback to app backgrounding with an Arcile media notification and Close player action, renewed the control timeout after every touch interaction, protected gestures from Android navigation edges, added pinch zoom and pan, and made fast or slow forward and reverse progress scrubbing pause, track the finger directly, and resume without hiding controls.
+- **Interface Clarity**: Added an easy-to-tap total/remaining video timer and active resize-mode feedback, explained OnlyFiles health checks, improved image-decoding errors, standardized Root icons, and consistently named primary storage “Internal Storage.”
+- **Runtime Compatibility**: Kept Android 15-only PDF text search behind an explicit platform guard and made viewer and editor feedback follow configuration changes safely.
+- **Compatible Dependency Refresh**: Updated the Android, Kotlin, Compose, Hilt, KSP, Media3, security, and test libraries that remain compatible with the Gradle 9.5.0 toolchain, while retaining Coil 2 and stable MaterialKolor 4.
 
 ## [1.9.10] - 2026-08-11
 

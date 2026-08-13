@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
+import androidx.annotation.RequiresApi
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -93,6 +94,7 @@ import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -116,7 +118,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
-
 data class PdfPageSize(
     val width: Int,
     val height: Int
@@ -179,12 +180,10 @@ class PdfDocumentHandle private constructor(
         bitmap
     }
 
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     internal fun searchText(query: String): List<PdfTextMatch> = synchronized(renderLock) {
         check(!closed) { "PDF document is closed" }
         require(query.isNotBlank())
-        check(Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            "PDF text search requires Android 15 or newer"
-        }
         pageSizes.indices.flatMap { pageIndex ->
             renderer.openPage(pageIndex).use { page ->
                 page.searchText(query).map { match ->
@@ -266,6 +265,7 @@ fun StandalonePdfViewer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val view = LocalView.current
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -518,7 +518,7 @@ fun StandalonePdfViewer(
                         onPrint = {
                             printPdf(context, reference, title).onFailure {
                                 coroutineScope.launch {
-                                    snackbarHostState.showSnackbar(context.getString(R.string.pdf_print_failed))
+                                    snackbarHostState.showSnackbar(resources.getString(R.string.pdf_print_failed))
                                 }
                             }
                         }

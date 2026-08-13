@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.quickaccess
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Android
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -36,10 +36,10 @@ class QuickAccessSectionsTest {
     }
 
     @Test
-    fun `root storage uses filesystem tree icon`() {
+    fun `root storage uses Android icon`() {
         val root = item("standard_root_storage", "/", QuickAccessType.STANDARD)
 
-        assertEquals(Icons.Default.AccountTree, iconForQuickAccessItem(root))
+        assertEquals(Icons.Default.Android, iconForQuickAccessItem(root))
     }
 
     @Test

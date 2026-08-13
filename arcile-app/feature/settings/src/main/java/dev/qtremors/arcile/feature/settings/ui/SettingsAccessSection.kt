@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PrivacyTip
@@ -212,7 +213,7 @@ private fun SettingsAccessModeRow(
             Icon(
                 imageVector = when (mode) {
                     PrivilegeMode.AUTOMATIC -> Icons.Default.Settings
-                    PrivilegeMode.ROOT -> Icons.Default.PrivacyTip
+                    PrivilegeMode.ROOT -> Icons.Default.Android
                     PrivilegeMode.SHIZUKU -> Icons.Default.Bolt
                     PrivilegeMode.NORMAL -> Icons.Default.Storage
                 },

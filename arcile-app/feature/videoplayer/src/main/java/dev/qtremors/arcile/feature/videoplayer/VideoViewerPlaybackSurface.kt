@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,7 +63,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
@@ -90,6 +92,7 @@ import kotlin.math.min
 import androidx.compose.foundation.pager.PagerState
 
 @Composable
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 internal fun VideoViewerPlaybackSurface(
     session: VideoPlaybackSession,
@@ -113,6 +116,7 @@ internal fun VideoViewerPlaybackSurface(
     val dismissOffsetY = remember { Animatable(0f) }
     val coroutineScope = rememberCoroutineScope()
     var isDismissing by remember { mutableStateOf(false) }
+    var controlsInteractionVersion by remember { mutableLongStateOf(0L) }
 
     val dismissPlayer: () -> Unit = {
         if (!isDismissing) {
@@ -185,7 +189,16 @@ internal fun VideoViewerPlaybackSurface(
             },
         color = Color.Black
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        controlsInteractionVersion++
+                    }
+                }
+        ) {
             val context = LocalContext.current
             val lifecycleOwner = LocalLifecycleOwner.current
             val playbackItemResolver = remember(session.items, session.files) {
@@ -205,8 +218,20 @@ internal fun VideoViewerPlaybackSurface(
                     initialPlaybackPage
                 )
             }
-            val player = remember(initialPlaybackItem, session.dataSourceFactory) {
+            val backgroundPlaybackAllowed = videoBackgroundPlaybackAllowed(session.securityScopeId)
+            val backgroundPlayer = rememberVideoBackgroundPlayer(
+                enabled = backgroundPlaybackAllowed,
+                onCloseRequested = onNavigateBack
+            )
+            val localPlayer = remember(
+                initialPlaybackItem,
+                session.dataSourceFactory,
+                backgroundPlaybackAllowed
+            ) {
+                if (backgroundPlaybackAllowed) return@remember null
                 val builder = ExoPlayer.Builder(context)
+                    .setAudioAttributes(videoPlaybackAudioAttributes(), true)
+                    .setHandleAudioBecomingNoisy(true)
                 session.dataSourceFactory?.let { dataSourceFactory ->
                     builder.setMediaSourceFactory(
                         DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory)
@@ -216,24 +241,39 @@ internal fun VideoViewerPlaybackSurface(
                     val initialPosition = restoredPlaybackPosition.takeIf {
                         restoredPlaybackPath == displayedPaths.getOrNull(initialPlaybackPage)
                     } ?: 0L
-                    setMediaItem(initialPlaybackItem.mediaItem, initialPosition)
+                    setMediaItem(initialPlaybackItem.mediaItem.withVideoTitle(initialPlaybackItem.title), initialPosition)
                     repeatMode = Player.REPEAT_MODE_ONE
                     playWhenReady = true
                     prepare()
                 }
             }
+            val player = backgroundPlayer ?: localPlayer
             var isPlaying by remember { mutableStateOf(false) }
             var playbackPosition by remember { mutableLongStateOf(0L) }
             var playbackDuration by remember { mutableLongStateOf(0L) }
             var playbackError by remember { mutableStateOf<PlaybackException?>(null) }
             var isBuffering by remember { mutableStateOf(true) }
             var playbackEnded by remember { mutableStateOf(false) }
+            var renderedPath by remember(player) { mutableStateOf<String?>(null) }
+            var transitionedPath by remember(player) {
+                mutableStateOf(player?.currentMediaItem?.mediaId)
+            }
+            var isScrubbing by remember(player) { mutableStateOf(false) }
+            var resumeAfterScrub by remember(player) { mutableStateOf(false) }
             VideoViewerWindowEffects(
                 keepScreenOn = isPlaying || isBuffering,
                 immersive = true,
-                onBackgrounded = onNavigateBack.takeIf { session.securityScopeId != null }
+                onBackgrounded = onNavigateBack.takeIf {
+                    !backgroundPlaybackAllowed
+                }
             )
-            var resumeAfterLifecyclePause by remember(player) { mutableStateOf(true) }
+            if (player == null) {
+                LoadingIndicator(
+                    color = Color.White,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                return@Box
+            }
             var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }
             val resizeModes = remember {
                 intArrayOf(
@@ -244,10 +284,34 @@ internal fun VideoViewerPlaybackSurface(
             }
             val playbackPositions = remember(session) { LinkedHashMap<String, Long>() }
             var loadedPath by remember(player) {
-                mutableStateOf(displayedPaths.getOrNull(initialPlaybackPage))
+                mutableStateOf(
+                    displayedPaths.getOrNull(initialPlaybackPage)
+                        .takeUnless { backgroundPlaybackAllowed }
+                )
             }
 
-            DisposableEffect(player, lifecycleOwner) {
+            LaunchedEffect(player, backgroundPlaybackAllowed, initialPlaybackItem, displayedPaths) {
+                if (!backgroundPlaybackAllowed) return@LaunchedEffect
+                val initialPath = displayedPaths.getOrNull(initialPlaybackPage)
+                if (initialPath != null && player.currentMediaItem?.mediaId == initialPath) {
+                    loadedPath = initialPath
+                    return@LaunchedEffect
+                }
+                val initialPosition = restoredPlaybackPosition.takeIf {
+                    restoredPlaybackPath == initialPath
+                } ?: 0L
+                transitionedPath = null
+                player.setMediaItem(
+                    initialPlaybackItem.mediaItem.withVideoTitle(initialPlaybackItem.title),
+                    initialPosition
+                )
+                player.repeatMode = Player.REPEAT_MODE_ONE
+                player.prepare()
+                player.play()
+                loadedPath = initialPath
+            }
+
+            DisposableEffect(player) {
                 val playerListener = object : Player.Listener {
                     override fun onIsPlayingChanged(playing: Boolean) {
                         isPlaying = playing
@@ -266,34 +330,26 @@ internal fun VideoViewerPlaybackSurface(
                     }
 
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        transitionedPath = mediaItem?.mediaId
                         playbackPosition = player.currentPosition.coerceAtLeast(0L)
                         playbackDuration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
                         playbackError = null
                     }
-                }
-                val lifecycleObserver = LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_STOP -> {
-                            resumeAfterLifecyclePause = player.playWhenReady
-                            player.pause()
-                        }
 
-                        Lifecycle.Event.ON_START -> if (resumeAfterLifecyclePause) player.play()
-                        else -> Unit
+                    override fun onRenderedFirstFrame() {
+                        renderedPath = videoRenderedPathForFirstFrame(
+                            currentMediaId = player.currentMediaItem?.mediaId,
+                            loadedPath = loadedPath,
+                            transitionedPath = transitionedPath
+                        ) ?: renderedPath
                     }
                 }
                 player.addListener(playerListener)
-                lifecycleOwner.lifecycle.addObserver(lifecycleObserver)
-                if (!lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
-                    resumeAfterLifecyclePause = player.playWhenReady
-                    player.pause()
-                }
                 isPlaying = player.isPlaying
                 isBuffering = player.playbackState == Player.STATE_BUFFERING
                 onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(lifecycleObserver)
                     player.removeListener(playerListener)
-                    player.release()
+                    if (!backgroundPlaybackAllowed) player.release()
                 }
             }
 
@@ -312,8 +368,18 @@ internal fun VideoViewerPlaybackSurface(
             }
 
             // Auto-hide controls after 3 seconds of playing inactivity
-            LaunchedEffect(isPlaying, state.viewerUiVisible, showMetadataSheet, isDeleteDialogVisible) {
-                if (isPlaying && state.viewerUiVisible && !showMetadataSheet && !isDeleteDialogVisible) {
+            LaunchedEffect(
+                isPlaying,
+                state.viewerUiVisible,
+                showMetadataSheet,
+                isDeleteDialogVisible,
+                isScrubbing,
+                controlsInteractionVersion
+            ) {
+                if (
+                    isPlaying && state.viewerUiVisible && !showMetadataSheet &&
+                    !isDeleteDialogVisible && !isScrubbing
+                ) {
                     kotlinx.coroutines.delay(3000L)
                     viewModel.setViewerUiVisible(false)
                 }
@@ -350,10 +416,14 @@ internal fun VideoViewerPlaybackSurface(
                     playbackError = null
                     playbackEnded = false
                     isBuffering = true
-                    loadedPath = targetPath
-                    player.setMediaItem(targetItem.mediaItem, restoredPosition)
+                    transitionedPath = null
+                    player.setMediaItem(
+                        targetItem.mediaItem.withVideoTitle(targetItem.title),
+                        restoredPosition
+                    )
                     player.prepare()
                     player.playWhenReady = shouldPlay
+                    loadedPath = targetPath
                 }
             }
 
@@ -397,12 +467,13 @@ internal fun VideoViewerPlaybackSurface(
                     .orEmpty()
             }
             val positionText = viewerPositionLabel(settledPage, displayedFiles.size)
+            var currentVideoZoomed by remember(currentPath) { mutableStateOf(false) }
 
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize(),
                 beyondViewportPageCount = 1,
-                userScrollEnabled = true
+                userScrollEnabled = !currentVideoZoomed
             ) { page ->
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
@@ -472,7 +543,13 @@ internal fun VideoViewerPlaybackSurface(
                                 player = player,
                                 file = file,
                                 isPageFocused = isCurrentPage,
-                                isBuffering = isCurrentPage && isBuffering,
+                                attachPlayerSurface = videoPlayerSurfaceCanAttach(
+                                    isPageFocused = isCurrentPage,
+                                    loadedPath = loadedPath,
+                                    pagePath = file.absolutePath
+                                ),
+                                isBuffering = isCurrentPage && isBuffering && !isScrubbing,
+                                showPlaceholder = isCurrentPage && renderedPath != file.absolutePath,
                                 playbackError = playbackError.takeIf { isCurrentPage },
                                 resizeMode = resizeModes[resizeModeIndex],
                                 onTap = { viewModel.toggleViewerUi() },
@@ -496,7 +573,10 @@ internal fun VideoViewerPlaybackSurface(
                                     }
                                 },
                                 onDragDismiss = onDragDismiss,
-                                onDragDismissEnd = onDragDismissEnd
+                                onDragDismissEnd = onDragDismissEnd,
+                                onZoomStateChanged = { zoomed ->
+                                    if (isCurrentPage) currentVideoZoomed = zoomed
+                                }
                             )
                         } else {
                             Box(
@@ -504,7 +584,7 @@ internal fun VideoViewerPlaybackSurface(
                                     .fillMaxSize()
                                     .graphicsLayer {
                                         if (isBackPredicting && backActionAtStart == VideoViewerBackAction.DismissMetadata) {
-                                            translationY = backProgress * size.height.toFloat()
+                                            translationY = backProgress * size.height
                                         }
                                     }
                             ) {
@@ -565,6 +645,21 @@ internal fun VideoViewerPlaybackSurface(
                     },
                     onSeek = { position ->
                         player.seekTo(position)
+                    },
+                    onScrubStateChange = { scrubbing ->
+                        val transition = videoScrubPlaybackTransition(
+                            wasScrubbing = isScrubbing,
+                            resumeWhenFinished = resumeAfterScrub,
+                            scrubbing = scrubbing,
+                            isPlaying = player.isPlaying
+                        )
+                        isScrubbing = transition.isScrubbing
+                        resumeAfterScrub = transition.resumeWhenFinished
+                        if (transition.pausePlayback) player.pause()
+                        if (transition.resumePlayback) player.play()
+                        if (scrubbing && !state.viewerUiVisible) {
+                            viewModel.setViewerUiVisible(true)
+                        }
                     },
                     onResizeModeToggle = {
                         resizeModeIndex = nextVideoResizeModeIndex(resizeModeIndex)

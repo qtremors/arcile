@@ -6,30 +6,23 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material.icons.filled.FastForward
-import androidx.compose.material.icons.filled.FastRewind
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Replay
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -37,7 +30,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -57,11 +49,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -82,6 +75,8 @@ import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
 import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
+import dev.qtremors.arcile.core.ui.image.ThumbnailKey
+import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
@@ -90,137 +85,19 @@ import android.content.Context
 import android.media.AudioManager
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.automirrored.filled.VolumeDown
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.WbSunny
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemGestures
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
 private const val DOUBLE_TAP_SEEK_MILLIS = 10_000L
-
-// Gesture compatibility section: horizontal player partitioning
-internal enum class GestureZone { LEFT, CENTER, RIGHT }
-
-internal fun videoPlayerGestureZone(x: Float, totalWidth: Float): GestureZone {
-    if (totalWidth <= 0f) return GestureZone.CENTER
-    return when {
-        x < totalWidth / 3f -> GestureZone.LEFT
-        x >= 2f * totalWidth / 3f -> GestureZone.RIGHT
-        else -> GestureZone.CENTER
-    }
-}
-// HUD feedback state for video player gesture controls
-private sealed interface GestureHudState {
-    data class Seek(val text: String, val isForward: Boolean) : GestureHudState
-    data class PlayPause(val isPlaying: Boolean) : GestureHudState
-    data class Brightness(val percentage: Int) : GestureHudState
-    data class Volume(val percentage: Int) : GestureHudState
-}
-
-@Composable
-private fun VideoPlayerGestureHud(
-    state: GestureHudState,
-    modifier: Modifier = Modifier
-) {
-    Surface(
-        modifier = modifier,
-        shape = RoundedCornerShape(16.dp),
-        color = Color.Black.copy(alpha = 0.75f),
-        contentColor = Color.White
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            when (state) {
-                is GestureHudState.Seek -> {
-                    Icon(
-                        imageVector = if (state.isForward) Icons.Default.FastForward else Icons.Default.FastRewind,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = state.text,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = Color.White
-                    )
-                }
-                is GestureHudState.PlayPause -> {
-                    Icon(
-                        imageVector = if (state.isPlaying) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(32.dp)
-                    )
-                }
-                is GestureHudState.Brightness -> {
-                    Icon(
-                        imageVector = Icons.Default.WbSunny,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "${state.percentage}%",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                        LinearProgressIndicator(
-                            progress = { state.percentage / 100f },
-                            modifier = Modifier
-                                .width(70.dp)
-                                .height(4.dp),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                    }
-                }
-                is GestureHudState.Volume -> {
-                    val icon = when {
-                        state.percentage == 0 -> Icons.AutoMirrored.Filled.VolumeOff
-                        state.percentage < 50 -> Icons.AutoMirrored.Filled.VolumeDown
-                        else -> Icons.AutoMirrored.Filled.VolumeUp
-                    }
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(
-                            text = "${state.percentage}%",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Color.White
-                        )
-                        LinearProgressIndicator(
-                            progress = { state.percentage / 100f },
-                            modifier = Modifier
-                                .width(70.dp)
-                                .height(4.dp),
-                            color = Color.White,
-                            trackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
+private const val VIDEO_LOADING_INDICATOR_DELAY_MILLIS = 350L
+private const val VIDEO_PLAYER_PLACEHOLDER_SIZE_PX = 128
 
 @Composable
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -229,14 +106,17 @@ internal fun VideoPlayerItemView(
     player: Player,
     file: FileModel,
     isPageFocused: Boolean,
+    attachPlayerSurface: Boolean,
     isBuffering: Boolean,
+    showPlaceholder: Boolean,
     playbackError: PlaybackException?,
     resizeMode: Int,
     onTap: () -> Unit,
     onPlayPauseToggle: () -> Unit = {},
     onToggleMetadata: (Boolean) -> Unit = {},
     onDragDismiss: (Float) -> Unit = {},
-    onDragDismissEnd: () -> Unit = {}
+    onDragDismissEnd: () -> Unit = {},
+    onZoomStateChanged: (Boolean) -> Unit = {}
 ) {
     var gestureFeedback by remember { mutableStateOf<GestureHudState?>(null) }
     val seekForwardFeedback = stringResource(R.string.video_player_seek_forward)
@@ -250,6 +130,32 @@ internal fun VideoPlayerItemView(
     }
     val audioManager = remember(context) {
         context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+    }
+    val density = LocalDensity.current
+    val layoutDirection = LocalLayoutDirection.current
+    val minimumSystemGestureInset = with(density) { 32.dp.toPx() }
+    val leftSystemGestureInset = max(
+        WindowInsets.systemGestures.getLeft(density, layoutDirection).toFloat(),
+        minimumSystemGestureInset
+    )
+    val rightSystemGestureInset = max(
+        WindowInsets.systemGestures.getRight(density, layoutDirection).toFloat(),
+        minimumSystemGestureInset
+    )
+    val bottomSystemGestureInset = max(
+        WindowInsets.systemGestures.getBottom(density).toFloat(),
+        minimumSystemGestureInset
+    )
+    val thumbnailRequest = remember(context, file) {
+        val thumbnailKey = ThumbnailKey.from(file)
+        val cacheKey = thumbnailKey.variantKey(VIDEO_PLAYER_PLACEHOLDER_SIZE_PX).cacheKey
+        buildThumbnailImageRequest(
+            context = context,
+            data = thumbnailKey,
+            cacheKey = cacheKey,
+            sizePx = VIDEO_PLAYER_PLACEHOLDER_SIZE_PX,
+            useMemoryCachePlaceholder = true
+        )
     }
 
     if (isPageFocused) {
@@ -265,6 +171,21 @@ internal fun VideoPlayerItemView(
         var centerDragAccumulator by remember { mutableFloatStateOf(0f) }
         var currentVolumeFraction by remember { mutableFloatStateOf(0f) }
         var currentBrightnessFraction by remember { mutableFloatStateOf(0f) }
+        var zoomScale by remember(file.absolutePath) { mutableFloatStateOf(1f) }
+        var zoomOffsetX by remember(file.absolutePath) { mutableFloatStateOf(0f) }
+        var zoomOffsetY by remember(file.absolutePath) { mutableFloatStateOf(0f) }
+        var showDelayedLoading by remember(file.absolutePath) { mutableStateOf(false) }
+
+        LaunchedEffect(isBuffering, showPlaceholder, file.absolutePath) {
+            showDelayedLoading = false
+            if (isBuffering && showPlaceholder) {
+                kotlinx.coroutines.delay(VIDEO_LOADING_INDICATOR_DELAY_MILLIS)
+                showDelayedLoading = true
+            }
+        }
+        DisposableEffect(file.absolutePath) {
+            onDispose { onZoomStateChanged(false) }
+        }
 
         Box(
             modifier = Modifier
@@ -295,10 +216,49 @@ internal fun VideoPlayerItemView(
                         }
                     )
                 }
+                .pointerInput(file.absolutePath) {
+                    awaitEachGesture {
+                        do {
+                            val event = awaitPointerEvent()
+                            val pressedPointers = event.changes.count { it.pressed }
+                            if (pressedPointers >= 2 || zoomScale > 1f) {
+                                val pan = event.calculatePan()
+                                val transform = videoZoomTransformAfterGesture(
+                                    scale = zoomScale,
+                                    offsetX = zoomOffsetX,
+                                    offsetY = zoomOffsetY,
+                                    zoomChange = event.calculateZoom(),
+                                    panX = pan.x,
+                                    panY = pan.y,
+                                    viewportWidth = size.width.toFloat(),
+                                    viewportHeight = size.height.toFloat()
+                                )
+                                val wasZoomed = zoomScale > 1f
+                                zoomScale = transform.scale
+                                zoomOffsetX = transform.offsetX
+                                zoomOffsetY = transform.offsetY
+                                val isZoomed = zoomScale > 1f
+                                if (wasZoomed != isZoomed) onZoomStateChanged(isZoomed)
+                                event.changes.forEach { it.consume() }
+                            }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }
                 .pointerInput(context, activity, audioManager) {
                     detectVerticalDragGestures(
                         onDragStart = { startOffset ->
-                            activeDragZone = videoPlayerGestureZone(startOffset.x, size.width.toFloat())
+                            val requestedZone = videoPlayerGestureZone(startOffset.x, size.width.toFloat())
+                            activeDragZone = requestedZone.takeUnless {
+                                zoomScale > 1f || !videoVerticalGestureAllowed(
+                                    startX = startOffset.x,
+                                    startY = startOffset.y,
+                                    viewportWidth = size.width.toFloat(),
+                                    viewportHeight = size.height.toFloat(),
+                                    leftGestureInset = leftSystemGestureInset,
+                                    rightGestureInset = rightSystemGestureInset,
+                                    bottomGestureInset = bottomSystemGestureInset
+                                )
+                            }
                             centerDragAccumulator = 0f
 
                             audioManager?.let { am ->
@@ -380,26 +340,54 @@ internal fun VideoPlayerItemView(
                 },
             contentAlignment = Alignment.Center
         ) {
-            AndroidView(
-                factory = { viewContext ->
-                    PlayerView(viewContext).apply {
-                        this.player = player
-                        useController = false
-                        this.resizeMode = resizeMode
-                        contentDescription = playerDescription
-                        attachedView = this
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = zoomScale
+                        scaleY = zoomScale
+                        translationX = zoomOffsetX
+                        translationY = zoomOffsetY
                     }
-                },
-                update = {
-                    it.player = player
-                    it.contentDescription = playerDescription
-                    it.resizeMode = resizeMode
-                    attachedView = it
-                },
-                modifier = Modifier.fillMaxSize()
-            )
+            ) {
+                if (attachPlayerSurface) {
+                    AndroidView(
+                        factory = { viewContext ->
+                            PlayerView(viewContext).apply {
+                                this.player = player
+                                useController = false
+                                setKeepContentOnPlayerReset(true)
+                                setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                                this.resizeMode = resizeMode
+                                contentDescription = playerDescription
+                                attachedView = this
+                            }
+                        },
+                        update = {
+                            it.player = player
+                            it.setKeepContentOnPlayerReset(true)
+                            it.setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            it.contentDescription = playerDescription
+                            it.resizeMode = resizeMode
+                            attachedView = it
+                        },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
 
-            if (isBuffering) {
+                if (showPlaceholder) {
+                    AsyncImage(
+                        model = thumbnailRequest,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black)
+                    )
+                }
+            }
+
+            if (shouldShowVideoLoadingIndicator(isBuffering, showPlaceholder, showDelayedLoading)) {
                 LoadingIndicator(color = Color.White)
             }
 
@@ -454,10 +442,7 @@ internal fun VideoPlayerItemView(
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
-                    .data(file.absolutePath)
-                    .crossfade(true)
-                    .build(),
+                model = thumbnailRequest,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
@@ -492,7 +477,7 @@ internal class VideoPlaybackItemResolver(session: VideoPlaybackSession) {
                 mediaItem = MediaItem.Builder()
                     .setUri(videoPlaybackUri(file.openableReference()))
                     .setMimeType(file.mimeType)
-                    .setMediaId("$fallbackIndex:${file.absolutePath}")
+                    .setMediaId(file.absolutePath)
                     .build(),
                 title = file.name
             )
@@ -533,6 +518,7 @@ internal fun videoPlaybackReference(item: VideoPlaybackItem): String {
 private fun videoPlaybackReferenceKeys(item: VideoPlaybackItem): Set<String> {
     val uri = item.mediaItem.localConfiguration?.uri ?: return emptySet()
     return buildSet {
+        item.mediaItem.mediaId.takeIf(String::isNotBlank)?.let(::add)
         uri.toString().takeIf(String::isNotBlank)?.let(::add)
         uri.path?.takeIf(String::isNotBlank)?.let(::add)
     }
@@ -550,6 +536,15 @@ internal fun videoPlaybackNeedsMediaSwitch(loadedPath: String?, targetPath: Stri
     loadedPath != targetPath
 
 internal fun nextVideoResizeModeIndex(currentIndex: Int): Int = (currentIndex + 1).mod(3)
+
+internal fun MediaItem.withVideoTitle(title: String): MediaItem = buildUpon()
+    .setMediaMetadata(
+        mediaMetadata.buildUpon()
+            .setTitle(title)
+            .setIsPlayable(true)
+            .build()
+    )
+    .build()
 
 private fun normalizedVideoReference(reference: String): String = Uri.decode(reference)
 

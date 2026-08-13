@@ -38,7 +38,9 @@ class ArchiveNodeWorkspaceTest {
 
     @Before
     fun setUp() {
-        testRoot = createTempDir(prefix = "archive-node-workspace").canonicalFile
+        testRoot = kotlin.io.path.createTempDirectory(
+            prefix = "archive-node-workspace"
+        ).toFile().canonicalFile
         workspaceRoot = File(testRoot, "workspaces")
         remoteRoot = File(testRoot, "remote").apply { mkdirs() }
         io = FakeArchiveNodeIo(remoteRoot)
@@ -469,7 +471,9 @@ class BackendAwareArchiveManagerTest {
 
     @Before
     fun setUp() {
-        testRoot = createTempDir(prefix = "backend-aware-archive").canonicalFile
+        testRoot = kotlin.io.path.createTempDirectory(
+            prefix = "backend-aware-archive"
+        ).toFile().canonicalFile
         remoteRoot = File(testRoot, "remote").apply { mkdirs() }
         workspaceRoot = File(testRoot, "workspaces")
         io = FakeArchiveNodeIo(remoteRoot)

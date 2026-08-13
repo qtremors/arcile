@@ -57,18 +57,27 @@ private val libraries = listOf(
     LibraryInfo("AndroidX Lifecycle ViewModel Compose", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/lifecycle"),
     LibraryInfo("AndroidX Navigation Compose", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/navigation"),
     LibraryInfo("AndroidX DataStore Preferences", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/datastore"),
+    LibraryInfo("AndroidX Room", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/room"),
+    LibraryInfo("AndroidX ExifInterface", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/exifinterface"),
+    LibraryInfo("AndroidX Graphics Shapes", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/graphics"),
+    LibraryInfo("AndroidX Media3", "Apache 2.0", "https://developer.android.com/media/media3"),
     LibraryInfo("AndroidX Core Splash Screen", "Apache 2.0", "https://developer.android.com/jetpack/androidx/releases/core"),
     LibraryInfo("Jetpack Compose UI", "Apache 2.0", "https://developer.android.com/jetpack/compose"),
     LibraryInfo("Jetpack Compose Material 3", "Apache 2.0", "https://developer.android.com/jetpack/compose"),
+    LibraryInfo("Jetpack Compose Material 3 Adaptive", "Apache 2.0", "https://developer.android.com/develop/ui/compose/layouts/adaptive"),
     LibraryInfo("Jetpack Compose Material Icons Extended", "Apache 2.0", "https://developer.android.com/jetpack/compose"),
     LibraryInfo("Kotlin Coroutines", "Apache 2.0", "https://github.com/Kotlin/kotlinx.coroutines"),
     LibraryInfo("Kotlin Serialization", "Apache 2.0", "https://github.com/Kotlin/kotlinx.serialization"),
+    LibraryInfo("Kotlin Immutable Collections", "Apache 2.0", "https://github.com/Kotlin/kotlinx.collections.immutable"),
     LibraryInfo("Coil (Image Loading)", "Apache 2.0", "https://github.com/coil-kt/coil"),
     LibraryInfo("Hilt (Dependency Injection)", "Apache 2.0", "https://dagger.dev/hilt/"),
     LibraryInfo("MaterialKolor", "MIT", "https://github.com/jordond/MaterialKolor"),
-    LibraryInfo("Apache Commons Compress 1.28.0", "Apache 2.0", "https://commons.apache.org/proper/commons-compress/"),
-    LibraryInfo("Zip4j 2.11.6", "Apache 2.0", "https://github.com/srikanth-lingala/zip4j"),
-    LibraryInfo("Tukaani XZ 1.10", "Public domain", "https://tukaani.org/xz/java.html")
+    LibraryInfo("Apache Commons Compress", "Apache 2.0", "https://commons.apache.org/proper/commons-compress/"),
+    LibraryInfo("Zip4j", "Apache 2.0", "https://github.com/srikanth-lingala/zip4j"),
+    LibraryInfo("Tukaani XZ", "Public domain", "https://tukaani.org/xz/java.html"),
+    LibraryInfo("Bouncy Castle", "Bouncy Castle Licence", "https://www.bouncycastle.org/"),
+    LibraryInfo("Shizuku API", "Apache 2.0", "https://github.com/RikkaApps/Shizuku-API"),
+    LibraryInfo("libsu", "Apache 2.0", "https://github.com/topjohnwu/libsu")
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

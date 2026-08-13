@@ -60,7 +60,7 @@ class CrossBackendTransferEngineTest {
 
     @Before
     fun setUp() {
-        localRoot = createTempDir(prefix = "arcile-cross-backend-")
+        localRoot = kotlin.io.path.createTempDirectory(prefix = "arcile-cross-backend-").toFile()
         local = TestLocalFileSystemDataSource(localRoot)
         remoteClient = MemoryPrivilegedFileClient(ROOT_SESSION).apply {
             directory(REMOTE_ROOT)

@@ -20,7 +20,7 @@ class FileTransferEngineTest {
 
     @Before
     fun setup() {
-        root = createTempDir(prefix = "transfer-engine-test")
+        root = kotlin.io.path.createTempDirectory(prefix = "transfer-engine-test").toFile()
     }
 
     @After

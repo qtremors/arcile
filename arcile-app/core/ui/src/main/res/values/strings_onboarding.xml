@@ -107,5 +107,5 @@
     <string name="storage_access_check_failed">Arcile could not verify storage access. Reconnect or use Normal Android access.</string>
     <string name="cannot_open_sensitive_files">Cannot open sensitive files</string>
     <string name="cannot_open_file">Cannot open file: %1$s</string>
-    <string name="cannot_render_image">Arcile could not render this image on this device.</string>
+    <string name="cannot_render_image">Arcile couldn’t decode this image. The file may be damaged, unsupported, or temporarily inaccessible. Try opening it with another app.</string>
 </resources>
