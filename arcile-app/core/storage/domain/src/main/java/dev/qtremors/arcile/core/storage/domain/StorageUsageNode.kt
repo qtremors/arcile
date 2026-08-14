@@ -20,7 +20,8 @@ data class StorageUsageNode(
     val kind: StorageUsageNodeKind,
     val childCount: Int,
     val status: StorageUsageScanStatus = StorageUsageScanStatus.Ready,
-    val children: List<StorageUsageNode> = emptyList()
+    val children: List<StorageUsageNode> = emptyList(),
+    val nodeRef: StorageNodeRef? = null
 ) {
     val isContainer: Boolean get() = kind == StorageUsageNodeKind.Folder
 }

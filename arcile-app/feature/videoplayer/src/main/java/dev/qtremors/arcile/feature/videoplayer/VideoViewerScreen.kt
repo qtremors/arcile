@@ -105,7 +105,16 @@ internal fun VideoViewerScreen(
     onOpenWith: (FileModel) -> Unit
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val marqueeEnabled = LocalMarqueeFilenames.current
+    val exitViewer = remember(context, session.securityScopeId, onNavigateBack) {
+        {
+            if (videoBackgroundPlaybackAllowed(session.securityScopeId)) {
+                stopVideoBackgroundPlayback(context)
+            }
+            onNavigateBack()
+        }
+    }
 
     val externalFiles = remember(session.files) { session.files.orEmpty().distinctBy(FileModel::absolutePath) }
     val initialPath = remember(session) { videoPlaybackInitialPath(session) }
@@ -151,7 +160,7 @@ internal fun VideoViewerScreen(
             when (requireNotNull(backActionAtStart)) {
                 VideoViewerBackAction.DismissDelete -> viewModel.dismissDeleteConfirmation()
                 VideoViewerBackAction.DismissMetadata -> viewModel.setViewerMetadataVisible(null, visible = false)
-                VideoViewerBackAction.ExitViewer -> onNavigateBack()
+                VideoViewerBackAction.ExitViewer -> exitViewer()
             }
         } catch (e: Exception) {
             // Cancelled
@@ -165,7 +174,7 @@ internal fun VideoViewerScreen(
     // Auto navigate back if dataset becomes empty (e.g. after deleting all files)
     LaunchedEffect(displayedFiles.size, state.isLoading, state.isInitialized) {
         if (displayedFiles.isEmpty() && state.isInitialized && !state.isLoading) {
-            onNavigateBack()
+            exitViewer()
         }
     }
 
@@ -269,7 +278,7 @@ internal fun VideoViewerScreen(
         isBackPredicting = isBackPredicting,
         backActionAtStart = backActionAtStart,
         backProgress = backProgress,
-        onNavigateBack = onNavigateBack,
+        onNavigateBack = exitViewer,
         onShareFile = onShareFile,
         onOpenWith = onOpenWith
     )

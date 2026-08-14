@@ -64,6 +64,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
@@ -104,9 +105,12 @@ fun StandaloneTextEditor(
     onNavigateBack: () -> Unit,
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    loadContent: (suspend () -> String)? = null,
+    persistContent: (suspend (String) -> Result<Unit>)? = null
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
     var loadState by remember(reference) { mutableStateOf<TextLoadState>(TextLoadState.Loading) }
     var loadRequest by remember { mutableIntStateOf(0) }
@@ -134,7 +138,9 @@ fun StandaloneTextEditor(
     LaunchedEffect(reference, loadRequest) {
         loadState = TextLoadState.Loading
         val loaded = withContext(Dispatchers.IO) {
-            runCatching { readTextFileContent(context, reference) }
+            runCatching {
+                loadContent?.invoke() ?: readTextFileContent(context, reference)
+            }
         }
         loaded.fold(
             onSuccess = { sourceText ->
@@ -174,7 +180,7 @@ fun StandaloneTextEditor(
         if (draftResult.isFailure && !draftFailureShown) {
             draftFailureShown = true
             context.showArcileToast(
-                context.getString(R.string.text_editor_draft_failed),
+                resources.getString(R.string.text_editor_draft_failed),
                 longDuration = true
             )
         }
@@ -183,7 +189,7 @@ fun StandaloneTextEditor(
     val attemptBack: () -> Unit = {
         when {
             infoVisible -> infoVisible = false
-            isSaving -> context.showArcileToast(context.getString(R.string.text_editor_wait_for_save))
+            isSaving -> context.showArcileToast(resources.getString(R.string.text_editor_wait_for_save))
             isDirty -> showUnsavedDialog = true
             else -> onNavigateBack()
         }
@@ -242,7 +248,8 @@ fun StandaloneTextEditor(
         isSaving = true
         coroutineScope.launch {
             val result = withContext(Dispatchers.IO) {
-                writeAndVerifyTextFile(context, reference, snapshot)
+                persistContent?.invoke(snapshot)
+                    ?: writeAndVerifyTextFile(context, reference, snapshot)
             }
             isSaving = false
             result.fold(
@@ -252,15 +259,15 @@ fun StandaloneTextEditor(
                     withContext(Dispatchers.IO) {
                         if (noNewEdits) clearDraft(context, reference)
                     }
-                    context.showArcileToast(context.getString(R.string.text_editor_save_success))
+                    context.showArcileToast(resources.getString(R.string.text_editor_save_success))
                     if (noNewEdits) onSuccess()
                 },
                 onFailure = { error ->
                     if (error is CancellationException) throw error
                     context.showArcileToast(
-                        context.getString(
+                        resources.getString(
                             R.string.text_editor_save_failed_detail,
-                            error.localizedMessage ?: context.getString(R.string.text_editor_unknown_error)
+                            error.localizedMessage ?: resources.getString(R.string.text_editor_unknown_error)
                         ),
                         longDuration = true
                     )

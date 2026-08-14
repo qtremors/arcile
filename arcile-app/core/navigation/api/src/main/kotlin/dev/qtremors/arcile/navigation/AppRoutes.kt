@@ -9,6 +9,9 @@ object AppRoutes {
     const val IMAGE_VIEWER_CONTEXT_MIME_TYPES_KEY = "imageViewerContextMimeTypes"
     const val IMAGE_VIEWER_CONTEXT_SIZES_KEY = "imageViewerContextSizes"
     const val IMAGE_VIEWER_CONTEXT_MODIFIED_KEY = "imageViewerContextModified"
+    const val IMAGE_VIEWER_CONTEXT_CONTENT_URIS_KEY = "imageViewerContextContentUris"
+    const val IMAGE_VIEWER_CONTEXT_BACKEND_IDS_KEY = "imageViewerContextBackendIds"
+    const val IMAGE_VIEWER_CONTEXT_BACKEND_IDENTITIES_KEY = "imageViewerContextBackendIdentities"
     const val IMAGE_VIEWER_SELECTION_PATHS_KEY = "imageViewerSelectionPaths"
     const val IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY = "imageViewerReturnSelectionPaths"
     const val MEDIA_VIEWER_RETURN_PATH_KEY = "image_viewer.return_path"
@@ -57,8 +60,17 @@ object AppRoutes {
     @Serializable data class AudioLibrary(val volumeId: String? = null)
     @Serializable data class DocumentLibrary(val volumeId: String? = null)
     @Serializable data class ApkLibrary(val volumeId: String? = null)
-    @Serializable data class StorageDashboard(val volumeId: String? = null)
-    @Serializable object StorageCleaner
+    @Serializable data class StorageDashboard(
+        val volumeId: String? = null,
+        val scopePath: String? = null,
+        val scopeBackendId: String? = null,
+        val scopeBackendIdentity: String? = null
+    )
+    @Serializable data class StorageCleaner(
+        val scopePath: String? = null,
+        val scopeBackendId: String? = null,
+        val scopeBackendIdentity: String? = null
+    )
     @Serializable object StorageCleanerOverview
     @Serializable data class StorageCleanerGroup(val type: String)
     @Serializable object StorageManagement

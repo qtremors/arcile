@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import java.io.File
 import java.io.FileOutputStream
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import kotlinx.coroutines.CancellationException
@@ -43,6 +44,34 @@ object ApkPresentationMetadataReader {
                 ThumbnailWorkCoordinator.withExpensivePermit {
                     withApkPreviewFile(context, file) { apkFile ->
                         readPackageMetadata(context, apkFile)
+                    }
+                }
+            } catch (error: Exception) {
+                if (error is CancellationException) throw error
+                null
+            }
+            synchronized(cacheLock) { cache[key] = metadata }
+            metadata
+        }
+
+    suspend fun read(context: Context, file: FileModel): ApkPresentationMetadata? =
+        withContext(Dispatchers.IO) {
+            if (file.size > ThumbnailPolicy.MAX_APK_BYTES) return@withContext null
+            val key = "${file.nodeRef.contentUri ?: file.absolutePath}:${file.size}:${file.lastModified}"
+            synchronized(cacheLock) {
+                if (cache.containsKey(key)) return@withContext cache[key]
+            }
+            val metadata = try {
+                ThumbnailWorkCoordinator.withExpensivePermit {
+                    withApkCapabilityFile(
+                        context = context,
+                        source = File(file.absolutePath),
+                        contentUri = file.nodeRef.contentUri,
+                        extension = file.extension
+                    ) { capabilityFile ->
+                        withApkPreviewFile(context, capabilityFile) { apkFile ->
+                            readPackageMetadata(context, apkFile)
+                        }
                     }
                 }
             } catch (error: Exception) {

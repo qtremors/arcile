@@ -49,6 +49,8 @@
     <string name="onlyfiles_health_check">Quick health check</string>
     <string name="onlyfiles_quick_health_check">Quick health check</string>
     <string name="onlyfiles_full_health_check">Full health check</string>
+    <string name="onlyfiles_quick_health_check_description">Checks vault headers, folders, file references, and missing or unreferenced encrypted objects.</string>
+    <string name="onlyfiles_full_health_check_description">Also reads and authenticates every encrypted file chunk. This is more thorough and can take longer.</string>
     <string name="onlyfiles_change_password">Change password</string>
     <string name="onlyfiles_current_password">Current password</string>
     <string name="onlyfiles_new_password">New password</string>

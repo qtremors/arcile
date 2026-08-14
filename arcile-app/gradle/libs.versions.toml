@@ -1,39 +1,41 @@
 [versions]
-agp = "9.3.0"
-coreKtx = "1.18.0"
+agp = "9.3.1"
+coreKtx = "1.19.0"
 junit4 = "4.13.2"
 junitVersion = "1.3.0"
 testCore = "1.7.0"
 espressoCore = "3.7.0"
-lifecycleRuntimeKtx = "2.10.0"
+lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
-kotlin = "2.2.10"
-composeBom = "2026.05.00"
-composeMaterial3 = "1.5.0-alpha19"
+kotlin = "2.4.10"
+composeBom = "2026.06.01"
+composeMaterial3 = "1.5.0-alpha25"
 coroutines = "1.11.0"
-collectionsImmutable = "0.4.0"
-lifecycleViewmodelCompose = "2.10.0"
-navigationCompose = "2.9.7"
+collectionsImmutable = "0.5.1"
+lifecycleViewmodelCompose = "2.11.0"
+navigationCompose = "2.9.8"
 datastorePreferences = "1.2.1"
 coil = "2.7.0"
-composeMaterial3Adaptive = "1.2.0"
-hilt = "2.59.2"
-hiltNavigationCompose = "1.3.0"
-ksp = "2.3.2"
+composeMaterial3Adaptive = "1.3.0"
+hilt = "2.60.1"
+hiltNavigationCompose = "1.4.0"
+ksp = "2.3.11"
 coreSplashScreen = "1.2.0"
 material-kolor = "4.1.1"
 robolectric = "4.16.1"
-mockk = "1.14.9"
+mockk = "1.14.11"
 turbine = "1.2.1"
 commonsCompress = "1.28.0"
 xz = "1.12"
 zip4j = "2.11.6"
-archUnit = "1.4.2"
+archUnit = "1.5.0"
 room = "2.8.4"
-exifinterface = "1.3.7"
-graphicsShapes = "1.0.1"
-bouncyCastle = "1.84"
-media3 = "1.10.1"
+exifinterface = "1.4.2"
+graphicsShapes = "1.1.0"
+bouncyCastle = "1.85.2"
+media3 = "1.11.0"
+shizuku = "13.1.5"
+libsu = "6.0.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -95,6 +97,10 @@ androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplaye
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-ui-compose-material3 = { group = "androidx.media3", name = "media3-ui-compose-material3", version.ref = "media3" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+libsu-core = { group = "com.github.topjohnwu.libsu", name = "core", version.ref = "libsu" }
+libsu-service = { group = "com.github.topjohnwu.libsu", name = "service", version.ref = "libsu" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

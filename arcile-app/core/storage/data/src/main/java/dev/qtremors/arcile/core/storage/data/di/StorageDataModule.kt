@@ -18,6 +18,8 @@ import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.DefaultArchiveRepository
 import dev.qtremors.arcile.core.storage.data.DefaultClipboardRepository
 import dev.qtremors.arcile.core.storage.data.DefaultFileBrowserRepository
+import dev.qtremors.arcile.core.storage.data.DefaultPrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.data.DefaultPrivilegedTextFileEditor
 import dev.qtremors.arcile.core.storage.data.DefaultFileMutationRepository
 import dev.qtremors.arcile.core.storage.data.DefaultMediaRepository
 import dev.qtremors.arcile.core.storage.data.DefaultAudioLibraryRepository
@@ -30,6 +32,7 @@ import dev.qtremors.arcile.core.storage.data.StorageClassificationRepository
 import dev.qtremors.arcile.core.storage.data.RecentFilesSnapshotStore
 import dev.qtremors.arcile.core.storage.data.StorageCleanerSnapshotStore
 import dev.qtremors.arcile.core.storage.data.StorageUsageSnapshotStore
+import dev.qtremors.arcile.core.storage.data.StorageNodeFolderStatsCalculator
 import dev.qtremors.arcile.core.storage.data.DefaultThumbnailCacheStore
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheStore
 import dev.qtremors.arcile.core.storage.data.db.ArcileDatabase
@@ -41,22 +44,36 @@ import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.db.StorageUsageSnapshotDao
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailDao
 import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveManager
+import dev.qtremors.arcile.core.storage.data.manager.ArchiveNodeWorkspaceBridge
+import dev.qtremors.arcile.core.storage.data.manager.BackendAwareArchiveManager
+import dev.qtremors.arcile.core.storage.data.manager.DefaultArchiveNodeIo
 import dev.qtremors.arcile.core.storage.data.manager.DefaultTrashManager
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
+import dev.qtremors.arcile.core.storage.data.manager.PrivilegedTrashController
+import dev.qtremors.arcile.core.storage.data.manager.PrivilegedTrashMetadataStore
 import dev.qtremors.arcile.core.storage.data.provider.DefaultVolumeProvider
 import dev.qtremors.arcile.core.storage.data.provider.DefaultRootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.DefaultFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.BackendAwareFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.CrossBackendTransferEngine
 import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.PrivilegedFileSystemDataSource
+import dev.qtremors.arcile.core.storage.data.source.PrivilegedPathPolicy
+import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
+import dev.qtremors.arcile.core.privilege.PrivilegePreferences
+import dev.qtremors.arcile.core.privilege.PrivilegedFileClientProvider
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.domain.PrivilegedTextFileEditor
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.ImageCatalogRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
@@ -75,7 +92,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
+import java.io.File
 import javax.inject.Singleton
+import javax.inject.Provider
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -188,6 +210,26 @@ object StorageDataModule {
 
     @Provides
     @Singleton
+    fun providePrivilegedContentAccessManager(
+        @ApplicationContext context: Context,
+        privilegedFileSystemDataSource: PrivilegedFileSystemDataSource,
+        @ApplicationScope applicationScope: CoroutineScope,
+        dispatchers: ArcileDispatchers
+    ): PrivilegedContentAccessManager = DefaultPrivilegedContentAccessManager(
+        context = context,
+        dataSource = privilegedFileSystemDataSource,
+        applicationScope = applicationScope,
+        dispatchers = dispatchers
+    )
+
+    @Provides
+    @Singleton
+    fun providePrivilegedTextFileEditor(
+        privilegedFileSystemDataSource: PrivilegedFileSystemDataSource
+    ): PrivilegedTextFileEditor = DefaultPrivilegedTextFileEditor(privilegedFileSystemDataSource)
+
+    @Provides
+    @Singleton
     fun provideRootStorageUsageProvider(): RootStorageUsageProvider =
         DefaultRootStorageUsageProvider()
 
@@ -209,43 +251,69 @@ object StorageDataModule {
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
         mutationJournal: MutationJournal,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        fileSystemDataSource: FileSystemDataSource
     ): TrashManager {
+        val privilegedTrash = PrivilegedTrashController(
+            fileSystemDataSource = fileSystemDataSource,
+            volumeProvider = volumeProvider,
+            mutationFinalizer = mutationFinalizer,
+            metadataStore = PrivilegedTrashMetadataStore(
+                File(context.filesDir, "privileged-trash")
+            ),
+            dispatchers = dispatchers
+        )
         return DefaultTrashManager(
             context,
             volumeProvider,
             mutationFinalizer,
             dispatchers = dispatchers,
-            mutationJournal = mutationJournal
+            mutationJournal = mutationJournal,
+            privilegedTrashController = privilegedTrash
         )
     }
 
     @Provides
     @Singleton
     fun provideArchiveManager(
+        @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
         mutationJournal: MutationJournal,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        fileSystemDataSource: FileSystemDataSource,
+        privilegedFileSystemDataSource: PrivilegedFileSystemDataSource
     ): ArchiveManager {
-        return DefaultArchiveManager(
+        val workspaceRoot = java.io.File(context.cacheDir, "archive-workspaces")
+        val codec = DefaultArchiveManager(
             volumeProvider,
             mutationFinalizer,
             dispatchers = dispatchers,
-            mutationJournal = mutationJournal
+            mutationJournal = mutationJournal,
+            additionalSafeRoots = listOf(workspaceRoot.absolutePath)
+        )
+        return BackendAwareArchiveManager(
+            codec = codec,
+            bridge = ArchiveNodeWorkspaceBridge(
+                io = DefaultArchiveNodeIo(
+                    fileSystem = fileSystemDataSource,
+                    privileged = privilegedFileSystemDataSource
+                ),
+                workspaceRoot = workspaceRoot
+            )
         )
     }
 
     @Provides
     @Singleton
-    fun provideFileSystemDataSource(
+    fun provideLocalFileSystemDataSource(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
         mutationFinalizer: MutationFinalizer,
         mutationJournal: MutationJournal,
         storageNodeDao: StorageNodeDao,
         dispatchers: ArcileDispatchers
-    ): FileSystemDataSource {
+    ): DefaultFileSystemDataSource {
         return DefaultFileSystemDataSource(
             context,
             volumeProvider,
@@ -255,6 +323,65 @@ object StorageDataModule {
             mutationJournal = mutationJournal
         )
     }
+
+    @Provides
+    @Singleton
+    fun providePrivilegedPathPolicy(
+        @ApplicationContext context: Context,
+        volumeProvider: VolumeProvider,
+        privilegePreferences: PrivilegePreferences,
+        @ApplicationScope applicationScope: CoroutineScope
+    ): PrivilegedPathPolicy {
+        val protectedWritesEnabled = AtomicBoolean(false)
+        applicationScope.launch {
+            privilegePreferences.state.collectLatest { preference ->
+                protectedWritesEnabled.set(preference.protectedFilesystemWritesEnabled)
+            }
+        }
+        return PrivilegedPathPolicy(
+            packageName = context.packageName,
+            protectedWritesEnabled = protectedWritesEnabled::get,
+            storageRoots = { volumeProvider.activeStorageRoots }
+        )
+    }
+
+    @Provides
+    @Singleton
+    fun providePrivilegedFileSystemDataSource(
+        clientProvider: PrivilegedFileClientProvider,
+        pathPolicy: PrivilegedPathPolicy,
+        dispatchers: ArcileDispatchers
+    ): PrivilegedFileSystemDataSource = PrivilegedFileSystemDataSource(
+        clientProvider = clientProvider,
+        pathPolicy = pathPolicy,
+        dispatchers = dispatchers
+    )
+
+    @Provides
+    @Singleton
+    fun provideFileSystemDataSource(
+        local: DefaultFileSystemDataSource,
+        privileged: PrivilegedFileSystemDataSource,
+        privilegeCoordinator: PrivilegeCoordinator,
+        crossBackendTransferEngine: CrossBackendTransferEngine
+    ): FileSystemDataSource = BackendAwareFileSystemDataSource(
+        local = local,
+        privileged = privileged,
+        privilegeCoordinator = privilegeCoordinator,
+        crossBackendTransferEngine = crossBackendTransferEngine
+    )
+
+    @Provides
+    @Singleton
+    fun provideCrossBackendTransferEngine(
+        local: DefaultFileSystemDataSource,
+        privileged: PrivilegedFileSystemDataSource,
+        dispatchers: ArcileDispatchers
+    ): CrossBackendTransferEngine = CrossBackendTransferEngine(
+        local = local,
+        privileged = privileged,
+        dispatchers = dispatchers
+    )
 
     @Provides
     @Singleton
@@ -292,11 +419,15 @@ object StorageDataModule {
         @ApplicationContext context: Context,
         folderStatsDao: FolderStatsDao,
         storageWorkCoordinator: StorageWorkCoordinator,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        fileSystemDataSource: javax.inject.Provider<FileSystemDataSource>
     ): FolderStatsStore {
         return DefaultFolderStatsStore(
             context,
             folderStatsDao = folderStatsDao,
+            nodeCalculator = { node ->
+                StorageNodeFolderStatsCalculator(fileSystemDataSource.get()).calculate(node)
+            },
             workerScope = CoroutineScope(SupervisorJob() + dispatchers.storage),
             storageWorkCoordinator = storageWorkCoordinator
         )
@@ -315,9 +446,15 @@ object StorageDataModule {
     fun provideFileBrowserRepository(
         fileSystemDataSource: FileSystemDataSource,
         folderStatsStore: FolderStatsStore,
-        dispatchers: ArcileDispatchers
+        dispatchers: ArcileDispatchers,
+        privilegedContentAccessManager: PrivilegedContentAccessManager
     ): FileBrowserRepository =
-        DefaultFileBrowserRepository(fileSystemDataSource, folderStatsStore, dispatchers)
+        DefaultFileBrowserRepository(
+            fileSystemDataSource = fileSystemDataSource,
+            folderStatsStore = folderStatsStore,
+            dispatchers = dispatchers,
+            privilegedContentAccessManager = privilegedContentAccessManager
+        )
 
     @Provides
     @Singleton
@@ -341,14 +478,16 @@ object StorageDataModule {
         trashManager: TrashManager,
         recentFilesSnapshotStore: RecentFilesSnapshotStore,
         dispatchers: ArcileDispatchers,
-        rootStorageUsageProvider: RootStorageUsageProvider
+        rootStorageUsageProvider: RootStorageUsageProvider,
+        fileSystemDataSource: Provider<FileSystemDataSource>
     ): DefaultMediaRepository = DefaultMediaRepository(
         volumeProvider,
         mediaStoreClient,
         trashManager,
         recentFilesSnapshotStore,
         dispatchers,
-        rootStorageUsageProvider
+        rootStorageUsageProvider,
+        fileSystemDataSource
     )
 
     @Provides

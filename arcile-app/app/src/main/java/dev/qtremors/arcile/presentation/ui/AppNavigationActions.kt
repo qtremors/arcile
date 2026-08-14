@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Process
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -12,12 +13,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 import dev.qtremors.arcile.core.plugin.android.PluginManager
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
+import dev.qtremors.arcile.core.storage.domain.PrivilegedContentGrantPurpose
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
@@ -28,7 +36,9 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.PdfViewerActivity
+import dev.qtremors.arcile.createProtectedPdfViewerIntent
 import dev.qtremors.arcile.TextEditorActivity
+import dev.qtremors.arcile.createProtectedTextEditorIntent
 import dev.qtremors.arcile.feature.audio.createAudioPlayerIntent
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import kotlinx.coroutines.CoroutineScope
@@ -42,6 +52,7 @@ internal class AppNavigationActions(
     private val navController: NavHostController,
     private val coroutineScope: CoroutineScope,
     private val fileOpenResolver: AppFileOpenResolver,
+    private val privilegedContentAccessManager: PrivilegedContentAccessManager,
     private val onOpenFile: (String) -> Unit,
     private val onOpenFileWith: (String) -> Unit,
     private val onFeedback: (ArcileFeedbackEvent) -> Unit
@@ -107,7 +118,11 @@ internal class AppNavigationActions(
                 context = context,
                 path = track.file.absolutePath,
                 contextPaths = queue.map { it.file.absolutePath },
-                startPlayback = startPlayback
+                startPlayback = startPlayback,
+                contentUri = track.file.nodeRef.contentUri,
+                mimeType = track.file.mimeType,
+                displayName = track.file.name,
+                nodeRef = track.file.nodeRef
             )
         )
     }
@@ -121,7 +136,7 @@ internal class AppNavigationActions(
     suspend fun shareKnownFiles(paths: List<String>, files: List<FileModel>): Boolean {
         val byPath = files.associateBy(FileModel::absolutePath)
         val references = paths.map { path ->
-            byPath[path]?.toExternalReference()
+            byPath[path]?.toHandoffReference()
                 ?: ExternalFileAccessHelper.ExternalFileReference(path = path)
         }
         return ShareHelper.shareFileReferences(context, references)
@@ -135,13 +150,17 @@ internal class AppNavigationActions(
         coroutineScope.launch {
             ShareHelper.shareFileReferences(
                 context,
-                listOf(if (managedTrash) file.toManagedTrashReference() else file.toExternalReference())
+                listOf(
+                    if (managedTrash) file.toManagedTrashReference()
+                    else file.toHandoffReference()
+                )
             )
         }
     }
 
     fun openViewerFileWith(file: FileModel, managedTrash: Boolean) {
         if (managedTrash) openManagedTrashFileExternally(file, forceChooser = true)
+        else if (file.nodeRef.isPrivileged) openFileModelExternally(file, forceChooser = true)
         else onOpenFileWith(file.absolutePath)
     }
 
@@ -216,7 +235,25 @@ internal class AppNavigationActions(
         selectedPaths: Set<String> = emptySet()
     ) {
         coroutineScope.launch {
-            when (val resolution = fileOpenResolver.resolve(path, surroundingFiles)) {
+            val originalKnownFile = surroundingFiles.firstOrNull { it.absolutePath == path }
+            val knownFile = originalKnownFile?.ensureInternalContentGrant()?.getOrElse { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                reportError(
+                    UiText.StringResource(
+                        R.string.cannot_open_file,
+                        listOf(error.localizedMessage.orEmpty())
+                    )
+                )
+                return@launch
+            }
+            val preparedFiles = if (knownFile != null && knownFile !== originalKnownFile) {
+                surroundingFiles.map { file ->
+                    if (file === originalKnownFile) knownFile else file
+                }
+            } else {
+                surroundingFiles
+            }
+            when (val resolution = fileOpenResolver.resolve(path, preparedFiles)) {
                 AppFileOpenResolution.Handled -> Unit
                 is AppFileOpenResolution.PluginPrompt -> pluginPrompt = resolution.prompt
                 is AppFileOpenResolution.Failed -> reportError(
@@ -239,44 +276,65 @@ internal class AppNavigationActions(
                     resolution,
                     returnToBrowserPage,
                     selectedPaths,
-                    surroundingFiles
+                    preparedFiles
                 )
                 is AppFileOpenResolution.ViewVideo -> openVideoViewer(
                     path = resolution.path,
-                    surroundingFiles = surroundingFiles,
+                    surroundingFiles = preparedFiles,
                     selectedPaths = selectedPaths
                 )
-                is AppFileOpenResolution.ViewAudio -> context.startActivity(
-                    createAudioPlayerIntent(
+                is AppFileOpenResolution.ViewAudio -> {
+                    val selected = preparedFiles.firstOrNull { it.absolutePath == resolution.path }
+                    context.startActivity(createAudioPlayerIntent(
                         context = context,
                         path = resolution.path,
-                        contextPaths = surroundingFiles
+                        contextPaths = preparedFiles
                             .filter {
                                 FileCategories.getCategoryForFile(it.extension, it.mimeType) ==
                                     FileCategories.Audio
                             }
-                            .map(FileModel::absolutePath)
-                    )
-                )
+                            .map { it.nodeRef.contentUri ?: it.absolutePath },
+                        contentUri = selected?.nodeRef?.contentUri,
+                        mimeType = selected?.mimeType,
+                        displayName = selected?.name,
+                        nodeRef = selected?.nodeRef
+                    ))
+                }
                 is AppFileOpenResolution.ViewPdf -> {
-                    val intent = ExternalFileAccessHelper
-                        .createOpenIntent(context, resolution.path)
-                        .setClass(context, PdfViewerActivity::class.java)
+                    val intent = knownFile?.takeIf { it.nodeRef.isPrivileged }
+                        ?.let { createProtectedPdfViewerIntent(context, it) }
+                        ?: ExternalFileAccessHelper.createOpenIntent(
+                            context,
+                            knownFile?.toInternalReference()
+                                ?: ExternalFileAccessHelper.ExternalFileReference(
+                                    path = resolution.path
+                                )
+                        ).setClass(context, PdfViewerActivity::class.java)
                     context.startActivity(intent)
                 }
                 is AppFileOpenResolution.EditText -> {
-                    val file = File(resolution.path)
-                    val intent = Intent(Intent.ACTION_EDIT).apply {
-                        setClass(context, TextEditorActivity::class.java)
-                        setDataAndType(Uri.fromFile(file), "text/plain")
-                        putExtra(Intent.EXTRA_TITLE, file.name)
-                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-                    }
+                    val intent = knownFile?.takeIf { it.nodeRef.isPrivileged }
+                        ?.let { createProtectedTextEditorIntent(context, it) }
+                        ?: Intent(Intent.ACTION_EDIT).apply {
+                            val file = File(resolution.path)
+                            setClass(context, TextEditorActivity::class.java)
+                            setDataAndType(Uri.fromFile(file), knownFile?.mimeType ?: "text/plain")
+                            putExtra(Intent.EXTRA_TITLE, file.name)
+                            addFlags(
+                                Intent.FLAG_GRANT_READ_URI_PERMISSION or
+                                    Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                            )
+                        }
                     context.startActivity(intent)
                 }
-                is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution
+                is AppFileOpenResolution.InstallApk -> apkInstallTarget = resolution.copy(
+                    contentUri = knownFile?.nodeRef?.contentUri,
+                    displayName = knownFile?.name
+                )
                 is AppFileOpenResolution.External -> {
-                    if (resolution.forceChooser) {
+                    if (knownFile?.nodeRef?.isPrivileged == true) {
+                        openFileModelExternally(knownFile, resolution.forceChooser)
+                    } else if (resolution.forceChooser) {
                         onOpenFileWith(resolution.path)
                     } else {
                         onOpenFile(resolution.path)
@@ -309,15 +367,18 @@ internal class AppNavigationActions(
                 )
             )
         val selectedFile = queue.first { it.absolutePath == path }
+        val playbackUri = selectedFile.nodeRef.contentUri?.takeIf(String::isNotBlank)
+            ?.let(Uri::parse)
+            ?: Uri.fromFile(File(selectedFile.absolutePath))
         val selectedItem = VideoPlaybackItem(
             mediaItem = MediaItem.Builder()
-                .setUri(Uri.fromFile(File(selectedFile.absolutePath)))
+                .setUri(playbackUri)
                 .setMimeType(selectedFile.mimeType)
                 .setMediaId(selectedFile.absolutePath)
                 .build(),
             title = selectedFile.name,
-            onShare = { shareVideo(selectedFile.absolutePath, managedTrash) },
-            onOpenWith = { openVideoWith(selectedFile.absolutePath, managedTrash) }
+            onShare = { shareVideo(selectedFile, managedTrash) },
+            onOpenWith = { openVideoWith(selectedFile, managedTrash) }
         )
         val token = GlobalVideoPlaybackSessions.register(
             VideoPlaybackSession(
@@ -330,23 +391,21 @@ internal class AppNavigationActions(
         navController.navigate(AppRoutes.VideoViewer(token))
     }
 
-    fun shareVideo(path: String, managedTrash: Boolean) {
+    fun shareVideo(file: FileModel, managedTrash: Boolean) {
         coroutineScope.launch {
             ShareHelper.shareFileReferences(
                 context,
                 listOf(
-                    ExternalFileAccessHelper.ExternalFileReference(
-                        path = path,
-                        allowManagedTrashPayload = managedTrash
-                    )
+                    if (managedTrash) file.toManagedTrashReference() else file.toHandoffReference()
                 )
             )
         }
     }
 
-    fun openVideoWith(path: String, managedTrash: Boolean) {
+    fun openVideoWith(file: FileModel, managedTrash: Boolean) {
         if (!managedTrash) {
-            onOpenFileWith(path)
+            if (file.nodeRef.isPrivileged) openFileModelExternally(file, forceChooser = true)
+            else onOpenFileWith(file.absolutePath)
             return
         }
         coroutineScope.launch {
@@ -354,11 +413,11 @@ internal class AppNavigationActions(
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
-                        path = path,
+                        path = file.absolutePath,
                         allowManagedTrashPayload = true
                     )
                 )
-                context.startActivity(Intent.createChooser(intent, path.substringAfterLast('/')))
+                context.startActivity(Intent.createChooser(intent, file.name))
             }.onFailure { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 reportError(
@@ -404,6 +463,18 @@ internal class AppNavigationActions(
                     AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY,
                     orderedFiles.map(FileModel::lastModified).toLongArray()
                 )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_CONTENT_URIS_KEY,
+                    ArrayList(orderedFiles.map { it.nodeRef.contentUri.orEmpty() })
+                )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_BACKEND_IDS_KEY,
+                    ArrayList(orderedFiles.map { it.nodeRef.backendId })
+                )
+                savedStateHandle?.set(
+                    AppRoutes.IMAGE_VIEWER_CONTEXT_BACKEND_IDENTITIES_KEY,
+                    ArrayList(orderedFiles.map { it.nodeRef.backendIdentity.orEmpty() })
+                )
             } else {
                 clearViewerContextMetadata(savedStateHandle)
             }
@@ -437,9 +508,12 @@ internal class AppNavigationActions(
         savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_MIME_TYPES_KEY)
         savedStateHandle?.remove<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_SIZES_KEY)
         savedStateHandle?.remove<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY)
+        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_CONTENT_URIS_KEY)
+        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_BACKEND_IDS_KEY)
+        savedStateHandle?.remove<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_BACKEND_IDENTITIES_KEY)
     }
 
-    private fun FileModel.toExternalReference() =
+    private fun FileModel.toInternalReference() =
         ExternalFileAccessHelper.ExternalFileReference(
             path = absolutePath,
             displayName = name,
@@ -447,6 +521,68 @@ internal class AppNavigationActions(
             mimeType = mimeType,
             nodeRef = nodeRef
         )
+
+    private suspend fun FileModel.ensureInternalContentGrant(): Result<FileModel> {
+        if (!nodeRef.isPrivileged || nodeRef.contentUri != null) return Result.success(this)
+        return privilegedContentAccessManager.issue(
+            node = nodeRef,
+            displayName = name,
+            mimeType = mimeType,
+            sizeBytes = size,
+            modifiedAtMillis = lastModified,
+            purpose = PrivilegedContentGrantPurpose.INTERNAL_PREVIEW,
+            expectedConsumerUid = Process.myUid()
+        ).map { grant ->
+            copy(nodeRef = nodeRef.copy(contentUri = grant.contentUri))
+        }
+    }
+
+    private suspend fun FileModel.toHandoffReference(): ExternalFileAccessHelper.ExternalFileReference {
+        if (!nodeRef.isPrivileged) return toInternalReference()
+        val grant = privilegedContentAccessManager.issue(
+            node = nodeRef,
+            displayName = name,
+            mimeType = mimeType,
+            sizeBytes = size,
+            modifiedAtMillis = lastModified,
+            purpose = PrivilegedContentGrantPurpose.EXTERNAL_HANDOFF,
+            lifetimeMillis = PrivilegedContentAccessManager.DEFAULT_EXTERNAL_GRANT_LIFETIME_MILLIS,
+            expectedConsumerUid = null
+        ).getOrThrow()
+        return ExternalFileAccessHelper.ExternalFileReference(
+            path = absolutePath,
+            displayName = name,
+            sizeBytes = size,
+            mimeType = mimeType,
+            nodeRef = nodeRef.copy(contentUri = grant.contentUri)
+        )
+    }
+
+    private fun openFileModelExternally(file: FileModel, forceChooser: Boolean) {
+        coroutineScope.launch {
+            runCatching {
+                val intent = ExternalFileAccessHelper.createOpenIntent(
+                    context,
+                    file.toHandoffReference()
+                )
+                context.startActivity(
+                    if (forceChooser) {
+                        ExternalFileAccessHelper.createExternalOpenChooser(context, intent, file.name)
+                    } else {
+                        intent.apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+                    }
+                )
+            }.onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                reportError(
+                    UiText.StringResource(
+                        R.string.cannot_open_file,
+                        listOf(error.localizedMessage.orEmpty())
+                    )
+                )
+            }
+        }
+    }
 
     private fun FileModel.toManagedTrashReference() =
         ExternalFileAccessHelper.ExternalFileReference(
@@ -478,6 +614,12 @@ internal fun rememberAppNavigationActions(
 ): AppNavigationActions {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val privilegedContentAccessManager = remember(context) {
+        EntryPointAccessors.fromApplication(
+            context.applicationContext,
+            NavigationEntryPoint::class.java
+        ).privilegedContentAccessManager()
+    }
     return remember(
         context,
         navController,
@@ -495,9 +637,16 @@ internal fun rememberAppNavigationActions(
                 pluginGateway = InstalledPluginFileResolutionGateway(PluginManager(context)),
                 fileOpenBehaviors = fileOpenBehaviors
             ),
+            privilegedContentAccessManager = privilegedContentAccessManager,
             onOpenFile = onOpenFile,
             onOpenFileWith = onOpenFileWith,
             onFeedback = onFeedback
         )
     }
+}
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface NavigationEntryPoint {
+    fun privilegedContentAccessManager(): PrivilegedContentAccessManager
 }

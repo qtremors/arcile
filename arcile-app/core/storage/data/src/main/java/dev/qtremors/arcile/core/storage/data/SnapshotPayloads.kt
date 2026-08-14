@@ -8,6 +8,10 @@ import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodePath
+import dev.qtremors.arcile.core.storage.domain.StorageVolumeId
+import dev.qtremors.arcile.core.storage.domain.CanonicalStorageIdentity
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
@@ -26,14 +30,15 @@ internal data class CachedFileModel(
     val backendId: String,
     val volumeId: String?,
     val contentUri: String?,
-    val backendIdentity: String?
+    val backendIdentity: String?,
+    val nodeRef: CachedStorageNodeRef? = null
 ) {
     fun toDomain(): FileModel {
         val mediaIdentity = backendIdentity
             ?.takeIf { backendId == StorageNodeRef.MEDIA_STORE_BACKEND_ID }
             ?.split(':')
-        val ref = if (contentUri != null && mediaIdentity?.size == 3) {
-            StorageNodeRef.mediaStore(
+        val ref = nodeRef?.toDomain() ?: when {
+            contentUri != null && mediaIdentity?.size == 3 -> StorageNodeRef.mediaStore(
                 id = mediaIdentity[2].toLongOrNull() ?: 0L,
                 volumeName = mediaIdentity[1].ifBlank { null },
                 contentUri = contentUri,
@@ -41,8 +46,11 @@ internal data class CachedFileModel(
                 volumeId = volumeId,
                 localPath = absolutePath
             )
-        } else {
-            StorageNodeRef.local(path = absolutePath, volumeId = volumeId)
+            backendId == StorageNodeRef.ROOT_BACKEND_ID && backendIdentity != null ->
+                StorageNodeRef.root(absolutePath, backendIdentity, volumeId)
+            backendId == StorageNodeRef.SHIZUKU_BACKEND_ID && backendIdentity != null ->
+                StorageNodeRef.shizuku(absolutePath, backendIdentity, volumeId)
+            else -> StorageNodeRef.local(path = absolutePath, volumeId = volumeId)
         }
         return FileModel(
             name = name,
@@ -71,8 +79,74 @@ internal data class CachedFileModel(
                 backendId = file.nodeRef.backendId,
                 volumeId = file.nodeRef.volumeId?.value,
                 contentUri = file.nodeRef.contentUri,
-                backendIdentity = file.nodeRef.backendIdentity
+                backendIdentity = file.nodeRef.backendIdentity,
+                nodeRef = CachedStorageNodeRef.from(file.nodeRef)
             )
+    }
+}
+
+@Serializable
+internal data class CachedStorageNodeRef(
+    val backendId: String,
+    val volumeId: String?,
+    val displayPath: String,
+    val canonicalIdentity: String,
+    val canRead: Boolean,
+    val canWrite: Boolean,
+    val canDelete: Boolean,
+    val canTrash: Boolean,
+    val canArchive: Boolean,
+    val canRename: Boolean,
+    val canCopy: Boolean,
+    val canMove: Boolean,
+    val canExport: Boolean,
+    val canShare: Boolean,
+    val canOpenWith: Boolean,
+    val contentUri: String?,
+    val backendIdentity: String?
+) {
+    fun toDomain(): StorageNodeRef = StorageNodeRef(
+        backendId = backendId,
+        volumeId = volumeId?.takeIf(String::isNotBlank)?.let(StorageVolumeId::of),
+        displayPath = StorageNodePath.of(displayPath),
+        canonicalIdentity = CanonicalStorageIdentity.of(canonicalIdentity),
+        capabilities = StorageNodeCapabilities(
+            canRead = canRead,
+            canWrite = canWrite,
+            canDelete = canDelete,
+            canTrash = canTrash,
+            canArchive = canArchive,
+            canRename = canRename,
+            canCopy = canCopy,
+            canMove = canMove,
+            canExport = canExport,
+            canShare = canShare,
+            canOpenWith = canOpenWith
+        ),
+        contentUri = contentUri,
+        backendIdentity = backendIdentity
+    )
+
+    companion object {
+        fun from(node: StorageNodeRef): CachedStorageNodeRef = CachedStorageNodeRef(
+            backendId = node.backendId,
+            volumeId = node.volumeId?.value,
+            displayPath = node.displayPath.absolutePath,
+            canonicalIdentity = node.canonicalIdentity.value,
+            canRead = node.capabilities.canRead,
+            canWrite = node.capabilities.canWrite,
+            canDelete = node.capabilities.canDelete,
+            canTrash = node.capabilities.canTrash,
+            canArchive = node.capabilities.canArchive,
+            canRename = node.capabilities.canRename,
+            canCopy = node.capabilities.canCopy,
+            canMove = node.capabilities.canMove,
+            canExport = node.capabilities.canExport,
+            canShare = node.capabilities.canShare,
+            canOpenWith = node.capabilities.canOpenWith,
+            contentUri = node.contentUri,
+            backendIdentity = node.backendIdentity
+        )
     }
 }
 
@@ -84,7 +158,8 @@ internal data class CachedStorageUsageNode(
     val kind: String,
     val childCount: Int,
     val status: String,
-    val children: List<CachedStorageUsageNode>
+    val children: List<CachedStorageUsageNode>,
+    val nodeRef: CachedStorageNodeRef? = null
 ) {
     fun toDomain(): StorageUsageNode =
         StorageUsageNode(
@@ -94,7 +169,8 @@ internal data class CachedStorageUsageNode(
             kind = StorageUsageNodeKind.valueOf(kind),
             childCount = childCount,
             status = StorageUsageScanStatus.valueOf(status),
-            children = children.map { it.toDomain() }
+            children = children.map { it.toDomain() },
+            nodeRef = nodeRef?.toDomain()
         )
 
     companion object {
@@ -106,7 +182,8 @@ internal data class CachedStorageUsageNode(
                 kind = node.kind.name,
                 childCount = node.childCount,
                 status = node.status.name,
-                children = node.children.map { from(it) }
+                children = node.children.map { from(it) },
+                nodeRef = node.nodeRef?.let(CachedStorageNodeRef::from)
             )
     }
 }
@@ -121,7 +198,8 @@ internal data class CachedCleanerCandidate(
     val riskLevel: String,
     val riskReasons: Set<String>,
     val isDirectory: Boolean,
-    val duplicateGroupKey: String?
+    val duplicateGroupKey: String?,
+    val nodeRef: CachedStorageNodeRef? = null
 ) {
     fun toDomain(): CleanerCandidate =
         CleanerCandidate(
@@ -133,7 +211,8 @@ internal data class CachedCleanerCandidate(
             riskLevel = CleanerRiskLevel.valueOf(riskLevel),
             riskReasons = riskReasons.mapTo(linkedSetOf()) { CleanerRiskReason.valueOf(it) },
             isDirectory = isDirectory,
-            duplicateGroupKey = duplicateGroupKey
+            duplicateGroupKey = duplicateGroupKey,
+            nodeRef = nodeRef?.toDomain()
         )
 
     companion object {
@@ -147,7 +226,8 @@ internal data class CachedCleanerCandidate(
                 riskLevel = candidate.riskLevel.name,
                 riskReasons = candidate.riskReasons.mapTo(linkedSetOf()) { it.name },
                 isDirectory = candidate.isDirectory,
-                duplicateGroupKey = candidate.duplicateGroupKey
+                duplicateGroupKey = candidate.duplicateGroupKey,
+                nodeRef = candidate.nodeRef?.let(CachedStorageNodeRef::from)
             )
     }
 }
@@ -184,4 +264,3 @@ internal data class CachedCleanerResult(
             )
     }
 }
-

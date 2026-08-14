@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.PersistentSet
@@ -19,6 +20,7 @@ import kotlinx.collections.immutable.toPersistentList
 @Immutable
 internal data class BrowserLocationState(
     val currentPath: String = "",
+    val currentNodeRef: StorageNodeRef? = null,
     val currentVolumeId: String? = null,
     val isVolumeRootScreen: Boolean = false,
     val isCategoryScreen: Boolean = false,
@@ -52,6 +54,7 @@ internal data class BrowserNavigationState(
     val listing: BrowserListingState = BrowserListingState()
 ) {
     val currentPath get() = location.currentPath
+    val currentNodeRef get() = location.currentNodeRef
     val currentVolumeId get() = location.currentVolumeId
     val isVolumeRootScreen get() = location.isVolumeRootScreen
     val isCategoryScreen get() = location.isCategoryScreen
@@ -77,6 +80,7 @@ internal data class BrowserNavigationState(
     @Suppress("LongParameterList")
     fun withValues(
         currentPath: String = this.currentPath,
+        currentNodeRef: StorageNodeRef? = this.currentNodeRef,
         currentVolumeId: String? = this.currentVolumeId,
         isVolumeRootScreen: Boolean = this.isVolumeRootScreen,
         isCategoryScreen: Boolean = this.isCategoryScreen,
@@ -100,6 +104,7 @@ internal data class BrowserNavigationState(
     ): BrowserNavigationState = BrowserNavigationState(
         location = location.copy(
             currentPath = currentPath,
+            currentNodeRef = currentNodeRef,
             currentVolumeId = currentVolumeId,
             isVolumeRootScreen = isVolumeRootScreen,
             isCategoryScreen = isCategoryScreen,
@@ -129,7 +134,11 @@ internal data class BrowserNavigationState(
 internal sealed interface BrowserNavigationEvent {
     data class StorageVolumesChanged(val volumes: List<StorageVolume>) : BrowserNavigationEvent
     data class OpenVolumeRoots(val volumes: List<FileModel>) : BrowserNavigationEvent
-    data class OpenDirectory(val path: String, val volumeId: String?) : BrowserNavigationEvent
+    data class OpenDirectory(
+        val path: String,
+        val volumeId: String?,
+        val nodeRef: StorageNodeRef? = null
+    ) : BrowserNavigationEvent
     data class OpenCategory(val categoryName: String, val volumeId: String?) : BrowserNavigationEvent
     data class SelectFolderTab(val path: String?) : BrowserNavigationEvent
 }
@@ -141,6 +150,7 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
     is BrowserNavigationEvent.OpenVolumeRoots -> withValues(
         archiveContext = null,
         currentPath = "",
+        currentNodeRef = null,
         currentVolumeId = null,
         isVolumeRootScreen = true,
         isCategoryScreen = false,
@@ -157,10 +167,12 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
             !isVolumeRootScreen &&
             !isCategoryScreen &&
             currentPath == event.path &&
+            currentNodeRef == event.nodeRef &&
             currentVolumeId == event.volumeId
         withValues(
             archiveContext = null,
             currentPath = event.path,
+            currentNodeRef = event.nodeRef,
             currentVolumeId = event.volumeId,
             isVolumeRootScreen = false,
             isCategoryScreen = false,
@@ -179,6 +191,7 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
         withValues(
             archiveContext = null,
             currentPath = "",
+            currentNodeRef = null,
             currentVolumeId = event.volumeId,
             isVolumeRootScreen = false,
             isCategoryScreen = true,

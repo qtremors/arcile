@@ -62,10 +62,6 @@ class MainActivity : ComponentActivity() {
         }
         
         enableEdgeToEdge()
-        traceStartupSection("Arcile.permissionCheck") {
-            viewModel.checkPermission()
-        }
-
         var keepSplashScreen = true
         lifecycleScope.launch {
             try {
@@ -86,7 +82,7 @@ class MainActivity : ComponentActivity() {
                 val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
                     initialValue = ThemeState()
                 )
-                val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
+                val applicationAccess by viewModel.applicationAccess.collectAsStateWithLifecycle()
                 val fileOpenBehaviors by viewModel.fileOpenBehaviors.collectAsStateWithLifecycle()
                 val appStartPage by viewModel.appStartPage.collectAsStateWithLifecycle()
                 val coroutineScope = rememberCoroutineScope()
@@ -103,7 +99,8 @@ class MainActivity : ComponentActivity() {
                                     themePreferences.saveThemeState(newState)
                                 }
                             },
-                            hasStoragePermission = hasPermission,
+                            hasStoragePermission = applicationAccess.isReady,
+                            keepApplicationContentVisible = applicationAccess.mayShowApplicationContent,
                             onOpenStoragePermissionSettings = ::requestStoragePermission,
                             onRestartApp = ::restartApp,
                             appContent = {
@@ -125,7 +122,15 @@ class MainActivity : ComponentActivity() {
                             },
                             permissionContent = {
                                 PermissionRequestScreen(
-                                    onRequestPermission = ::requestStoragePermission
+                                    readiness = applicationAccess.readiness,
+                                    onRequestPermission = ::requestStoragePermission,
+                                    onReconnect = viewModel::reconnectAccess,
+                                    onUseNormal = {
+                                        viewModel.useNormalAccess()
+                                        if (!applicationAccess.normalAccessReady) {
+                                            requestStoragePermission()
+                                        }
+                                    }
                                 )
                             }
                         )
@@ -137,7 +142,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        viewModel.checkPermission()
+        viewModel.refreshAccess()
     }
 
     // open a file via Intent.ACTION_VIEW using FileProvider

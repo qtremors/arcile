@@ -115,6 +115,12 @@ internal fun NavGraphBuilder.registerFileRoutes(
                         destination.surroundingFiles
                     )
                     is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
+                    is BrowserDestination.AnalyzeStorage -> navController.navigate(
+                        destination.root.toStorageDashboardRoute()
+                    )
+                    is BrowserDestination.CleanStorage -> navController.navigate(
+                        destination.root.toStorageCleanerRoute()
+                    )
                 }
             },
             onShareSelected = actions::shareKnownFiles,

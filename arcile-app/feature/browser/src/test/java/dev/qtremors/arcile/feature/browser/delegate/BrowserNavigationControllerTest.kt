@@ -7,6 +7,8 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
@@ -68,7 +70,12 @@ class BrowserNavigationControllerTest {
             every { locationPreferencesFlow } returns kotlinx.coroutines.flow.flowOf(BrowserLocationPreferences())
             coEvery { updateLastOpenedLocation(any(), any()) } returns Unit
         }
-        savedStateHandle = mockk(relaxed = true)
+        savedStateHandle = mockk(relaxed = true) {
+            every { get<String>("currentBackendId") } returns null
+            every { get<String>("currentCanonicalIdentity") } returns null
+            every { get<String>("currentBackendIdentity") } returns null
+            every { get<String>("currentNodeVolumeId") } returns null
+        }
         
         delegate = BrowserNavigationController(
             initialState = BrowserNavigationState().withValues(
@@ -167,6 +174,29 @@ class BrowserNavigationControllerTest {
 
         assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
         coVerify(exactly = 0) { browserPreferencesRepository.updateLastOpenedLocation(any(), any()) }
+    }
+
+    @Test
+    fun `openPrimaryStorage drops privileged backend context`() = testScope.runTest {
+        repository.filesByPath = mapOf("/storage/emulated/0" to emptyList())
+        delegate.state.value = delegate.state.value.withValues(
+            currentPath = "/storage/emulated/0/Android/data",
+            currentVolumeId = "vol1",
+            currentNodeRef = StorageNodeRef.privileged(
+                backendId = StorageNodeRef.SHIZUKU_BACKEND_ID,
+                displayPath = "/storage/emulated/0/Android/data",
+                remoteCanonicalIdentity = "shizuku:/storage/emulated/0/Android/data",
+                volumeId = "vol1",
+                capabilities = StorageNodeCapabilities(canRead = true)
+            )
+        )
+
+        delegate.openPrimaryStorage()
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
+        assertEquals(null, delegate.state.value.currentNodeRef)
+        assertFalse(delegate.state.value.isLoading)
     }
 
     @Test

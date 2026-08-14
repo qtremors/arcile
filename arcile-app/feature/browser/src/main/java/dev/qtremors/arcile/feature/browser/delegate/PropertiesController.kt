@@ -52,9 +52,15 @@ internal class PropertiesController(
             )
         },
         transform = { paths, properties ->
-            val archiveSummary = paths.singleOrNull()
-                ?.takeIf(ArchiveFormat::isSupported)
-                ?.let { archiveRepository.getArchiveMetadata(it).getOrNull() }
+            val archivePath = paths.singleOrNull()?.takeIf(ArchiveFormat::isSupported)
+            val archiveNode = archivePath?.let { path ->
+                contextProvider().files.firstOrNull { it.absolutePath == path }?.nodeRef
+            }
+            val archiveSummary = when {
+                archiveNode != null -> archiveRepository.getArchiveMetadata(archiveNode).getOrNull()
+                archivePath != null -> archiveRepository.getArchiveMetadata(archivePath).getOrNull()
+                else -> null
+            }
             properties.copy(archiveSummary = archiveSummary)
         }
     )
@@ -101,7 +107,14 @@ internal class PropertiesController(
             return
         }
 
-        localLoader.open(context.selectedPaths)
+        val selectedNodes = context.files
+            .filter { it.absolutePath in context.selectedPaths }
+            .map(FileModel::nodeRef)
+        if (selectedNodes.size == context.selectedPaths.size) {
+            localLoader.openNodes(selectedNodes)
+        } else {
+            localLoader.open(context.selectedPaths)
+        }
     }
 
     fun dismiss() {

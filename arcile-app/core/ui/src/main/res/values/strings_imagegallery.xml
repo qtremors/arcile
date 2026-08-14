@@ -105,6 +105,8 @@
     <string name="video_player_resize_fit">Resize: fit</string>
     <string name="video_player_resize_zoom">Resize: zoom</string>
     <string name="video_player_resize_fill">Resize: fill</string>
+    <string name="video_player_show_remaining_time">Show remaining time</string>
+    <string name="video_player_show_total_time">Show total duration</string>
     <string name="video_gallery_metadata_duration">Duration</string>
     <string name="select_video">Select video</string>
     <string name="deselect_video">Deselect video</string>

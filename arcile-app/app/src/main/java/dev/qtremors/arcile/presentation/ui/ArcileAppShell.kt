@@ -17,7 +17,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PrivacyTip
 import androidx.compose.material.icons.filled.Settings
@@ -62,6 +64,10 @@ import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.privilege.ApplicationAccessReadiness
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
+import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
+import dev.qtremors.arcile.core.privilege.PrivilegeFailure
 
 private val FeedbackAboveActionsPadding = 88.dp
 
@@ -198,7 +204,13 @@ internal fun resolveColdLaunchPage(
 }
 
 @Composable
-fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
+fun PermissionRequestScreen(
+    onRequestPermission: () -> Unit,
+    readiness: ApplicationAccessReadiness = defaultSetupReadiness(),
+    onReconnect: () -> Unit = {},
+    onUseNormal: () -> Unit = {}
+) {
+    val presentation = readiness.permissionPresentation()
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -218,14 +230,14 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
         }
         Spacer(modifier = Modifier.height(28.dp))
         Text(
-            text = stringResource(R.string.permission_recovery_title),
+            text = stringResource(presentation.title),
             style = MaterialTheme.typography.headlineMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = stringResource(R.string.permission_recovery_description),
+            text = stringResource(presentation.description),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -244,15 +256,112 @@ fun PermissionRequestScreen(onRequestPermission: () -> Unit) {
             )
         }
         Spacer(modifier = Modifier.height(32.dp))
-        Button(
-            onClick = onRequestPermission,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Settings, contentDescription = null)
-            Spacer(modifier = Modifier.size(8.dp))
-            Text(stringResource(R.string.grant_permission))
+        if (readiness is ApplicationAccessReadiness.Connecting) {
+            CircularProgressIndicator()
+        } else {
+            if (presentation.showReconnect) {
+                Button(
+                    onClick = onReconnect,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.storage_access_reconnect))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (presentation.showUseNormal) {
+                OutlinedButton(
+                    onClick = onUseNormal,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.storage_access_use_normal))
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (presentation.showNormalPermission) {
+                Button(
+                    onClick = onRequestPermission,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.Settings, contentDescription = null)
+                    Spacer(modifier = Modifier.size(8.dp))
+                    Text(stringResource(R.string.grant_permission))
+                }
+            }
         }
     }
+}
+
+private fun defaultSetupReadiness(): ApplicationAccessReadiness =
+    ApplicationAccessReadiness.SetupRequired(
+        preferredMode = dev.qtremors.arcile.core.privilege.PrivilegeMode.AUTOMATIC,
+        normalAccessReady = false,
+        rootState = PrivilegeConnectionState.UNAVAILABLE,
+        shizukuState = PrivilegeConnectionState.UNAVAILABLE,
+        normalState = PrivilegeConnectionState.PERMISSION_REQUIRED
+    )
+
+private data class PermissionPresentation(
+    val title: Int,
+    val description: Int,
+    val showReconnect: Boolean,
+    val showUseNormal: Boolean,
+    val showNormalPermission: Boolean
+)
+
+private fun ApplicationAccessReadiness.permissionPresentation(): PermissionPresentation = when (this) {
+    is ApplicationAccessReadiness.Ready -> PermissionPresentation(
+        title = R.string.storage_access_ready_title,
+        description = R.string.storage_access_ready_description,
+        showReconnect = false,
+        showUseNormal = false,
+        showNormalPermission = false
+    )
+    is ApplicationAccessReadiness.Connecting -> PermissionPresentation(
+        title = R.string.storage_access_connecting_title,
+        description = when (backend) {
+            PrivilegeBackendId.ROOT -> R.string.storage_access_connecting_root
+            PrivilegeBackendId.SHIZUKU -> R.string.storage_access_connecting_shizuku
+            PrivilegeBackendId.NORMAL -> R.string.storage_access_checking_normal
+            else -> R.string.storage_access_connecting_description
+        },
+        showReconnect = false,
+        showUseNormal = false,
+        showNormalPermission = false
+    )
+    is ApplicationAccessReadiness.SetupRequired -> PermissionPresentation(
+        title = R.string.permission_recovery_title,
+        description = R.string.storage_access_setup_description,
+        showReconnect = rootState.canReconnect() || shizukuState.canReconnect(),
+        showUseNormal = false,
+        showNormalPermission = !normalAccessReady
+    )
+    is ApplicationAccessReadiness.Failed -> PermissionPresentation(
+        title = R.string.storage_access_failed_title,
+        description = failure.descriptionResource(),
+        showReconnect = retainedBackend != PrivilegeBackendId.NORMAL,
+        showUseNormal = retainedBackend != PrivilegeBackendId.NORMAL,
+        showNormalPermission = retainedBackend == PrivilegeBackendId.NORMAL && !normalAccessReady
+    )
+}
+
+private fun PrivilegeConnectionState.canReconnect(): Boolean = this in setOf(
+    PrivilegeConnectionState.DISCONNECTED,
+    PrivilegeConnectionState.PERMISSION_REQUIRED,
+    PrivilegeConnectionState.PERMISSION_DENIED,
+    PrivilegeConnectionState.FAILED
+)
+
+private fun PrivilegeFailure.descriptionResource(): Int = when (this) {
+    is PrivilegeFailure.RootPermissionDenied -> R.string.storage_access_root_denied
+    is PrivilegeFailure.RootUnavailable -> R.string.storage_access_root_unavailable
+    is PrivilegeFailure.ShizukuNotRunning -> R.string.storage_access_shizuku_stopped
+    is PrivilegeFailure.ShizukuPermissionRequired -> R.string.storage_access_shizuku_permission_required
+    is PrivilegeFailure.ShizukuPermissionDenied -> R.string.storage_access_shizuku_denied
+    is PrivilegeFailure.ConnectionTimedOut -> R.string.storage_access_connection_timed_out
+    is PrivilegeFailure.BackendDisconnected -> R.string.storage_access_backend_disconnected
+    is PrivilegeFailure.Incompatible,
+    is PrivilegeFailure.UnexpectedIdentity -> R.string.storage_access_backend_incompatible
+    is PrivilegeFailure.Failed -> R.string.storage_access_check_failed
 }
 
 

@@ -17,6 +17,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.supportsTrash
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
@@ -35,6 +36,7 @@ class DefaultTrashManager(
         storage = Dispatchers.IO
     ),
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
+    private val privilegedTrashController: PrivilegedTrashController? = null,
     private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
     private val transferEngine: FileTransferEngine = FileTransferEngine(
         validatePath = { file ->
@@ -68,6 +70,23 @@ class DefaultTrashManager(
         moveToTrashTargets(paths.map { TrashTarget(path = it) }, onProgress)
 
     override suspend fun moveToTrashTargets(
+        targets: List<TrashTarget>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ): Result<Unit> {
+        val privilegedTargets = targets.filter { it.nodeRef?.isPrivileged == true }
+        if (privilegedTargets.isNotEmpty()) {
+            if (privilegedTargets.size != targets.size) {
+                return Result.failure(
+                    IllegalArgumentException("Local and privileged files cannot share one trash operation")
+                )
+            }
+            return privilegedTrashController?.moveToTrash(privilegedTargets, onProgress)
+                ?: Result.failure(UnsupportedOperationException("Privileged trash is unavailable"))
+        }
+        return moveLocalTargetsToTrash(targets, onProgress)
+    }
+
+    private suspend fun moveLocalTargetsToTrash(
         targets: List<TrashTarget>,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<Unit> = withContext(dispatchers.io) {
@@ -167,7 +186,27 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun restoreFromTrash(
+        trashIds: List<String>,
+        destinationPath: String?
+    ): Result<Unit> {
+        val privilegedIds = trashIds.filter(PrivilegedTrashController::isPrivilegedId)
+        if (privilegedIds.isNotEmpty()) {
+            if (privilegedIds.size != trashIds.size) {
+                return Result.failure(
+                    IllegalArgumentException("Local and privileged trash items must be restored separately")
+                )
+            }
+            return privilegedTrashController?.restore(privilegedIds, destinationPath)
+                ?: Result.failure(UnsupportedOperationException("Privileged trash is unavailable"))
+        }
+        return restoreLocalFromTrash(trashIds, destinationPath)
+    }
+
+    private suspend fun restoreLocalFromTrash(
+        trashIds: List<String>,
+        destinationPath: String?
+    ): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
 
@@ -270,7 +309,13 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun emptyTrash(): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun emptyTrash(): Result<Unit> {
+        val local = emptyLocalTrash()
+        if (local.isFailure) return local
+        return privilegedTrashController?.empty() ?: Result.success(Unit)
+    }
+
+    private suspend fun emptyLocalTrash(): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val changedPaths = mutableListOf<String>()
@@ -301,7 +346,14 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(dispatchers.io) {
+    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> {
+        val local = getLocalTrashFiles().getOrElse { return Result.failure(it) }
+        val privileged = privilegedTrashController?.list()?.getOrElse { return Result.failure(it) }
+            .orEmpty()
+        return Result.success((local + privileged).sortedByDescending(TrashMetadata::deletionTime))
+    }
+
+    private suspend fun getLocalTrashFiles(): Result<List<TrashMetadata>> = withContext(dispatchers.io) {
         try {
             val list = mutableListOf<TrashMetadata>()
             val volumes = volumeProvider.currentVolumes()
@@ -378,7 +430,23 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> = withContext(dispatchers.io) {
+    override suspend fun getTrashStorageUsage(): Result<TrashStorageUsage> {
+        val local = getLocalTrashStorageUsage().getOrElse { return Result.failure(it) }
+        val privileged = privilegedTrashController?.storageUsage()?.getOrElse { return Result.failure(it) }
+            ?: TrashStorageUsage(0L, emptyMap())
+        val merged = (local.byVolumeId.keys + privileged.byVolumeId.keys).associateWith { volumeId ->
+            local.byVolumeId[volumeId].orEmptyBytes()
+                .saturatedAdd(privileged.byVolumeId[volumeId].orEmptyBytes())
+        }.filterValues { it > 0L }
+        return Result.success(
+            TrashStorageUsage(
+                totalBytes = merged.values.fold(0L) { total, value -> total.saturatedAdd(value) },
+                byVolumeId = merged
+            )
+        )
+    }
+
+    private suspend fun getLocalTrashStorageUsage(): Result<TrashStorageUsage> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val byVolume = trashEnabledVolumes(volumes).associate { volume ->
@@ -415,7 +483,21 @@ class DefaultTrashManager(
             .sumOf { it.length() }
     }
 
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> {
+        val privilegedIds = trashIds.filter(PrivilegedTrashController::isPrivilegedId)
+        val localIds = trashIds.filterNot(PrivilegedTrashController::isPrivilegedId)
+        if (localIds.isNotEmpty()) {
+            val local = deletePermanentlyFromLocalTrash(localIds)
+            if (local.isFailure) return local
+        }
+        if (privilegedIds.isNotEmpty()) {
+            return privilegedTrashController?.delete(privilegedIds)
+                ?: Result.failure(UnsupportedOperationException("Privileged trash is unavailable"))
+        }
+        return Result.success(Unit)
+    }
+
+    private suspend fun deletePermanentlyFromLocalTrash(trashIds: List<String>): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val changedPaths = mutableListOf<String>()
@@ -451,4 +533,9 @@ class DefaultTrashManager(
             Result.failure(e)
         }
     }
+
+    private fun Long?.orEmptyBytes(): Long = this ?: 0L
+
+    private fun Long.saturatedAdd(other: Long): Long =
+        if (other <= 0L) this else if (Long.MAX_VALUE - this < other) Long.MAX_VALUE else this + other
 }

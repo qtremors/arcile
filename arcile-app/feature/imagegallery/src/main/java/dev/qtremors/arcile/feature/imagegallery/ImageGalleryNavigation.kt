@@ -15,6 +15,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.clipboardStoredFeedback
@@ -202,7 +203,13 @@ fun NavGraphBuilder.registerImageViewerRoute(
                 sizes = navController.previousBackStackEntry?.savedStateHandle
                     ?.get<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_SIZES_KEY),
                 modified = navController.previousBackStackEntry?.savedStateHandle
-                    ?.get<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY)
+                    ?.get<LongArray>(AppRoutes.IMAGE_VIEWER_CONTEXT_MODIFIED_KEY),
+                contentUris = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_CONTENT_URIS_KEY),
+                backendIds = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_BACKEND_IDS_KEY),
+                backendIdentities = navController.previousBackStackEntry?.savedStateHandle
+                    ?.get<ArrayList<String>>(AppRoutes.IMAGE_VIEWER_CONTEXT_BACKEND_IDENTITIES_KEY)
             )
         }
 
@@ -256,19 +263,41 @@ private fun viewerContextFiles(
     extensions: List<String>?,
     mimeTypes: List<String>?,
     sizes: LongArray?,
-    modified: LongArray?
+    modified: LongArray?,
+    contentUris: List<String>?,
+    backendIds: List<String>?,
+    backendIdentities: List<String>?
 ): List<FileModel> {
     val hasCompleteMetadata = listOf(names?.size, extensions?.size, mimeTypes?.size,
         sizes?.size, modified?.size).all { it == paths.size }
     if (!hasCompleteMetadata) return paths.distinct().map(::fileModelFromPath)
+    val hasNodeMetadata = listOf(contentUris?.size, backendIds?.size, backendIdentities?.size)
+        .all { it == paths.size }
     return paths.indices.map { index ->
+        val backendId = backendIds?.getOrNull(index).orEmpty()
+        val backendIdentity = backendIdentities?.getOrNull(index).orEmpty()
+        val contentUri = contentUris?.getOrNull(index)?.ifBlank { null }
+        val nodeRef = if (
+            hasNodeMetadata &&
+            backendId in setOf(StorageNodeRef.ROOT_BACKEND_ID, StorageNodeRef.SHIZUKU_BACKEND_ID) &&
+            backendIdentity.isNotBlank()
+        ) {
+            StorageNodeRef.privileged(
+                backendId = backendId,
+                displayPath = paths[index],
+                remoteCanonicalIdentity = backendIdentity
+            ).copy(contentUri = contentUri)
+        } else {
+            StorageNodeRef.local(paths[index]).copy(contentUri = contentUri)
+        }
         FileModel(
             name = names!![index],
             absolutePath = paths[index],
             size = sizes!![index],
             lastModified = modified!![index],
             extension = extensions!![index],
-            mimeType = mimeTypes!![index].ifBlank { null }
+            mimeType = mimeTypes!![index].ifBlank { null },
+            nodeRef = nodeRef
         )
     }.distinctBy(FileModel::absolutePath)
 }

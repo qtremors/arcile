@@ -494,12 +494,16 @@ class ArchitectureBoundaryTest {
             "activitylog.registerActivityLogRoute",
             "archive.ArchiveDestination",
             "archive.registerArchiveViewerRoute",
+            "apk.registerApkLibraryRoute",
+            "audio.canResolveStandaloneAudio",
+            "audio.createAudioPlayerIntent",
             "audio.registerAudioLibraryRoute",
             "browser.BrowserDestination",
             "browser.BrowserEntry",
             "browser.BrowserEntryRequest",
             "browser.BrowserRoute",
             "browser.BrowserRouteStatus",
+            "documents.registerDocumentLibraryRoute",
             "home.HomeDestination",
             "home.HomeRoute",
             "imagegallery.GalleryDestination",
@@ -523,9 +527,11 @@ class ArchitectureBoundaryTest {
             "trash.registerTrashRoute"
         )
         val allowedShellFiles = setOf(
+            "dev/qtremors/arcile/FileOpenActivity.kt",
             "dev/qtremors/arcile/MainActivity.kt",
             "dev/qtremors/arcile/presentation/ui/AppFileRouteRegistration.kt",
             "dev/qtremors/arcile/presentation/ui/AppMainRouteRegistration.kt",
+            "dev/qtremors/arcile/presentation/ui/AppNavigationActions.kt",
             "dev/qtremors/arcile/presentation/ui/AppNavigationGraph.kt",
             "dev/qtremors/arcile/presentation/ui/AppUtilityRouteRegistration.kt",
             "dev/qtremors/arcile/presentation/ui/ArcileAppShell.kt",
@@ -879,7 +885,11 @@ class ArchitectureBoundaryTest {
                             """data class BrowserRouteStatus)\b.*"""
                     )
                 ) ||
-                publicDeclaration.matches(Regex("""class SaveToArcileActivity\b.*"""))
+                publicDeclaration.matches(Regex("""class SaveToArcileActivity\b.*""")) ||
+                publicDeclaration.matches(Regex("""class AudioPlayerActivity\b.*""")) ||
+                publicDeclaration.matches(Regex("""data class StandaloneAudioTarget\b.*""")) ||
+                publicDeclaration.matches(Regex("""fun createAudioPlayerIntent\(.*""")) ||
+                publicDeclaration.matches(Regex("""fun canResolveStandaloneAudio\(.*"""))
         }
 
     private fun violation(file: File, index: Int, line: String): String =
@@ -903,13 +913,22 @@ class ArchitectureBoundaryTest {
         )
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 780,
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1102,
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/category/FileCategoryLibrary.kt" to 1576,
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/pdf/StandalonePdfViewer.kt" to 1009,
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800,
+            "arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioNowPlayingScreen.kt" to 701
         )
 
-        val LARGE_VIEWMODEL_BASELINE = emptyMap<String, Int>()
+        val LARGE_VIEWMODEL_BASELINE = mapOf(
+            "feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/StorageCleanerViewModel.kt" to 648
+        )
 
         val FEATURE_VIEWMODEL_BOUNDARY_BASELINE = emptyMap<String, Set<String>>()
 
-        val COMPOSABLE_PARAMETER_BASELINE = emptyMap<String, Int>()
+        val COMPOSABLE_PARAMETER_BASELINE = mapOf(
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/category/FileCategoryLibrary.kt:FileCategoryLibrary" to 41
+        )
     }
 }

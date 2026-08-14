@@ -28,7 +28,7 @@ data class VaultKdfParameters(
         iterations == other.iterations && parallelism == other.parallelism &&
         algorithm == other.algorithm && version == other.version
 
-    override fun hashCode(): Int = arrayOf(
+    override fun hashCode(): Int = arrayOf<Any>(
         salt.contentHashCode(), memoryKiB, iterations, parallelism, algorithm, version
     ).contentHashCode()
 

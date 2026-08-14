@@ -17,6 +17,7 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import java.io.File
 import java.nio.file.Files
+import javax.inject.Provider
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class StorageUsageScannerTest {
@@ -31,7 +32,8 @@ class StorageUsageScannerTest {
             default = dispatcher,
             main = dispatcher,
             storage = dispatcher
-        )
+        ),
+        Provider { error("Local path scans must not request the node data source") }
     )
 
     @Test

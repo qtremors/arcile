@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
 import dev.qtremors.arcile.core.storage.domain.CachedStorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
@@ -8,6 +9,7 @@ import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerRiskReason
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerResult
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
@@ -15,12 +17,16 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanUpdate
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import java.io.File
+import java.io.InputStream
 import java.io.RandomAccessFile
 import java.security.MessageDigest
 import java.util.Locale
 import java.util.PriorityQueue
 import javax.inject.Inject
+import javax.inject.Provider
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
@@ -30,7 +36,8 @@ import kotlinx.coroutines.withContext
 
 class DefaultStorageCleanerScanner @Inject constructor(
     private val dispatchers: ArcileDispatchers,
-    private val snapshotStore: StorageCleanerSnapshotStore? = null
+    private val snapshotStore: StorageCleanerSnapshotStore? = null,
+    private val fileSystemDataSource: Provider<FileSystemDataSource>? = null
 ) : StorageCleanerScanner {
     override suspend fun cachedScan(
         rootPaths: List<String>,
@@ -65,6 +72,33 @@ class DefaultStorageCleanerScanner @Inject constructor(
         )
     }
 
+    override suspend fun cachedNodeScanWithMetadata(
+        roots: List<StorageNodeRef>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): CachedStorageCleanerResult? =
+        cachedNodeScanForGroups(roots, CleanerGroupType.entries.toSet(), limits, rules)
+
+    override suspend fun cachedNodeScanForGroups(
+        roots: List<StorageNodeRef>,
+        groupTypes: Set<CleanerGroupType>,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): CachedStorageCleanerResult? {
+        requireExplicitProtectedRoots(roots)
+        val store = snapshotStore ?: return null
+        val allGroups = CleanerGroupType.entries.toSet()
+        val cached = (
+            store.getNodes(roots, limits, rules, groupTypes)
+                ?: if (groupTypes != allGroups) store.getNodes(roots, limits, rules, allGroups) else null
+            ) ?: return null
+        return cached.copy(
+            result = cached.result.copy(
+                groups = cached.result.groups.filter { it.type in groupTypes }
+            )
+        )
+    }
+
     override suspend fun scan(
         rootPaths: List<String>,
         now: Long,
@@ -72,7 +106,24 @@ class DefaultStorageCleanerScanner @Inject constructor(
         rules: StorageCleanerRules
     ): StorageCleanerResult = withContext(dispatchers.storage) {
         performScan(
-            rootPaths = rootPaths,
+            roots = CleanerScanRoots.Local(rootPaths),
+            now = now,
+            limits = limits,
+            rules = rules,
+            requestedGroups = CleanerGroupType.entries.toSet(),
+            onUpdate = {}
+        )
+    }
+
+    override suspend fun scanNodes(
+        roots: List<StorageNodeRef>,
+        now: Long,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): StorageCleanerResult = withContext(dispatchers.storage) {
+        requireExplicitProtectedRoots(roots)
+        performScan(
+            roots = CleanerScanRoots.Nodes(roots),
             now = now,
             limits = limits,
             rules = rules,
@@ -97,7 +148,13 @@ class DefaultStorageCleanerScanner @Inject constructor(
         rules: StorageCleanerRules
     ): Flow<StorageCleanerScanUpdate> = flow {
         val requestedGroups = groupTypes.ifEmpty { CleanerGroupType.entries.toSet() }
-        val result = performScan(rootPaths, now, limits, rules, requestedGroups) { update -> emit(update) }
+        val result = performScan(
+            CleanerScanRoots.Local(rootPaths),
+            now,
+            limits,
+            rules,
+            requestedGroups
+        ) { update -> emit(update) }
         emit(
             StorageCleanerScanUpdate(
                 progress = StorageCleanerScanProgress(
@@ -112,12 +169,52 @@ class DefaultStorageCleanerScanner @Inject constructor(
         )
     }.flowOn(dispatchers.storage)
 
+    override fun scanNodeUpdates(
+        roots: List<StorageNodeRef>,
+        now: Long,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): Flow<StorageCleanerScanUpdate> =
+        scanNodeGroupUpdates(roots, CleanerGroupType.entries.toSet(), now, limits, rules)
+
+    override fun scanNodeGroupUpdates(
+        roots: List<StorageNodeRef>,
+        groupTypes: Set<CleanerGroupType>,
+        now: Long,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules
+    ): Flow<StorageCleanerScanUpdate> = flow {
+        requireExplicitProtectedRoots(roots)
+        val requestedGroups = groupTypes.ifEmpty { CleanerGroupType.entries.toSet() }
+        val result = performScan(
+            CleanerScanRoots.Nodes(roots),
+            now,
+            limits,
+            rules,
+            requestedGroups
+        ) { update -> emit(update) }
+        emit(result.completeUpdate(requestedGroups))
+    }.flowOn(dispatchers.storage)
+
     override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
         snapshotStore?.invalidate(paths)
     }
 
+    override suspend fun invalidateStorageCleanerNodes(nodes: Collection<StorageNodeRef>) {
+        if (nodes.isEmpty()) {
+            snapshotStore?.invalidateNodes(emptyList())
+            return
+        }
+        val local = nodes.filterNot(StorageNodeRef::isPrivileged)
+        if (local.isNotEmpty()) {
+            snapshotStore?.invalidate(local.map { it.displayPath.absolutePath })
+        }
+        val protected = nodes.filter(StorageNodeRef::isPrivileged)
+        if (protected.isNotEmpty()) snapshotStore?.invalidateNodes(protected)
+    }
+
     private suspend fun performScan(
-        rootPaths: List<String>,
+        roots: CleanerScanRoots,
         now: Long,
         limits: StorageCleanerScanLimits,
         rules: StorageCleanerRules,
@@ -130,7 +227,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
         }
         if (requestedActiveGroups.isEmpty()) {
             val emptyResult = currentResult(emptyMap(), requestedGroups, scannedFiles = 0, isPartial = false)
-            snapshotStore?.put(rootPaths, limits, rules, requestedGroups, emptyResult)
+            storeSnapshot(roots, limits, rules, requestedGroups, emptyResult)
             return emptyResult
         }
         val lightweightGroups = CleanerGroupType.entries.toSet() - CleanerGroupType.Duplicates
@@ -152,7 +249,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
         var monotonicInventoryProgress = 0f
 
         val walkResult = walk(
-            rootPaths = rootPaths,
+            roots = roots,
             limits = limits,
             includeDownloadClassification = CleanerGroupType.OldDownloads in activeGroups
         ) { snapshot, scannedFiles, visitedEntries, pendingEntries ->
@@ -238,7 +335,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
                 )
             }
             val duplicateCandidates = duplicateFiles.orEmpty().mapNotNull { file ->
-                val duplicateKey = duplicateGroupKeys[file.absolutePath] ?: return@mapNotNull null
+                val duplicateKey = duplicateGroupKeys[file.identityKey] ?: return@mapNotNull null
                 if (!normalizedRules.includes(CleanerGroupType.Duplicates, file)) return@mapNotNull null
                 file.toCandidate(
                     groups = setOf(CleanerGroupType.Duplicates),
@@ -265,7 +362,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
             scannedFiles = walkResult.scannedFiles,
             isPartial = walkResult.isPartial
         )
-        snapshotStore?.put(rootPaths, limits, rules, requestedGroups, result)
+        storeSnapshot(roots, limits, rules, requestedGroups, result)
         val cachedWorkResult = currentResult(
             accumulators = accumulators,
             requestedGroups = workGroups,
@@ -273,16 +370,73 @@ class DefaultStorageCleanerScanner @Inject constructor(
             isPartial = walkResult.isPartial
         )
         cachedWorkResult.groups.forEach { group ->
-            snapshotStore?.put(
-                rootPaths = rootPaths,
-                limits = limits,
-                rules = rules,
-                groupTypes = setOf(group.type),
-                result = cachedWorkResult.copy(groups = listOf(group))
+            storeSnapshot(
+                roots,
+                limits,
+                rules,
+                setOf(group.type),
+                cachedWorkResult.copy(groups = listOf(group))
             )
         }
         return result
     }
+
+    private suspend fun storeSnapshot(
+        roots: CleanerScanRoots,
+        limits: StorageCleanerScanLimits,
+        rules: StorageCleanerRules,
+        groupTypes: Set<CleanerGroupType>,
+        result: StorageCleanerResult
+    ) {
+        val store = snapshotStore ?: return
+        when (roots) {
+            is CleanerScanRoots.Local -> store.put(
+                rootPaths = roots.paths,
+                limits = limits,
+                rules = rules,
+                groupTypes = groupTypes,
+                result = result
+            )
+            is CleanerScanRoots.Nodes -> store.putNodes(
+                roots = roots.nodes,
+                limits = limits,
+                rules = rules,
+                groupTypes = groupTypes,
+                result = result
+            )
+        }
+    }
+
+    private fun requireExplicitProtectedRoots(roots: List<StorageNodeRef>) {
+        require(roots.isNotEmpty()) { "Choose a folder to scan" }
+        val protected = roots.filter(StorageNodeRef::isPrivileged)
+        if (protected.isEmpty()) return
+        require(protected.size == roots.size) {
+            "Protected cleaner scopes cannot be mixed with local folders"
+        }
+        require(protected.map(StorageNodeRef::backendId).distinct().size == 1) {
+            "Protected cleaner scopes must use one connected backend"
+        }
+        require(protected.all { !it.backendIdentity.isNullOrBlank() }) {
+            "Protected cleaner scope identity is missing"
+        }
+        requireNotNull(fileSystemDataSource) {
+            "Backend-aware cleaner support is unavailable"
+        }
+    }
+
+    private fun StorageCleanerResult.completeUpdate(
+        requestedGroups: Set<CleanerGroupType>
+    ) = StorageCleanerScanUpdate(
+        progress = StorageCleanerScanProgress(
+            phase = StorageCleanerScanPhase.Complete,
+            scannedFiles = scannedFiles,
+            progressFraction = 1f,
+            estimatedRemainingMillis = 0L,
+            completedGroups = requestedGroups
+        ),
+        result = this
+    )
 
     private fun matchingGroups(
         file: FileSnapshot,
@@ -364,7 +518,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
             currentCoroutineContext().ensureActive()
             val hashes = HashMap<String, MutableList<FileSnapshot>>()
             sameSizeFiles.forEach { file ->
-                sampleHash(File(file.absolutePath), file.size)?.let { hash ->
+                sampleHash(file)?.let { hash ->
                     hashes.getOrPut(hash) { ArrayList() }.add(file)
                 }
                 sampled++
@@ -381,7 +535,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
             currentCoroutineContext().ensureActive()
             val hashes = HashMap<String, MutableList<FileSnapshot>>()
             sampledFiles.forEach { file ->
-                fullHash(File(file.absolutePath)) { hashedBytes ->
+                fullHash(file) { hashedBytes ->
                     fullyHashedBytes += hashedBytes
                     onProgress(
                         SAMPLE_HASH_WEIGHT +
@@ -394,7 +548,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
             hashes.forEach { (hash, matchingFiles) ->
                 if (matchingFiles.size > 1) {
                     val groupKey = "${matchingFiles.first().size}:$hash"
-                    matchingFiles.forEach { duplicates[it.absolutePath] = groupKey }
+                    matchingFiles.forEach { duplicates[it.identityKey] = groupKey }
                 }
             }
         }
@@ -434,16 +588,33 @@ class DefaultStorageCleanerScanner @Inject constructor(
         return regex.matches(lowerValue)
     }
 
-    private fun sampleHash(file: File, size: Long): String? = runCatchingPreservingCancellation {
+    private suspend fun sampleHash(file: FileSnapshot): String? = runCatchingPreservingCancellation {
         val digest = MessageDigest.getInstance("SHA-256")
-        if (size <= SAMPLE_WINDOW_BYTES * 3L) {
-            file.inputStream().use { input -> input.copyTo(DigestOutputStreamAdapter(digest)) }
+        if (file.nodeRef == null) {
+            val local = File(file.absolutePath)
+            if (file.size <= SAMPLE_WINDOW_BYTES * 3L) {
+                local.inputStream().use { input -> input.copyTo(DigestOutputStreamAdapter(digest)) }
+            } else {
+                RandomAccessFile(local, "r").use { input ->
+                    val buffer = ByteArray(SAMPLE_WINDOW_BYTES)
+                    updateDigestAt(input, digest, 0L, buffer)
+                    updateDigestAt(
+                        input,
+                        digest,
+                        (file.size / 2L - SAMPLE_WINDOW_BYTES / 2L).coerceAtLeast(0L),
+                        buffer
+                    )
+                    updateDigestAt(
+                        input,
+                        digest,
+                        (file.size - SAMPLE_WINDOW_BYTES).coerceAtLeast(0L),
+                        buffer
+                    )
+                }
+            }
         } else {
-            RandomAccessFile(file, "r").use { input ->
-                val buffer = ByteArray(SAMPLE_WINDOW_BYTES)
-                updateDigestAt(input, digest, 0L, buffer)
-                updateDigestAt(input, digest, (size / 2L - SAMPLE_WINDOW_BYTES / 2L).coerceAtLeast(0L), buffer)
-                updateDigestAt(input, digest, (size - SAMPLE_WINDOW_BYTES).coerceAtLeast(0L), buffer)
+            openNodeInput(file.nodeRef).use { input ->
+                updateDigestFromStream(input.stream, digest, file.size)
             }
         }
         digest.digest().toHex()
@@ -460,14 +631,73 @@ class DefaultStorageCleanerScanner @Inject constructor(
         if (read > 0) digest.update(buffer, 0, read)
     }
 
-    private suspend fun fullHash(file: File, onBytesHashed: suspend (Long) -> Unit): String? = try {
+    private fun updateDigestFromStream(
+        input: InputStream,
+        digest: MessageDigest,
+        size: Long
+    ) {
+        if (size <= SAMPLE_WINDOW_BYTES * 3L) {
+            input.copyTo(DigestOutputStreamAdapter(digest))
+            return
+        }
+        val buffer = ByteArray(SAMPLE_WINDOW_BYTES)
+        var position = 0L
+        val offsets = listOf(
+            0L,
+            (size / 2L - SAMPLE_WINDOW_BYTES / 2L).coerceAtLeast(0L),
+            (size - SAMPLE_WINDOW_BYTES).coerceAtLeast(0L)
+        ).distinct().sorted()
+        offsets.forEach { offset ->
+            position += input.skipFully((offset - position).coerceAtLeast(0L))
+            if (position < offset) return@forEach
+            val read = input.readAtMost(buffer)
+            if (read > 0) {
+                digest.update(buffer, 0, read)
+                position += read
+            }
+        }
+    }
+
+    private fun InputStream.skipFully(byteCount: Long): Long {
+        var remaining = byteCount
+        while (remaining > 0L) {
+            val skipped = skip(remaining)
+            if (skipped > 0L) {
+                remaining -= skipped
+            } else if (read() >= 0) {
+                remaining -= 1L
+            } else {
+                break
+            }
+        }
+        return byteCount - remaining
+    }
+
+    private fun InputStream.readAtMost(buffer: ByteArray): Int {
+        var total = 0
+        while (total < buffer.size) {
+            val read = read(buffer, total, buffer.size - total)
+            if (read < 0) break
+            if (read == 0) continue
+            total += read
+        }
+        return total
+    }
+
+    private suspend fun fullHash(file: FileSnapshot, onBytesHashed: suspend (Long) -> Unit): String? = try {
         val digest = MessageDigest.getInstance("SHA-256")
         val buffer = ByteArray(FULL_HASH_BUFFER_BYTES)
-        file.inputStream().use { input ->
+        val input = if (file.nodeRef == null) {
+            val stream = File(file.absolutePath).inputStream()
+            dev.qtremors.arcile.core.storage.data.source.StorageNodeInput(stream)
+        } else {
+            openNodeInput(file.nodeRef)
+        }
+        input.use { opened ->
             var bytesSinceProgress = 0L
             while (true) {
                 currentCoroutineContext().ensureActive()
-                val read = input.read(buffer)
+                val read = opened.stream.read(buffer)
                 if (read < 0) break
                 if (read == 0) continue
                 digest.update(buffer, 0, read)
@@ -485,6 +715,11 @@ class DefaultStorageCleanerScanner @Inject constructor(
         null
     }
 
+    private suspend fun openNodeInput(node: StorageNodeRef) =
+        requireNotNull(fileSystemDataSource) {
+            "Backend-aware cleaner content access is unavailable"
+        }.get().openNodeInput(node).getOrThrow()
+
     private class DigestOutputStreamAdapter(private val digest: MessageDigest) : java.io.OutputStream() {
         override fun write(b: Int) = digest.update(b.toByte())
         override fun write(b: ByteArray, off: Int, len: Int) = digest.update(b, off, len)
@@ -493,6 +728,26 @@ class DefaultStorageCleanerScanner @Inject constructor(
     private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
 
     private suspend fun walk(
+        roots: CleanerScanRoots,
+        limits: StorageCleanerScanLimits,
+        includeDownloadClassification: Boolean,
+        onSnapshot: suspend (FileSnapshot, scannedFiles: Int, visitedEntries: Int, pendingEntries: Int) -> Unit
+    ): WalkResult = when (roots) {
+        is CleanerScanRoots.Local -> walkLocal(
+            roots.paths,
+            limits,
+            includeDownloadClassification,
+            onSnapshot
+        )
+        is CleanerScanRoots.Nodes -> walkNodes(
+            roots.nodes,
+            limits,
+            includeDownloadClassification,
+            onSnapshot
+        )
+    }
+
+    private suspend fun walkLocal(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
         includeDownloadClassification: Boolean,
@@ -561,6 +816,76 @@ class DefaultStorageCleanerScanner @Inject constructor(
         return WalkResult(scannedFiles, partial)
     }
 
+    private suspend fun walkNodes(
+        roots: List<StorageNodeRef>,
+        limits: StorageCleanerScanLimits,
+        includeDownloadClassification: Boolean,
+        onSnapshot: suspend (FileSnapshot, scannedFiles: Int, visitedEntries: Int, pendingEntries: Int) -> Unit
+    ): WalkResult {
+        val source = requireNotNull(fileSystemDataSource) {
+            "Backend-aware cleaner traversal is unavailable"
+        }.get()
+        val pending = ArrayDeque<Pair<FileModel, Int>>()
+        roots.distinctBy { it.canonicalIdentity.value }.forEach { root ->
+            require(root.capabilities.canRead) { "${root.displayPath.absolutePath} is not readable" }
+            val model = source.inspectNode(root).getOrThrow()
+            require(model.isDirectory) { "Cleaner scope must be a folder" }
+            pending.add(model to 0)
+        }
+        val visitedDirectories = hashSetOf<String>()
+        var partial = false
+        var scannedFiles = 0
+        var visitedEntries = 0
+
+        while (pending.isNotEmpty()) {
+            currentCoroutineContext().ensureActive()
+            if (scannedFiles >= limits.maxFiles) return WalkResult(scannedFiles, isPartial = true)
+
+            val (current, depth) = pending.removeFirst()
+            visitedEntries++
+            if (shouldSkip(current.name)) continue
+
+            if (!current.isDirectory) {
+                if (!current.nodeRef.capabilities.canRead || !current.nodeRef.capabilities.canArchive) continue
+                scannedFiles++
+                onSnapshot(
+                    current.toSnapshot(includeDownloadClassification),
+                    scannedFiles,
+                    visitedEntries,
+                    pending.size
+                )
+                continue
+            }
+            if (!visitedDirectories.add(current.nodeRef.canonicalIdentity.value)) {
+                partial = true
+                continue
+            }
+            if (depth >= limits.maxDepth) {
+                partial = true
+                continue
+            }
+
+            val children = source.listNodeFiles(current.nodeRef).getOrElse { error ->
+                error.rethrowIfCancellation()
+                if (depth == 0) throw error
+                partial = true
+                emptyList()
+            }
+            if (children.isEmpty() && depth > 0 && current.nodeRef.capabilities.canDelete) {
+                scannedFiles++
+                onSnapshot(
+                    current.toSnapshot(includeDownloadClassification, isDirectory = true),
+                    scannedFiles,
+                    visitedEntries,
+                    pending.size
+                )
+                continue
+            }
+            children.forEach { child -> pending.add(child to depth + 1) }
+        }
+        return WalkResult(scannedFiles, partial)
+    }
+
     private fun File.toSnapshot(
         isDirectory: Boolean = false,
         includeDownloadClassification: Boolean
@@ -572,17 +897,39 @@ class DefaultStorageCleanerScanner @Inject constructor(
             size = if (isDirectory) 0L else length().coerceAtLeast(0L),
             lastModified = lastModified(),
             extension = extension.lowercase(Locale.ROOT),
-            isInDownloads = includeDownloadClassification && normalizedPath.split(File.separatorChar).any {
+            isInDownloads = includeDownloadClassification && normalizedPath.pathSegments().any {
                 it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true)
             },
-            isDirectory = isDirectory
+            isDirectory = isDirectory,
+            nodeRef = null
         )
     }
 
+    private fun FileModel.toSnapshot(
+        includeDownloadClassification: Boolean,
+        isDirectory: Boolean = this.isDirectory
+    ): FileSnapshot = FileSnapshot(
+        name = name,
+        absolutePath = absolutePath,
+        size = if (isDirectory) 0L else size.coerceAtLeast(0L),
+        lastModified = lastModified,
+        extension = extension.lowercase(Locale.ROOT),
+        isInDownloads = includeDownloadClassification && absolutePath.pathSegments().any {
+            it.equals("download", ignoreCase = true) || it.equals("downloads", ignoreCase = true)
+        },
+        isDirectory = isDirectory,
+        nodeRef = nodeRef
+    )
+
     private fun shouldSkip(file: File): Boolean {
-        val name = file.name.lowercase(Locale.ROOT)
-        return name == ".arcile" || name == ".trash" || name == ".thumbnails"
+        return shouldSkip(file.name)
     }
+
+    private fun shouldSkip(name: String): Boolean =
+        name.lowercase(Locale.ROOT) in skippedDirectoryNames
+
+    private fun String.pathSegments(): List<String> =
+        split('/', '\\').filter(String::isNotBlank)
 
     private fun isJunk(file: FileSnapshot): Boolean {
         val lowerName = file.name.lowercase(Locale.ROOT)
@@ -594,7 +941,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
     private fun classifyRisk(file: FileSnapshot): RiskClassification {
         val reasons = linkedSetOf<CleanerRiskReason>()
-        val lowerSegments = file.absolutePath.split(File.separatorChar).map { it.lowercase(Locale.ROOT) }
+        val lowerSegments = file.absolutePath.pathSegments().map { it.lowercase(Locale.ROOT) }
         val lowerPath = file.absolutePath.lowercase(Locale.ROOT)
         val parentSegments = lowerSegments.dropLast(1)
 
@@ -651,7 +998,8 @@ class DefaultStorageCleanerScanner @Inject constructor(
         riskLevel = risk.level,
         riskReasons = risk.reasons,
         isDirectory = isDirectory,
-        duplicateGroupKey = duplicateGroupKey
+        duplicateGroupKey = duplicateGroupKey,
+        nodeRef = nodeRef
     )
 
     private fun StorageCleanerResult.withoutStaleCandidates(): StorageCleanerResult = copy(
@@ -681,8 +1029,17 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val lastModified: Long,
         val extension: String,
         val isInDownloads: Boolean,
-        val isDirectory: Boolean
-    )
+        val isDirectory: Boolean,
+        val nodeRef: StorageNodeRef?
+    ) {
+        val identityKey: String
+            get() = nodeRef?.canonicalIdentity?.value ?: absolutePath
+    }
+
+    private sealed interface CleanerScanRoots {
+        data class Local(val paths: List<String>) : CleanerScanRoots
+        data class Nodes(val nodes: List<StorageNodeRef>) : CleanerScanRoots
+    }
 
     private data class RiskClassification(
         val level: CleanerRiskLevel,
@@ -725,6 +1082,7 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val videoExtensions = FileCategories.Videos.extensions
         val junkExtensions = setOf("tmp", "temp", "log", "bak", "old", "dmp")
         val markerFileNames = setOf(".nomedia", "desktop.ini", "thumbs.db", ".ds_store")
+        val skippedDirectoryNames = setOf(".arcile", ".trash", ".thumbnails")
         val tempOrCacheFolderNames = setOf("temp", "tmp", "cache", "caches")
         val userFolderNames = setOf("download", "downloads", "documents", "document")
         val mediaFolderNames = setOf("dcim", "pictures", "picture", "movies", "movie", "videos", "video")

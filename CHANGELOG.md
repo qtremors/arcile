@@ -1,10 +1,99 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 1.9.0
-> **Last Updated:** 2026-08-09
+> **Version:** 2.0.0
+> **Last Updated:** 2026-08-14
 
 ---
+
+## [2.0.0] - 2026-08-13
+
+- **Video Playback**: Kept titles clear of display cutouts, preserved gallery order and the selected thumbnail position, kept the cached thumbnail visible throughout each video and surface handoff until the matching first frame, limited background playback to app backgrounding with an Arcile media notification and Close player action, renewed the control timeout after every touch interaction, protected gestures from Android navigation edges, added pinch zoom and pan, and made fast or slow forward and reverse progress scrubbing pause, track the finger directly, and resume without hiding controls.
+- **Interface Clarity**: Added an easy-to-tap total/remaining video timer and active resize-mode feedback, explained OnlyFiles health checks, improved image-decoding errors, standardized Root icons, and consistently named primary storage “Internal Storage.”
+- **Runtime Compatibility**: Kept Android 15-only PDF text search behind an explicit platform guard and made viewer and editor feedback follow configuration changes safely.
+- **Compatible Dependency Refresh**: Updated the Android, Kotlin, Compose, Hilt, KSP, Media3, security, and test libraries that remain compatible with the Gradle 9.5.0 toolchain, while retaining Coil 2 and stable MaterialKolor 4.
+
+## [1.9.10] - 2026-08-11
+
+- **Storage Provider Setup**: Added Automatic, Root, Shizuku, and Normal Android selection to onboarding and Settings, with live connection state, effective privilege, reconnect, permission, manager, and explicit Normal fallback actions.
+- **Protected Write Controls**: Added a Root-only protected app-data write preference with an explicit safety warning while keeping system partitions and virtual filesystems read-only.
+- **Provider-Aware App Access**: Allowed Arcile to open through a ready Root or Shizuku connection without requiring Normal Android all-files permission, with passive access refreshes whenever the app resumes.
+- **Context-Preserving Recovery**: Kept the current browser location and in-progress interface state visible when Root, Shizuku, or Normal access disappears, with clear reconnect and permission recovery actions.
+- **Explicit Normal Fallback**: Added a user-controlled switch from protected storage to Normal access that waits for permission and changes location only after the fallback is explicitly completed.
+- **Reliable Normal Recovery**: Fixed the explicit Normal fallback after Root or Shizuku access is lost so it leaves the protected location and opens local primary storage immediately.
+- **Scoped Protected Folder Tools**: Limited folder analysis and cleanup shortcuts to Root and Shizuku locations, with labels that clearly identify the current folder as their scope.
+- **Interruption-Safe Storage Recovery**: Preserved coroutine cancellation during archive rollback, cross-backend streams, protected content access, and temporary-file cleanup instead of converting interruptions into ordinary failures.
+
+---
+
+## [1.9.9] - 2026-08-11
+
+- **Protected File Viewing**: Added secure Root and Shizuku previews, playback, thumbnails, PDF viewing and printing, APK inspection, and internal metadata access through expiring path-free content grants.
+- **Read-Only External Handoffs**: Added fresh, time-limited grants for opening and sharing protected files with other apps without exposing storage paths or write access.
+- **Safe Protected Text Editing**: Added atomic saves for editable protected text files, preserving the original when writing, syncing, or replacement fails.
+
+---
+
+## [1.9.8] - 2026-08-11
+
+- **Explicit Protected Storage Analysis**: Added folder-level Root and Shizuku usage maps and cleaner entry points while keeping protected areas opt-in instead of scanning them automatically.
+- **Descriptor-Based Cleaner Verification**: Added bounded protected traversal, large-file detection, duplicate sampling, full-content verification, cycle handling, and partial-result reporting without reopening protected paths locally.
+- **Backend-Safe Cleaner Recovery**: Preserved protected file identity in cached cleaner results, Trash operations, undo refreshes, rule changes, and mutation invalidation so identical paths from different backends remain separate.
+
+---
+
+## [1.9.7] - 2026-08-11
+
+- **Protected Archive Workflows**: Added Root and Shizuku browsing, metadata, conflict detection, extraction, and creation for ZIP, TAR-family, and 7z archives while keeping protected paths behind authorized descriptors.
+- **Safe Cross-Backend Publication**: Added private compatibility workspaces, recognizable partial outputs, final renames, conflict-safe folder aliases, replacement rollback, and cleanup after failures or interruptions.
+- **Persistent Archive Identity**: Kept archive and destination backends through browser history, restored sessions, properties, durable foreground requests, and service restarts instead of retrying protected files as local paths.
+
+---
+
+## [1.9.6] - 2026-08-11
+
+- **Backend-Aware Privileged Trash**: Added same-volume Trash support for Root and Shizuku user-storage files and folders while preserving their backend identity through foreground operations.
+- **Safe Move And Restore Recovery**: Stored app-private recovery metadata before each move, reconciled interrupted outcomes, avoided identifier collisions, and restored with conflict-safe renaming or destination selection.
+- **Reconnect-Aware Trash**: Kept cached privileged Trash items visible while their backend is unavailable, blocked unsafe restore attempts with clear guidance, and resumed live status after reconnection.
+
+---
+
+## [1.9.5] - 2026-08-11
+
+- **Protected Folder Search**: Added recursive search with existing filters inside the current Root or Shizuku directory, while preserving each result's original backend.
+- **Bounded Privileged Scans**: Added depth, entry, result, and duration limits with cycle detection, inaccessible-branch handling, and cancellation-safe traversal.
+- **Stable Cached Identity**: Preserved canonical backend identity and capabilities in cached file and usage results, including Unicode, newline, and delimiter-containing paths.
+
+---
+
+## [1.9.4] - 2026-08-11
+
+- **Privileged File Details**: Added backend-aware properties and folder totals for Root and Shizuku files, including partial-access reporting, cycle protection, bounded scans, and identity-safe caching.
+- **Reliable Batch Rename**: Kept Root and Shizuku identity through batch staging, rollback, completion, and undo instead of retrying protected files through local storage.
+- **Consistent Folder Insights**: Loaded cached folder sizes and background totals while browsing privileged directories, without colliding with identical paths from another access method.
+
+---
+
+## [1.9.3] - 2026-08-11
+
+- **Safe Cross-Backend Transfers**: Added staged descriptor streaming between Normal, Root, and Shizuku storage, including nested folders, conflict choices, partial-output cleanup, and source retention when move cleanup fails.
+- **Persistent Privileged Browsing**: Kept Root and Shizuku directory identity through folder navigation, history, and restored browser sessions instead of falling back to local-only access.
+- **Backend-Aware File Actions**: Preserved storage identity through foreground copy, move, delete, shred, and fake-file operations so protected locations continue using their selected backend.
+
+---
+
+## [1.9.2] - 2026-08-11
+
+- **Reliable Backend Selection**: Added passive Root-to-Shizuku-to-Normal selection, explicit-mode failure handling, backend death recovery, and generation isolation so an operation cannot switch providers midway.
+- **Backend-Aware Storage Routing**: Preserved Root and Shizuku identity in listed files, bounded remote directory pages, and routed retained references and same-backend core operations without treating protected paths as missing local files.
+- **Protected Privileged Paths**: Kept system and virtual filesystems read-only, protected storage roots and Arcile private areas, required Root plus an advanced opt-in for other apps' private-data writes, and rejected traversal and unsupported special files.
+
+---
+
+## [1.9.1] - 2026-08-11
+
+- **Secure Privileged Access Core**: Added capability-verified Root and Shizuku service connections with effective-UID checks, bounded directory pages, descriptor-based file access, cancellation, and typed failures.
+- **Safe Remote File Operations**: Kept recursive deletion from following symbolic links, rejected traversal and special-file misuse, bounded Binder payloads, and separated selected access preference from the active backend.
 
 ## [1.9.0] - 2026-08-09
 

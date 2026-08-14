@@ -1,4 +1,21 @@
 <resources>
+    <string name="browser_access_lost_title">Protected storage access was lost</string>
+    <string name="browser_access_context_preserved">Your current %1$s location and browser state are preserved.</string>
+    <string name="browser_access_reconnecting_title">Reconnecting to protected storage</string>
+    <string name="browser_access_reconnecting_root">Waiting for the Root service…</string>
+    <string name="browser_access_reconnecting_shizuku">Waiting for the Shizuku service…</string>
+    <string name="browser_access_waiting_for_normal">Waiting for Normal Android storage access…</string>
+    <string name="browser_access_service_stopped">The privileged service stopped. Start it again, then reconnect.</string>
+    <string name="browser_access_permission_required">Permission is required for this protected location. Reconnect to authorize Arcile.</string>
+    <string name="browser_access_permission_denied">Permission was denied for this protected location. Reconnect to try again.</string>
+    <string name="browser_access_backend_unavailable">The provider for this protected location is unavailable.</string>
+    <string name="browser_access_backend_incompatible">The provider cannot be used safely with this Arcile version.</string>
+    <string name="browser_access_backend_changed">A different storage provider is active. Reconnect this location or explicitly use Normal storage.</string>
+    <string name="browser_access_connection_failed">Arcile could not reconnect this protected location.</string>
+    <string name="browser_access_normal_required_title">Normal storage permission is required</string>
+    <string name="browser_access_normal_required_description">Grant Android all-files access to complete the fallback. Arcile will keep this protected location until access is granted.</string>
+    <string name="browser_access_grant_normal">Grant Normal access</string>
+    <string name="browser_access_return_to_provider">Return to provider</string>
     <!-- Trash Bin -->
     <string name="restore">Restore</string>
     <string name="restore_selected">Restore selected</string>
@@ -30,6 +47,7 @@
     <string name="trash_restore_original_description">This item will be restored to its original folder.</string>
     <string name="trash_restore_rename_description">An item with the same name exists in the original folder. The restored item will be renamed.</string>
     <string name="trash_restore_destination_description">You’ll choose a folder for this item because its original location is unavailable.</string>
+    <string name="trash_restore_backend_unavailable_description">Reconnect the original Root or Shizuku backend before restoring this item.</string>
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>
@@ -39,6 +57,8 @@
     <!-- Tools -->
     <string name="tools_title">Tools &amp; Utilities</string>
     <string name="storage_cleaner_title">Storage Cleaner</string>
+    <string name="browser_analyze_this_folder">Analyze This Folder</string>
+    <string name="browser_clean_this_folder">Clean This Folder</string>
     <string name="cleaner_scanning">Scanning indexed storage…</string>
     <string name="cleaner_scanning_category">Scanning…</string>
     <string name="cleaner_checking_duplicates">Checking file contents for duplicates…</string>

@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Android
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.AudioFile
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
@@ -82,6 +81,7 @@ internal fun StorageDashboardScreen(
     state: StorageOverviewState,
     usageState: StorageUsageUiState,
     selectedVolumeId: String? = null,
+    explicitScope: Boolean = false,
     onNavigateBack: () -> Unit,
     onCategoryClick: (String, String?) -> Unit,
     onOpenPath: (String) -> Unit,
@@ -132,7 +132,9 @@ internal fun StorageDashboardScreen(
     val unassignedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
 
     var showLoading by remember { mutableStateOf(false) }
-    var selectedTabIndex by remember { mutableStateOf(0) }
+    var selectedTabIndex by remember(explicitScope) {
+        mutableStateOf(if (explicitScope) 1 else 0)
+    }
 
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
         if (state.isLoading || state.isCalculatingStorage) {
@@ -142,8 +144,8 @@ internal fun StorageDashboardScreen(
             showLoading = false
         }
     }
-    LaunchedEffect(selectedTabIndex, selectedVolumeId) {
-        if (selectedTabIndex == 1) {
+    LaunchedEffect(selectedTabIndex, selectedVolumeId, explicitScope) {
+        if (explicitScope || selectedTabIndex == 1) {
             onLoadUsage(selectedVolumeId)
         }
     }
@@ -179,7 +181,7 @@ internal fun StorageDashboardScreen(
                     }
                 },
                 actions = {
-                    if (selectedTabIndex == 1) {
+                    if (explicitScope || selectedTabIndex == 1) {
                         IconButton(onClick = onRefreshUsage) {
                             Icon(
                                 imageVector = Icons.Default.Refresh,
@@ -197,27 +199,29 @@ internal fun StorageDashboardScreen(
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
         ) {
-            PrimaryTabRow(
-                selectedTabIndex = selectedTabIndex
-            ) {
-                ExpressiveTab(
-                    selected = selectedTabIndex == 0,
-                    onClick = { selectedTabIndex = 0 },
-                    index = 0,
-                    selectedIndex = selectedTabIndex,
-                    text = { Text(stringResource(R.string.storage_dashboard_summary_tab)) }
-                )
-                ExpressiveTab(
-                    selected = selectedTabIndex == 1,
-                    onClick = { selectedTabIndex = 1 },
-                    index = 1,
-                    selectedIndex = selectedTabIndex,
-                    text = { Text(stringResource(R.string.storage_dashboard_usage_map_tab)) }
-                )
+            if (!explicitScope) {
+                PrimaryTabRow(
+                    selectedTabIndex = selectedTabIndex
+                ) {
+                    ExpressiveTab(
+                        selected = selectedTabIndex == 0,
+                        onClick = { selectedTabIndex = 0 },
+                        index = 0,
+                        selectedIndex = selectedTabIndex,
+                        text = { Text(stringResource(R.string.storage_dashboard_summary_tab)) }
+                    )
+                    ExpressiveTab(
+                        selected = selectedTabIndex == 1,
+                        onClick = { selectedTabIndex = 1 },
+                        index = 1,
+                        selectedIndex = selectedTabIndex,
+                        text = { Text(stringResource(R.string.storage_dashboard_usage_map_tab)) }
+                    )
+                }
             }
 
             Box(modifier = Modifier.weight(1f)) {
-                if (selectedTabIndex == 0) {
+                if (!explicitScope && selectedTabIndex == 0) {
                     StorageSummaryTab(
                         state = state,
                         selectedVolume = selectedVolume,
@@ -478,7 +482,7 @@ private fun RootStorageSummary(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Default.AccountTree,
+                imageVector = Icons.Default.Android,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant

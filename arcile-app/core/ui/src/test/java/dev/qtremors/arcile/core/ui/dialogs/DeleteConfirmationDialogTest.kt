@@ -48,7 +48,7 @@ class DeleteConfirmationDialogTest {
 
         composeRule.onNodeWithText("Destination: Trash Bin").assertExists()
         composeRule.onNodeWithText("Selected items will be moved to the Trash Bin. You can restore them later.").assertExists()
-        composeRule.onNodeWithText("2 items • 2.0 KB • 1 folders").assertExists()
+        composeRule.onNodeWithText("2 items • 2.0 KB • Folders: 1").assertExists()
         composeRule.onNodeWithText("Permanently delete").performClick()
 
         assertEquals(1, toggleCount)

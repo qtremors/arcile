@@ -54,7 +54,7 @@ class StorageUsageMapTest {
         setStorageUsageContent(onSelectedNode = { selectedPath = it.path })
 
         composeRule
-            .onNodeWithContentDescription("Downloads, 768.0 B, 1 items")
+            .onNodeWithContentDescription("Downloads, 768.0 B, 1 item")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
@@ -67,7 +67,7 @@ class StorageUsageMapTest {
         setStorageUsageContent(onDrilledNode = { drilledPath = it.path })
 
         composeRule
-            .onNodeWithContentDescription("Downloads, 768.0 B, 1 items")
+            .onNodeWithContentDescription("Downloads, 768.0 B, 1 item")
             .performTouchInput { doubleClick() }
         composeRule.waitForIdle()
 
@@ -82,7 +82,7 @@ class StorageUsageMapTest {
         composeRule.onNodeWithText("768.0 B").assertExists()
         composeRule.onNodeWithText("75.0%").assertExists()
         composeRule
-            .onNodeWithContentDescription("Downloads, 768.0 B, 1 items")
+            .onNodeWithContentDescription("Downloads, 768.0 B, 1 item")
             .performTouchInput { longClick() }
         composeRule.waitForIdle()
 
@@ -127,9 +127,11 @@ class StorageUsageMapTest {
             .onNodeWithContentDescription("Storage usage chart for Internal")
             .fetchSemanticsNode()
             .config[SemanticsActions.CustomActions]
-        actions.first { it.label == "Select Documents" }.action()
+        composeRule.runOnIdle {
+            actions.first { it.label == "Select Documents" }.action()
+        }
 
-        composeRule.onNode(hasStateDescription("Documents selected, 256.0 B, 1 items")).assertExists()
+        composeRule.onNode(hasStateDescription("Documents selected, 256.0 B, 1 item")).assertExists()
     }
 
     @Test
@@ -141,10 +143,11 @@ class StorageUsageMapTest {
             .onNodeWithContentDescription("Storage usage chart for Internal")
             .fetchSemanticsNode()
             .config[SemanticsActions.CustomActions]
-        actions.first { it.label == "Select Internal" }.action()
-
-        assertEquals("/storage/emulated/0", selectedNode?.path)
-        assertEquals(2, selectedNode?.children?.size)
+        composeRule.runOnIdle {
+            actions.first { it.label == "Select Internal" }.action()
+            assertEquals("/storage/emulated/0", selectedNode?.path)
+            assertEquals(2, selectedNode?.children?.size)
+        }
     }
 
     @Test
@@ -157,8 +160,9 @@ class StorageUsageMapTest {
         composeRule
             .onNodeWithContentDescription("Storage usage chart for Internal")
             .performKeyInput { pressKey(Key.DirectionRight) }
+        composeRule.waitForIdle()
 
-        composeRule.onNode(hasStateDescription("Downloads selected, 768.0 B, 1 items")).assertExists()
+        composeRule.onNode(hasStateDescription("Downloads selected, 768.0 B, 1 item")).assertExists()
     }
 
     @Test

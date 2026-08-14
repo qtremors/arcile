@@ -108,6 +108,33 @@ class VideoViewerPlaybackTest {
     }
 
     @Test
+    fun `gallery content uri keeps selected video at its original thumbnail position`() {
+        val first = videoFile("/movies/first.mp4")
+        val selected = videoFile("/movies/second.mp4")
+        val third = videoFile("/movies/third.mp4")
+        val selectedItem = VideoPlaybackItem(
+            mediaItem = MediaItem.Builder()
+                .setUri("content://media/external/video/media/42")
+                .setMediaId(selected.absolutePath)
+                .build(),
+            title = selected.name
+        )
+        val session = VideoPlaybackSession(
+            items = listOf(selectedItem),
+            files = listOf(first, selected, third)
+        )
+
+        val initialPath = videoPlaybackInitialPath(session)
+        val initializedFiles = (session.files.orEmpty() + fileModelFromPath(initialPath))
+            .distinctBy(FileModel::absolutePath)
+
+        assertEquals(selected.absolutePath, initialPath)
+        assertEquals(listOf(first, selected, third), initializedFiles)
+        assertEquals(1, initializedFiles.indexOfFirst { it.absolutePath == initialPath })
+        assertEquals(selectedItem, videoPlaybackItemFor(selected, fallbackIndex = 1, session))
+    }
+
+    @Test
     fun `path matching does not confuse suffix-related video locations`() {
         val nested = videoFile("/archive/movies/clip.mp4")
         val requested = videoFile("/movies/clip.mp4")
@@ -167,6 +194,180 @@ class VideoViewerPlaybackTest {
         assertEquals(1, nextVideoResizeModeIndex(0))
         assertEquals(2, nextVideoResizeModeIndex(1))
         assertEquals(0, nextVideoResizeModeIndex(2))
+    }
+
+    @Test
+    fun `video timer switches between total and remaining time`() {
+        assertEquals("2:00", videoPlaybackEndTimeText(30_000L, 120_000L, showRemaining = false))
+        assertEquals("−1:30", videoPlaybackEndTimeText(30_000L, 120_000L, showRemaining = true))
+        assertEquals("−0:00", videoPlaybackEndTimeText(130_000L, 120_000L, showRemaining = true))
+    }
+
+    @Test
+    fun `android navigation edges cannot start vertical video gestures`() {
+        fun allowed(x: Float, y: Float) = videoVerticalGestureAllowed(
+            startX = x,
+            startY = y,
+            viewportWidth = 1_000f,
+            viewportHeight = 1_000f,
+            leftGestureInset = 32f,
+            rightGestureInset = 32f,
+            bottomGestureInset = 80f
+        )
+
+        assertTrue(allowed(100f, 500f))
+        assertTrue(allowed(900f, 500f))
+        assertFalse(allowed(31f, 500f))
+        assertFalse(allowed(968f, 500f))
+        assertFalse(allowed(500f, 920f))
+    }
+
+    @Test
+    fun `video zoom clamps scale and pan to the visible viewport`() {
+        assertEquals(
+            VideoZoomTransform(scale = 2f, offsetX = 250f, offsetY = -250f),
+            videoZoomTransformAfterGesture(
+                scale = 1f,
+                offsetX = 0f,
+                offsetY = 0f,
+                zoomChange = 2f,
+                panX = 900f,
+                panY = -600f,
+                viewportWidth = 500f,
+                viewportHeight = 500f
+            )
+        )
+        assertEquals(
+            VideoZoomTransform(scale = 1f, offsetX = 0f, offsetY = 0f),
+            videoZoomTransformAfterGesture(
+                scale = 2f,
+                offsetX = 100f,
+                offsetY = 100f,
+                zoomChange = 0.1f,
+                panX = 0f,
+                panY = 0f,
+                viewportWidth = 500f,
+                viewportHeight = 500f
+            )
+        )
+    }
+
+    @Test
+    fun `progress scrubbing continuously maps forward and reverse positions`() {
+        assertEquals(8_000L, videoScrubTargetPosition(.8f, 10_000L))
+        assertEquals(2_000L, videoScrubTargetPosition(.2f, 10_000L))
+        assertEquals(0L, videoScrubTargetPosition(-1f, 10_000L))
+        assertEquals(10_000L, videoScrubTargetPosition(2f, 10_000L))
+    }
+
+    @Test
+    fun `fast pointer jumps map directly to absolute scrub progress`() {
+        assertEquals(0.08f, videoScrubProgressForPointer(8f, 100f))
+        assertEquals(0.92f, videoScrubProgressForPointer(92f, 100f))
+        assertEquals(0.12f, videoScrubProgressForPointer(12f, 100f))
+        assertEquals(0f, videoScrubProgressForPointer(-20f, 100f))
+        assertEquals(1f, videoScrubProgressForPointer(120f, 100f))
+        assertEquals(0f, videoScrubProgressForPointer(50f, 0f))
+    }
+
+    @Test
+    fun `scrubbing pauses active playback and resumes only when it started active`() {
+        val playingStart = videoScrubPlaybackTransition(
+            wasScrubbing = false,
+            resumeWhenFinished = false,
+            scrubbing = true,
+            isPlaying = true
+        )
+        assertTrue(playingStart.pausePlayback)
+        assertTrue(playingStart.resumeWhenFinished)
+
+        val playingEnd = videoScrubPlaybackTransition(
+            wasScrubbing = playingStart.isScrubbing,
+            resumeWhenFinished = playingStart.resumeWhenFinished,
+            scrubbing = false,
+            isPlaying = false
+        )
+        assertTrue(playingEnd.resumePlayback)
+
+        val pausedStart = videoScrubPlaybackTransition(
+            wasScrubbing = false,
+            resumeWhenFinished = false,
+            scrubbing = true,
+            isPlaying = false
+        )
+        assertFalse(pausedStart.pausePlayback)
+        assertFalse(pausedStart.resumeWhenFinished)
+        assertFalse(
+            videoScrubPlaybackTransition(
+                wasScrubbing = pausedStart.isScrubbing,
+                resumeWhenFinished = pausedStart.resumeWhenFinished,
+                scrubbing = false,
+                isPlaying = false
+            ).resumePlayback
+        )
+    }
+
+    @Test
+    fun `next video keeps its thumbnail before delayed loading feedback`() {
+        assertFalse(
+            shouldShowVideoLoadingIndicator(
+                isBuffering = true,
+                showPlaceholder = true,
+                placeholderDelayElapsed = false
+            )
+        )
+        assertFalse(
+            videoPlayerSurfaceCanAttach(
+                isPageFocused = true,
+                loadedPath = "/movies/old.mp4",
+                pagePath = "/movies/next.mp4"
+            )
+        )
+        assertTrue(
+            videoPlayerSurfaceCanAttach(
+                isPageFocused = true,
+                loadedPath = "/movies/next.mp4",
+                pagePath = "/movies/next.mp4"
+            )
+        )
+        assertNull(
+            videoRenderedPathForFirstFrame(
+                currentMediaId = "/movies/next.mp4",
+                loadedPath = "/movies/next.mp4",
+                transitionedPath = null
+            )
+        )
+        assertEquals(
+            "/movies/next.mp4",
+            videoRenderedPathForFirstFrame(
+                currentMediaId = "/movies/next.mp4",
+                loadedPath = "/movies/next.mp4",
+                transitionedPath = "/movies/next.mp4"
+            )
+        )
+        assertTrue(
+            shouldShowVideoLoadingIndicator(
+                isBuffering = true,
+                showPlaceholder = true,
+                placeholderDelayElapsed = true
+            )
+        )
+        assertFalse(
+            shouldShowVideoLoadingIndicator(
+                isBuffering = false,
+                showPlaceholder = false,
+                placeholderDelayElapsed = true
+            )
+        )
+    }
+
+    @Test
+    fun `ordinary videos remain active in background while protected playback closes`() {
+        assertTrue(videoBackgroundPlaybackAllowed(securityScopeId = null))
+        assertFalse(videoBackgroundPlaybackAllowed(securityScopeId = "vault:one"))
+        assertTrue(shouldKeepVideoPlayerActive(true, lifecycleStarted = false))
+        assertFalse(shouldKeepVideoPlayerActive(false, lifecycleStarted = false))
+        assertTrue(shouldKeepVideoPlayerActive(false, lifecycleStarted = true))
     }
 
     @Test

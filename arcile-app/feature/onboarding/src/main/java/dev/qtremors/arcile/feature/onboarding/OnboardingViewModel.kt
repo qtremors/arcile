@@ -4,6 +4,11 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
+import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
+import dev.qtremors.arcile.core.privilege.PrivilegeMode
+import dev.qtremors.arcile.core.privilege.PrivilegeServiceIdentity
 import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
@@ -29,6 +34,10 @@ internal data class OnboardingUiState(
     val isCompleting: Boolean = false,
     val preferencesLoaded: Boolean = false,
     val isCompleted: Boolean = false,
+    val preferredAccessMode: PrivilegeMode = PrivilegeMode.AUTOMATIC,
+    val activeBackend: PrivilegeBackendId? = null,
+    val accessBackends: Map<PrivilegeBackendId, PrivilegeBackendState> = emptyMap(),
+    val accessIdentity: PrivilegeServiceIdentity? = null,
     val backupState: OnboardingBackupState = OnboardingBackupState.Idle
 ) {
     val canContinue: Boolean
@@ -39,7 +48,8 @@ internal data class OnboardingUiState(
 internal class OnboardingViewModel @Inject constructor(
     private val onboardingPreferencesStore: OnboardingPreferencesStore,
     private val backupGateway: PreferencesBackupGateway,
-    private val appVersionCodeProvider: AppVersionCodeProvider
+    private val appVersionCodeProvider: AppVersionCodeProvider,
+    private val privilegeCoordinator: PrivilegeCoordinator
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(OnboardingUiState())
@@ -52,6 +62,19 @@ internal class OnboardingViewModel @Inject constructor(
                     it.copy(
                         preferencesLoaded = true,
                         isCompleted = preferences.isCompleted
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            privilegeCoordinator.state.collect { access ->
+                _state.update {
+                    it.copy(
+                        hasStoragePermission = access.isReady,
+                        preferredAccessMode = access.preferredMode,
+                        activeBackend = access.activeBackend,
+                        accessBackends = access.backendStates,
+                        accessIdentity = access.identity
                     )
                 }
             }
@@ -98,6 +121,21 @@ internal class OnboardingViewModel @Inject constructor(
 
     fun handleNotificationPermissionResult() {
         _state.update { it.copy(notificationPermissionHandled = true) }
+    }
+
+    fun selectAccessMode(mode: PrivilegeMode) {
+        viewModelScope.launch {
+            privilegeCoordinator.selectMode(
+                mode = mode,
+                requestAuthorization = mode == PrivilegeMode.ROOT || mode == PrivilegeMode.SHIZUKU
+            )
+        }
+    }
+
+    fun reconnectAccess() {
+        viewModelScope.launch {
+            privilegeCoordinator.reconnect(requestAuthorization = true)
+        }
     }
 
     fun markExistingUserCompleted() {

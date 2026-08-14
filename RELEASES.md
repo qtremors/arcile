@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 1.9.0
-> **Last Updated:** 2026-08-09
+> **Version:** 2.0.0
+> **Last Updated:** 2026-08-13
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v2.0.0](#v200) | 2026-08-13 | Provider-aware Root and Shizuku workflows, refined video playback, clearer documentation, and compatible platform updates |
 | [v1.9.0](#v190) | 2026-08-09 | Customizable workspaces, complete search and viewer controls, safer file operations, faster storage tools, and release reliability |
 | [v1.8.0](#v180) | 2026-08-02 | Category UI parity, native PDF and document tools, Markdown editor, dual browser workspaces, and unified audio playback |
 | [v1.7.0](#v170) | 2026-07-26 | Complete audio library and background player, PowerRename, split APK installation, richer video controls, and consistent media workflows |
@@ -14,6 +15,53 @@
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v2.0.0
+
+**Release Date:** August 13, 2026
+
+**Previous public release:** v1.9.0
+
+**Development range included:** v1.9.1 through v2.0.0
+
+**Known issues & roadmap:** Track active issues and ongoing engineering tasks in [TASKS.md](TASKS.md).
+
+Arcile v2.0.0 completes provider-aware file management across Normal Android, Root, and Shizuku access, significantly refines video playback, and makes the project's user and developer documentation easier to navigate.
+
+> [!CAUTION]
+> **Root and Shizuku limitations:** Root support has not been tested on a rooted device and should be treated as unverified. Shizuku does not provide unrestricted root access, so it cannot access every filesystem location or perform every privileged operation; availability may vary by device and Android version.
+
+## What's New Since v1.9.0
+
+### Root, Shizuku, and Normal Android access
+
+- Choose Automatic, Root, Shizuku, or Normal Android access during onboarding or later in Settings, with live readiness, identity, reconnect, permission, and fallback controls.
+- Browse, search, inspect, rename, copy, move, delete, shred, archive, analyze, clean, preview, edit, open, and share files while preserving their selected storage-provider identity.
+- Transfer files safely between access providers with staged publication, conflict handling, cancellation cleanup, partial-failure reporting, and interruption recovery.
+- Keep system and virtual filesystems read-only, with a separate Root-only safety opt-in for protected app-data writes.
+- Preserve the active folder and interface state when access disappears, then recover through an explicit reconnect or Normal-access action.
+
+### Protected media, archives, Trash, and storage tools
+
+- Preview images, videos, audio, PDFs, APK details, thumbnails, and metadata through expiring protected content grants without exposing storage paths.
+- Keep gallery video order and thumbnail position intact, retain the cached thumbnail until the next video renders, and keep titles clear of display cutouts.
+- Continue ordinary video playback only when Arcile moves to the background, with media notification controls and a Close player action; protected playback still closes on backgrounding.
+- Pinch to zoom and pan video, scrub quickly or precisely in either direction without losing the controls, tap the duration to switch between total and remaining time, and see the active fit, zoom, or fill mode.
+- Keep brightness, volume, and metadata gestures clear of Android navigation edges, and restart the control timeout after every interaction.
+- Get a more useful image-decoding error when an image is damaged, unsupported, or temporarily inaccessible.
+- Create, browse, and extract supported archives in protected locations while retaining backend identity through foreground work and restarts.
+- Move supported protected files to same-volume Trash, keep disconnected items visible, and restore only after the original provider is ready.
+- Run explicit folder-scoped usage maps and cleaner scans with bounded traversal, verified duplicate detection, partial-result warnings, and provider-safe cleanup.
+
+### Documentation, community, and platform maintenance
+
+- Replaced the README's developer sections with a comprehensive user-facing feature guide and moved build, structure, stack, signing, testing, and release details to `DEVELOPMENT.md`.
+- Added the Discord community link and expanded credits across the README, website, and in-app license screen.
+- Standardized Root actions on the Android icon, named primary storage “Internal Storage,” and explained the difference between OnlyFiles quick and full health checks.
+- Updated compatible Android, Kotlin, Compose, Hilt, KSP, Media3, security, and test dependencies while keeping Gradle 9.5.0, Coil 2, and stable MaterialKolor 4.
+- Synchronized app metadata to `versionName` `2.0.0` and `versionCode` `200`.
 
 ---
 

@@ -27,6 +27,12 @@ interface StorageUsageSnapshotDao {
     @Upsert
     suspend fun upsert(entity: StorageUsageSnapshotEntity)
 
+    @Query("SELECT * FROM storage_usage_snapshots")
+    suspend fun getAll(): List<StorageUsageSnapshotEntity>
+
+    @Query("DELETE FROM storage_usage_snapshots WHERE `key` IN (:keys)")
+    suspend fun deleteKeys(keys: List<String>)
+
     @Query("DELETE FROM storage_usage_snapshots WHERE root_path = :rootPath OR root_path LIKE :descendantPrefix")
     suspend fun deleteForRoot(rootPath: String, descendantPrefix: String)
 

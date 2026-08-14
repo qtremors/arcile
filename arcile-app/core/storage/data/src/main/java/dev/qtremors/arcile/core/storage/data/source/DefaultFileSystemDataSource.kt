@@ -231,6 +231,17 @@ class DefaultFileSystemDataSource(
         }
     }
 
+    override suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = withContext(dispatchers.io) {
+        runCatchingPreservingCancellation {
+            require(node.backendId == StorageNodeRef.LOCAL_BACKEND_ID) {
+                "Local storage cannot inspect ${node.backendId} nodes"
+            }
+            val file = File(node.displayPath.absolutePath)
+            require(file.exists()) { "Path does not exist: ${file.absolutePath}" }
+            fileModelMapper.toFileModel(file).copy(nodeRef = node)
+        }
+    }
+
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = withContext(dispatchers.io) {
         try {
             validateFileName(name).onFailure { return@withContext Result.failure(it) }

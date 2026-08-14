@@ -13,7 +13,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.AccountTree
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Usb
@@ -194,7 +194,7 @@ internal fun RootStorageUsageCard(
                     style = MaterialTheme.typography.titleLargeBold
                 )
                 Icon(
-                    imageVector = Icons.Default.AccountTree,
+                    imageVector = Icons.Default.Android,
                     contentDescription = stringResource(R.string.root_storage)
                 )
             }

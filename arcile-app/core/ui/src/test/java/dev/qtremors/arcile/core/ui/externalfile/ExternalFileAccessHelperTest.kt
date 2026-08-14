@@ -584,7 +584,7 @@ class ExternalFileAccessHelperTest {
         sizeBytes: Long
     ): Cursor = MatrixCursor(arrayOf(column)).apply {
         addRow(
-            arrayOf(
+            arrayOf<Any?>(
                 when (column) {
                     OpenableColumns.DISPLAY_NAME -> displayName
                     OpenableColumns.SIZE -> sizeBytes

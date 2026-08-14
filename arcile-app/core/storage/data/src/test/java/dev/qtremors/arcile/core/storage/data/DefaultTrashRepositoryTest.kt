@@ -6,8 +6,10 @@ import android.app.RemoteAction
 import android.content.IntentSender
 import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
+import dev.qtremors.arcile.core.storage.data.manager.TrashTarget
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationOperation
 import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -37,6 +39,30 @@ class DefaultTrashRepositoryTest {
 
         assertTrue(result.isSuccess)
         coVerify(exactly = 1) { manager.moveToTrash(listOf("/a"), null) }
+    }
+
+    @Test
+    fun `move nodes to trash retains privileged node identities`() = runTest {
+        val manager = mockk<TrashManager>()
+        val root = StorageNodeRef.root(
+            displayPath = "/data/user/0/dev.qtremors.arcile/files/private.txt",
+            remoteCanonicalIdentity = "root-private-42"
+        )
+        val shizuku = StorageNodeRef.shizuku(
+            displayPath = "/storage/emulated/0/Documents/shared.txt",
+            remoteCanonicalIdentity = "shell-shared-7"
+        )
+        val targets = listOf(root, shizuku).map { node ->
+            TrashTarget(node.displayPath.absolutePath, node)
+        }
+        coEvery { manager.moveToTrashTargets(targets, any()) } returns Result.success(Unit)
+        val repository = DefaultTrashRepository(manager, NativeStorageAuthorizationGateway())
+
+        val result = repository.moveNodesToTrash(listOf(root, shizuku))
+
+        assertTrue(result.isSuccess)
+        coVerify(exactly = 1) { manager.moveToTrashTargets(targets, null) }
+        coVerify(exactly = 0) { manager.moveToTrash(any(), any()) }
     }
 
     @Test

@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.operation.android.apk
 
 import android.content.Context
+import android.net.Uri
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
@@ -147,13 +148,61 @@ internal fun cleanupOwnedApkStagingDirectory(cacheDir: File, directory: File): B
     return !canonicalDirectory.exists() || canonicalDirectory.deleteRecursively()
 }
 
-private fun createUniqueStagingDirectory(cacheDir: File): File {
+internal fun createUniqueStagingDirectory(cacheDir: File): File {
     require(cacheDir.mkdirs() || cacheDir.isDirectory) { "APK staging cache is unavailable" }
     repeat(8) {
         val candidate = File(cacheDir, "$APK_STAGING_PREFIX${UUID.randomUUID()}")
         if (candidate.mkdir()) return candidate
     }
     error("Could not create a unique APK staging directory")
+}
+
+internal suspend fun stageContentApkPackage(
+    context: Context,
+    uri: Uri,
+    displayName: String,
+    maximumBytes: Long = ApkStagingPolicy().maxTotalBytes
+): Pair<File, File> {
+    require(uri.scheme == "content") { "APK capability must be a content URI" }
+    val safeName = displayName.substringAfterLast('/').substringAfterLast('\\')
+    require(safeName.isNotBlank() && safeName.none { it == '\u0000' }) {
+        "APK package name is invalid"
+    }
+    val extension = safeName.substringAfterLast('.', "").lowercase()
+    require(extension in setOf("apk", "apks", "apkm", "xapk")) {
+        "Unsupported APK package type"
+    }
+    val directory = createUniqueStagingDirectory(context.cacheDir)
+    val destination = File(directory, "source.$extension")
+    try {
+        val available = context.cacheDir.usableSpace.takeIf { it > 0L }
+            ?.minus(ApkStagingPolicy().freeSpaceReserveBytes)
+            ?.coerceAtLeast(0L)
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            BufferedInputStream(input).use { bufferedInput ->
+                BufferedOutputStream(destination.outputStream()).use { output ->
+                    val buffer = ByteArray(APK_STAGING_BUFFER_SIZE)
+                    var total = 0L
+                    while (true) {
+                        currentCoroutineContext().ensureActive()
+                        val count = bufferedInput.read(buffer)
+                        if (count < 0) break
+                        total = Math.addExact(total, count.toLong())
+                        require(total <= maximumBytes) { "APK package is too large to stage safely" }
+                        require(available == null || total <= available) {
+                            "Not enough free space to stage this APK package"
+                        }
+                        output.write(buffer, 0, count)
+                    }
+                }
+            }
+        } ?: error("APK package could not be opened")
+        require(destination.isFile && destination.length() > 0L) { "APK package is empty" }
+        return directory to destination
+    } catch (error: Throwable) {
+        directory.deleteRecursively()
+        throw error
+    }
 }
 
 private fun validateDeclaredEntry(entry: ZipEntry, policy: ApkStagingPolicy) {

@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.ui.R as UiR
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.feature.browser.RenameUndoEntry
@@ -27,7 +28,9 @@ internal data class BrowserMutationContext(
     val currentPath: String,
     val isVolumeRootScreen: Boolean,
     val isArchive: Boolean,
-    val selectedPaths: List<String>
+    val selectedPaths: List<String>,
+    val currentNodeRef: StorageNodeRef? = null,
+    val files: List<FileModel> = emptyList()
 )
 
 internal data class BrowserDeleteWorkflowState(
@@ -100,13 +103,26 @@ internal class BrowserMutationController(
             override fun clearSelection() = this@BrowserMutationController.clearSelection()
         },
         startBulkDeleteOperation = { type, selected ->
-            operationCoordinator.startOperation(
-                type = type,
-                sourcePaths = selected,
-                destinationPath = null,
-                resolutions = emptyMap<String, ConflictResolution>(),
-                presentationOwnerId = operationOwnerId
-            )
+            val nodes = contextProvider().files
+                .filter { it.absolutePath in selected }
+                .map(FileModel::nodeRef)
+            if (nodes.size == selected.size) {
+                operationCoordinator.startNodeOperation(
+                    type = type,
+                    sourceNodes = nodes,
+                    destinationNode = null,
+                    resolutions = emptyMap(),
+                    presentationOwnerId = operationOwnerId
+                )
+            } else {
+                operationCoordinator.startOperation(
+                    type = type,
+                    sourcePaths = selected,
+                    destinationPath = null,
+                    resolutions = emptyMap<String, ConflictResolution>(),
+                    presentationOwnerId = operationOwnerId
+                )
+            }
         },
         onFailure = {}
     )
@@ -117,7 +133,14 @@ internal class BrowserMutationController(
 
     fun createFakeFile(name: String, size: Long) {
         val context = actionableContext() ?: return
-        val started = operationCoordinator.startOperation(
+        val started = context.currentNodeRef?.let { parent ->
+            operationCoordinator.startCreateFakeNodeOperation(
+                parent = parent,
+                name = name,
+                size = size,
+                presentationOwnerId = operationOwnerId
+            )
+        } ?: operationCoordinator.startOperation(
             type = BulkFileOperationType.CREATE_FAKE,
             sourcePaths = listOf(name),
             destinationPath = context.currentPath,
@@ -161,11 +184,19 @@ internal class BrowserMutationController(
             return
         }
         scope.launch {
-            fileMutationRepository.renameFile(path, newName).onSuccess { renamed ->
+            val selectedNode = contextProvider().files.firstOrNull { it.absolutePath == path }?.nodeRef
+            val result = selectedNode?.let { fileMutationRepository.renameNode(it, newName) }
+                ?: fileMutationRepository.renameFile(path, newName)
+            result.onSuccess { renamed ->
                 clearSelection()
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
-                    BrowserUndoAction.Rename(path, renamed.absolutePath)
+                    BrowserUndoAction.Rename(
+                        originalPath = path,
+                        renamedPath = renamed.absolutePath,
+                        originalNode = selectedNode,
+                        renamedNode = selectedNode?.let { renamed.nodeRef }
+                    )
                 )
             }.onFailure { error ->
                 onError(
@@ -179,10 +210,17 @@ internal class BrowserMutationController(
     fun batchRename(renames: List<Pair<FileModel, String>>) {
         if (contextProvider().isArchive || renames.isEmpty()) return
         scope.launch {
-            val targets = renames.map { it.first.absolutePath to it.second }
-            fileMutationRepository.batchRenameFiles(targets).onSuccess { completed ->
+            val targets = renames.map { it.first.nodeRef to it.second }
+            fileMutationRepository.batchRenameNodes(targets).onSuccess { completed ->
                 clearSelection()
-                val undoEntries = completed.map { RenameUndoEntry(it.first, it.second) }.toPersistentList()
+                val undoEntries = completed.map { (original, renamed) ->
+                    RenameUndoEntry(
+                        originalPath = original.displayPath.absolutePath,
+                        renamedPath = renamed.displayPath.absolutePath,
+                        originalNode = original,
+                        renamedNode = renamed
+                    )
+                }.toPersistentList()
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
                     BrowserUndoAction.BatchRename(undoEntries)
@@ -203,7 +241,11 @@ internal class BrowserMutationController(
             return
         }
         scope.launch {
-            val result = if (isDirectory) {
+            val result = if (isDirectory && context.currentNodeRef != null) {
+                fileMutationRepository.createNodeDirectory(context.currentNodeRef, name)
+            } else if (!isDirectory && context.currentNodeRef != null) {
+                fileMutationRepository.createNodeFile(context.currentNodeRef, name)
+            } else if (isDirectory) {
                 fileMutationRepository.createDirectory(context.currentPath, name)
             } else {
                 fileMutationRepository.createFile(context.currentPath, name)

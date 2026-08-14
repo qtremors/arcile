@@ -114,7 +114,7 @@ class DefaultVolumeProvider(
                 discovered[id] = StorageVolume(
                     id = id,
                     storageKey = storageKey,
-                    name = preferredName?.takeIf { it.isNotBlank() } ?: fallbackName,
+                    name = storageVolumeDisplayName(isPrimary, preferredName, fallbackName),
                     path = canonicalPath,
                     totalBytes = totalBytes,
                     freeBytes = freeBytes,
@@ -241,4 +241,14 @@ class DefaultVolumeProvider(
 
     override suspend fun currentVolumes(): List<StorageVolume> =
         getStorageVolumes().getOrNull().orEmpty()
+}
+
+internal fun storageVolumeDisplayName(
+    isPrimary: Boolean,
+    preferredName: String?,
+    fallbackName: String
+): String = if (isPrimary) {
+    "Internal Storage"
+} else {
+    preferredName?.takeIf(String::isNotBlank) ?: fallbackName
 }

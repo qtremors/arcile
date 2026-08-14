@@ -79,7 +79,9 @@ class MutationJournalTest {
 
     @Test
     fun `cleanup preserves archive temporary files outside active roots`() = runTest {
-        val outside = createTempDir(prefix = "mutation-journal-outside").canonicalFile
+        val outside = kotlin.io.path.createTempDirectory(
+            prefix = "mutation-journal-outside"
+        ).toFile().canonicalFile
         val temp = File(outside, ".bundle.zip.arcile-archive-123.tmp").apply { writeText("partial archive") }
         try {
             journal.recordTemporaryPath(temp.absolutePath)

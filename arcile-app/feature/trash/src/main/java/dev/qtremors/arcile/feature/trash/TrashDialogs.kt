@@ -40,6 +40,8 @@ internal fun RestoreItemDialog(
         TrashRestoreStatus.DESTINATION_REQUIRED,
         TrashRestoreStatus.RECOVERED_ITEM ->
             stringResource(R.string.trash_restore_destination_description)
+        TrashRestoreStatus.BACKEND_UNAVAILABLE ->
+            stringResource(R.string.trash_restore_backend_unavailable_description)
     }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -48,10 +50,12 @@ internal fun RestoreItemDialog(
         },
         text = { Text(description) },
         confirmButton = {
-            DialogTextButton(
-                text = stringResource(R.string.restore),
-                onClick = onConfirm
-            )
+            if (item.restoreStatus != TrashRestoreStatus.BACKEND_UNAVAILABLE) {
+                DialogTextButton(
+                    text = stringResource(R.string.restore),
+                    onClick = onConfirm
+                )
+            }
         },
         dismissButton = {
             DialogTextButton(

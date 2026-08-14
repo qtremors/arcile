@@ -23,7 +23,9 @@ class ApkStagingTest {
 
     @Before
     fun setup() {
-        root = createTempDir(prefix = "apk-staging-test").canonicalFile
+        root = kotlin.io.path.createTempDirectory(
+            prefix = "apk-staging-test"
+        ).toFile().canonicalFile
         cache = File(root, "cache").apply { mkdirs() }
     }
 

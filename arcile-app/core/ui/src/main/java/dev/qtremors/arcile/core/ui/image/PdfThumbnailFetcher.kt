@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
+import android.net.Uri
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -19,15 +20,21 @@ import java.io.File
 class PdfThumbnailFetcher(
     private val file: File,
     private val options: Options,
+    private val contentUri: String? = null,
+    private val declaredSizeBytes: Long? = null,
     private val ioContext: CoroutineContext = Dispatchers.IO
 ) : Fetcher {
     override suspend fun fetch(): FetchResult? = withContext(ioContext) {
-        if (!file.exists() || !file.isFile) return@withContext null
-        if (file.length() > ThumbnailPolicy.MAX_PDF_BYTES) return@withContext null
+        if (contentUri == null && (!file.exists() || !file.isFile)) return@withContext null
+        val sizeBytes = declaredSizeBytes ?: file.length()
+        if (sizeBytes > ThumbnailPolicy.MAX_PDF_BYTES) return@withContext null
 
         try {
-            ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { descriptor ->
-                PdfRenderer(descriptor).use { renderer ->
+            val descriptor = contentUri?.let { uri ->
+                options.context.contentResolver.openFileDescriptor(Uri.parse(uri), "r")
+            } ?: ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+            descriptor?.use { openedDescriptor ->
+                PdfRenderer(openedDescriptor).use { renderer ->
                     if (renderer.pageCount <= 0) return@withContext null
                     renderer.openPage(0).use { page ->
                         val maxSize = ThumbnailTargetSize.fromOptions(options)
@@ -68,7 +75,12 @@ class PdfThumbnailFetcher(
     class KeyFactory : Fetcher.Factory<ThumbnailKey> {
         override fun create(data: ThumbnailKey, options: Options, imageLoader: ImageLoader): Fetcher? {
             return if (data.type == ThumbnailType.Pdf) {
-                PdfThumbnailFetcher(data.file, options)
+                PdfThumbnailFetcher(
+                    file = data.file,
+                    options = options,
+                    contentUri = data.contentUri,
+                    declaredSizeBytes = data.sizeBytes
+                )
             } else {
                 null
             }

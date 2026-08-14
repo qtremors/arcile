@@ -2,6 +2,8 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
+import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
@@ -9,6 +11,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
+import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ensureActive
@@ -22,10 +25,12 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.LinkedHashMap
 import javax.inject.Inject
+import javax.inject.Provider
 import kotlin.math.max
 
 class DefaultStorageUsageScanner @Inject constructor(
     private val dispatchers: ArcileDispatchers,
+    private val fileSystemDataSource: Provider<FileSystemDataSource>,
     private val snapshotStore: StorageUsageSnapshotStore? = null,
     @param:ApplicationScope private val applicationScope: CoroutineScope? = null
 ) : StorageUsageScanner {
@@ -73,6 +78,59 @@ class DefaultStorageUsageScanner @Inject constructor(
         emit(StorageUsageScanState.Loaded(node))
     }.flowOn(dispatchers.storage)
 
+    override fun scanStorageUsage(
+        root: StorageNodeRef,
+        limits: StorageUsageScanLimits
+    ): Flow<StorageUsageScanState> {
+        if (!root.isPrivileged) {
+            return scanStorageUsage(root.displayPath.absolutePath, limits)
+        }
+        return flow {
+            val cacheIdentity = root.cacheIdentity()
+            cached(cacheIdentity, limits)?.let { cached ->
+                emit(StorageUsageScanState.Loaded(cached))
+                return@flow
+            }
+            var emittedSnapshot = false
+            snapshotStore?.get(root, limits)?.let { cached ->
+                emit(StorageUsageScanState.Loaded(cached))
+                emittedSnapshot = true
+            }
+            if (!emittedSnapshot) {
+                emit(
+                    StorageUsageScanState.Loading(
+                        StorageUsageScanProgress(
+                            rootPath = root.displayPath.absolutePath,
+                            scannedNodes = 0,
+                            scannedBytes = 0L,
+                            currentPath = null
+                        )
+                    )
+                )
+            }
+
+            val node = try {
+                StorageNodeUsageTreeScanner(fileSystemDataSource.get()).scan(root, limits) { progress ->
+                    if (!emittedSnapshot) emit(StorageUsageScanState.Loading(progress))
+                }
+            } catch (error: Throwable) {
+                error.rethrowIfCancellation()
+                if (!emittedSnapshot) {
+                    emit(
+                        StorageUsageScanState.Error(
+                            error.message?.takeIf(String::isNotBlank)
+                                ?: "Folder is no longer available"
+                        )
+                    )
+                }
+                return@flow
+            }
+            store(cacheIdentity, limits, node)
+            snapshotStore?.put(root, limits, node)
+            emit(StorageUsageScanState.Loaded(node))
+        }.flowOn(dispatchers.storage)
+    }
+
     override fun invalidateStorageUsage(paths: Collection<String>) {
         val normalizedPaths = if (paths.isEmpty()) {
             emptyList()
@@ -96,6 +154,30 @@ class DefaultStorageUsageScanner @Inject constructor(
             store.invalidate(normalizedPaths)
         } ?: runBlocking(dispatchers.io) {
             store.invalidate(normalizedPaths)
+        }
+    }
+
+    override fun invalidateStorageUsageNodes(nodes: Collection<StorageNodeRef>) {
+        if (nodes.isEmpty()) {
+            invalidateStorageUsage()
+            return
+        }
+        val localPaths = nodes.filterNot(StorageNodeRef::isPrivileged)
+            .map { it.displayPath.absolutePath }
+        if (localPaths.isNotEmpty()) invalidateStorageUsage(localPaths)
+
+        val privileged = nodes.filter(StorageNodeRef::isPrivileged)
+        if (privileged.isEmpty()) return
+        synchronized(cacheLock) {
+            cachedScans.entries.removeIf { entry ->
+                privileged.any { changed -> entry.key.matches(changed) }
+            }
+        }
+        val store = snapshotStore ?: return
+        applicationScope?.launch(dispatchers.io) {
+            store.invalidateNodes(privileged)
+        } ?: runBlocking(dispatchers.io) {
+            store.invalidateNodes(privileged)
         }
     }
 
@@ -318,10 +400,23 @@ class DefaultStorageUsageScanner @Inject constructor(
     private data class CacheKey(
         val rootPath: String,
         val limits: StorageUsageScanLimits
-    )
+    ) {
+        fun matches(node: StorageNodeRef): Boolean {
+            val cached = StorageNodePersistenceIdentity.decode(rootPath) ?: return false
+            if (cached.backendId != node.backendId) return false
+            val cachedPath = cached.displayPath.trimEnd('/', '\\')
+            val changedPath = node.displayPath.absolutePath.trimEnd('/', '\\')
+            return cachedPath == changedPath ||
+                cachedPath.startsWith("$changedPath/") ||
+                changedPath.startsWith("$cachedPath/")
+        }
+    }
 
     private data class CacheEntry(
         val root: StorageUsageNode,
         val cachedAt: Long
     )
+
+    private fun StorageNodeRef.cacheIdentity(): String =
+        StorageNodePersistenceIdentity.from(this).encode()
 }

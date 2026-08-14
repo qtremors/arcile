@@ -284,7 +284,7 @@ private fun rememberApkMetadata(file: FileModel): androidx.compose.runtime.State
         file.size,
         file.lastModified
     ) {
-        value = ApkPresentationMetadataReader.read(context, File(file.absolutePath))
+        value = ApkPresentationMetadataReader.read(context, file)
     }
 }
 

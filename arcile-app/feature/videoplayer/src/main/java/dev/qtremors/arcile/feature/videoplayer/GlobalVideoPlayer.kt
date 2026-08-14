@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -74,8 +75,10 @@ internal fun GlobalVideoPlayer(
     startIndex: Int = 0,
     dataSourceFactory: DataSource.Factory? = null,
     autoPlay: Boolean = true,
+    allowBackgroundPlayback: Boolean = true,
     resizeMode: Int = AspectRatioFrameLayout.RESIZE_MODE_FIT,
-    onMediaItemChanged: (Int) -> Unit = {}
+    onMediaItemChanged: (Int) -> Unit = {},
+    onCloseRequested: () -> Unit = {}
 ) {
     require(mediaItems.isNotEmpty())
     require(startIndex in mediaItems.indices)
@@ -87,7 +90,10 @@ internal fun GlobalVideoPlayer(
     val seekForwardLabel = stringResource(R.string.video_player_seek_forward)
     val seekBackwardLabel = stringResource(R.string.video_player_seek_backward)
     val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
-    val active = lifecycle.isAtLeast(Lifecycle.State.STARTED)
+    val active = shouldKeepVideoPlayerActive(
+        allowBackgroundPlayback = allowBackgroundPlayback,
+        lifecycleStarted = lifecycle.isAtLeast(Lifecycle.State.STARTED)
+    )
     var savedIndex by rememberSaveable(mediaItems) { mutableIntStateOf(startIndex) }
     var savedPosition by rememberSaveable(mediaItems) { mutableLongStateOf(0L) }
     var resumeWhenReady by rememberSaveable(mediaItems) { mutableStateOf(autoPlay) }
@@ -95,11 +101,18 @@ internal fun GlobalVideoPlayer(
     var playbackState by remember(mediaItems) { mutableIntStateOf(Player.STATE_IDLE) }
     var isPlaying by remember(mediaItems) { mutableStateOf(false) }
     var seekFeedback by remember { mutableStateOf<String?>(null) }
+    val backgroundPlayer = rememberVideoBackgroundPlayer(
+        enabled = allowBackgroundPlayback,
+        onCloseRequested = onCloseRequested
+    )
 
     Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         if (active) {
-            val player = remember(mediaItems, dataSourceFactory, active) {
+            val localPlayer = remember(mediaItems, dataSourceFactory, active, allowBackgroundPlayback) {
+                if (allowBackgroundPlayback) return@remember null
                 val builder = ExoPlayer.Builder(context)
+                    .setAudioAttributes(videoPlaybackAudioAttributes(), true)
+                    .setHandleAudioBecomingNoisy(true)
                 if (dataSourceFactory != null) {
                     builder.setMediaSourceFactory(DefaultMediaSourceFactory(context).setDataSourceFactory(dataSourceFactory))
                 }
@@ -108,6 +121,30 @@ internal fun GlobalVideoPlayer(
                     prepare()
                     playWhenReady = resumeWhenReady
                 }
+            }
+            val player = backgroundPlayer ?: localPlayer
+            if (player == null) {
+                LoadingIndicator(color = Color.White)
+                return@Box
+            }
+            LaunchedEffect(player, mediaItems, startIndex, allowBackgroundPlayback) {
+                if (!allowBackgroundPlayback) return@LaunchedEffect
+                val currentUri = player.currentMediaItem?.localConfiguration?.uri
+                val existingIndex = mediaItems.indexOfFirst {
+                    it.localConfiguration?.uri == currentUri
+                }
+                if (existingIndex >= 0) {
+                    savedIndex = existingIndex
+                    onMediaItemChanged(existingIndex)
+                    return@LaunchedEffect
+                }
+                player.setMediaItems(
+                    mediaItems,
+                    savedIndex.coerceIn(mediaItems.indices),
+                    savedPosition
+                )
+                player.prepare()
+                player.playWhenReady = resumeWhenReady
             }
             DisposableEffect(player) {
                 val listener = object : Player.Listener {
@@ -132,7 +169,7 @@ internal fun GlobalVideoPlayer(
                     savedPosition = player.currentPosition.coerceAtLeast(0L)
                     resumeWhenReady = player.playWhenReady
                     player.removeListener(listener)
-                    player.release()
+                    if (!allowBackgroundPlayback) player.release()
                 }
             }
             AndroidView(
@@ -231,9 +268,17 @@ internal fun GlobalVideoViewer(
     session: VideoPlaybackSession,
     onNavigateBack: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val backgroundPlaybackAllowed = videoBackgroundPlaybackAllowed(session.securityScopeId)
+    val exitViewer = remember(context, backgroundPlaybackAllowed, onNavigateBack) {
+        {
+            if (backgroundPlaybackAllowed) stopVideoBackgroundPlayback(context)
+            onNavigateBack()
+        }
+    }
     VideoViewerWindowEffects(
         keepScreenOn = false,
-        onBackgrounded = onNavigateBack.takeIf { session.securityScopeId != null }
+        onBackgrounded = exitViewer.takeIf { !backgroundPlaybackAllowed }
     )
     var activeIndex by rememberSaveable(session) { mutableIntStateOf(session.startIndex) }
     var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }
@@ -243,21 +288,23 @@ internal fun GlobalVideoViewer(
         AspectRatioFrameLayout.RESIZE_MODE_FILL
     ) }
     val activeItem = session.items[activeIndex.coerceIn(session.items.indices)]
-    BackHandler(onBack = onNavigateBack)
+    BackHandler(onBack = exitViewer)
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         GlobalVideoPlayer(
-            mediaItems = session.items.map { it.mediaItem },
+            mediaItems = session.items.map { it.mediaItem.withVideoTitle(it.title) },
             startIndex = session.startIndex,
             modifier = Modifier.fillMaxSize(),
             dataSourceFactory = session.dataSourceFactory,
+            allowBackgroundPlayback = backgroundPlaybackAllowed,
             resizeMode = resizeModes[resizeModeIndex],
-            onMediaItemChanged = { activeIndex = it.coerceIn(session.items.indices) }
+            onMediaItemChanged = { activeIndex = it.coerceIn(session.items.indices) },
+            onCloseRequested = exitViewer
         )
         Row(
             Modifier.fillMaxWidth().background(Color.Black.copy(alpha = 0.62f)).statusBarsPadding(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onNavigateBack) {
+            IconButton(onClick = exitViewer) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
             }
             Text(

@@ -55,7 +55,7 @@ fun FileList(
     FileListRows(
         rows = rows,
         selectedFiles = selectedFiles,
-        onNavigateTo = onNavigateTo,
+        onNavigateTo = { onNavigateTo(it.absolutePath) },
         onOpenFile = onOpenFile,
         onToggleSelection = onToggleSelection,
         onSelectMultiple = onSelectMultiple,
@@ -72,7 +72,7 @@ fun FileList(
 fun FileListRows(
     rows: List<FileRowUiModel>,
     selectedFiles: Set<String>,
-    onNavigateTo: (String) -> Unit,
+    onNavigateTo: (FileModel) -> Unit,
     onOpenFile: (String) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectMultiple: (List<String>) -> Unit,
@@ -135,7 +135,7 @@ fun FileListRows(
                         onToggleSelection(file.absolutePath)
                         haptics.selectionChanged()
                     } else if (file.isDirectory) {
-                        onNavigateTo(file.absolutePath)
+                        onNavigateTo(file)
                     } else {
                         onOpenFile(file.absolutePath)
                     }
@@ -158,7 +158,7 @@ fun FileListRows(
                 },
                 onOpenDirectly = {
                     if (file.isDirectory) {
-                        onNavigateTo(file.absolutePath)
+                        onNavigateTo(file)
                     } else {
                         onOpenFile(file.absolutePath)
                     }
