@@ -106,7 +106,7 @@ class DefaultPrivilegeCoordinatorTest {
     }
 
     @Test
-    fun `binder death invalidates generation without automatic fallback`() = runTest {
+    fun `binder death invalidates generation and automatic mode falls back to normal`() = runTest {
         val root = FakeConnector(PrivilegeBackendId.ROOT).apply { enqueueSuccess() }
         val coordinator = coordinator(
             preferences = FakePreferences(
@@ -123,8 +123,8 @@ class DefaultPrivilegeCoordinatorTest {
         root.latestConnection!!.die()
         runCurrent()
 
-        assertEquals(PrivilegeBackendId.ROOT, coordinator.state.value.activeBackend)
-        assertEquals(PrivilegeConnectionState.DISCONNECTED, coordinator.state.value.connectionState)
+        assertEquals(PrivilegeBackendId.NORMAL, coordinator.state.value.activeBackend)
+        assertEquals(PrivilegeConnectionState.READY, coordinator.state.value.connectionState)
         assertTrue(coordinator.state.value.connectionGeneration > originalSession.generation)
         assertTrue(coordinator.clientFor(originalSession).isFailure)
     }

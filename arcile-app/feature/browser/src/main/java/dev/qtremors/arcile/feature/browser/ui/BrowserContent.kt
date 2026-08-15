@@ -121,6 +121,7 @@ internal fun BrowserContent(
                 Breadcrumbs(
                     currentPath = state.currentPath,
                     storageVolumes = state.storageVolumes,
+                    isRootStorageScope = state.isRootStorageScope,
                     onPathSegmentClick = { path -> navigationIntents.onNavigateTo(path, null) }
                 )
             }

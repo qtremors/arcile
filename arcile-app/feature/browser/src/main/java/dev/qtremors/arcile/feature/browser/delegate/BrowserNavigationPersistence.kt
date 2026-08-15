@@ -27,7 +27,8 @@ internal class BrowserNavigationPersistence(
             return StorageBrowserLocation.Archive(
                 archivePath = archivePath,
                 entryPrefix = savedStateHandle.get<String>("archiveEntryPrefix")
-                    ?.takeIf(String::isNotEmpty)
+                    ?.takeIf(String::isNotEmpty),
+                isRootStorageScope = savedStateHandle.get<Boolean>("isRootStorageScope") ?: false
             )
         }
         val volumeId = savedStateHandle.get<String>("currentVolumeId")
@@ -48,7 +49,10 @@ internal class BrowserNavigationPersistence(
                 if (restoredVolumeId != null) {
                     StorageBrowserLocation.Directory(StorageScope.Path(restoredVolumeId, path))
                 } else {
-                    StorageBrowserLocation.DirectDirectory(StorageNodePath.of(path))
+                    StorageBrowserLocation.DirectDirectory(
+                        path = StorageNodePath.of(path),
+                        isRootStorageScope = savedStateHandle.get<Boolean>("isRootStorageScope") ?: false
+                    )
                 }
             }
         }
@@ -57,6 +61,7 @@ internal class BrowserNavigationPersistence(
     fun save(state: BrowserNavigationState) {
         savedStateHandle["currentPath"] = state.currentPath
         savedStateHandle["currentVolumeId"] = state.currentVolumeId
+        savedStateHandle["isRootStorageScope"] = state.isRootStorageScope
         savedStateHandle["isVolumeRootScreen"] = state.isVolumeRootScreen
         savedStateHandle["isCategoryScreen"] = state.isCategoryScreen
         savedStateHandle["activeCategoryName"] = state.activeCategoryName
@@ -140,7 +145,8 @@ internal class BrowserNavigationPersistence(
 internal sealed interface BrowserHistoryEntry {
     data class Directory(
         val path: String,
-        val nodeRef: StorageNodeRef? = null
+        val nodeRef: StorageNodeRef? = null,
+        val isRootStorageScope: Boolean = false
     ) : BrowserHistoryEntry
     data class Archive(
         val archivePath: String,
@@ -150,15 +156,31 @@ internal sealed interface BrowserHistoryEntry {
 
     fun toSavedValue(): String = when (this) {
         is Directory -> nodeRef?.let { ref ->
-            listOf(
-                "dir2",
-                ref.backendId.encodeHistoryPart(),
-                path.encodeHistoryPart(),
-                ref.canonicalIdentity.value.encodeHistoryPart(),
-                ref.backendIdentity.orEmpty().encodeHistoryPart(),
-                ref.volumeId?.value.orEmpty().encodeHistoryPart()
-            ).joinToString(":")
-        } ?: "dir:$path"
+            if (isRootStorageScope) {
+                listOf(
+                    "dir3",
+                    ref.backendId.encodeHistoryPart(),
+                    path.encodeHistoryPart(),
+                    ref.canonicalIdentity.value.encodeHistoryPart(),
+                    ref.backendIdentity.orEmpty().encodeHistoryPart(),
+                    ref.volumeId?.value.orEmpty().encodeHistoryPart(),
+                    true.toString()
+                ).joinToString(":")
+            } else {
+                listOf(
+                    "dir2",
+                    ref.backendId.encodeHistoryPart(),
+                    path.encodeHistoryPart(),
+                    ref.canonicalIdentity.value.encodeHistoryPart(),
+                    ref.backendIdentity.orEmpty().encodeHistoryPart(),
+                    ref.volumeId?.value.orEmpty().encodeHistoryPart()
+                ).joinToString(":")
+            }
+        } ?: if (isRootStorageScope) {
+            "dir3-local:${path.encodeHistoryPart()}:true"
+        } else {
+            "dir:$path"
+        }
         is Archive -> archiveNodeRef?.let { ref ->
             listOf(
                 "archive2",
@@ -174,6 +196,8 @@ internal sealed interface BrowserHistoryEntry {
 
     companion object {
         fun fromSavedValue(value: String): BrowserHistoryEntry? = when {
+            value.startsWith("dir3:") -> decodeDirectoryV3(value)
+            value.startsWith("dir3-local:") -> decodeLocalDirectoryV3(value)
             value.startsWith("dir2:") -> decodeDirectory(value)
             value.startsWith("dir:") -> Directory(value.removePrefix("dir:"))
             value.startsWith("archive2:") -> decodeArchive(value)
@@ -205,6 +229,41 @@ internal sealed interface BrowserHistoryEntry {
                         capabilities = StorageNodeCapabilities(),
                         backendIdentity = backendIdentity
                     )
+                )
+            }.getOrNull()
+        }
+
+        private fun decodeDirectoryV3(value: String): Directory? {
+            val parts = value.split(':')
+            if (parts.size != 7) return null
+            return runCatching {
+                val backendId = parts[1].decodeHistoryPart()
+                val path = parts[2].decodeHistoryPart()
+                val canonical = parts[3].decodeHistoryPart()
+                val backendIdentity = parts[4].decodeHistoryPart().takeIf(String::isNotBlank)
+                val volumeId = parts[5].decodeHistoryPart().takeIf(String::isNotBlank)
+                Directory(
+                    path = path,
+                    nodeRef = StorageNodeRef(
+                        backendId = backendId,
+                        volumeId = volumeId?.let(StorageVolumeId::of),
+                        displayPath = StorageNodePath.of(path),
+                        canonicalIdentity = CanonicalStorageIdentity.of(canonical),
+                        capabilities = StorageNodeCapabilities(),
+                        backendIdentity = backendIdentity
+                    ),
+                    isRootStorageScope = parts[6].toBooleanStrict()
+                )
+            }.getOrNull()
+        }
+
+        private fun decodeLocalDirectoryV3(value: String): Directory? {
+            val parts = value.split(':')
+            if (parts.size != 3) return null
+            return runCatching {
+                Directory(
+                    path = parts[1].decodeHistoryPart(),
+                    isRootStorageScope = parts[2].toBooleanStrict()
                 )
             }.getOrNull()
         }
@@ -243,7 +302,7 @@ internal fun BrowserNavigationState.historyEntry(): BrowserHistoryEntry? =
                 it.isNotBlank() &&
                     !it.startsWith(BrowserNavigationController.ARCHIVE_VIRTUAL_PREFIX)
             }
-            ?.let { BrowserHistoryEntry.Directory(it, currentNodeRef) }
+            ?.let { BrowserHistoryEntry.Directory(it, currentNodeRef, isRootStorageScope) }
 
 private fun String.encodeHistoryPart(): String =
     Base64.getUrlEncoder().withoutPadding().encodeToString(toByteArray(Charsets.UTF_8))

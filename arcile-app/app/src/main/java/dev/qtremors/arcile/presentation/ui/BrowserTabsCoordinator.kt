@@ -358,7 +358,14 @@ private fun persistedBrowserTab(
 ): PersistedBrowserTab = when (entry) {
     BrowserEntry.PrimaryStorage -> PersistedBrowserTab(id, "primary", browserPage = browserPage)
     is BrowserEntry.Root -> PersistedBrowserTab(id, "root", browserPage = browserPage)
-    is BrowserEntry.Path -> PersistedBrowserTab(id, "path", path = entry.path, browserPage = browserPage)
+    is BrowserEntry.Path -> PersistedBrowserTab(
+        id = id,
+        entryType = "path",
+        path = entry.path,
+        isRootStorageScope = entry.isRootStorageScope,
+        backendId = entry.backendId,
+        browserPage = browserPage
+    )
     is BrowserEntry.Category -> PersistedBrowserTab(
         id = id,
         entryType = "category",
@@ -371,6 +378,8 @@ private fun persistedBrowserTab(
         entryType = "archive",
         path = entry.path,
         entryPrefix = entry.entryPrefix,
+        isRootStorageScope = entry.isRootStorageScope,
+        backendId = entry.backendId,
         browserPage = browserPage
     )
 }
@@ -379,10 +388,22 @@ private fun PersistedBrowserTab.browserEntry(): BrowserEntry? = when (entryType)
     "primary" -> BrowserEntry.PrimaryStorage
     "root" -> BrowserEntry.Root(restorePersistentLocation = false)
     "path" -> path?.takeIf(String::isNotBlank)?.let {
-        BrowserEntry.Path(it, seedInitialPathHistory = false)
+        BrowserEntry.Path(
+            path = it,
+            seedInitialPathHistory = false,
+            isRootStorageScope = isRootStorageScope,
+            backendId = backendId
+        )
     }
     "category" -> name?.takeIf(String::isNotBlank)?.let { BrowserEntry.Category(it, volumeId) }
-    "archive" -> path?.takeIf(String::isNotBlank)?.let { BrowserEntry.Archive(it, entryPrefix) }
+    "archive" -> path?.takeIf(String::isNotBlank)?.let {
+        BrowserEntry.Archive(
+            path = it,
+            entryPrefix = entryPrefix,
+            isRootStorageScope = isRootStorageScope,
+            backendId = backendId
+        )
+    }
     else -> null
 }
 

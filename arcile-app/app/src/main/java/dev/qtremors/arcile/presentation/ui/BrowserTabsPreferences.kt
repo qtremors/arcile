@@ -40,6 +40,8 @@ internal data class PersistedBrowserTab(
     val name: String? = null,
     val volumeId: String? = null,
     val entryPrefix: String? = null,
+    val isRootStorageScope: Boolean = false,
+    val backendId: String? = null,
     val browserPage: Int = BROWSER_PAGE
 )
 

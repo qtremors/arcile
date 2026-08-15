@@ -25,6 +25,7 @@ internal fun BrowserNavigationController.loadDirectory(
     persistAsLastOpened: Boolean = true,
     allowDirectPath: Boolean = false,
     nodeRef: StorageNodeRef? = null,
+    isRootStorageScope: Boolean = state.value.isRootStorageScope,
     inheritCurrentNodeRef: Boolean = true
 ) {
     val requestedNodeRef = nodeRef
@@ -34,7 +35,11 @@ internal fun BrowserNavigationController.loadDirectory(
                 currentNodeRef.takeIf { state.value.currentPath == path }
                     ?: currentNodeRef.forNavigationPath(path)
             }
-    val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
+    val resolvedVolumeId = if (isRootStorageScope) {
+        null
+    } else {
+        volumeId ?: findVolumeForPath(path)?.id
+    }
     val isContinuingDirectPath = state.value.currentVolumeId == null &&
         state.value.currentPath.isDirectLocalPath()
     if (resolvedVolumeId == null && !allowDirectPath && !isContinuingDirectPath && requestedNodeRef?.isPrivileged != true) {
@@ -50,7 +55,14 @@ internal fun BrowserNavigationController.loadDirectory(
     val generation = nextLoadGeneration()
     if (!preserveCurrentListing) onLocationChanged()
     update {
-        it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId, requestedNodeRef)).withValues(
+        it.reduce(
+            BrowserNavigationEvent.OpenDirectory(
+                path = path,
+                volumeId = resolvedVolumeId,
+                nodeRef = requestedNodeRef,
+                isRootStorageScope = isRootStorageScope
+            )
+        ).withValues(
             isLoading = true,
             error = errorMessage
         ).withUpdatedDisplayState()

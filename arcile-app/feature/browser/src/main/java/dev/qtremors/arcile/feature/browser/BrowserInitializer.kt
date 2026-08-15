@@ -151,7 +151,8 @@ internal class BrowserInitializer(
             is StorageBrowserLocation.DirectDirectory -> navigation.navigateToSpecificFolder(
                 location.path.absolutePath,
                 seedInitialPathHistory = false,
-                allowDirectPath = true
+                allowDirectPath = true,
+                isRootStorageScope = location.isRootStorageScope
             )
             is StorageBrowserLocation.Category -> navigation.navigateToCategory(
                 location.categoryScope.categoryName,
@@ -160,7 +161,8 @@ internal class BrowserInitializer(
             is StorageBrowserLocation.Archive -> navigation.openArchive(
                 archivePath = location.archivePath,
                 entryPrefix = location.entryPrefix,
-                seedHistory = false
+                seedHistory = false,
+                isRootStorageScope = location.isRootStorageScope
             )
             null -> return false
         }
@@ -177,12 +179,16 @@ internal class BrowserInitializer(
             BrowserEntry.PrimaryStorage -> navigation.openPrimaryStorage()
             is BrowserEntry.Archive -> navigation.openArchive(
                 archivePath = entry.path,
-                entryPrefix = entry.entryPrefix
+                entryPrefix = entry.entryPrefix,
+                isRootStorageScope = entry.isRootStorageScope,
+                backendId = entry.backendId
             )
             is BrowserEntry.Category -> navigation.navigateToCategory(entry.name, entry.volumeId)
             is BrowserEntry.Path -> navigation.navigateToSpecificFolder(
                 entry.path,
-                seedInitialPathHistory = entry.seedInitialPathHistory
+                seedInitialPathHistory = entry.seedInitialPathHistory,
+                isRootStorageScope = entry.isRootStorageScope,
+                backendId = entry.backendId
             )
             is BrowserEntry.Root -> navigation.openFileBrowser(entry.restorePersistentLocation)
         }

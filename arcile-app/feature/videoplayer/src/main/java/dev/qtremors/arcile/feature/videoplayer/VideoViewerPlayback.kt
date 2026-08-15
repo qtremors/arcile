@@ -87,6 +87,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemGestures
+import androidx.compose.foundation.layout.statusBars
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -140,6 +141,10 @@ internal fun VideoPlayerItemView(
     )
     val rightSystemGestureInset = max(
         WindowInsets.systemGestures.getRight(density, layoutDirection).toFloat(),
+        minimumSystemGestureInset
+    )
+    val topSystemGestureInset = max(
+        WindowInsets.statusBars.getTop(density).toFloat(),
         minimumSystemGestureInset
     )
     val bottomSystemGestureInset = max(
@@ -256,6 +261,7 @@ internal fun VideoPlayerItemView(
                                     viewportHeight = size.height.toFloat(),
                                     leftGestureInset = leftSystemGestureInset,
                                     rightGestureInset = rightSystemGestureInset,
+                                    topGestureInset = topSystemGestureInset,
                                     bottomGestureInset = bottomSystemGestureInset
                                 )
                             }

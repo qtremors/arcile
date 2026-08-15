@@ -75,6 +75,7 @@ class BrowserNavigationControllerTest {
             every { get<String>("currentCanonicalIdentity") } returns null
             every { get<String>("currentBackendIdentity") } returns null
             every { get<String>("currentNodeVolumeId") } returns null
+            every { get<Boolean>("isRootStorageScope") } returns null
         }
         
         delegate = BrowserNavigationController(
@@ -197,6 +198,48 @@ class BrowserNavigationControllerTest {
         assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
         assertEquals(null, delegate.state.value.currentNodeRef)
         assertFalse(delegate.state.value.isLoading)
+    }
+
+    @Test
+    fun `explicit normal path clears root storage scope and inherited root identity`() = testScope.runTest {
+        repository.filesByPath = mapOf(
+            "/" to emptyList(),
+            "/storage/emulated/0/Documents" to emptyList()
+        )
+
+        delegate.navigateToSpecificFolder("/", seedInitialPathHistory = false)
+        advanceUntilIdle()
+
+        assertTrue(delegate.state.value.isRootStorageScope)
+        assertEquals(null, delegate.state.value.currentVolumeId)
+        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, delegate.state.value.currentNodeRef?.backendId)
+
+        delegate.navigateToSpecificFolder(
+            "/storage/emulated/0/Documents",
+            seedInitialPathHistory = false
+        )
+        advanceUntilIdle()
+
+        assertFalse(delegate.state.value.isRootStorageScope)
+        assertEquals("vol1", delegate.state.value.currentVolumeId)
+        assertEquals(null, delegate.state.value.currentNodeRef)
+    }
+
+    @Test
+    fun `explicit Shizuku path keeps mounted volume naming and uses privileged node`() = testScope.runTest {
+        val path = "/storage/emulated/0/Android/data"
+        repository.filesByPath = mapOf(path to emptyList())
+
+        delegate.navigateToSpecificFolder(
+            path = path,
+            seedInitialPathHistory = false,
+            backendId = StorageNodeRef.SHIZUKU_BACKEND_ID
+        )
+        advanceUntilIdle()
+
+        assertFalse(delegate.state.value.isRootStorageScope)
+        assertEquals("vol1", delegate.state.value.currentVolumeId)
+        assertEquals(StorageNodeRef.SHIZUKU_BACKEND_ID, delegate.state.value.currentNodeRef?.backendId)
     }
 
     @Test

@@ -24,8 +24,8 @@ import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserUiState
+import dev.qtremors.arcile.feature.browser.browserPathTitle
 import dev.qtremors.arcile.core.ui.ArcileTopBar
 import dev.qtremors.arcile.core.ui.ArcileTopBarMenuAction
 import dev.qtremors.arcile.core.ui.SearchTopBar
@@ -91,12 +91,23 @@ internal fun BrowserTopBars(
             } else {
                 null
             }
+            val browseTitle = stringResource(R.string.browse_title)
+            val rootStorageTitle = stringResource(R.string.root_storage)
+            val currentPathTitle = browserPathTitle(
+                path = state.currentPath,
+                isRootStorageScope = state.isRootStorageScope,
+                volumeName = state.displayState.currentVolume
+                    ?.takeIf { it.path == state.currentPath }
+                    ?.name,
+                fallback = browseTitle,
+                rootStorageTitle = rootStorageTitle
+            )
 
             ArcileTopBar(
                 title = when {
                     state.archiveContext != null -> state.archiveContext.archiveName
                     state.isCategoryScreen -> state.activeCategoryName
-                    else -> stringResource(R.string.browse_title)
+                    else -> currentPathTitle
                 },
                 selectionCount = state.selectedFiles.size,
                 selectedSize = selectedSizeFormatted,
@@ -180,7 +191,7 @@ internal fun BrowserTopBars(
                             TopBarAction.NewFolder -> dialogVisibility.showCreateFolderDialog = true
                             TopBarAction.PinToQuickAccess -> {
                                 state.currentPath.takeIf { it.isNotEmpty() }?.let { path ->
-                                    val label = storagePathName(path)
+                                    val label = currentPathTitle
                                     selectionIntents.onPinToQuickAccess(path, label)
                                     onShowPinnedSnackbar(label)
                                 }

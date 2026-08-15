@@ -254,6 +254,7 @@ private data class ThemeBackupState(
     val doubleLineFilenames: Boolean,
     val marqueeFilenames: Boolean,
     val landscapeDualPaneEnabled: Boolean = false,
+    val showShizukuStatusIcon: Boolean = true,
     val themePreset: String,
     val customPrimaryColorHex: String,
     val customBackgroundColorHex: String
@@ -268,6 +269,7 @@ private fun ThemeState.toBackupState(): ThemeBackupState =
         doubleLineFilenames = doubleLineFilenames,
         marqueeFilenames = marqueeFilenames,
         landscapeDualPaneEnabled = landscapeDualPaneEnabled,
+        showShizukuStatusIcon = showShizukuStatusIcon,
         themePreset = themePreset.name,
         customPrimaryColorHex = customPrimaryColorHex,
         customBackgroundColorHex = customBackgroundColorHex
@@ -282,6 +284,7 @@ private fun ThemeBackupState.toThemeState(): ThemeState =
         doubleLineFilenames = doubleLineFilenames,
         marqueeFilenames = marqueeFilenames,
         landscapeDualPaneEnabled = landscapeDualPaneEnabled,
+        showShizukuStatusIcon = showShizukuStatusIcon,
         themePreset = ThemePreset.entries.find { it.name == themePreset } ?: ThemePreset.NONE,
         customPrimaryColorHex = customPrimaryColorHex,
         customBackgroundColorHex = customBackgroundColorHex

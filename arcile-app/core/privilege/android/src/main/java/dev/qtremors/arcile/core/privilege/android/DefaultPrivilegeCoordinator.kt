@@ -373,6 +373,10 @@ class DefaultPrivilegeCoordinator @Inject constructor(
             connectionState = PrivilegeConnectionState.DISCONNECTED,
             failure = failure
         )
+        if (mutableState.value.preferredMode == PrivilegeMode.AUTOMATIC) {
+            activateNormal(PrivilegeMode.AUTOMATIC, probes)
+            return
+        }
         mutableState.value = PrivilegeState(
             preferredMode = mutableState.value.preferredMode,
             activeBackend = backendId,

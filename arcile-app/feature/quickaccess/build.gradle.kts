@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:navigation:api"))
     implementation(project(":core:operation:api"))
+    implementation(project(":core:privilege:api"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))
 

@@ -120,6 +120,7 @@ private fun testActions(
     navigateBack = {},
     navigateToPath = navigateToPath,
     navigateToSaf = {},
+    navigateToRestrictedFolder = {},
     togglePin = togglePin,
     removeItem = {},
     addCustomFolder = { _, _ -> },

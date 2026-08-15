@@ -9,6 +9,7 @@ import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
 import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
 import dev.qtremors.arcile.core.privilege.PrivilegeMode
 import dev.qtremors.arcile.core.privilege.PrivilegeServiceIdentity
+import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
 import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
@@ -51,6 +52,7 @@ internal class OnboardingViewModel @Inject constructor(
     private val appVersionCodeProvider: AppVersionCodeProvider,
     private val privilegeCoordinator: PrivilegeCoordinator
 ) : ViewModel() {
+    private var automaticAccessPrepared = false
 
     private val _state = MutableStateFlow(OnboardingUiState())
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
@@ -123,18 +125,20 @@ internal class OnboardingViewModel @Inject constructor(
         _state.update { it.copy(notificationPermissionHandled = true) }
     }
 
-    fun selectAccessMode(mode: PrivilegeMode) {
+    fun prepareAutomaticAccess() {
+        if (automaticAccessPrepared) return
+        automaticAccessPrepared = true
         viewModelScope.launch {
-            privilegeCoordinator.selectMode(
-                mode = mode,
-                requestAuthorization = mode == PrivilegeMode.ROOT || mode == PrivilegeMode.SHIZUKU
-            )
-        }
-    }
-
-    fun reconnectAccess() {
-        viewModelScope.launch {
-            privilegeCoordinator.reconnect(requestAuthorization = true)
+            val rootState = privilegeCoordinator.state.value.backendStates[PrivilegeBackendId.ROOT]
+                ?.connectionState
+            if (
+                rootState != null &&
+                rootState != PrivilegeConnectionState.UNAVAILABLE &&
+                rootState != PrivilegeConnectionState.PERMISSION_DENIED
+            ) {
+                privilegeCoordinator.selectMode(PrivilegeMode.ROOT, requestAuthorization = true)
+            }
+            privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
         }
     }
 

@@ -218,6 +218,27 @@ class BrowserScreenTest {
     }
 
     @Test
+    fun `root storage folder keeps root breadcrumb instead of matching a normal volume`() {
+        setBrowserContent(
+            browserUiState(
+                currentPath = "/storage/emulated/0",
+                currentNodeRef = StorageNodeRef.root(
+                    displayPath = "/storage/emulated/0",
+                    remoteCanonicalIdentity = "/storage/emulated/0"
+                ),
+                isRootStorageScope = true,
+                storageVolumes = listOf(
+                    browserVolume("primary", "Internal", "/storage/emulated/0")
+                ),
+                isLoading = false
+            )
+        )
+
+        composeRule.onNodeWithText("Root Storage").assertExists()
+        composeRule.onAllNodesWithText("Internal").assertCountEquals(0)
+    }
+
+    @Test
     fun `category screen hides stale folder breadcrumbs`() {
         composeRule.setContent {
             ArcileTestTheme {
@@ -902,6 +923,7 @@ private fun browserUiState(
     currentPath: String = "",
     currentVolumeId: String? = null,
     currentNodeRef: StorageNodeRef? = null,
+    isRootStorageScope: Boolean = false,
     isVolumeRootScreen: Boolean = false,
     isCategoryScreen: Boolean = false,
     activeCategoryName: String = "",
@@ -922,6 +944,7 @@ private fun browserUiState(
         currentPath = currentPath,
         currentVolumeId = currentVolumeId,
         currentNodeRef = currentNodeRef,
+        isRootStorageScope = isRootStorageScope,
         isVolumeRootScreen = isVolumeRootScreen,
         isCategoryScreen = isCategoryScreen,
         activeCategoryName = activeCategoryName,

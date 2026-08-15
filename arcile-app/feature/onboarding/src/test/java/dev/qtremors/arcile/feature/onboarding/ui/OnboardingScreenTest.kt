@@ -7,10 +7,9 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
+import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
@@ -18,7 +17,6 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import dev.qtremors.arcile.core.ui.theme.ThemeState
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -148,34 +146,34 @@ class OnboardingScreenTest {
     }
 
     @Test
-    fun `setup page offers all storage providers and forwards Root selection`() {
-        var selectedMode: PrivilegeMode? = null
+    fun `setup page only reports Root when the device is rooted`() {
         composeRule.setContent {
             ArcileTestTheme {
                 OnboardingScreen(
-                    state = OnboardingUiState(step = OnboardingStep.SetupPermissions),
+                    state = OnboardingUiState(
+                        step = OnboardingStep.SetupPermissions,
+                        accessBackends = mapOf(
+                            PrivilegeBackendId.ROOT to PrivilegeBackendState(
+                                backendId = PrivilegeBackendId.ROOT,
+                                connectionState = PrivilegeConnectionState.PERMISSION_REQUIRED
+                            )
+                        )
+                    ),
                     currentThemeState = ThemeState(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
                     onStepSelected = {},
                     onOpenStoragePermissionSettings = {},
-                    onAccessModeSelected = { selectedMode = it },
                     onRequestNotificationPermission = {}
                 )
             }
         }
 
-        composeRule.onNodeWithText("Automatic").assertExists()
-        composeRule.onNodeWithText("Root").assertExists()
-        composeRule.onNodeWithText("Shizuku").assertExists()
-        composeRule.onNodeWithText("Normal Android").assertExists()
-        composeRule.onNodeWithTag("onboarding_access_mode_root")
-            .performScrollTo()
-            .performClick()
-
-        composeRule.runOnIdle {
-            assertEquals(PrivilegeMode.ROOT, selectedMode)
-        }
+        composeRule.onNodeWithText("Rooted device").assertExists()
+        composeRule.onNodeWithText("Arcile detects root and uses it automatically.").assertExists()
+        composeRule.onNodeWithText("Automatic").assertDoesNotExist()
+        composeRule.onNodeWithText("Shizuku").assertDoesNotExist()
+        composeRule.onNodeWithText("Normal Android").assertDoesNotExist()
     }
 }

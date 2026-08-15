@@ -608,6 +608,7 @@ internal fun VideoViewerPlaybackSurface(
                 resolutionText = currentResolution,
                 sizeText = currentSizeText,
                 marqueeEnabled = marqueeEnabled,
+                onNavigateBack = onNavigateBack,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
 

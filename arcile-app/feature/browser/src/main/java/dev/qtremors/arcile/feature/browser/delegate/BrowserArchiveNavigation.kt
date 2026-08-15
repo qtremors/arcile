@@ -18,21 +18,43 @@ internal fun BrowserNavigationController.openArchive(
     archivePath: String,
     entryPrefix: String? = null,
     seedHistory: Boolean = true,
-    archiveNodeRef: StorageNodeRef? = null
+    archiveNodeRef: StorageNodeRef? = null,
+    isRootStorageScope: Boolean = state.value.isRootStorageScope,
+    backendId: String? = archiveNodeRef?.backendId
 ) {
-    val volume = findVolumeForPath(archivePath)
-    if (volume == null) {
+    val volume = if (isRootStorageScope) null else findVolumeForPath(archivePath)
+    val explicitNodeRef = when (backendId) {
+        StorageNodeRef.ROOT_BACKEND_ID -> StorageNodeRef.root(
+            archivePath,
+            archivePath,
+            volumeId = volume?.id
+        )
+        StorageNodeRef.SHIZUKU_BACKEND_ID -> StorageNodeRef.shizuku(
+            archivePath,
+            archivePath,
+            volumeId = volume?.id
+        )
+        else -> null
+    }
+    if (volume == null && !isRootStorageScope && explicitNodeRef == null) {
         openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
         return
     }
     navigationPersistence.clear()
     val parent = storageParentPath(archivePath)
     if (seedHistory && !parent.isNullOrBlank()) {
-        navigationPersistence.push(BrowserHistoryEntry.Directory(parent))
+        navigationPersistence.push(
+            BrowserHistoryEntry.Directory(
+                path = parent,
+                nodeRef = if (isRootStorageScope) StorageNodeRef.root(parent, parent) else null,
+                isRootStorageScope = isRootStorageScope
+            )
+        )
     }
     loadArchiveEntries(
         archivePath = archivePath,
         archiveNodeRef = archiveNodeRef
+            ?: explicitNodeRef
             ?: state.value.files.firstOrNull { it.absolutePath == archivePath }?.nodeRef
             ?: state.value.archiveContext?.takeIf { it.archivePath == archivePath }?.archiveNodeRef
             ?: navigationPersistence.restoredArchiveNodeRef(archivePath),
@@ -44,7 +66,8 @@ internal fun BrowserNavigationController.openArchive(
             ?.takeIf { it.archivePath == archivePath }
             ?.nameEncoding
             ?: ArchiveNameEncoding.UTF_8,
-        pushHistory = false
+        pushHistory = false,
+        isRootStorageScope = isRootStorageScope
     )
 }
 
@@ -78,7 +101,8 @@ internal fun BrowserNavigationController.loadArchiveEntries(
     entryPrefix: String?,
     password: String?,
     nameEncoding: ArchiveNameEncoding,
-    pushHistory: Boolean
+    pushHistory: Boolean,
+    isRootStorageScope: Boolean = state.value.isRootStorageScope
 ) {
     val previous = state.value.archiveContext
     val generation = nextLoadGeneration()
@@ -91,7 +115,7 @@ internal fun BrowserNavigationController.loadArchiveEntries(
             )
         )
     }
-    val volume = findVolumeForPath(archivePath)
+    val volume = if (isRootStorageScope) null else findVolumeForPath(archivePath)
     onLocationChanged()
     update {
         it.withValues(
@@ -107,6 +131,7 @@ internal fun BrowserNavigationController.loadArchiveEntries(
             ),
             currentPath = archivePath,
             currentVolumeId = volume?.id,
+            isRootStorageScope = isRootStorageScope,
             isVolumeRootScreen = false,
             isCategoryScreen = false,
             activeCategoryName = "",

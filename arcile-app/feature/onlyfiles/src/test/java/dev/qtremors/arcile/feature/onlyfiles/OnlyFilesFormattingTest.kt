@@ -11,7 +11,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class OnlyFilesFormattingTest {
     @Test
     fun `media recognition uses mime type and safe extension fallback`() {
@@ -28,6 +33,20 @@ class OnlyFilesFormattingTest {
         assertEquals("2 KB", formatBytes(2048L))
         assertEquals("3 MB", formatBytes(3L * 1024L * 1024L))
         assertEquals("1.5 GB", formatBytes(3L * 1024L * 1024L * 1024L / 2L))
+    }
+
+    @Test
+    fun `vault video playback identity matches the displayed file`() {
+        val video = node("movie.mp4", "video/mp4")
+
+        val session = createVaultVideoPlaybackSession(
+            nodes = listOf(video),
+            vaultId = VaultId.of("vault"),
+            selectedNode = video,
+            openReader = { Result.failure(IllegalStateException("Not opened by this test")) }
+        )
+
+        assertEquals(session.files?.single()?.absolutePath, session.items.single().mediaItem.mediaId)
     }
 
     private fun node(name: String, mimeType: String?) = VaultNodeMetadata(

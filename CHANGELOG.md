@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.0
-> **Last Updated:** 2026-08-14
+> **Version:** 2.0.1
+> **Last Updated:** 2026-08-15
 
 ---
+
+## [2.0.1] - 2026-08-15
+
+- **Simpler Storage Access**: Detects and uses Root automatically, restores the v1.9.0 Root icon, replaces provider selection with one optional Shizuku switch, falls back to normal Android access when a privileged service stops, and offers Shizuku when opening supported restricted folders.
+- **Shizuku Status Badge**: Shows the installed Shizuku app icon beside app-bar actions while Shizuku is active, with an Appearance setting to hide it.
+- **Reliable APK Updates**: Opens the unknown-app-sources permission screen when an update needs it and supports installing an Arcile APK update from inside Arcile with clear self-update guidance.
+- **Video Playback Fixes**: Added a visible back button, prevented notification-shade swipes from triggering player gestures, and fixed black video playback in OnlyFiles.
+- **Browser And Cleaner Accuracy**: Fixed newest and oldest sorting across files and folders, labels empty-folder results as folders, and shows when recursive folder details are still being calculated.
+- **Browser Location Accuracy**: Keeps Root Storage paths distinct from normal volumes, shows the current folder name in the app bar, and preserves correct Root Storage names and locations across browser tabs, pinning, history, and restore.
 
 ## [2.0.0] - 2026-08-13
 

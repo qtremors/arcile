@@ -41,6 +41,7 @@
     <string name="action_sort">Sort</string>
     <string name="action_settings">Settings</string>
     <string name="action_more_options">More options</string>
+    <string name="top_bar_shizuku_access_active">Shizuku access active</string>
     <string name="action_copy">Copy</string>
     <string name="action_cut">Cut</string>
     <string name="action_rename">Rename</string>
@@ -133,6 +134,16 @@
     <string name="settings_access_active_provider">Active provider: %1$s</string>
     <string name="settings_access_no_active_provider">No storage provider is currently active.</string>
     <string name="settings_access_open_shizuku">Open Shizuku</string>
+    <string name="settings_storage_access_title">Storage access</string>
+    <string name="settings_rooted_device_active">This is a rooted device. Arcile uses root automatically.</string>
+    <string name="settings_rooted_device_detected">This is a rooted device. Arcile will use normal access until root is available.</string>
+    <string name="settings_shizuku_active">Shizuku is enabled and used automatically.</string>
+    <string name="settings_normal_access_active">Arcile is using normal Android storage access.</string>
+    <string name="settings_use_shizuku">Use Shizuku</string>
+    <string name="settings_use_shizuku_description">Enable Shizuku for restricted folders. Arcile otherwise uses normal Android access.</string>
+    <string name="settings_use_shizuku_ready_description">Shizuku can open restricted folders such as Android/data and Android/obb.</string>
+    <string name="settings_use_shizuku_stopped_description">Start Shizuku to use it for restricted folders; normal access remains available.</string>
+    <string name="settings_use_shizuku_denied_description">Shizuku permission was denied. Enable it to ask again.</string>
     <string name="settings_access_scope_explanation">Normal access covers shared storage. Shizuku follows ADB shell permissions. Root can read protected locations, while Arcile continues to block system and virtual-filesystem writes.</string>
     <string name="settings_access_action_failed">Couldn’t update the storage provider. Check its permission and connection, then try again.</string>
     <string name="settings_protected_writes">Protected app-data writes</string>
@@ -207,6 +218,8 @@
     <string name="settings_harmonize_colors_description">Blend category and status colors with the active theme accent color.</string>
     <string name="settings_vibrations">Vibrations</string>
     <string name="settings_vibrations_description">Enable haptic feedback on actions and gestures.</string>
+    <string name="settings_shizuku_status_icon">Shizuku status icon</string>
+    <string name="settings_shizuku_status_icon_description">Show the installed Shizuku app icon in the app bar while Shizuku is active.</string>
     <string name="settings_double_line_filenames">Double-line filenames</string>
     <string name="settings_double_line_filenames_description">Display filenames on up to two lines.</string>
     <string name="settings_marquee_filenames">Marquee filenames</string>
@@ -431,6 +444,7 @@
     <string name="properties_location">Location</string>
     <string name="properties_items">Items</string>
     <string name="properties_files">Files</string>
+    <string name="folder_stats_loading">Calculating folder details…</string>
     <string name="properties_folders">Folders</string>
     <string name="properties_size">Size</string>
     <string name="properties_size_partial">%1$s read so far</string>

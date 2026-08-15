@@ -82,6 +82,26 @@ class AppDestinationMappersTest {
     }
 
     @Test
+    fun `quick access privileged path preserves its backend`() {
+        mappers.quickAccess.map(
+            QuickAccessDestination.LocalPath(
+                path = "/storage/emulated/0/Android/data",
+                backendId = "shizuku"
+            )
+        )
+
+        assertEquals(
+            AppRoutes.Main(
+                initialPage = BROWSER_PAGE,
+                path = "/storage/emulated/0/Android/data",
+                seedInitialPathHistory = false,
+                pathBackendId = "shizuku"
+            ),
+            browserRoutes.single()
+        )
+    }
+
+    @Test
     fun `quick access external folder remains external`() {
         mappers.quickAccess.map(QuickAccessDestination.ExternalFolder("content://folder"))
 

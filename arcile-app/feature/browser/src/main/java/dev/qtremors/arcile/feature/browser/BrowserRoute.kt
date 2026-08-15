@@ -51,7 +51,9 @@ sealed interface BrowserEntry {
     data class Root(val restorePersistentLocation: Boolean) : BrowserEntry
     data class Path(
         val path: String,
-        val seedInitialPathHistory: Boolean = true
+        val seedInitialPathHistory: Boolean = true,
+        val isRootStorageScope: Boolean = false,
+        val backendId: String? = null
     ) : BrowserEntry
     data class Category(
         val name: String,
@@ -59,7 +61,9 @@ sealed interface BrowserEntry {
     ) : BrowserEntry
     data class Archive(
         val path: String,
-        val entryPrefix: String? = null
+        val entryPrefix: String? = null,
+        val isRootStorageScope: Boolean = false,
+        val backendId: String? = null
     ) : BrowserEntry
 }
 
@@ -144,20 +148,25 @@ fun BrowserRoute(
     val statusTitle = when {
         state.archiveContext != null -> state.archiveContext.archiveName
         state.isCategoryScreen -> state.activeCategoryName
-        state.currentPath.isNotBlank() -> {
-            val currentVolume = state.displayState.currentVolume
-            if (currentVolume != null && currentVolume.path == state.currentPath) {
-                currentVolume.name
-            } else {
-                storagePathName(state.currentPath)
-            }
-        }
+        state.currentPath.isNotBlank() -> browserPathTitle(
+            path = state.currentPath,
+            isRootStorageScope = state.isRootStorageScope,
+            volumeName = state.displayState.currentVolume
+                ?.takeIf { it.path == state.currentPath }
+                ?.name,
+            fallback = stringResource(dev.qtremors.arcile.core.ui.R.string.browse_title),
+            rootStorageTitle = stringResource(dev.qtremors.arcile.core.ui.R.string.root_storage)
+        )
         else -> stringResource(dev.qtremors.arcile.core.ui.R.string.browse_title)
     }
     val statusEntry = when {
         state.archiveContext != null -> BrowserEntry.Archive(
             path = state.archiveContext.archivePath,
-            entryPrefix = state.archiveContext.entryPrefix
+            entryPrefix = state.archiveContext.entryPrefix,
+            isRootStorageScope = state.isRootStorageScope,
+            backendId = state.archiveContext.archiveNodeRef
+                ?.backendId
+                ?.takeIf { it == StorageNodeRef.ROOT_BACKEND_ID || it == StorageNodeRef.SHIZUKU_BACKEND_ID }
         )
         state.isCategoryScreen -> BrowserEntry.Category(
             name = state.activeCategoryName,
@@ -165,7 +174,11 @@ fun BrowserRoute(
         )
         state.currentPath.isNotBlank() -> BrowserEntry.Path(
             path = state.currentPath,
-            seedInitialPathHistory = false
+            seedInitialPathHistory = false,
+            isRootStorageScope = state.isRootStorageScope,
+            backendId = state.currentNodeRef
+                ?.backendId
+                ?.takeIf { it == StorageNodeRef.ROOT_BACKEND_ID || it == StorageNodeRef.SHIZUKU_BACKEND_ID }
         )
         else -> BrowserEntry.Root(restorePersistentLocation = false)
     }
@@ -455,6 +468,23 @@ private fun BrowserUiState.currentScopeNode(): StorageNodeRef? = when {
 
 internal fun canPublishBrowserStatus(state: BrowserInitializationState): Boolean =
     state == BrowserInitializationState.Ready || state is BrowserInitializationState.Failed
+
+internal fun browserPathTitle(
+    path: String,
+    isRootStorageScope: Boolean,
+    volumeName: String?,
+    fallback: String,
+    rootStorageTitle: String
+): String = when {
+    isRootStorageScope && path.normalizeBrowserPath() == "/" -> rootStorageTitle
+    !volumeName.isNullOrBlank() -> volumeName
+    else -> storagePathName(path).ifBlank { fallback }
+}
+
+private fun String.normalizeBrowserPath(): String =
+    replace('\\', '/').let { normalized ->
+        if (normalized == "/") normalized else normalized.trimEnd('/')
+    }
 
 private fun BrowserViewModel.saveVisibleScrollPosition(
     key: String,

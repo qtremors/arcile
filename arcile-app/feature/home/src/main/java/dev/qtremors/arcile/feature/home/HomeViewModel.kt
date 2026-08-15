@@ -3,6 +3,10 @@ package dev.qtremors.arcile.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
+import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
+import dev.qtremors.arcile.core.privilege.PrivilegeMode
+import dev.qtremors.arcile.core.privilege.PrivilegeState
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
@@ -49,11 +53,16 @@ internal class HomeViewModel @Inject constructor(
     private val quickAccessRepo: QuickAccessPreferencesStore,
     private val utilityPreferencesStore: UtilityPreferencesStore = NoOpUtilityPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,
-    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
+    private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
+    private val privilegeCoordinator: PrivilegeCoordinator? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeState())
     val state: StateFlow<HomeState> = _state.asStateFlow()
+    val accessState: StateFlow<PrivilegeState> = privilegeCoordinator?.state
+        ?: MutableStateFlow(PrivilegeState())
+    private val _accessError = MutableStateFlow<String?>(null)
+    val accessError: StateFlow<String?> = _accessError.asStateFlow()
 
     private val recentsPreviewLimit = 50
     private var refreshJob: Job? = null
@@ -374,6 +383,32 @@ internal class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             utilityPreferencesStore.setHomeLayoutPreferences(preferences)
         }
+    }
+
+    fun enableShizuku() {
+        val coordinator = privilegeCoordinator ?: return
+        viewModelScope.launch {
+            try {
+                _accessError.value = null
+                coordinator.selectMode(PrivilegeMode.SHIZUKU, requestAuthorization = true)
+                val shizukuReady = coordinator.state.value.isReady &&
+                    coordinator.state.value.activeBackend == PrivilegeBackendId.SHIZUKU
+                coordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
+                if (!shizukuReady) {
+                    _accessError.value =
+                        "Couldn't enable Shizuku. Make sure it is running and authorized, then try again."
+                }
+            } catch (error: kotlinx.coroutines.CancellationException) {
+                throw error
+            } catch (_: Throwable) {
+                _accessError.value =
+                    "Couldn't enable Shizuku. Make sure it is running and authorized, then try again."
+            }
+        }
+    }
+
+    fun dismissAccessError() {
+        _accessError.value = null
     }
 
     fun updateHomeSearchQuery(query: String) {

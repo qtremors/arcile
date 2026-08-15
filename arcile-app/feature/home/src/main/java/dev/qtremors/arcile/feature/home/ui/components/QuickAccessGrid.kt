@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Chat
 import androidx.compose.material.icons.outlined.Description
@@ -41,7 +41,7 @@ internal fun QuickAccessGrid(
     quickAccessItems: List<QuickAccessItem>,
     onOpenFileBrowser: () -> Unit,
     onNavigateToPath: (String) -> Unit,
-    onNavigateToSaf: (String) -> Unit
+    onNavigateToSaf: (QuickAccessItem) -> Unit
 ) {
     val folders = quickAccessItems.filter { it.isPinned }
 
@@ -63,7 +63,7 @@ internal fun QuickAccessGrid(
                         if (folder.id == "internal_all_files") {
                             onOpenFileBrowser()
                         } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF || folder.type == QuickAccessType.FILES_APP) {
-                            onNavigateToSaf(folder.path)
+                            onNavigateToSaf(folder)
                         } else {
                             onNavigateToPath(folder.path)
                         }
@@ -113,7 +113,7 @@ internal fun QuickAccessGrid(
 }
 
 internal fun iconForHomeQuickAccessItem(item: QuickAccessItem): ImageVector {
-    if (item.id == "standard_root_storage") return Icons.Default.Android
+    if (item.id == "standard_root_storage") return Icons.Outlined.AccountTree
     if (item.type == QuickAccessType.FILES_APP) return Icons.Outlined.Folder
     if (item.type == QuickAccessType.EXTERNAL_HANDOFF) return Icons.AutoMirrored.Outlined.OpenInNew
     return when (item.label.lowercase()) {

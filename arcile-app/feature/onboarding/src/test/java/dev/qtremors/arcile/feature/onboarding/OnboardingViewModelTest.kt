@@ -133,27 +133,38 @@ class OnboardingViewModelTest {
     }
 
     @Test
-    fun `selecting Root is an explicit authorization action`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `automatic setup authorizes detected Root then restores automatic selection`() = runTest(mainDispatcherRule.dispatcher) {
         val coordinator = FakePrivilegeCoordinator()
+        coordinator.emit(
+            PrivilegeState(
+                backendStates = mapOf(
+                    PrivilegeBackendId.ROOT to PrivilegeBackendState(
+                        backendId = PrivilegeBackendId.ROOT,
+                        connectionState = PrivilegeConnectionState.PERMISSION_REQUIRED
+                    )
+                )
+            )
+        )
         val viewModel = createViewModel(privilegeCoordinator = coordinator)
 
-        viewModel.selectAccessMode(PrivilegeMode.ROOT)
+        viewModel.prepareAutomaticAccess()
         advanceUntilIdle()
 
-        assertEquals(PrivilegeMode.ROOT, coordinator.selectedMode)
-        assertTrue(coordinator.requestedAuthorization)
+        assertEquals(
+            listOf(PrivilegeMode.ROOT to true, PrivilegeMode.AUTOMATIC to false),
+            coordinator.selections
+        )
     }
 
     @Test
-    fun `selecting Automatic never requests authorization`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `automatic setup skips Root authorization when Root is unavailable`() = runTest(mainDispatcherRule.dispatcher) {
         val coordinator = FakePrivilegeCoordinator()
         val viewModel = createViewModel(privilegeCoordinator = coordinator)
 
-        viewModel.selectAccessMode(PrivilegeMode.AUTOMATIC)
+        viewModel.prepareAutomaticAccess()
         advanceUntilIdle()
 
-        assertEquals(PrivilegeMode.AUTOMATIC, coordinator.selectedMode)
-        assertFalse(coordinator.requestedAuthorization)
+        assertEquals(listOf(PrivilegeMode.AUTOMATIC to false), coordinator.selections)
     }
 
     @Test
@@ -205,6 +216,7 @@ private class FakePrivilegeCoordinator : PrivilegeCoordinator {
     override val state: StateFlow<PrivilegeState> = mutableState.asStateFlow()
     var selectedMode: PrivilegeMode? = null
     var requestedAuthorization: Boolean = false
+    val selections = mutableListOf<Pair<PrivilegeMode, Boolean>>()
 
     fun emit(state: PrivilegeState) {
         mutableState.value = state
@@ -215,6 +227,7 @@ private class FakePrivilegeCoordinator : PrivilegeCoordinator {
     override suspend fun selectMode(mode: PrivilegeMode, requestAuthorization: Boolean) {
         selectedMode = mode
         requestedAuthorization = requestAuthorization
+        selections += mode to requestAuthorization
         mutableState.value = mutableState.value.copy(preferredMode = mode)
     }
 

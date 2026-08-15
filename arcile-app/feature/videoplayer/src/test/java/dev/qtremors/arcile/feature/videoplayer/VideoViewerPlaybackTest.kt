@@ -204,7 +204,7 @@ class VideoViewerPlaybackTest {
     }
 
     @Test
-    fun `android navigation edges cannot start vertical video gestures`() {
+    fun `android system edges cannot start vertical video gestures`() {
         fun allowed(x: Float, y: Float) = videoVerticalGestureAllowed(
             startX = x,
             startY = y,
@@ -212,6 +212,7 @@ class VideoViewerPlaybackTest {
             viewportHeight = 1_000f,
             leftGestureInset = 32f,
             rightGestureInset = 32f,
+            topGestureInset = 80f,
             bottomGestureInset = 80f
         )
 
@@ -219,6 +220,7 @@ class VideoViewerPlaybackTest {
         assertTrue(allowed(900f, 500f))
         assertFalse(allowed(31f, 500f))
         assertFalse(allowed(968f, 500f))
+        assertFalse(allowed(500f, 79f))
         assertFalse(allowed(500f, 920f))
     }
 

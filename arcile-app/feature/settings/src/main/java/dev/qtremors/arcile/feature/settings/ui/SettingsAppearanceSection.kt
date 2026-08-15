@@ -15,6 +15,7 @@ import androidx.compose.material.icons.automirrored.filled.ShortText
 import androidx.compose.material.icons.automirrored.filled.WrapText
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Vibration
@@ -86,7 +87,7 @@ internal fun SettingsAppearanceSection(
         ) {
                 SettingsSwitchRow(
                     index = 0,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_show_thumbnails),
                     description = stringResource(R.string.settings_show_thumbnails_description),
                     checked = preferences.globalPresentation.showThumbnails,
@@ -97,13 +98,13 @@ internal fun SettingsAppearanceSection(
                 )
                 HomeRecentCarouselLimit(
                     index = 1,
-                    count = 10,
+                    count = 11,
                     value = preferences.homeRecentCarouselLimit,
                     onValueChange = actions.homeRecentCarouselLimitChange
                 )
                 SettingsSwitchRow(
                     index = 2,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_show_hidden_files),
                     description = stringResource(R.string.settings_show_hidden_files_description),
                     checked = preferences.showHiddenFiles,
@@ -114,7 +115,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 3,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_browser_scrollbar),
                     description = stringResource(R.string.settings_browser_scrollbar_description),
                     checked = preferences.browserScrollbarEnabled,
@@ -125,7 +126,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 4,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_gallery_scrollbar),
                     description = stringResource(R.string.settings_gallery_scrollbar_description),
                     checked = preferences.galleryScrollbarEnabled,
@@ -136,7 +137,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 5,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_landscape_dual_pane),
                     description = stringResource(R.string.settings_landscape_dual_pane_description),
                     checked = theme.landscapeDualPaneEnabled,
@@ -150,7 +151,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 6,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_harmonize_colors),
                     description = stringResource(R.string.settings_harmonize_colors_description),
                     checked = theme.harmonizeColors,
@@ -164,7 +165,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 7,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_vibrations),
                     description = stringResource(R.string.settings_vibrations_description),
                     checked = theme.vibrationsEnabled,
@@ -178,7 +179,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 8,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_double_line_filenames),
                     description = stringResource(R.string.settings_double_line_filenames_description),
                     checked = theme.doubleLineFilenames,
@@ -192,7 +193,7 @@ internal fun SettingsAppearanceSection(
                 )
                 SettingsSwitchRow(
                     index = 9,
-                    count = 10,
+                    count = 11,
                     title = stringResource(R.string.settings_marquee_filenames),
                     description = stringResource(R.string.settings_marquee_filenames_description),
                     checked = theme.marqueeFilenames,
@@ -202,6 +203,20 @@ internal fun SettingsAppearanceSection(
                     onCheckedChange = { checked ->
                         haptics.toggleMenu()
                         actions.themeChange(theme.withMarqueeFilenames(checked))
+                    }
+                )
+                SettingsSwitchRow(
+                    index = 10,
+                    count = 11,
+                    title = stringResource(R.string.settings_shizuku_status_icon),
+                    description = stringResource(R.string.settings_shizuku_status_icon_description),
+                    checked = theme.showShizukuStatusIcon,
+                    switchTag = "shizuku_status_icon_switch",
+                    rowTag = "shizuku_status_icon_setting_row",
+                    leadingIcon = Icons.Default.Bolt,
+                    onCheckedChange = { checked ->
+                        haptics.toggleMenu()
+                        actions.themeChange(theme.withShizukuStatusIcon(checked))
                     }
                 )
         }
@@ -277,6 +292,10 @@ internal fun ThemeState.withMarqueeFilenames(enabled: Boolean): ThemeState = cop
 
 internal fun ThemeState.withLandscapeDualPane(enabled: Boolean): ThemeState = copy(
     landscapeDualPaneEnabled = enabled
+)
+
+internal fun ThemeState.withShizukuStatusIcon(enabled: Boolean): ThemeState = copy(
+    showShizukuStatusIcon = enabled
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

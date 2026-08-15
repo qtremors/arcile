@@ -32,6 +32,7 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -55,6 +56,7 @@ import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.navigation.AppRoutes
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.LocalShizukuTopBarBadgeVisible
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
@@ -82,6 +84,7 @@ fun ArcileAppShell(
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
     appStartPage: AppStartPage?,
     onAppStartPageChange: (AppStartPage) -> Unit,
+    activePrivilegeBackend: PrivilegeBackendId?,
     onRestartApp: () -> Unit
 ) {
     val navController = key(appLaunchContext.navigationSessionId) {
@@ -166,18 +169,27 @@ fun ArcileAppShell(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                AppNavigationGraph(
-                    navController = navController,
-                    currentThemeState = currentThemeState,
-                    onThemeChange = onThemeChange,
-                    onOpenFile = onOpenFile,
-                    onOpenFileWith = onOpenFileWith,
-                    fileOpenBehaviors = fileOpenBehaviors,
-                    appStartPage = appStartPage ?: AppStartPage.HOME,
-                    onAppStartPageChange = onAppStartPageChange,
-                    onRestartApp = onRestartApp,
-                    onFeedback = emitOwnedFeedback
-                )
+                CompositionLocalProvider(
+                    LocalShizukuTopBarBadgeVisible provides (
+                        shouldShowShizukuTopBarBadge(
+                            enabled = currentThemeState.showShizukuStatusIcon,
+                            activeBackend = activePrivilegeBackend
+                        )
+                    )
+                ) {
+                    AppNavigationGraph(
+                        navController = navController,
+                        currentThemeState = currentThemeState,
+                        onThemeChange = onThemeChange,
+                        onOpenFile = onOpenFile,
+                        onOpenFileWith = onOpenFileWith,
+                        fileOpenBehaviors = fileOpenBehaviors,
+                        appStartPage = appStartPage ?: AppStartPage.HOME,
+                        onAppStartPageChange = onAppStartPageChange,
+                        onRestartApp = onRestartApp,
+                        onFeedback = emitOwnedFeedback
+                    )
+                }
                 if (isColdLaunchResetting) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
@@ -189,6 +201,11 @@ fun ArcileAppShell(
         }
     }
 }
+
+internal fun shouldShowShizukuTopBarBadge(
+    enabled: Boolean,
+    activeBackend: PrivilegeBackendId?
+): Boolean = enabled && activeBackend == PrivilegeBackendId.SHIZUKU
 
 internal fun resolveColdLaunchPage(
     mode: AppLaunchMode,

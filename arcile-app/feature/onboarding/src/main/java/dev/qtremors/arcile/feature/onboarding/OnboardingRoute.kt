@@ -20,8 +20,6 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItemStatus
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.core.ui.theme.ThemeState
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
 
 @Composable
 fun OnboardingRoute(
@@ -67,6 +65,12 @@ fun OnboardingRoute(
         )
     }
 
+    LaunchedEffect(state.step) {
+        if (state.step == OnboardingStep.SetupPermissions) {
+            viewModel.prepareAutomaticAccess()
+        }
+    }
+
     LaunchedEffect(
         state.preferencesLoaded,
         state.isCompleted,
@@ -99,17 +103,6 @@ fun OnboardingRoute(
             onBack = viewModel::back,
             onStepSelected = viewModel::setStep,
             onOpenStoragePermissionSettings = onOpenStoragePermissionSettings,
-            onAccessModeSelected = { mode ->
-                viewModel.selectAccessMode(mode)
-                if (
-                    mode == PrivilegeMode.NORMAL &&
-                    state.accessBackends[dev.qtremors.arcile.core.privilege.PrivilegeBackendId.NORMAL]
-                        ?.connectionState != PrivilegeConnectionState.READY
-                ) {
-                    onOpenStoragePermissionSettings()
-                }
-            },
-            onReconnectAccess = viewModel::reconnectAccess,
             onRequestNotificationPermission = {
                 if (notificationPermissionRequired) {
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)

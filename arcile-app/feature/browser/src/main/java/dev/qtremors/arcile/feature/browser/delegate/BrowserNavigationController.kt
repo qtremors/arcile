@@ -122,7 +122,9 @@ internal class BrowserNavigationController(
                             lastPath,
                             lastVolumeId,
                             clearHistory = !alreadyAtRestoredLocation,
-                            errorMessage = errorMessage
+                            errorMessage = errorMessage,
+                            isRootStorageScope = false,
+                            inheritCurrentNodeRef = false
                         )
                         return@launch
                     }
@@ -141,7 +143,9 @@ internal class BrowserNavigationController(
                         primaryVolume.id,
                         clearHistory = true,
                         errorMessage = errorMessage,
-                        persistAsLastOpened = false
+                        persistAsLastOpened = false,
+                        isRootStorageScope = false,
+                        inheritCurrentNodeRef = false
                     )
                 } else {
                     openVolumeRoots(errorMessage)
@@ -163,6 +167,7 @@ internal class BrowserNavigationController(
             clearHistory = true,
             errorMessage = errorMessage,
             persistAsLastOpened = false,
+            isRootStorageScope = false,
             inheritCurrentNodeRef = false
         )
     }
@@ -192,15 +197,28 @@ internal class BrowserNavigationController(
     fun navigateToSpecificFolder(
         path: String,
         seedInitialPathHistory: Boolean = true,
-        allowDirectPath: Boolean = false
+        allowDirectPath: Boolean = false,
+        isRootStorageScope: Boolean = path.normalizeStorageSeparators() == "/",
+        backendId: String? = null
     ) {
         if (ArchiveFormat.isSupported(path)) {
-            openArchive(path, seedHistory = seedInitialPathHistory)
+            openArchive(
+                archivePath = path,
+                seedHistory = seedInitialPathHistory,
+                isRootStorageScope = isRootStorageScope,
+                backendId = backendId
+            )
             return
         }
-        val volume = findVolumeForPath(path)
-        val restoredNodeRef = navigationPersistence.restoredCurrentNodeRef(path)
-        val directPathAllowed = allowDirectPath || path.normalizeStorageSeparators() == "/" ||
+        val volume = if (isRootStorageScope) null else findVolumeForPath(path)
+        val restoredNodeRef = when {
+            isRootStorageScope || backendId == StorageNodeRef.ROOT_BACKEND_ID ->
+                StorageNodeRef.root(path, path, volumeId = volume?.id)
+            backendId == StorageNodeRef.SHIZUKU_BACKEND_ID ->
+                StorageNodeRef.shizuku(path, path, volumeId = volume?.id)
+            else -> navigationPersistence.restoredCurrentNodeRef(path)
+        }
+        val directPathAllowed = allowDirectPath || isRootStorageScope ||
             restoredNodeRef?.isPrivileged == true
         if (volume == null && !directPathAllowed) {
             openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
@@ -220,7 +238,9 @@ internal class BrowserNavigationController(
             volumeId = volume?.id,
             clearHistory = false,
             allowDirectPath = directPathAllowed,
-            nodeRef = restoredNodeRef
+            nodeRef = restoredNodeRef,
+            isRootStorageScope = isRootStorageScope,
+            inheritCurrentNodeRef = false
         )
     }
 
@@ -254,7 +274,8 @@ internal class BrowserNavigationController(
             path,
             state.value.currentVolumeId,
             clearHistory = false,
-            nodeRef = nodeRef
+            nodeRef = nodeRef,
+            isRootStorageScope = state.value.isRootStorageScope
         )
     }
 
@@ -289,12 +310,14 @@ internal class BrowserNavigationController(
         if (navigationPersistence.isNotEmpty()) {
             when (val previous = navigationPersistence.pop()) {
                 is BrowserHistoryEntry.Directory -> {
-                    val volume = findVolumeForPath(previous.path)
+                    val volume = if (previous.isRootStorageScope) null else findVolumeForPath(previous.path)
                     loadDirectory(
                         previous.path,
                         volume?.id,
                         clearHistory = false,
-                        nodeRef = previous.nodeRef
+                        nodeRef = previous.nodeRef,
+                        isRootStorageScope = previous.isRootStorageScope,
+                        inheritCurrentNodeRef = false
                     )
                     return true
                 }
@@ -315,7 +338,9 @@ internal class BrowserNavigationController(
 
         if (allowVolumeRootFallback) {
             val currentPath = state.value.currentPath.takeIf { it.isNotBlank() }
-            val volume = currentPath?.let(::findVolumeForPath)
+            val volume = currentPath
+                ?.takeUnless { state.value.isRootStorageScope }
+                ?.let(::findVolumeForPath)
             val parentPath = currentPath
                 ?.let(::storageParentPath)
                 ?.takeIf {
@@ -326,7 +351,12 @@ internal class BrowserNavigationController(
                     }
                 }
             if (parentPath != null) {
-                loadDirectory(parentPath, volume?.id, clearHistory = false)
+                loadDirectory(
+                    parentPath,
+                    volume?.id,
+                    clearHistory = false,
+                    isRootStorageScope = state.value.isRootStorageScope
+                )
                 return true
             }
         }
@@ -356,7 +386,12 @@ internal class BrowserNavigationController(
                     pushHistory = false
                 )
             }
-            state.value.currentPath.isNotEmpty() -> loadDirectory(state.value.currentPath, state.value.currentVolumeId, clearHistory = false)
+            state.value.currentPath.isNotEmpty() -> loadDirectory(
+                state.value.currentPath,
+                state.value.currentVolumeId,
+                clearHistory = false,
+                isRootStorageScope = state.value.isRootStorageScope
+            )
         }
     }
 

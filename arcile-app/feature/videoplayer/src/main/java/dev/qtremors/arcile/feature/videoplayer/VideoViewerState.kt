@@ -76,16 +76,18 @@ internal fun videoVerticalGestureAllowed(
     viewportHeight: Float,
     leftGestureInset: Float,
     rightGestureInset: Float,
+    topGestureInset: Float,
     bottomGestureInset: Float
 ): Boolean {
     if (viewportWidth <= 0f || viewportHeight <= 0f) return false
     val safeLeft = leftGestureInset.coerceAtLeast(0f)
     val safeRight = rightGestureInset.coerceAtLeast(0f)
+    val safeTop = topGestureInset.coerceAtLeast(0f)
     val safeBottom = bottomGestureInset.coerceAtLeast(0f)
     return startX >= safeLeft &&
         startX < (viewportWidth - safeRight).coerceAtLeast(safeLeft) &&
-        startY >= 0f &&
-        startY < (viewportHeight - safeBottom).coerceAtLeast(0f)
+        startY >= safeTop &&
+        startY < (viewportHeight - safeBottom).coerceAtLeast(safeTop)
 }
 
 internal data class VideoZoomTransform(

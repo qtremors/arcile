@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
                                     fileOpenBehaviors = fileOpenBehaviors,
                                     appStartPage = appStartPage,
                                     onAppStartPageChange = viewModel::updateAppStartPage,
+                                    activePrivilegeBackend = applicationAccess.activeBackend,
                                     onRestartApp = ::restartApp
                                 )
                             },

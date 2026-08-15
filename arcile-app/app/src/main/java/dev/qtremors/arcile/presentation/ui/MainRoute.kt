@@ -150,7 +150,13 @@ internal fun MainRoute(
                             coordinator.showPrimaryBrowser()
                         }
                         is HomeDestination.BrowsePath -> {
-                            primaryTabs.requestBrowser(BrowserEntry.Path(destination.path))
+                            primaryTabs.requestBrowser(
+                                BrowserEntry.Path(
+                                    path = destination.path,
+                                    isRootStorageScope = destination.path.normalizedBrowserPath() == "/",
+                                    backendId = destination.backendId
+                                )
+                            )
                             coordinator.showPrimaryBrowser()
                         }
                         is HomeDestination.BrowseCategory -> onHomeDestination(destination)
@@ -322,8 +328,9 @@ private fun BrowserWorkspacePage(
                     workspaceTabs = {
                         if (tabsEnabled) {
                             val fallbackTitle = stringResource(R.string.browse_title)
+                            val rootStorageTitle = stringResource(R.string.root_storage)
                             val restoredTitles = coordinator.browserEntryRequests.mapValues { (_, request) ->
-                                browserEntryTabTitle(request.entry, fallbackTitle)
+                                browserEntryTabTitle(request.entry, fallbackTitle, rootStorageTitle)
                             }
                             BrowserTabsRow(
                                 tabs = coordinator.tabs,
@@ -354,10 +361,17 @@ private fun BrowserWorkspacePage(
     }
 }
 
-internal fun browserEntryTabTitle(entry: BrowserEntry, fallback: String): String = when (entry) {
+internal fun browserEntryTabTitle(
+    entry: BrowserEntry,
+    fallback: String,
+    rootStorageTitle: String = fallback
+): String = when (entry) {
     BrowserEntry.PrimaryStorage,
     is BrowserEntry.Root -> fallback
-    is BrowserEntry.Path -> storagePathName(entry.path)
+    is BrowserEntry.Path -> when {
+        entry.isRootStorageScope && entry.path.normalizedBrowserPath() == "/" -> rootStorageTitle
+        else -> storagePathName(entry.path).ifBlank { fallback }
+    }
     is BrowserEntry.Category -> entry.name
     is BrowserEntry.Archive -> storagePathName(entry.path)
 }
@@ -384,7 +398,9 @@ internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRe
         !requestedArchivePath.isNullOrEmpty() -> BrowserEntry.Archive(requestedArchivePath)
         !requestedPath.isNullOrEmpty() -> BrowserEntry.Path(
             path = requestedPath,
-            seedInitialPathHistory = seedInitialPathHistory
+            seedInitialPathHistory = seedInitialPathHistory,
+            isRootStorageScope = requestedPath.normalizedBrowserPath() == "/",
+            backendId = pathBackendId
         )
         !requestedCategory.isNullOrEmpty() -> BrowserEntry.Category(requestedCategory, volumeId)
         else -> BrowserEntry.Root(restorePersistentLocation)
@@ -395,3 +411,8 @@ internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRe
         focusPath = focusPath
     )
 }
+
+private fun String.normalizedBrowserPath(): String =
+    replace('\\', '/').let { normalized ->
+        if (normalized == "/") normalized else normalized.trimEnd('/')
+    }

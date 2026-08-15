@@ -40,6 +40,9 @@
     <string name="onboarding_configure_title">Configure Arcile</string>
     <string name="onboarding_configure_description">Personalize your layout, grant storage access, and restore backups if you have them.</string>
     <string name="onboarding_system_access">System Access</string>
+    <string name="onboarding_rooted_device_title">Rooted device</string>
+    <string name="onboarding_rooted_device_description">Arcile detects root and uses it automatically.</string>
+    <string name="onboarding_rooted_device_status">Rooted</string>
     <string name="onboarding_permission_granted">Granted</string>
     <string name="onboarding_permission_grant">Grant</string>
     <string name="onboarding_permission_enabled">Enabled</string>

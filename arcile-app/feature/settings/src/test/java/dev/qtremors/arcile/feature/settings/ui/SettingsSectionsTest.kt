@@ -123,21 +123,31 @@ class SettingsSectionsTest {
     }
 
     @Test
-    fun `access section exposes all providers and forwards selection`() {
-        var selected: PrivilegeMode? = null
+    fun `Shizuku status icon setting updates independently`() {
+        val updated = ThemeState(
+            showShizukuStatusIcon = true,
+            harmonizeColors = false
+        ).withShizukuStatusIcon(false)
+
+        assertFalse(updated.showShizukuStatusIcon)
+        assertFalse(updated.harmonizeColors)
+    }
+
+    @Test
+    fun `access section exposes one Shizuku switch and forwards changes`() {
+        var shizukuEnabled: Boolean? = null
         composeRule.setContent {
             ArcileTestTheme {
                 SettingsAccessSection(
                     state = SettingsAccessState(),
-                    actions = accessActions(selectMode = { selected = it })
+                    actions = accessActions(shizukuEnabledChange = { shizukuEnabled = it })
                 )
             }
         }
 
-        composeRule.onNodeWithTag("storage_access_mode_automatic").assertExists()
-        composeRule.onNodeWithTag("storage_access_mode_root").performClick()
+        composeRule.onNodeWithTag("shizuku_enabled_switch").performClick()
 
-        assertEquals(PrivilegeMode.ROOT, selected)
+        assertEquals(true, shizukuEnabled)
     }
 
     @Test
@@ -180,9 +190,7 @@ class SettingsSectionsTest {
     }
 
     @Test
-    fun `failed explicit Root offers reconnect and Normal fallback`() {
-        var reconnects = 0
-        var normalFallbacks = 0
+    fun `detected Root hides provider controls and explains automatic fallback`() {
         composeRule.setContent {
             ArcileTestTheme {
                 SettingsAccessSection(
@@ -198,27 +206,19 @@ class SettingsSectionsTest {
                             )
                         )
                     ),
-                    actions = accessActions(
-                        reconnect = { reconnects++ },
-                        useNormal = { normalFallbacks++ }
-                    )
+                    actions = accessActions()
                 )
             }
         }
 
-        composeRule.onNodeWithTag("storage_access_reconnect")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.onNodeWithTag("storage_access_use_normal")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        composeRule.runOnIdle {
-            assertEquals(1, reconnects)
-            assertEquals(1, normalFallbacks)
-        }
+        composeRule.onNodeWithText(
+            "This is a rooted device. Arcile will use normal access until root is available."
+        ).assertExists()
+        composeRule.onNodeWithTag("shizuku_enabled_row").assertDoesNotExist()
     }
 
     @Test
-    fun `ready Shizuku shell identity is shown accurately`() {
+    fun `ready Shizuku is shown as the automatic active provider`() {
         composeRule.setContent {
             ArcileTestTheme {
                 SettingsAccessSection(
@@ -245,20 +245,16 @@ class SettingsSectionsTest {
             }
         }
 
-        composeRule.onNodeWithText("Connected as ADB shell").assertExists()
+        composeRule.onNodeWithText("Shizuku is enabled and used automatically.").assertExists()
     }
 
 }
 
 private fun accessActions(
-    selectMode: (PrivilegeMode) -> Unit = {},
-    reconnect: () -> Unit = {},
-    useNormal: () -> Unit = {},
+    shizukuEnabledChange: (Boolean) -> Unit = {},
     protectedWritesChange: (Boolean) -> Unit = {}
 ) = SettingsAccessActions(
-    selectMode = selectMode,
-    reconnect = reconnect,
-    useNormal = useNormal,
+    shizukuEnabledChange = shizukuEnabledChange,
     grantNormalPermission = {},
     openShizukuManager = {},
     protectedWritesChange = protectedWritesChange

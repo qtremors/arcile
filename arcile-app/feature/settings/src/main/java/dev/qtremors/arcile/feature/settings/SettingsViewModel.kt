@@ -29,6 +29,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
@@ -81,6 +82,11 @@ internal class SettingsViewModel @Inject constructor(
 
     init {
         refreshExternalCache()
+        viewModelScope.launch {
+            privilegePreferences.state.first().takeIf { it.mode != PrivilegeMode.AUTOMATIC }?.let {
+                privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
+            }
+        }
     }
 
     fun refreshExternalCache() {
@@ -153,19 +159,13 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun selectAccessMode(mode: PrivilegeMode) = runAccessAction {
-        privilegeCoordinator.selectMode(
-            mode = mode,
-            requestAuthorization = mode == PrivilegeMode.ROOT || mode == PrivilegeMode.SHIZUKU
-        )
-    }
-
-    fun reconnectAccess() = runAccessAction {
-        privilegeCoordinator.reconnect(requestAuthorization = true)
-    }
-
-    fun useNormalAccess() = runAccessAction {
-        privilegeCoordinator.useNormal()
+    fun updateShizukuEnabled(enabled: Boolean) = runAccessAction {
+        if (enabled) {
+            privilegeCoordinator.selectMode(PrivilegeMode.SHIZUKU, requestAuthorization = true)
+        } else {
+            privilegePreferences.setShizukuPreviouslyAuthorized(false)
+        }
+        privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
     }
 
     fun updateProtectedFilesystemWrites(enabled: Boolean) {

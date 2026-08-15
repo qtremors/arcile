@@ -48,6 +48,19 @@ class FilePresentationTest {
         assertEquals(listOf("large.txt", "medium.txt", "small.txt"), result.map { it.name })
     }
 
+    @Test
+    fun `newest sort orders folders and files by their actual timestamp`() {
+        val files = listOf(
+            fileModel(name = "old-folder", isDirectory = true, lastModified = 100),
+            fileModel(name = "latest.txt", lastModified = 300),
+            fileModel(name = "middle-folder", isDirectory = true, lastModified = 200)
+        )
+
+        val result = filterAndSortFiles(files, query = "", sortOption = FileSortOption.DATE_NEWEST)
+
+        assertEquals(listOf("latest.txt", "middle-folder", "old-folder"), result.map { it.name })
+    }
+
     private fun fileModel(
         name: String,
         isDirectory: Boolean = false,

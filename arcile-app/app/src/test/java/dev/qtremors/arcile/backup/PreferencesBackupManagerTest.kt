@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.ui.theme.ThemeState
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.flow.first
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -46,7 +47,8 @@ class PreferencesBackupManagerTest {
                 themeMode = ThemeMode.DARK,
                 accentColor = AccentColor.GREEN,
                 harmonizeColors = false,
-                landscapeDualPaneEnabled = true
+                landscapeDualPaneEnabled = true,
+                showShizukuStatusIcon = false
             )
         )
         val utilityPrefs = File(dataStoreDir, "utility_prefs.preferences_pb").apply {
@@ -75,6 +77,7 @@ class PreferencesBackupManagerTest {
         assertEquals(AccentColor.GREEN, themePreferences.themeState.first().accentColor)
         assertEquals(false, themePreferences.themeState.first().harmonizeColors)
         assertTrue(themePreferences.themeState.first().landscapeDualPaneEnabled)
+        assertFalse(themePreferences.themeState.first().showShizukuStatusIcon)
     }
 
     @Test

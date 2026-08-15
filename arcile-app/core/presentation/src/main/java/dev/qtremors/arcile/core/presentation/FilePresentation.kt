@@ -26,8 +26,12 @@ fun filterAndSortFiles(
         FileSortOption.SIZE_SMALLEST -> compareBy<FileModel> { it.size }
     }
 
+    val comparator = when (sortOption) {
+        FileSortOption.DATE_NEWEST,
+        FileSortOption.DATE_OLDEST -> sortComparator
+        else -> compareBy<FileModel> { !it.isDirectory }.then(sortComparator)
+    }
     return filteredFiles.sortedWith(
-        compareBy<FileModel> { !it.isDirectory }
-            .then(sortComparator)
+        comparator.thenBy(String.CASE_INSENSITIVE_ORDER, FileModel::name)
     )
 }

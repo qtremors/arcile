@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.ui
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
 import dev.qtremors.arcile.feature.browser.BrowserRouteStatus
@@ -14,6 +15,15 @@ import org.junit.Assert.assertFalse
 import org.junit.Test
 
 class MainRouteTest {
+
+    @Test
+    fun `app bar badge is shown only for enabled Shizuku access`() {
+        assertTrue(shouldShowShizukuTopBarBadge(true, PrivilegeBackendId.SHIZUKU))
+        assertFalse(shouldShowShizukuTopBarBadge(false, PrivilegeBackendId.SHIZUKU))
+        assertFalse(shouldShowShizukuTopBarBadge(true, PrivilegeBackendId.ROOT))
+        assertFalse(shouldShowShizukuTopBarBadge(true, PrivilegeBackendId.NORMAL))
+        assertFalse(shouldShowShizukuTopBarBadge(true, null))
+    }
 
     @Test
     fun `cold launch applies the stored browser start page once`() {
@@ -420,6 +430,71 @@ class MainRouteTest {
                 fallback = "Browse"
             )
         )
+        assertEquals(
+            "Root Storage",
+            browserEntryTabTitle(
+                BrowserEntry.Path(
+                    path = "/",
+                    seedInitialPathHistory = false,
+                    isRootStorageScope = true
+                ),
+                fallback = "Browse",
+                rootStorageTitle = "Root Storage"
+            )
+        )
+    }
+
+    @Test
+    fun `pinned root storage tab restores its scope and title`() {
+        val restored = restorePersistedBrowserTabs(
+            tabs = listOf(
+                PersistedBrowserTab(
+                    id = 3,
+                    entryType = "path",
+                    path = "/",
+                    isRootStorageScope = true
+                )
+            ),
+            browserPage = BROWSER_PAGE
+        ).single()
+
+        assertEquals(
+            BrowserEntry.Path(
+                path = "/",
+                seedInitialPathHistory = false,
+                isRootStorageScope = true
+            ),
+            restored.entry
+        )
+        assertEquals(
+            "Root Storage",
+            browserEntryTabTitle(restored.entry, "Browse", "Root Storage")
+        )
+    }
+
+    @Test
+    fun `pinned root archive tab restores scope and backend`() {
+        val restored = restorePersistedBrowserTabs(
+            tabs = listOf(
+                PersistedBrowserTab(
+                    id = 4,
+                    entryType = "archive",
+                    path = "/data/local/archive.zip",
+                    isRootStorageScope = true,
+                    backendId = "root"
+                )
+            ),
+            browserPage = BROWSER_PAGE
+        ).single()
+
+        assertEquals(
+            BrowserEntry.Archive(
+                path = "/data/local/archive.zip",
+                isRootStorageScope = true,
+                backendId = "root"
+            ),
+            restored.entry
+        )
     }
 
     @Test
@@ -472,6 +547,23 @@ class MainRouteTest {
             request?.entry
         )
         assertEquals("/storage/Documents/report.pdf", request?.focusPath)
+    }
+
+    @Test
+    fun `browser path entry preserves privileged backend`() {
+        val request = AppRoutes.Main(
+            initialPage = 1,
+            path = "/storage/emulated/0/Android/data",
+            pathBackendId = "shizuku"
+        ).initialBrowserEntry(requestId = 31)
+
+        assertEquals(
+            BrowserEntry.Path(
+                path = "/storage/emulated/0/Android/data",
+                backendId = "shizuku"
+            ),
+            request?.entry
+        )
     }
 
     @Test

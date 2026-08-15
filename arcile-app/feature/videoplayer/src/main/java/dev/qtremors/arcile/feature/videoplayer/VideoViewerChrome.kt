@@ -38,6 +38,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.CheckCircle
@@ -52,6 +53,7 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -124,6 +126,7 @@ internal fun VideoViewerTopChrome(
     resolutionText: String,
     sizeText: String,
     marqueeEnabled: Boolean,
+    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     AnimatedVisibility(
@@ -138,12 +141,25 @@ internal fun VideoViewerTopChrome(
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    tint = Color.White
+                )
+            }
             if (currentFile != null) {
                 Column(
                     horizontalAlignment = Alignment.Start,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .padding(horizontal = 4.dp)
+                        .padding(start = 56.dp, end = 4.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.Black.copy(alpha = 0.5f))

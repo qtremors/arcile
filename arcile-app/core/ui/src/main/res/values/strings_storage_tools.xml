@@ -85,6 +85,7 @@
     <string name="cleaner_junk_desc">Temporary, log, backup, and cache-like files.</string>
     <string name="cleaner_empty">Nothing found</string>
     <plurals name="cleaner_group_stat"><item quantity="one">%1$d file • %2$s</item><item quantity="other">%1$d files • %2$s</item></plurals>
+    <plurals name="cleaner_group_folder_stat"><item quantity="one">%1$d folder</item><item quantity="other">%1$d folders</item></plurals>
     <plurals name="cleaner_duplicate_count"><item quantity="one">%1$d file</item><item quantity="other">%1$d files</item></plurals>
     <string name="cleaner_select_all">Select all</string>
     <string name="clean_selected_summary">Move %1$d to Trash • %2$s</string>
@@ -207,6 +208,11 @@
     <string name="quick_access_section_handoff">Open In Files App</string>
     <string name="quick_access_scoped_description">Scoped storage shortcut</string>
     <string name="quick_access_handoff_description">Opens in the Android Files app due to platform restrictions.</string>
+    <string name="quick_access_shizuku_prompt_title">Open %1$s with Shizuku?</string>
+    <string name="quick_access_shizuku_prompt_description">Shizuku lets Arcile browse this restricted folder directly. Without it, the folder opens in the Android Files app.</string>
+    <string name="quick_access_enable_shizuku">Enable Shizuku</string>
+    <string name="quick_access_open_in_files">Open in Files</string>
+    <string name="quick_access_error_title">Quick Access unavailable</string>
     <string name="quick_access_remove_title">Remove Folder</string>
     <string name="quick_access_remove_message">Are you sure you want to remove %1$s from Quick Access?</string>
     <string name="quick_access_show_on_home">Show on Home</string>

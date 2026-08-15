@@ -7,16 +7,30 @@ import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
+import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 
 internal data class QuickAccessActions(
     val navigateBack: () -> Unit,
     val navigateToPath: (String) -> Unit,
     val navigateToSaf: (String) -> Unit,
+    val navigateToRestrictedFolder: (QuickAccessItem) -> Unit,
     val togglePin: (QuickAccessItem) -> Unit,
     val removeItem: (QuickAccessItem) -> Unit,
     val addCustomFolder: (String, String) -> Unit,
@@ -34,6 +48,9 @@ internal fun QuickAccessRoute(
     viewModel: QuickAccessViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val access by viewModel.accessState.collectAsStateWithLifecycle()
+    var restrictedFolderPrompt by remember { mutableStateOf<QuickAccessItem?>(null) }
+    var pendingRestrictedFolder by remember { mutableStateOf<QuickAccessItem?>(null) }
     val contentResolver = LocalContext.current.contentResolver
     val folderPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -41,6 +58,30 @@ internal fun QuickAccessRoute(
         if (uri != null) {
             persistTreePermission(contentResolver, uri)
             viewModel.addSafFolder(uri.toString(), folderLabel(uri))
+        }
+    }
+
+    LaunchedEffect(
+        pendingRestrictedFolder,
+        access.isReady,
+        access.activeBackend,
+        state.error
+    ) {
+        val item = pendingRestrictedFolder ?: return@LaunchedEffect
+        if (state.error != null) {
+            pendingRestrictedFolder = null
+            return@LaunchedEffect
+        }
+        val backendId = when (access.activeBackend) {
+            PrivilegeBackendId.ROOT -> StorageNodeRef.ROOT_BACKEND_ID
+            PrivilegeBackendId.SHIZUKU -> StorageNodeRef.SHIZUKU_BACKEND_ID
+            else -> null
+        }
+        if (access.isReady && backendId != null) {
+            restrictedLocalPath(item.path)?.let { localPath ->
+                pendingRestrictedFolder = null
+                onDestination(QuickAccessDestination.LocalPath(localPath, backendId))
+            }
         }
     }
 
@@ -53,6 +94,34 @@ internal fun QuickAccessRoute(
             },
             navigateToSaf = { uri ->
                 onDestination(QuickAccessDestination.ExternalFolder(uri))
+            },
+            navigateToRestrictedFolder = { item ->
+                val privilegedAccessReady = access.isReady &&
+                    access.activeBackend in setOf(
+                        PrivilegeBackendId.ROOT,
+                        PrivilegeBackendId.SHIZUKU
+                    )
+                val localPath = restrictedLocalPath(item.path)
+                if (privilegedAccessReady && localPath != null) {
+                    val backendId = when (access.activeBackend) {
+                        PrivilegeBackendId.ROOT -> StorageNodeRef.ROOT_BACKEND_ID
+                        PrivilegeBackendId.SHIZUKU -> StorageNodeRef.SHIZUKU_BACKEND_ID
+                        else -> null
+                    }
+                    onDestination(QuickAccessDestination.LocalPath(localPath, backendId))
+                } else {
+                    val rootDetected = access.backendStates[PrivilegeBackendId.ROOT]
+                        ?.connectionState
+                        ?.let { it != PrivilegeConnectionState.UNAVAILABLE } == true
+                    val shizukuAvailable = access.backendStates[PrivilegeBackendId.SHIZUKU]
+                        ?.connectionState
+                        ?.let { it != PrivilegeConnectionState.UNAVAILABLE } == true
+                    if (!rootDetected && shizukuAvailable) {
+                        restrictedFolderPrompt = item
+                    } else {
+                        onDestination(QuickAccessDestination.ExternalFolder(item.path))
+                    }
+                }
             },
             togglePin = viewModel::togglePin,
             removeItem = viewModel::removeCustomItem,
@@ -76,6 +145,48 @@ internal fun QuickAccessRoute(
             movePinnedItem = viewModel::movePinnedItem
         )
     )
+
+    restrictedFolderPrompt?.let { item ->
+        AlertDialog(
+            onDismissRequest = { restrictedFolderPrompt = null },
+            title = { Text(stringResource(R.string.quick_access_shizuku_prompt_title, item.label)) },
+            text = { Text(stringResource(R.string.quick_access_shizuku_prompt_description)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        pendingRestrictedFolder = item
+                        restrictedFolderPrompt = null
+                        viewModel.enableShizuku()
+                    }
+                ) {
+                    Text(stringResource(R.string.quick_access_enable_shizuku))
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        restrictedFolderPrompt = null
+                        onDestination(QuickAccessDestination.ExternalFolder(item.path))
+                    }
+                ) {
+                    Text(stringResource(R.string.quick_access_open_in_files))
+                }
+            }
+        )
+    }
+
+    state.error?.let { message ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissError,
+            title = { Text(stringResource(R.string.quick_access_error_title)) },
+            text = { Text(message) },
+            confirmButton = {
+                Button(onClick = viewModel::dismissError) {
+                    Text(stringResource(R.string.ok))
+                }
+            }
+        )
+    }
 }
 
 internal fun restrictedExternalStorageUri(relativeDocumentPath: String): Uri {
@@ -119,6 +230,18 @@ internal fun persistTreePermission(contentResolver: ContentResolver, uri: Uri): 
         true
     }.getOrDefault(false)
 }
+
+internal fun restrictedLocalPath(uriString: String): String? = runCatching {
+    val uri = Uri.parse(uriString)
+    require(uri.scheme == ContentResolver.SCHEME_CONTENT)
+    require(uri.authority == EXTERNAL_STORAGE_AUTHORITY)
+    val documentId = DocumentsContract.getDocumentId(uri)
+    require(documentId == "$PRIMARY_STORAGE_ROOT:" || documentId.startsWith("$PRIMARY_STORAGE_ROOT:"))
+    val relativePath = documentId.removePrefix("$PRIMARY_STORAGE_ROOT:").trim('/')
+    require(relativePath.split('/').none { it == "." || it == ".." })
+    if (relativePath.isEmpty()) "/storage/emulated/0"
+    else "/storage/emulated/0/$relativePath"
+}.getOrNull()
 
 private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
 private const val PRIMARY_STORAGE_ROOT = "primary"

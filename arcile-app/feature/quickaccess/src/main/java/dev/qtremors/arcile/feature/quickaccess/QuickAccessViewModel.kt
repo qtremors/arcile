@@ -6,6 +6,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
+import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
+import dev.qtremors.arcile.core.privilege.PrivilegeMode
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -14,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -28,11 +31,13 @@ internal data class QuickAccessState(
 
 @HiltViewModel
 internal class QuickAccessViewModel @Inject constructor(
-    private val quickAccessRepository: QuickAccessPreferencesStore
+    private val quickAccessRepository: QuickAccessPreferencesStore,
+    private val privilegeCoordinator: PrivilegeCoordinator
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(QuickAccessState())
     val state: StateFlow<QuickAccessState> = _state.asStateFlow()
+    val accessState = privilegeCoordinator.state
     private val mutationMutex = Mutex()
 
     init {
@@ -137,6 +142,34 @@ internal class QuickAccessViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun enableShizuku() {
+        viewModelScope.launch {
+            try {
+                _state.update { it.copy(error = null) }
+                privilegeCoordinator.selectMode(PrivilegeMode.SHIZUKU, requestAuthorization = true)
+                val shizukuReady = privilegeCoordinator.state.value.isReady &&
+                    privilegeCoordinator.state.value.activeBackend ==
+                    dev.qtremors.arcile.core.privilege.PrivilegeBackendId.SHIZUKU
+                privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
+                if (!shizukuReady) {
+                    _state.update { state ->
+                        state.copy(error = "Couldn't enable Shizuku. Make sure it is running and authorized, then try again.")
+                    }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Throwable) {
+                _state.update { state ->
+                    state.copy(error = "Couldn't enable Shizuku. Make sure it is running, then try again.")
+                }
+            }
+        }
+    }
+
+    fun dismissError() {
+        _state.update { it.copy(error = null) }
     }
 
     private suspend fun mutateItems(transform: (List<QuickAccessItem>) -> List<QuickAccessItem>) {

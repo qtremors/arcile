@@ -12,9 +12,6 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.showArcileToast
 import dev.qtremors.arcile.feature.settings.ui.SettingsAccessActions
@@ -93,18 +90,7 @@ internal fun SettingsRoute(
             clearExternalCache = viewModel::clearExternalCache
         ),
         accessActions = SettingsAccessActions(
-            selectMode = { mode ->
-                viewModel.selectAccessMode(mode)
-                if (
-                    mode == PrivilegeMode.NORMAL &&
-                    access.access.backendStates[PrivilegeBackendId.NORMAL]
-                        ?.connectionState != PrivilegeConnectionState.READY
-                ) {
-                    context.openNormalStorageSettings()
-                }
-            },
-            reconnect = viewModel::reconnectAccess,
-            useNormal = viewModel::useNormalAccess,
+            shizukuEnabledChange = viewModel::updateShizukuEnabled,
             grantNormalPermission = context::openNormalStorageSettings,
             openShizukuManager = context::openShizukuManager,
             protectedWritesChange = viewModel::updateProtectedFilesystemWrites

@@ -33,6 +33,27 @@ class BrowserNavigationPersistenceTest {
     }
 
     @Test
+    fun `restores root storage scope independently from privileged backend identity`() {
+        val savedStateHandle = SavedStateHandle(
+            mapOf(
+                "currentPath" to "/data/local",
+                "currentVolumeId" to null,
+                "isRootStorageScope" to true,
+                "isVolumeRootScreen" to false,
+                "isCategoryScreen" to false
+            )
+        )
+
+        assertEquals(
+            StorageBrowserLocation.DirectDirectory(
+                StorageNodePath.of("/data/local"),
+                isRootStorageScope = true
+            ),
+            BrowserNavigationPersistence(savedStateHandle).restoreLocation()
+        )
+    }
+
+    @Test
     fun `saves and restores privileged current directory identity`() {
         val handle = SavedStateHandle()
         val persistence = BrowserNavigationPersistence(handle)
@@ -78,6 +99,21 @@ class BrowserNavigationPersistenceTest {
     }
 
     @Test
+    fun `history codec preserves root storage scope`() {
+        val reference = StorageNodeRef.root("/data/local", "/data/local")
+        val entry = BrowserHistoryEntry.Directory(
+            path = "/data/local",
+            nodeRef = reference,
+            isRootStorageScope = true
+        )
+
+        val encoded = entry.toSavedValue()
+
+        assertTrue(encoded.startsWith("dir3:"))
+        assertEquals(entry, BrowserHistoryEntry.fromSavedValue(encoded))
+    }
+
+    @Test
     fun `saves and restores protected archive identity independently from parent directory`() {
         val handle = SavedStateHandle()
         val persistence = BrowserNavigationPersistence(handle)
@@ -109,6 +145,33 @@ class BrowserNavigationPersistenceTest {
         assertEquals(archive.backendIdentity, restored?.backendIdentity)
         assertEquals(archive.volumeId, restored?.volumeId)
         assertEquals(parent.backendId, persistence.restoredCurrentNodeRef(parent.displayPath.absolutePath)?.backendId)
+    }
+
+    @Test
+    fun `restored archive retains root storage scope`() {
+        val handle = SavedStateHandle()
+        val persistence = BrowserNavigationPersistence(handle)
+        val archive = StorageNodeRef.root("/data/local/archive.zip", "/data/local/archive.zip")
+        persistence.save(
+            BrowserNavigationState().withValues(
+                currentPath = archive.displayPath.absolutePath,
+                currentNodeRef = archive,
+                isRootStorageScope = true,
+                archiveContext = BrowserArchiveContext(
+                    archivePath = archive.displayPath.absolutePath,
+                    archiveNodeRef = archive
+                )
+            )
+        )
+
+        assertEquals(
+            StorageBrowserLocation.Archive(
+                archivePath = archive.displayPath.absolutePath,
+                entryPrefix = null,
+                isRootStorageScope = true
+            ),
+            persistence.restoreLocation()
+        )
     }
 
     @Test
