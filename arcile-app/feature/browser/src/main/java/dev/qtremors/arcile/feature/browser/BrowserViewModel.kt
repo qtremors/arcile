@@ -20,6 +20,7 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictOwner
@@ -48,6 +49,7 @@ internal class BrowserViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
     private val bulkFileCoordinator: BulkFileOperationCoordinator,
+    private val activityLogStore: ActivityLogStore,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
     private val utilityPreferencesStore: dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore = dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
 ) : ViewModel() {
@@ -87,6 +89,7 @@ internal class BrowserViewModel @Inject constructor(
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
         bulkFileCoordinator = bulkFileCoordinator,
+        activityLogStore = activityLogStore,
         operationOwnerId = operationOwnerId
     )
     private val navigationController = controllers.navigation

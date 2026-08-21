@@ -27,7 +27,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -68,7 +67,6 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val manager = remember(context) { PluginManager(context) }
     var installed by remember { mutableStateOf(manager.getInstalledPlugins()) }
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     DisposableEffect(lifecycleOwner, manager) {
         val observer = LifecycleEventObserver { _, event ->
@@ -95,7 +93,8 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.plugins_title)) },
-                scrollBehavior = scrollBehavior,
+                scrollBehavior = null,
+                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,

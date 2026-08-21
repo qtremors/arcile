@@ -9,6 +9,7 @@ import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 
 @Composable
 fun AppNavigationGraph(
@@ -18,6 +19,7 @@ fun AppNavigationGraph(
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRecordFileOpened: (String) -> Unit,
+    onRecordPageVisited: (ActivityLogPage, String?) -> Unit,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
@@ -58,6 +60,7 @@ fun AppNavigationGraph(
             appStartPage,
             onAppStartPageChange,
             currentThemeState.landscapeDualPaneEnabled,
+            onRecordPageVisited,
             onFeedback
         )
         registerFileRoutes(navController, actions, transitions, onFeedback)

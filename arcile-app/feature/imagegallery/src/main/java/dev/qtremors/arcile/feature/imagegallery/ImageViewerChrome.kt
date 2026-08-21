@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +27,9 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
@@ -95,6 +100,9 @@ internal data class ImageViewerChromeActions(
     val onShare: (FileModel) -> Unit
 )
 
+private val LandscapeThumbnailStripWidth = 56.dp
+private val LandscapeChromeEndPadding = 80.dp
+
 @Composable
 internal fun ImageViewerTopChrome(
     visible: Boolean,
@@ -106,6 +114,7 @@ internal fun ImageViewerTopChrome(
     marqueeEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
@@ -116,7 +125,13 @@ internal fun ImageViewerTopChrome(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                .padding(
+                    start = 16.dp,
+                    end = if (isLandscape) LandscapeChromeEndPadding else 16.dp,
+                    top = 12.dp,
+                    bottom = 12.dp
+                )
         ) {
             if (currentFile != null) {
                 Column(
@@ -195,23 +210,31 @@ internal fun ImageViewerBottomChrome(
             }
         }
         if (isLandscape) {
-            LazyColumn(
-                state = lazyListState,
+            BoxWithConstraints(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
-                    .width(56.dp)
-                    .background(Color.Black.copy(alpha = 0.5f)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-                contentPadding = PaddingValues(vertical = 16.dp)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                    .padding(end = 12.dp)
+                    .width(LandscapeThumbnailStripWidth)
             ) {
-                itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
-                    ImageViewerStripThumbnail(
-                        file = file,
-                        selected = currentPage == index,
-                        onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
-                    )
+                val thumbnailSidePadding = ((maxHeight - 54.dp) / 2).coerceAtLeast(16.dp)
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                    contentPadding = PaddingValues(vertical = thumbnailSidePadding)
+                ) {
+                    itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
+                        ImageViewerStripThumbnail(
+                            file = file,
+                            selected = currentPage == index,
+                            onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
+                        )
+                    }
                 }
             }
         }
@@ -220,6 +243,15 @@ internal fun ImageViewerBottomChrome(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .then(
+                    if (isLandscape) {
+                        Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                            .padding(end = LandscapeChromeEndPadding)
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             if (!isLandscape) {
             BoxWithConstraints(

@@ -17,7 +17,6 @@ internal fun BrowserNavigationState.applyNavigationPreferences(
         browserGridMinCellSize = presentation.gridMinCellSize,
         browserShowThumbnails = presentation.showThumbnails,
         browserScrollbarEnabled = preferences.scrollbarEnabled,
-        expandableAppBar = preferences.expandableAppBar,
         showHiddenFiles = preferences.showHiddenFiles
     ).withUpdatedDisplayState()
 }

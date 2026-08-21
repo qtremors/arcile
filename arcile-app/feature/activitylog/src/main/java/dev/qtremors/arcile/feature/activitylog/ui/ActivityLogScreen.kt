@@ -13,16 +13,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.HourglassTop
-import androidx.compose.material.icons.filled.HighlightOff
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -30,7 +25,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -39,22 +33,22 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
-import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.spacing
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,6 +58,27 @@ internal fun ActivityLogScreen(
     onClearActivity: () -> Unit
 ) {
     var showClearConfirmation by rememberSaveable { mutableStateOf(false) }
+    val todayLabel = stringResource(R.string.today)
+    val yesterdayLabel = stringResource(R.string.yesterday)
+    val activityGroups = remember(entries, todayLabel, yesterdayLabel) {
+        val calendar = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val todayStart = calendar.timeInMillis
+        calendar.add(Calendar.DAY_OF_YEAR, -1)
+        groupActivityByCalendarDay(
+            entries = entries,
+            todayStart = todayStart,
+            yesterdayStart = calendar.timeInMillis,
+            todayLabel = todayLabel,
+            yesterdayLabel = yesterdayLabel,
+            currentYearFormatter = SimpleDateFormat("MMMM d", Locale.getDefault()),
+            olderYearFormatter = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
+        )
+    }
 
     if (showClearConfirmation) {
         AlertDialog(
@@ -161,9 +176,19 @@ internal fun ActivityLogScreen(
             ),
             verticalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.extraSmall)
         ) {
-            items(entries, key = { it.id }) { entry ->
-                ActivityLogRow(entry)
-                HorizontalDivider()
+            activityGroups.forEach { group ->
+                item(key = "date-${group.dayStartMillis}") {
+                    ActivityDateHeader(group.label)
+                }
+                itemsIndexed(
+                    items = group.entries,
+                    key = { _, entry -> entry.id }
+                ) { index, entry ->
+                    ActivityLogRow(entry)
+                    if (index < group.entries.lastIndex) {
+                        HorizontalDivider()
+                    }
+                }
             }
         }
     }

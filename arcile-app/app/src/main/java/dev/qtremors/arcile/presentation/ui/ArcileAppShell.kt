@@ -65,6 +65,8 @@ import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
+import dev.qtremors.arcile.core.ui.LocalKeepAppBarsCollapsed
 
 private val FeedbackAboveActionsPadding = 88.dp
 
@@ -77,6 +79,8 @@ fun ArcileAppShell(
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRecordFileOpened: (String) -> Unit,
+    onRecordPageVisited: (ActivityLogPage, String?) -> Unit,
+    keepAppBarsCollapsed: Boolean,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
     appStartPage: AppStartPage?,
     onAppStartPageChange: (AppStartPage) -> Unit,
@@ -91,6 +95,12 @@ fun ArcileAppShell(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
+
+    LaunchedEffect(navBackStackEntry?.id) {
+        navBackStackEntry?.toActivityPageVisit()?.let { visit ->
+            onRecordPageVisited(visit.page, visit.detail)
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val feedbackEvents = remember { MutableSharedFlow<OwnedFeedbackEvent>(extraBufferCapacity = 16) }
@@ -147,42 +157,45 @@ fun ArcileAppShell(
         }
     }
 
-    androidx.compose.animation.SharedTransitionLayout {
-        Scaffold(
-            snackbarHost = {
-                ArcileSnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
-                    severityFor = { currentFeedbackSeverity }
-                )
-            },
-            containerColor = Color.Transparent,
-            contentWindowInsets = WindowInsets(0, 0, 0, 0)
-        ) { padding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-            ) {
-                AppNavigationGraph(
-                    navController = navController,
-                    currentThemeState = currentThemeState,
-                    onThemeChange = onThemeChange,
-                    onOpenFile = onOpenFile,
-                    onOpenFileWith = onOpenFileWith,
-                    onRecordFileOpened = onRecordFileOpened,
-                    fileOpenBehaviors = fileOpenBehaviors,
-                    appStartPage = appStartPage ?: AppStartPage.HOME,
-                    onAppStartPageChange = onAppStartPageChange,
-                    onRestartApp = onRestartApp,
-                    onFeedback = emitOwnedFeedback
-                )
-                if (isColdLaunchResetting) {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background,
-                        content = {}
+    CompositionLocalProvider(LocalKeepAppBarsCollapsed provides keepAppBarsCollapsed) {
+        androidx.compose.animation.SharedTransitionLayout {
+            Scaffold(
+                snackbarHost = {
+                    ArcileSnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
+                        severityFor = { currentFeedbackSeverity }
                     )
+                },
+                containerColor = Color.Transparent,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0)
+            ) { padding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                ) {
+                    AppNavigationGraph(
+                        navController = navController,
+                        currentThemeState = currentThemeState,
+                        onThemeChange = onThemeChange,
+                        onOpenFile = onOpenFile,
+                        onOpenFileWith = onOpenFileWith,
+                        onRecordFileOpened = onRecordFileOpened,
+                        onRecordPageVisited = onRecordPageVisited,
+                        fileOpenBehaviors = fileOpenBehaviors,
+                        appStartPage = appStartPage ?: AppStartPage.HOME,
+                        onAppStartPageChange = onAppStartPageChange,
+                        onRestartApp = onRestartApp,
+                        onFeedback = emitOwnedFeedback
+                    )
+                    if (isColdLaunchResetting) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = MaterialTheme.colorScheme.background,
+                            content = {}
+                        )
+                    }
                 }
             }
         }

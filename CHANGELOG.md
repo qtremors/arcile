@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.3
+> **Version:** 2.0.4
 > **Last Updated:** 2026-08-21
 
 ---
+
+## [2.0.4] - 2026-08-21
+
+- **Chronological Activity Timeline**: Reworked Activity into a Recents-style history grouped under Today, Yesterday, and calendar dates, covering visited pages, opened files and folders, and file operations including create, rename, restore, and Trash actions.
+- **Universal Collapsed App Bars**: Added a preference to keep supported app bars compact while preserving their normal expanded-to-collapsed scrolling when disabled and sharing Browser state across tabs and panes.
+- **Centered Landscape Viewer Strips**: Kept the active image or video thumbnail centered, inset the vertical strip from the safe display edge, and reserved space so it no longer overlaps viewer controls.
 
 ## [2.0.3] - 2026-08-21
 

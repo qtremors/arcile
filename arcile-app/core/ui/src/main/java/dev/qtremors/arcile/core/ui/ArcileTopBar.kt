@@ -145,11 +145,9 @@ fun ArcileTopBar(
 
     androidx.compose.material3.LargeTopAppBar(
         scrollBehavior = scrollBehavior,
-        expandedHeight = if (selectionCount > 0 || !expandable) {
-            TopAppBarDefaults.TopAppBarExpandedHeight
-        } else {
-            TopAppBarDefaults.LargeAppBarExpandedHeight
-        },
+        expandedHeight = arcileLargeTopAppBarHeight(
+            forceCompact = selectionCount > 0 || !expandable
+        ),
         title = {
             Column {
                 Text(

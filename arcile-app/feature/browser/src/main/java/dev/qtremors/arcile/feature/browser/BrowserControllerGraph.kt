@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.ClipboardController
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
@@ -65,6 +66,7 @@ internal fun createBrowserControllerGraph(
     browserPreferencesRepository: BrowserLocationPreferencesStore,
     savedStateHandle: SavedStateHandle,
     bulkFileCoordinator: BulkFileOperationCoordinator,
+    activityLogStore: ActivityLogStore,
     operationOwnerId: String
 ): BrowserControllerGraph {
     lateinit var coordinator: BrowserCoordinator
@@ -189,6 +191,7 @@ internal fun createBrowserControllerGraph(
         fileMutationRepository = fileMutationRepository,
         volumeRepository = volumeRepository,
         operationCoordinator = bulkFileCoordinator,
+        activityLogStore = activityLogStore,
         operationOwnerId = operationOwnerId,
         contextProvider = {
             val current = navigation.state.value

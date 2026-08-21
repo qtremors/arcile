@@ -121,6 +121,9 @@ internal data class VideoViewerChromeActions(
     val onToggleThumbnails: () -> Unit = {}
 )
 
+private val LandscapeThumbnailStripWidth = 56.dp
+private val LandscapeChromeEndPadding = 80.dp
+
 @Composable
 internal fun VideoViewerTopChrome(
     visible: Boolean,
@@ -130,9 +133,11 @@ internal fun VideoViewerTopChrome(
     resolutionText: String,
     sizeText: String,
     marqueeEnabled: Boolean,
+    showThumbnails: Boolean,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
@@ -143,7 +148,17 @@ internal fun VideoViewerTopChrome(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                .padding(
+                    start = 16.dp,
+                    end = if (isLandscape && showThumbnails) {
+                        LandscapeChromeEndPadding
+                    } else {
+                        16.dp
+                    },
+                    top = 12.dp,
+                    bottom = 12.dp
+                )
         ) {
             IconButton(
                 onClick = onNavigateBack,
@@ -276,25 +291,33 @@ internal fun VideoViewerBottomChrome(
             modifier = if (isLandscape) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
         ) {
         if (isLandscape && showThumbnails) {
-            LazyColumn(
-                state = thumbnailListState,
+            BoxWithConstraints(
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight()
-                    .width(56.dp)
-                    .background(Color.Black.copy(alpha = 0.5f)),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
-                contentPadding = PaddingValues(vertical = 16.dp)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                    .padding(end = 12.dp)
+                    .width(LandscapeThumbnailStripWidth)
             ) {
-                itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
-                    VideoViewerStripThumbnail(
-                        file = file,
-                        selected = currentPage == index,
-                        entry = thumbnailEntries[file.absolutePath],
-                        painterCache = thumbnailPainterCache,
-                        onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
-                    )
+                val thumbnailSidePadding = ((maxHeight - 54.dp) / 2).coerceAtLeast(16.dp)
+                LazyColumn(
+                    state = thumbnailListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                    contentPadding = PaddingValues(vertical = thumbnailSidePadding)
+                ) {
+                    itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
+                        VideoViewerStripThumbnail(
+                            file = file,
+                            selected = currentPage == index,
+                            entry = thumbnailEntries[file.absolutePath],
+                            painterCache = thumbnailPainterCache,
+                            onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
+                        )
+                    }
                 }
             }
         }
@@ -303,6 +326,15 @@ internal fun VideoViewerBottomChrome(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .then(
+                    if (isLandscape && showThumbnails) {
+                        Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                            .padding(end = LandscapeChromeEndPadding)
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             // 1. Thumbnail carousel – identical to image viewer
             if (showThumbnails && !isLandscape) {

@@ -49,6 +49,7 @@ fun ToolsScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.tools_title)) },
+                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     Box(
                         Modifier.size(48.dp).clip(CircleShape).bounceClickable(onClick = onNavigateBack),

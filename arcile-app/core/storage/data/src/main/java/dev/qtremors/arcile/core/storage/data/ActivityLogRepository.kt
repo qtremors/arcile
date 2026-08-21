@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
@@ -80,6 +81,17 @@ class ActivityLogRepository(
                 id = UUID.randomUUID().toString(),
                 timestampMillis = System.currentTimeMillis(),
                 path = path
+            )
+        )
+    }
+
+    override suspend fun recordPageVisited(page: ActivityLogPage, detail: String?) {
+        append(
+            ActivityLogEntry.PageVisited(
+                id = UUID.randomUUID().toString(),
+                timestampMillis = System.currentTimeMillis(),
+                page = page,
+                detail = detail
             )
         )
     }

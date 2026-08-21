@@ -73,7 +73,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.feature.trash.TrashFilter
 import dev.qtremors.arcile.feature.trash.TrashPropertiesUiModel
@@ -197,15 +196,13 @@ internal fun TrashScreen(
         }
     }
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
         (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        modifier = Modifier
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
@@ -231,6 +228,9 @@ internal fun TrashScreen(
                     )
                 } else {
                     LargeTopAppBar(
+                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(
+                            forceCompact = isSelectionMode
+                        ),
                         title = {
                             Text(
                                 text = if (isSelectionMode) androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, state.selectedFiles.size, state.selectedFiles.size) else stringResource(R.string.trash_bin),
@@ -238,7 +238,7 @@ internal fun TrashScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
-                        scrollBehavior = scrollBehavior,
+                        scrollBehavior = null,
                         navigationIcon = {
                             if (isSelectionMode) {
                                 IconButton(

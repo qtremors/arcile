@@ -98,11 +98,13 @@ internal fun SettingsBrowsingSection(
                 count = 9,
                 title = stringResource(R.string.settings_expandable_app_bars),
                 description = stringResource(R.string.settings_expandable_app_bars_description),
-                checked = preferences.expandableAppBar,
+                checked = !preferences.expandableAppBar,
                 switchTag = "expandable_app_bars_switch",
                 rowTag = "expandable_app_bars_setting_row",
                 leadingIcon = Icons.Default.Expand,
-                onCheckedChange = actions.expandableAppBarChange
+                onCheckedChange = { keepCollapsed ->
+                    actions.expandableAppBarChange(!keepCollapsed)
+                }
             )
             SettingsSwitchRow(
                 index = 6,

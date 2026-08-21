@@ -258,6 +258,7 @@ private fun OnlyFilesScreen(
                     )
                 } else {
                     LargeTopAppBar(
+                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                         title = {
                             Column {
                                 Text(state.selectedVault?.name ?: stringResource(R.string.onlyfiles_title))

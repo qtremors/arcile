@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,6 +36,11 @@ class MainViewModel @Inject constructor(
             .map { it.appStartPage }
             .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    val keepAppBarsCollapsed: StateFlow<Boolean> =
+        browserPreferencesStore.locationPreferencesFlow
+            .map { !it.expandableAppBar }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     fun updatePermission(hasStoragePermission: Boolean) {
         _hasPermission.value = hasStoragePermission
     }
@@ -47,5 +53,9 @@ class MainViewModel @Inject constructor(
 
     fun recordFileOpened(path: String) {
         viewModelScope.launch { activityLogStore.recordFileOpened(path) }
+    }
+
+    fun recordPageVisited(page: ActivityLogPage, detail: String? = null) {
+        viewModelScope.launch { activityLogStore.recordPageVisited(page, detail) }
     }
 }

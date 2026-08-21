@@ -36,7 +36,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
@@ -67,7 +66,6 @@ internal fun StorageManagementScreen(
     onSetVolumeClassification: (String, StorageKind) -> Unit,
     onResetVolumeClassification: (String) -> Unit
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val volumes = state.allStorageVolumes
 
     var showLoading by remember { mutableStateOf(false) }
@@ -84,6 +82,7 @@ internal fun StorageManagementScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.storage_management_title)) },
+                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,
@@ -94,7 +93,7 @@ internal fun StorageManagementScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                scrollBehavior = scrollBehavior
+                scrollBehavior = null
             )
         }
     ) { padding ->

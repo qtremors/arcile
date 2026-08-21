@@ -106,6 +106,7 @@ internal fun BrowserTopBars(
                 },
                 selectionCount = state.selectedFiles.size,
                 selectedSize = selectedSizeFormatted,
+                scrollBehavior = scrollBehavior,
                 options = dev.qtremors.arcile.core.ui.ArcileTopBarOptions(
                     showBackArrow = true,
                     showSearchAction = true,
@@ -121,8 +122,6 @@ internal fun BrowserTopBars(
                     areHiddenFilesShown = state.showHiddenFiles,
                     isGridView = state.browserViewMode == FileViewMode.GRID
                 ),
-                scrollBehavior = scrollBehavior,
-                expandable = state.expandableAppBar,
                 menuActions = buildList {
                     if (onWorkspaceTabsEnabledChange != null) {
                         add(

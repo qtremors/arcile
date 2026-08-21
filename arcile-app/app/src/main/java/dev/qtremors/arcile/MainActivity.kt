@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
                 val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
                 val fileOpenBehaviors by viewModel.fileOpenBehaviors.collectAsStateWithLifecycle()
                 val appStartPage by viewModel.appStartPage.collectAsStateWithLifecycle()
+                val keepAppBarsCollapsed by viewModel.keepAppBarsCollapsed.collectAsStateWithLifecycle()
                 val coroutineScope = rememberCoroutineScope()
 
                 ArcileTheme(themeState = themeState) {
@@ -115,6 +116,8 @@ class MainActivity : ComponentActivity() {
                                     onOpenFile = ::openFile,
                                     onOpenFileWith = ::openFileWith,
                                     onRecordFileOpened = viewModel::recordFileOpened,
+                                    onRecordPageVisited = viewModel::recordPageVisited,
+                                    keepAppBarsCollapsed = keepAppBarsCollapsed,
                                     fileOpenBehaviors = fileOpenBehaviors,
                                     appStartPage = appStartPage,
                                     onAppStartPageChange = viewModel::updateAppStartPage,

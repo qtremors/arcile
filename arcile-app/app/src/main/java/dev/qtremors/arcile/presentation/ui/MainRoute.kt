@@ -31,6 +31,7 @@ import androidx.navigation.NavBackStackEntry
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserDestination
@@ -57,6 +58,7 @@ internal fun MainRoute(
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
     landscapeDualPaneEnabled: Boolean,
+    onRecordPageVisited: (ActivityLogPage, String?) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val browserTabsViewModel = hiltViewModel<BrowserTabsViewModel>(backStackEntry)
@@ -105,6 +107,10 @@ internal fun MainRoute(
     }
     LaunchedEffect(coordinator.pagerState, dualPaneEnabled) {
         snapshotFlow { coordinator.pagerState.settledPage }.collect { page ->
+            onRecordPageVisited(
+                if (page == HOME_PAGE) ActivityLogPage.HOME else ActivityLogPage.BROWSER,
+                null
+            )
             if (dualPaneEnabled) {
                 dualPaneBrowserWasVisible = page == BROWSER_PAGE
             } else if (page in BROWSER_PAGE..SECONDARY_BROWSER_PAGE) {

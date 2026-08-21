@@ -6,6 +6,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.home.HomeDestination
@@ -17,6 +18,7 @@ internal fun NavGraphBuilder.registerMainRoute(
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
     landscapeDualPaneEnabled: Boolean,
+    onRecordPageVisited: (ActivityLogPage, String?) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     composable<AppRoutes.Main> { backStackEntry ->
@@ -42,6 +44,7 @@ internal fun NavGraphBuilder.registerMainRoute(
             appStartPage = appStartPage,
             onAppStartPageChange = onAppStartPageChange,
             landscapeDualPaneEnabled = landscapeDualPaneEnabled,
+            onRecordPageVisited = onRecordPageVisited,
             onFeedback = onFeedback
         )
     }

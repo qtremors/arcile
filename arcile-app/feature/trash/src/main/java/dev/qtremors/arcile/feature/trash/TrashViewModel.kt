@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
+import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
@@ -23,10 +26,12 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import java.util.UUID
 @HiltViewModel
 internal class TrashViewModel @Inject constructor(
     private val trashRepository: TrashRepository,
-    private val volumeRepository: VolumeRepository
+    private val volumeRepository: VolumeRepository,
+    private val activityLogStore: ActivityLogStore
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TrashState())
@@ -132,7 +137,9 @@ internal class TrashViewModel @Inject constructor(
 
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
+            val operationId = UUID.randomUUID().toString()
             trashRepository.restoreFromTrash(selectedTrashIds).onSuccess {
+                recordOperation(operationId, "RESTORE", selectedTrashIds.size)
                 val message = restoreSummaryMessage(selectedTrashIds.size, conflictCount)
                 _state.update {
                     it.copy(
@@ -160,6 +167,13 @@ internal class TrashViewModel @Inject constructor(
                         }
                     }
                     else -> {
+                        recordOperation(
+                            operationId,
+                            "RESTORE",
+                            selectedTrashIds.size,
+                            ActivityLogOperationStatus.FAILED,
+                            errorMessage = error.message
+                        )
                         _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                         loadTrashFiles()
                     }
@@ -178,7 +192,9 @@ internal class TrashViewModel @Inject constructor(
 
         _state.update { it.copy(isLoading = true, error = null, showDestinationPicker = false) }
         viewModelScope.launch {
+            val operationId = UUID.randomUUID().toString()
             trashRepository.restoreFromTrash(trashIds, destinationPath).onSuccess {
+                recordOperation(operationId, "RESTORE", trashIds.size, destinationPath = destinationPath)
                 val normalizedIds = trashIds.map { it.removePrefix("legacy:") }.toSet()
                 val undoPaths = _state.value.trashFiles
                     .filter { it.id in normalizedIds }
@@ -202,6 +218,14 @@ internal class TrashViewModel @Inject constructor(
                     restoreIds = trashIds
                 )
             }.onFailure { error ->
+                recordOperation(
+                    operationId,
+                    "RESTORE",
+                    trashIds.size,
+                    ActivityLogOperationStatus.FAILED,
+                    destinationPath,
+                    error.message
+                )
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_restore_files_failed)) }
                 loadTrashFiles()
             }
@@ -210,14 +234,24 @@ internal class TrashViewModel @Inject constructor(
 
     fun emptyTrash() {
         clearPendingAuthorization()
+        val itemCount = _state.value.trashFiles.size
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
+            val operationId = UUID.randomUUID().toString()
             trashRepository.emptyTrash().onSuccess {
+                recordOperation(operationId, "EMPTY_TRASH", itemCount)
                 clearSelection()
                 loadTrashFiles()
             }.onAuthorizationRequired { requirement ->
                 requestNativeAuthorization(requirement, TrashAuthorizationAction.EMPTY)
             }.onFailure { error ->
+                recordOperation(
+                    operationId,
+                    "EMPTY_TRASH",
+                    itemCount,
+                    ActivityLogOperationStatus.FAILED,
+                    errorMessage = error.message
+                )
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_empty_trash_failed)) }
                 loadTrashFiles()
             }
@@ -248,12 +282,21 @@ internal class TrashViewModel @Inject constructor(
         // operations move into BulkFileOperationService later, this VM should observe coordinator events.
         _state.update { it.copy(isLoading = true, error = null, showPermanentDeleteConfirmation = false) }
         viewModelScope.launch {
+            val operationId = UUID.randomUUID().toString()
             trashRepository.deletePermanentlyFromTrash(selectedIds).onSuccess {
+                recordOperation(operationId, "DELETE", selectedIds.size)
                 clearSelection()
                 loadTrashFiles()
             }.onAuthorizationRequired { requirement ->
                 requestNativeAuthorization(requirement, TrashAuthorizationAction.DELETE)
             }.onFailure { error ->
+                recordOperation(
+                    operationId,
+                    "DELETE",
+                    selectedIds.size,
+                    ActivityLogOperationStatus.FAILED,
+                    errorMessage = error.message
+                )
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_delete_files_permanently_failed)) }
                 loadTrashFiles()
             }
@@ -346,9 +389,18 @@ internal class TrashViewModel @Inject constructor(
         if (paths.isEmpty()) return
         _state.update { it.copy(pendingRestoreUndoPaths = emptyList(), isLoading = true, error = null) }
         viewModelScope.launch {
+            val operationId = UUID.randomUUID().toString()
             trashRepository.moveToTrash(paths).onSuccess {
+                recordOperation(operationId, "TRASH", paths.size)
                 loadTrashFiles()
             }.onFailure { error ->
+                recordOperation(
+                    operationId,
+                    "TRASH",
+                    paths.size,
+                    ActivityLogOperationStatus.FAILED,
+                    errorMessage = error.message
+                )
                 _state.update { it.copy(isLoading = false, error = error.message?.let(UiText::Dynamic) ?: UiText.StringResource(R.string.error_delete_files_permanently_failed)) }
                 loadTrashFiles()
             }
@@ -418,5 +470,26 @@ internal class TrashViewModel @Inject constructor(
         }
     }
 
-}
+    private suspend fun recordOperation(
+        operationId: String,
+        operationType: String,
+        sourceCount: Int,
+        status: ActivityLogOperationStatus = ActivityLogOperationStatus.COMPLETED,
+        destinationPath: String? = null,
+        errorMessage: String? = null
+    ) {
+        activityLogStore.upsertFileOperation(
+            ActivityLogEntry.FileOperation(
+                id = "operation:$operationId",
+                timestampMillis = System.currentTimeMillis(),
+                operationId = operationId,
+                operationType = operationType,
+                status = status,
+                sourceCount = sourceCount,
+                destinationPath = destinationPath,
+                errorMessage = errorMessage
+            )
+        )
+    }
 
+}

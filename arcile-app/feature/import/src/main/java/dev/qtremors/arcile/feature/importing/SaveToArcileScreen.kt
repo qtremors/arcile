@@ -35,7 +35,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -59,7 +58,6 @@ internal fun SaveToArcileScreen(
     state: SaveToArcileState,
     actions: SaveToArcileActions
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
@@ -78,6 +76,7 @@ internal fun SaveToArcileScreen(
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.save_to_arcile_title)) },
+                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
                         onClick = actions.navigateBack,
@@ -86,7 +85,7 @@ internal fun SaveToArcileScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                scrollBehavior = scrollBehavior
+                scrollBehavior = null
             )
         },
         bottomBar = {
