@@ -61,6 +61,32 @@ class FilePresentationTest {
         assertEquals(listOf("latest.txt", "middle-folder", "old-folder"), result.map { it.name })
     }
 
+    @Test
+    fun `file count sorts folders from highest and lowest counts`() {
+        val files = listOf(
+            fileModel(name = "small", isDirectory = true),
+            fileModel(name = "large", isDirectory = true),
+            fileModel(name = "middle", isDirectory = true)
+        )
+        val counts = mapOf("small" to 2L, "large" to 20L, "middle" to 8L)
+
+        val highest = filterAndSortFiles(
+            files = files,
+            query = "",
+            sortOption = FileSortOption.FILE_COUNT_HIGHEST,
+            fileCountFor = { counts[it.name] }
+        )
+        val lowest = filterAndSortFiles(
+            files = files,
+            query = "",
+            sortOption = FileSortOption.FILE_COUNT_LOWEST,
+            fileCountFor = { counts[it.name] }
+        )
+
+        assertEquals(listOf("large", "middle", "small"), highest.map(FileModel::name))
+        assertEquals(listOf("small", "middle", "large"), lowest.map(FileModel::name))
+    }
+
     private fun fileModel(
         name: String,
         isDirectory: Boolean = false,

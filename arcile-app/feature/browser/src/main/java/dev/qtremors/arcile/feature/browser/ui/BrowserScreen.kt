@@ -85,7 +85,9 @@ internal fun BrowserScreen(
     workspaceTabs: @Composable () -> Unit = {},
     workspaceTabsEnabled: Boolean = false,
     onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
-    sharedTopAppBarState: TopAppBarState? = null
+    sharedTopAppBarState: TopAppBarState? = null,
+    onWorkspaceContentSwipe: (Int) -> Unit = {},
+    onWorkspaceAppBarSwipe: (Int) -> Unit = {}
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
@@ -369,6 +371,7 @@ internal fun BrowserScreen(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .browserWorkspaceSwipe(onWorkspaceAppBarSwipe)
                     .graphicsLayer {
                         if (isBackPredicting && (backActionAtStart == BrowserBackAction.CloseSearch || backActionAtStart == BrowserBackAction.ClearSelection)) {
                             translationY = -backProgress * size.height.toFloat()
@@ -452,6 +455,7 @@ internal fun BrowserScreen(
                     searchIntents = intents.search,
                     onShowSearchBarChange = { showSearchBar = it },
                     onSwitchCategoryFolderTab = switchCategoryFolderTab,
+                    onWorkspaceSwipe = onWorkspaceContentSwipe,
                     onGridSizeChange = { activeGridCellSize = it },
                     onGridSizeFinalized = { size ->
                         activeGridCellSize = size

@@ -30,6 +30,7 @@ import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
+import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import io.mockk.mockk
@@ -55,7 +56,8 @@ internal fun createViewModel(
     savedStateHandle = savedStateHandle,
     getStorageVolumesUseCase = GetStorageVolumesUseCase(repository.volumeRepository),
     bulkFileCoordinator = bulkFileOperationCoordinator,
-    storageMutationNotifier = storageMutationNotifier
+    storageMutationNotifier = storageMutationNotifier,
+    activityLogStore = FakeActivityLogStore()
 ).also { viewModel ->
     if (initialize) viewModel.initialize(entryRequest = null)
 }

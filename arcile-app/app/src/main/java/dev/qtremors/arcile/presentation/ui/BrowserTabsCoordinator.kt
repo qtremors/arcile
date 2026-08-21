@@ -156,6 +156,14 @@ internal class BrowserTabsCoordinator(
         activateTab(tabId)
     }
 
+    fun showAdjacentTab(direction: Int): Boolean {
+        val currentIndex = tabs.indexOfFirst { it.id == activeBrowserTabId }
+        if (currentIndex < 0) return false
+        val target = tabs.getOrNull(currentIndex + direction) ?: return false
+        showTab(target.id)
+        return true
+    }
+
     private fun activateTab(tabId: Int) {
         pendingBrowserTabId = null
         activeBrowserTabId = tabId

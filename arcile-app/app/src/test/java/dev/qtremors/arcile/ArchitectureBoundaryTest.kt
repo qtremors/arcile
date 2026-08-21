@@ -503,6 +503,7 @@ class ArchitectureBoundaryTest {
             "browser.BrowserEntryRequest",
             "browser.BrowserRoute",
             "browser.BrowserRouteStatus",
+            "browser.BrowserWorkspaceOptions",
             "documents.registerDocumentLibraryRoute",
             "home.HomeDestination",
             "home.HomeRoute",
@@ -882,7 +883,7 @@ class ArchitectureBoundaryTest {
                 publicDeclaration.matches(
                     Regex(
                         """(sealed interface BrowserEntry|data class BrowserEntryRequest|""" +
-                            """data class BrowserRouteStatus)\b.*"""
+                            """data class (BrowserRouteStatus|BrowserWorkspaceOptions))\b.*"""
                     )
                 ) ||
                 publicDeclaration.matches(Regex("""class SaveToArcileActivity\b.*""")) ||
@@ -913,7 +914,7 @@ class ArchitectureBoundaryTest {
         )
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 790,
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 804,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1102,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/category/FileCategoryLibrary.kt" to 1576,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/pdf/StandalonePdfViewer.kt" to 1009,

@@ -115,6 +115,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
                         destination.surroundingFiles
                     )
                     is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
+                    is BrowserDestination.OpenFileAs -> actions.openFileAs(destination.path, destination.type)
                 }
             },
             onShareSelected = actions::shareKnownFiles,

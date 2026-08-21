@@ -14,6 +14,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
+import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testFile
@@ -42,7 +43,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -66,7 +68,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -101,7 +104,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -124,7 +128,11 @@ class TrashViewModelTest {
         val requirement = restoreRequirement("current-request")
         var restoreCalls = 0
         val repository = authorizationRepository(requirement) { restoreCalls += 1 }
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -141,7 +149,11 @@ class TrashViewModelTest {
         val requirement = restoreRequirement("denied-request")
         var restoreCalls = 0
         val repository = authorizationRepository(requirement) { restoreCalls += 1 }
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -172,7 +184,11 @@ class TrashViewModelTest {
                 }
             }
         }
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -190,7 +206,11 @@ class TrashViewModelTest {
     fun `unavailable authorization clears context and reports operation error`() = runTest(mainDispatcherRule.dispatcher) {
         val requirement = restoreRequirement("expired-request")
         val repository = authorizationRepository(requirement) {}
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -240,7 +260,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -266,7 +287,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -287,7 +309,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -312,7 +335,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -338,7 +362,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -361,7 +386,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -382,7 +408,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()

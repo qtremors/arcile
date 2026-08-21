@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.trash
 
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
+import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testVolume
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +52,8 @@ class TrashRestoreScopeTest {
             }
             val viewModel = TrashViewModel(
                 repository.trashRepository,
-                repository.volumeRepository
+                repository.volumeRepository,
+                FakeActivityLogStore()
             )
 
             advanceUntilIdle()

@@ -38,6 +38,7 @@ import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
 import dev.qtremors.arcile.feature.browser.BrowserRoute
+import dev.qtremors.arcile.feature.browser.BrowserWorkspaceOptions
 import dev.qtremors.arcile.feature.home.HomeDestination
 import dev.qtremors.arcile.feature.home.HomeRoute
 import dev.qtremors.arcile.navigation.AppRoutes
@@ -140,7 +141,7 @@ internal fun MainRoute(
     HorizontalPager(
         state = coordinator.pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = true,
+        userScrollEnabled = coordinator.pagerState.currentPage == HOME_PAGE,
         beyondViewportPageCount = 1,
         key = { page ->
             when (page) {
@@ -203,6 +204,9 @@ internal fun MainRoute(
                         storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
                         sharedTopAppBarState = sharedBrowserTopAppBarState,
+                        onWorkspaceSwipe = { direction ->
+                            coordinator.showRelativeTo(BROWSER_PAGE, direction)
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -227,6 +231,9 @@ internal fun MainRoute(
                         storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
                         sharedTopAppBarState = sharedBrowserTopAppBarState,
+                        onWorkspaceSwipe = { direction ->
+                            coordinator.showRelativeTo(BROWSER_PAGE, direction)
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -255,7 +262,10 @@ internal fun MainRoute(
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
                 storageVolumes = storageVolumes,
                 onFeedback = onFeedback,
-                sharedTopAppBarState = sharedBrowserTopAppBarState
+                sharedTopAppBarState = sharedBrowserTopAppBarState,
+                onWorkspaceSwipe = { direction ->
+                    coordinator.showRelativeTo(BROWSER_PAGE, direction)
+                }
             )
             SECONDARY_BROWSER_PAGE -> BrowserWorkspacePage(
                 browserPage = SECONDARY_BROWSER_PAGE,
@@ -274,7 +284,10 @@ internal fun MainRoute(
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
                 storageVolumes = storageVolumes,
                 onFeedback = onFeedback,
-                sharedTopAppBarState = sharedBrowserTopAppBarState
+                sharedTopAppBarState = sharedBrowserTopAppBarState,
+                onWorkspaceSwipe = { direction ->
+                    coordinator.showRelativeTo(SECONDARY_BROWSER_PAGE, direction)
+                }
             )
         }
     }
@@ -296,10 +309,11 @@ private fun BrowserWorkspacePage(
     onAppStartPageChange: (AppStartPage) -> Unit,
     tabsEnabled: Boolean,
     onTabsEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
     storageVolumes: List<StorageVolume> = emptyList(),
     onFeedback: (ArcileFeedbackEvent) -> Unit,
     sharedTopAppBarState: TopAppBarState,
-    modifier: Modifier = Modifier.fillMaxSize()
+    onWorkspaceSwipe: (Int) -> Unit
 ) {
     val showTabLimitFeedback = {
         onFeedback(
@@ -314,7 +328,9 @@ private fun BrowserWorkspacePage(
         )
     }
     Box(
-        modifier = modifier.pointerInput(browserPage) {
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(browserPage) {
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -366,9 +382,6 @@ private fun BrowserWorkspacePage(
                                 onNewTabInternal = {
                                     if (!coordinator.addTab(BrowserEntry.PrimaryStorage)) showTabLimitFeedback()
                                 },
-                                onNewTabRoot = {
-                                    if (!coordinator.addTab(BrowserEntry.Path("/", isRootStorageScope = true))) showTabLimitFeedback()
-                                },
                                 onNewTabStorageVolume = { volume ->
                                     if (!coordinator.addTab(BrowserEntry.Path(volume.path, isRootStorageScope = false))) showTabLimitFeedback()
                                 },
@@ -384,9 +397,17 @@ private fun BrowserWorkspacePage(
                             )
                         }
                     },
-                    workspaceTabsEnabled = tabsEnabled,
-                    onWorkspaceTabsEnabledChange = onTabsEnabledChange,
-                    sharedTopAppBarState = sharedTopAppBarState,
+                    workspaceOptions = BrowserWorkspaceOptions(
+                        tabsEnabled = tabsEnabled,
+                        onTabsEnabledChange = onTabsEnabledChange,
+                        sharedTopAppBarState = sharedTopAppBarState,
+                        onContentSwipe = { direction ->
+                            if (!tabsEnabled || !coordinator.showAdjacentTab(direction)) {
+                                onWorkspaceSwipe(direction)
+                            }
+                        },
+                        onAppBarSwipe = onWorkspaceSwipe
+                    ),
                     renderContent = isActiveTab
                 )
             }

@@ -51,6 +51,8 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
@@ -79,6 +81,7 @@ fun AboutScreen(
     val uriHandler = LocalUriHandler.current
     val clipboard = LocalClipboard.current
     val coroutineScope = rememberCoroutineScope()
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
 
     val copyToClipboard = { text: String ->
@@ -93,10 +96,11 @@ fun AboutScreen(
     }
 
     ArcileScreenScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(R.string.about_title)) },
-                scrollBehavior = null,
+                title = { Text(stringResource(R.string.about_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                scrollBehavior = scrollBehavior,
                 expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(

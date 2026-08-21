@@ -41,6 +41,11 @@ internal class MainShellCoordinator(
         coroutineScope.launch { animateTo(BROWSER_PAGE) }
     }
 
+    fun showRelativeTo(page: Int, direction: Int) {
+        val target = (page + direction).coerceIn(HOME_PAGE, pagerState.pageCount - 1)
+        if (target != page) coroutineScope.launch { animateTo(target) }
+    }
+
     suspend fun coordinate(showBrowserPageRequests: StateFlow<Boolean>) {
         merge(
             showBrowserPageRequests.map(MainShellEvent::ShowBrowserRequested),

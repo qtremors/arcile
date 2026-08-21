@@ -22,6 +22,7 @@ import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.R
@@ -97,6 +98,36 @@ internal class AppNavigationActions(
     fun openFileWith(path: String) {
         onRecordFileOpened(path)
         onOpenFileWith(path)
+    }
+
+    fun openFileAs(path: String, type: FileOpenAsType) {
+        onRecordFileOpened(path)
+        coroutineScope.launch {
+            runCatching {
+                val intent = ExternalFileAccessHelper.createOpenIntent(
+                    context,
+                    ExternalFileAccessHelper.ExternalFileReference(
+                        path = path,
+                        mimeType = type.mimeType
+                    )
+                )
+                context.startActivity(
+                    ExternalFileAccessHelper.createExternalOpenChooser(
+                        context,
+                        intent,
+                        context.getString(R.string.open_as_title)
+                    )
+                )
+            }.onFailure { error ->
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                reportError(
+                    UiText.StringResource(
+                        R.string.cannot_open_file,
+                        listOf(error.localizedMessage.orEmpty())
+                    )
+                )
+            }
+        }
     }
 
     fun openAudioPlayer(
@@ -272,7 +303,7 @@ internal class AppNavigationActions(
                                 FileCategories.getCategoryForFile(it.extension, it.mimeType) ==
                                     FileCategories.Audio
                             }
-                            .map { it.nodeRef.contentUri ?: it.absolutePath },
+                            .map(FileModel::absolutePath),
                         contentUri = selected?.nodeRef?.contentUri,
                         mimeType = selected?.mimeType,
                         displayName = selected?.name,

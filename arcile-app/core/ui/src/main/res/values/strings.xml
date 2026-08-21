@@ -432,6 +432,17 @@
     <string name="sort_date_oldest">Oldest First</string>
     <string name="sort_size_largest">Largest First</string>
     <string name="sort_size_smallest">Smallest First</string>
+    <string name="sort_file_count_highest">Most Files First</string>
+    <string name="sort_file_count_lowest">Fewest Files First</string>
+    <string name="open_as">Open as…</string>
+    <string name="open_as_title">Open file as</string>
+    <string name="open_as_image">Image</string>
+    <string name="open_as_video">Video</string>
+    <string name="open_as_audio">Audio</string>
+    <string name="open_as_document">Document</string>
+    <string name="open_as_archive">Archive</string>
+    <string name="open_as_text">Text</string>
+    <string name="open_as_other">Other file</string>
     <string name="browser_layout_summary">%1$s in %2$s</string>
     <string name="browser_layout_view_mode">View mode</string>
     <string name="browser_layout_list_zoom">List zoom</string>

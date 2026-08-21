@@ -2,7 +2,6 @@ package dev.qtremors.arcile.feature.home.ui.components
 
 import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
@@ -33,8 +32,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -51,7 +48,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -64,8 +60,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -93,71 +87,18 @@ internal fun StorageSummaryCard(
     state: HomeState,
     onNavigateToPath: (String) -> Unit,
     onOpenStorageDashboard: (String?) -> Unit,
-    onOpenFileBrowser: () -> Unit,
-    onRootStoragePageVisible: () -> Unit
+    onOpenFileBrowser: () -> Unit
 ) {
     val volumes = state.allStorageVolumes.ifEmpty { state.storageInfo?.volumes ?: emptyList() }
-    val rootStorageUsage = state.storageInfo?.rootStorageUsage
 
-    val pagerState = rememberPagerState(
-        initialPage = STORAGE_SUMMARY_INITIAL_PAGE,
-        pageCount = { STORAGE_SUMMARY_PAGER_PAGE_COUNT }
+    MountedStorageSummaryCard(
+        state = state,
+        volumes = volumes,
+        onNavigateToPath = onNavigateToPath,
+        onOpenStorageDashboard = onOpenStorageDashboard,
+        onOpenFileBrowser = onOpenFileBrowser,
+        modifier = Modifier.fillMaxWidth()
     )
-    var mountedStoragePageHeightPx by remember { mutableIntStateOf(0) }
-    val mountedStoragePageHeight = with(LocalDensity.current) {
-        mountedStoragePageHeightPx.toDp()
-    }
-    val settledStoragePage = pagerState.settledPage % STORAGE_SUMMARY_PAGE_COUNT
-    LaunchedEffect(settledStoragePage) {
-        if (settledStoragePage == ROOT_STORAGE_PAGE) {
-            onRootStoragePageVisible()
-        }
-    }
-    Box(modifier = Modifier.fillMaxWidth()) {
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = mountedStoragePageHeight)
-                .testTag("storage_summary_pager"),
-            verticalAlignment = Alignment.CenterVertically
-        ) { page ->
-            when (page % STORAGE_SUMMARY_PAGE_COUNT) {
-                MOUNTED_STORAGE_PAGE -> MountedStorageSummaryCard(
-                    state = state,
-                    volumes = volumes,
-                    onNavigateToPath = onNavigateToPath,
-                    onOpenStorageDashboard = onOpenStorageDashboard,
-                    onOpenFileBrowser = onOpenFileBrowser,
-                    modifier = Modifier.onSizeChanged { size ->
-                        mountedStoragePageHeightPx = size.height
-                    }
-                )
-
-                ROOT_STORAGE_PAGE -> RootStorageUsageCard(
-                    usage = rootStorageUsage,
-                    isLoading = state.isRootStorageUsageLoading,
-                    hasLoadCompleted = state.hasLoadedRootStorageUsage,
-                    onClick = { onNavigateToPath("/") },
-                    modifier = Modifier.padding(
-                        horizontal = MaterialTheme.spacing.medium
-                    )
-                )
-            }
-        }
-        AnimatedVisibility(
-            visible = pagerState.isScrollInProgress,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 4.dp),
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            StorageSummaryPageIndicator(
-                selectedPage = pagerState.currentPage % STORAGE_SUMMARY_PAGE_COUNT
-            )
-        }
-    }
 }
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
@@ -316,36 +257,6 @@ private fun MountedStorageSummaryCard(
         }
     }
 }
-
-@Composable
-private fun StorageSummaryPageIndicator(selectedPage: Int) {
-    Row(
-        modifier = Modifier,
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        repeat(STORAGE_SUMMARY_PAGE_COUNT) { page ->
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 3.dp)
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(
-                        MaterialTheme.colorScheme.primary.copy(
-                            alpha = if (page == selectedPage) 1f else 0.35f
-                        )
-                    )
-            )
-        }
-    }
-}
-
-private const val MOUNTED_STORAGE_PAGE = 0
-private const val ROOT_STORAGE_PAGE = 1
-private const val STORAGE_SUMMARY_PAGE_COUNT = 2
-private const val STORAGE_SUMMARY_PAGER_PAGE_COUNT = Int.MAX_VALUE
-private const val STORAGE_SUMMARY_INITIAL_PAGE =
-    STORAGE_SUMMARY_PAGER_PAGE_COUNT / 2 - (STORAGE_SUMMARY_PAGER_PAGE_COUNT / 2 % STORAGE_SUMMARY_PAGE_COUNT)
 
 @Composable
 internal fun CategoryLegendPlaceholder(

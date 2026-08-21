@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
@@ -58,8 +57,8 @@ internal fun BrowserTabsRow(
     isRouteVisible: Boolean,
     onSelectTab: (Int) -> Unit,
     onNewTab: () -> Unit,
+    modifier: Modifier = Modifier,
     onNewTabInternal: () -> Unit = onNewTab,
-    onNewTabRoot: () -> Unit = {},
     onNewTabStorageVolume: (StorageVolume) -> Unit = {},
     storageVolumes: List<StorageVolume> = emptyList(),
     onSetPinned: (Int, Boolean) -> Unit,
@@ -67,8 +66,7 @@ internal fun BrowserTabsRow(
     onMoveLeft: (Int) -> Unit,
     onMoveRight: (Int) -> Unit,
     onCloseOthers: (Int) -> Unit,
-    onClose: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    onClose: (Int) -> Unit
 ) {
     val listState = rememberLazyListState()
     var menuTabId by remember { mutableStateOf<Int?>(null) }
@@ -89,13 +87,13 @@ internal fun BrowserTabsRow(
 
     Box(
         modifier = modifier
-            .height(48.dp)
+            .heightIn(min = 48.dp)
     ) {
         LazyRow(
             state = listState,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(48.dp),
+                .heightIn(min = 48.dp),
             contentPadding = PaddingValues(start = 8.dp, end = 56.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -113,7 +111,7 @@ internal fun BrowserTabsRow(
                 val showMenu = menuTabId == tab.id
                 Box(
                     modifier = Modifier
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                         .clip(MaterialTheme.shapes.extraLarge)
                         .semantics {
                             this.selected = selected
@@ -144,8 +142,8 @@ internal fun BrowserTabsRow(
                     ) {
                         Row(
                             modifier = Modifier
-                                .height(40.dp)
-                                .padding(horizontal = 14.dp),
+                                .heightIn(min = 40.dp)
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             if (isPrimaryTab) {
@@ -242,17 +240,6 @@ internal fun BrowserTabsRow(
                         onClick = {
                             showNewTabMenu = false
                             onNewTabInternal()
-                        }
-                    )
-                }
-                // Root storage
-                add {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.root_storage),
-                        leadingIcon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
-                        onClick = {
-                            showNewTabMenu = false
-                            onNewTabRoot()
                         }
                     )
                 }

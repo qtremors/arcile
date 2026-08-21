@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.storage.domain.AudioTrack
+import dev.qtremors.arcile.core.storage.domain.FileModel
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -67,4 +69,32 @@ class AudioPlayerPresentationTest {
             resolveAudioMiniPlayerGesture(dragOffsetPx = 100f, thresholdPx = 0f)
         )
     }
+
+    @Test
+    fun `surrounding audio queue preserves the visible category order`() {
+        val indexed = listOf("one.mp3", "two.mp3", "three.mp3").map(::audioTrack)
+
+        val result = orderAudioTracksByContext(
+            indexedTracks = indexed,
+            contextPaths = listOf("/music/three.mp3", "/music/one.mp3", "/music/two.mp3")
+        )
+
+        assertEquals(
+            listOf("three.mp3", "one.mp3", "two.mp3"),
+            result.map { it.file.name }
+        )
+    }
+
+    private fun audioTrack(name: String) = AudioTrack(
+        file = FileModel(
+            name = name,
+            absolutePath = "/music/$name",
+            size = 1L,
+            lastModified = 1L,
+            isDirectory = false,
+            extension = "mp3",
+            isHidden = false
+        ),
+        title = name
+    )
 }

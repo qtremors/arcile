@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 
@@ -30,7 +31,8 @@ internal data class BrowserSelectionIntents(
     val onInvertSelection: (List<String>) -> Unit,
     val onSelectAll: (List<String>) -> Unit,
     val onPinToQuickAccess: (String, String) -> Unit,
-    val onOpenSelectedWith: (String) -> Unit = {}
+    val onOpenSelectedWith: (String) -> Unit = {},
+    val onOpenSelectedAs: (String, FileOpenAsType) -> Unit = { _, _ -> }
 )
 
 @Stable

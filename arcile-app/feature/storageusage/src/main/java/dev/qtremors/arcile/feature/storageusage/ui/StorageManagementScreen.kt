@@ -50,6 +50,8 @@ import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import androidx.compose.foundation.shape.CircleShape
@@ -67,6 +69,7 @@ internal fun StorageManagementScreen(
     onResetVolumeClassification: (String) -> Unit
 ) {
     val volumes = state.allStorageVolumes
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     var showLoading by remember { mutableStateOf(false) }
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
@@ -79,9 +82,10 @@ internal fun StorageManagementScreen(
     }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(R.string.storage_management_title)) },
+                title = { Text(stringResource(R.string.storage_management_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
@@ -93,7 +97,7 @@ internal fun StorageManagementScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                scrollBehavior = null
+                scrollBehavior = scrollBehavior
             )
         }
     ) { padding ->

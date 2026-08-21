@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.R
@@ -82,12 +84,14 @@ fun LicensesScreen(
     onNavigateBack: () -> Unit
 ) {
     val uriHandler = LocalUriHandler.current
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     ArcileScreenScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(R.string.open_source_licenses)) },
-                scrollBehavior = null,
+                title = { Text(stringResource(R.string.open_source_licenses), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                scrollBehavior = scrollBehavior,
                 expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(

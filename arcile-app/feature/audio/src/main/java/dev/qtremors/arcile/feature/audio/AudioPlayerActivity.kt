@@ -215,13 +215,12 @@ class AudioPlayerActivity : ComponentActivity() {
             )
         }
         val indexed = repository.getTracks(StorageScope.AllStorage).getOrNull().orEmpty()
-        val requested = contextPaths.toSet()
-        val queue = if (requested.isEmpty()) {
+        val queue = if (contextPaths.isEmpty()) {
             indexed.filter {
                 File(it.file.absolutePath).parent == File(target.reference).parent
             }
         } else {
-            indexed.filter { it.file.absolutePath in requested }
+            orderAudioTracksByContext(indexed, contextPaths)
         }
         val withTarget = if (queue.any { it.file.absolutePath == target.reference }) {
             queue
@@ -276,6 +275,15 @@ class AudioPlayerActivity : ComponentActivity() {
     private fun showFailure() {
         showArcileToast(getString(R.string.cannot_open_file, ""))
     }
+}
+
+internal fun orderAudioTracksByContext(
+    indexedTracks: List<AudioTrack>,
+    contextPaths: List<String>
+): List<AudioTrack> {
+    val indexedByPath = indexedTracks.associateBy { it.file.absolutePath }
+    return contextPaths.mapNotNull(indexedByPath::get)
+        .distinctBy { it.file.absolutePath }
 }
 
 @OptIn(ExperimentalSharedTransitionApi::class)
@@ -463,9 +471,10 @@ fun createAudioPlayerIntent(
     nodeRef: StorageNodeRef? = null
 ): Intent = Intent(context, AudioPlayerActivity::class.java).apply {
     action = Intent.ACTION_VIEW
-    if (contentUri.isNullOrBlank()) {
+    if (path.isNotBlank()) {
         putExtra(EXTRA_INTERNAL_PATH, path)
-    } else {
+    }
+    if (!contentUri.isNullOrBlank()) {
         setDataAndType(Uri.parse(contentUri), mimeType ?: "audio/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra(EXTRA_DISPLAY_NAME, displayName)
@@ -489,19 +498,26 @@ private suspend fun resolveStandaloneAudioTarget(
 ): StandaloneAudioTarget? {
     if (intent.action != Intent.ACTION_VIEW) return null
     intent.getStringExtra(EXTRA_INTERNAL_PATH)?.takeIf(String::isNotBlank)?.let { path ->
-        return withContext(ioDispatcher) {
-        val file = File(path)
-        if (!file.isFile || !ExternalFileAccessHelper.isAllowedUserFile(context, file)) return@withContext null
-        if (file.extension.lowercase() !in FileCategories.Audio.extensions) return@withContext null
-        StandaloneAudioTarget(
-            reference = file.absolutePath,
-            uri = Uri.fromFile(file),
-            displayName = file.name,
-            mimeType = "audio/${file.extension.lowercase()}",
-            sizeBytes = file.length(),
-            internalPath = file.absolutePath
-        )
+        val internalTarget = withContext(ioDispatcher) {
+            val file = File(path)
+            if (
+                !file.isFile ||
+                !ExternalFileAccessHelper.isAllowedUserFile(context, file) ||
+                file.extension.lowercase() !in FileCategories.Audio.extensions
+            ) {
+                null
+            } else {
+                StandaloneAudioTarget(
+                    reference = file.absolutePath,
+                    uri = Uri.fromFile(file),
+                    displayName = file.name,
+                    mimeType = "audio/${file.extension.lowercase()}",
+                    sizeBytes = file.length(),
+                    internalPath = file.absolutePath
+                )
+            }
         }
+        if (internalTarget != null) return internalTarget
     }
 
     val uri = intent.data ?: return null

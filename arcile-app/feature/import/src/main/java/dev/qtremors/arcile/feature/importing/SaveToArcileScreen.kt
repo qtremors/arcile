@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 
@@ -58,6 +59,7 @@ internal fun SaveToArcileScreen(
     state: SaveToArcileState,
     actions: SaveToArcileActions
 ) {
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
@@ -73,9 +75,10 @@ internal fun SaveToArcileScreen(
     }
 
     Scaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(R.string.save_to_arcile_title)) },
+                title = { Text(stringResource(R.string.save_to_arcile_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
@@ -85,7 +88,7 @@ internal fun SaveToArcileScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                scrollBehavior = null
+                scrollBehavior = scrollBehavior
             )
         },
         bottomBar = {

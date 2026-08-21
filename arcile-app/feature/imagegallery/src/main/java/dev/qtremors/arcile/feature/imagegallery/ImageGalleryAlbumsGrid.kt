@@ -92,6 +92,8 @@ internal fun ImageGalleryAlbumsGrid(
             FileSortOption.SIZE_SMALLEST -> state.albums.sortedBy { it.count }
             FileSortOption.DATE_NEWEST -> state.albums.sortedByDescending { it.lastModified }
             FileSortOption.DATE_OLDEST -> state.albums.sortedBy { it.lastModified }
+            FileSortOption.FILE_COUNT_HIGHEST -> state.albums.sortedByDescending { it.count }
+            FileSortOption.FILE_COUNT_LOWEST -> state.albums.sortedBy { it.count }
         }
     }
 

@@ -25,7 +25,6 @@ internal data class HomeNavigationIntents(
 internal data class HomeContentIntents(
     val refresh: () -> Unit,
     val resumeRefresh: () -> Unit,
-    val loadRootStorageUsage: () -> Unit,
     val shareRecentFile: (String) -> Unit,
     val setVolumeClassification: (String, StorageKind) -> Unit,
     val hideClassificationPrompt: (String) -> Unit

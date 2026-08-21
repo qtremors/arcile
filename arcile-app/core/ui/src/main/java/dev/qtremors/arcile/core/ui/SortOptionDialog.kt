@@ -247,6 +247,14 @@ fun SortOptionDialog(
                                 draftPreferences = draftPreferences.copy(sortOption = it)
                             }
                         }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SortOptionChip(FileSortOption.FILE_COUNT_HIGHEST, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                            SortOptionChip(FileSortOption.FILE_COUNT_LOWEST, draftPreferences, Modifier.weight(1f)) {
+                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            }
+                        }
                     }
                 }
 
@@ -401,7 +409,9 @@ private fun SortOptionChip(
             Text(
                 text = sortLabel(option),
                 modifier = Modifier.fillMaxWidth(),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         },
         modifier = modifier
@@ -417,6 +427,8 @@ private fun sortLabel(option: FileSortOption): String {
         FileSortOption.DATE_OLDEST -> R.string.sort_date_oldest
         FileSortOption.SIZE_LARGEST -> R.string.sort_size_largest
         FileSortOption.SIZE_SMALLEST -> R.string.sort_size_smallest
+        FileSortOption.FILE_COUNT_HIGHEST -> R.string.sort_file_count_highest
+        FileSortOption.FILE_COUNT_LOWEST -> R.string.sort_file_count_lowest
     }
     return stringResource(labelRes)
 }

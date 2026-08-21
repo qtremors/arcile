@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation
 
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -21,7 +22,7 @@ class MainViewModelTest {
     @Test
     fun `initial permission state is false`() = runTest {
         val store = FakeFilePreferencesStore()
-        val viewModel = MainViewModel(store)
+        val viewModel = MainViewModel(store, FakeActivityLogStore())
 
         assertFalse(viewModel.hasPermission.value)
     }
@@ -29,7 +30,7 @@ class MainViewModelTest {
     @Test
     fun `updatePermission updates permission state`() = runTest {
         val store = FakeFilePreferencesStore()
-        val viewModel = MainViewModel(store)
+        val viewModel = MainViewModel(store, FakeActivityLogStore())
 
         viewModel.updatePermission(true)
         assertTrue(viewModel.hasPermission.value)
@@ -42,7 +43,7 @@ class MainViewModelTest {
     fun `file open behaviors are loaded from preferences store`() = runTest {
         val store = FakeFilePreferencesStore()
         store.updateFileOpenBehavior("pdf", FileOpenBehavior.EXTERNAL)
-        val viewModel = MainViewModel(store)
+        val viewModel = MainViewModel(store, FakeActivityLogStore())
 
         val behaviors = viewModel.fileOpenBehaviors.first { it["pdf"] == FileOpenBehavior.EXTERNAL }
 
@@ -52,7 +53,7 @@ class MainViewModelTest {
     @Test
     fun `updateAppStartPage persists start page selection`() = runTest {
         val store = FakeFilePreferencesStore()
-        val viewModel = MainViewModel(store)
+        val viewModel = MainViewModel(store, FakeActivityLogStore())
 
         viewModel.updateAppStartPage(AppStartPage.BROWSER)
 

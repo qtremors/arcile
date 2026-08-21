@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.4
+> **Version:** 2.0.5
 > **Last Updated:** 2026-08-21
 
 ---
+
+## [2.0.5] - 2026-08-21
+
+- **Responsive Text And App Bars**: Prevented selection summaries, page titles, browser tabs, segmented controls, and sort labels from clipping on compact or large-text layouts, and added scroll-to-collapse app bars across Settings and compatible secondary pages.
+- **Tab-First Browser Gestures**: Made content swipes move through enabled browser tabs before crossing pane boundaries, while app-bar swipes continue to switch panes directly.
+- **Focused Root Access**: Kept Root Storage exclusive to Home Quick Access by removing its swipeable storage-summary page and Add Tab shortcut.
+- **Vector Splash Branding**: Switched the startup splash foreground from a raster mipmap to Arcile's VectorDrawable for crisp rendering at every display density.
+- **Flexible Opening And Folder Sorting**: Added browser selection options to open files explicitly as images, videos, audio, documents, archives, text, or other files, plus Most Files First and Fewest Files First sorting for folder-aware views.
+- **Surrounding-Aware Media Navigation**: Preserved the visible audio-category order in playback queues and added hold-and-drag fast scrolling to image and video thumbnail strips.
 
 ## [2.0.4] - 2026-08-21
 

@@ -1,9 +1,9 @@
 package dev.qtremors.arcile.feature.browser.ui
 
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -91,6 +92,7 @@ internal fun BrowserContent(
     searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit,
     onSwitchCategoryFolderTab: (Int) -> Unit,
+    onWorkspaceSwipe: (Int) -> Unit,
     onGridSizeChange: (Float) -> Unit,
     onGridSizeFinalized: (Float) -> Unit
 ) {
@@ -164,6 +166,10 @@ internal fun BrowserContent(
         }
 
         val pullRefreshState = rememberPullToRefreshState()
+        val categoryFolderSwipeEnabled = state.isCategoryScreen &&
+            categoryFolderTabs.size > 1 &&
+            !targetKey.isSearch &&
+            !showSearchBar
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = navigationIntents.onRefresh,
@@ -172,14 +178,14 @@ internal fun BrowserContent(
                 .fillMaxWidth()
                 .weight(1f)
                 .then(
-                    if (state.isCategoryScreen && categoryFolderTabs.size > 1 && !targetKey.isSearch && !showSearchBar) {
+                    if (categoryFolderSwipeEnabled) {
                         Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
                             var horizontalDrag = 0f
                             detectHorizontalDragGestures(
                                 onDragStart = { horizontalDrag = 0f },
                                 onHorizontalDrag = { change, dragAmount ->
                                     horizontalDrag += dragAmount
-                                    if (abs(horizontalDrag) > 96f) {
+                                    if (abs(horizontalDrag) > 96.dp.toPx()) {
                                         change.consume()
                                         onSwitchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
                                         horizontalDrag = 0f
@@ -190,7 +196,7 @@ internal fun BrowserContent(
                             )
                         }
                     } else {
-                        Modifier
+                        Modifier.browserWorkspaceSwipe(onWorkspaceSwipe)
                     }
                 ),
             indicator = {
@@ -486,6 +492,44 @@ private fun BrowserListingContent(
             )
         }
     }
+}
+
+internal fun Modifier.browserWorkspaceSwipe(onSwipe: (Int) -> Unit): Modifier =
+    pointerInput(onSwipe) {
+        awaitEachGesture {
+            val down = awaitFirstDown(
+                requireUnconsumed = false,
+                pass = PointerEventPass.Initial
+            )
+            var lastPosition = down.position
+            var released = false
+            while (!released) {
+                val change = awaitPointerEvent(PointerEventPass.Final)
+                    .changes
+                    .firstOrNull { it.id == down.id }
+                    ?: break
+                lastPosition = change.position
+                released = !change.pressed
+            }
+            if (released) {
+                browserWorkspaceSwipeDirection(
+                    deltaX = lastPosition.x - down.position.x,
+                    deltaY = lastPosition.y - down.position.y,
+                    thresholdPx = 72.dp.toPx()
+                )?.let(onSwipe)
+            }
+        }
+    }
+
+internal fun browserWorkspaceSwipeDirection(
+    deltaX: Float,
+    deltaY: Float,
+    thresholdPx: Float
+): Int? {
+    if (thresholdPx <= 0f || abs(deltaX) < thresholdPx || abs(deltaX) <= abs(deltaY)) {
+        return null
+    }
+    return if (deltaX < 0f) 1 else -1
 }
 
 private fun Modifier.pinchToResizeGrid(

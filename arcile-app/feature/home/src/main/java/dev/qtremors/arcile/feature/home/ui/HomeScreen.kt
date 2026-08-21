@@ -380,8 +380,7 @@ internal fun HomeScreen(
                                         state = state,
                                         onNavigateToPath = navigationIntents.navigateToPath,
                                         onOpenStorageDashboard = navigationIntents.openStorageDashboard,
-                                        onOpenFileBrowser = navigationIntents.openFileBrowser,
-                                        onRootStoragePageVisible = contentIntents.loadRootStorageUsage
+                                        onOpenFileBrowser = navigationIntents.openFileBrowser
                                     )
                                     HomeSectionIds.CATEGORIES -> CategoryGrid(
                                         categoryStorages = state.categoryStorages,

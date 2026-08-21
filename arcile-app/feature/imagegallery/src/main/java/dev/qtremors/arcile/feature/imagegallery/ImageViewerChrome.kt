@@ -35,6 +35,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -82,6 +83,7 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.viewerThumbnailFastScroll
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
@@ -223,6 +225,11 @@ internal fun ImageViewerBottomChrome(
                     state = lazyListState,
                     modifier = Modifier
                         .fillMaxSize()
+                        .viewerThumbnailFastScroll(
+                            state = lazyListState,
+                            orientation = Orientation.Vertical,
+                            onFastScrollStart = haptics::selectionStart
+                        )
                         .background(Color.Black.copy(alpha = 0.5f)),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -264,7 +271,13 @@ internal fun ImageViewerBottomChrome(
                 val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
                 LazyRow(
                     state = lazyListState,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .viewerThumbnailFastScroll(
+                            state = lazyListState,
+                            orientation = Orientation.Horizontal,
+                            onFastScrollStart = haptics::selectionStart
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                     contentPadding = PaddingValues(horizontal = thumbnailSidePadding)

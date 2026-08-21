@@ -6,7 +6,8 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 fun filterAndSortFiles(
     files: List<FileModel>,
     query: String,
-    sortOption: FileSortOption
+    sortOption: FileSortOption,
+    fileCountFor: (FileModel) -> Long? = { file -> if (file.isDirectory) null else 1L }
 ): List<FileModel> {
     val normalizedQuery = query.trim().lowercase()
     val filteredFiles = if (normalizedQuery.isBlank()) {
@@ -24,6 +25,10 @@ fun filterAndSortFiles(
         FileSortOption.DATE_OLDEST -> compareBy<FileModel> { it.lastModified }
         FileSortOption.SIZE_LARGEST -> compareByDescending<FileModel> { it.size }
         FileSortOption.SIZE_SMALLEST -> compareBy<FileModel> { it.size }
+        FileSortOption.FILE_COUNT_HIGHEST -> compareBy<FileModel> { fileCountFor(it) == null }
+            .thenByDescending { fileCountFor(it) ?: Long.MIN_VALUE }
+        FileSortOption.FILE_COUNT_LOWEST -> compareBy<FileModel> { fileCountFor(it) == null }
+            .thenBy { fileCountFor(it) ?: Long.MAX_VALUE }
     }
 
     val comparator = when (sortOption) {

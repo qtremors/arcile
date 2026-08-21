@@ -73,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.feature.trash.TrashFilter
 import dev.qtremors.arcile.feature.trash.TrashPropertiesUiModel
@@ -200,9 +201,10 @@ internal fun TrashScreen(
     val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
         (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier,
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
@@ -238,7 +240,7 @@ internal fun TrashScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
-                        scrollBehavior = null,
+                        scrollBehavior = scrollBehavior,
                         navigationIcon = {
                             if (isSelectionMode) {
                                 IconButton(

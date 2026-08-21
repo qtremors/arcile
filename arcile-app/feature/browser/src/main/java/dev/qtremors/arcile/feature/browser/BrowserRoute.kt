@@ -27,6 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
@@ -88,7 +89,16 @@ sealed interface BrowserDestination {
         val surroundingFiles: List<FileModel>
     ) : BrowserDestination
     data class OpenFileWith(val path: String) : BrowserDestination
+    data class OpenFileAs(val path: String, val type: FileOpenAsType) : BrowserDestination
 }
+
+data class BrowserWorkspaceOptions(
+    val tabsEnabled: Boolean = false,
+    val onTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    val sharedTopAppBarState: TopAppBarState? = null,
+    val onContentSwipe: (Int) -> Unit = {},
+    val onAppBarSwipe: (Int) -> Unit = {}
+)
 
 @Composable
 fun BrowserRoute(
@@ -103,9 +113,7 @@ fun BrowserRoute(
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit,
     workspaceTabs: @Composable () -> Unit = {},
-    workspaceTabsEnabled: Boolean = false,
-    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
-    sharedTopAppBarState: TopAppBarState? = null,
+    workspaceOptions: BrowserWorkspaceOptions = BrowserWorkspaceOptions(),
     renderContent: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -297,6 +305,9 @@ fun BrowserRoute(
             onOpenSelectedWith = { path ->
                 onDestination(BrowserDestination.OpenFileWith(path))
             },
+            onOpenSelectedAs = { path, type ->
+                onDestination(BrowserDestination.OpenFileAs(path, type))
+            },
             onOpenProperties = viewModel::openPropertiesForSelection,
             onDismissProperties = viewModel::dismissProperties,
             onInvertSelection = viewModel::invertSelection,
@@ -404,9 +415,11 @@ fun BrowserRoute(
                 isRouteVisible = isVisible,
                 batchRenameHistory = batchRenameHistory,
                 workspaceTabs = workspaceTabs,
-                workspaceTabsEnabled = workspaceTabsEnabled,
-                onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange,
-                sharedTopAppBarState = sharedTopAppBarState
+                workspaceTabsEnabled = workspaceOptions.tabsEnabled,
+                onWorkspaceTabsEnabledChange = workspaceOptions.onTabsEnabledChange,
+                sharedTopAppBarState = workspaceOptions.sharedTopAppBarState,
+                onWorkspaceContentSwipe = workspaceOptions.onContentSwipe,
+                onWorkspaceAppBarSwipe = workspaceOptions.onAppBarSwipe
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {

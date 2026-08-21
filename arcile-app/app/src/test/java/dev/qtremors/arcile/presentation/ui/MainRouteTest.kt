@@ -324,6 +324,22 @@ class MainRouteTest {
     }
 
     @Test
+    fun `workspace swipes move through tabs and report pane boundaries`() {
+        val coordinator = testTabsCoordinator(BROWSER_PAGE)
+        coordinator.updateBrowserStatus(1, BrowserRouteStatus())
+        assertTrue(coordinator.addTab())
+        coordinator.updateBrowserStatus(2, BrowserRouteStatus())
+
+        assertEquals(2, coordinator.activeBrowserTabId)
+        assertTrue(coordinator.showAdjacentTab(direction = -1))
+        assertEquals(1, coordinator.activeBrowserTabId)
+        assertFalse(coordinator.showAdjacentTab(direction = -1))
+        assertTrue(coordinator.showAdjacentTab(direction = 1))
+        assertEquals(2, coordinator.activeBrowserTabId)
+        assertFalse(coordinator.showAdjacentTab(direction = 1))
+    }
+
+    @Test
     fun `addTab with explicit entry targets that location`() {
         val coordinator = testTabsCoordinator(BROWSER_PAGE)
         val rootEntry = BrowserEntry.Path("/", isRootStorageScope = true)

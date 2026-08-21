@@ -118,6 +118,8 @@ fun sortCategoryFiles(
     FileSortOption.DATE_OLDEST -> files.sortedBy(FileModel::lastModified)
     FileSortOption.SIZE_LARGEST -> files.sortedByDescending(FileModel::size)
     FileSortOption.SIZE_SMALLEST -> files.sortedBy(FileModel::size)
+    FileSortOption.FILE_COUNT_HIGHEST,
+    FileSortOption.FILE_COUNT_LOWEST -> files.sortedBy { it.name.lowercase() }
 }
 
 fun sortCategoryFolders(
@@ -130,4 +132,17 @@ fun sortCategoryFolders(
     FileSortOption.DATE_OLDEST -> folders.sortedBy(CategoryFolderSummary::lastModified)
     FileSortOption.SIZE_LARGEST -> folders.sortedByDescending(CategoryFolderSummary::totalSize)
     FileSortOption.SIZE_SMALLEST -> folders.sortedBy(CategoryFolderSummary::totalSize)
+    FileSortOption.FILE_COUNT_HIGHEST -> folders.sortedByDescending(CategoryFolderSummary::itemCount)
+    FileSortOption.FILE_COUNT_LOWEST -> folders.sortedBy(CategoryFolderSummary::itemCount)
+}
+
+internal fun categorySortLabelResource(option: FileSortOption): Int = when (option) {
+    FileSortOption.NAME_ASC -> dev.qtremors.arcile.core.ui.R.string.sort_name_asc
+    FileSortOption.NAME_DESC -> dev.qtremors.arcile.core.ui.R.string.sort_name_desc
+    FileSortOption.DATE_NEWEST -> dev.qtremors.arcile.core.ui.R.string.sort_date_newest
+    FileSortOption.DATE_OLDEST -> dev.qtremors.arcile.core.ui.R.string.sort_date_oldest
+    FileSortOption.SIZE_LARGEST -> dev.qtremors.arcile.core.ui.R.string.sort_size_largest
+    FileSortOption.SIZE_SMALLEST -> dev.qtremors.arcile.core.ui.R.string.sort_size_smallest
+    FileSortOption.FILE_COUNT_HIGHEST -> dev.qtremors.arcile.core.ui.R.string.sort_file_count_highest
+    FileSortOption.FILE_COUNT_LOWEST -> dev.qtremors.arcile.core.ui.R.string.sort_file_count_lowest
 }
