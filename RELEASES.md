@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 2.0.0
-> **Last Updated:** 2026-08-13
+> **Version:** 2.0.5
+> **Last Updated:** 2026-08-21
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v2.0.5](#v205) | 2026-08-21 | Responsive navigation, focused Root access, richer file opening and sorting, complete activity history, and surrounding-aware media controls |
 | [v2.0.0](#v200) | 2026-08-13 | Provider-aware Root and Shizuku workflows, refined video playback, clearer documentation, and compatible platform updates |
 | [v1.9.0](#v190) | 2026-08-09 | Customizable workspaces, complete search and viewer controls, safer file operations, faster storage tools, and release reliability |
 | [v1.8.0](#v180) | 2026-08-02 | Category UI parity, native PDF and document tools, Markdown editor, dual browser workspaces, and unified audio playback |
@@ -15,6 +16,53 @@
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v2.0.5
+
+**Release Date:** August 21, 2026
+
+**Previous public release:** v2.0.0
+
+**Development range included:** v2.0.1 through v2.0.5
+
+**Known issues & roadmap:** Track active issues and ongoing engineering tasks in [TASKS.md](TASKS.md).
+
+Arcile v2.0.5 simplifies storage access, makes navigation and text dependable across screen sizes, completes activity history, expands browser opening and sorting controls, and gives image, video, and audio navigation better awareness of surrounding files.
+
+## Highlights
+
+- Use Android storage access consistently without the removed Root and Shizuku provider workflows.
+- Reach the limited standard-Android Root Storage browser only through Home Quick Access, keeping it separate from the Home storage summary and Add Tab menu.
+- Move through enabled Browser tabs before crossing workspace panes with content swipes, or swipe the app bar to switch panes directly.
+- Open selected files explicitly as images, videos, audio, documents, archives, text, or other files, and sort folder-aware views by most or fewest contained files.
+- Hold and drag image or video thumbnail strips for fast navigation, and keep audio playback queues aligned with the visible category order and surrounding tracks.
+
+## What's New Since v2.0.0
+
+### Storage and Browser navigation
+
+- Removed optional Root and Shizuku access and their provider-specific services, routing, and operation overhead; Arcile now uses Android storage access throughout.
+- Kept Root Storage paths distinct from normal volumes across browser titles, tabs, pinning, history, and restoration while limiting its entry point to Home Quick Access.
+- Added direct Add Tab choices for Internal Storage, SD cards, and USB drives, plus settings for Browser tabs, the preferred Home or Browse start page, last-folder restoration, and compact Browser app bars.
+- Made content swipes traverse enabled tabs before moving between panes, retained direct pane switching from the app bar, and shared Browser app-bar state across tabs and dual panes.
+- Added pinch-to-resize Browser grids, corrected newest and oldest ordering across files and folders, and introduced Most Files First and Fewest Files First folder sorting.
+
+### Responsive interface and activity history
+
+- Prevented selection summaries, page titles, Browser tabs, segmented controls, and sort labels from clipping on compact screens or with large text.
+- Added expanded-to-collapsed app bars across Settings and compatible secondary pages, with a preference to keep supported app bars compact.
+- Expanded Activity into a dated timeline for visited pages, opened files and folders, and file operations, with a master recording switch that preserves existing history when disabled.
+- Made feedback messages swipe-dismissible with clearer icon and action containers, consolidated duplicate property details, and simplified the splash screen to Arcile's vector foreground mark.
+
+### File opening, updates, and media
+
+- Added explicit Open As choices for image, video, audio, document, archive, text, and other file handling.
+- Improved in-app APK update installation with unknown-source permission recovery and clearer self-update guidance.
+- Restored a visible video back action, prevented notification-shade swipes from triggering player gestures, and fixed black protected-video playback.
+- Moved image and video thumbnail strips vertically in landscape, centered the active item, respected safe display edges, and added hold-and-drag fast scrolling.
+- Preserved visible audio-category ordering in playback queues so previous and next actions remain aware of surrounding tracks.
 
 ---
 

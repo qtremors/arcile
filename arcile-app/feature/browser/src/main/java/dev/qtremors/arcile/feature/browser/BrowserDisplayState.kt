@@ -51,8 +51,11 @@ internal fun buildBrowserDisplayState(
 ): BrowserDisplayState {
     val baseFiles = if (showHiddenFiles) files else files.filterNot { it.isHidden }
     val tabFilteredFiles = filterFilesByFolderTab(baseFiles, selectedFolderTabPath)
-    val visibleFiles = filterAndSortFiles(tabFilteredFiles, "", sortOption)
-    val sortedCategoryFiles = filterAndSortFiles(baseFiles, "", sortOption)
+    val fileCountFor: (FileModel) -> Long? = { file ->
+        if (file.isDirectory) folderStatsByPath[file.absolutePath]?.fileCount else 1L
+    }
+    val visibleFiles = filterAndSortFiles(tabFilteredFiles, "", sortOption, fileCountFor)
+    val sortedCategoryFiles = filterAndSortFiles(baseFiles, "", sortOption, fileCountFor)
     val formatter = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.getDefault())
     val listThumbnailSizePx = ThumbnailTargetSize.fromBounds((64f * browserListZoom).roundToInt())
     val gridThumbnailSizePx = ThumbnailTargetSize.fromBounds(browserGridMinCellSize.roundToInt())

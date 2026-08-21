@@ -49,6 +49,10 @@ class QuickAccessViewModelTest {
     private val dispatcher = StandardTestDispatcher()
     private val fakeStore = FakeQuickAccessPreferencesStore()
 
+    private fun createViewModel(): QuickAccessViewModel {
+        return QuickAccessViewModel(fakeStore)
+    }
+
     @Before
     fun setUp() {
         Dispatchers.setMain(dispatcher)
@@ -66,7 +70,7 @@ class QuickAccessViewModelTest {
         )
         fakeStore.itemsFlow.value = initialItems
 
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         assertEquals(initialItems, viewModel.state.value.items)
@@ -78,7 +82,7 @@ class QuickAccessViewModelTest {
         val item = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(item)
 
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.togglePin(item)
@@ -97,7 +101,7 @@ class QuickAccessViewModelTest {
         val filesItem = QuickAccessItem(id = "5", label = "Files", path = "content://files", type = QuickAccessType.FILES_APP, isPinned = true, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(standardItem, customItem, safItem, handoffItem, filesItem)
 
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.removeCustomItem(standardItem)
@@ -114,7 +118,7 @@ class QuickAccessViewModelTest {
 
     @Test
     fun `addCustomFolder adds custom folder item`() = runTest(dispatcher) {
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.addCustomFolder("/custom/path", "My Custom")
@@ -130,7 +134,7 @@ class QuickAccessViewModelTest {
 
     @Test
     fun `addFilesAppShortcut adds files app handoff item`() = runTest(dispatcher) {
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.addFilesAppShortcut("content://files-root")
@@ -151,7 +155,7 @@ class QuickAccessViewModelTest {
         val item3 = QuickAccessItem(id = "3", label = "Pictures", path = "/pictures", type = QuickAccessType.STANDARD, isPinned = false, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(item1, item2, item3)
 
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.movePinnedItem(item1.id, 1)
@@ -171,7 +175,7 @@ class QuickAccessViewModelTest {
         val item3 = QuickAccessItem(id = "3", label = "Music", path = "/music", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(item1, item2, item3)
 
-        val viewModel = QuickAccessViewModel(fakeStore)
+        val viewModel = createViewModel()
         advanceUntilIdle()
 
         viewModel.movePinnedItem(item1.id, 1)

@@ -1,21 +1,4 @@
 <resources>
-    <string name="browser_access_lost_title">Protected storage access was lost</string>
-    <string name="browser_access_context_preserved">Your current %1$s location and browser state are preserved.</string>
-    <string name="browser_access_reconnecting_title">Reconnecting to protected storage</string>
-    <string name="browser_access_reconnecting_root">Waiting for the Root service…</string>
-    <string name="browser_access_reconnecting_shizuku">Waiting for the Shizuku service…</string>
-    <string name="browser_access_waiting_for_normal">Waiting for Normal Android storage access…</string>
-    <string name="browser_access_service_stopped">The privileged service stopped. Start it again, then reconnect.</string>
-    <string name="browser_access_permission_required">Permission is required for this protected location. Reconnect to authorize Arcile.</string>
-    <string name="browser_access_permission_denied">Permission was denied for this protected location. Reconnect to try again.</string>
-    <string name="browser_access_backend_unavailable">The provider for this protected location is unavailable.</string>
-    <string name="browser_access_backend_incompatible">The provider cannot be used safely with this Arcile version.</string>
-    <string name="browser_access_backend_changed">A different storage provider is active. Reconnect this location or explicitly use Normal storage.</string>
-    <string name="browser_access_connection_failed">Arcile could not reconnect this protected location.</string>
-    <string name="browser_access_normal_required_title">Normal storage permission is required</string>
-    <string name="browser_access_normal_required_description">Grant Android all-files access to complete the fallback. Arcile will keep this protected location until access is granted.</string>
-    <string name="browser_access_grant_normal">Grant Normal access</string>
-    <string name="browser_access_return_to_provider">Return to provider</string>
     <!-- Trash Bin -->
     <string name="restore">Restore</string>
     <string name="restore_selected">Restore selected</string>
@@ -47,7 +30,6 @@
     <string name="trash_restore_original_description">This item will be restored to its original folder.</string>
     <string name="trash_restore_rename_description">An item with the same name exists in the original folder. The restored item will be renamed.</string>
     <string name="trash_restore_destination_description">You’ll choose a folder for this item because its original location is unavailable.</string>
-    <string name="trash_restore_backend_unavailable_description">Reconnect the original Root or Shizuku backend before restoring this item.</string>
 
     <!-- Recent Files -->
     <string name="recent_files_title">Recent Files</string>
@@ -85,6 +67,7 @@
     <string name="cleaner_junk_desc">Temporary, log, backup, and cache-like files.</string>
     <string name="cleaner_empty">Nothing found</string>
     <plurals name="cleaner_group_stat"><item quantity="one">%1$d file • %2$s</item><item quantity="other">%1$d files • %2$s</item></plurals>
+    <plurals name="cleaner_group_folder_stat"><item quantity="one">%1$d folder</item><item quantity="other">%1$d folders</item></plurals>
     <plurals name="cleaner_duplicate_count"><item quantity="one">%1$d file</item><item quantity="other">%1$d files</item></plurals>
     <string name="cleaner_select_all">Select all</string>
     <string name="clean_selected_summary">Move %1$d to Trash • %2$s</string>
@@ -207,6 +190,8 @@
     <string name="quick_access_section_handoff">Open In Files App</string>
     <string name="quick_access_scoped_description">Scoped storage shortcut</string>
     <string name="quick_access_handoff_description">Opens in the Android Files app due to platform restrictions.</string>
+    <string name="quick_access_open_in_files">Open in Files</string>
+    <string name="quick_access_error_title">Quick Access unavailable</string>
     <string name="quick_access_remove_title">Remove Folder</string>
     <string name="quick_access_remove_message">Are you sure you want to remove %1$s from Quick Access?</string>
     <string name="quick_access_show_on_home">Show on Home</string>

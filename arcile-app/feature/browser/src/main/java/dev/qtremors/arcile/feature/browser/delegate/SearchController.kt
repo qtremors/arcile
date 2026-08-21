@@ -6,8 +6,6 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.matchesSearchFilters
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserSearchState
@@ -21,7 +19,6 @@ import kotlinx.coroutines.flow.combine
 
 internal data class BrowserSearchContext(
     val currentPath: String,
-    val currentNodeRef: StorageNodeRef?,
     val currentVolumeId: String?,
     val isVolumeRootScreen: Boolean,
     val isCategoryScreen: Boolean,
@@ -88,8 +85,6 @@ internal class SearchController(
             context.isVolumeRootScreen -> StorageScope.AllStorage
             context.isCategoryScreen ->
                 StorageScope.Category(context.currentVolumeId, context.activeCategoryName)
-            context.currentNodeRef?.isPrivileged == true && context.currentPath.isNotEmpty() ->
-                return repository.searchNode(query, context.currentNodeRef, filters)
             context.currentVolumeId != null && context.currentPath.isNotEmpty() ->
                 StorageScope.Path(context.currentVolumeId, context.currentPath)
             context.currentPath.isNotEmpty() ->

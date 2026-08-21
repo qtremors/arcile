@@ -34,18 +34,25 @@ import java.io.File
 fun Breadcrumbs(
     currentPath: String,
     storageVolumes: List<dev.qtremors.arcile.core.storage.domain.StorageVolume>,
+    isRootStorageScope: Boolean = false,
     onPathSegmentClick: (String) -> Unit
 ) {
     val listState = rememberLazyListState()
 
-    val currentVolume = remember(currentPath, storageVolumes) {
-        storageVolumes.find { volume ->
+    val currentVolume = remember(currentPath, storageVolumes, isRootStorageScope) {
+        if (isRootStorageScope) null else storageVolumes.find { volume ->
             currentPath == volume.path || currentPath.startsWith(volume.path + java.io.File.separator)
         }
     }
 
-    val volumeRootPath = currentVolume?.path ?: ""
-    val volumeName = currentVolume?.name ?: "Storage"
+    val volumeRootPath = when {
+        isRootStorageScope -> "/"
+        else -> currentVolume?.path.orEmpty()
+    }
+    val volumeName = when {
+        isRootStorageScope -> stringResource(R.string.root_storage)
+        else -> currentVolume?.name ?: stringResource(R.string.quick_access_section_storage)
+    }
 
     // strip the storage root prefix to get relative segments
     val relativePath = if (volumeRootPath.isNotEmpty() && currentPath.startsWith(volumeRootPath)) {

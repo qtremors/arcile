@@ -6,7 +6,6 @@ import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -23,55 +22,6 @@ class BrowserViewModelFolderStatsTest {
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
-
-    @Test
-    fun `privileged directory load hydrates and queues stats with backend nodes`() =
-        runTest(mainDispatcherRule.dispatcher) {
-            val internal = browserVolume(
-                "primary",
-                "Internal",
-                "/storage/emulated/0",
-                isPrimary = true
-            )
-            val rootDirectory = StorageNodeRef.root("/system", "/system")
-            val cachedNode = StorageNodeRef.root("/system/etc", "/system/etc")
-            val uncachedNode = StorageNodeRef.root("/system/fonts", "/system/fonts")
-            val cachedStats = FolderStats(
-                fileCount = 12L,
-                totalBytes = 4096L,
-                cachedAt = System.currentTimeMillis()
-            )
-            val repo = BrowserFakeFileRepository(
-                volumes = listOf(internal),
-                filesByPath = mapOf(
-                    "/storage/emulated/0/Download" to emptyList(),
-                    "/system" to listOf(
-                        browserFile("etc", "/system/etc", isDirectory = true).copy(nodeRef = cachedNode),
-                        browserFile("fonts", "/system/fonts", isDirectory = true).copy(nodeRef = uncachedNode)
-                    )
-                ),
-                cachedFolderStats = mapOf("/system/etc" to cachedStats)
-            )
-            val viewModel = createViewModel(
-                repository = repo,
-                browserPreferencesRepository = FakeFilePreferencesStore(),
-                savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
-            )
-
-            advanceUntilIdle()
-            viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
-            advanceUntilIdle()
-            viewModel.navigateToFolder("/system", rootDirectory)
-            advanceUntilIdle()
-
-            assertEquals(cachedStats, viewModel.uiState.value.folderStatsByPath["/system/etc"])
-            assertEquals(listOf(cachedNode, uncachedNode), repo.lastCachedFolderStatNodes)
-            assertEquals(listOf(uncachedNode), repo.lastQueuedFolderStatNodes)
-            assertTrue(viewModel.uiState.value.folderStatsLoadingPaths.contains("/system/fonts"))
-            assertTrue(repo.lastQueuedFolderStatNodes.orEmpty().all {
-                it.backendId == StorageNodeRef.ROOT_BACKEND_ID
-            })
-        }
 
     @Test
     fun `directory load hydrates cached folder stats and queues uncached folders`() = runTest(mainDispatcherRule.dispatcher) {

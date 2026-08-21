@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,7 +27,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
@@ -37,7 +38,6 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserMutationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserNavigationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserOperationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserScrollBindings
-import dev.qtremors.arcile.feature.browser.ui.BrowserBackendAccessSurface
 import dev.qtremors.arcile.feature.browser.ui.BrowserSearchIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserSelectionIntents
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
@@ -51,7 +51,8 @@ sealed interface BrowserEntry {
     data class Root(val restorePersistentLocation: Boolean) : BrowserEntry
     data class Path(
         val path: String,
-        val seedInitialPathHistory: Boolean = true
+        val seedInitialPathHistory: Boolean = true,
+        val isRootStorageScope: Boolean = false
     ) : BrowserEntry
     data class Category(
         val name: String,
@@ -59,7 +60,8 @@ sealed interface BrowserEntry {
     ) : BrowserEntry
     data class Archive(
         val path: String,
-        val entryPrefix: String? = null
+        val entryPrefix: String? = null,
+        val isRootStorageScope: Boolean = false
     ) : BrowserEntry
 }
 
@@ -87,9 +89,16 @@ sealed interface BrowserDestination {
         val surroundingFiles: List<FileModel>
     ) : BrowserDestination
     data class OpenFileWith(val path: String) : BrowserDestination
-    data class AnalyzeStorage(val root: StorageNodeRef) : BrowserDestination
-    data class CleanStorage(val root: StorageNodeRef) : BrowserDestination
+    data class OpenFileAs(val path: String, val type: FileOpenAsType) : BrowserDestination
 }
+
+data class BrowserWorkspaceOptions(
+    val tabsEnabled: Boolean = false,
+    val onTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    val sharedTopAppBarState: TopAppBarState? = null,
+    val onContentSwipe: (Int) -> Unit = {},
+    val onAppBarSwipe: (Int) -> Unit = {}
+)
 
 @Composable
 fun BrowserRoute(
@@ -104,8 +113,7 @@ fun BrowserRoute(
     onAppStartPageChange: (AppStartPage) -> Unit = {},
     onFeedback: (ArcileFeedbackEvent) -> Unit,
     workspaceTabs: @Composable () -> Unit = {},
-    workspaceTabsEnabled: Boolean = false,
-    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    workspaceOptions: BrowserWorkspaceOptions = BrowserWorkspaceOptions(),
     renderContent: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -113,7 +121,6 @@ fun BrowserRoute(
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val initializationState by viewModel.initializationState.collectAsStateWithLifecycle()
-    val backendAccessState by viewModel.backendAccessState.collectAsStateWithLifecycle()
     val batchRenameHistory by viewModel.batchRenameHistory.collectAsStateWithLifecycle()
     val state = uiState
     val scope = rememberCoroutineScope()
@@ -144,20 +151,22 @@ fun BrowserRoute(
     val statusTitle = when {
         state.archiveContext != null -> state.archiveContext.archiveName
         state.isCategoryScreen -> state.activeCategoryName
-        state.currentPath.isNotBlank() -> {
-            val currentVolume = state.displayState.currentVolume
-            if (currentVolume != null && currentVolume.path == state.currentPath) {
-                currentVolume.name
-            } else {
-                storagePathName(state.currentPath)
-            }
-        }
+        state.currentPath.isNotBlank() -> browserPathTitle(
+            path = state.currentPath,
+            isRootStorageScope = state.isRootStorageScope,
+            volumeName = state.displayState.currentVolume
+                ?.takeIf { it.path == state.currentPath }
+                ?.name,
+            fallback = stringResource(dev.qtremors.arcile.core.ui.R.string.browse_title),
+            rootStorageTitle = stringResource(dev.qtremors.arcile.core.ui.R.string.root_storage)
+        )
         else -> stringResource(dev.qtremors.arcile.core.ui.R.string.browse_title)
     }
     val statusEntry = when {
         state.archiveContext != null -> BrowserEntry.Archive(
             path = state.archiveContext.archivePath,
-            entryPrefix = state.archiveContext.entryPrefix
+            entryPrefix = state.archiveContext.entryPrefix,
+            isRootStorageScope = state.isRootStorageScope
         )
         state.isCategoryScreen -> BrowserEntry.Category(
             name = state.activeCategoryName,
@@ -165,7 +174,8 @@ fun BrowserRoute(
         )
         state.currentPath.isNotBlank() -> BrowserEntry.Path(
             path = state.currentPath,
-            seedInitialPathHistory = false
+            seedInitialPathHistory = false,
+            isRootStorageScope = state.isRootStorageScope
         )
         else -> BrowserEntry.Root(restorePersistentLocation = false)
     }
@@ -247,9 +257,9 @@ fun BrowserRoute(
     val screenIntents = BrowserIntents(
         navigation = BrowserNavigationIntents(
             onNavigateBack = navigateBack,
-            onNavigateTo = { path, nodeRef ->
+            onNavigateTo = { path ->
                 saveCurrentScrollPosition()
-                viewModel.navigateToFolder(path, nodeRef)
+                viewModel.navigateToFolder(path)
             },
             onOpenFile = { path ->
                 saveCurrentScrollPosition()
@@ -274,13 +284,7 @@ fun BrowserRoute(
                 saveCurrentScrollPosition()
                 viewModel.selectFolderTab(path)
             },
-            onToggleHiddenFiles = viewModel::toggleHiddenFiles,
-            onAnalyzeStorage = {
-                state.currentScopeNode()?.let { onDestination(BrowserDestination.AnalyzeStorage(it)) }
-            },
-            onCleanStorage = {
-                state.currentScopeNode()?.let { onDestination(BrowserDestination.CleanStorage(it)) }
-            }
+            onToggleHiddenFiles = viewModel::toggleHiddenFiles
         ),
         selection = BrowserSelectionIntents(
             onToggleSelection = viewModel::toggleSelection,
@@ -300,6 +304,9 @@ fun BrowserRoute(
             },
             onOpenSelectedWith = { path ->
                 onDestination(BrowserDestination.OpenFileWith(path))
+            },
+            onOpenSelectedAs = { path, type ->
+                onDestination(BrowserDestination.OpenFileAs(path, type))
             },
             onOpenProperties = viewModel::openPropertiesForSelection,
             onDismissProperties = viewModel::dismissProperties,
@@ -408,8 +415,11 @@ fun BrowserRoute(
                 isRouteVisible = isVisible,
                 batchRenameHistory = batchRenameHistory,
                 workspaceTabs = workspaceTabs,
-                workspaceTabsEnabled = workspaceTabsEnabled,
-                onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange
+                workspaceTabsEnabled = workspaceOptions.tabsEnabled,
+                onWorkspaceTabsEnabledChange = workspaceOptions.onTabsEnabledChange,
+                sharedTopAppBarState = workspaceOptions.sharedTopAppBarState,
+                onWorkspaceContentSwipe = workspaceOptions.onContentSwipe,
+                onWorkspaceAppBarSwipe = workspaceOptions.onAppBarSwipe
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {
@@ -423,38 +433,28 @@ fun BrowserRoute(
                 )
             }
         }
-        BrowserBackendAccessSurface(
-            state = backendAccessState,
-            onReconnect = viewModel::reconnectBackendAccess,
-            onUseNormal = viewModel::useNormalBackendAccess,
-            onGrantNormalAccess = {
-                viewModel.useNormalBackendAccess()
-                context.openNormalStorageAccessSettings()
-            }
-        )
     }
-}
-
-private fun android.content.Context.openNormalStorageAccessSettings() {
-    val appIntent = android.content.Intent(
-        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-        android.net.Uri.parse("package:$packageName")
-    ).addCategory(android.content.Intent.CATEGORY_DEFAULT)
-    runCatching { startActivity(appIntent) }.getOrElse {
-        startActivity(
-            android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-        )
-    }
-}
-
-private fun BrowserUiState.currentScopeNode(): StorageNodeRef? = when {
-    currentPath.isBlank() || isCategoryScreen || isVolumeRootScreen || archiveContext != null -> null
-    currentNodeRef != null -> currentNodeRef
-    else -> runCatching { StorageNodeRef.local(currentPath, currentVolumeId) }.getOrNull()
 }
 
 internal fun canPublishBrowserStatus(state: BrowserInitializationState): Boolean =
     state == BrowserInitializationState.Ready || state is BrowserInitializationState.Failed
+
+internal fun browserPathTitle(
+    path: String,
+    isRootStorageScope: Boolean,
+    volumeName: String?,
+    fallback: String,
+    rootStorageTitle: String
+): String = when {
+    isRootStorageScope && path.normalizeBrowserPath() == "/" -> rootStorageTitle
+    !volumeName.isNullOrBlank() -> volumeName
+    else -> storagePathName(path).ifBlank { fallback }
+}
+
+private fun String.normalizeBrowserPath(): String =
+    replace('\\', '/').let { normalized ->
+        if (normalized == "/") normalized else normalized.trimEnd('/')
+    }
 
 private fun BrowserViewModel.saveVisibleScrollPosition(
     key: String,

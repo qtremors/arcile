@@ -1,10 +1,48 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.0
-> **Last Updated:** 2026-08-14
+> **Version:** 2.0.5
+> **Last Updated:** 2026-08-21
 
 ---
+
+## [2.0.5] - 2026-08-21
+
+- **Responsive Text And App Bars**: Prevented selection summaries, page titles, browser tabs, segmented controls, and sort labels from clipping on compact or large-text layouts, and added scroll-to-collapse app bars across Settings and compatible secondary pages.
+- **Tab-First Browser Gestures**: Made content swipes move through enabled browser tabs before crossing pane boundaries, while app-bar swipes continue to switch panes directly.
+- **Focused Root Access**: Kept Root Storage exclusive to Home Quick Access by removing its swipeable storage-summary page and Add Tab shortcut.
+- **Vector Splash Branding**: Switched the startup splash foreground from a raster mipmap to Arcile's VectorDrawable for crisp rendering at every display density.
+- **Flexible Opening And Folder Sorting**: Added browser selection options to open files explicitly as images, videos, audio, documents, archives, text, or other files, plus Most Files First and Fewest Files First sorting for folder-aware views.
+- **Surrounding-Aware Media Navigation**: Preserved the visible audio-category order in playback queues and added hold-and-drag fast scrolling to image and video thumbnail strips.
+
+## [2.0.4] - 2026-08-21
+
+- **Chronological Activity Timeline**: Reworked Activity into a Recents-style history grouped under Today, Yesterday, and calendar dates, covering visited pages, opened files and folders, and file operations including create, rename, restore, and Trash actions.
+- **Universal Collapsed App Bars**: Added a preference to keep supported app bars compact while preserving their normal expanded-to-collapsed scrolling when disabled and sharing Browser state across tabs and panes.
+- **Centered Landscape Viewer Strips**: Kept the active image or video thumbnail centered, inset the vertical strip from the safe display edge, and reserved space so it no longer overlaps viewer controls.
+
+## [2.0.3] - 2026-08-21
+
+- **Browser Preferences**: Added dedicated Browsing settings for remembering the last folder and keeping browser app bars compact, with a shared app-bar state across tabs and dual panes.
+- **Complete Activity History**: Expanded Activity to include opened files alongside folders and file operations, with a master recording switch that retains existing history when disabled.
+- **Responsive Browsing And Viewers**: Added pinch-to-resize browser grids and moved image and video thumbnail strips to a vertical layout in landscape orientation.
+- **Clearer Feedback And Properties**: Made feedback messages swipe-to-dismiss with distinct icon and action containers, removed the close button, and consolidated duplicate file and folder property details.
+- **Cleaner Startup**: Updated the splash screen to show only Arcile's foreground logo without the launcher icon background.
+
+## [2.0.2] - 2026-08-15
+
+- **Simplified Storage Architecture**: Removed optional Root and Shizuku access and their provider-specific workflows. Arcile now uses Android storage access throughout, with less service, routing, and operation overhead.
+- **Long-Press New Tab Storage Selection**: Added a storage volume and root chooser dropdown menu when long-pressing the `+` button in the browser tab bar, allowing users to open a new tab directly in Internal Storage, Root Storage, SD cards, or USB OTG drives.
+- **Settings Page Controls**: Added the Browser tabs toggle and Start page selector (Home vs Browse) directly to the Appearance settings page while keeping the 3-dot dropdown menu toggles intact.
+
+## [2.0.1] - 2026-08-15
+
+- **Simpler Storage Access**: Detects and uses Root automatically, restores the v1.9.0 Root icon, replaces provider selection with one optional Shizuku switch, falls back to normal Android access when a privileged service stops, and offers Shizuku when opening supported restricted folders.
+- **Shizuku Status Badge**: Shows the installed Shizuku app icon beside app-bar actions while Shizuku is active, with an Appearance setting to hide it.
+- **Reliable APK Updates**: Opens the unknown-app-sources permission screen when an update needs it and supports installing an Arcile APK update from inside Arcile with clear self-update guidance.
+- **Video Playback Fixes**: Added a visible back button, prevented notification-shade swipes from triggering player gestures, and fixed black video playback in OnlyFiles.
+- **Browser And Cleaner Accuracy**: Fixed newest and oldest sorting across files and folders, labels empty-folder results as folders, and shows when recursive folder details are still being calculated.
+- **Browser Location Accuracy**: Keeps Root Storage paths distinct from normal volumes, shows the current folder name in the app bar, and preserves correct Root Storage names and locations across browser tabs, pinning, history, and restore.
 
 ## [2.0.0] - 2026-08-13
 

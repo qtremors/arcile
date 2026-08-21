@@ -324,6 +324,32 @@ class MainRouteTest {
     }
 
     @Test
+    fun `workspace swipes move through tabs and report pane boundaries`() {
+        val coordinator = testTabsCoordinator(BROWSER_PAGE)
+        coordinator.updateBrowserStatus(1, BrowserRouteStatus())
+        assertTrue(coordinator.addTab())
+        coordinator.updateBrowserStatus(2, BrowserRouteStatus())
+
+        assertEquals(2, coordinator.activeBrowserTabId)
+        assertTrue(coordinator.showAdjacentTab(direction = -1))
+        assertEquals(1, coordinator.activeBrowserTabId)
+        assertFalse(coordinator.showAdjacentTab(direction = -1))
+        assertTrue(coordinator.showAdjacentTab(direction = 1))
+        assertEquals(2, coordinator.activeBrowserTabId)
+        assertFalse(coordinator.showAdjacentTab(direction = 1))
+    }
+
+    @Test
+    fun `addTab with explicit entry targets that location`() {
+        val coordinator = testTabsCoordinator(BROWSER_PAGE)
+        val rootEntry = BrowserEntry.Path("/", isRootStorageScope = true)
+        assertTrue(coordinator.addTab(entry = rootEntry))
+
+        assertEquals(listOf(BrowserTab(1), BrowserTab(2)), coordinator.tabs)
+        assertEquals(rootEntry, coordinator.browserEntryRequests[2]?.entry)
+    }
+
+    @Test
     fun `failed new tab activates its retry surface without becoming a ready location`() {
         val coordinator = testTabsCoordinator(BROWSER_PAGE)
         coordinator.updateBrowserStatus(1, BrowserRouteStatus())
@@ -419,6 +445,69 @@ class MainRouteTest {
                 BrowserEntry.Root(restorePersistentLocation = false),
                 fallback = "Browse"
             )
+        )
+        assertEquals(
+            "Root Storage",
+            browserEntryTabTitle(
+                BrowserEntry.Path(
+                    path = "/",
+                    seedInitialPathHistory = false,
+                    isRootStorageScope = true
+                ),
+                fallback = "Browse",
+                rootStorageTitle = "Root Storage"
+            )
+        )
+    }
+
+    @Test
+    fun `pinned root storage tab restores its scope and title`() {
+        val restored = restorePersistedBrowserTabs(
+            tabs = listOf(
+                PersistedBrowserTab(
+                    id = 3,
+                    entryType = "path",
+                    path = "/",
+                    isRootStorageScope = true
+                )
+            ),
+            browserPage = BROWSER_PAGE
+        ).single()
+
+        assertEquals(
+            BrowserEntry.Path(
+                path = "/",
+                seedInitialPathHistory = false,
+                isRootStorageScope = true
+            ),
+            restored.entry
+        )
+        assertEquals(
+            "Root Storage",
+            browserEntryTabTitle(restored.entry, "Browse", "Root Storage")
+        )
+    }
+
+    @Test
+    fun `pinned root archive tab restores scope`() {
+        val restored = restorePersistedBrowserTabs(
+            tabs = listOf(
+                PersistedBrowserTab(
+                    id = 4,
+                    entryType = "archive",
+                    path = "/data/local/archive.zip",
+                    isRootStorageScope = true
+                )
+            ),
+            browserPage = BROWSER_PAGE
+        ).single()
+
+        assertEquals(
+            BrowserEntry.Archive(
+                path = "/data/local/archive.zip",
+                isRootStorageScope = true
+            ),
+            restored.entry
         )
     }
 

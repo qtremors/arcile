@@ -39,8 +39,7 @@ data class CleanerCandidate(
     val riskLevel: CleanerRiskLevel = CleanerRiskLevel.Low,
     val riskReasons: Set<CleanerRiskReason> = emptySet(),
     val isDirectory: Boolean = false,
-    val duplicateGroupKey: String? = null,
-    val nodeRef: StorageNodeRef? = null
+    val duplicateGroupKey: String? = null
 )
 
 @Immutable

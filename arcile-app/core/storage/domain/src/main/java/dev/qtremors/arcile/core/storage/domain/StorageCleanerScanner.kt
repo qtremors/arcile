@@ -46,17 +46,6 @@ interface StorageCleanerScanner {
         CachedStorageCleanerResult(result = it, cachedAt = 0L)
     }
 
-    suspend fun cachedNodeScanWithMetadata(
-        roots: List<StorageNodeRef>,
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): CachedStorageCleanerResult? {
-        require(roots.none(StorageNodeRef::isPrivileged)) {
-            "Protected cleaner scans require backend-aware storage support"
-        }
-        return cachedScanWithMetadata(roots.map { it.displayPath.absolutePath }, limits, rules)
-    }
-
     suspend fun cachedScanForGroups(
         rootPaths: List<String>,
         groupTypes: Set<CleanerGroupType>,
@@ -66,33 +55,12 @@ interface StorageCleanerScanner {
         cached.copy(result = cached.result.onlyGroups(groupTypes))
     }
 
-    suspend fun cachedNodeScanForGroups(
-        roots: List<StorageNodeRef>,
-        groupTypes: Set<CleanerGroupType>,
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): CachedStorageCleanerResult? = cachedNodeScanWithMetadata(roots, limits, rules)?.let { cached ->
-        cached.copy(result = cached.result.onlyGroups(groupTypes))
-    }
-
     suspend fun scan(
         rootPaths: List<String>,
         now: Long = System.currentTimeMillis(),
         limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
         rules: StorageCleanerRules = StorageCleanerRules()
     ): StorageCleanerResult
-
-    suspend fun scanNodes(
-        roots: List<StorageNodeRef>,
-        now: Long = System.currentTimeMillis(),
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): StorageCleanerResult {
-        require(roots.none(StorageNodeRef::isPrivileged)) {
-            "Protected cleaner scans require backend-aware storage support"
-        }
-        return scan(roots.map { it.displayPath.absolutePath }, now, limits, rules)
-    }
 
     fun scanUpdates(
         rootPaths: List<String>,
@@ -115,16 +83,6 @@ interface StorageCleanerScanner {
         )
     }
 
-    fun scanNodeUpdates(
-        roots: List<StorageNodeRef>,
-        now: Long = System.currentTimeMillis(),
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): Flow<StorageCleanerScanUpdate> = flow {
-        val result = scanNodes(roots, now, limits, rules)
-        emit(result.completeUpdate())
-    }
-
     fun scanGroupUpdates(
         rootPaths: List<String>,
         groupTypes: Set<CleanerGroupType>,
@@ -140,42 +98,8 @@ interface StorageCleanerScanner {
         )
     }
 
-    fun scanNodeGroupUpdates(
-        roots: List<StorageNodeRef>,
-        groupTypes: Set<CleanerGroupType>,
-        now: Long = System.currentTimeMillis(),
-        limits: StorageCleanerScanLimits = StorageCleanerScanLimits(),
-        rules: StorageCleanerRules = StorageCleanerRules()
-    ): Flow<StorageCleanerScanUpdate> = scanNodeUpdates(roots, now, limits, rules).map { update ->
-        update.copy(
-            progress = update.progress.copy(
-                completedGroups = update.progress.completedGroups.intersect(groupTypes)
-            ),
-            result = update.result?.onlyGroups(groupTypes)
-        )
-    }
-
     suspend fun invalidateStorageCleaner(paths: Collection<String> = emptyList()) = Unit
-
-    suspend fun invalidateStorageCleanerNodes(nodes: Collection<StorageNodeRef> = emptyList()) {
-        if (nodes.any(StorageNodeRef::isPrivileged)) {
-            invalidateStorageCleaner()
-        } else {
-            invalidateStorageCleaner(nodes.map { it.displayPath.absolutePath })
-        }
-    }
 }
-
-private fun StorageCleanerResult.completeUpdate() = StorageCleanerScanUpdate(
-    progress = StorageCleanerScanProgress(
-        phase = StorageCleanerScanPhase.Complete,
-        scannedFiles = scannedFiles,
-        progressFraction = 1f,
-        estimatedRemainingMillis = 0L,
-        completedGroups = CleanerGroupType.entries.toSet()
-    ),
-    result = this
-)
 
 private fun StorageCleanerResult.onlyGroups(groupTypes: Set<CleanerGroupType>): StorageCleanerResult =
     copy(groups = groups.filter { it.type in groupTypes })

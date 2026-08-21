@@ -8,7 +8,6 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.FolderStats
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.ClipboardController
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
@@ -233,14 +232,9 @@ class BrowserClipboardControllerTest {
             clipboardState = ClipboardState(ClipboardOperation.COPY, listOf(file)),
             currentPath = "/dest"
         )
+        coEvery { repository.detectCopyConflicts(listOf("/test.txt"), "/dest") } returns Result.success(emptyList())
         coEvery {
-            repository.detectNodeCopyConflicts(
-                listOf(file.nodeRef),
-                StorageNodeRef.local("/dest")
-            )
-        } returns Result.success(emptyList())
-        coEvery {
-            bulkFileOperationCoordinator.startNodeOperation(
+            bulkFileOperationCoordinator.startOperation(
                 any(), any(), any(), any(), clipboardSessionId = any()
             )
         } returns true
@@ -250,10 +244,10 @@ class BrowserClipboardControllerTest {
         assertFalse(state.value.isLoading)
         assertNull(state.value.error)
         coVerify(exactly = 1) {
-            bulkFileOperationCoordinator.startNodeOperation(
+            bulkFileOperationCoordinator.startOperation(
                 type = BulkFileOperationType.COPY,
-                sourceNodes = listOf(file.nodeRef),
-                destinationNode = StorageNodeRef.local("/dest"),
+                sourcePaths = listOf("/test.txt"),
+                destinationPath = "/dest",
                 resolutions = emptyMap(),
                 clipboardSessionId = state.value.clipboardState!!.sessionId
             )
@@ -269,12 +263,7 @@ class BrowserClipboardControllerTest {
             currentPath = "/dest"
         )
         val conflicts = listOf(FileConflict("/test.txt", file, existing))
-        coEvery {
-            repository.detectNodeCopyConflicts(
-                listOf(file.nodeRef),
-                StorageNodeRef.local("/dest")
-            )
-        } returns Result.success(conflicts)
+        coEvery { repository.detectCopyConflicts(listOf("/test.txt"), "/dest") } returns Result.success(conflicts)
 
         delegate.paste()
 
@@ -282,7 +271,7 @@ class BrowserClipboardControllerTest {
         assertTrue(state.value.showConflictDialog)
         assertEquals(conflicts, state.value.pasteConflicts)
         coVerify(exactly = 0) {
-            bulkFileOperationCoordinator.startNodeOperation(
+            bulkFileOperationCoordinator.startOperation(
                 any(), any(), any(), any(), clipboardSessionId = any()
             )
         }
@@ -299,7 +288,7 @@ class BrowserClipboardControllerTest {
             pasteConflicts = listOf(FileConflict("/test.txt", file, existing)).toPersistentList()
         )
         coEvery {
-            bulkFileOperationCoordinator.startNodeOperation(
+            bulkFileOperationCoordinator.startOperation(
                 any(), any(), any(), any(), clipboardSessionId = any()
             )
         } returns true
@@ -312,10 +301,10 @@ class BrowserClipboardControllerTest {
         assertFalse(state.value.isLoading)
 
         coVerify(exactly = 1) {
-            bulkFileOperationCoordinator.startNodeOperation(
+            bulkFileOperationCoordinator.startOperation(
                 type = BulkFileOperationType.MOVE,
-                sourceNodes = listOf(file.nodeRef),
-                destinationNode = StorageNodeRef.local("/dest"),
+                sourcePaths = listOf("/test.txt"),
+                destinationPath = "/dest",
                 resolutions = resolutions,
                 clipboardSessionId = state.value.clipboardState!!.sessionId
             )
@@ -329,14 +318,9 @@ class BrowserClipboardControllerTest {
             clipboardState = ClipboardState(ClipboardOperation.COPY, listOf(file)),
             currentPath = "/dest"
         )
+        coEvery { repository.detectCopyConflicts(listOf("/test.txt"), "/dest") } returns Result.success(emptyList())
         coEvery {
-            repository.detectNodeCopyConflicts(
-                listOf(file.nodeRef),
-                StorageNodeRef.local("/dest")
-            )
-        } returns Result.success(emptyList())
-        coEvery {
-            bulkFileOperationCoordinator.startNodeOperation(
+            bulkFileOperationCoordinator.startOperation(
                 any(), any(), any(), any(), clipboardSessionId = any()
             )
         } returns false

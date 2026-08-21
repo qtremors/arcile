@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.home.ui
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 
 internal data class HomeNavigationIntents(
@@ -14,7 +15,7 @@ internal data class HomeNavigationIntents(
     val navigateToTrash: () -> Unit,
     val navigateToRecentFiles: () -> Unit,
     val navigateToQuickAccess: () -> Unit,
-    val navigateToExternalFolder: (String) -> Unit,
+    val navigateToExternalFolder: (QuickAccessItem) -> Unit,
     val openStorageDashboard: (String?) -> Unit,
     val navigateToCleaner: () -> Unit,
     val navigateToActivity: () -> Unit,
@@ -24,7 +25,6 @@ internal data class HomeNavigationIntents(
 internal data class HomeContentIntents(
     val refresh: () -> Unit,
     val resumeRefresh: () -> Unit,
-    val loadRootStorageUsage: () -> Unit,
     val shareRecentFile: (String) -> Unit,
     val setVolumeClassification: (String, StorageKind) -> Unit,
     val hideClassificationPrompt: (String) -> Unit

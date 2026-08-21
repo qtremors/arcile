@@ -14,6 +14,7 @@ import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -301,94 +302,104 @@ fun CategorySelectionTopBar(
     modifier: Modifier = Modifier
 ) {
     val haptics = rememberArcileHaptics()
-    Box(
+    BoxWithConstraints(
         modifier = modifier
             .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .height(56.dp)
     ) {
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            tonalElevation = 6.dp,
-            shadowElevation = 6.dp,
-            modifier = Modifier
-                .height(56.dp)
-                .align(Alignment.CenterStart)
+        val compactText = maxWidth < 420.dp || LocalDensity.current.fontScale > 1.3f
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.padding(start = 6.dp, end = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
+            Surface(
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = 6.dp,
+                shadowElevation = 6.dp,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp)
             ) {
-                val clearSelection = {
-                    haptics.selectionChanged()
-                    onClearSelection()
-                }
-                Box(
+                Row(
                     modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .bounceClickable(onClick = clearSelection),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .padding(start = 6.dp, end = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = stringResource(R.string.back),
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                Spacer(Modifier.width(8.dp))
-                Column(
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.Start
-                ) {
-                    Text(
-                        text = selectedCountText,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = selectedSizeText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    val clearSelection = {
+                        haptics.selectionChanged()
+                        onClearSelection()
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .bounceClickable(onClick = clearSelection),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.back),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        Text(
+                            text = selectedCountText,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (!compactText) {
+                            Text(
+                                text = selectedSizeText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
             }
-        }
 
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
-            contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-            tonalElevation = 6.dp,
-            shadowElevation = 6.dp,
-            modifier = Modifier
-                .height(56.dp)
-                .align(Alignment.CenterEnd)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f),
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                tonalElevation = 6.dp,
+                shadowElevation = 6.dp,
+                modifier = Modifier.height(56.dp)
             ) {
-                CategorySelectionIconButton(
-                    icon = Icons.Default.GridView,
-                    description = stringResource(R.string.select_all)
+                Row(
+                    modifier = Modifier.padding(horizontal = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    haptics.selectionChanged()
-                    onSelectAll()
-                }
-                CategorySelectionIconButton(
-                    icon = Icons.Default.SelectAll,
-                    description = stringResource(R.string.invert_selection)
-                ) {
-                    haptics.selectionChanged()
-                    onInvertSelection()
+                    CategorySelectionIconButton(
+                        icon = Icons.Default.GridView,
+                        description = stringResource(R.string.select_all)
+                    ) {
+                        haptics.selectionChanged()
+                        onSelectAll()
+                    }
+                    CategorySelectionIconButton(
+                        icon = Icons.Default.SelectAll,
+                        description = stringResource(R.string.invert_selection)
+                    ) {
+                        haptics.selectionChanged()
+                        onInvertSelection()
+                    }
                 }
             }
         }

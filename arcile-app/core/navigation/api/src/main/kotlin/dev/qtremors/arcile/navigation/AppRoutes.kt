@@ -60,17 +60,8 @@ object AppRoutes {
     @Serializable data class AudioLibrary(val volumeId: String? = null)
     @Serializable data class DocumentLibrary(val volumeId: String? = null)
     @Serializable data class ApkLibrary(val volumeId: String? = null)
-    @Serializable data class StorageDashboard(
-        val volumeId: String? = null,
-        val scopePath: String? = null,
-        val scopeBackendId: String? = null,
-        val scopeBackendIdentity: String? = null
-    )
-    @Serializable data class StorageCleaner(
-        val scopePath: String? = null,
-        val scopeBackendId: String? = null,
-        val scopeBackendIdentity: String? = null
-    )
+    @Serializable data class StorageDashboard(val volumeId: String? = null)
+    @Serializable object StorageCleaner
     @Serializable object StorageCleanerOverview
     @Serializable data class StorageCleanerGroup(val type: String)
     @Serializable object StorageManagement

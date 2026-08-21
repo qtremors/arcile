@@ -2,7 +2,6 @@ package dev.qtremors.arcile.feature.browser.delegate
 
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
@@ -18,24 +17,20 @@ internal fun BrowserNavigationController.openArchive(
     archivePath: String,
     entryPrefix: String? = null,
     seedHistory: Boolean = true,
-    archiveNodeRef: StorageNodeRef? = null
+    isRootStorageScope: Boolean = state.value.isRootStorageScope
 ) {
-    val volume = findVolumeForPath(archivePath)
-    if (volume == null) {
+    val volume = if (isRootStorageScope) null else findVolumeForPath(archivePath)
+    if (volume == null && !isRootStorageScope) {
         openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
         return
     }
     navigationPersistence.clear()
     val parent = storageParentPath(archivePath)
     if (seedHistory && !parent.isNullOrBlank()) {
-        navigationPersistence.push(BrowserHistoryEntry.Directory(parent))
+        navigationPersistence.push(BrowserHistoryEntry.Directory(parent, isRootStorageScope))
     }
     loadArchiveEntries(
         archivePath = archivePath,
-        archiveNodeRef = archiveNodeRef
-            ?: state.value.files.firstOrNull { it.absolutePath == archivePath }?.nodeRef
-            ?: state.value.archiveContext?.takeIf { it.archivePath == archivePath }?.archiveNodeRef
-            ?: navigationPersistence.restoredArchiveNodeRef(archivePath),
         entryPrefix = entryPrefix,
         password = state.value.archiveContext
             ?.takeIf { it.archivePath == archivePath }
@@ -44,7 +39,8 @@ internal fun BrowserNavigationController.openArchive(
             ?.takeIf { it.archivePath == archivePath }
             ?.nameEncoding
             ?: ArchiveNameEncoding.UTF_8,
-        pushHistory = false
+        pushHistory = false,
+        isRootStorageScope = isRootStorageScope
     )
 }
 
@@ -52,11 +48,11 @@ internal fun BrowserNavigationController.submitArchivePassword(password: String)
     val archive = state.value.archiveContext ?: return
     loadArchiveEntries(
         archivePath = archive.archivePath,
-        archiveNodeRef = archive.archiveNodeRef,
         entryPrefix = archive.entryPrefix,
         password = password,
         nameEncoding = archive.nameEncoding,
-        pushHistory = false
+        pushHistory = false,
+        isRootStorageScope = state.value.isRootStorageScope
     )
 }
 
@@ -64,21 +60,21 @@ internal fun BrowserNavigationController.openArchiveFolder(entryPrefix: String) 
     val archive = state.value.archiveContext ?: return
     loadArchiveEntries(
         archivePath = archive.archivePath,
-        archiveNodeRef = archive.archiveNodeRef,
         entryPrefix = entryPrefix,
         password = archive.password,
         nameEncoding = archive.nameEncoding,
-        pushHistory = true
+        pushHistory = true,
+        isRootStorageScope = state.value.isRootStorageScope
     )
 }
 
 internal fun BrowserNavigationController.loadArchiveEntries(
     archivePath: String,
-    archiveNodeRef: StorageNodeRef?,
     entryPrefix: String?,
     password: String?,
     nameEncoding: ArchiveNameEncoding,
-    pushHistory: Boolean
+    pushHistory: Boolean,
+    isRootStorageScope: Boolean = state.value.isRootStorageScope
 ) {
     val previous = state.value.archiveContext
     val generation = nextLoadGeneration()
@@ -86,18 +82,16 @@ internal fun BrowserNavigationController.loadArchiveEntries(
         navigationPersistence.push(
             BrowserHistoryEntry.Archive(
                 archivePath = previous?.archivePath ?: archivePath,
-                entryPrefix = previous?.entryPrefix,
-                archiveNodeRef = previous?.archiveNodeRef ?: archiveNodeRef
+                entryPrefix = previous?.entryPrefix
             )
         )
     }
-    val volume = findVolumeForPath(archivePath)
+    val volume = if (isRootStorageScope) null else findVolumeForPath(archivePath)
     onLocationChanged()
     update {
         it.withValues(
             archiveContext = BrowserArchiveContext(
                 archivePath = archivePath,
-                archiveNodeRef = archiveNodeRef,
                 entryPrefix = entryPrefix,
                 password = password,
                 nameEncoding = nameEncoding,
@@ -107,6 +101,7 @@ internal fun BrowserNavigationController.loadArchiveEntries(
             ),
             currentPath = archivePath,
             currentVolumeId = volume?.id,
+            isRootStorageScope = isRootStorageScope,
             isVolumeRootScreen = false,
             isCategoryScreen = false,
             activeCategoryName = "",
@@ -120,10 +115,7 @@ internal fun BrowserNavigationController.loadArchiveEntries(
     }
     saveNavStateIfActive(generation)
     activeLoadJob = viewModelScope.launch {
-        val result = archiveNodeRef?.let {
-            archiveRepository.listArchiveEntries(it, password, nameEncoding)
-        } ?: archiveRepository.listArchiveEntries(archivePath, password, nameEncoding)
-        result
+        archiveRepository.listArchiveEntries(archivePath, password, nameEncoding)
             .onSuccess { entries ->
                 if (!isActiveLoad(generation)) return@onSuccess
                 update {
@@ -132,7 +124,6 @@ internal fun BrowserNavigationController.loadArchiveEntries(
                         isPullToRefreshing = false,
                         archiveContext = BrowserArchiveContext(
                             archivePath = archivePath,
-                            archiveNodeRef = archiveNodeRef,
                             entryPrefix = entryPrefix,
                             password = password,
                             nameEncoding = nameEncoding,
@@ -156,7 +147,6 @@ internal fun BrowserNavigationController.loadArchiveEntries(
                         isPullToRefreshing = false,
                         archiveContext = BrowserArchiveContext(
                             archivePath = archivePath,
-                            archiveNodeRef = archiveNodeRef,
                             entryPrefix = entryPrefix,
                             password = password,
                             nameEncoding = nameEncoding,

@@ -39,6 +39,9 @@ class FakeFilePreferencesStore(
     var lastUpdatedHomeRecentCarouselLimit: Int? = null
     var lastUpdatedShowHiddenFiles: Boolean? = null
     var lastUpdatedBrowserScrollbarEnabled: Boolean? = null
+    var lastUpdatedBrowserTabsEnabled: Boolean? = null
+    var lastUpdatedRememberLastFolder: Boolean? = null
+    var lastUpdatedExpandableAppBar: Boolean? = null
     var lastUpdatedGalleryScrollbarEnabled: Boolean? = null
     var lastUpdatedImageGalleryShowFileDetails: Boolean? = null
     var lastUpdatedImageGalleryAspectRatio: Boolean? = null
@@ -81,6 +84,21 @@ class FakeFilePreferencesStore(
     override suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) {
         lastUpdatedBrowserScrollbarEnabled = enabled
         preferences.value = preferences.value.copy(browserScrollbarEnabled = enabled)
+    }
+
+    override suspend fun updateBrowserTabsEnabled(enabled: Boolean) {
+        lastUpdatedBrowserTabsEnabled = enabled
+        preferences.value = preferences.value.copy(browserTabsEnabled = enabled)
+    }
+
+    override suspend fun updateRememberLastFolder(enabled: Boolean) {
+        lastUpdatedRememberLastFolder = enabled
+        preferences.value = preferences.value.copy(rememberLastFolder = enabled)
+    }
+
+    override suspend fun updateExpandableAppBar(enabled: Boolean) {
+        lastUpdatedExpandableAppBar = enabled
+        preferences.value = preferences.value.copy(expandableBrowserAppBar = enabled)
     }
 
     override suspend fun updateGalleryScrollbarEnabled(enabled: Boolean) {

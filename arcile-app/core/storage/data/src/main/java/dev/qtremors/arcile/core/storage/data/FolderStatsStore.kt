@@ -10,7 +10,6 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.CoroutineScope
@@ -33,15 +32,9 @@ import kotlin.coroutines.coroutineContext
 
 interface FolderStatsStore {
     suspend fun getCached(paths: Collection<String>): Map<String, FolderStats>
-    suspend fun getCachedNodes(nodes: Collection<StorageNodeRef>): Map<String, FolderStats> =
-        getCached(nodes.map { it.displayPath.absolutePath })
     fun observeUpdates(): Flow<FolderStatUpdate>
     fun queue(paths: List<String>)
-    fun queueNodes(nodes: List<StorageNodeRef>) =
-        queue(nodes.map { it.displayPath.absolutePath })
     suspend fun invalidate(paths: Collection<String>)
-    suspend fun invalidateNodes(nodes: Collection<StorageNodeRef>) =
-        invalidate(nodes.map { it.displayPath.absolutePath })
     suspend fun clear()
 }
 
@@ -51,7 +44,6 @@ class DefaultFolderStatsStore @Inject constructor(
     @ApplicationContext context: Context,
     private val folderStatsDao: FolderStatsDao = ArcileDatabase.getInstance(context).folderStatsDao(),
     private val calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
-    private val nodeCalculator: (suspend (StorageNodeRef) -> FolderStats)? = null,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null,
     private val dispatchers: ArcileDispatchers = ArcileDispatchers(
@@ -83,110 +75,77 @@ class DefaultFolderStatsStore @Inject constructor(
     )
 
     override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = withContext(dispatchers.io) {
-        getCachedTargets(paths.map { path -> localTarget(path) })
-    }
-
-    override suspend fun getCachedNodes(
-        nodes: Collection<StorageNodeRef>
-    ): Map<String, FolderStats> = withContext(dispatchers.io) {
-        getCachedTargets(nodes.map(::nodeTarget))
-    }
-
-    private suspend fun getCachedTargets(
-        targets: Collection<FolderStatsTarget>
-    ): Map<String, FolderStats> {
-        if (targets.isEmpty()) return emptyMap()
-        val distinctTargets = targets.distinctBy(FolderStatsTarget::cacheKey)
-        val statsByKey = LinkedHashMap<String, FolderStats>(distinctTargets.size)
-        val missedKeys = mutableListOf<String>()
-        distinctTargets.forEach { target ->
-            memoryCache[target.cacheKey]?.let { cached ->
-                statsByKey[target.cacheKey] = cached
-            } ?: run {
-                missedKeys += target.cacheKey
+        if (paths.isEmpty()) return@withContext emptyMap()
+        val result = LinkedHashMap<String, FolderStats>(paths.size)
+        val normalizedPaths = paths.map(::normalizePath).distinct()
+        val missedPaths = mutableListOf<String>()
+        normalizedPaths.forEach { path ->
+            memoryCache[path]?.let {
+                result[path] = it
+                return@forEach
             }
+            missedPaths += path
         }
 
-        if (missedKeys.isNotEmpty()) {
-            folderStatsDao.get(missedKeys).forEach { entity ->
+        if (missedPaths.isNotEmpty()) {
+            folderStatsDao.get(missedPaths).forEach { entity ->
                 val stats = entity.toDomain()
                 memoryCache[entity.path] = stats
-                statsByKey[entity.path] = stats
+                result[entity.path] = stats
             }
         }
-        return distinctTargets.mapNotNull { target ->
-            statsByKey[target.cacheKey]?.let { target.displayPath to it }
-        }.toMap(LinkedHashMap())
+        result
     }
 
     override fun observeUpdates(): Flow<FolderStatUpdate> = updates.asSharedFlow()
 
     override fun queue(paths: List<String>) {
-        queueTargets(paths.map(::localTarget))
-    }
-
-    override fun queueNodes(nodes: List<StorageNodeRef>) {
-        queueTargets(nodes.map(::nodeTarget))
-    }
-
-    private fun queueTargets(targets: List<FolderStatsTarget>) {
-        targets.distinctBy(FolderStatsTarget::cacheKey).forEach { target ->
-            val cacheKey = target.cacheKey
-            val generation = nextGeneration(cacheKey)
-            activeJobs.remove(cacheKey)?.cancel()
-            queuedPaths.add(cacheKey)
-            val job = workerScope.launch(start = CoroutineStart.LAZY) {
+        paths
+            .map(::normalizePath)
+            .distinct()
+            .forEach { path ->
+                val generation = nextGeneration(path)
+                activeJobs.remove(path)?.cancel()
+                queuedPaths.add(path)
+                val job = workerScope.launch(start = CoroutineStart.LAZY) {
                     try {
                         storageWorkCoordinator.awaitLowPrioritySlot()
-                        onCalculationStarted?.invoke(target.displayPath)
-                        val stats = calculate(target)
-                        beforePublish?.invoke(target.displayPath)
-                        val currentGeneration = pathGenerations[cacheKey] ?: 0L
+                        onCalculationStarted?.invoke(path)
+                        val stats = calculate(path)
+                        beforePublish?.invoke(path)
+                        val currentGeneration = pathGenerations[path] ?: 0L
 
                         if (currentGeneration == generation) {
-                            memoryCache[cacheKey] = stats
-                            persist(cacheKey, stats)
-                            updates.emit(FolderStatUpdate(target.displayPath, stats, target.nodeRef))
+                            memoryCache[path] = stats
+                            persist(path, stats)
+                            updates.emit(FolderStatUpdate(path, stats))
                             if (stats.status == FolderStatsStatus.Unavailable) {
-                                retryCounts.merge(cacheKey, 1, Int::plus)
+                                retryCounts.merge(path, 1, Int::plus)
                             } else {
-                                retryCounts.remove(cacheKey)
+                                retryCounts.remove(path)
                             }
                         }
                     } finally {
                         val currentJob = coroutineContext[Job]
-                        if (currentJob != null && activeJobs.remove(cacheKey, currentJob)) {
-                            queuedPaths.remove(cacheKey)
+                        if (currentJob != null && activeJobs.remove(path, currentJob)) {
+                            queuedPaths.remove(path)
                         }
                     }
+                }
+                activeJobs[path] = job
+                job.start()
             }
-            activeJobs[cacheKey] = job
-            job.start()
-        }
     }
 
     override suspend fun invalidate(paths: Collection<String>) = withContext(dispatchers.io) {
-        invalidateTargets(paths.map(::localTarget))
-    }
-
-    override suspend fun invalidateNodes(nodes: Collection<StorageNodeRef>) = withContext(dispatchers.io) {
-        invalidateTargets(nodes.map(::nodeTarget))
-    }
-
-    private suspend fun invalidateTargets(targets: Collection<FolderStatsTarget>) {
-        targets.distinctBy(FolderStatsTarget::cacheKey).forEach { target ->
-            val cacheKey = target.cacheKey
-            nextGeneration(cacheKey)
-            activeJobs.remove(cacheKey)?.cancel()
-            queuedPaths.remove(cacheKey)
-            memoryCache.remove(cacheKey)
-            runCatchingPreservingCancellation { folderStatsDao.delete(listOf(cacheKey)) }
+        paths.map(::normalizePath).distinct().forEach { path ->
+            nextGeneration(path)
+            activeJobs.remove(path)?.cancel()
+            queuedPaths.remove(path)
+            memoryCache.remove(path)
+            runCatchingPreservingCancellation { folderStatsDao.delete(listOf(path)) }
                 .onFailure { error ->
-                    AppLogger.w(
-                        "FolderStatsStore",
-                        "Failed to delete folder stats cache for ${target.displayPath}",
-                        error
-                    )
+                    AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path", error)
                 }
         }
     }
@@ -209,17 +168,12 @@ class DefaultFolderStatsStore @Inject constructor(
     private fun nextGeneration(path: String): Long =
         pathGenerations.compute(path) { _, current -> (current ?: 0L) + 1L } ?: 1L
 
-    private suspend fun calculate(target: FolderStatsTarget): FolderStats {
+    private suspend fun calculate(path: String): FolderStats {
         return try {
-            target.nodeRef?.let { node -> nodeCalculator?.invoke(node) }
-                ?: calculator(File(target.displayPath))
+            calculator(File(path))
         } catch (e: Exception) {
             e.rethrowIfCancellation()
-            AppLogger.w(
-                "FolderStatsStore",
-                "Folder stats calculation failed for ${target.displayPath}",
-                e
-            )
+            AppLogger.w("FolderStatsStore", "Folder stats calculation failed for $path", e)
             FolderStats(0L, 0L, System.currentTimeMillis(), FolderStatsStatus.Unavailable)
         }
     }
@@ -248,32 +202,7 @@ class DefaultFolderStatsStore @Inject constructor(
     private fun normalizePath(path: String): String =
         path.trimEnd('/', File.separatorChar).ifEmpty { path }
 
-    private fun localTarget(path: String): FolderStatsTarget {
-        val normalized = normalizePath(path)
-        return FolderStatsTarget(
-            cacheKey = normalized,
-            displayPath = normalized,
-            nodeRef = null
-        )
-    }
-
-    private fun nodeTarget(node: StorageNodeRef): FolderStatsTarget {
-        val displayPath = normalizePath(node.displayPath.absolutePath)
-        val cacheKey = if (node.backendId == StorageNodeRef.LOCAL_BACKEND_ID) {
-            displayPath
-        } else {
-            "node:${node.backendId}:${node.canonicalIdentity.value}"
-        }
-        return FolderStatsTarget(cacheKey, displayPath, node)
-    }
-
     override fun close() {
         workerScope.cancel()
     }
 }
-
-private data class FolderStatsTarget(
-    val cacheKey: String,
-    val displayPath: String,
-    val nodeRef: StorageNodeRef?
-)

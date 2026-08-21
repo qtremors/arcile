@@ -51,6 +51,7 @@ import androidx.compose.animation.core.tween
 fun ApkInstallerDialog(
     details: ApkPackageDetails?,
     installState: ApkInstallState,
+    isSelfUpdate: Boolean = false,
     onInstall: () -> Unit,
     onGrantPermission: () -> Unit,
     onOpenApp: (String) -> Unit,
@@ -260,6 +261,20 @@ fun ApkInstallerDialog(
                     // Installation Dynamic Status View
                     when (installState) {
                         ApkInstallState.Idle -> {
+                            if (isSelfUpdate && details.isUpdate) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Android will close Arcile, install this update, and let you reopen it.",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                        modifier = Modifier.padding(10.dp)
+                                    )
+                                }
+                            }
                             if (details.isDowngrade) {
                                 Surface(
                                     color = MaterialTheme.colorScheme.errorContainer,
@@ -390,7 +405,9 @@ fun ApkInstallerDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Bottom Action Bar
-                val canOpenAndAction = details?.isInstalled == true && installState !is ApkInstallState.Installing && installState !is ApkInstallState.Success && !details.isDowngrade
+                val canOpenAndAction = details?.isInstalled == true &&
+                    (installState is ApkInstallState.Idle || installState is ApkInstallState.Failed) &&
+                    !details.isDowngrade
 
                 if (canOpenAndAction) {
                     // Two side-by-side buttons: Open App (Outlined) & Update/Reinstall (Primary)
@@ -460,7 +477,10 @@ fun ApkInstallerDialog(
                         }
                         is ApkInstallState.Success -> {
                             Button(
-                                onClick = { onOpenApp(installState.packageName) },
+                                onClick = {
+                                    if (isSelfUpdate) onDismiss()
+                                    else onOpenApp(installState.packageName)
+                                },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(
@@ -472,7 +492,7 @@ fun ApkInstallerDialog(
                                         contentDescription = null,
                                         modifier = Modifier.size(18.dp)
                                     )
-                                    Text(stringResource(R.string.open_app))
+                                    Text(if (isSelfUpdate) stringResource(R.string.action_close) else stringResource(R.string.open_app))
                                 }
                             }
                         }

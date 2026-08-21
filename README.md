@@ -32,12 +32,12 @@ Arcile is an offline Android file manager built for speed, privacy, and a clean 
 
 Download the latest APK from [GitHub Releases](https://github.com/qtremors/arcile/releases) and install it on a device running Android 11 or newer.
 
-Arcile needs Android's all-files access permission for normal full-storage management. It can also use an already authorized Root or Shizuku service for protected locations. Notification permission is requested on supported Android versions so long-running file operations can show progress.
+Arcile needs Android's all-files access permission for full shared-storage management. Notification permission is requested on supported Android versions so long-running file operations can show progress.
 
 ## Features
 
 - **Private and offline:** No ads, accounts, trackers, data collection, or internet permission.
-- **Full file browser:** Browse Internal Storage, SD cards, USB drives, and folders available through Android, Root, or Shizuku.
+- **Full file browser:** Browse Internal Storage, SD cards, USB drives, and folders available through Android.
 - **Everyday file tools:** Create, search, copy, move, rename, share, delete, restore, and securely erase files. Tabs, split view, batch rename, sorting, and filters are included.
 - **Photos, video, and music:** Browse galleries and albums, edit photo details, watch videos with subtitles and gesture controls, and play music in the background.
 - **Documents:** Read PDFs, edit text and Markdown, preview formatting, print documents, and open other formats in installed apps.
@@ -68,7 +68,7 @@ Arcile is built by [Tremors](https://github.com/qtremors) with Kotlin and the An
 - [Kotlin](https://kotlinlang.org/), [Kotlin Coroutines](https://github.com/Kotlin/kotlinx.coroutines), [Kotlin Serialization](https://github.com/Kotlin/kotlinx.serialization), and [Immutable Collections](https://github.com/Kotlin/kotlinx.collections.immutable)
 - [Dagger and Hilt](https://dagger.dev/hilt/), [Coil](https://coil-kt.github.io/coil/), and [MaterialKolor](https://github.com/jordond/MaterialKolor)
 - [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/), [Tukaani XZ for Java](https://tukaani.org/xz/java.html), and [Zip4j](https://github.com/srikanth-lingala/zip4j)
-- [Bouncy Castle](https://www.bouncycastle.org/), [Shizuku](https://github.com/RikkaApps/Shizuku-API), and [libsu](https://github.com/topjohnwu/libsu)
+- [Bouncy Castle](https://www.bouncycastle.org/)
 - [Tailwind CSS](https://tailwindcss.com/), [Lucide](https://lucide.dev/), [Simple Icons](https://simpleicons.org/), [Roboto](https://fonts.google.com/specimen/Roboto), [Outfit](https://fonts.google.com/specimen/Outfit), and [Material Symbols](https://fonts.google.com/icons) for the project website and visual presentation
 
 The app's **Settings → About → Open Source Licenses** screen lists its runtime libraries and their licenses. Each project remains the property of its respective authors and is used under its own license.

@@ -4,7 +4,6 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,60 +29,6 @@ interface BulkFileOperationCoordinator {
         presentationOwnerId: String? = null,
         clipboardSessionId: String? = null
     ): Boolean
-
-    fun startNodeOperation(
-        type: BulkFileOperationType,
-        sourceNodes: List<StorageNodeRef>,
-        destinationNode: StorageNodeRef?,
-        resolutions: Map<String, ConflictResolution> = emptyMap(),
-        presentationOwnerId: String? = null,
-        clipboardSessionId: String? = null
-    ): Boolean = startOperation(
-        type = type,
-        sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
-        destinationPath = destinationNode?.displayPath?.absolutePath,
-        resolutions = resolutions,
-        presentationOwnerId = presentationOwnerId,
-        clipboardSessionId = clipboardSessionId
-    )
-
-    fun startArchiveNodeOperation(
-        type: BulkFileOperationType,
-        sourceNodes: List<StorageNodeRef>,
-        destinationNode: StorageNodeRef,
-        resolutions: Map<String, ConflictResolution> = emptyMap(),
-        archiveFormat: ArchiveFormat? = null,
-        archiveEntryPrefix: String? = null,
-        archivePassword: String? = null,
-        archiveNameEncoding: ArchiveNameEncoding? = null,
-        archiveCompressionLevel: ArchiveCompressionLevel? = null,
-        presentationOwnerId: String? = null
-    ): Boolean = startOperation(
-        type = type,
-        sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
-        destinationPath = destinationNode.displayPath.absolutePath,
-        resolutions = resolutions,
-        archiveFormat = archiveFormat,
-        archiveEntryPrefix = archiveEntryPrefix,
-        archivePassword = archivePassword,
-        archiveNameEncoding = archiveNameEncoding,
-        archiveCompressionLevel = archiveCompressionLevel,
-        presentationOwnerId = presentationOwnerId
-    )
-
-    fun startCreateFakeNodeOperation(
-        parent: StorageNodeRef,
-        name: String,
-        size: Long,
-        presentationOwnerId: String? = null
-    ): Boolean = startOperation(
-        type = BulkFileOperationType.CREATE_FAKE,
-        sourcePaths = listOf(name),
-        destinationPath = parent.displayPath.absolutePath,
-        resolutions = emptyMap(),
-        fakeFileSize = size,
-        presentationOwnerId = presentationOwnerId
-    )
 
     fun startImportOperation(
         destinationPath: String,

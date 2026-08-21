@@ -73,7 +73,7 @@ internal class BrowserTabsCoordinator(
         showTab(targetId)
     }
 
-    fun addTab(): Boolean {
+    fun addTab(entry: BrowserEntry = BrowserEntry.Root(restorePersistentLocation = false)): Boolean {
         if (tabs.size >= MAX_BROWSER_TABS) return false
         val newId = (1..MAX_BROWSER_TABS).first { candidate -> tabs.none { it.id == candidate } }
         val insertionIndex = browserTabInsertionIndex(tabs, activeBrowserTabId)
@@ -82,7 +82,7 @@ internal class BrowserTabsCoordinator(
         browserEntryRequests = browserEntryRequests + (
             newId to BrowserEntryRequest(
                 id = requestId,
-                entry = BrowserEntry.Root(restorePersistentLocation = false),
+                entry = entry,
                 resetWorkspace = true
             )
         )
@@ -154,6 +154,14 @@ internal class BrowserTabsCoordinator(
             return
         }
         activateTab(tabId)
+    }
+
+    fun showAdjacentTab(direction: Int): Boolean {
+        val currentIndex = tabs.indexOfFirst { it.id == activeBrowserTabId }
+        if (currentIndex < 0) return false
+        val target = tabs.getOrNull(currentIndex + direction) ?: return false
+        showTab(target.id)
+        return true
     }
 
     private fun activateTab(tabId: Int) {
@@ -358,7 +366,13 @@ private fun persistedBrowserTab(
 ): PersistedBrowserTab = when (entry) {
     BrowserEntry.PrimaryStorage -> PersistedBrowserTab(id, "primary", browserPage = browserPage)
     is BrowserEntry.Root -> PersistedBrowserTab(id, "root", browserPage = browserPage)
-    is BrowserEntry.Path -> PersistedBrowserTab(id, "path", path = entry.path, browserPage = browserPage)
+    is BrowserEntry.Path -> PersistedBrowserTab(
+        id = id,
+        entryType = "path",
+        path = entry.path,
+        isRootStorageScope = entry.isRootStorageScope,
+        browserPage = browserPage
+    )
     is BrowserEntry.Category -> PersistedBrowserTab(
         id = id,
         entryType = "category",
@@ -371,6 +385,7 @@ private fun persistedBrowserTab(
         entryType = "archive",
         path = entry.path,
         entryPrefix = entry.entryPrefix,
+        isRootStorageScope = entry.isRootStorageScope,
         browserPage = browserPage
     )
 }
@@ -379,10 +394,20 @@ private fun PersistedBrowserTab.browserEntry(): BrowserEntry? = when (entryType)
     "primary" -> BrowserEntry.PrimaryStorage
     "root" -> BrowserEntry.Root(restorePersistentLocation = false)
     "path" -> path?.takeIf(String::isNotBlank)?.let {
-        BrowserEntry.Path(it, seedInitialPathHistory = false)
+        BrowserEntry.Path(
+            path = it,
+            seedInitialPathHistory = false,
+            isRootStorageScope = isRootStorageScope
+        )
     }
     "category" -> name?.takeIf(String::isNotBlank)?.let { BrowserEntry.Category(it, volumeId) }
-    "archive" -> path?.takeIf(String::isNotBlank)?.let { BrowserEntry.Archive(it, entryPrefix) }
+    "archive" -> path?.takeIf(String::isNotBlank)?.let {
+        BrowserEntry.Archive(
+            path = it,
+            entryPrefix = entryPrefix,
+            isRootStorageScope = isRootStorageScope
+        )
+    }
     else -> null
 }
 

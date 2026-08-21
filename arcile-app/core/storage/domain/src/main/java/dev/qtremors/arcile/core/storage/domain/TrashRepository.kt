@@ -9,10 +9,6 @@ interface TrashRepository {
         paths: List<String>,
         onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
-    suspend fun moveNodesToTrash(
-        nodes: List<StorageNodeRef>,
-        onProgress: ((FileOperationProgress) -> Unit)? = null
-    ): Result<Unit> = moveToTrash(nodes.map { it.displayPath.absolutePath }, onProgress)
     suspend fun restoreFromTrash(
         trashIds: List<String>,
         destinationPath: String? = null

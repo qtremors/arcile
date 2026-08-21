@@ -20,13 +20,13 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictOwner
 import dev.qtremors.arcile.feature.browser.delegate.openArchive
 import dev.qtremors.arcile.feature.browser.delegate.submitArchivePassword
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -49,7 +49,7 @@ internal class BrowserViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
     private val bulkFileCoordinator: BulkFileOperationCoordinator,
-    private val privilegeCoordinator: PrivilegeCoordinator,
+    private val activityLogStore: ActivityLogStore,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
     private val utilityPreferencesStore: dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore = dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
 ) : ViewModel() {
@@ -89,6 +89,7 @@ internal class BrowserViewModel @Inject constructor(
         browserPreferencesRepository = browserPreferencesRepository,
         savedStateHandle = savedStateHandle,
         bulkFileCoordinator = bulkFileCoordinator,
+        activityLogStore = activityLogStore,
         operationOwnerId = operationOwnerId
     )
     private val navigationController = controllers.navigation
@@ -102,22 +103,6 @@ internal class BrowserViewModel @Inject constructor(
     private val mutationController = controllers.mutation
     private val revealController = controllers.reveal
     private val browserCoordinator = controllers.coordinator
-    private val backendAccessController = BrowserBackendAccessController(
-        scope = viewModelScope,
-        coordinator = privilegeCoordinator,
-        navigation = navigationController,
-        savedStateHandle = savedStateHandle,
-        onCommitNormalFallback = {
-            selectionController.clear()
-            searchController.updateQuery("")
-            searchController.updateFilters(SearchFilters())
-            searchController.setFilterMenuVisible(false)
-            propertiesController.dismiss()
-            conflictController.dismiss()
-            mutationController.dismissDeleteConfirmation()
-        }
-    )
-    val backendAccessState: StateFlow<BrowserBackendAccessState> = backendAccessController.state
     val uiState: StateFlow<BrowserUiState> = viewModelScope.composeBrowserUiState(
         navigation = navigationController.state,
         transient = controllers.transient.state,
@@ -192,9 +177,6 @@ internal class BrowserViewModel @Inject constructor(
         }
     }
     fun retryInitialization() = initializer.retry()
-    fun reconnectBackendAccess() = backendAccessController.reconnect()
-    fun useNormalBackendAccess() = backendAccessController.useNormal()
-    fun clearBackendAccessFailure() = backendAccessController.clearActionFailure()
     fun isPreparedEntryRequest(entryRequest: BrowserEntryRequest?): Boolean =
         entryRequest == null || entryRequest.id == lastPreparedEntryRequestId
 
@@ -213,10 +195,7 @@ internal class BrowserViewModel @Inject constructor(
     fun navigateToSpecificFolder(path: String, seedInitialPathHistory: Boolean = true) =
         navigationController.navigateToSpecificFolder(path, seedInitialPathHistory)
     fun navigateToCategory(categoryName: String, volumeId: String? = null) = navigationController.navigateToCategory(categoryName, volumeId)
-    fun navigateToFolder(
-        path: String,
-        nodeRef: dev.qtremors.arcile.core.storage.domain.StorageNodeRef? = null
-    ) = navigationController.navigateToFolder(path, nodeRef)
+    fun navigateToFolder(path: String) = navigationController.navigateToFolder(path)
     fun openArchive(path: String) = navigationController.openArchive(path)
     fun submitArchivePassword(password: String) = navigationController.submitArchivePassword(password)
     fun navigateBack(allowVolumeRootFallback: Boolean = true): Boolean =

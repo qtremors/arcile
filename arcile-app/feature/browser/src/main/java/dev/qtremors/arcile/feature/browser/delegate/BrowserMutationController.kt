@@ -5,12 +5,14 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.runtime.R as RuntimeR
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
+import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.DeleteDecision
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.ui.R as UiR
 import dev.qtremors.arcile.feature.browser.BrowserUndoAction
 import dev.qtremors.arcile.feature.browser.RenameUndoEntry
@@ -23,14 +25,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 internal data class BrowserMutationContext(
     val currentPath: String,
     val isVolumeRootScreen: Boolean,
     val isArchive: Boolean,
-    val selectedPaths: List<String>,
-    val currentNodeRef: StorageNodeRef? = null,
-    val files: List<FileModel> = emptyList()
+    val selectedPaths: List<String>
 )
 
 internal data class BrowserDeleteWorkflowState(
@@ -50,6 +51,7 @@ internal class BrowserMutationController(
     private val fileMutationRepository: FileMutationRepository,
     volumeRepository: VolumeRepository,
     private val operationCoordinator: BulkFileOperationCoordinator,
+    private val activityLogStore: ActivityLogStore,
     private val operationOwnerId: String? = null,
     private val contextProvider: () -> BrowserMutationContext,
     private val clearSelection: () -> Unit,
@@ -103,26 +105,13 @@ internal class BrowserMutationController(
             override fun clearSelection() = this@BrowserMutationController.clearSelection()
         },
         startBulkDeleteOperation = { type, selected ->
-            val nodes = contextProvider().files
-                .filter { it.absolutePath in selected }
-                .map(FileModel::nodeRef)
-            if (nodes.size == selected.size) {
-                operationCoordinator.startNodeOperation(
-                    type = type,
-                    sourceNodes = nodes,
-                    destinationNode = null,
-                    resolutions = emptyMap(),
-                    presentationOwnerId = operationOwnerId
-                )
-            } else {
-                operationCoordinator.startOperation(
-                    type = type,
-                    sourcePaths = selected,
-                    destinationPath = null,
-                    resolutions = emptyMap<String, ConflictResolution>(),
-                    presentationOwnerId = operationOwnerId
-                )
-            }
+            operationCoordinator.startOperation(
+                type = type,
+                sourcePaths = selected,
+                destinationPath = null,
+                resolutions = emptyMap<String, ConflictResolution>(),
+                presentationOwnerId = operationOwnerId
+            )
         },
         onFailure = {}
     )
@@ -133,14 +122,7 @@ internal class BrowserMutationController(
 
     fun createFakeFile(name: String, size: Long) {
         val context = actionableContext() ?: return
-        val started = context.currentNodeRef?.let { parent ->
-            operationCoordinator.startCreateFakeNodeOperation(
-                parent = parent,
-                name = name,
-                size = size,
-                presentationOwnerId = operationOwnerId
-            )
-        } ?: operationCoordinator.startOperation(
+        val started = operationCoordinator.startOperation(
             type = BulkFileOperationType.CREATE_FAKE,
             sourcePaths = listOf(name),
             destinationPath = context.currentPath,
@@ -184,21 +166,22 @@ internal class BrowserMutationController(
             return
         }
         scope.launch {
-            val selectedNode = contextProvider().files.firstOrNull { it.absolutePath == path }?.nodeRef
-            val result = selectedNode?.let { fileMutationRepository.renameNode(it, newName) }
-                ?: fileMutationRepository.renameFile(path, newName)
-            result.onSuccess { renamed ->
+            val operationId = UUID.randomUUID().toString()
+            fileMutationRepository.renameFile(path, newName).onSuccess { renamed ->
+                recordOperation(operationId, "RENAME", 1, renamed.absolutePath)
                 clearSelection()
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
-                    BrowserUndoAction.Rename(
-                        originalPath = path,
-                        renamedPath = renamed.absolutePath,
-                        originalNode = selectedNode,
-                        renamedNode = selectedNode?.let { renamed.nodeRef }
-                    )
+                    BrowserUndoAction.Rename(path, renamed.absolutePath)
                 )
             }.onFailure { error ->
+                recordOperation(
+                    operationId,
+                    "RENAME",
+                    1,
+                    status = ActivityLogOperationStatus.FAILED,
+                    errorMessage = error.message
+                )
                 onError(
                     error.message?.let(UiText::Dynamic)
                         ?: UiText.StringResource(UiR.string.error_rename_file_failed)
@@ -210,22 +193,24 @@ internal class BrowserMutationController(
     fun batchRename(renames: List<Pair<FileModel, String>>) {
         if (contextProvider().isArchive || renames.isEmpty()) return
         scope.launch {
-            val targets = renames.map { it.first.nodeRef to it.second }
-            fileMutationRepository.batchRenameNodes(targets).onSuccess { completed ->
+            val operationId = UUID.randomUUID().toString()
+            val targets = renames.map { it.first.absolutePath to it.second }
+            fileMutationRepository.batchRenameFiles(targets).onSuccess { completed ->
+                recordOperation(operationId, "BATCH_RENAME", completed.size)
                 clearSelection()
-                val undoEntries = completed.map { (original, renamed) ->
-                    RenameUndoEntry(
-                        originalPath = original.displayPath.absolutePath,
-                        renamedPath = renamed.displayPath.absolutePath,
-                        originalNode = original,
-                        renamedNode = renamed
-                    )
-                }.toPersistentList()
+                val undoEntries = completed.map { RenameUndoEntry(it.first, it.second) }.toPersistentList()
                 onMutationCompleted(
                     UiText.StringResource(UiR.string.file_operation_renamed),
                     BrowserUndoAction.BatchRename(undoEntries)
                 )
             }.onFailure { error ->
+                recordOperation(
+                    operationId,
+                    "BATCH_RENAME",
+                    renames.size,
+                    status = ActivityLogOperationStatus.FAILED,
+                    errorMessage = error.message
+                )
                 onError(
                     error.message?.let(UiText::Dynamic)
                         ?: UiText.StringResource(UiR.string.error_rename_file_failed)
@@ -241,16 +226,15 @@ internal class BrowserMutationController(
             return
         }
         scope.launch {
-            val result = if (isDirectory && context.currentNodeRef != null) {
-                fileMutationRepository.createNodeDirectory(context.currentNodeRef, name)
-            } else if (!isDirectory && context.currentNodeRef != null) {
-                fileMutationRepository.createNodeFile(context.currentNodeRef, name)
-            } else if (isDirectory) {
+            val operationId = UUID.randomUUID().toString()
+            val operationType = if (isDirectory) "CREATE_FOLDER" else "CREATE_FILE"
+            val result = if (isDirectory) {
                 fileMutationRepository.createDirectory(context.currentPath, name)
             } else {
                 fileMutationRepository.createFile(context.currentPath, name)
             }
             result.onSuccess { created ->
+                recordOperation(operationId, operationType, 1, created.absolutePath)
                 onMutationCompleted(
                     UiText.StringResource(
                         if (isDirectory) UiR.string.file_operation_folder_created
@@ -259,6 +243,14 @@ internal class BrowserMutationController(
                     BrowserUndoAction.Created(created.absolutePath)
                 )
             }.onFailure { error ->
+                recordOperation(
+                    operationId = operationId,
+                    operationType = operationType,
+                    sourceCount = 1,
+                    destinationPath = context.currentPath,
+                    status = ActivityLogOperationStatus.FAILED,
+                    errorMessage = error.message
+                )
                 onError(
                     error.message?.let(UiText::Dynamic)
                         ?: UiText.StringResource(
@@ -268,6 +260,28 @@ internal class BrowserMutationController(
                 )
             }
         }
+    }
+
+    private suspend fun recordOperation(
+        operationId: String,
+        operationType: String,
+        sourceCount: Int,
+        destinationPath: String? = null,
+        status: ActivityLogOperationStatus = ActivityLogOperationStatus.COMPLETED,
+        errorMessage: String? = null
+    ) {
+        activityLogStore.upsertFileOperation(
+            ActivityLogEntry.FileOperation(
+                id = "operation:$operationId",
+                timestampMillis = System.currentTimeMillis(),
+                operationId = operationId,
+                operationType = operationType,
+                status = status,
+                sourceCount = sourceCount,
+                destinationPath = destinationPath,
+                errorMessage = errorMessage
+            )
+        )
     }
 
     private fun actionableContext(): BrowserMutationContext? =

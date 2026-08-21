@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.imagegallery
 
+import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -16,17 +17,25 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -60,6 +69,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +83,7 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.viewerThumbnailFastScroll
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
@@ -91,6 +102,9 @@ internal data class ImageViewerChromeActions(
     val onShare: (FileModel) -> Unit
 )
 
+private val LandscapeThumbnailStripWidth = 56.dp
+private val LandscapeChromeEndPadding = 80.dp
+
 @Composable
 internal fun ImageViewerTopChrome(
     visible: Boolean,
@@ -102,6 +116,7 @@ internal fun ImageViewerTopChrome(
     marqueeEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
@@ -112,7 +127,13 @@ internal fun ImageViewerTopChrome(
             modifier = Modifier
                 .fillMaxWidth()
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                .padding(
+                    start = 16.dp,
+                    end = if (isLandscape) LandscapeChromeEndPadding else 16.dp,
+                    top = 12.dp,
+                    bottom = 12.dp
+                )
         ) {
             if (currentFile != null) {
                 Column(
@@ -167,31 +188,79 @@ internal fun ImageViewerBottomChrome(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
         exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-        modifier = modifier.fillMaxWidth()
+        modifier = if (isLandscape) modifier.fillMaxSize() else modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
+        Box(
+            modifier = if (isLandscape) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
         ) {
-            val lazyListState = rememberLazyListState()
-            var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
-            LaunchedEffect(currentPage) {
-                if (files.isNotEmpty() && currentPage in files.indices) {
-                    when (viewerThumbnailScrollAction(previousThumbnailPage, currentPage)) {
-                        ViewerThumbnailScrollAction.Jump -> lazyListState.scrollToItem(currentPage)
-                        ViewerThumbnailScrollAction.Animate -> lazyListState.animateScrollToItem(currentPage)
-                        ViewerThumbnailScrollAction.None -> Unit
+        val lazyListState = rememberLazyListState()
+        var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
+        LaunchedEffect(currentPage) {
+            if (files.isNotEmpty() && currentPage in files.indices) {
+                when (viewerThumbnailScrollAction(previousThumbnailPage, currentPage)) {
+                    ViewerThumbnailScrollAction.Jump -> lazyListState.scrollToItem(currentPage)
+                    ViewerThumbnailScrollAction.Animate -> lazyListState.animateScrollToItem(currentPage)
+                    ViewerThumbnailScrollAction.None -> Unit
+                }
+                previousThumbnailPage = currentPage
+            }
+        }
+        if (isLandscape) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                    .padding(end = 12.dp)
+                    .width(LandscapeThumbnailStripWidth)
+            ) {
+                val thumbnailSidePadding = ((maxHeight - 54.dp) / 2).coerceAtLeast(16.dp)
+                LazyColumn(
+                    state = lazyListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .viewerThumbnailFastScroll(
+                            state = lazyListState,
+                            orientation = Orientation.Vertical,
+                            onFastScrollStart = haptics::selectionStart
+                        )
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                    contentPadding = PaddingValues(vertical = thumbnailSidePadding)
+                ) {
+                    itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
+                        ImageViewerStripThumbnail(
+                            file = file,
+                            selected = currentPage == index,
+                            onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
+                        )
                     }
-                    previousThumbnailPage = currentPage
                 }
             }
-
+        }
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .then(
+                    if (isLandscape) {
+                        Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                            .padding(end = LandscapeChromeEndPadding)
+                    } else {
+                        Modifier
+                    }
+                )
+        ) {
+            if (!isLandscape) {
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -202,7 +271,13 @@ internal fun ImageViewerBottomChrome(
                 val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
                 LazyRow(
                     state = lazyListState,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .viewerThumbnailFastScroll(
+                            state = lazyListState,
+                            orientation = Orientation.Horizontal,
+                            onFastScrollStart = haptics::selectionStart
+                        ),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                     contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
@@ -211,56 +286,14 @@ internal fun ImageViewerBottomChrome(
                         items = files,
                         key = { _, file -> file.absolutePath }
                     ) { index, file ->
-                        val isSelected = currentPage == index
-                        val animElevation by animateDpAsState(
-                            targetValue = if (isSelected) 6.dp else 0.dp,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
-                            ),
-                            label = "thumbnailElevation"
+                        ImageViewerStripThumbnail(
+                            file = file,
+                            selected = currentPage == index,
+                            onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
                         )
-                        val animScale by animateFloatAsState(
-                            targetValue = if (isSelected) 1f else 0.82f,
-                            animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessLow
-                            ),
-                            label = "thumbnailScale"
-                        )
-
-                        Box(
-                            modifier = Modifier
-                                .width(36.dp)
-                                .height(54.dp)
-                                .zIndex(if (isSelected) 1f else 0f)
-                                .graphicsLayer {
-                                    scaleX = animScale
-                                    scaleY = animScale
-                                }
-                                .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
-                                .clip(RoundedCornerShape(4.dp))
-                                .border(
-                                    width = if (isSelected) 2.dp else 0.dp,
-                                    color = if (isSelected) Color.White else Color.Transparent,
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .bounceClickable {
-                                    coroutineScope.launch { actions.onPageSelected(index) }
-                                }
-                        ) {
-                            AsyncImage(
-                                model = ImageRequest.Builder(LocalContext.current)
-                                    .data(file.absolutePath)
-                                    .crossfade(false)
-                                    .build(),
-                                contentDescription = null,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
                     }
                 }
+            }
             }
 
             Row(
@@ -374,6 +407,59 @@ internal fun ImageViewerBottomChrome(
                 )
             }
         }
+        }
+    }
+}
+
+@Composable
+private fun ImageViewerStripThumbnail(
+    file: FileModel,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val animElevation by animateDpAsState(
+        targetValue = if (selected) 6.dp else 0.dp,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioNoBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "thumbnailElevation"
+    )
+    val animScale by animateFloatAsState(
+        targetValue = if (selected) 1f else 0.82f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "thumbnailScale"
+    )
+    Box(
+        modifier = Modifier
+            .width(36.dp)
+            .height(54.dp)
+            .zIndex(if (selected) 1f else 0f)
+            .graphicsLayer {
+                scaleX = animScale
+                scaleY = animScale
+            }
+            .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(4.dp))
+            .border(
+                width = if (selected) 2.dp else 0.dp,
+                color = if (selected) Color.White else Color.Transparent,
+                shape = RoundedCornerShape(4.dp)
+            )
+            .bounceClickable(onClick = onClick)
+    ) {
+        AsyncImage(
+            model = ImageRequest.Builder(LocalContext.current)
+                .data(file.absolutePath)
+                .crossfade(false)
+                .build(),
+            contentDescription = file.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

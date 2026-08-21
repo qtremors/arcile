@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -28,11 +31,14 @@ import androidx.navigation.NavBackStackEntry
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
 import dev.qtremors.arcile.feature.browser.BrowserRoute
+import dev.qtremors.arcile.feature.browser.BrowserWorkspaceOptions
 import dev.qtremors.arcile.feature.home.HomeDestination
 import dev.qtremors.arcile.feature.home.HomeRoute
 import dev.qtremors.arcile.navigation.AppRoutes
@@ -41,6 +47,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MainRoute(
     backStackEntry: NavBackStackEntry,
@@ -52,13 +59,16 @@ internal fun MainRoute(
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
     landscapeDualPaneEnabled: Boolean,
+    onRecordPageVisited: (ActivityLogPage, String?) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val browserTabsViewModel = hiltViewModel<BrowserTabsViewModel>(backStackEntry)
     val restoredPinnedTabs by browserTabsViewModel.restoredTabs.collectAsStateWithLifecycle()
     val tabsEnabled by browserTabsViewModel.tabsEnabled.collectAsStateWithLifecycle()
+    val storageVolumes by browserTabsViewModel.storageVolumes.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
+    val sharedBrowserTopAppBarState = rememberTopAppBarState()
     val dualPaneEnabled = landscapeDualPaneEnabled &&
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val coordinator = rememberMainShellCoordinator(
@@ -98,6 +108,10 @@ internal fun MainRoute(
     }
     LaunchedEffect(coordinator.pagerState, dualPaneEnabled) {
         snapshotFlow { coordinator.pagerState.settledPage }.collect { page ->
+            onRecordPageVisited(
+                if (page == HOME_PAGE) ActivityLogPage.HOME else ActivityLogPage.BROWSER,
+                null
+            )
             if (dualPaneEnabled) {
                 dualPaneBrowserWasVisible = page == BROWSER_PAGE
             } else if (page in BROWSER_PAGE..SECONDARY_BROWSER_PAGE) {
@@ -127,7 +141,7 @@ internal fun MainRoute(
     HorizontalPager(
         state = coordinator.pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = true,
+        userScrollEnabled = coordinator.pagerState.currentPage == HOME_PAGE,
         beyondViewportPageCount = 1,
         key = { page ->
             when (page) {
@@ -150,7 +164,12 @@ internal fun MainRoute(
                             coordinator.showPrimaryBrowser()
                         }
                         is HomeDestination.BrowsePath -> {
-                            primaryTabs.requestBrowser(BrowserEntry.Path(destination.path))
+                            primaryTabs.requestBrowser(
+                                BrowserEntry.Path(
+                                    path = destination.path,
+                                    isRootStorageScope = destination.path.normalizedBrowserPath() == "/"
+                                )
+                            )
                             coordinator.showPrimaryBrowser()
                         }
                         is HomeDestination.BrowseCategory -> onHomeDestination(destination)
@@ -182,7 +201,12 @@ internal fun MainRoute(
                         onAppStartPageChange = onAppStartPageChange,
                         tabsEnabled = tabsEnabled,
                         onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
+                        storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
+                        sharedTopAppBarState = sharedBrowserTopAppBarState,
+                        onWorkspaceSwipe = { direction ->
+                            coordinator.showRelativeTo(BROWSER_PAGE, direction)
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -204,7 +228,12 @@ internal fun MainRoute(
                         onAppStartPageChange = onAppStartPageChange,
                         tabsEnabled = tabsEnabled,
                         onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
+                        storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
+                        sharedTopAppBarState = sharedBrowserTopAppBarState,
+                        onWorkspaceSwipe = { direction ->
+                            coordinator.showRelativeTo(BROWSER_PAGE, direction)
+                        },
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -231,7 +260,12 @@ internal fun MainRoute(
                 onAppStartPageChange = onAppStartPageChange,
                 tabsEnabled = tabsEnabled,
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
-                onFeedback = onFeedback
+                storageVolumes = storageVolumes,
+                onFeedback = onFeedback,
+                sharedTopAppBarState = sharedBrowserTopAppBarState,
+                onWorkspaceSwipe = { direction ->
+                    coordinator.showRelativeTo(BROWSER_PAGE, direction)
+                }
             )
             SECONDARY_BROWSER_PAGE -> BrowserWorkspacePage(
                 browserPage = SECONDARY_BROWSER_PAGE,
@@ -248,7 +282,12 @@ internal fun MainRoute(
                 onAppStartPageChange = onAppStartPageChange,
                 tabsEnabled = tabsEnabled,
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
-                onFeedback = onFeedback
+                storageVolumes = storageVolumes,
+                onFeedback = onFeedback,
+                sharedTopAppBarState = sharedBrowserTopAppBarState,
+                onWorkspaceSwipe = { direction ->
+                    coordinator.showRelativeTo(SECONDARY_BROWSER_PAGE, direction)
+                }
             )
         }
     }
@@ -270,8 +309,11 @@ private fun BrowserWorkspacePage(
     onAppStartPageChange: (AppStartPage) -> Unit,
     tabsEnabled: Boolean,
     onTabsEnabledChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+    storageVolumes: List<StorageVolume> = emptyList(),
     onFeedback: (ArcileFeedbackEvent) -> Unit,
-    modifier: Modifier = Modifier.fillMaxSize()
+    sharedTopAppBarState: TopAppBarState,
+    onWorkspaceSwipe: (Int) -> Unit
 ) {
     val showTabLimitFeedback = {
         onFeedback(
@@ -286,7 +328,9 @@ private fun BrowserWorkspacePage(
         )
     }
     Box(
-        modifier = modifier.pointerInput(browserPage) {
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(browserPage) {
             awaitPointerEventScope {
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -322,8 +366,9 @@ private fun BrowserWorkspacePage(
                     workspaceTabs = {
                         if (tabsEnabled) {
                             val fallbackTitle = stringResource(R.string.browse_title)
+                            val rootStorageTitle = stringResource(R.string.root_storage)
                             val restoredTitles = coordinator.browserEntryRequests.mapValues { (_, request) ->
-                                browserEntryTabTitle(request.entry, fallbackTitle)
+                                browserEntryTabTitle(request.entry, fallbackTitle, rootStorageTitle)
                             }
                             BrowserTabsRow(
                                 tabs = coordinator.tabs,
@@ -334,6 +379,13 @@ private fun BrowserWorkspacePage(
                                 onNewTab = {
                                     if (!coordinator.addTab()) showTabLimitFeedback()
                                 },
+                                onNewTabInternal = {
+                                    if (!coordinator.addTab(BrowserEntry.PrimaryStorage)) showTabLimitFeedback()
+                                },
+                                onNewTabStorageVolume = { volume ->
+                                    if (!coordinator.addTab(BrowserEntry.Path(volume.path, isRootStorageScope = false))) showTabLimitFeedback()
+                                },
+                                storageVolumes = storageVolumes,
                                 onSetPinned = coordinator::setTabPinned,
                                 onDuplicate = { tabId ->
                                     if (!coordinator.duplicateTab(tabId)) showTabLimitFeedback()
@@ -345,8 +397,17 @@ private fun BrowserWorkspacePage(
                             )
                         }
                     },
-                    workspaceTabsEnabled = tabsEnabled,
-                    onWorkspaceTabsEnabledChange = onTabsEnabledChange,
+                    workspaceOptions = BrowserWorkspaceOptions(
+                        tabsEnabled = tabsEnabled,
+                        onTabsEnabledChange = onTabsEnabledChange,
+                        sharedTopAppBarState = sharedTopAppBarState,
+                        onContentSwipe = { direction ->
+                            if (!tabsEnabled || !coordinator.showAdjacentTab(direction)) {
+                                onWorkspaceSwipe(direction)
+                            }
+                        },
+                        onAppBarSwipe = onWorkspaceSwipe
+                    ),
                     renderContent = isActiveTab
                 )
             }
@@ -354,10 +415,17 @@ private fun BrowserWorkspacePage(
     }
 }
 
-internal fun browserEntryTabTitle(entry: BrowserEntry, fallback: String): String = when (entry) {
+internal fun browserEntryTabTitle(
+    entry: BrowserEntry,
+    fallback: String,
+    rootStorageTitle: String = fallback
+): String = when (entry) {
     BrowserEntry.PrimaryStorage,
     is BrowserEntry.Root -> fallback
-    is BrowserEntry.Path -> storagePathName(entry.path)
+    is BrowserEntry.Path -> when {
+        entry.isRootStorageScope && entry.path.normalizedBrowserPath() == "/" -> rootStorageTitle
+        else -> storagePathName(entry.path).ifBlank { fallback }
+    }
     is BrowserEntry.Category -> entry.name
     is BrowserEntry.Archive -> storagePathName(entry.path)
 }
@@ -384,7 +452,8 @@ internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRe
         !requestedArchivePath.isNullOrEmpty() -> BrowserEntry.Archive(requestedArchivePath)
         !requestedPath.isNullOrEmpty() -> BrowserEntry.Path(
             path = requestedPath,
-            seedInitialPathHistory = seedInitialPathHistory
+            seedInitialPathHistory = seedInitialPathHistory,
+            isRootStorageScope = requestedPath.normalizedBrowserPath() == "/"
         )
         !requestedCategory.isNullOrEmpty() -> BrowserEntry.Category(requestedCategory, volumeId)
         else -> BrowserEntry.Root(restorePersistentLocation)
@@ -395,3 +464,8 @@ internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRe
         focusPath = focusPath
     )
 }
+
+private fun String.normalizedBrowserPath(): String =
+    replace('\\', '/').let { normalized ->
+        if (normalized == "/") normalized else normalized.trimEnd('/')
+    }

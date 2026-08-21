@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
+import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
 import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
@@ -91,7 +92,20 @@ internal fun CleanerCategoryCard(
                     text = if (isScanning) {
                         scanProgressText(scanProgress)
                     } else if (group.candidates.isNotEmpty()) {
-                        androidx.compose.ui.res.pluralStringResource(R.plurals.cleaner_group_stat, group.candidates.size, group.candidates.size, formatFileSize(group.totalBytes))
+                        if (type == CleanerGroupType.EmptyFolders) {
+                            androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.cleaner_group_folder_stat,
+                                group.candidates.size,
+                                group.candidates.size
+                            )
+                        } else {
+                            androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.cleaner_group_stat,
+                                group.candidates.size,
+                                group.candidates.size,
+                                formatFileSize(group.totalBytes)
+                            )
+                        }
                     } else if (!isLoaded) {
                         stringResource(R.string.cleaner_tap_to_scan)
                     } else {

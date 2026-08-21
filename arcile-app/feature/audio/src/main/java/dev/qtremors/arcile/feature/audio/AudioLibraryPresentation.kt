@@ -49,6 +49,8 @@ internal fun buildAudioLibraryState(
                 FileSortOption.DATE_OLDEST -> visibleFolders.sortedBy(AudioFolder::newestModified)
                 FileSortOption.SIZE_LARGEST -> visibleFolders.sortedByDescending(AudioFolder::totalSize)
                 FileSortOption.SIZE_SMALLEST -> visibleFolders.sortedBy(AudioFolder::totalSize)
+                FileSortOption.FILE_COUNT_HIGHEST -> visibleFolders.sortedByDescending { it.tracks.size }
+                FileSortOption.FILE_COUNT_LOWEST -> visibleFolders.sortedBy { it.tracks.size }
             }
             sortedFolders.sortedByDescending(AudioFolder::isPinned)
         }
@@ -127,6 +129,10 @@ private fun presentVisibleAudioTracks(
         FileSortOption.DATE_OLDEST -> filtered.sortedBy { it.file.lastModified }
         FileSortOption.SIZE_LARGEST -> filtered.sortedByDescending { it.file.size }
         FileSortOption.SIZE_SMALLEST -> filtered.sortedBy { it.file.size }
+        FileSortOption.FILE_COUNT_HIGHEST,
+        FileSortOption.FILE_COUNT_LOWEST -> filtered.sortedBy {
+            it.displayTitle.lowercase(Locale.getDefault())
+        }
     }
     return sorted
 }

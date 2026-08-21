@@ -12,6 +12,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -40,12 +43,14 @@ internal data class PersistedBrowserTab(
     val name: String? = null,
     val volumeId: String? = null,
     val entryPrefix: String? = null,
+    val isRootStorageScope: Boolean = false,
     val browserPage: Int = BROWSER_PAGE
 )
 
 @Singleton
 internal class BrowserTabsPreferencesRepository @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext context: Context,
+    private val browserPreferencesStore: BrowserLocationPreferencesStore
 ) {
     private val dataStore: DataStore<Preferences> = context.browserTabsDataStore
 
@@ -61,9 +66,8 @@ internal class BrowserTabsPreferencesRepository @Inject constructor(
                 .orEmpty()
         }
 
-    val tabsEnabled: Flow<Boolean> = preferences.map { stored ->
-        stored[BROWSER_TABS_ENABLED_KEY] ?: false
-    }
+    val tabsEnabled: Flow<Boolean> = browserPreferencesStore.locationPreferencesFlow
+        .map { it.browserTabsEnabled }
 
     suspend fun setPinnedTabs(browserPage: Int, tabs: List<PersistedBrowserTab>) {
         dataStore.edit { preferences ->
@@ -77,20 +81,21 @@ internal class BrowserTabsPreferencesRepository @Inject constructor(
     }
 
     suspend fun setTabsEnabled(enabled: Boolean) {
-        dataStore.edit { preferences ->
-            preferences[BROWSER_TABS_ENABLED_KEY] = enabled
-        }
+        browserPreferencesStore.updateBrowserTabsEnabled(enabled)
     }
 }
 
 @HiltViewModel
 internal class BrowserTabsViewModel @Inject constructor(
-    private val repository: BrowserTabsPreferencesRepository
+    private val repository: BrowserTabsPreferencesRepository,
+    private val getStorageVolumes: GetStorageVolumesUseCase
 ) : ViewModel() {
     val restoredTabs: StateFlow<List<PersistedBrowserTab>?> = repository.pinnedTabs
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val tabsEnabled: StateFlow<Boolean> = repository.tabsEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    val storageVolumes: StateFlow<List<StorageVolume>> = getStorageVolumes()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val persistenceJobs = mutableMapOf<Int, Job>()
 

@@ -16,13 +16,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -36,16 +36,16 @@ internal fun SettingsScreen(
     navigationActions: SettingsNavigationActions,
     preferenceActions: SettingsPreferenceActions,
     backupActions: SettingsBackupActions,
-    storageActions: SettingsStorageActions,
-    accessActions: SettingsAccessActions
+    storageActions: SettingsStorageActions
 ) {
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     ArcileScreenScaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
+                title = { Text(stringResource(R.string.settings_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 scrollBehavior = scrollBehavior,
+                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
                         onClick = navigationActions.navigateBack,
@@ -82,9 +82,16 @@ internal fun SettingsScreen(
                 )
             }
             item {
-                SettingsAccessSection(
-                    state = state.access,
-                    actions = accessActions
+                SettingsBrowsingSection(
+                    theme = state.theme,
+                    preferences = state.preferences,
+                    actions = preferenceActions
+                )
+            }
+            item {
+                SettingsActivityPrivacySection(
+                    recordingEnabled = state.preferences.activityRecordingEnabled,
+                    onRecordingChange = preferenceActions.activityRecordingChange
                 )
             }
             item {

@@ -2,8 +2,6 @@ package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
-import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNodeKind
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanLimits
@@ -11,7 +9,6 @@ import dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanner
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanStatus
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ensureActive
@@ -25,12 +22,10 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.LinkedHashMap
 import javax.inject.Inject
-import javax.inject.Provider
 import kotlin.math.max
 
 class DefaultStorageUsageScanner @Inject constructor(
     private val dispatchers: ArcileDispatchers,
-    private val fileSystemDataSource: Provider<FileSystemDataSource>,
     private val snapshotStore: StorageUsageSnapshotStore? = null,
     @param:ApplicationScope private val applicationScope: CoroutineScope? = null
 ) : StorageUsageScanner {
@@ -78,59 +73,6 @@ class DefaultStorageUsageScanner @Inject constructor(
         emit(StorageUsageScanState.Loaded(node))
     }.flowOn(dispatchers.storage)
 
-    override fun scanStorageUsage(
-        root: StorageNodeRef,
-        limits: StorageUsageScanLimits
-    ): Flow<StorageUsageScanState> {
-        if (!root.isPrivileged) {
-            return scanStorageUsage(root.displayPath.absolutePath, limits)
-        }
-        return flow {
-            val cacheIdentity = root.cacheIdentity()
-            cached(cacheIdentity, limits)?.let { cached ->
-                emit(StorageUsageScanState.Loaded(cached))
-                return@flow
-            }
-            var emittedSnapshot = false
-            snapshotStore?.get(root, limits)?.let { cached ->
-                emit(StorageUsageScanState.Loaded(cached))
-                emittedSnapshot = true
-            }
-            if (!emittedSnapshot) {
-                emit(
-                    StorageUsageScanState.Loading(
-                        StorageUsageScanProgress(
-                            rootPath = root.displayPath.absolutePath,
-                            scannedNodes = 0,
-                            scannedBytes = 0L,
-                            currentPath = null
-                        )
-                    )
-                )
-            }
-
-            val node = try {
-                StorageNodeUsageTreeScanner(fileSystemDataSource.get()).scan(root, limits) { progress ->
-                    if (!emittedSnapshot) emit(StorageUsageScanState.Loading(progress))
-                }
-            } catch (error: Throwable) {
-                error.rethrowIfCancellation()
-                if (!emittedSnapshot) {
-                    emit(
-                        StorageUsageScanState.Error(
-                            error.message?.takeIf(String::isNotBlank)
-                                ?: "Folder is no longer available"
-                        )
-                    )
-                }
-                return@flow
-            }
-            store(cacheIdentity, limits, node)
-            snapshotStore?.put(root, limits, node)
-            emit(StorageUsageScanState.Loaded(node))
-        }.flowOn(dispatchers.storage)
-    }
-
     override fun invalidateStorageUsage(paths: Collection<String>) {
         val normalizedPaths = if (paths.isEmpty()) {
             emptyList()
@@ -154,30 +96,6 @@ class DefaultStorageUsageScanner @Inject constructor(
             store.invalidate(normalizedPaths)
         } ?: runBlocking(dispatchers.io) {
             store.invalidate(normalizedPaths)
-        }
-    }
-
-    override fun invalidateStorageUsageNodes(nodes: Collection<StorageNodeRef>) {
-        if (nodes.isEmpty()) {
-            invalidateStorageUsage()
-            return
-        }
-        val localPaths = nodes.filterNot(StorageNodeRef::isPrivileged)
-            .map { it.displayPath.absolutePath }
-        if (localPaths.isNotEmpty()) invalidateStorageUsage(localPaths)
-
-        val privileged = nodes.filter(StorageNodeRef::isPrivileged)
-        if (privileged.isEmpty()) return
-        synchronized(cacheLock) {
-            cachedScans.entries.removeIf { entry ->
-                privileged.any { changed -> entry.key.matches(changed) }
-            }
-        }
-        val store = snapshotStore ?: return
-        applicationScope?.launch(dispatchers.io) {
-            store.invalidateNodes(privileged)
-        } ?: runBlocking(dispatchers.io) {
-            store.invalidateNodes(privileged)
         }
     }
 
@@ -229,7 +147,7 @@ class DefaultStorageUsageScanner @Inject constructor(
                 }
                 if (!frame.file.isDirectory) {
                     val size = safeLength(frame.file)
-                    progress.scannedBytes += size
+                    progress.scannedBytes = progress.scannedBytes.saturatedAdd(size)
                     complete(frame.fileNode(size))
                     continue
                 }
@@ -281,9 +199,9 @@ class DefaultStorageUsageScanner @Inject constructor(
         val files = children.filterNot { it.kind == StorageUsageNodeKind.Folder }
         val availableFileSlots = (limits.maxChildrenPerFolder - folders.size).coerceAtLeast(0)
         val visibleFiles = if (limits.minChildShare > 0.0f) {
-            val total = children.sumOf { it.sizeBytes }.coerceAtLeast(1L)
+            val total = children.saturatedSizeSum().coerceAtLeast(1L)
             files.take(availableFileSlots).filter { child ->
-                child.sizeBytes.toFloat() / total.toFloat() >= limits.minChildShare
+                child.sizeBytes.toDouble() / total.toDouble() >= limits.minChildShare.toDouble()
             }
         } else {
             files.take(availableFileSlots)
@@ -295,9 +213,9 @@ class DefaultStorageUsageScanner @Inject constructor(
         return (folders + visibleFiles + StorageUsageNode(
             name = GROUPED_NODE_NAME,
             path = "$parentPath/$GROUPED_NODE_NAME",
-            sizeBytes = grouped.sumOf { it.sizeBytes },
+            sizeBytes = grouped.saturatedSizeSum(),
             kind = StorageUsageNodeKind.Grouped,
-            childCount = grouped.sumOf { max(1, it.childCount) },
+            childCount = grouped.saturatedChildCount(),
             status = if (grouped.any { it.status != StorageUsageScanStatus.Ready }) {
                 StorageUsageScanStatus.Partial
             } else {
@@ -305,6 +223,18 @@ class DefaultStorageUsageScanner @Inject constructor(
             }
         )).sortedByDescending(StorageUsageNode::sizeBytes)
     }
+
+    private fun List<StorageUsageNode>.saturatedSizeSum(): Long =
+        fold(0L) { total, node -> total.saturatedAdd(node.sizeBytes) }
+
+    private fun List<StorageUsageNode>.saturatedChildCount(): Int =
+        fold(0) { total, node ->
+            val contribution = max(1, node.childCount)
+            if (Int.MAX_VALUE - total < contribution) Int.MAX_VALUE else total + contribution
+        }
+
+    private fun Long.saturatedAdd(value: Long): Long =
+        if (value <= 0L) this else if (Long.MAX_VALUE - this < value) Long.MAX_VALUE else this + value
 
     private fun safeLength(file: File): Long =
         try {
@@ -363,7 +293,7 @@ class DefaultStorageUsageScanner @Inject constructor(
 
         fun folderNode(limits: StorageUsageScanLimits, budgetExhausted: Boolean): StorageUsageNode {
             val retainChildren = depth < limits.maxDepth
-            val totalBytes = childNodes.sumOf(StorageUsageNode::sizeBytes)
+            val totalBytes = childNodes.saturatedSizeSum()
             val visibleChildren = if (retainChildren) {
                 groupSmallChildren(
                     children = childNodes.sortedByDescending(StorageUsageNode::sizeBytes),
@@ -400,23 +330,10 @@ class DefaultStorageUsageScanner @Inject constructor(
     private data class CacheKey(
         val rootPath: String,
         val limits: StorageUsageScanLimits
-    ) {
-        fun matches(node: StorageNodeRef): Boolean {
-            val cached = StorageNodePersistenceIdentity.decode(rootPath) ?: return false
-            if (cached.backendId != node.backendId) return false
-            val cachedPath = cached.displayPath.trimEnd('/', '\\')
-            val changedPath = node.displayPath.absolutePath.trimEnd('/', '\\')
-            return cachedPath == changedPath ||
-                cachedPath.startsWith("$changedPath/") ||
-                changedPath.startsWith("$cachedPath/")
-        }
-    }
+    )
 
     private data class CacheEntry(
         val root: StorageUsageNode,
         val cachedAt: Long
     )
-
-    private fun StorageNodeRef.cacheIdentity(): String =
-        StorageNodePersistenceIdentity.from(this).encode()
 }

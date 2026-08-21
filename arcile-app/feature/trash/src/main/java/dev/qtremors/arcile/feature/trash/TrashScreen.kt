@@ -197,15 +197,14 @@ internal fun TrashScreen(
         }
     }
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
         (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     var showSortDialog by rememberSaveable { mutableStateOf(false) }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
@@ -231,6 +230,9 @@ internal fun TrashScreen(
                     )
                 } else {
                     LargeTopAppBar(
+                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(
+                            forceCompact = isSelectionMode
+                        ),
                         title = {
                             Text(
                                 text = if (isSelectionMode) androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, state.selectedFiles.size, state.selectedFiles.size) else stringResource(R.string.trash_bin),

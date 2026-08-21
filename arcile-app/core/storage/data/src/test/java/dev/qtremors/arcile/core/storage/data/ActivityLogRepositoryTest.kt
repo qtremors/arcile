@@ -9,6 +9,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogOperationStatus
+import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -65,6 +66,40 @@ class ActivityLogRepositoryTest {
 
         assertEquals("/storage/emulated/0/Pictures", (entries[0] as ActivityLogEntry.FolderOpened).path)
         assertEquals("/storage/emulated/0/Download", (entries[1] as ActivityLogEntry.FolderOpened).path)
+    }
+
+    @Test
+    fun `opened files are recorded in history`() = runBlocking {
+        repository.recordFileOpened("/storage/emulated/0/Pictures/photo.jpg")
+
+        val entry = repository.entries.first().single() as ActivityLogEntry.FileOpened
+
+        assertEquals("/storage/emulated/0/Pictures/photo.jpg", entry.path)
+    }
+
+    @Test
+    fun `visited pages are recorded with their detail`() = runBlocking {
+        repository.recordPageVisited(ActivityLogPage.IMAGE_VIEWER, "photo.jpg")
+
+        val entry = repository.entries.first().single() as ActivityLogEntry.PageVisited
+
+        assertEquals(ActivityLogPage.IMAGE_VIEWER, entry.page)
+        assertEquals("photo.jpg", entry.detail)
+    }
+
+    @Test
+    fun `recording switch stops new history without clearing existing entries`() = runBlocking {
+        repository.recordFolderOpened("/storage/emulated/0/Download", "primary")
+        repository.setRecordingEnabled(false)
+
+        repository.recordFileOpened("/storage/emulated/0/Download/file.txt")
+        repository.recordPageVisited(ActivityLogPage.SETTINGS)
+        repository.upsertFileOperation(operation("op-disabled", ActivityLogOperationStatus.COMPLETED))
+
+        assertEquals(false, repository.recordingEnabled.first())
+        val entries = repository.entries.first()
+        assertEquals(1, entries.size)
+        assertTrue(entries.single() is ActivityLogEntry.FolderOpened)
     }
 
     @Test

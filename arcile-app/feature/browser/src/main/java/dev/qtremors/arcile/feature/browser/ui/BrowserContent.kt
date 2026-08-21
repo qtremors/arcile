@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.feature.browser.ui
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,9 +29,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -85,7 +91,10 @@ internal fun BrowserContent(
     selectionIntents: BrowserSelectionIntents,
     searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit,
-    onSwitchCategoryFolderTab: (Int) -> Unit
+    onSwitchCategoryFolderTab: (Int) -> Unit,
+    onWorkspaceSwipe: (Int) -> Unit,
+    onGridSizeChange: (Float) -> Unit,
+    onGridSizeFinalized: (Float) -> Unit
 ) {
     val categoryFolderTabs = state.displayState.categoryFolderTabs
     val selectedCategoryFolderTabIndex = state.displayState.selectedCategoryFolderTabIndex
@@ -109,11 +118,10 @@ internal fun BrowserContent(
                 ArchiveBreadcrumbs(
                     archiveName = state.archiveContext.archiveName,
                     entryPrefix = state.archiveContext.entryPrefix,
-                    onArchiveRootClick = { navigationIntents.onNavigateTo(state.archiveContext.archivePath, null) },
+                    onArchiveRootClick = { navigationIntents.onNavigateTo(state.archiveContext.archivePath) },
                     onEntryClick = {
                         navigationIntents.onNavigateTo(
-                            ArchiveEntryThumbnailData.virtualPath(state.archiveContext.archivePath, it),
-                            null
+                            ArchiveEntryThumbnailData.virtualPath(state.archiveContext.archivePath, it)
                         )
                     }
                 )
@@ -121,7 +129,8 @@ internal fun BrowserContent(
                 Breadcrumbs(
                     currentPath = state.currentPath,
                     storageVolumes = state.storageVolumes,
-                    onPathSegmentClick = { path -> navigationIntents.onNavigateTo(path, null) }
+                    isRootStorageScope = state.isRootStorageScope,
+                    onPathSegmentClick = { path -> navigationIntents.onNavigateTo(path) }
                 )
             }
 
@@ -157,6 +166,10 @@ internal fun BrowserContent(
         }
 
         val pullRefreshState = rememberPullToRefreshState()
+        val categoryFolderSwipeEnabled = state.isCategoryScreen &&
+            categoryFolderTabs.size > 1 &&
+            !targetKey.isSearch &&
+            !showSearchBar
         PullToRefreshBox(
             isRefreshing = isRefreshing,
             onRefresh = navigationIntents.onRefresh,
@@ -165,14 +178,14 @@ internal fun BrowserContent(
                 .fillMaxWidth()
                 .weight(1f)
                 .then(
-                    if (state.isCategoryScreen && categoryFolderTabs.size > 1 && !targetKey.isSearch && !showSearchBar) {
+                    if (categoryFolderSwipeEnabled) {
                         Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
                             var horizontalDrag = 0f
                             detectHorizontalDragGestures(
                                 onDragStart = { horizontalDrag = 0f },
                                 onHorizontalDrag = { change, dragAmount ->
                                     horizontalDrag += dragAmount
-                                    if (abs(horizontalDrag) > 96f) {
+                                    if (abs(horizontalDrag) > 96.dp.toPx()) {
                                         change.consume()
                                         onSwitchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
                                         horizontalDrag = 0f
@@ -183,7 +196,7 @@ internal fun BrowserContent(
                             )
                         }
                     } else {
-                        Modifier
+                        Modifier.browserWorkspaceSwipe(onWorkspaceSwipe)
                     }
                 ),
             indicator = {
@@ -224,7 +237,9 @@ internal fun BrowserContent(
                         listState = listState,
                         gridState = gridState,
                         navigationIntents = navigationIntents,
-                        selectionIntents = selectionIntents
+                        selectionIntents = selectionIntents,
+                        onGridSizeChange = onGridSizeChange,
+                        onGridSizeFinalized = onGridSizeFinalized
                     )
                 }
             }
@@ -326,7 +341,7 @@ private fun BrowserSearchResults(
                             onShowSearchBarChange(false)
                             searchIntents.onClearSearch()
                             if (file.isDirectory) {
-                                navigationIntents.onNavigateTo(file.absolutePath, file.nodeRef)
+                                navigationIntents.onNavigateTo(file.absolutePath)
                             } else if (state.archiveContext == null) {
                                 navigationIntents.onOpenFile(file.absolutePath)
                             }
@@ -361,8 +376,13 @@ private fun BrowserListingContent(
     listState: LazyListState,
     gridState: LazyGridState,
     navigationIntents: BrowserNavigationIntents,
-    selectionIntents: BrowserSelectionIntents
+    selectionIntents: BrowserSelectionIntents,
+    onGridSizeChange: (Float) -> Unit,
+    onGridSizeFinalized: (Float) -> Unit
 ) {
+    val currentGridCellSize = rememberUpdatedState(currentPresentation.gridMinCellSize)
+    val currentGridSizeChange = rememberUpdatedState(onGridSizeChange)
+    val currentGridSizeFinalized = rememberUpdatedState(onGridSizeFinalized)
     if (showLoading && state.files.isEmpty() && !isRefreshing) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -373,7 +393,7 @@ private fun BrowserListingContent(
     } else if (state.isVolumeRootScreen) {
         VolumeRootList(
             volumes = state.storageVolumes,
-            onNavigateTo = { path -> navigationIntents.onNavigateTo(path, null) },
+            onNavigateTo = { path -> navigationIntents.onNavigateTo(path) },
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = 8.dp,
@@ -398,7 +418,7 @@ private fun BrowserListingContent(
             FileGridRows(
                 rows = state.displayState.visibleGridRows,
                 selectedFiles = state.selectedFiles,
-                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath, file.nodeRef) },
+                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
                 onSelectMultiple = selectionIntents.onSelectMultiple,
@@ -408,9 +428,15 @@ private fun BrowserListingContent(
                         state.activeFileOperation != null,
                     openFileFromThumbnailInSelectionMode = state.archiveContext == null
                 ),
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pinchToResizeGrid(
+                        currentCellSize = currentGridCellSize,
+                        onSizeChanged = currentGridSizeChange,
+                        onSizeFinalized = currentGridSizeFinalized
+                    ),
                 gridState = gridState,
-                minCellSize = state.browserGridMinCellSize.dp,
+                minCellSize = currentPresentation.gridMinCellSize.dp,
                 folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                 contentPadding = PaddingValues(
                     top = 8.dp,
@@ -435,7 +461,7 @@ private fun BrowserListingContent(
             FileListRows(
                 rows = state.displayState.visibleListRows,
                 selectedFiles = state.selectedFiles,
-                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath, file.nodeRef) },
+                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
                 onSelectMultiple = selectionIntents.onSelectMultiple,
@@ -463,6 +489,79 @@ private fun BrowserListingContent(
                     .fillMaxHeight(),
                 contentPadding = PaddingValues(bottom = bottomContentPadding),
                 enabled = state.browserScrollbarEnabled
+            )
+        }
+    }
+}
+
+internal fun Modifier.browserWorkspaceSwipe(onSwipe: (Int) -> Unit): Modifier =
+    pointerInput(onSwipe) {
+        awaitEachGesture {
+            val down = awaitFirstDown(
+                requireUnconsumed = false,
+                pass = PointerEventPass.Initial
+            )
+            var lastPosition = down.position
+            var released = false
+            while (!released) {
+                val change = awaitPointerEvent(PointerEventPass.Final)
+                    .changes
+                    .firstOrNull { it.id == down.id }
+                    ?: break
+                lastPosition = change.position
+                released = !change.pressed
+            }
+            if (released) {
+                browserWorkspaceSwipeDirection(
+                    deltaX = lastPosition.x - down.position.x,
+                    deltaY = lastPosition.y - down.position.y,
+                    thresholdPx = 72.dp.toPx()
+                )?.let(onSwipe)
+            }
+        }
+    }
+
+internal fun browserWorkspaceSwipeDirection(
+    deltaX: Float,
+    deltaY: Float,
+    thresholdPx: Float
+): Int? {
+    if (thresholdPx <= 0f || abs(deltaX) < thresholdPx || abs(deltaX) <= abs(deltaY)) {
+        return null
+    }
+    return if (deltaX < 0f) 1 else -1
+}
+
+private fun Modifier.pinchToResizeGrid(
+    currentCellSize: State<Float>,
+    onSizeChanged: State<(Float) -> Unit>,
+    onSizeFinalized: State<(Float) -> Unit>
+): Modifier = pointerInput(Unit) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false)
+        var accumulatedScale = 1f
+        val startCellSize = currentCellSize.value
+        var isPinching = false
+        do {
+            val event = awaitPointerEvent()
+            if (event.changes.size >= 2) {
+                isPinching = true
+                accumulatedScale *= event.calculateZoom()
+                onSizeChanged.value(
+                    (startCellSize * accumulatedScale).coerceIn(
+                        FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
+                        FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
+                    )
+                )
+                event.changes.forEach { it.consume() }
+            }
+        } while (event.changes.any { it.pressed })
+        if (isPinching) {
+            onSizeFinalized.value(
+                (startCellSize * accumulatedScale).coerceIn(
+                    FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
+                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
+                )
             )
         }
     }

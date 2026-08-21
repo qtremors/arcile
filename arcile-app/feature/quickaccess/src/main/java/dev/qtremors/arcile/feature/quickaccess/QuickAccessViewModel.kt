@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -137,6 +138,10 @@ internal class QuickAccessViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun dismissError() {
+        _state.update { it.copy(error = null) }
     }
 
     private suspend fun mutateItems(transform: (List<QuickAccessItem>) -> List<QuickAccessItem>) {

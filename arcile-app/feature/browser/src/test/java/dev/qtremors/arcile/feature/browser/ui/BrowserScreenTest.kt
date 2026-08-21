@@ -15,7 +15,6 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.presentation.OperationUiState
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
@@ -103,27 +102,6 @@ class BrowserScreenTest {
 
         composeRule.onAllNodesWithText("Analyze This Folder").assertCountEquals(0)
         composeRule.onAllNodesWithText("Clean This Folder").assertCountEquals(0)
-    }
-
-    @Test
-    fun `browser overflow names scoped storage actions for a Shizuku folder`() {
-        setBrowserContent(
-            browserUiState(
-                currentPath = "/storage/emulated/0/Android/data",
-                currentVolumeId = "primary",
-                currentNodeRef = StorageNodeRef.shizuku(
-                    displayPath = "/storage/emulated/0/Android/data",
-                    remoteCanonicalIdentity = "/storage/emulated/0/Android/data",
-                    volumeId = "primary"
-                ),
-                isLoading = false
-            )
-        )
-
-        composeRule.onNodeWithContentDescription("More options").performClick()
-
-        composeRule.onNodeWithText("Analyze This Folder").assertExists()
-        composeRule.onNodeWithText("Clean This Folder").assertExists()
     }
 
     @Test
@@ -215,6 +193,23 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("Internal").performClick()
 
         assertEquals("/storage/emulated/0", navigatedPath)
+    }
+
+    @Test
+    fun `root storage folder keeps root breadcrumb instead of matching a normal volume`() {
+        setBrowserContent(
+            browserUiState(
+                currentPath = "/storage/emulated/0",
+                isRootStorageScope = true,
+                storageVolumes = listOf(
+                    browserVolume("primary", "Internal", "/storage/emulated/0")
+                ),
+                isLoading = false
+            )
+        )
+
+        composeRule.onNodeWithText("Root Storage").assertExists()
+        composeRule.onAllNodesWithText("Internal").assertCountEquals(0)
     }
 
     @Test
@@ -813,7 +808,7 @@ private fun BrowserScreen(
         intents = BrowserIntents(
             navigation = BrowserNavigationIntents(
                 onNavigateBack,
-                { path, _ -> onNavigateTo(path) },
+                onNavigateTo,
                 onOpenFile,
                 onRefresh = {},
                 onSelectFolderTab = {}
@@ -901,7 +896,7 @@ private fun BrowserScreen(
 private fun browserUiState(
     currentPath: String = "",
     currentVolumeId: String? = null,
-    currentNodeRef: StorageNodeRef? = null,
+    isRootStorageScope: Boolean = false,
     isVolumeRootScreen: Boolean = false,
     isCategoryScreen: Boolean = false,
     activeCategoryName: String = "",
@@ -921,7 +916,7 @@ private fun browserUiState(
     val navigation = BrowserNavigationState().withValues(
         currentPath = currentPath,
         currentVolumeId = currentVolumeId,
-        currentNodeRef = currentNodeRef,
+        isRootStorageScope = isRootStorageScope,
         isVolumeRootScreen = isVolumeRootScreen,
         isCategoryScreen = isCategoryScreen,
         activeCategoryName = activeCategoryName,

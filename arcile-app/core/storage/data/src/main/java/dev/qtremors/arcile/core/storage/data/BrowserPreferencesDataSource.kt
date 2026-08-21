@@ -359,7 +359,13 @@ class BrowserPreferencesDataSource(
                 browserScrollbarEnabled = prefs[BROWSER_SCROLLBAR_ENABLED_KEY]
                     ?: BrowserPreferences().browserScrollbarEnabled,
                 galleryScrollbarEnabled = prefs[GALLERY_SCROLLBAR_ENABLED_KEY]
-                    ?: BrowserPreferences().galleryScrollbarEnabled
+                    ?: BrowserPreferences().galleryScrollbarEnabled,
+                browserTabsEnabled = prefs[BROWSER_TABS_ENABLED_KEY]
+                    ?: BrowserPreferences().browserTabsEnabled,
+                rememberLastFolder = prefs[REMEMBER_LAST_FOLDER_KEY]
+                    ?: BrowserPreferences().rememberLastFolder,
+                expandableBrowserAppBar = prefs[EXPANDABLE_BROWSER_APP_BAR_KEY]
+                    ?: BrowserPreferences().expandableBrowserAppBar
             )
         }
         .flowOn(dispatchers.io)
@@ -416,6 +422,24 @@ class BrowserPreferencesDataSource(
     suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[BROWSER_SCROLLBAR_ENABLED_KEY] = enabled
+        }
+    }
+
+    suspend fun updateBrowserTabsEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[BROWSER_TABS_ENABLED_KEY] = enabled
+        }
+    }
+
+    suspend fun updateRememberLastFolder(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[REMEMBER_LAST_FOLDER_KEY] = enabled
+        }
+    }
+
+    suspend fun updateExpandableAppBar(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[EXPANDABLE_BROWSER_APP_BAR_KEY] = enabled
         }
     }
 

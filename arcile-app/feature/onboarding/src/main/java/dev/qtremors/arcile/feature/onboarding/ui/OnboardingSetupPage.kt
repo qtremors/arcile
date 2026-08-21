@@ -30,11 +30,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Category
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Folder
@@ -89,9 +87,6 @@ import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -102,8 +97,6 @@ internal fun OnboardingSetupPermissions(
     restoreState: OnboardingRestoreState,
     onChooseRestoreBackup: () -> Unit,
     onOpenStoragePermissionSettings: () -> Unit,
-    onAccessModeSelected: (PrivilegeMode) -> Unit,
-    onReconnectAccess: () -> Unit,
     onRequestNotificationPermission: () -> Unit,
     showOlderAndroidWarning: Boolean
 ) {
@@ -140,40 +133,6 @@ internal fun OnboardingSetupPermissions(
                 )
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        SettingsSection(title = stringResource(R.string.storage_access_provider_title)) {
-            PrivilegeMode.entries.forEachIndexed { index, mode ->
-                val selected = state.preferredAccessMode == mode
-                val backendState = when (mode) {
-                    PrivilegeMode.ROOT -> state.accessBackends[PrivilegeBackendId.ROOT]
-                    PrivilegeMode.SHIZUKU -> state.accessBackends[PrivilegeBackendId.SHIZUKU]
-                    PrivilegeMode.NORMAL -> state.accessBackends[PrivilegeBackendId.NORMAL]
-                    PrivilegeMode.AUTOMATIC -> state.activeBackend?.let(state.accessBackends::get)
-                }
-                StorageAccessProviderRow(
-                    mode = mode,
-                    index = index,
-                    selected = selected,
-                    connectionState = backendState?.connectionState,
-                    effectiveUid = if (selected) state.accessIdentity?.effectiveUid else null,
-                    onClick = {
-                        haptics.selectionChanged()
-                        if (
-                            selected &&
-                            mode != PrivilegeMode.NORMAL &&
-                            backendState?.connectionState != PrivilegeConnectionState.READY
-                        ) {
-                            onReconnectAccess()
-                        } else {
-                            onAccessModeSelected(mode)
-                        }
-                    }
-                )
-            }
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         val openStorageClick = {
@@ -184,50 +143,38 @@ internal fun OnboardingSetupPermissions(
             haptics.selectionChanged()
             onRequestNotificationPermission()
         }
-        val showNormalPermission = state.preferredAccessMode == PrivilegeMode.NORMAL ||
-            (state.preferredAccessMode == PrivilegeMode.AUTOMATIC &&
-                state.activeBackend != PrivilegeBackendId.ROOT &&
-                state.activeBackend != PrivilegeBackendId.SHIZUKU)
-        val accessItemCount = (if (showNormalPermission) 1 else 0) +
-            (if (state.notificationPermissionRequired) 1 else 0)
-        if (accessItemCount > 0) {
-            SettingsSection(title = stringResource(R.string.onboarding_system_access)) {
-                if (showNormalPermission) {
-                    OnboardingPermissionRow(
-                        index = 0,
-                        count = accessItemCount,
-                        title = stringResource(R.string.onboarding_storage_title),
-                        description = stringResource(R.string.onboarding_storage_description),
-                        icon = Icons.Default.Storage,
-                        granted = state.hasStoragePermission ||
-                            state.accessBackends[PrivilegeBackendId.NORMAL]
-                                ?.connectionState == PrivilegeConnectionState.READY,
-                        grantedLabel = stringResource(R.string.onboarding_permission_granted),
-                        actionLabel = stringResource(R.string.onboarding_permission_grant),
-                        actionIsRequired = true,
-                        onClick = openStorageClick
-                    )
-                }
+        val accessItemCount = 1 + (if (state.notificationPermissionRequired) 1 else 0)
+        SettingsSection(title = stringResource(R.string.onboarding_system_access)) {
+            OnboardingPermissionRow(
+                index = 0,
+                count = accessItemCount,
+                title = stringResource(R.string.onboarding_storage_title),
+                description = stringResource(R.string.onboarding_storage_description),
+                icon = Icons.Default.Storage,
+                granted = state.hasStoragePermission,
+                grantedLabel = stringResource(R.string.onboarding_permission_granted),
+                actionLabel = stringResource(R.string.onboarding_permission_grant),
+                actionIsRequired = true,
+                onClick = openStorageClick
+            )
 
-                if (state.notificationPermissionRequired) {
-                    OnboardingPermissionRow(
-                        index = if (showNormalPermission) 1 else 0,
-                        count = accessItemCount,
-                        title = stringResource(R.string.onboarding_notifications_title),
-                        description = stringResource(R.string.onboarding_notifications_description),
-                        icon = Icons.Default.Notifications,
-                        granted = state.hasNotificationPermission,
-                        grantedLabel = stringResource(R.string.onboarding_permission_enabled),
-                        actionLabel = stringResource(R.string.onboarding_enable_notifications),
-                        onClick = openNotificationsClick
-                    )
-                }
+            if (state.notificationPermissionRequired) {
+                OnboardingPermissionRow(
+                    index = 1,
+                    count = accessItemCount,
+                    title = stringResource(R.string.onboarding_notifications_title),
+                    description = stringResource(R.string.onboarding_notifications_description),
+                    icon = Icons.Default.Notifications,
+                    granted = state.hasNotificationPermission,
+                    grantedLabel = stringResource(R.string.onboarding_permission_enabled),
+                    actionLabel = stringResource(R.string.onboarding_enable_notifications),
+                    onClick = openNotificationsClick
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Restore Backup Button
         val chooseRestoreBackupClick = {
             haptics.selectionChanged()
             onChooseRestoreBackup()
@@ -369,111 +316,6 @@ private fun OnboardingPermissionRow(
     )
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun StorageAccessProviderRow(
-    mode: PrivilegeMode,
-    index: Int,
-    selected: Boolean,
-    connectionState: PrivilegeConnectionState?,
-    effectiveUid: Int?,
-    onClick: () -> Unit
-) {
-    SegmentedListItem(
-        onClick = onClick,
-        shapes = expressiveSegmentedShapes(index = index, count = PrivilegeMode.entries.size),
-        colors = ListItemDefaults.segmentedColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainer
-            }
-        ),
-        modifier = Modifier
-            .testTag("onboarding_access_mode_${mode.name.lowercase()}")
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min),
-        content = {
-            Text(
-                text = stringResource(mode.titleResource()),
-                style = MaterialTheme.typography.titleMedium
-            )
-        },
-        supportingContent = {
-            Column {
-                Text(stringResource(mode.descriptionResource()))
-                Text(
-                    text = storageAccessStatus(mode, connectionState, effectiveUid),
-                    color = if (selected) {
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-        },
-        leadingContent = {
-            Icon(
-                imageVector = when (mode) {
-                    PrivilegeMode.AUTOMATIC -> Icons.Default.Settings
-                    PrivilegeMode.ROOT -> Icons.Default.Android
-                    PrivilegeMode.SHIZUKU -> Icons.Default.Bolt
-                    PrivilegeMode.NORMAL -> Icons.Default.Storage
-                },
-                contentDescription = null
-            )
-        },
-        trailingContent = {
-            if (selected) Icon(Icons.Default.Check, contentDescription = null)
-        }
-    )
-}
-
-private fun PrivilegeMode.titleResource(): Int = when (this) {
-    PrivilegeMode.AUTOMATIC -> R.string.storage_access_mode_automatic
-    PrivilegeMode.ROOT -> R.string.storage_access_mode_root
-    PrivilegeMode.SHIZUKU -> R.string.storage_access_mode_shizuku
-    PrivilegeMode.NORMAL -> R.string.storage_access_mode_normal
-}
-
-private fun PrivilegeMode.descriptionResource(): Int = when (this) {
-    PrivilegeMode.AUTOMATIC -> R.string.storage_access_mode_automatic_description
-    PrivilegeMode.ROOT -> R.string.storage_access_mode_root_description
-    PrivilegeMode.SHIZUKU -> R.string.storage_access_mode_shizuku_description
-    PrivilegeMode.NORMAL -> R.string.storage_access_mode_normal_description
-}
-
-@Composable
-private fun storageAccessStatus(
-    mode: PrivilegeMode,
-    state: PrivilegeConnectionState?,
-    effectiveUid: Int?
-): String = when {
-    state == PrivilegeConnectionState.READY && effectiveUid == 0 ->
-        stringResource(R.string.storage_access_status_connected_root)
-    state == PrivilegeConnectionState.READY && effectiveUid == 2000 ->
-        stringResource(R.string.storage_access_status_connected_shell)
-    state == PrivilegeConnectionState.READY && mode == PrivilegeMode.NORMAL ->
-        stringResource(R.string.storage_access_status_granted)
-    state == PrivilegeConnectionState.READY ->
-        stringResource(R.string.storage_access_status_connected)
-    state == PrivilegeConnectionState.CONNECTING ->
-        stringResource(R.string.storage_access_status_connecting)
-    state == PrivilegeConnectionState.PERMISSION_REQUIRED ->
-        stringResource(R.string.storage_access_status_permission_required)
-    state == PrivilegeConnectionState.PERMISSION_DENIED ->
-        stringResource(R.string.storage_access_status_permission_denied)
-    state == PrivilegeConnectionState.INSTALLED_BUT_STOPPED ->
-        stringResource(R.string.storage_access_status_stopped)
-    state == PrivilegeConnectionState.INCOMPATIBLE ->
-        stringResource(R.string.storage_access_status_incompatible)
-    state == PrivilegeConnectionState.DISCONNECTED ->
-        stringResource(R.string.storage_access_status_disconnected)
-    state == PrivilegeConnectionState.FAILED ->
-        stringResource(R.string.storage_access_status_failed)
-    else -> stringResource(R.string.storage_access_status_unavailable)
-}
 @Composable
 private fun PermissionStatusChip(
     label: String,

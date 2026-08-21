@@ -82,9 +82,10 @@ class MainActivity : ComponentActivity() {
                 val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
                     initialValue = ThemeState()
                 )
-                val applicationAccess by viewModel.applicationAccess.collectAsStateWithLifecycle()
+                val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
                 val fileOpenBehaviors by viewModel.fileOpenBehaviors.collectAsStateWithLifecycle()
                 val appStartPage by viewModel.appStartPage.collectAsStateWithLifecycle()
+                val keepAppBarsCollapsed by viewModel.keepAppBarsCollapsed.collectAsStateWithLifecycle()
                 val coroutineScope = rememberCoroutineScope()
 
                 ArcileTheme(themeState = themeState) {
@@ -99,8 +100,8 @@ class MainActivity : ComponentActivity() {
                                     themePreferences.saveThemeState(newState)
                                 }
                             },
-                            hasStoragePermission = applicationAccess.isReady,
-                            keepApplicationContentVisible = applicationAccess.mayShowApplicationContent,
+                            hasStoragePermission = hasPermission,
+                            keepApplicationContentVisible = hasPermission,
                             onOpenStoragePermissionSettings = ::requestStoragePermission,
                             onRestartApp = ::restartApp,
                             appContent = {
@@ -114,6 +115,9 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onOpenFile = ::openFile,
                                     onOpenFileWith = ::openFileWith,
+                                    onRecordFileOpened = viewModel::recordFileOpened,
+                                    onRecordPageVisited = viewModel::recordPageVisited,
+                                    keepAppBarsCollapsed = keepAppBarsCollapsed,
                                     fileOpenBehaviors = fileOpenBehaviors,
                                     appStartPage = appStartPage,
                                     onAppStartPageChange = viewModel::updateAppStartPage,
@@ -122,15 +126,7 @@ class MainActivity : ComponentActivity() {
                             },
                             permissionContent = {
                                 PermissionRequestScreen(
-                                    readiness = applicationAccess.readiness,
-                                    onRequestPermission = ::requestStoragePermission,
-                                    onReconnect = viewModel::reconnectAccess,
-                                    onUseNormal = {
-                                        viewModel.useNormalAccess()
-                                        if (!applicationAccess.normalAccessReady) {
-                                            requestStoragePermission()
-                                        }
-                                    }
+                                    onRequestPermission = ::requestStoragePermission
                                 )
                             }
                         )
@@ -142,10 +138,20 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        viewModel.refreshAccess()
+        viewModel.updatePermission(checkStoragePermission())
     }
 
-    // open a file via Intent.ACTION_VIEW using FileProvider
+    private fun checkStoragePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            android.os.Environment.isExternalStorageManager()
+        } else {
+            androidx.core.content.ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.READ_EXTERNAL_STORAGE
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        }
+    }
+
     private fun openFile(path: String) {
         lifecycleScope.launch {
             try {
@@ -262,4 +268,3 @@ class MainActivity : ComponentActivity() {
         runCatching { android.net.Uri.parse(this).scheme == "content" }.getOrDefault(false)
 
 }
-

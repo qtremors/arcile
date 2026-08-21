@@ -10,13 +10,19 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
+import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 
 internal data class QuickAccessActions(
     val navigateBack: () -> Unit,
     val navigateToPath: (String) -> Unit,
     val navigateToSaf: (String) -> Unit,
+    val navigateToRestrictedFolder: (QuickAccessItem) -> Unit,
     val togglePin: (QuickAccessItem) -> Unit,
     val removeItem: (QuickAccessItem) -> Unit,
     val addCustomFolder: (String, String) -> Unit,
@@ -54,6 +60,9 @@ internal fun QuickAccessRoute(
             navigateToSaf = { uri ->
                 onDestination(QuickAccessDestination.ExternalFolder(uri))
             },
+            navigateToRestrictedFolder = { item ->
+                onDestination(QuickAccessDestination.ExternalFolder(item.path))
+            },
             togglePin = viewModel::togglePin,
             removeItem = viewModel::removeCustomItem,
             addCustomFolder = viewModel::addCustomFolder,
@@ -76,6 +85,19 @@ internal fun QuickAccessRoute(
             movePinnedItem = viewModel::movePinnedItem
         )
     )
+
+    state.error?.let { message ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissError,
+            title = { Text(stringResource(R.string.quick_access_error_title)) },
+            text = { Text(message) },
+            confirmButton = {
+                Button(onClick = viewModel::dismissError) {
+                    Text(stringResource(R.string.ok))
+                }
+            }
+        )
+    }
 }
 
 internal fun restrictedExternalStorageUri(relativeDocumentPath: String): Uri {
@@ -119,6 +141,18 @@ internal fun persistTreePermission(contentResolver: ContentResolver, uri: Uri): 
         true
     }.getOrDefault(false)
 }
+
+internal fun restrictedLocalPath(uriString: String): String? = runCatching {
+    val uri = Uri.parse(uriString)
+    require(uri.scheme == ContentResolver.SCHEME_CONTENT)
+    require(uri.authority == EXTERNAL_STORAGE_AUTHORITY)
+    val documentId = DocumentsContract.getDocumentId(uri)
+    require(documentId == "$PRIMARY_STORAGE_ROOT:" || documentId.startsWith("$PRIMARY_STORAGE_ROOT:"))
+    val relativePath = documentId.removePrefix("$PRIMARY_STORAGE_ROOT:").trim('/')
+    require(relativePath.split('/').none { it == "." || it == ".." })
+    if (relativePath.isEmpty()) "/storage/emulated/0"
+    else "/storage/emulated/0/$relativePath"
+}.getOrNull()
 
 private const val EXTERNAL_STORAGE_AUTHORITY = "com.android.externalstorage.documents"
 private const val PRIMARY_STORAGE_ROOT = "primary"

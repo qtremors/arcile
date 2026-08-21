@@ -212,7 +212,6 @@ class HomeScreenTest {
     private fun testContentIntents() = HomeContentIntents(
         refresh = {},
         resumeRefresh = {},
-        loadRootStorageUsage = {},
         shareRecentFile = {},
         setVolumeClassification = { _, _ -> },
         hideClassificationPrompt = {}

@@ -82,6 +82,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -170,6 +172,7 @@ private fun OnlyFilesScreen(
     var showSearch by remember { mutableStateOf(false) }
     var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val navigateBackThroughState = {
         when {
@@ -228,7 +231,7 @@ private fun OnlyFilesScreen(
     }
 
     ArcileScreenScaffold(
-        modifier = predictiveBackModifier,
+        modifier = predictiveBackModifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         snackbarHost = { ArcileSnackbarHost(snackbarHost) },
         topBar = {
             if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
@@ -258,18 +261,18 @@ private fun OnlyFilesScreen(
                     )
                 } else {
                     LargeTopAppBar(
+                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                         title = {
-                            Column {
-                                Text(state.selectedVault?.name ?: stringResource(R.string.onlyfiles_title))
-                                if (state.selectedVault != null) {
-                                    Text(
-                                        state.currentDirectory?.name?.takeIf(String::isNotBlank) ?: "/",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                            val vaultTitle = state.selectedVault?.name
+                                ?: stringResource(R.string.onlyfiles_title)
+                            val directoryTitle = state.currentDirectory?.name?.takeIf(String::isNotBlank)
+                            Text(
+                                text = directoryTitle?.let { "$vaultTitle • $it" } ?: vaultTitle,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
                         },
+                        scrollBehavior = scrollBehavior,
                         navigationIcon = {
                             Box(
                                 modifier = Modifier

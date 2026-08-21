@@ -7,10 +7,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performClick
-import androidx.compose.ui.test.performScrollTo
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
@@ -18,7 +14,6 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import dev.qtremors.arcile.core.ui.theme.ThemeState
-import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -145,37 +140,5 @@ class OnboardingScreenTest {
         composeRule.onNodeWithText("Granted").assertExists()
         composeRule.onNodeWithText("Enable").assertExists()
         composeRule.onNodeWithText("Finish").assertIsEnabled()
-    }
-
-    @Test
-    fun `setup page offers all storage providers and forwards Root selection`() {
-        var selectedMode: PrivilegeMode? = null
-        composeRule.setContent {
-            ArcileTestTheme {
-                OnboardingScreen(
-                    state = OnboardingUiState(step = OnboardingStep.SetupPermissions),
-                    currentThemeState = ThemeState(),
-                    onThemeChange = {},
-                    onNext = {},
-                    onBack = {},
-                    onStepSelected = {},
-                    onOpenStoragePermissionSettings = {},
-                    onAccessModeSelected = { selectedMode = it },
-                    onRequestNotificationPermission = {}
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Automatic").assertExists()
-        composeRule.onNodeWithText("Root").assertExists()
-        composeRule.onNodeWithText("Shizuku").assertExists()
-        composeRule.onNodeWithText("Normal Android").assertExists()
-        composeRule.onNodeWithTag("onboarding_access_mode_root")
-            .performScrollTo()
-            .performClick()
-
-        composeRule.runOnIdle {
-            assertEquals(PrivilegeMode.ROOT, selectedMode)
-        }
     }
 }

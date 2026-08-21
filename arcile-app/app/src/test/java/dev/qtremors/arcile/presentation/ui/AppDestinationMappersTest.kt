@@ -82,6 +82,24 @@ class AppDestinationMappersTest {
     }
 
     @Test
+    fun `quick access local path opens browser without seeding history`() {
+        mappers.quickAccess.map(
+            QuickAccessDestination.LocalPath(
+                path = "/storage/emulated/0/Android/data"
+            )
+        )
+
+        assertEquals(
+            AppRoutes.Main(
+                initialPage = BROWSER_PAGE,
+                path = "/storage/emulated/0/Android/data",
+                seedInitialPathHistory = false
+            ),
+            browserRoutes.single()
+        )
+    }
+
+    @Test
     fun `quick access external folder remains external`() {
         mappers.quickAccess.map(QuickAccessDestination.ExternalFolder("content://folder"))
 

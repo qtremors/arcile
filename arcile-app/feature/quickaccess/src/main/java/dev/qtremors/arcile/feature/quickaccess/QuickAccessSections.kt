@@ -97,9 +97,10 @@ private fun LazyListScope.quickAccessSection(
             index = index,
             count = items.size,
             onNavigate = {
-                if (
+                if (item.type == QuickAccessType.EXTERNAL_HANDOFF) {
+                    actions.navigateToRestrictedFolder(item)
+                } else if (
                     item.type == QuickAccessType.SAF_TREE ||
-                    item.type == QuickAccessType.EXTERNAL_HANDOFF ||
                     item.type == QuickAccessType.FILES_APP
                 ) {
                     actions.navigateToSaf(item.path)

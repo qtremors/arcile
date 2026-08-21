@@ -295,7 +295,7 @@ private fun AudioSortSection(
                         onClick = { onSelected(option) },
                         label = {
                             Text(
-                                stringResource(
+                                text = stringResource(
                                     when (option) {
                                         FileSortOption.NAME_ASC ->
                                             dev.qtremors.arcile.core.ui.R.string.sort_name_asc
@@ -309,8 +309,14 @@ private fun AudioSortSection(
                                             dev.qtremors.arcile.core.ui.R.string.sort_size_largest
                                         FileSortOption.SIZE_SMALLEST ->
                                             dev.qtremors.arcile.core.ui.R.string.sort_size_smallest
+                                        FileSortOption.FILE_COUNT_HIGHEST ->
+                                            dev.qtremors.arcile.core.ui.R.string.sort_file_count_highest
+                                        FileSortOption.FILE_COUNT_LOWEST ->
+                                            dev.qtremors.arcile.core.ui.R.string.sort_file_count_lowest
                                     }
-                                )
+                                ),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         },
                         modifier = Modifier.weight(1f)

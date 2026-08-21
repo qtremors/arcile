@@ -98,7 +98,10 @@ data class BrowserPreferences(
     val fileOpenBehaviors: Map<String, FileOpenBehavior> = emptyMap(),
     val defaultSaveToArcilePath: String? = null,
     val browserScrollbarEnabled: Boolean = true,
-    val galleryScrollbarEnabled: Boolean = true
+    val galleryScrollbarEnabled: Boolean = true,
+    val browserTabsEnabled: Boolean = false,
+    val rememberLastFolder: Boolean = true,
+    val expandableBrowserAppBar: Boolean = true
 ) {
     companion object {
         const val MIN_HOME_RECENT_CAROUSEL_LIMIT = 0

@@ -117,8 +117,6 @@ data class StorageNodeRef(
         const val LOCAL_BACKEND_ID = "local"
         const val MEDIA_STORE_BACKEND_ID = "mediastore"
         const val ONLYFILES_BACKEND_ID = "onlyfiles"
-        const val ROOT_BACKEND_ID = "root"
-        const val SHIZUKU_BACKEND_ID = "shizuku"
 
         fun local(
             path: String,
@@ -168,66 +166,6 @@ data class StorageNodeRef(
             )
         }
 
-        /**
-         * Creates a reference whose canonical identity was resolved by a remote service.
-         * This factory deliberately performs no local canonicalization: protected paths may
-         * be invisible or resolve differently in Arcile's application process.
-         */
-        fun privileged(
-            backendId: String,
-            displayPath: String,
-            remoteCanonicalIdentity: String,
-            volumeId: String? = null,
-            capabilities: StorageNodeCapabilities = StorageNodeCapabilities()
-        ): StorageNodeRef {
-            require(backendId == ROOT_BACKEND_ID || backendId == SHIZUKU_BACKEND_ID) {
-                "Privileged storage backend must be root or shizuku"
-            }
-            require(remoteCanonicalIdentity.isNotBlank()) {
-                "Remote canonical identity must not be blank"
-            }
-            require(remoteCanonicalIdentity.indexOf('\u0000') < 0) {
-                "Remote canonical identity must not contain NUL"
-            }
-            val nodePath = StorageNodePath.of(displayPath)
-            return StorageNodeRef(
-                backendId = backendId,
-                volumeId = volumeId?.takeIf(String::isNotBlank)?.let(StorageVolumeId::of),
-                displayPath = nodePath,
-                canonicalIdentity = CanonicalStorageIdentity.of(
-                    "$backendId:$remoteCanonicalIdentity"
-                ),
-                capabilities = capabilities,
-                backendIdentity = remoteCanonicalIdentity
-            )
-        }
-
-        fun root(
-            displayPath: String,
-            remoteCanonicalIdentity: String,
-            volumeId: String? = null,
-            capabilities: StorageNodeCapabilities = StorageNodeCapabilities()
-        ): StorageNodeRef = privileged(
-            backendId = ROOT_BACKEND_ID,
-            displayPath = displayPath,
-            remoteCanonicalIdentity = remoteCanonicalIdentity,
-            volumeId = volumeId,
-            capabilities = capabilities
-        )
-
-        fun shizuku(
-            displayPath: String,
-            remoteCanonicalIdentity: String,
-            volumeId: String? = null,
-            capabilities: StorageNodeCapabilities = StorageNodeCapabilities()
-        ): StorageNodeRef = privileged(
-            backendId = SHIZUKU_BACKEND_ID,
-            displayPath = displayPath,
-            remoteCanonicalIdentity = remoteCanonicalIdentity,
-            volumeId = volumeId,
-            capabilities = capabilities
-        )
-
         /** Creates a path-free reference whose visible path contains opaque identifiers only. */
         fun vault(
             vaultId: String,
@@ -255,9 +193,5 @@ data class StorageNodeRef(
         }
     }
 }
-
-val StorageNodeRef.isPrivileged: Boolean
-    get() = backendId == StorageNodeRef.ROOT_BACKEND_ID ||
-        backendId == StorageNodeRef.SHIZUKU_BACKEND_ID
 
 fun String.toStorageNodePath(): StorageNodePath = StorageNodePath.of(this)

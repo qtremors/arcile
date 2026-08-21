@@ -48,6 +48,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserUiState
@@ -178,6 +179,7 @@ internal fun BrowserSelectionToolbar(
     mutationIntents: BrowserMutationIntents,
     clipboardIntents: BrowserClipboardIntents
 ) {
+    var openAsPath by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val isArchiveSelection = state.archiveContext != null
     val selectedArchive = state.selectedFiles.singleOrNull()?.let(ArchiveFormat::isSupported) == true
     val mainActions = mutableListOf<ToolbarAction>()
@@ -239,6 +241,7 @@ internal fun BrowserSelectionToolbar(
                 val menuActions = remember(
                     selectionIntents.onShareSelected,
                     selectionIntents.onOpenSelectedWith,
+                    selectionIntents.onOpenSelectedAs,
                     state.selectedFiles,
                     isArchiveSelection
                 ) {
@@ -264,6 +267,16 @@ internal fun BrowserSelectionToolbar(
                                 onClick = {
                                     showSelectionMenu = false
                                     selectionIntents.onOpenSelectedWith(selectedPath)
+                                }
+                            )
+                        }
+                        if (!isArchiveSelection && selectedPath != null && selectedFile?.isDirectory == false) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.open_as)) },
+                                leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    openAsPath = selectedPath
                                 }
                             )
                         }
@@ -307,4 +320,13 @@ internal fun BrowserSelectionToolbar(
             }
         }
     )
+    openAsPath?.let { path ->
+        OpenAsDialog(
+            onSelect = { type: FileOpenAsType ->
+                openAsPath = null
+                selectionIntents.onOpenSelectedAs(path, type)
+            },
+            onDismiss = { openAsPath = null }
+        )
+    }
 }

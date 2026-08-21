@@ -1,17 +1,14 @@
 package dev.qtremors.arcile.feature.videoplayer
 
+import android.content.res.Configuration
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -21,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -32,12 +30,15 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.CheckCircle
@@ -52,6 +53,7 @@ import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.VideoLibrary
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -63,28 +65,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
@@ -93,6 +89,7 @@ import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.viewerThumbnailFastScroll
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
@@ -115,6 +112,9 @@ internal data class VideoViewerChromeActions(
     val onToggleThumbnails: () -> Unit = {}
 )
 
+private val LandscapeThumbnailStripWidth = 56.dp
+private val LandscapeChromeEndPadding = 80.dp
+
 @Composable
 internal fun VideoViewerTopChrome(
     visible: Boolean,
@@ -124,8 +124,11 @@ internal fun VideoViewerTopChrome(
     resolutionText: String,
     sizeText: String,
     marqueeEnabled: Boolean,
+    showThumbnails: Boolean,
+    onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
@@ -136,14 +139,37 @@ internal fun VideoViewerTopChrome(
             modifier = Modifier
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                .padding(
+                    start = 16.dp,
+                    end = if (isLandscape && showThumbnails) {
+                        LandscapeChromeEndPadding
+                    } else {
+                        16.dp
+                    },
+                    top = 12.dp,
+                    bottom = 12.dp
+                )
         ) {
+            IconButton(
+                onClick = onNavigateBack,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.5f))
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = stringResource(R.string.back),
+                    tint = Color.White
+                )
+            }
             if (currentFile != null) {
                 Column(
                     horizontalAlignment = Alignment.Start,
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .padding(horizontal = 4.dp)
+                        .padding(start = 56.dp, end = 4.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(20.dp))
                         .background(Color.Black.copy(alpha = 0.5f))
@@ -203,6 +229,7 @@ internal fun VideoViewerBottomChrome(
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
     val context = LocalContext.current
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val thumbnailEntries = remember(context, files) {
         files.associate { file ->
             val thumbnailKey = ThumbnailKey.from(file)
@@ -249,15 +276,64 @@ internal fun VideoViewerBottomChrome(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
         exit = fadeOut(animationSpec = spring(stiffness = Spring.StiffnessLow)),
-        modifier = modifier.fillMaxWidth()
+        modifier = if (isLandscape) modifier.fillMaxSize() else modifier.fillMaxWidth()
     ) {
+        Box(
+            modifier = if (isLandscape) Modifier.fillMaxSize() else Modifier.fillMaxWidth()
+        ) {
+        if (isLandscape && showThumbnails) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                    .padding(end = 12.dp)
+                    .width(LandscapeThumbnailStripWidth)
+            ) {
+                val thumbnailSidePadding = ((maxHeight - 54.dp) / 2).coerceAtLeast(16.dp)
+                LazyColumn(
+                    state = thumbnailListState,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .viewerThumbnailFastScroll(
+                            state = thumbnailListState,
+                            orientation = Orientation.Vertical,
+                            onFastScrollStart = haptics::selectionStart
+                        )
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
+                    contentPadding = PaddingValues(vertical = thumbnailSidePadding)
+                ) {
+                    itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
+                        VideoViewerStripThumbnail(
+                            file = file,
+                            selected = currentPage == index,
+                            entry = thumbnailEntries[file.absolutePath],
+                            painterCache = thumbnailPainterCache,
+                            onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
+                        )
+                    }
+                }
+            }
+        }
         Column(
             modifier = Modifier
+                .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .then(
+                    if (isLandscape && showThumbnails) {
+                        Modifier
+                            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.End))
+                            .padding(end = LandscapeChromeEndPadding)
+                    } else {
+                        Modifier
+                    }
+                )
         ) {
             // 1. Thumbnail carousel – identical to image viewer
-            if (showThumbnails) {
+            if (showThumbnails && !isLandscape) {
                 BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -268,7 +344,13 @@ internal fun VideoViewerBottomChrome(
                     val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
                     LazyRow(
                         state = thumbnailListState,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .viewerThumbnailFastScroll(
+                                state = thumbnailListState,
+                                orientation = Orientation.Horizontal,
+                                onFastScrollStart = haptics::selectionStart
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                         contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
@@ -276,75 +358,14 @@ internal fun VideoViewerBottomChrome(
                         itemsIndexed(
                             items = files,
                             key = { _, file -> file.absolutePath }
-                        ) { index, file ->
-                            val isSelected = currentPage == index
-                            val animElevation by animateDpAsState(
-                                targetValue = if (isSelected) 6.dp else 0.dp,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioNoBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                ),
-                                label = "thumbnailElevation"
+                    ) { index, file ->
+                            VideoViewerStripThumbnail(
+                                file = file,
+                                selected = currentPage == index,
+                                entry = thumbnailEntries[file.absolutePath],
+                                painterCache = thumbnailPainterCache,
+                                onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
                             )
-                            val animScale by animateFloatAsState(
-                                targetValue = if (isSelected) 1f else 0.82f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessLow
-                                ),
-                                label = "thumbnailScale"
-                            )
-
-                            Box(
-                                modifier = Modifier
-                                    .width(36.dp)
-                                    .height(54.dp)
-                                    .zIndex(if (isSelected) 1f else 0f)
-                                    .graphicsLayer {
-                                        scaleX = animScale
-                                        scaleY = animScale
-                                    }
-                                    .shadow(elevation = animElevation, shape = RoundedCornerShape(4.dp))
-                                    .clip(RoundedCornerShape(4.dp))
-                                    .border(
-                                        width = if (isSelected) 2.dp else 0.dp,
-                                        color = if (isSelected) Color.White else Color.Transparent,
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .semantics {
-                                        contentDescription = file.name
-                                        selected = isSelected
-                                    }
-                                    .bounceClickable {
-                                        coroutineScope.launch { actions.onPageSelected(index) }
-                                    }
-                            ) {
-                                val thumbnailEntry = thumbnailEntries[file.absolutePath]
-                                val loadedPainter = thumbnailEntry?.let {
-                                    thumbnailPainterCache[it.cacheKey]
-                                }
-                                if (loadedPainter != null) {
-                                    Image(
-                                        painter = loadedPainter,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                } else if (thumbnailEntry != null) {
-                                    AsyncImage(
-                                        model = thumbnailEntry.request,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        onSuccess = { result ->
-                                            thumbnailPainterCache.put(
-                                                thumbnailEntry.cacheKey,
-                                                result.painter
-                                            )
-                                        },
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -594,38 +615,6 @@ internal fun VideoViewerBottomChrome(
                 )
             }
         }
-    }
-}
-
-private const val VIDEO_STRIP_THUMBNAIL_SIZE_PX = 128
-private const val VIDEO_STRIP_PAINTER_CACHE_SIZE = 64
-
-private data class VideoStripThumbnailEntry(
-    val cacheKey: String,
-    val request: ImageRequest
-)
-
-internal class VideoStripLoadedValueCache<T>(
-    private val maxEntries: Int = VIDEO_STRIP_PAINTER_CACHE_SIZE
-) {
-    init {
-        require(maxEntries > 0)
-    }
-
-    private val values = mutableStateMapOf<String, T>()
-    private val insertionOrder = ArrayDeque<String>()
-
-    operator fun get(cacheKey: String): T? = values[cacheKey]
-
-    fun put(cacheKey: String, value: T) {
-        if (values.containsKey(cacheKey)) {
-            values[cacheKey] = value
-            return
         }
-        while (insertionOrder.size >= maxEntries) {
-            values.remove(insertionOrder.removeFirst())
-        }
-        insertionOrder.addLast(cacheKey)
-        values[cacheKey] = value
     }
 }

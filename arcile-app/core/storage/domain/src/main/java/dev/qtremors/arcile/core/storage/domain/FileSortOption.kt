@@ -6,5 +6,7 @@ enum class FileSortOption {
     DATE_NEWEST,
     DATE_OLDEST,
     SIZE_LARGEST,
-    SIZE_SMALLEST
+    SIZE_SMALLEST,
+    FILE_COUNT_HIGHEST,
+    FILE_COUNT_LOWEST
 }

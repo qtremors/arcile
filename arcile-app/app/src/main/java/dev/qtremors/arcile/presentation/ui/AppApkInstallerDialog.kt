@@ -42,6 +42,7 @@ internal fun AppApkInstallerDialog(
     val installState by PackageInstallerEngine.installState.collectAsState()
     var details by remember(target) { mutableStateOf<ApkPackageDetails?>(null) }
     val currentDetails by rememberUpdatedState(details)
+    val currentInstallState by rememberUpdatedState(installState)
 
     LaunchedEffect(target) {
         PackageInstallerEngine.resetState()
@@ -61,9 +62,9 @@ internal fun AppApkInstallerDialog(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 if (PackageInstallerEngine.canRequestPackageInstalls(context)) {
-                    if (installState is ApkInstallState.UnknownAppSourcesPermissionRequired) {
+                    if (currentInstallState is ApkInstallState.UnknownAppSourcesPermissionRequired) {
                         PackageInstallerEngine.resetState()
-                        details?.let { pkg ->
+                        currentDetails?.let { pkg ->
                             PackageInstallerEngine.installPackage(context, pkg)
                         }
                     }
@@ -92,25 +93,16 @@ internal fun AppApkInstallerDialog(
     ApkInstallerDialog(
         details = details,
         installState = installState,
+        isSelfUpdate = details?.packageName == context.packageName,
         onInstall = {
             details?.let { pkg ->
                 PackageInstallerEngine.installPackage(context, pkg)
+                if (!PackageInstallerEngine.canRequestPackageInstalls(context)) {
+                    context.openUnknownAppSourcesSettings()
+                }
             }
         },
-        onGrantPermission = {
-            try {
-                val intent = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(intent)
-            } catch (_: Exception) {
-                val fallbackIntent = Intent(Settings.ACTION_SECURITY_SETTINGS).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                }
-                context.startActivity(fallbackIntent)
-            }
-        },
+        onGrantPermission = context::openUnknownAppSourcesSettings,
         onOpenApp = { packageName ->
             val targetPackage = packageName.ifBlank { details?.packageName.orEmpty() }
             if (targetPackage.isNotBlank()) {
@@ -135,4 +127,13 @@ internal fun AppApkInstallerDialog(
         },
         onDismiss = handleDismiss
     )
+}
+
+private fun android.content.Context.openUnknownAppSourcesSettings() {
+    val appSources = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
+        data = Uri.parse("package:$packageName")
+    }
+    runCatching { startActivity(appSources) }.recoverCatching {
+        startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+    }
 }

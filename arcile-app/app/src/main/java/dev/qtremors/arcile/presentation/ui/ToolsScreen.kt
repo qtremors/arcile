@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.R
@@ -34,6 +36,7 @@ fun ToolsScreen(
     onUtilityHomeVisibilityChange: (String, Boolean) -> Unit,
     onMoveUtility: (String, Int) -> Unit
 ) {
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val selectedDefinitions = homeUtilityIds.mapNotNull { id ->
         ArcileUtilityCatalog.firstOrNull { it.id == id }
     }
@@ -46,9 +49,12 @@ fun ToolsScreen(
     }
 
     ArcileScreenScaffold(
+        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text(stringResource(R.string.tools_title)) },
+                title = { Text(stringResource(R.string.tools_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                scrollBehavior = scrollBehavior,
+                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     Box(
                         Modifier.size(48.dp).clip(CircleShape).bounceClickable(onClick = onNavigateBack),

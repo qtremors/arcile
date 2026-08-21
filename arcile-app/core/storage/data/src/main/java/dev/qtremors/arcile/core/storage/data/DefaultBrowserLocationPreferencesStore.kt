@@ -24,6 +24,15 @@ class DefaultBrowserLocationPreferencesStore(
     override suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) =
         dataSource.updateBrowserScrollbarEnabled(enabled)
 
+    override suspend fun updateBrowserTabsEnabled(enabled: Boolean) =
+        dataSource.updateBrowserTabsEnabled(enabled)
+
+    override suspend fun updateRememberLastFolder(enabled: Boolean) =
+        dataSource.updateRememberLastFolder(enabled)
+
+    override suspend fun updateExpandableAppBar(enabled: Boolean) =
+        dataSource.updateExpandableAppBar(enabled)
+
     override suspend fun updatePathPresentation(
         path: String,
         presentation: FileListingPreferences?,

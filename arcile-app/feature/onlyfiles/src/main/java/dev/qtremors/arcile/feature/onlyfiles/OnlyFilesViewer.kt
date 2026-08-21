@@ -328,12 +328,13 @@ internal fun createVaultVideoPlaybackSession(
     val queue = nodes.filter(VaultNodeMetadata::isViewableVideo).takeIf { selectedNode in it }
         ?: listOf(selectedNode)
     val refsByOpaqueId = queue.associate { it.ref.nodeId.value to it.ref }
+    val sharedFiles = queue.map(VaultNodeMetadata::toSharedFileModel)
     return VideoPlaybackSession(
-        items = queue.map { node ->
+        items = queue.zip(sharedFiles).map { (node, sharedFile) ->
             VideoPlaybackItem(
                 mediaItem = MediaItem.Builder()
                     .setUri("onlyfiles://playback/${node.ref.nodeId.value}")
-                    .setMediaId(node.ref.nodeId.value)
+                    .setMediaId(sharedFile.absolutePath)
                     .setMimeType(node.mimeType)
                     .build(),
                 title = node.name
@@ -344,7 +345,7 @@ internal fun createVaultVideoPlaybackSession(
             VaultMediaDataSource(refsByOpaqueId, openReader)
         },
         securityScopeId = vaultSecurityScope(vaultId),
-        files = queue.map { it.toSharedFileModel() }
+        files = sharedFiles
     )
 }
 

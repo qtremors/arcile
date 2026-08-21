@@ -1495,7 +1495,7 @@ private fun CategorySortSection(
                         onClick = { onSortChange(option) },
                         label = {
                             Text(
-                                text = stringResource(sortLabel(option)),
+                                text = stringResource(categorySortLabelResource(option)),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -1564,13 +1564,4 @@ private fun CategorySectionTitle(text: String) {
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Medium
     )
-}
-
-private fun sortLabel(option: FileSortOption): Int = when (option) {
-    FileSortOption.NAME_ASC -> R.string.sort_name_asc
-    FileSortOption.NAME_DESC -> R.string.sort_name_desc
-    FileSortOption.DATE_NEWEST -> R.string.sort_date_newest
-    FileSortOption.DATE_OLDEST -> R.string.sort_date_oldest
-    FileSortOption.SIZE_LARGEST -> R.string.sort_size_largest
-    FileSortOption.SIZE_SMALLEST -> R.string.sort_size_smallest
 }

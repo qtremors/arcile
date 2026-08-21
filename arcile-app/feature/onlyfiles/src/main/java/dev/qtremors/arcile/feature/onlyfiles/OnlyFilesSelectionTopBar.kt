@@ -104,6 +104,7 @@ internal fun SelectionTopBar(
     }
 
     LargeTopAppBar(
+        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(forceCompact = true),
         title = {
             Text(pluralStringResource(
                 R.plurals.onlyfiles_selected_count,

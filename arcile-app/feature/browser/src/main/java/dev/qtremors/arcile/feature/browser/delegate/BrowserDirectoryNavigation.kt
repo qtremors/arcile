@@ -4,8 +4,6 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStatsCachePolicy
 import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserNavigationEvent
 import dev.qtremors.arcile.feature.browser.reduce
@@ -24,20 +22,12 @@ internal fun BrowserNavigationController.loadDirectory(
     errorMessage: UiText? = null,
     persistAsLastOpened: Boolean = true,
     allowDirectPath: Boolean = false,
-    nodeRef: StorageNodeRef? = null,
-    inheritCurrentNodeRef: Boolean = true
+    isRootStorageScope: Boolean = state.value.isRootStorageScope
 ) {
-    val requestedNodeRef = nodeRef
-        ?: state.value.currentNodeRef
-            ?.takeIf { inheritCurrentNodeRef }
-            ?.let { currentNodeRef ->
-                currentNodeRef.takeIf { state.value.currentPath == path }
-                    ?: currentNodeRef.forNavigationPath(path)
-            }
-    val resolvedVolumeId = volumeId ?: findVolumeForPath(path)?.id
+    val resolvedVolumeId = if (isRootStorageScope) null else volumeId ?: findVolumeForPath(path)?.id
     val isContinuingDirectPath = state.value.currentVolumeId == null &&
         state.value.currentPath.isDirectLocalPath()
-    if (resolvedVolumeId == null && !allowDirectPath && !isContinuingDirectPath && requestedNodeRef?.isPrivileged != true) {
+    if (resolvedVolumeId == null && !allowDirectPath && !isContinuingDirectPath) {
         openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
         return
     }
@@ -50,7 +40,7 @@ internal fun BrowserNavigationController.loadDirectory(
     val generation = nextLoadGeneration()
     if (!preserveCurrentListing) onLocationChanged()
     update {
-        it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId, requestedNodeRef)).withValues(
+        it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId, isRootStorageScope)).withValues(
             isLoading = true,
             error = errorMessage
         ).withUpdatedDisplayState()
@@ -65,9 +55,7 @@ internal fun BrowserNavigationController.loadDirectory(
         applyPresentation(preferences.getPresentationForPath(path), generation)
 
         val loadedFiles = mutableListOf<FileModel>()
-        val pages = requestedNodeRef?.let { fileBrowserRepository.listNodePages(it) }
-            ?: fileBrowserRepository.listFilePages(path)
-        pages.collect { page ->
+        fileBrowserRepository.listFilePages(path).collect { page ->
             if (!isActiveLoad(generation)) return@collect
             page.error?.let { error ->
                 update {
@@ -88,19 +76,16 @@ internal fun BrowserNavigationController.loadDirectory(
             } else {
                 loadedFiles
             }
-            val shouldLoadFolderStats = resolvedVolumeId != null ||
-                requestedNodeRef?.backendId == StorageNodeRef.ROOT_BACKEND_ID ||
-                requestedNodeRef?.backendId == StorageNodeRef.SHIZUKU_BACKEND_ID
-            val folderNodes = if (shouldLoadFolderStats) {
-                page.files.filter(FileModel::isDirectory).map(FileModel::nodeRef)
-            } else {
+            val folderPaths = if (resolvedVolumeId == null) {
                 emptyList()
+            } else {
+                page.files.filter(FileModel::isDirectory).map(FileModel::absolutePath)
             }
-            val cachedStats = fileBrowserRepository.getCachedNodeFolderStats(folderNodes)
+            val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
             if (!isActiveLoad(generation)) return@collect
             val now = System.currentTimeMillis()
-            val nodesToQueue = folderNodes.filter { folderNode ->
-                val cached = cachedStats[folderNode.displayPath.absolutePath] ?: return@filter true
+            val pathsToQueue = folderPaths.filter { folderPath ->
+                val cached = cachedStats[folderPath] ?: return@filter true
                 val ttl = if (cached.status == FolderStatsStatus.Unavailable) {
                     FolderStatsCachePolicy.FAILURE_TTL_MS
                 } else {
@@ -108,10 +93,8 @@ internal fun BrowserNavigationController.loadDirectory(
                 }
                 now - cached.cachedAt > ttl
             }
-            val pathsToQueue = nodesToQueue.map { it.displayPath.absolutePath }
             update {
                 it.withValues(
-                    currentNodeRef = page.directoryRef ?: requestedNodeRef,
                     isLoading = !page.isComplete,
                     isPullToRefreshing = if (page.isComplete) false else it.isPullToRefreshing,
                     files = updatedFiles.toPersistentList(),
@@ -120,21 +103,10 @@ internal fun BrowserNavigationController.loadDirectory(
                         (it.folderStatsLoadingPaths + pathsToQueue).toPersistentSet()
                 ).withUpdatedDisplayState()
             }
-            fileBrowserRepository.queueNodeFolderStats(nodesToQueue)
+            fileBrowserRepository.queueFolderStats(pathsToQueue)
             if (page.isComplete) saveNavStateIfActive(generation)
         }
     }
-}
-
-private fun StorageNodeRef.forNavigationPath(path: String): StorageNodeRef = when {
-    isPrivileged -> StorageNodeRef.privileged(
-        backendId = backendId,
-        displayPath = path,
-        remoteCanonicalIdentity = path,
-        volumeId = volumeId?.value,
-        capabilities = capabilities
-    )
-    else -> StorageNodeRef.local(path, volumeId = volumeId?.value, capabilities = capabilities)
 }
 
 private fun String.isDirectLocalPath(): Boolean =

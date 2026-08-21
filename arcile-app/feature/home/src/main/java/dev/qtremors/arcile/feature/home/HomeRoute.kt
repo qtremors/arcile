@@ -6,6 +6,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.feature.home.ui.HomeContentIntents
 import dev.qtremors.arcile.feature.home.ui.HomeNavigationIntents
 import dev.qtremors.arcile.feature.home.ui.HomeScreen
@@ -39,14 +40,12 @@ fun HomeRoute(
     val preferencesViewModel = hiltViewModel<HomePreferencesViewModel>()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val homeRecentCarouselLimit by preferencesViewModel.recentCarouselLimit.collectAsStateWithLifecycle()
+
     HomeScreen(
         state = state,
         navigationIntents = HomeNavigationIntents(
             openFileBrowser = { onDestination(HomeDestination.BrowseRoot) },
-            navigateToPath = { path ->
-                if (path == "/") viewModel.loadRootStorageUsage()
-                onDestination(HomeDestination.BrowsePath(path))
-            },
+            navigateToPath = { path -> onDestination(HomeDestination.BrowsePath(path)) },
             openFileWithContext = { path, context ->
                 onDestination(HomeDestination.OpenFile(path, context))
             },
@@ -57,7 +56,9 @@ fun HomeRoute(
             navigateToTrash = { onDestination(HomeDestination.Trash) },
             navigateToRecentFiles = { onDestination(HomeDestination.RecentFiles) },
             navigateToQuickAccess = { onDestination(HomeDestination.QuickAccess) },
-            navigateToExternalFolder = { onDestination(HomeDestination.ExternalFolder(it)) },
+            navigateToExternalFolder = { item ->
+                onDestination(HomeDestination.ExternalFolder(item.path))
+            },
             openStorageDashboard = { onDestination(HomeDestination.StorageDashboard(it)) },
             navigateToCleaner = { onDestination(HomeDestination.Cleaner) },
             navigateToActivity = { onDestination(HomeDestination.ActivityLog) },
@@ -66,7 +67,6 @@ fun HomeRoute(
         contentIntents = HomeContentIntents(
             refresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
             resumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
-            loadRootStorageUsage = viewModel::loadRootStorageUsage,
             shareRecentFile = { path ->
                 onDestination(HomeDestination.ShareRecentFile(path, state.displayState.todayRecentFiles))
             },

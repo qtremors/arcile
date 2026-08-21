@@ -74,8 +74,8 @@ internal data class BrowserUiState(
     val pendingRevealReady: Boolean = false
 ) {
     val currentPath get() = location.currentPath
-    val currentNodeRef get() = location.currentNodeRef
     val currentVolumeId get() = location.currentVolumeId
+    val isRootStorageScope get() = location.isRootStorageScope
     val isVolumeRootScreen get() = location.isVolumeRootScreen
     val isCategoryScreen get() = location.isCategoryScreen
     val activeCategoryName get() = location.activeCategoryName

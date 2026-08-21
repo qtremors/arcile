@@ -58,6 +58,7 @@ internal object FolderStatsCalculator {
             pending.add(child)
         }
 
+        val visitedDirectories = hashSetOf(directoryIdentity(root))
         var fileCount = 0L
         var totalBytes = 0L
         var encounteredLimitedAccess = false
@@ -73,8 +74,14 @@ internal object FolderStatsCalculator {
                 return FolderStats(fileCount, totalBytes, now, FolderStatsStatus.Partial)
             }
             if (!current.isDirectory) {
-                fileCount += 1L
-                totalBytes += current.length()
+                fileCount = fileCount.saturatedIncrement()
+                totalBytes = totalBytes.saturatedAdd(current.length().coerceAtLeast(0L))
+                continue
+            }
+
+            val identity = directoryIdentity(current)
+            if (identity == null || !visitedDirectories.add(identity)) {
+                encounteredLimitedAccess = true
                 continue
             }
 
@@ -98,4 +105,18 @@ internal object FolderStatsCalculator {
         }
         return FolderStats(fileCount, totalBytes, now, status)
     }
+
+    private fun directoryIdentity(file: File): String? =
+        try {
+            file.canonicalPath
+        } catch (error: Exception) {
+            error.rethrowIfCancellation()
+            null
+        }
+
+    private fun Long.saturatedIncrement(): Long =
+        if (this == Long.MAX_VALUE) Long.MAX_VALUE else this + 1L
+
+    private fun Long.saturatedAdd(value: Long): Long =
+        if (value > Long.MAX_VALUE - this) Long.MAX_VALUE else this + value
 }

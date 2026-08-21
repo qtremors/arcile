@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.trash
 
-import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -15,6 +14,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
+import dev.qtremors.arcile.testutil.FakeActivityLogStore
 import dev.qtremors.arcile.testutil.MainDispatcherRule
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import dev.qtremors.arcile.testutil.testFile
@@ -43,7 +43,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -67,7 +68,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -102,7 +104,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -125,7 +128,11 @@ class TrashViewModelTest {
         val requirement = restoreRequirement("current-request")
         var restoreCalls = 0
         val repository = authorizationRepository(requirement) { restoreCalls += 1 }
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -142,7 +149,11 @@ class TrashViewModelTest {
         val requirement = restoreRequirement("denied-request")
         var restoreCalls = 0
         val repository = authorizationRepository(requirement) { restoreCalls += 1 }
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -173,7 +184,11 @@ class TrashViewModelTest {
                 }
             }
         }
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -191,7 +206,11 @@ class TrashViewModelTest {
     fun `unavailable authorization clears context and reports operation error`() = runTest(mainDispatcherRule.dispatcher) {
         val requirement = restoreRequirement("expired-request")
         val repository = authorizationRepository(requirement) {}
-        val viewModel = TrashViewModel(repository.trashRepository, repository.volumeRepository)
+        val viewModel = TrashViewModel(
+            repository.trashRepository,
+            repository.volumeRepository,
+            FakeActivityLogStore()
+        )
 
         advanceUntilIdle()
         viewModel.restoreToDestination(listOf("1"), "/storage/emulated/0/Download")
@@ -241,7 +260,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -267,7 +287,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -288,7 +309,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -300,56 +322,6 @@ class TrashViewModelTest {
     }
 
     @Test
-    fun `restoreTrashItem blocks unavailable backend without calling repository`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeStorageRepositoryBundle().apply {
-            trashFilesResult = Result.success(
-                listOf(trashItem("privileged:one", "private.txt", TrashRestoreStatus.BACKEND_UNAVAILABLE))
-            )
-        }
-        val viewModel = TrashViewModel(
-            trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
-        )
-
-        advanceUntilIdle()
-        viewModel.restoreTrashItem("privileged:one")
-        advanceUntilIdle()
-
-        assertEquals(
-            UiText.Dynamic("Reconnect the original storage backend before restoring this item"),
-            viewModel.state.value.error
-        )
-        assertFalse(viewModel.state.value.showDestinationPicker)
-        assertTrue(repository.restoreFromTrashRequests.isEmpty())
-    }
-
-    @Test
-    fun `restoreSelectedTrash keeps selection when one backend is unavailable`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeStorageRepositoryBundle().apply {
-            trashFilesResult = Result.success(
-                listOf(
-                    trashItem("privileged:one", "private.txt", TrashRestoreStatus.BACKEND_UNAVAILABLE),
-                    trashItem("local", "ready.txt", TrashRestoreStatus.ORIGINAL_AVAILABLE)
-                )
-            )
-        }
-        val viewModel = TrashViewModel(
-            trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
-        )
-
-        advanceUntilIdle()
-        viewModel.toggleSelection("privileged:one")
-        viewModel.toggleSelection("local")
-        viewModel.restoreSelectedTrash()
-        advanceUntilIdle()
-
-        assertEquals(setOf("privileged:one", "local"), viewModel.state.value.selectedFiles)
-        assertTrue(viewModel.state.value.error is UiText.Dynamic)
-        assertTrue(repository.restoreFromTrashRequests.isEmpty())
-    }
-
-    @Test
     fun `filter exposes restore status groups`() = runTest(mainDispatcherRule.dispatcher) {
         val repository = FakeStorageRepositoryBundle().apply {
             trashFilesResult = Result.success(
@@ -357,14 +329,14 @@ class TrashViewModelTest {
                     trashItem("1", "ready.txt", TrashRestoreStatus.ORIGINAL_AVAILABLE),
                     trashItem("2", "conflict.txt", TrashRestoreStatus.ORIGINAL_CONFLICT_RENAME),
                     trashItem("3", "missing.txt", TrashRestoreStatus.DESTINATION_REQUIRED),
-                    trashItem("4", "recovered", TrashRestoreStatus.RECOVERED_ITEM),
-                    trashItem("5", "offline.txt", TrashRestoreStatus.BACKEND_UNAVAILABLE)
+                    trashItem("4", "recovered", TrashRestoreStatus.RECOVERED_ITEM)
                 )
             )
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -375,10 +347,7 @@ class TrashViewModelTest {
         assertEquals(listOf("missing.txt"), viewModel.state.value.visibleTrashFiles.map { it.fileModel.name })
 
         viewModel.updateFilter(TrashFilter.RECOVERED)
-        assertEquals(
-            listOf("recovered", "offline.txt"),
-            viewModel.state.value.visibleTrashFiles.map { it.fileModel.name }
-        )
+        assertEquals(listOf("recovered"), viewModel.state.value.visibleTrashFiles.map { it.fileModel.name })
     }
 
     @Test
@@ -393,7 +362,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -416,7 +386,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -437,7 +408,8 @@ class TrashViewModelTest {
         }
         val viewModel = TrashViewModel(
             trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
+            volumeRepository = repository.volumeRepository,
+            activityLogStore = FakeActivityLogStore()
         )
 
         advanceUntilIdle()
@@ -447,32 +419,6 @@ class TrashViewModelTest {
         assertTrue(viewModel.state.value.isPropertiesVisible)
         assertEquals("Photo.jpg", viewModel.state.value.properties?.title)
         assertTrue(viewModel.state.value.properties?.rows?.any { it.first == "Trash payload" } == true)
-    }
-
-    @Test
-    fun `multi selection properties count backend unavailable items separately`() = runTest(mainDispatcherRule.dispatcher) {
-        val repository = FakeStorageRepositoryBundle().apply {
-            trashFilesResult = Result.success(
-                listOf(
-                    trashItem("privileged:one", "offline.txt", TrashRestoreStatus.BACKEND_UNAVAILABLE),
-                    trashItem("legacy", "Recovered Item", TrashRestoreStatus.RECOVERED_ITEM),
-                    trashItem("local", "missing.txt", TrashRestoreStatus.DESTINATION_REQUIRED)
-                )
-            )
-        }
-        val viewModel = TrashViewModel(
-            trashRepository = repository.trashRepository,
-            volumeRepository = repository.volumeRepository
-        )
-
-        advanceUntilIdle()
-        viewModel.selectAll()
-        viewModel.openPropertiesForSelection()
-
-        val rows = viewModel.state.value.properties?.rows.orEmpty().toMap()
-        assertEquals("1", rows["Recovered items"])
-        assertEquals("1", rows["Backend unavailable"])
-        assertEquals("2", rows["Need destination"])
     }
 }
 

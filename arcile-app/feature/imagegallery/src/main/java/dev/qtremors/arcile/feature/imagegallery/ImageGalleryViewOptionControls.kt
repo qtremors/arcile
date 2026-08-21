@@ -331,7 +331,7 @@ internal fun SortChip(
         onClick = { onSelect(option) },
         label = {
             Text(
-                stringResource(
+                text = stringResource(
                     when (option) {
                         FileSortOption.NAME_ASC -> R.string.sort_name_asc
                         FileSortOption.NAME_DESC -> R.string.sort_name_desc
@@ -339,8 +339,12 @@ internal fun SortChip(
                         FileSortOption.DATE_OLDEST -> R.string.sort_date_oldest
                         FileSortOption.SIZE_LARGEST -> R.string.sort_size_largest
                         FileSortOption.SIZE_SMALLEST -> R.string.sort_size_smallest
+                        FileSortOption.FILE_COUNT_HIGHEST -> R.string.sort_file_count_highest
+                        FileSortOption.FILE_COUNT_LOWEST -> R.string.sort_file_count_lowest
                     }
-                )
+                ),
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
             )
         },
         modifier = modifier

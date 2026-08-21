@@ -42,6 +42,23 @@ class QuickAccessRouteTest {
     }
 
     @Test
+    fun `restricted folder uri maps to its local path`() {
+        val uri = restrictedExternalStorageUri("Android/data")
+
+        assertEquals("/storage/emulated/0/Android/data", restrictedLocalPath(uri.toString()))
+    }
+
+    @Test
+    fun `restricted local path rejects other providers and volumes`() {
+        assertEquals(null, restrictedLocalPath("content://example/document/primary%3AAndroid%2Fdata"))
+        val homeVolume = DocumentsContract.buildDocumentUri(
+            "com.android.externalstorage.documents",
+            "home:Android/data"
+        )
+        assertEquals(null, restrictedLocalPath(homeVolume.toString()))
+    }
+
+    @Test
     fun `restricted folder uri rejects traversal`() {
         assertThrows(IllegalArgumentException::class.java) {
             restrictedExternalStorageUri("Android/../Download")

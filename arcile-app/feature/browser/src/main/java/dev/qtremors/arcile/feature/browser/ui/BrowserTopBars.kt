@@ -17,15 +17,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Tab
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Storage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserUiState
+import dev.qtremors.arcile.feature.browser.browserPathTitle
 import dev.qtremors.arcile.core.ui.ArcileTopBar
 import dev.qtremors.arcile.core.ui.ArcileTopBarMenuAction
 import dev.qtremors.arcile.core.ui.SearchTopBar
@@ -47,8 +44,6 @@ internal fun BrowserTopBars(
     mutationIntents: BrowserMutationIntents,
     clipboardIntents: BrowserClipboardIntents,
     onToggleHiddenFiles: () -> Unit,
-    onAnalyzeStorage: () -> Unit,
-    onCleanStorage: () -> Unit,
     appStartPage: AppStartPage?,
     onAppStartPageChange: (AppStartPage) -> Unit,
     onBackClick: () -> Unit,
@@ -91,15 +86,27 @@ internal fun BrowserTopBars(
             } else {
                 null
             }
+            val browseTitle = stringResource(R.string.browse_title)
+            val rootStorageTitle = stringResource(R.string.root_storage)
+            val currentPathTitle = browserPathTitle(
+                path = state.currentPath,
+                isRootStorageScope = state.isRootStorageScope,
+                volumeName = state.displayState.currentVolume
+                    ?.takeIf { it.path == state.currentPath }
+                    ?.name,
+                fallback = browseTitle,
+                rootStorageTitle = rootStorageTitle
+            )
 
             ArcileTopBar(
                 title = when {
                     state.archiveContext != null -> state.archiveContext.archiveName
                     state.isCategoryScreen -> state.activeCategoryName
-                    else -> stringResource(R.string.browse_title)
+                    else -> currentPathTitle
                 },
                 selectionCount = state.selectedFiles.size,
                 selectedSize = selectedSizeFormatted,
+                scrollBehavior = scrollBehavior,
                 options = dev.qtremors.arcile.core.ui.ArcileTopBarOptions(
                     showBackArrow = true,
                     showSearchAction = true,
@@ -115,30 +122,7 @@ internal fun BrowserTopBars(
                     areHiddenFilesShown = state.showHiddenFiles,
                     isGridView = state.browserViewMode == FileViewMode.GRID
                 ),
-                scrollBehavior = scrollBehavior,
                 menuActions = buildList {
-                    if (
-                        state.currentNodeRef?.isPrivileged == true &&
-                        state.currentPath.isNotBlank() &&
-                        !state.isCategoryScreen &&
-                        !state.isVolumeRootScreen &&
-                        state.archiveContext == null
-                    ) {
-                        add(
-                            ArcileTopBarMenuAction(
-                                label = stringResource(R.string.browser_analyze_this_folder),
-                                icon = Icons.Default.Storage,
-                                onClick = onAnalyzeStorage
-                            )
-                        )
-                        add(
-                            ArcileTopBarMenuAction(
-                                label = stringResource(R.string.browser_clean_this_folder),
-                                icon = Icons.Default.DeleteSweep,
-                                onClick = onCleanStorage
-                            )
-                        )
-                    }
                     if (onWorkspaceTabsEnabledChange != null) {
                         add(
                             ArcileTopBarMenuAction(
@@ -180,7 +164,7 @@ internal fun BrowserTopBars(
                             TopBarAction.NewFolder -> dialogVisibility.showCreateFolderDialog = true
                             TopBarAction.PinToQuickAccess -> {
                                 state.currentPath.takeIf { it.isNotEmpty() }?.let { path ->
-                                    val label = storagePathName(path)
+                                    val label = currentPathTitle
                                     selectionIntents.onPinToQuickAccess(path, label)
                                     onShowPinnedSnackbar(label)
                                 }
