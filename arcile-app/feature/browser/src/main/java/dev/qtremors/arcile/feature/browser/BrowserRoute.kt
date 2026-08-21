@@ -17,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.material3.TopAppBarState
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -104,6 +105,7 @@ fun BrowserRoute(
     workspaceTabs: @Composable () -> Unit = {},
     workspaceTabsEnabled: Boolean = false,
     onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    sharedTopAppBarState: TopAppBarState? = null,
     renderContent: Boolean = true,
     modifier: Modifier = Modifier
 ) {
@@ -403,7 +405,8 @@ fun BrowserRoute(
                 batchRenameHistory = batchRenameHistory,
                 workspaceTabs = workspaceTabs,
                 workspaceTabsEnabled = workspaceTabsEnabled,
-                onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange
+                onWorkspaceTabsEnabledChange = onWorkspaceTabsEnabledChange,
+                sharedTopAppBarState = sharedTopAppBarState
             )
         } else {
             Column(modifier = Modifier.fillMaxSize()) {

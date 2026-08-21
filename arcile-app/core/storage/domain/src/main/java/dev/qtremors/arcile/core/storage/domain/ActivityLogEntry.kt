@@ -16,6 +16,13 @@ sealed interface ActivityLogEntry {
     ) : ActivityLogEntry
 
     @Serializable
+    data class FileOpened(
+        override val id: String,
+        override val timestampMillis: Long,
+        val path: String
+    ) : ActivityLogEntry
+
+    @Serializable
     data class FileOperation(
         override val id: String,
         override val timestampMillis: Long,

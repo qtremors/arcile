@@ -68,6 +68,9 @@ internal fun SettingsRoute(
             showHiddenFilesChange = viewModel::updateShowHiddenFiles,
             appStartPageChange = viewModel::updateAppStartPage,
             browserTabsEnabledChange = viewModel::updateBrowserTabsEnabled,
+            rememberLastFolderChange = viewModel::updateRememberLastFolder,
+            expandableAppBarChange = viewModel::updateExpandableAppBar,
+            activityRecordingChange = viewModel::updateActivityRecording,
             browserScrollbarEnabledChange = viewModel::updateBrowserScrollbarEnabled,
             galleryScrollbarEnabledChange = viewModel::updateGalleryScrollbarEnabled,
             fileOpenBehaviorChange = viewModel::updateFileOpenBehavior

@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.2
+> **Version:** 2.0.3
 > **Last Updated:** 2026-08-21
 
 ---
+
+## [2.0.3] - 2026-08-21
+
+- **Browser Preferences**: Added dedicated Browsing settings for remembering the last folder and keeping browser app bars compact, with a shared app-bar state across tabs and dual panes.
+- **Complete Activity History**: Expanded Activity to include opened files alongside folders and file operations, with a master recording switch that retains existing history when disabled.
+- **Responsive Browsing And Viewers**: Added pinch-to-resize browser grids and moved image and video thumbnail strips to a vertical layout in landscape orientation.
+- **Clearer Feedback And Properties**: Made feedback messages swipe-to-dismiss with distinct icon and action containers, removed the close button, and consolidated duplicate file and folder property details.
+- **Cleaner Startup**: Updated the splash screen to show only Arcile's foreground logo without the launcher icon background.
 
 ## [2.0.2] - 2026-08-15
 

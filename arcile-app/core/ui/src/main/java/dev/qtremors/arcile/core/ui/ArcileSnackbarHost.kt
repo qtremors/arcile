@@ -4,34 +4,39 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarData
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.ui.Alignment
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
+import kotlin.math.abs
+import kotlin.math.roundToInt
 
 enum class ArcileFeedbackSeverity {
     Success,
@@ -62,8 +67,24 @@ fun ArcileSnackbarHost(
             .padding(MaterialTheme.spacing.space12)
     ) { data ->
         val severity = severityFor(data)
+        var swipeOffset by remember(data.visuals.message) { mutableFloatStateOf(0f) }
         Box(
-            modifier = Modifier.wrapContentWidth(Alignment.CenterHorizontally),
+            modifier = Modifier
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .offset { IntOffset(swipeOffset.roundToInt(), 0) }
+                .pointerInput(data) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            swipeOffset += dragAmount
+                        },
+                        onDragEnd = {
+                            if (abs(swipeOffset) >= 96.dp.toPx()) data.dismiss()
+                            else swipeOffset = 0f
+                        },
+                        onDragCancel = { swipeOffset = 0f }
+                    )
+                },
             contentAlignment = Alignment.Center
         ) {
             Surface(
@@ -81,12 +102,20 @@ fun ArcileSnackbarHost(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = severity.icon(),
-                        contentDescription = null,
-                        tint = severity.tint(),
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = severity.containerColor(),
+                        contentColor = severity.tint(),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = severity.icon(),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
                     Text(
                         text = data.visuals.message,
                         overflow = TextOverflow.Ellipsis,
@@ -94,28 +123,15 @@ fun ArcileSnackbarHost(
                         modifier = Modifier.widthIn(max = 360.dp)
                     )
                     data.visuals.actionLabel?.let { label ->
-                        TextButton(
+                        Surface(
                             onClick = data::performAction,
-                            shape = MaterialTheme.shapes.medium,
-                            modifier = Modifier.bounceClickable(onClick = data::performAction)
+                            shape = MaterialTheme.shapes.large,
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                         ) {
                             Text(
                                 text = label,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                    if (data.visuals.withDismissAction) {
-                        IconButton(
-                            onClick = data::dismiss,
-                            modifier = Modifier
-                                .clip(CircleShape)
-                                .bounceClickable(onClick = data::dismiss)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                             )
                         }
                     }
@@ -140,4 +156,13 @@ private fun ArcileFeedbackSeverity.tint() =
         ArcileFeedbackSeverity.Error -> MaterialTheme.colorScheme.error
         ArcileFeedbackSeverity.Warning -> MaterialTheme.colorScheme.tertiary
         ArcileFeedbackSeverity.Info -> MaterialTheme.colorScheme.primary
+    }
+
+@Composable
+private fun ArcileFeedbackSeverity.containerColor() =
+    when (this) {
+        ArcileFeedbackSeverity.Success -> MaterialTheme.colorScheme.primaryContainer
+        ArcileFeedbackSeverity.Error -> MaterialTheme.colorScheme.errorContainer
+        ArcileFeedbackSeverity.Warning -> MaterialTheme.colorScheme.tertiaryContainer
+        ArcileFeedbackSeverity.Info -> MaterialTheme.colorScheme.secondaryContainer
     }

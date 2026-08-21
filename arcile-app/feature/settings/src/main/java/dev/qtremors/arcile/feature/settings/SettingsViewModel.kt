@@ -9,6 +9,7 @@ import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -34,6 +35,7 @@ internal class SettingsViewModel @Inject constructor(
     private val browserPreferencesStore: BrowserLocationPreferencesStore,
     private val recentFilesPreferencesStore: RecentFilesPreferencesStore,
     private val galleryPreferencesStore: GalleryPreferencesStore,
+    private val activityLogStore: ActivityLogStore,
     private val preferencesBackupManager: PreferencesBackupGateway,
     private val externalStagingCache: ExternalStagingCache
 ) : ViewModel() {
@@ -41,8 +43,10 @@ internal class SettingsViewModel @Inject constructor(
         browserPreferencesStore.locationPreferencesFlow,
         recentFilesPreferencesStore.recentFilesPreferencesFlow,
         galleryPreferencesStore.galleryPreferencesFlow,
-        ::SettingsPreferences
-    ).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsPreferences())
+        activityLogStore.recordingEnabled
+    ) { browser, recent, gallery, activityRecordingEnabled ->
+        SettingsPreferences(browser, recent, gallery, activityRecordingEnabled)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsPreferences())
 
     private val _backupState = MutableStateFlow<PreferencesBackupUiState>(PreferencesBackupUiState.Idle)
     val backupState: StateFlow<PreferencesBackupUiState> = _backupState.asStateFlow()
@@ -118,6 +122,18 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateRememberLastFolder(enabled: Boolean) {
+        viewModelScope.launch { browserPreferencesStore.updateRememberLastFolder(enabled) }
+    }
+
+    fun updateExpandableAppBar(enabled: Boolean) {
+        viewModelScope.launch { browserPreferencesStore.updateExpandableAppBar(enabled) }
+    }
+
+    fun updateActivityRecording(enabled: Boolean) {
+        viewModelScope.launch { activityLogStore.setRecordingEnabled(enabled) }
+    }
+
     fun updateBrowserScrollbarEnabled(enabled: Boolean) {
         viewModelScope.launch {
             browserPreferencesStore.updateBrowserScrollbarEnabled(enabled)
@@ -189,7 +205,8 @@ internal class SettingsViewModel @Inject constructor(
 internal data class SettingsPreferences(
     val browser: BrowserLocationPreferences = BrowserLocationPreferences(),
     val recentFiles: RecentFilesPreferences = RecentFilesPreferences(),
-    val gallery: GalleryPreferences = GalleryPreferences()
+    val gallery: GalleryPreferences = GalleryPreferences(),
+    val activityRecordingEnabled: Boolean = true
 ) {
     val globalPresentation: FileListingPreferences
         get() = browser.globalPresentation
@@ -207,6 +224,10 @@ internal data class SettingsPreferences(
         get() = browser.appStartPage
     val browserTabsEnabled: Boolean
         get() = browser.browserTabsEnabled
+    val rememberLastFolder: Boolean
+        get() = browser.rememberLastFolder
+    val expandableAppBar: Boolean
+        get() = browser.expandableAppBar
 }
 
 internal sealed interface PreferencesBackupUiState {

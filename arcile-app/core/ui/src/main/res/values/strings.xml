@@ -128,6 +128,8 @@
     <!-- Settings Screen -->
     <string name="settings_title">Settings</string>
     <string name="section_appearance">Appearance</string>
+    <string name="section_browsing">Browsing</string>
+    <string name="section_activity_privacy">Activity &amp; privacy</string>
     <string name="section_storage">Storage</string>
     <string name="manage_classification">Manage Storage Classification</string>
     <string name="manage_classification_description">"Classify external volumes as SD card, OTG, or reset them."</string>
@@ -199,6 +201,12 @@
     <string name="settings_marquee_filenames_description">Scroll long filenames horizontally.</string>
     <string name="settings_browser_tabs">Browser tabs</string>
     <string name="settings_browser_tabs_description">Show the tab bar in the file browser to switch between multiple tabs.</string>
+    <string name="settings_remember_last_folder">Remember last folder</string>
+    <string name="settings_remember_last_folder_description">Reopen the last visited folder when Browse starts.</string>
+    <string name="settings_expandable_app_bars">Expandable app bars</string>
+    <string name="settings_expandable_app_bars_description">Let Browser titles expand and collapse while scrolling.</string>
+    <string name="settings_record_activity">Record activity</string>
+    <string name="settings_record_activity_description">Keep a local history of opened folders, opened files, and file operations. Turning this off retains existing history.</string>
     <string name="settings_app_start_page">Start page</string>
     <string name="settings_app_start_page_description">Choose which page to open when Arcile launches.</string>
     <string name="start_page_home">Home</string>
@@ -339,8 +347,9 @@
     <string name="activity_log_clear_title">Clear activity?</string>
     <string name="activity_log_clear_message">This removes all local activity entries from this device.</string>
     <string name="activity_log_empty_title">No activity yet</string>
-    <string name="activity_log_empty_message">Opened folders and file operations will appear here.</string>
+    <string name="activity_log_empty_message">Opened files, folders, and file operations will appear here.</string>
     <string name="activity_log_folder_opened">Opened folder</string>
+    <string name="activity_log_file_opened">Opened file</string>
     <string name="activity_log_operation_title">%1$s • %2$s</string>
     <string name="activity_log_status_running">Running</string>
     <string name="activity_log_status_completed">Completed</string>
@@ -441,6 +450,15 @@
         <item quantity="one">%1$d file • %2$s</item>
         <item quantity="other">%1$d files • %2$s</item>
     </plurals>
+    <plurals name="properties_file_count_value">
+        <item quantity="one">%1$d file</item>
+        <item quantity="other">%1$d files</item>
+    </plurals>
+    <plurals name="properties_folder_count_value">
+        <item quantity="one">%1$d folder</item>
+        <item quantity="other">%1$d folders</item>
+    </plurals>
+    <string name="properties_folder_contents">%1$s • %2$s • %3$s</string>
     <string name="archive_compress_zip">Create archive</string>
     <string name="archive_extract_here">Extract here</string>
     <string name="archive_extract_to_folder">Extract to folder</string>

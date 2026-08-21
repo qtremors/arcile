@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
@@ -37,6 +38,7 @@ class ActivityLogRepository(
     )
 ) : ActivityLogStore {
     private val entriesKey = stringPreferencesKey("entries")
+    private val recordingEnabledKey = booleanPreferencesKey("recording_enabled")
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
@@ -54,6 +56,13 @@ class ActivityLogRepository(
         .map { prefs -> decodeEntries(prefs[entriesKey]) }
         .flowOn(dispatchers.io)
 
+    override val recordingEnabled: Flow<Boolean> = dataStore.data
+        .catch { exception ->
+            if (exception is IOException) emit(emptyPreferences()) else throw exception
+        }
+        .map { prefs -> prefs[recordingEnabledKey] ?: true }
+        .flowOn(dispatchers.io)
+
     override suspend fun recordFolderOpened(path: String, volumeId: String?) {
         append(
             ActivityLogEntry.FolderOpened(
@@ -65,9 +74,20 @@ class ActivityLogRepository(
         )
     }
 
+    override suspend fun recordFileOpened(path: String) {
+        append(
+            ActivityLogEntry.FileOpened(
+                id = UUID.randomUUID().toString(),
+                timestampMillis = System.currentTimeMillis(),
+                path = path
+            )
+        )
+    }
+
     override suspend fun upsertFileOperation(entry: ActivityLogEntry.FileOperation) {
         withContext(dispatchers.io) {
             dataStore.edit { prefs ->
+                if (prefs[recordingEnabledKey] == false) return@edit
                 val existing = decodeEntries(prefs[entriesKey])
                     .filterNot { it is ActivityLogEntry.FileOperation && it.operationId == entry.operationId }
                 prefs[entriesKey] = json.encodeToString(trim(listOf(entry) + existing))
@@ -81,9 +101,16 @@ class ActivityLogRepository(
         }
     }
 
+    override suspend fun setRecordingEnabled(enabled: Boolean) {
+        withContext(dispatchers.io) {
+            dataStore.edit { prefs -> prefs[recordingEnabledKey] = enabled }
+        }
+    }
+
     private suspend fun append(entry: ActivityLogEntry) {
         withContext(dispatchers.io) {
             dataStore.edit { prefs ->
+                if (prefs[recordingEnabledKey] == false) return@edit
                 prefs[entriesKey] = json.encodeToString(trim(listOf(entry) + decodeEntries(prefs[entriesKey])))
             }
         }

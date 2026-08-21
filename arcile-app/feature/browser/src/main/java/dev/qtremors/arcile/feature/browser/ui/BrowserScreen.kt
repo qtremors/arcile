@@ -18,10 +18,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -81,7 +84,8 @@ internal fun BrowserScreen(
     batchRenameHistory: List<String> = emptyList(),
     workspaceTabs: @Composable () -> Unit = {},
     workspaceTabsEnabled: Boolean = false,
-    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    sharedTopAppBarState: TopAppBarState? = null
 ) {
     val listState = scroll.listState
     val gridState = scroll.gridState
@@ -156,18 +160,21 @@ internal fun BrowserScreen(
     }
 
     val displayedFiles = state.displayState.visibleFiles
+    var activeGridCellSize by remember(state.browserGridMinCellSize) {
+        mutableFloatStateOf(state.browserGridMinCellSize)
+    }
     val currentPresentation = remember(
         state.browserSortOption,
         state.browserViewMode,
         state.browserListZoom,
-        state.browserGridMinCellSize,
+        activeGridCellSize,
         state.browserShowThumbnails
     ) {
         FileListingPreferences(
             sortOption = state.browserSortOption,
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
-            gridMinCellSize = state.browserGridMinCellSize,
+            gridMinCellSize = activeGridCellSize,
             showThumbnails = state.browserShowThumbnails && state.archiveContext == null
         )
     }
@@ -332,7 +339,10 @@ internal fun BrowserScreen(
         }
     }
 
-    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val localTopAppBarState = rememberTopAppBarState()
+    val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior(
+        state = sharedTopAppBarState ?: localTopAppBarState
+    )
 
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val isClipboardActive = state.clipboardState != null
@@ -441,7 +451,15 @@ internal fun BrowserScreen(
                     selectionIntents = intents.selection,
                     searchIntents = intents.search,
                     onShowSearchBarChange = { showSearchBar = it },
-                    onSwitchCategoryFolderTab = switchCategoryFolderTab
+                    onSwitchCategoryFolderTab = switchCategoryFolderTab,
+                    onGridSizeChange = { activeGridCellSize = it },
+                    onGridSizeFinalized = { size ->
+                        activeGridCellSize = size
+                        intents.search.onPresentationChange(
+                            currentPresentation.copy(gridMinCellSize = size),
+                            false
+                        )
+                    }
                 )
             }
 

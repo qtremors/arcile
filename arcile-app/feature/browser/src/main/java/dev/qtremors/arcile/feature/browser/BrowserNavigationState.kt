@@ -43,6 +43,7 @@ internal data class BrowserListingState(
     val browserGridMinCellSize: Float = FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val browserShowThumbnails: Boolean = FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
     val browserScrollbarEnabled: Boolean = true,
+    val expandableAppBar: Boolean = true,
     val showHiddenFiles: Boolean = true,
     val displayState: BrowserDisplayState = BrowserDisplayState()
 )
@@ -73,6 +74,7 @@ internal data class BrowserNavigationState(
     val browserGridMinCellSize get() = listing.browserGridMinCellSize
     val browserShowThumbnails get() = listing.browserShowThumbnails
     val browserScrollbarEnabled get() = listing.browserScrollbarEnabled
+    val expandableAppBar get() = listing.expandableAppBar
     val showHiddenFiles get() = listing.showHiddenFiles
     val displayState get() = listing.displayState
 
@@ -99,6 +101,7 @@ internal data class BrowserNavigationState(
         browserGridMinCellSize: Float = this.browserGridMinCellSize,
         browserShowThumbnails: Boolean = this.browserShowThumbnails,
         browserScrollbarEnabled: Boolean = this.browserScrollbarEnabled,
+        expandableAppBar: Boolean = this.expandableAppBar,
         showHiddenFiles: Boolean = this.showHiddenFiles
     ): BrowserNavigationState = BrowserNavigationState(
         location = location.copy(
@@ -125,6 +128,7 @@ internal data class BrowserNavigationState(
             browserGridMinCellSize = browserGridMinCellSize,
             browserShowThumbnails = browserShowThumbnails,
             browserScrollbarEnabled = browserScrollbarEnabled,
+            expandableAppBar = expandableAppBar,
             showHiddenFiles = showHiddenFiles
         )
     ).withUpdatedDisplayState()

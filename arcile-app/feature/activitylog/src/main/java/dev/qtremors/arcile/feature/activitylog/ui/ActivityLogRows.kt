@@ -5,6 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material3.Icon
@@ -24,8 +25,23 @@ import dev.qtremors.arcile.core.ui.R
 internal fun ActivityLogRow(entry: ActivityLogEntry) {
     when (entry) {
         is ActivityLogEntry.FolderOpened -> FolderOpenedRow(entry)
+        is ActivityLogEntry.FileOpened -> FileOpenedRow(entry)
         is ActivityLogEntry.FileOperation -> FileOperationRow(entry)
     }
+}
+
+@Composable
+private fun FileOpenedRow(entry: ActivityLogEntry.FileOpened) {
+    ListItem(
+        leadingContent = { Icon(Icons.Default.InsertDriveFile, contentDescription = null) },
+        headlineContent = { Text(stringResource(R.string.activity_log_file_opened)) },
+        supportingContent = {
+            Text(text = entry.path, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        },
+        trailingContent = {
+            Text(activityTime(entry.timestampMillis), style = MaterialTheme.typography.labelSmall)
+        }
+    )
 }
 
 @Composable

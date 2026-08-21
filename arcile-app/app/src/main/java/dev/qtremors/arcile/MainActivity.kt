@@ -114,6 +114,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onOpenFile = ::openFile,
                                     onOpenFileWith = ::openFileWith,
+                                    onRecordFileOpened = viewModel::recordFileOpened,
                                     fileOpenBehaviors = fileOpenBehaviors,
                                     appStartPage = appStartPage,
                                     onAppStartPageChange = viewModel::updateAppStartPage,

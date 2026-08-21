@@ -187,6 +187,23 @@ class BrowserNavigationControllerTest {
     }
 
     @Test
+    fun `openFileBrowser ignores persisted location when remembering is disabled`() = testScope.runTest {
+        every { browserPreferencesRepository.locationPreferencesFlow } returns kotlinx.coroutines.flow.flowOf(
+            BrowserLocationPreferences(
+                lastOpenedPath = "/storage/emulated/0/Documents",
+                lastOpenedVolumeId = "vol1",
+                rememberLastFolder = false
+            )
+        )
+        repository.filesByPath = mapOf("/storage/emulated/0" to emptyList())
+
+        delegate.openFileBrowser(restorePersistentLocation = true)
+        advanceUntilIdle()
+
+        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
+    }
+
+    @Test
     fun `openFileBrowser same-folder restore preserves folder history after viewer return`() = testScope.runTest {
         every { browserPreferencesRepository.locationPreferencesFlow } returns kotlinx.coroutines.flow.flowOf(
             BrowserLocationPreferences(

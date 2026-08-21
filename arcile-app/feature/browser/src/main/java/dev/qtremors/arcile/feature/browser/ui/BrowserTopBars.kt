@@ -122,6 +122,7 @@ internal fun BrowserTopBars(
                     isGridView = state.browserViewMode == FileViewMode.GRID
                 ),
                 scrollBehavior = scrollBehavior,
+                expandable = state.expandableAppBar,
                 menuActions = buildList {
                     if (onWorkspaceTabsEnabledChange != null) {
                         add(

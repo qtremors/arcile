@@ -44,6 +44,7 @@ internal class AppNavigationActions(
     private val fileOpenResolver: AppFileOpenResolver,
     private val onOpenFile: (String) -> Unit,
     private val onOpenFileWith: (String) -> Unit,
+    private val onRecordFileOpened: (String) -> Unit,
     private val onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     var pluginPrompt by mutableStateOf<PluginFileResolution?>(null)
@@ -94,6 +95,7 @@ internal class AppNavigationActions(
     }
 
     fun openFileWith(path: String) {
+        onRecordFileOpened(path)
         onOpenFileWith(path)
     }
 
@@ -102,6 +104,7 @@ internal class AppNavigationActions(
         queue: List<AudioTrack>,
         startPlayback: Boolean
     ) {
+        onRecordFileOpened(track.file.absolutePath)
         context.startActivity(
             createAudioPlayerIntent(
                 context = context,
@@ -148,11 +151,13 @@ internal class AppNavigationActions(
     }
 
     fun openViewerFileWith(file: FileModel, managedTrash: Boolean) {
+        onRecordFileOpened(file.absolutePath)
         if (managedTrash) openManagedTrashFileExternally(file, forceChooser = true)
         else onOpenFileWith(file.absolutePath)
     }
 
     fun openManagedTrashFile(file: FileModel, surroundingFiles: List<FileModel>) {
+        onRecordFileOpened(file.absolutePath)
         val category = FileCategories.getCategoryForFile(file.extension, file.mimeType)
         if (category == FileCategories.Images) {
             val images = (surroundingFiles + file).distinctBy(FileModel::absolutePath).filter {
@@ -177,6 +182,7 @@ internal class AppNavigationActions(
     }
 
     fun openManagedTrashFileWith(file: FileModel) {
+        onRecordFileOpened(file.absolutePath)
         openManagedTrashFileExternally(file, forceChooser = true)
     }
 
@@ -222,6 +228,7 @@ internal class AppNavigationActions(
         returnToBrowserPage: Boolean,
         selectedPaths: Set<String> = emptySet()
     ) {
+        onRecordFileOpened(path)
         coroutineScope.launch {
             val knownFile = surroundingFiles.firstOrNull { it.absolutePath == path }
             val preparedFiles = surroundingFiles
@@ -538,6 +545,7 @@ internal fun rememberAppNavigationActions(
     navController: NavHostController,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    onRecordFileOpened: (String) -> Unit,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ): AppNavigationActions {
@@ -549,6 +557,7 @@ internal fun rememberAppNavigationActions(
         coroutineScope,
         onOpenFile,
         onOpenFileWith,
+        onRecordFileOpened,
         fileOpenBehaviors,
         onFeedback
     ) {
@@ -562,6 +571,7 @@ internal fun rememberAppNavigationActions(
             ),
             onOpenFile = onOpenFile,
             onOpenFileWith = onOpenFileWith,
+            onRecordFileOpened = onRecordFileOpened,
             onFeedback = onFeedback
         )
     }

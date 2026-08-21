@@ -94,6 +94,7 @@ internal data class BrowserUiState(
     val browserGridMinCellSize get() = listing.browserGridMinCellSize
     val browserShowThumbnails get() = listing.browserShowThumbnails
     val browserScrollbarEnabled get() = listing.browserScrollbarEnabled
+    val expandableAppBar get() = listing.expandableAppBar
     val showHiddenFiles get() = listing.showHiddenFiles
     val displayState get() = listing.displayState
     val selectedFiles get() = selection.selectedFiles

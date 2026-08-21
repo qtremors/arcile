@@ -130,19 +130,25 @@ fun PropertiesDialog(
                                 PropertiesRow(stringResource(R.string.image_gallery_metadata_label_resolution), it)
                             }
                         }
-                        PropertiesRow(stringResource(R.string.properties_size), formattedSize)
-                        model.mimeTypeSummary?.let { PropertiesRow(stringResource(R.string.properties_type), it) }
-                        model.extensionSummary?.let { PropertiesRow(stringResource(R.string.properties_extension), it.uppercase()) }
-
                         val folderFileCount = model.folderFileCount
                         val folderTotalBytes = model.folderTotalBytes
                         if (model.isSingleItem && model.isDirectory == true && folderFileCount != null && folderTotalBytes != null) {
+                            val fileCount = folderFileCount.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                            val folderCount = model.folderCount
                             PropertiesRow(
                                 stringResource(R.string.properties_contains),
-                                androidx.compose.ui.res.pluralStringResource(
-                                    R.plurals.properties_contains_value,
-                                    folderFileCount.toInt(),
-                                    folderFileCount.toInt(),
+                                stringResource(
+                                    R.string.properties_folder_contents,
+                                    androidx.compose.ui.res.pluralStringResource(
+                                        R.plurals.properties_file_count_value,
+                                        fileCount,
+                                        fileCount
+                                    ),
+                                    androidx.compose.ui.res.pluralStringResource(
+                                        R.plurals.properties_folder_count_value,
+                                        folderCount,
+                                        folderCount
+                                    ),
                                     if (isPartialTotal) {
                                         stringResource(R.string.properties_size_partial, formatFileSize(folderTotalBytes))
                                     } else {
@@ -150,12 +156,16 @@ fun PropertiesDialog(
                                     }
                                 )
                             )
-                        }
-                        if (!model.isSingleItem || model.isDirectory == true) {
+                        } else if (!model.isSingleItem) {
                             PropertiesRow(stringResource(R.string.properties_items), model.itemCount.toString())
                             PropertiesRow(stringResource(R.string.properties_files), model.fileCount.toString())
                             PropertiesRow(stringResource(R.string.properties_folders), model.folderCount.toString())
+                            PropertiesRow(stringResource(R.string.properties_size), formattedSize)
+                        } else {
+                            PropertiesRow(stringResource(R.string.properties_size), formattedSize)
                         }
+                        model.mimeTypeSummary?.let { PropertiesRow(stringResource(R.string.properties_type), it) }
+                        model.extensionSummary?.let { PropertiesRow(stringResource(R.string.properties_extension), it.uppercase()) }
                         model.archiveSummary?.let { archive ->
                             PropertiesRow("Archive format", archive.format.displayName)
                             PropertiesRow("Archive entries", archive.entryCount.toString())
@@ -171,15 +181,19 @@ fun PropertiesDialog(
                                 PropertiesRow(stringResource(R.string.properties_oldest_modified), DateFormat.getDateTimeInstance().format(Date(it)))
                             }
                         }
-                        PropertiesRow(stringResource(R.string.properties_hidden_items), model.hiddenCount.toString())
-                        PropertiesRow(
-                            stringResource(R.string.properties_access),
-                            when (model.accessStatus) {
-                                PropertiesAccessStatus.Full -> stringResource(R.string.properties_access_full)
-                                PropertiesAccessStatus.Partial -> stringResource(R.string.properties_access_partial)
-                                PropertiesAccessStatus.Limited -> stringResource(R.string.properties_access_limited)
-                            }
-                        )
+                        if (model.hiddenCount > 0) {
+                            PropertiesRow(stringResource(R.string.properties_hidden_items), model.hiddenCount.toString())
+                        }
+                        if (model.accessStatus != PropertiesAccessStatus.Full) {
+                            PropertiesRow(
+                                stringResource(R.string.properties_access),
+                                when (model.accessStatus) {
+                                    PropertiesAccessStatus.Full -> stringResource(R.string.properties_access_full)
+                                    PropertiesAccessStatus.Partial -> stringResource(R.string.properties_access_partial)
+                                    PropertiesAccessStatus.Limited -> stringResource(R.string.properties_access_limited)
+                                }
+                            )
+                        }
 
                         ImageExifSections(
                             metadata = imageMetadata,

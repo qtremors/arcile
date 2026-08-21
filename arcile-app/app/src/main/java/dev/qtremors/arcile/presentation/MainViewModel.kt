@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class MainViewModel @Inject constructor(
-    private val browserPreferencesStore: BrowserLocationPreferencesStore
+    private val browserPreferencesStore: BrowserLocationPreferencesStore,
+    private val activityLogStore: ActivityLogStore
 ) : ViewModel() {
 
     private val _hasPermission = MutableStateFlow(false)
@@ -41,5 +43,9 @@ class MainViewModel @Inject constructor(
         viewModelScope.launch {
             browserPreferencesStore.updateAppStartPage(page)
         }
+    }
+
+    fun recordFileOpened(path: String) {
+        viewModelScope.launch { activityLogStore.recordFileOpened(path) }
     }
 }

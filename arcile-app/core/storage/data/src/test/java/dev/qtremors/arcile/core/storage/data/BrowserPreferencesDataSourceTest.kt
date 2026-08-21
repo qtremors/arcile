@@ -81,6 +81,8 @@ class BrowserPreferencesDataSourceTest {
         assertEquals(true, preferences.showHiddenFiles)
         assertEquals(true, preferences.browserScrollbarEnabled)
         assertEquals(true, preferences.galleryScrollbarEnabled)
+        assertEquals(true, preferences.rememberLastFolder)
+        assertEquals(true, preferences.expandableBrowserAppBar)
         assertEquals(emptyMap<String, FileListingPreferences>(), preferences.pathPresentationOptions)
         assertEquals(emptyMap<String, FileListingPreferences>(), preferences.exactPathPresentationOptions)
     }
@@ -258,6 +260,18 @@ class BrowserPreferencesDataSourceTest {
         repository.updateAppStartPage(AppStartPage.BROWSER)
 
         assertEquals(AppStartPage.BROWSER, repository.preferencesFlow.first().appStartPage)
+    }
+
+    @Test
+    fun `browser behavior toggles persist independently`() = runBlocking {
+        val repository = BrowserPreferencesDataSource(context, dataStore)
+
+        repository.updateRememberLastFolder(false)
+        repository.updateExpandableAppBar(false)
+
+        val preferences = repository.preferencesFlow.first()
+        assertEquals(false, preferences.rememberLastFolder)
+        assertEquals(false, preferences.expandableBrowserAppBar)
     }
 
     @Test

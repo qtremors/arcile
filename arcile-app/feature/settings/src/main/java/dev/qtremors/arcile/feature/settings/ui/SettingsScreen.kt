@@ -81,6 +81,19 @@ internal fun SettingsScreen(
                 )
             }
             item {
+                SettingsBrowsingSection(
+                    theme = state.theme,
+                    preferences = state.preferences,
+                    actions = preferenceActions
+                )
+            }
+            item {
+                SettingsActivityPrivacySection(
+                    recordingEnabled = state.preferences.activityRecordingEnabled,
+                    onRecordingChange = preferenceActions.activityRecordingChange
+                )
+            }
+            item {
                 SettingsPluginSection(onOpen = navigationActions.navigateToPlugins)
             }
             item {

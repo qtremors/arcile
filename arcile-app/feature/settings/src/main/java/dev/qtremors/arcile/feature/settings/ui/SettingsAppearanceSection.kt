@@ -13,15 +13,9 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ShortText
 import androidx.compose.material.icons.automirrored.filled.WrapText
-import androidx.compose.material.icons.filled.Height
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Palette
-import androidx.compose.material.icons.filled.SwapVert
-import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Vibration
-import androidx.compose.material.icons.filled.ViewColumn
-import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItemDefaults
@@ -42,7 +36,6 @@ import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
-import dev.qtremors.arcile.core.ui.settings.AppStartPageSelector
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
 import dev.qtremors.arcile.core.ui.theme.ThemeState
@@ -84,96 +77,12 @@ internal fun SettingsAppearanceSection(
                 )
             }
         }
-        ArcileListSurface {
-            AppStartPageSelector(
-                currentPage = preferences.appStartPage,
-                onPageSelected = actions.appStartPageChange
-            )
-        }
         Column(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
         ) {
                 SettingsSwitchRow(
                     index = 0,
-                    count = 11,
-                    title = stringResource(R.string.settings_show_thumbnails),
-                    description = stringResource(R.string.settings_show_thumbnails_description),
-                    checked = preferences.globalPresentation.showThumbnails,
-                    switchTag = "thumbnail_switch",
-                    rowTag = "thumbnail_setting_row",
-                    leadingIcon = Icons.Default.Image,
-                    onCheckedChange = actions.showThumbnailsChange
-                )
-                HomeRecentCarouselLimit(
-                    index = 1,
-                    count = 11,
-                    value = preferences.homeRecentCarouselLimit,
-                    onValueChange = actions.homeRecentCarouselLimitChange
-                )
-                SettingsSwitchRow(
-                    index = 2,
-                    count = 11,
-                    title = stringResource(R.string.settings_show_hidden_files),
-                    description = stringResource(R.string.settings_show_hidden_files_description),
-                    checked = preferences.showHiddenFiles,
-                    switchTag = "hidden_files_switch",
-                    rowTag = "hidden_files_setting_row",
-                    leadingIcon = Icons.Default.VisibilityOff,
-                    onCheckedChange = actions.showHiddenFilesChange
-                )
-                SettingsSwitchRow(
-                    index = 3,
-                    count = 11,
-                    title = stringResource(R.string.settings_browser_tabs),
-                    description = stringResource(R.string.settings_browser_tabs_description),
-                    checked = preferences.browserTabsEnabled,
-                    switchTag = "browser_tabs_switch",
-                    rowTag = "browser_tabs_setting_row",
-                    leadingIcon = Icons.Default.Tab,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.browserTabsEnabledChange(checked)
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 4,
-                    count = 11,
-                    title = stringResource(R.string.settings_browser_scrollbar),
-                    description = stringResource(R.string.settings_browser_scrollbar_description),
-                    checked = preferences.browserScrollbarEnabled,
-                    switchTag = "browser_scrollbar_switch",
-                    rowTag = "browser_scrollbar_setting_row",
-                    leadingIcon = Icons.Default.SwapVert,
-                    onCheckedChange = actions.browserScrollbarEnabledChange
-                )
-                SettingsSwitchRow(
-                    index = 5,
-                    count = 11,
-                    title = stringResource(R.string.settings_gallery_scrollbar),
-                    description = stringResource(R.string.settings_gallery_scrollbar_description),
-                    checked = preferences.galleryScrollbarEnabled,
-                    switchTag = "gallery_scrollbar_switch",
-                    rowTag = "gallery_scrollbar_setting_row",
-                    leadingIcon = Icons.Default.Height,
-                    onCheckedChange = actions.galleryScrollbarEnabledChange
-                )
-                SettingsSwitchRow(
-                    index = 6,
-                    count = 11,
-                    title = stringResource(R.string.settings_landscape_dual_pane),
-                    description = stringResource(R.string.settings_landscape_dual_pane_description),
-                    checked = theme.landscapeDualPaneEnabled,
-                    switchTag = "landscape_dual_pane_switch",
-                    rowTag = "landscape_dual_pane_setting_row",
-                    leadingIcon = Icons.Default.ViewColumn,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.withLandscapeDualPane(checked))
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 7,
-                    count = 11,
+                    count = 4,
                     title = stringResource(R.string.settings_harmonize_colors),
                     description = stringResource(R.string.settings_harmonize_colors_description),
                     checked = theme.harmonizeColors,
@@ -186,8 +95,8 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 8,
-                    count = 11,
+                    index = 1,
+                    count = 4,
                     title = stringResource(R.string.settings_vibrations),
                     description = stringResource(R.string.settings_vibrations_description),
                     checked = theme.vibrationsEnabled,
@@ -200,8 +109,8 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 9,
-                    count = 11,
+                    index = 2,
+                    count = 4,
                     title = stringResource(R.string.settings_double_line_filenames),
                     description = stringResource(R.string.settings_double_line_filenames_description),
                     checked = theme.doubleLineFilenames,
@@ -214,8 +123,8 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 10,
-                    count = 11,
+                    index = 3,
+                    count = 4,
                     title = stringResource(R.string.settings_marquee_filenames),
                     description = stringResource(R.string.settings_marquee_filenames_description),
                     checked = theme.marqueeFilenames,
@@ -305,7 +214,7 @@ internal fun ThemeState.withLandscapeDualPane(enabled: Boolean): ThemeState = co
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-private fun HomeRecentCarouselLimit(
+internal fun HomeRecentCarouselLimit(
     index: Int,
     count: Int,
     value: Int,

@@ -17,6 +17,7 @@ fun AppNavigationGraph(
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    onRecordFileOpened: (String) -> Unit,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
@@ -27,6 +28,7 @@ fun AppNavigationGraph(
         navController = navController,
         onOpenFile = onOpenFile,
         onOpenFileWith = onOpenFileWith,
+        onRecordFileOpened = onRecordFileOpened,
         fileOpenBehaviors = fileOpenBehaviors,
         onFeedback = onFeedback
     )

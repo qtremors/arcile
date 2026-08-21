@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.material3.VerticalDivider
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.TopAppBarState
+import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -42,6 +45,7 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.R
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MainRoute(
     backStackEntry: NavBackStackEntry,
@@ -61,6 +65,7 @@ internal fun MainRoute(
     val storageVolumes by browserTabsViewModel.storageVolumes.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
+    val sharedBrowserTopAppBarState = rememberTopAppBarState()
     val dualPaneEnabled = landscapeDualPaneEnabled &&
         configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val coordinator = rememberMainShellCoordinator(
@@ -191,6 +196,7 @@ internal fun MainRoute(
                         onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
                         storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
+                        sharedTopAppBarState = sharedBrowserTopAppBarState,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -214,6 +220,7 @@ internal fun MainRoute(
                         onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
                         storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
+                        sharedTopAppBarState = sharedBrowserTopAppBarState,
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
@@ -241,7 +248,8 @@ internal fun MainRoute(
                 tabsEnabled = tabsEnabled,
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
                 storageVolumes = storageVolumes,
-                onFeedback = onFeedback
+                onFeedback = onFeedback,
+                sharedTopAppBarState = sharedBrowserTopAppBarState
             )
             SECONDARY_BROWSER_PAGE -> BrowserWorkspacePage(
                 browserPage = SECONDARY_BROWSER_PAGE,
@@ -259,7 +267,8 @@ internal fun MainRoute(
                 tabsEnabled = tabsEnabled,
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
                 storageVolumes = storageVolumes,
-                onFeedback = onFeedback
+                onFeedback = onFeedback,
+                sharedTopAppBarState = sharedBrowserTopAppBarState
             )
         }
     }
@@ -283,6 +292,7 @@ private fun BrowserWorkspacePage(
     onTabsEnabledChange: (Boolean) -> Unit,
     storageVolumes: List<StorageVolume> = emptyList(),
     onFeedback: (ArcileFeedbackEvent) -> Unit,
+    sharedTopAppBarState: TopAppBarState,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
     val showTabLimitFeedback = {
@@ -370,6 +380,7 @@ private fun BrowserWorkspacePage(
                     },
                     workspaceTabsEnabled = tabsEnabled,
                     onWorkspaceTabsEnabledChange = onTabsEnabledChange,
+                    sharedTopAppBarState = sharedTopAppBarState,
                     renderContent = isActiveTab
                 )
             }

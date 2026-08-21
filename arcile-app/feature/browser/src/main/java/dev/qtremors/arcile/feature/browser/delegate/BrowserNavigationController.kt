@@ -110,8 +110,8 @@ internal class BrowserNavigationController(
         viewModelScope.launch {
             if (restorePersistentLocation) {
                 val prefs = browserPreferencesRepository.locationPreferencesFlow.first()
-                val lastPath = prefs.lastOpenedPath
-                val lastVolumeId = prefs.lastOpenedVolumeId
+                val lastPath = prefs.lastOpenedPath.takeIf { prefs.rememberLastFolder }
+                val lastVolumeId = prefs.lastOpenedVolumeId.takeIf { prefs.rememberLastFolder }
 
                 if (!lastPath.isNullOrEmpty() && !lastVolumeId.isNullOrEmpty()) {
                     val volume = state.value.storageVolumes.firstOrNull { it.id == lastVolumeId }

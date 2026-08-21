@@ -76,6 +76,7 @@ fun ArcileAppShell(
     onThemeChange: (ThemeState) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
+    onRecordFileOpened: (String) -> Unit,
     fileOpenBehaviors: Map<String, FileOpenBehavior>,
     appStartPage: AppStartPage?,
     onAppStartPageChange: (AppStartPage) -> Unit,
@@ -113,7 +114,7 @@ fun ArcileAppShell(
             val result = snackbarHostState.showSnackbar(
                 message = event.message.asString(context),
                 actionLabel = event.actionLabel?.asString(context),
-                withDismissAction = event.actionLabel != null || event.severity == ArcileFeedbackSeverity.Error,
+                withDismissAction = false,
                 duration = SnackbarDuration.Short
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -169,6 +170,7 @@ fun ArcileAppShell(
                     onThemeChange = onThemeChange,
                     onOpenFile = onOpenFile,
                     onOpenFileWith = onOpenFileWith,
+                    onRecordFileOpened = onRecordFileOpened,
                     fileOpenBehaviors = fileOpenBehaviors,
                     appStartPage = appStartPage ?: AppStartPage.HOME,
                     onAppStartPageChange = onAppStartPageChange,

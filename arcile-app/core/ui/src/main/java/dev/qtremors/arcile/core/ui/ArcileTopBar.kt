@@ -112,6 +112,7 @@ fun ArcileTopBar(
     selectionCount: Int = 0,
     selectedSize: String? = null,
     scrollBehavior: androidx.compose.material3.TopAppBarScrollBehavior? = null,
+    expandable: Boolean = true,
     options: ArcileTopBarOptions = ArcileTopBarOptions(),
     menuActions: List<ArcileTopBarMenuAction> = emptyList(),
     actions: ArcileTopBarActions
@@ -144,7 +145,11 @@ fun ArcileTopBar(
 
     androidx.compose.material3.LargeTopAppBar(
         scrollBehavior = scrollBehavior,
-        expandedHeight = if (selectionCount > 0) 64.dp else TopAppBarDefaults.LargeAppBarExpandedHeight,
+        expandedHeight = if (selectionCount > 0 || !expandable) {
+            TopAppBarDefaults.TopAppBarExpandedHeight
+        } else {
+            TopAppBarDefaults.LargeAppBarExpandedHeight
+        },
         title = {
             Column {
                 Text(
