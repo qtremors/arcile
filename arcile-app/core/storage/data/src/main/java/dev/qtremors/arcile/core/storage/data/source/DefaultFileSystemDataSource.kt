@@ -206,7 +206,7 @@ class DefaultFileSystemDataSource(
         if (directory.absolutePath != File.separator) return directory.listFiles()
 
         // SELinux can deny readdir("/") while still allowing traversal of individual
-        // top-level locations. Probe Android's stable root entries without privileges.
+        // top-level locations. Probe Android's stable root entries through standard file APIs.
         return androidRootDirectoryResolver.children(directory)
     }
 
@@ -228,17 +228,6 @@ class DefaultFileSystemDataSource(
         } catch (e: Exception) {
             e.rethrowIfCancellation()
             Result.failure(FileOperationException.Unknown(cause = e))
-        }
-    }
-
-    override suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = withContext(dispatchers.io) {
-        runCatchingPreservingCancellation {
-            require(node.backendId == StorageNodeRef.LOCAL_BACKEND_ID) {
-                "Local storage cannot inspect ${node.backendId} nodes"
-            }
-            val file = File(node.displayPath.absolutePath)
-            require(file.exists()) { "Path does not exist: ${file.absolutePath}" }
-            fileModelMapper.toFileModel(file).copy(nodeRef = node)
         }
     }
 

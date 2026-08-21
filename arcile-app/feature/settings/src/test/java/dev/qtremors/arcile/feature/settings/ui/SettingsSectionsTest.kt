@@ -9,14 +9,8 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
-import dev.qtremors.arcile.core.privilege.PrivilegePreferenceState
-import dev.qtremors.arcile.core.privilege.PrivilegeServiceIdentity
-import dev.qtremors.arcile.core.privilege.PrivilegeState
-import dev.qtremors.arcile.core.privilege.PrivilegeTransport
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.ui.settings.AppStartPageSelector
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -51,6 +45,44 @@ class SettingsSectionsTest {
         composeRule.onNodeWithTag("thumbnail_switch").performClick()
 
         assertEquals(false, requestedValue)
+    }
+
+    @Test
+    fun `browser tabs row forwards preference`() {
+        var requestedValue: Boolean? = null
+        composeRule.setContent {
+            ArcileTestTheme {
+                SettingsSwitchRow(
+                    title = "Browser tabs",
+                    description = "Show tabs",
+                    checked = false,
+                    switchTag = "browser_tabs_switch",
+                    rowTag = "browser_tabs_setting_row",
+                    onCheckedChange = { requestedValue = it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("browser_tabs_switch").performClick()
+
+        assertEquals(true, requestedValue)
+    }
+
+    @Test
+    fun `start page selector forwards selected page`() {
+        var selectedPage: AppStartPage? = null
+        composeRule.setContent {
+            ArcileTestTheme {
+                AppStartPageSelector(
+                    currentPage = AppStartPage.HOME,
+                    onPageSelected = { selectedPage = it }
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("app_start_page_browser").performClick()
+
+        assertEquals(AppStartPage.BROWSER, selectedPage)
     }
 
     @Test
@@ -121,164 +153,4 @@ class SettingsSectionsTest {
 
         assertEquals(1, clearCount)
     }
-
-    @Test
-    fun `Shizuku status icon setting updates independently`() {
-        val updated = ThemeState(
-            showShizukuStatusIcon = true,
-            harmonizeColors = false
-        ).withShizukuStatusIcon(false)
-
-        assertFalse(updated.showShizukuStatusIcon)
-        assertFalse(updated.harmonizeColors)
-    }
-
-    @Test
-    fun `access section exposes one Shizuku switch and forwards changes`() {
-        var shizukuEnabled: Boolean? = null
-        composeRule.setContent {
-            ArcileTestTheme {
-                SettingsAccessSection(
-                    state = SettingsAccessState(),
-                    actions = accessActions(shizukuEnabledChange = { shizukuEnabled = it })
-                )
-            }
-        }
-
-        composeRule.onNodeWithTag("shizuku_enabled_switch").performClick()
-
-        assertEquals(true, shizukuEnabled)
-    }
-
-    @Test
-    fun `protected writes require confirmation before enabling`() {
-        var protectedWrites: Boolean? = null
-        composeRule.setContent {
-            ArcileTestTheme {
-                SettingsAccessSection(
-                    state = rootAccessState(),
-                    actions = accessActions(protectedWritesChange = { protectedWrites = it })
-                )
-            }
-        }
-
-        composeRule.onNodeWithTag("protected_writes_switch")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("Enable protected writes?").assertExists()
-        assertEquals(null, protectedWrites)
-
-        composeRule.onNodeWithText("Enable protected writes").performClick()
-
-        composeRule.runOnIdle {
-            assertEquals(true, protectedWrites)
-        }
-    }
-
-    @Test
-    fun `protected writes stay disabled without a Root identity`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                SettingsAccessSection(
-                    state = SettingsAccessState(),
-                    actions = accessActions()
-                )
-            }
-        }
-
-        composeRule.onNodeWithTag("protected_writes_row").assertIsNotEnabled()
-    }
-
-    @Test
-    fun `detected Root hides provider controls and explains automatic fallback`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                SettingsAccessSection(
-                    state = SettingsAccessState(
-                        preference = PrivilegePreferenceState(mode = PrivilegeMode.ROOT),
-                        access = PrivilegeState(
-                            preferredMode = PrivilegeMode.ROOT,
-                            backendStates = mapOf(
-                                PrivilegeBackendId.ROOT to PrivilegeBackendState(
-                                    backendId = PrivilegeBackendId.ROOT,
-                                    connectionState = PrivilegeConnectionState.DISCONNECTED
-                                )
-                            )
-                        )
-                    ),
-                    actions = accessActions()
-                )
-            }
-        }
-
-        composeRule.onNodeWithText(
-            "This is a rooted device. Arcile will use normal access until root is available."
-        ).assertExists()
-        composeRule.onNodeWithTag("shizuku_enabled_row").assertDoesNotExist()
-    }
-
-    @Test
-    fun `ready Shizuku is shown as the automatic active provider`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                SettingsAccessSection(
-                    state = SettingsAccessState(
-                        preference = PrivilegePreferenceState(mode = PrivilegeMode.SHIZUKU),
-                        access = PrivilegeState(
-                            preferredMode = PrivilegeMode.SHIZUKU,
-                            activeBackend = PrivilegeBackendId.SHIZUKU,
-                            backendStates = mapOf(
-                                PrivilegeBackendId.SHIZUKU to PrivilegeBackendState(
-                                    backendId = PrivilegeBackendId.SHIZUKU,
-                                    connectionState = PrivilegeConnectionState.READY
-                                )
-                            ),
-                            identity = PrivilegeServiceIdentity(
-                                effectiveUid = 2000,
-                                pid = 42,
-                                transport = PrivilegeTransport.SHIZUKU_USER_SERVICE
-                            )
-                        )
-                    ),
-                    actions = accessActions()
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Shizuku is enabled and used automatically.").assertExists()
-    }
-
-}
-
-private fun accessActions(
-    shizukuEnabledChange: (Boolean) -> Unit = {},
-    protectedWritesChange: (Boolean) -> Unit = {}
-) = SettingsAccessActions(
-    shizukuEnabledChange = shizukuEnabledChange,
-    grantNormalPermission = {},
-    openShizukuManager = {},
-    protectedWritesChange = protectedWritesChange
-)
-
-private fun rootAccessState(): SettingsAccessState {
-    val identity = PrivilegeServiceIdentity(
-        effectiveUid = 0,
-        pid = 42,
-        transport = PrivilegeTransport.ROOT_SERVICE
-    )
-    return SettingsAccessState(
-        preference = PrivilegePreferenceState(mode = PrivilegeMode.ROOT),
-        access = PrivilegeState(
-            preferredMode = PrivilegeMode.ROOT,
-            activeBackend = PrivilegeBackendId.ROOT,
-            backendStates = mapOf(
-                PrivilegeBackendId.ROOT to PrivilegeBackendState(
-                    backendId = PrivilegeBackendId.ROOT,
-                    connectionState = PrivilegeConnectionState.READY,
-                    identity = identity
-                )
-            ),
-            identity = identity
-        )
-    )
 }

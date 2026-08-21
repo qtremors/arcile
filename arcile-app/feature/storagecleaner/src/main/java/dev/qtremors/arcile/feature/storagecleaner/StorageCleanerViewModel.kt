@@ -15,7 +15,6 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.isIndexed
@@ -50,8 +49,7 @@ internal data class StorageCleanerState(
     val rules: StorageCleanerRules = StorageCleanerRules(),
     val errorMessage: String? = null,
     val successMessage: CleanerSuccessMessage? = null,
-    val thumbnailCache: CleanerThumbnailCacheState = CleanerThumbnailCacheState(),
-    val explicitScope: StorageNodeRef? = null
+    val thumbnailCache: CleanerThumbnailCacheState = CleanerThumbnailCacheState()
 ) {
     val totalBytes: Long get() = groups.sumOf { it.totalBytes }
 
@@ -93,7 +91,6 @@ internal class StorageCleanerViewModel @Inject constructor(
     private var lastCleanedGroups: Set<CleanerGroupType> = emptySet()
     private var pendingRuleRescanGroups: Set<CleanerGroupType> = emptySet()
     private val pendingIgnoredPaths = mutableSetOf<String>()
-    private var explicitRoots: List<StorageNodeRef>? = null
 
     init {
         refreshThumbnailCache()
@@ -105,8 +102,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                     firstEmission = false
                     loadCachedGroups(rules)
                 } else {
-                    explicitRoots?.let { scanner.invalidateStorageCleanerNodes(it) }
-                        ?: scanner.invalidateStorageCleaner()
+                    scanner.invalidateStorageCleaner()
                     val groupsToRefresh = pendingRuleRescanGroups.ifEmpty {
                         lastOpenedGroup?.let(::setOf).orEmpty()
                     }
@@ -129,7 +125,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                 .collectLatest { event ->
                     val groupsBeingViewed = currentScanGroups.ifEmpty { lastOpenedGroup?.let(::setOf).orEmpty() }
                     scanGeneration++
-                    invalidateForMutation(event.paths)
+                    scanner.invalidateStorageCleaner(event.paths)
                     _state.update { current ->
                         if (event.paths.isEmpty()) {
                             current.copy(
@@ -145,39 +141,6 @@ internal class StorageCleanerViewModel @Inject constructor(
                         startScan(groupsBeingViewed, force = true, clearMessages = false)
                     }
                 }
-        }
-    }
-
-    fun configureExplicitScope(root: StorageNodeRef?) {
-        val next = root?.let(::listOf)
-        val currentIdentity = explicitRoots?.singleOrNull()?.canonicalIdentity?.value
-        if (currentIdentity == root?.canonicalIdentity?.value &&
-            explicitRoots?.singleOrNull()?.backendId == root?.backendId
-        ) {
-            return
-        }
-        scanJob?.cancel()
-        scanGeneration++
-        explicitRoots = next
-        lastOpenedGroup = null
-        currentScanGroups = emptySet()
-        _state.update { current ->
-            current.copy(
-                groups = emptyGroups(),
-                isScanning = false,
-                isPullToRefreshing = false,
-                scanningGroups = emptySet(),
-                loadedGroups = emptySet(),
-                scanProgress = null,
-                scannedFiles = 0,
-                isPartial = false,
-                errorMessage = null,
-                successMessage = null,
-                explicitScope = root
-            )
-        }
-        viewModelScope.launch {
-            loadCachedGroups(_state.value.rules, expectedGeneration = scanGeneration)
         }
     }
 
@@ -259,11 +222,11 @@ internal class StorageCleanerViewModel @Inject constructor(
         rules: StorageCleanerRules,
         expectedGeneration: Long = scanGeneration
     ) {
-        val targets = scanTargets() ?: return
-        if (targets.isEmpty) return
+        val indexedPaths = indexedPaths() ?: return
+        if (indexedPaths.isEmpty()) return
         val cachedGroups = coroutineScope {
             CleanerGroupType.entries.map { type ->
-                async { type to cachedGroup(targets, type, rules) }
+                async { type to scanner.cachedScanForGroups(indexedPaths, setOf(type), rules = rules) }
             }.awaitAll()
         }
         if (expectedGeneration != scanGeneration) return
@@ -298,11 +261,11 @@ internal class StorageCleanerViewModel @Inject constructor(
         val generation = ++scanGeneration
         currentScanGroups = groups
         scanJob = viewModelScope.launch {
-            val targets = scanTargets() ?: run {
+            val indexedPaths = indexedPaths() ?: run {
                 currentScanGroups = emptySet()
                 return@launch
             }
-            if (targets.isEmpty) {
+            if (indexedPaths.isEmpty()) {
                 _state.update { current ->
                     current.copy(
                         groups = current.groups.merge(groups.map { CleanerGroup(it, emptyList()) }),
@@ -319,7 +282,7 @@ internal class StorageCleanerViewModel @Inject constructor(
 
             val rules = _state.value.rules
             val cached = runCatching {
-                cachedGroups(targets, groups, rules)
+                scanner.cachedScanForGroups(indexedPaths, groups, rules = rules)
             }.getOrElse { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
                 _state.update { current ->
@@ -363,7 +326,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                 )
             }
             val scanResult = runCatching {
-                scanUpdates(targets, groups, rules).collect { update ->
+                scanner.scanGroupUpdates(indexedPaths, groups, rules = rules).collect { update ->
                     _state.update { current ->
                         val result = update.result
                         val isComplete = update.progress.phase == StorageCleanerScanPhase.Complete
@@ -395,35 +358,6 @@ internal class StorageCleanerViewModel @Inject constructor(
             if (scanResult.isSuccess) loadCachedGroups(rules, expectedGeneration = generation)
             currentScanGroups = emptySet()
         }
-    }
-
-    private suspend fun cachedGroup(
-        targets: CleanerTargets,
-        type: CleanerGroupType,
-        rules: StorageCleanerRules
-    ) = cachedGroups(targets, setOf(type), rules)
-
-    private suspend fun cachedGroups(
-        targets: CleanerTargets,
-        groups: Set<CleanerGroupType>,
-        rules: StorageCleanerRules
-    ) = when (targets) {
-        is CleanerTargets.Paths -> scanner.cachedScanForGroups(targets.paths, groups, rules = rules)
-        is CleanerTargets.Nodes -> scanner.cachedNodeScanForGroups(targets.nodes, groups, rules = rules)
-    }
-
-    private fun scanUpdates(
-        targets: CleanerTargets,
-        groups: Set<CleanerGroupType>,
-        rules: StorageCleanerRules
-    ) = when (targets) {
-        is CleanerTargets.Paths -> scanner.scanGroupUpdates(targets.paths, groups, rules = rules)
-        is CleanerTargets.Nodes -> scanner.scanNodeGroupUpdates(targets.nodes, groups, rules = rules)
-    }
-
-    private suspend fun scanTargets(): CleanerTargets? {
-        explicitRoots?.let { return CleanerTargets.Nodes(it) }
-        return indexedPaths()?.let(CleanerTargets::Paths)
     }
 
     private suspend fun indexedPaths(): List<String>? {
@@ -475,24 +409,9 @@ internal class StorageCleanerViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            val protectedNodes = selectedCandidates.mapNotNull(CleanerCandidate::nodeRef)
-            val cleanup = when {
-                protectedNodes.isEmpty() -> trashRepository.moveToTrash(uniquePaths)
-                protectedNodes.size != selectedCandidates.size -> Result.failure(
-                    IllegalStateException("Refresh cleaner results before cleanup.")
-                )
-                protectedNodes.any { !it.capabilities.canTrash } -> Result.failure(
-                    IllegalStateException("One or more protected items cannot be moved to Trash.")
-                )
-                else -> trashRepository.moveNodesToTrash(protectedNodes)
-            }
-            cleanup
+            trashRepository.moveToTrash(uniquePaths)
                 .onSuccess {
-                    if (protectedNodes.isEmpty()) {
-                        scanner.invalidateStorageCleaner(uniquePaths)
-                    } else {
-                        scanner.invalidateStorageCleanerNodes(protectedNodes)
-                    }
+                    scanner.invalidateStorageCleaner(uniquePaths)
                     val undoIds = trashRepository.getTrashFiles().getOrNull()
                         ?.filter { it.originalPath in uniquePaths }
                         ?.sortedByDescending { it.deletionTime }
@@ -525,8 +444,7 @@ internal class StorageCleanerViewModel @Inject constructor(
             trashRepository.restoreFromTrash(trashIds)
                 .onSuccess {
                     _state.update { it.copy(isCleaning = false) }
-                    explicitRoots?.let { scanner.invalidateStorageCleanerNodes(it) }
-                        ?: scanner.invalidateStorageCleaner()
+                    scanner.invalidateStorageCleaner()
                     if (lastCleanedGroups.isNotEmpty()) {
                         startScan(lastCleanedGroups, force = true, clearMessages = false)
                     }
@@ -580,37 +498,6 @@ internal class StorageCleanerViewModel @Inject constructor(
 
     private companion object {
         const val CACHE_FRESHNESS_MILLIS = 10L * 60L * 1000L
-    }
-
-    private suspend fun invalidateForMutation(paths: List<String>) {
-        val roots = explicitRoots
-        if (roots == null) {
-            scanner.invalidateStorageCleaner(paths)
-            return
-        }
-        if (paths.isEmpty()) {
-            scanner.invalidateStorageCleanerNodes(roots)
-            return
-        }
-        val changedNodes = _state.value.groups.asSequence()
-            .flatMap { it.candidates.asSequence() }
-            .filter { it.absolutePath in paths }
-            .mapNotNull(CleanerCandidate::nodeRef)
-            .distinctBy { it.canonicalIdentity.value }
-            .toList()
-        scanner.invalidateStorageCleanerNodes(changedNodes.ifEmpty { roots })
-    }
-
-    private sealed interface CleanerTargets {
-        val isEmpty: Boolean
-
-        data class Paths(val paths: List<String>) : CleanerTargets {
-            override val isEmpty: Boolean get() = paths.isEmpty()
-        }
-
-        data class Nodes(val nodes: List<StorageNodeRef>) : CleanerTargets {
-            override val isEmpty: Boolean get() = nodes.isEmpty()
-        }
     }
 }
 

@@ -42,8 +42,7 @@ class DefaultArchiveManager(
         storage = Dispatchers.IO
     ),
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
-    private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
-    private val additionalSafeRoots: List<String> = emptyList()
+    private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) }
 ) : ArchiveManager {
     private val zipHandler by lazy { ZipArchiveHandler(safetyPolicy, ::validateMutationPath) }
     private val sevenZipHandler by lazy { SevenZipHandler(safetyPolicy, ::validateMutationPath) }
@@ -244,13 +243,10 @@ class DefaultArchiveManager(
     }
 
     private fun validatePath(file: File): Result<Unit> =
-        PathSafety.validatePath(file, safeRoots())
+        PathSafety.validatePath(file, volumeProvider.activeStorageRoots)
 
     private fun validateMutationPath(file: File): Result<Unit> =
-        PathSafety.validatePath(file, safeRoots(), PathSafety.OperationPolicy.RECURSIVE_MUTATE)
-
-    private fun safeRoots(): List<String> =
-        (volumeProvider.activeStorageRoots + additionalSafeRoots).distinct()
+        PathSafety.validatePath(file, volumeProvider.activeStorageRoots, PathSafety.OperationPolicy.RECURSIVE_MUTATE)
 
     private fun supportedFormat(path: String): ArchiveFormat {
         val format = ArchiveFormat.fromPath(path) ?: throw IllegalArgumentException("Unsupported archive format")

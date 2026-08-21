@@ -9,10 +9,7 @@ import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
 
 sealed interface QuickAccessDestination {
-    data class LocalPath(
-        val path: String,
-        val backendId: String? = null
-    ) : QuickAccessDestination
+    data class LocalPath(val path: String) : QuickAccessDestination
     data class ExternalFolder(val uri: String) : QuickAccessDestination
 }
 

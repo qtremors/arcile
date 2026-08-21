@@ -16,9 +16,6 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
-import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 import dev.qtremors.arcile.feature.browser.ArchivePasswordAction
@@ -36,9 +33,7 @@ import kotlinx.coroutines.launch
 internal data class BrowserArchiveWorkflowContext(
     val archiveContext: BrowserArchiveContext?,
     val currentPath: String,
-    val selectedPaths: Set<String>,
-    val currentNodeRef: StorageNodeRef? = null,
-    val files: List<FileModel> = emptyList()
+    val selectedPaths: Set<String>
 )
 
 internal data class BrowserArchivePasswordPrompt(
@@ -127,8 +122,6 @@ internal class BrowserArchiveController(
         val path = context.archiveContext?.archivePath
             ?: context.selectedPaths.singleOrNull()
             ?: return
-        val archiveNode = context.archiveContext?.archiveNodeRef
-            ?: context.files.firstOrNull { it.absolutePath == path }?.nodeRef
         scope.launch {
             val destination = resolveExtractionDestination(path, target, customDestination, context.currentPath)
                 ?: return@launch
@@ -136,8 +129,6 @@ internal class BrowserArchiveController(
                 PendingArchiveExtraction(
                     archivePath = path,
                     destinationPath = destination,
-                    archiveNodeRef = archiveNode,
-                    destinationNodeRef = context.referenceForPath(destination, archiveNode),
                     password = context.archiveContext?.password,
                     nameEncoding = context.archiveContext?.nameEncoding ?: ArchiveNameEncoding.UTF_8
                 )
@@ -157,8 +148,6 @@ internal class BrowserArchiveController(
                 PendingArchiveExtraction(
                     archivePath = archive.archivePath,
                     destinationPath = destination,
-                    archiveNodeRef = archive.archiveNodeRef,
-                    destinationNodeRef = context.referenceForPath(destination, archive.archiveNodeRef),
                     entryPrefix = prefix,
                     password = archive.password,
                     nameEncoding = archive.nameEncoding
@@ -182,8 +171,6 @@ internal class BrowserArchiveController(
                 PendingArchiveExtraction(
                     archivePath = archive.archivePath,
                     destinationPath = destination,
-                    archiveNodeRef = archive.archiveNodeRef,
-                    destinationNodeRef = context.referenceForPath(destination, archive.archiveNodeRef),
                     entryPrefix = prefixes.singleOrNull(),
                     entryPrefixes = prefixes,
                     password = archive.password,
@@ -287,24 +274,13 @@ internal class BrowserArchiveController(
     ): Result<List<FileConflict>> {
         val conflicts = mutableListOf<FileConflict>()
         request.entryPrefixes.ifEmpty { listOf(request.entryPrefix) }.forEach { prefix ->
-            val result = if (request.archiveNodeRef != null && request.destinationNodeRef != null) {
-                archiveRepository.detectArchiveConflicts(
-                    archive = request.archiveNodeRef,
-                    destination = request.destinationNodeRef,
-                    entryPrefix = prefix,
-                    password = request.password,
-                    nameEncoding = request.nameEncoding
-                )
-            } else {
-                archiveRepository.detectArchiveConflicts(
-                    archivePath = request.archivePath,
-                    destinationPath = request.destinationPath,
-                    entryPrefix = prefix,
-                    password = request.password,
-                    nameEncoding = request.nameEncoding
-                )
-            }
-            result.onSuccess(conflicts::addAll)
+            archiveRepository.detectArchiveConflicts(
+                archivePath = request.archivePath,
+                destinationPath = request.destinationPath,
+                entryPrefix = prefix,
+                password = request.password,
+                nameEncoding = request.nameEncoding
+            ).onSuccess(conflicts::addAll)
                 .onFailure { return Result.failure(it) }
         }
         return Result.success(conflicts)
@@ -332,29 +308,16 @@ internal class BrowserArchiveController(
         clearSelectionAfterStart: Boolean
     ): Boolean {
         val request = step.request
-        val started = if (request.archiveNodeRef != null && request.destinationNodeRef != null) {
-            operationCoordinator.startArchiveNodeOperation(
-                type = BulkFileOperationType.EXTRACT_ARCHIVE,
-                sourceNodes = listOf(request.archiveNodeRef),
-                destinationNode = request.destinationNodeRef,
-                resolutions = step.resolutions,
-                archiveEntryPrefix = request.entryPrefix,
-                archivePassword = request.password,
-                archiveNameEncoding = request.nameEncoding,
-                presentationOwnerId = operationOwnerId
-            )
-        } else {
-            operationCoordinator.startOperation(
-                type = BulkFileOperationType.EXTRACT_ARCHIVE,
-                sourcePaths = listOf(request.archivePath),
-                destinationPath = request.destinationPath,
-                resolutions = step.resolutions,
-                archiveEntryPrefix = request.entryPrefix,
-                archivePassword = request.password,
-                archiveNameEncoding = request.nameEncoding,
-                presentationOwnerId = operationOwnerId
-            )
-        }
+        val started = operationCoordinator.startOperation(
+            type = BulkFileOperationType.EXTRACT_ARCHIVE,
+            sourcePaths = listOf(request.archivePath),
+            destinationPath = request.destinationPath,
+            resolutions = step.resolutions,
+            archiveEntryPrefix = request.entryPrefix,
+            archivePassword = request.password,
+            archiveNameEncoding = request.nameEncoding,
+            presentationOwnerId = operationOwnerId
+        )
         if (started) {
             if (clearSelectionAfterStart) clearSelection()
         } else {
@@ -381,9 +344,6 @@ internal class BrowserArchiveController(
     ) {
         val context = contextProvider()
         val selected = context.selectedPaths.toList()
-        val selectedNodes = selected.mapNotNull { path ->
-            context.files.firstOrNull { it.absolutePath == path }?.nodeRef
-        }
         if (selected.isEmpty() || context.currentPath.isEmpty()) return
         scope.launch {
             val path = archivePathResolver.resolve(
@@ -400,9 +360,7 @@ internal class BrowserArchiveController(
             }
             pendingCreation = PendingArchiveCreation(
                 sourcePaths = selected,
-                sourceNodes = selectedNodes.takeIf { it.size == selected.size }.orEmpty(),
                 archivePath = path,
-                archiveNodeRef = context.currentNodeRef?.atBrowserPath(path),
                 format = format,
                 compressionLevel = compressionLevel,
                 password = password
@@ -417,28 +375,16 @@ internal class BrowserArchiveController(
 
     private fun startArchiveCreation(): Boolean {
         val creation = pendingCreation ?: return false
-        val started = if (creation.sourceNodes.isNotEmpty() && creation.archiveNodeRef != null) {
-            operationCoordinator.startArchiveNodeOperation(
-                type = BulkFileOperationType.CREATE_ARCHIVE,
-                sourceNodes = creation.sourceNodes,
-                destinationNode = creation.archiveNodeRef,
-                archiveFormat = creation.format,
-                archivePassword = creation.password,
-                archiveCompressionLevel = creation.compressionLevel,
-                presentationOwnerId = operationOwnerId
-            )
-        } else {
-            operationCoordinator.startOperation(
-                type = BulkFileOperationType.CREATE_ARCHIVE,
-                sourcePaths = creation.sourcePaths,
-                destinationPath = creation.archivePath,
-                resolutions = emptyMap(),
-                archiveFormat = creation.format,
-                archivePassword = creation.password,
-                archiveCompressionLevel = creation.compressionLevel,
-                presentationOwnerId = operationOwnerId
-            )
-        }
+        val started = operationCoordinator.startOperation(
+            type = BulkFileOperationType.CREATE_ARCHIVE,
+            sourcePaths = creation.sourcePaths,
+            destinationPath = creation.archivePath,
+            resolutions = emptyMap(),
+            archiveFormat = creation.format,
+            archivePassword = creation.password,
+            archiveCompressionLevel = creation.compressionLevel,
+            presentationOwnerId = operationOwnerId
+        )
         if (!started) {
             pendingCreation = null
             onError(UiText.StringResource(RuntimeR.string.error_operation_already_running))
@@ -485,37 +431,11 @@ internal class BrowserArchiveController(
 
 private data class PendingArchiveCreation(
     val sourcePaths: List<String>,
-    val sourceNodes: List<StorageNodeRef>,
     val archivePath: String,
-    val archiveNodeRef: StorageNodeRef?,
     val format: ArchiveFormat,
     val compressionLevel: ArchiveCompressionLevel,
     val password: String?
 )
-
-private fun BrowserArchiveWorkflowContext.referenceForPath(
-    path: String,
-    archiveNode: StorageNodeRef?
-): StorageNodeRef? = when {
-    currentNodeRef != null -> currentNodeRef.atBrowserPath(path)
-    archiveNode != null -> archiveNode.atBrowserPath(path)
-    else -> runCatching { StorageNodeRef.local(path) }.getOrNull()
-}
-
-private fun StorageNodeRef.atBrowserPath(path: String): StorageNodeRef = when {
-    isPrivileged -> StorageNodeRef.privileged(
-        backendId = backendId,
-        displayPath = path,
-        remoteCanonicalIdentity = path,
-        volumeId = volumeId?.value,
-        capabilities = capabilities
-    )
-    else -> StorageNodeRef.local(
-        path = path,
-        volumeId = volumeId?.value,
-        capabilities = capabilities
-    )
-}
 
 private data class PendingExtractionStep(
     val request: PendingArchiveExtraction,

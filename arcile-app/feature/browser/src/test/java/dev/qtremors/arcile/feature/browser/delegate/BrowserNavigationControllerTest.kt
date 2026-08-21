@@ -7,8 +7,6 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
-import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
@@ -70,13 +68,7 @@ class BrowserNavigationControllerTest {
             every { locationPreferencesFlow } returns kotlinx.coroutines.flow.flowOf(BrowserLocationPreferences())
             coEvery { updateLastOpenedLocation(any(), any()) } returns Unit
         }
-        savedStateHandle = mockk(relaxed = true) {
-            every { get<String>("currentBackendId") } returns null
-            every { get<String>("currentCanonicalIdentity") } returns null
-            every { get<String>("currentBackendIdentity") } returns null
-            every { get<String>("currentNodeVolumeId") } returns null
-            every { get<Boolean>("isRootStorageScope") } returns null
-        }
+        savedStateHandle = mockk(relaxed = true)
         
         delegate = BrowserNavigationController(
             initialState = BrowserNavigationState().withValues(
@@ -175,71 +167,6 @@ class BrowserNavigationControllerTest {
 
         assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
         coVerify(exactly = 0) { browserPreferencesRepository.updateLastOpenedLocation(any(), any()) }
-    }
-
-    @Test
-    fun `openPrimaryStorage drops privileged backend context`() = testScope.runTest {
-        repository.filesByPath = mapOf("/storage/emulated/0" to emptyList())
-        delegate.state.value = delegate.state.value.withValues(
-            currentPath = "/storage/emulated/0/Android/data",
-            currentVolumeId = "vol1",
-            currentNodeRef = StorageNodeRef.privileged(
-                backendId = StorageNodeRef.SHIZUKU_BACKEND_ID,
-                displayPath = "/storage/emulated/0/Android/data",
-                remoteCanonicalIdentity = "shizuku:/storage/emulated/0/Android/data",
-                volumeId = "vol1",
-                capabilities = StorageNodeCapabilities(canRead = true)
-            )
-        )
-
-        delegate.openPrimaryStorage()
-        advanceUntilIdle()
-
-        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
-        assertEquals(null, delegate.state.value.currentNodeRef)
-        assertFalse(delegate.state.value.isLoading)
-    }
-
-    @Test
-    fun `explicit normal path clears root storage scope and inherited root identity`() = testScope.runTest {
-        repository.filesByPath = mapOf(
-            "/" to emptyList(),
-            "/storage/emulated/0/Documents" to emptyList()
-        )
-
-        delegate.navigateToSpecificFolder("/", seedInitialPathHistory = false)
-        advanceUntilIdle()
-
-        assertTrue(delegate.state.value.isRootStorageScope)
-        assertEquals(null, delegate.state.value.currentVolumeId)
-        assertEquals(StorageNodeRef.ROOT_BACKEND_ID, delegate.state.value.currentNodeRef?.backendId)
-
-        delegate.navigateToSpecificFolder(
-            "/storage/emulated/0/Documents",
-            seedInitialPathHistory = false
-        )
-        advanceUntilIdle()
-
-        assertFalse(delegate.state.value.isRootStorageScope)
-        assertEquals("vol1", delegate.state.value.currentVolumeId)
-        assertEquals(null, delegate.state.value.currentNodeRef)
-    }
-
-    @Test
-    fun `explicit Shizuku path keeps mounted volume naming and uses privileged node`() = testScope.runTest {
-        val path = "/storage/emulated/0/Android/data"
-        repository.filesByPath = mapOf(path to emptyList())
-
-        delegate.navigateToSpecificFolder(
-            path = path,
-            seedInitialPathHistory = false,
-            backendId = StorageNodeRef.SHIZUKU_BACKEND_ID
-        )
-        advanceUntilIdle()
-
-        assertFalse(delegate.state.value.isRootStorageScope)
-        assertEquals("vol1", delegate.state.value.currentVolumeId)
-        assertEquals(StorageNodeRef.SHIZUKU_BACKEND_ID, delegate.state.value.currentNodeRef?.backendId)
     }
 
     @Test
@@ -401,7 +328,7 @@ class BrowserNavigationControllerTest {
     }
 
     @Test
-    fun `arbitrary path outside mounted storage does not enter direct root mode`() = testScope.runTest {
+    fun `arbitrary path outside mounted storage does not enter filesystem root scope`() = testScope.runTest {
         delegate.navigateToSpecificFolder("/not-a-mounted-location", seedInitialPathHistory = false)
         advanceUntilIdle()
 
@@ -469,6 +396,7 @@ class BrowserNavigationControllerTest {
         every { savedStateHandle.get<String>("currentVolumeId") } returns null
         every { savedStateHandle.get<Boolean>("isCategoryScreen") } returns null
         every { savedStateHandle.get<String>("activeCategoryName") } returns null
+        every { savedStateHandle.get<Boolean>("isRootStorageScope") } returns false
         every { savedStateHandle.get<String>("archivePath") } returns "/storage/emulated/0/Download/archive.zip"
         every { savedStateHandle.get<String>("archiveEntryPrefix") } returns "folder/subfolder"
         every { savedStateHandle.get<Array<String>>("pathHistory") } returns arrayOf("dir:/storage/emulated/0/Download")

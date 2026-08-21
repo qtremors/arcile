@@ -378,8 +378,6 @@ internal fun BrowserScreen(
                     mutationIntents = intents.mutation,
                     clipboardIntents = intents.clipboard,
                     onToggleHiddenFiles = intents.navigation.onToggleHiddenFiles,
-                    onAnalyzeStorage = intents.navigation.onAnalyzeStorage,
-                    onCleanStorage = intents.navigation.onCleanStorage,
                     appStartPage = appStartPage,
                     onAppStartPageChange = onAppStartPageChange,
                     onBackClick = handleBrowserBack,

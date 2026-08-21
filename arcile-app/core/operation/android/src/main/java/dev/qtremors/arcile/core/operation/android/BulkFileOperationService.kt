@@ -127,119 +127,67 @@ class BulkFileOperationService : Service() {
                 currentOperationJob = serviceScope.launch {
                     try {
                         val result = when (request.type) {
-                            BulkFileOperationType.COPY -> if (request.sourceNodeRefs.isNotEmpty()) {
-                                clipboardRepository.copyNodes(
-                                    request.sourceRefs,
-                                    requireNotNull(request.destinationRef) { "Destination node is required for copy" },
-                                    request.resolutions
-                                ) { progress -> handleProgress(request, progress) }
-                            } else {
-                                clipboardRepository.copyFiles(
-                                    request.sourcePaths,
-                                    requireNotNull(request.destinationPath) { "Destination path is required for copy" },
-                                    request.resolutions
-                                ) { progress -> handleProgress(request, progress) }
+                            BulkFileOperationType.COPY -> clipboardRepository.copyFiles(
+                                request.sourcePaths,
+                                requireNotNull(request.destinationPath) { "Destination path is required for copy" },
+                                request.resolutions
+                            ) { progress ->
+                                handleProgress(request, progress)
                             }
-                            BulkFileOperationType.MOVE -> if (request.sourceNodeRefs.isNotEmpty()) {
-                                clipboardRepository.moveNodes(
-                                    request.sourceRefs,
-                                    requireNotNull(request.destinationRef) { "Destination node is required for move" },
-                                    request.resolutions
-                                ) { progress -> handleProgress(request, progress) }
-                            } else {
-                                clipboardRepository.moveFiles(
-                                    request.sourcePaths,
-                                    requireNotNull(request.destinationPath) { "Destination path is required for move" },
-                                    request.resolutions
-                                ) { progress -> handleProgress(request, progress) }
+                            BulkFileOperationType.MOVE -> clipboardRepository.moveFiles(
+                                request.sourcePaths,
+                                requireNotNull(request.destinationPath) { "Destination path is required for move" },
+                                request.resolutions
+                            ) { progress ->
+                                handleProgress(request, progress)
                             }
-                            BulkFileOperationType.TRASH -> if (request.sourceNodeRefs.isNotEmpty()) {
-                                trashRepository.moveNodesToTrash(request.sourceRefs) { progress ->
-                                    handleProgress(request, progress)
-                                }
-                            } else {
-                                trashRepository.moveToTrash(request.sourcePaths) { progress ->
-                                    handleProgress(request, progress)
-                                }
+                            BulkFileOperationType.TRASH -> trashRepository.moveToTrash(request.sourcePaths) { progress ->
+                                handleProgress(request, progress)
                             }
-                            BulkFileOperationType.DELETE -> if (request.sourceNodeRefs.isNotEmpty()) {
-                                fileMutationRepository.deleteNodesPermanentlyDetailed(
-                                    request.sourceRefs
-                                ) { progress -> handleProgress(request, progress) }
-                            } else {
-                                fileMutationRepository.deletePermanentlyDetailed(
-                                    request.sourcePaths
-                                ) { progress -> handleProgress(request, progress) }
+                            BulkFileOperationType.DELETE -> fileMutationRepository.deletePermanentlyDetailed(
+                                request.sourcePaths
+                            ) { progress ->
+                                handleProgress(request, progress)
                             }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Permanent delete") },
                                     onFailure = { Result.failure(it) }
                                 )
-                            BulkFileOperationType.SHRED -> if (request.sourceNodeRefs.isNotEmpty()) {
-                                fileMutationRepository.shredNodesDetailed(
-                                    request.sourceRefs
-                                ) { progress -> handleProgress(request, progress) }
-                            } else {
-                                fileMutationRepository.shredDetailed(
-                                    request.sourcePaths
-                                ) { progress -> handleProgress(request, progress) }
+                            BulkFileOperationType.SHRED -> fileMutationRepository.shredDetailed(
+                                request.sourcePaths
+                            ) { progress ->
+                                handleProgress(request, progress)
                             }
                                 .fold(
                                     onSuccess = { it.requireCompleteSuccess("Secure shred") },
                                     onFailure = { Result.failure(it) }
                                 )
-                            BulkFileOperationType.CREATE_FAKE -> request.destinationNodeRef?.let {
-                                fileMutationRepository.createFakeNodeFile(
-                                    requireNotNull(request.destinationRef),
-                                    request.sourcePaths.first(),
-                                    requireNotNull(request.fakeFileSize)
-                                ) { progress -> handleProgress(request, progress) }
-                            } ?: fileMutationRepository.createFakeFile(
+                            BulkFileOperationType.CREATE_FAKE -> fileMutationRepository.createFakeFile(
                                 requireNotNull(request.destinationPath),
                                 request.sourcePaths.first(),
                                 requireNotNull(request.fakeFileSize)
-                            ) { progress -> handleProgress(request, progress) }
-                            BulkFileOperationType.EXTRACT_ARCHIVE -> if (
-                                request.sourceNodeRefs.isNotEmpty() && request.destinationNodeRef != null
-                            ) {
-                                archiveRepository.extractArchive(
-                                    archive = request.sourceRefs.first(),
-                                    destination = requireNotNull(request.destinationRef),
-                                    entryPrefix = request.archiveEntryPrefix,
-                                    password = request.archivePassword,
-                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
-                                    resolutions = request.resolutions
-                                ) { progress -> handleProgress(request, progress) }
-                            } else {
-                                archiveRepository.extractArchive(
-                                    archivePath = request.sourcePaths.first(),
-                                    destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
-                                    entryPrefix = request.archiveEntryPrefix,
-                                    password = request.archivePassword,
-                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
-                                    resolutions = request.resolutions
-                                ) { progress -> handleProgress(request, progress) }
+                            ) { progress ->
+                                handleProgress(request, progress)
                             }
-                            BulkFileOperationType.CREATE_ARCHIVE -> if (
-                                request.sourceNodeRefs.isNotEmpty() && request.destinationNodeRef != null
-                            ) {
-                                archiveRepository.createArchive(
-                                    sources = request.sourceRefs,
-                                    destinationArchive = requireNotNull(request.destinationRef),
-                                    format = requireNotNull(request.archiveFormat) { "Archive format is required" },
-                                    password = request.archivePassword,
-                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
-                                    compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
-                                ) { progress -> handleProgress(request, progress) }
-                            } else {
-                                archiveRepository.createArchive(
-                                    sourcePaths = request.sourcePaths,
-                                    destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
-                                    format = requireNotNull(request.archiveFormat) { "Archive format is required" },
-                                    password = request.archivePassword,
-                                    nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
-                                    compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
-                                ) { progress -> handleProgress(request, progress) }
+                            BulkFileOperationType.EXTRACT_ARCHIVE -> archiveRepository.extractArchive(
+                                archivePath = request.sourcePaths.first(),
+                                destinationPath = requireNotNull(request.destinationPath) { "Destination path is required for extraction" },
+                                entryPrefix = request.archiveEntryPrefix,
+                                password = request.archivePassword,
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                resolutions = request.resolutions
+                            ) { progress ->
+                                handleProgress(request, progress)
+                            }
+                            BulkFileOperationType.CREATE_ARCHIVE -> archiveRepository.createArchive(
+                                sourcePaths = request.sourcePaths,
+                                destinationArchivePath = requireNotNull(request.destinationPath) { "Archive path is required" },
+                                format = requireNotNull(request.archiveFormat) { "Archive format is required" },
+                                password = request.archivePassword,
+                                nameEncoding = request.archiveNameEncoding ?: ArchiveNameEncoding.UTF_8,
+                                compressionLevel = request.archiveCompressionLevel ?: ArchiveCompressionLevel.STORE
+                            ) { progress ->
+                                handleProgress(request, progress)
                             }
                             BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> importSharedFiles(request) { progress ->
                                 handleProgress(request, progress)

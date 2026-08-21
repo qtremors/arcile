@@ -4,12 +4,6 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
-import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
-import dev.qtremors.arcile.core.privilege.PrivilegeServiceIdentity
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
 import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
@@ -35,10 +29,6 @@ internal data class OnboardingUiState(
     val isCompleting: Boolean = false,
     val preferencesLoaded: Boolean = false,
     val isCompleted: Boolean = false,
-    val preferredAccessMode: PrivilegeMode = PrivilegeMode.AUTOMATIC,
-    val activeBackend: PrivilegeBackendId? = null,
-    val accessBackends: Map<PrivilegeBackendId, PrivilegeBackendState> = emptyMap(),
-    val accessIdentity: PrivilegeServiceIdentity? = null,
     val backupState: OnboardingBackupState = OnboardingBackupState.Idle
 ) {
     val canContinue: Boolean
@@ -49,10 +39,8 @@ internal data class OnboardingUiState(
 internal class OnboardingViewModel @Inject constructor(
     private val onboardingPreferencesStore: OnboardingPreferencesStore,
     private val backupGateway: PreferencesBackupGateway,
-    private val appVersionCodeProvider: AppVersionCodeProvider,
-    private val privilegeCoordinator: PrivilegeCoordinator
+    private val appVersionCodeProvider: AppVersionCodeProvider
 ) : ViewModel() {
-    private var automaticAccessPrepared = false
 
     private val _state = MutableStateFlow(OnboardingUiState())
     val state: StateFlow<OnboardingUiState> = _state.asStateFlow()
@@ -64,19 +52,6 @@ internal class OnboardingViewModel @Inject constructor(
                     it.copy(
                         preferencesLoaded = true,
                         isCompleted = preferences.isCompleted
-                    )
-                }
-            }
-        }
-        viewModelScope.launch {
-            privilegeCoordinator.state.collect { access ->
-                _state.update {
-                    it.copy(
-                        hasStoragePermission = access.isReady,
-                        preferredAccessMode = access.preferredMode,
-                        activeBackend = access.activeBackend,
-                        accessBackends = access.backendStates,
-                        accessIdentity = access.identity
                     )
                 }
             }
@@ -125,22 +100,6 @@ internal class OnboardingViewModel @Inject constructor(
         _state.update { it.copy(notificationPermissionHandled = true) }
     }
 
-    fun prepareAutomaticAccess() {
-        if (automaticAccessPrepared) return
-        automaticAccessPrepared = true
-        viewModelScope.launch {
-            val rootState = privilegeCoordinator.state.value.backendStates[PrivilegeBackendId.ROOT]
-                ?.connectionState
-            if (
-                rootState != null &&
-                rootState != PrivilegeConnectionState.UNAVAILABLE &&
-                rootState != PrivilegeConnectionState.PERMISSION_DENIED
-            ) {
-                privilegeCoordinator.selectMode(PrivilegeMode.ROOT, requestAuthorization = true)
-            }
-            privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
-        }
-    }
 
     fun markExistingUserCompleted() {
         completeOnboarding(markNotificationHandled = _state.value.notificationPermissionHandled)

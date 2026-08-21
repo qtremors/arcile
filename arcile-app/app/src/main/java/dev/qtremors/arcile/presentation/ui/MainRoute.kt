@@ -28,6 +28,7 @@ import androidx.navigation.NavBackStackEntry
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.browser.BrowserEntry
@@ -57,6 +58,7 @@ internal fun MainRoute(
     val browserTabsViewModel = hiltViewModel<BrowserTabsViewModel>(backStackEntry)
     val restoredPinnedTabs by browserTabsViewModel.restoredTabs.collectAsStateWithLifecycle()
     val tabsEnabled by browserTabsViewModel.tabsEnabled.collectAsStateWithLifecycle()
+    val storageVolumes by browserTabsViewModel.storageVolumes.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
     val configuration = LocalConfiguration.current
     val dualPaneEnabled = landscapeDualPaneEnabled &&
@@ -153,8 +155,7 @@ internal fun MainRoute(
                             primaryTabs.requestBrowser(
                                 BrowserEntry.Path(
                                     path = destination.path,
-                                    isRootStorageScope = destination.path.normalizedBrowserPath() == "/",
-                                    backendId = destination.backendId
+                                    isRootStorageScope = destination.path.normalizedBrowserPath() == "/"
                                 )
                             )
                             coordinator.showPrimaryBrowser()
@@ -188,6 +189,7 @@ internal fun MainRoute(
                         onAppStartPageChange = onAppStartPageChange,
                         tabsEnabled = tabsEnabled,
                         onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
+                        storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
                         modifier = Modifier
                             .weight(1f)
@@ -210,6 +212,7 @@ internal fun MainRoute(
                         onAppStartPageChange = onAppStartPageChange,
                         tabsEnabled = tabsEnabled,
                         onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
+                        storageVolumes = storageVolumes,
                         onFeedback = onFeedback,
                         modifier = Modifier
                             .weight(1f)
@@ -237,6 +240,7 @@ internal fun MainRoute(
                 onAppStartPageChange = onAppStartPageChange,
                 tabsEnabled = tabsEnabled,
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
+                storageVolumes = storageVolumes,
                 onFeedback = onFeedback
             )
             SECONDARY_BROWSER_PAGE -> BrowserWorkspacePage(
@@ -254,6 +258,7 @@ internal fun MainRoute(
                 onAppStartPageChange = onAppStartPageChange,
                 tabsEnabled = tabsEnabled,
                 onTabsEnabledChange = browserTabsViewModel::setTabsEnabled,
+                storageVolumes = storageVolumes,
                 onFeedback = onFeedback
             )
         }
@@ -276,6 +281,7 @@ private fun BrowserWorkspacePage(
     onAppStartPageChange: (AppStartPage) -> Unit,
     tabsEnabled: Boolean,
     onTabsEnabledChange: (Boolean) -> Unit,
+    storageVolumes: List<StorageVolume> = emptyList(),
     onFeedback: (ArcileFeedbackEvent) -> Unit,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
@@ -341,6 +347,16 @@ private fun BrowserWorkspacePage(
                                 onNewTab = {
                                     if (!coordinator.addTab()) showTabLimitFeedback()
                                 },
+                                onNewTabInternal = {
+                                    if (!coordinator.addTab(BrowserEntry.PrimaryStorage)) showTabLimitFeedback()
+                                },
+                                onNewTabRoot = {
+                                    if (!coordinator.addTab(BrowserEntry.Path("/", isRootStorageScope = true))) showTabLimitFeedback()
+                                },
+                                onNewTabStorageVolume = { volume ->
+                                    if (!coordinator.addTab(BrowserEntry.Path(volume.path, isRootStorageScope = false))) showTabLimitFeedback()
+                                },
+                                storageVolumes = storageVolumes,
                                 onSetPinned = coordinator::setTabPinned,
                                 onDuplicate = { tabId ->
                                     if (!coordinator.duplicateTab(tabId)) showTabLimitFeedback()
@@ -399,8 +415,7 @@ internal fun AppRoutes.Main.initialBrowserEntry(requestId: Long): BrowserEntryRe
         !requestedPath.isNullOrEmpty() -> BrowserEntry.Path(
             path = requestedPath,
             seedInitialPathHistory = seedInitialPathHistory,
-            isRootStorageScope = requestedPath.normalizedBrowserPath() == "/",
-            backendId = pathBackendId
+            isRootStorageScope = requestedPath.normalizedBrowserPath() == "/"
         )
         !requestedCategory.isNullOrEmpty() -> BrowserEntry.Category(requestedCategory, volumeId)
         else -> BrowserEntry.Root(restorePersistentLocation)

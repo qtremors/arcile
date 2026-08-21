@@ -3,10 +3,6 @@ package dev.qtremors.arcile.feature.quickaccess
 import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.QuickAccessType
-import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeState
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,9 +50,7 @@ class QuickAccessViewModelTest {
     private val fakeStore = FakeQuickAccessPreferencesStore()
 
     private fun createViewModel(): QuickAccessViewModel {
-        val coordinator = mockk<PrivilegeCoordinator>(relaxed = true)
-        every { coordinator.state } returns MutableStateFlow(PrivilegeState())
-        return QuickAccessViewModel(fakeStore, coordinator)
+        return QuickAccessViewModel(fakeStore)
     }
 
     @Before

@@ -11,7 +11,6 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FolderStats
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserArchiveContext
 import kotlinx.coroutines.CoroutineScope
@@ -23,8 +22,7 @@ internal data class BrowserClipboardContext(
     val clipboardState: ClipboardState?,
     val selectedPaths: Set<String>,
     val files: List<FileModel>,
-    val folderStats: Map<String, FolderStats>,
-    val currentNodeRef: StorageNodeRef? = null
+    val folderStats: Map<String, FolderStats>
 )
 
 internal class BrowserClipboardController(
@@ -85,15 +83,14 @@ internal class BrowserClipboardController(
         val context = contextProvider()
         if (context.archiveContext != null || context.currentPath.isEmpty()) return
         val clipboard = context.clipboardState ?: return
-        val destination = context.destinationRef() ?: return
         scope.launch {
             onBusyChange(true)
             onError(null)
-            val sources = clipboard.files.map(FileModel::nodeRef)
-            clipboardRepository.detectNodeCopyConflicts(sources, destination)
+            val sources = clipboard.files.map(FileModel::absolutePath)
+            clipboardRepository.detectCopyConflicts(sources, context.currentPath)
                 .onSuccess { conflicts ->
                     if (conflicts.isEmpty()) {
-                        executePaste(clipboard, destination, emptyMap())
+                        executePaste(clipboard, context.currentPath, emptyMap())
                     } else {
                         onBusyChange(false)
                         onConflicts(conflicts)
@@ -112,15 +109,15 @@ internal class BrowserClipboardController(
     fun resolveConflicts(resolutions: Map<String, ConflictResolution>) {
         val context = contextProvider()
         val clipboard = context.clipboardState ?: return
-        val destination = context.destinationRef() ?: return
+        if (context.currentPath.isEmpty()) return
         onBusyChange(true)
         onDismissConflicts()
-        executePaste(clipboard, destination, resolutions)
+        executePaste(clipboard, context.currentPath, resolutions)
     }
 
     private fun executePaste(
         clipboard: ClipboardState,
-        destination: StorageNodeRef,
+        destinationPath: String,
         resolutions: Map<String, ConflictResolution>
     ) {
         val type = if (clipboard.operation == ClipboardOperation.CUT) {
@@ -128,10 +125,10 @@ internal class BrowserClipboardController(
         } else {
             BulkFileOperationType.COPY
         }
-        val started = operationCoordinator.startNodeOperation(
+        val started = operationCoordinator.startOperation(
             type = type,
-            sourceNodes = clipboard.files.map(FileModel::nodeRef),
-            destinationNode = destination,
+            sourcePaths = clipboard.files.map(FileModel::absolutePath),
+            destinationPath = destinationPath,
             resolutions = resolutions,
             presentationOwnerId = operationOwnerId,
             clipboardSessionId = clipboard.sessionId
@@ -141,7 +138,4 @@ internal class BrowserClipboardController(
             onError(UiText.StringResource(RuntimeR.string.error_operation_already_running))
         }
     }
-
-    private fun BrowserClipboardContext.destinationRef(): StorageNodeRef? =
-        currentNodeRef ?: runCatching { StorageNodeRef.local(currentPath) }.getOrNull()
 }

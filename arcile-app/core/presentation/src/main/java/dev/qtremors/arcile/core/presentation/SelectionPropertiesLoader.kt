@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.core.presentation
 
 import dev.qtremors.arcile.core.storage.domain.SelectionPropertiesRepository
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.presentation.PropertiesUiModel
 import dev.qtremors.arcile.core.presentation.toUiModel
 import kotlinx.coroutines.CoroutineScope
@@ -27,24 +26,11 @@ class SelectionPropertiesLoader(
 
     fun open(paths: List<String>) {
         if (paths.isEmpty()) return
-        openRequest(paths) { repository.getSelectionProperties(paths) }
-    }
-
-    fun openNodes(nodes: List<StorageNodeRef>) {
-        if (nodes.isEmpty()) return
-        val paths = nodes.map { it.displayPath.absolutePath }
-        openRequest(paths) { repository.getNodeSelectionProperties(nodes) }
-    }
-
-    private fun openRequest(
-        paths: List<String>,
-        load: suspend () -> Result<dev.qtremors.arcile.core.storage.domain.SelectionProperties>
-    ) {
         val generation = ++requestGeneration
         requestJob?.cancel()
         publish(SelectionPropertiesUiState(isVisible = true, isLoading = true))
         requestJob = scope.launch {
-            load()
+            repository.getSelectionProperties(paths)
                 .mapCatching { transform(paths, it.toUiModel()) }
                 .fold(
                 onSuccess = { properties ->

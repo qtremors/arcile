@@ -87,8 +87,6 @@ import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -135,7 +133,6 @@ internal fun OnboardingSetupPermissions(
                 )
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         val openStorageClick = {
@@ -146,67 +143,38 @@ internal fun OnboardingSetupPermissions(
             haptics.selectionChanged()
             onRequestNotificationPermission()
         }
-        val rootedDevice = state.accessBackends[PrivilegeBackendId.ROOT]
-            ?.connectionState
-            ?.let { it != PrivilegeConnectionState.UNAVAILABLE } == true
-        val protectedAccessReady = state.activeBackend == PrivilegeBackendId.ROOT ||
-            state.activeBackend == PrivilegeBackendId.SHIZUKU
-        val showNormalPermission = !protectedAccessReady
-        val accessItemCount = (if (rootedDevice) 1 else 0) +
-            (if (showNormalPermission) 1 else 0) +
-            (if (state.notificationPermissionRequired) 1 else 0)
-        if (accessItemCount > 0) {
-            SettingsSection(title = stringResource(R.string.onboarding_system_access)) {
-                var itemIndex = 0
-                if (rootedDevice) {
-                    OnboardingPermissionRow(
-                        index = itemIndex++,
-                        count = accessItemCount,
-                        title = stringResource(R.string.onboarding_rooted_device_title),
-                        description = stringResource(R.string.onboarding_rooted_device_description),
-                        icon = Icons.Default.AccountTree,
-                        granted = true,
-                        grantedLabel = stringResource(R.string.onboarding_rooted_device_status),
-                        actionLabel = "",
-                        onClick = {}
-                    )
-                }
-                if (showNormalPermission) {
-                    OnboardingPermissionRow(
-                        index = itemIndex++,
-                        count = accessItemCount,
-                        title = stringResource(R.string.onboarding_storage_title),
-                        description = stringResource(R.string.onboarding_storage_description),
-                        icon = Icons.Default.Storage,
-                        granted = state.hasStoragePermission ||
-                            state.accessBackends[PrivilegeBackendId.NORMAL]
-                                ?.connectionState == PrivilegeConnectionState.READY,
-                        grantedLabel = stringResource(R.string.onboarding_permission_granted),
-                        actionLabel = stringResource(R.string.onboarding_permission_grant),
-                        actionIsRequired = true,
-                        onClick = openStorageClick
-                    )
-                }
+        val accessItemCount = 1 + (if (state.notificationPermissionRequired) 1 else 0)
+        SettingsSection(title = stringResource(R.string.onboarding_system_access)) {
+            OnboardingPermissionRow(
+                index = 0,
+                count = accessItemCount,
+                title = stringResource(R.string.onboarding_storage_title),
+                description = stringResource(R.string.onboarding_storage_description),
+                icon = Icons.Default.Storage,
+                granted = state.hasStoragePermission,
+                grantedLabel = stringResource(R.string.onboarding_permission_granted),
+                actionLabel = stringResource(R.string.onboarding_permission_grant),
+                actionIsRequired = true,
+                onClick = openStorageClick
+            )
 
-                if (state.notificationPermissionRequired) {
-                    OnboardingPermissionRow(
-                        index = itemIndex,
-                        count = accessItemCount,
-                        title = stringResource(R.string.onboarding_notifications_title),
-                        description = stringResource(R.string.onboarding_notifications_description),
-                        icon = Icons.Default.Notifications,
-                        granted = state.hasNotificationPermission,
-                        grantedLabel = stringResource(R.string.onboarding_permission_enabled),
-                        actionLabel = stringResource(R.string.onboarding_enable_notifications),
-                        onClick = openNotificationsClick
-                    )
-                }
+            if (state.notificationPermissionRequired) {
+                OnboardingPermissionRow(
+                    index = 1,
+                    count = accessItemCount,
+                    title = stringResource(R.string.onboarding_notifications_title),
+                    description = stringResource(R.string.onboarding_notifications_description),
+                    icon = Icons.Default.Notifications,
+                    granted = state.hasNotificationPermission,
+                    grantedLabel = stringResource(R.string.onboarding_permission_enabled),
+                    actionLabel = stringResource(R.string.onboarding_enable_notifications),
+                    onClick = openNotificationsClick
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Restore Backup Button
         val chooseRestoreBackupClick = {
             haptics.selectionChanged()
             onChooseRestoreBackup()

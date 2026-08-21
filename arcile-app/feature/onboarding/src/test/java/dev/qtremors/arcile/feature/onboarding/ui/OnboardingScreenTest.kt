@@ -7,9 +7,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
 import dev.qtremors.arcile.feature.onboarding.OnboardingStep
 import dev.qtremors.arcile.feature.onboarding.OnboardingUiState
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
@@ -143,37 +140,5 @@ class OnboardingScreenTest {
         composeRule.onNodeWithText("Granted").assertExists()
         composeRule.onNodeWithText("Enable").assertExists()
         composeRule.onNodeWithText("Finish").assertIsEnabled()
-    }
-
-    @Test
-    fun `setup page only reports Root when the device is rooted`() {
-        composeRule.setContent {
-            ArcileTestTheme {
-                OnboardingScreen(
-                    state = OnboardingUiState(
-                        step = OnboardingStep.SetupPermissions,
-                        accessBackends = mapOf(
-                            PrivilegeBackendId.ROOT to PrivilegeBackendState(
-                                backendId = PrivilegeBackendId.ROOT,
-                                connectionState = PrivilegeConnectionState.PERMISSION_REQUIRED
-                            )
-                        )
-                    ),
-                    currentThemeState = ThemeState(),
-                    onThemeChange = {},
-                    onNext = {},
-                    onBack = {},
-                    onStepSelected = {},
-                    onOpenStoragePermissionSettings = {},
-                    onRequestNotificationPermission = {}
-                )
-            }
-        }
-
-        composeRule.onNodeWithText("Rooted device").assertExists()
-        composeRule.onNodeWithText("Arcile detects root and uses it automatically.").assertExists()
-        composeRule.onNodeWithText("Automatic").assertDoesNotExist()
-        composeRule.onNodeWithText("Shizuku").assertDoesNotExist()
-        composeRule.onNodeWithText("Normal Android").assertDoesNotExist()
     }
 }

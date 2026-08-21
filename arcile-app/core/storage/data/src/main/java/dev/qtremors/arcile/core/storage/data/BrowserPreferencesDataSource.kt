@@ -359,7 +359,9 @@ class BrowserPreferencesDataSource(
                 browserScrollbarEnabled = prefs[BROWSER_SCROLLBAR_ENABLED_KEY]
                     ?: BrowserPreferences().browserScrollbarEnabled,
                 galleryScrollbarEnabled = prefs[GALLERY_SCROLLBAR_ENABLED_KEY]
-                    ?: BrowserPreferences().galleryScrollbarEnabled
+                    ?: BrowserPreferences().galleryScrollbarEnabled,
+                browserTabsEnabled = prefs[BROWSER_TABS_ENABLED_KEY]
+                    ?: BrowserPreferences().browserTabsEnabled
             )
         }
         .flowOn(dispatchers.io)
@@ -416,6 +418,12 @@ class BrowserPreferencesDataSource(
     suspend fun updateBrowserScrollbarEnabled(enabled: Boolean) {
         dataStore.edit { prefs ->
             prefs[BROWSER_SCROLLBAR_ENABLED_KEY] = enabled
+        }
+    }
+
+    suspend fun updateBrowserTabsEnabled(enabled: Boolean) {
+        dataStore.edit { prefs ->
+            prefs[BROWSER_TABS_ENABLED_KEY] = enabled
         }
     }
 

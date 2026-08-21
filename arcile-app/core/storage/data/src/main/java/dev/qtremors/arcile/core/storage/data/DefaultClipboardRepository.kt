@@ -6,7 +6,6 @@ import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
 import dev.qtremors.arcile.core.storage.domain.FileOperationProgress
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -52,34 +51,4 @@ class DefaultClipboardRepository(
         onProgress: ((FileOperationProgress) -> Unit)?
     ): Result<Unit> =
         fileSystemDataSource.moveFiles(sourcePaths, destinationPath, resolutions, onProgress)
-
-    override suspend fun detectNodeCopyConflicts(
-        sources: List<StorageNodeRef>,
-        destination: StorageNodeRef
-    ): Result<List<FileConflict>> =
-        fileSystemDataSource.detectNodeCopyConflicts(sources, destination)
-
-    override suspend fun copyNodes(
-        sources: List<StorageNodeRef>,
-        destination: StorageNodeRef,
-        resolutions: Map<String, ConflictResolution>,
-        onProgress: ((FileOperationProgress) -> Unit)?
-    ): Result<Unit> = fileSystemDataSource.copyNodes(
-        sources,
-        destination,
-        resolutions,
-        onProgress
-    )
-
-    override suspend fun moveNodes(
-        sources: List<StorageNodeRef>,
-        destination: StorageNodeRef,
-        resolutions: Map<String, ConflictResolution>,
-        onProgress: ((FileOperationProgress) -> Unit)?
-    ): Result<Unit> = fileSystemDataSource.moveNodes(
-        sources,
-        destination,
-        resolutions,
-        onProgress
-    )
 }

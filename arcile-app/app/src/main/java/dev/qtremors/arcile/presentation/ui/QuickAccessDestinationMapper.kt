@@ -13,8 +13,7 @@ internal class QuickAccessDestinationMapper(
                 AppRoutes.Main(
                     initialPage = BROWSER_PAGE,
                     path = destination.path,
-                    seedInitialPathHistory = false,
-                    pathBackendId = destination.backendId
+                    seedInitialPathHistory = false
                 )
             )
             is QuickAccessDestination.ExternalFolder -> openExternalFolder(destination.uri)

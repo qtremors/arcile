@@ -277,19 +277,7 @@ private fun viewerContextFiles(
         val backendId = backendIds?.getOrNull(index).orEmpty()
         val backendIdentity = backendIdentities?.getOrNull(index).orEmpty()
         val contentUri = contentUris?.getOrNull(index)?.ifBlank { null }
-        val nodeRef = if (
-            hasNodeMetadata &&
-            backendId in setOf(StorageNodeRef.ROOT_BACKEND_ID, StorageNodeRef.SHIZUKU_BACKEND_ID) &&
-            backendIdentity.isNotBlank()
-        ) {
-            StorageNodeRef.privileged(
-                backendId = backendId,
-                displayPath = paths[index],
-                remoteCanonicalIdentity = backendIdentity
-            ).copy(contentUri = contentUri)
-        } else {
-            StorageNodeRef.local(paths[index]).copy(contentUri = contentUri)
-        }
+        val nodeRef = StorageNodeRef.local(paths[index]).copy(contentUri = contentUri)
         FileModel(
             name = names!![index],
             absolutePath = paths[index],

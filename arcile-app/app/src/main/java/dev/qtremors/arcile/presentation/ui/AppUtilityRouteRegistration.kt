@@ -33,7 +33,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
     ) {
         ToolsRoute(
             onNavigateBack = { navController.popBackStack() },
-            onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner()) },
+            onNavigateToCleaner = { navController.navigate(AppRoutes.StorageCleaner) },
             onNavigateToTrash = {
                 navController.navigate(AppRoutes.Trash) {
                     popUpTo<AppRoutes.Main> { saveState = true }

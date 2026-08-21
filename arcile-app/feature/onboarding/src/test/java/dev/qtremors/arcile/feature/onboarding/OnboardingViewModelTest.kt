@@ -2,15 +2,6 @@ package dev.qtremors.arcile.feature.onboarding
 
 import android.net.Uri
 import dev.qtremors.arcile.core.storage.domain.AppVersionCodeProvider
-import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
-import dev.qtremors.arcile.core.privilege.PrivilegeServiceIdentity
-import dev.qtremors.arcile.core.privilege.PrivilegeSession
-import dev.qtremors.arcile.core.privilege.PrivilegeState
-import dev.qtremors.arcile.core.privilege.PrivilegeTransport
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
@@ -132,115 +123,14 @@ class OnboardingViewModelTest {
         assertTrue(viewModel.state.value.backupState is OnboardingBackupState.Restored)
     }
 
-    @Test
-    fun `automatic setup authorizes detected Root then restores automatic selection`() = runTest(mainDispatcherRule.dispatcher) {
-        val coordinator = FakePrivilegeCoordinator()
-        coordinator.emit(
-            PrivilegeState(
-                backendStates = mapOf(
-                    PrivilegeBackendId.ROOT to PrivilegeBackendState(
-                        backendId = PrivilegeBackendId.ROOT,
-                        connectionState = PrivilegeConnectionState.PERMISSION_REQUIRED
-                    )
-                )
-            )
-        )
-        val viewModel = createViewModel(privilegeCoordinator = coordinator)
-
-        viewModel.prepareAutomaticAccess()
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf(PrivilegeMode.ROOT to true, PrivilegeMode.AUTOMATIC to false),
-            coordinator.selections
-        )
-    }
-
-    @Test
-    fun `automatic setup skips Root authorization when Root is unavailable`() = runTest(mainDispatcherRule.dispatcher) {
-        val coordinator = FakePrivilegeCoordinator()
-        val viewModel = createViewModel(privilegeCoordinator = coordinator)
-
-        viewModel.prepareAutomaticAccess()
-        advanceUntilIdle()
-
-        assertEquals(listOf(PrivilegeMode.AUTOMATIC to false), coordinator.selections)
-    }
-
-    @Test
-    fun `ready Root access completes onboarding without Normal access`() =
-        runTest(mainDispatcherRule.dispatcher) {
-            val store = FakeOnboardingPreferencesStore()
-            val coordinator = FakePrivilegeCoordinator()
-            val viewModel = createViewModel(store, privilegeCoordinator = coordinator)
-            viewModel.next()
-            coordinator.emit(
-                PrivilegeState(
-                    preferredMode = PrivilegeMode.ROOT,
-                    activeBackend = PrivilegeBackendId.ROOT,
-                    backendStates = mapOf(
-                        PrivilegeBackendId.ROOT to PrivilegeBackendState(
-                            backendId = PrivilegeBackendId.ROOT,
-                            connectionState = PrivilegeConnectionState.READY
-                        )
-                    ),
-                    identity = PrivilegeServiceIdentity(
-                        effectiveUid = 0,
-                        pid = 42,
-                        transport = PrivilegeTransport.ROOT_SERVICE
-                    )
-                )
-            )
-            advanceUntilIdle()
-
-            viewModel.next()
-            advanceUntilIdle()
-
-            assertTrue(store.preferencesFlow.value.isCompleted)
-        }
-
     private fun createViewModel(
         store: FakeOnboardingPreferencesStore = FakeOnboardingPreferencesStore(),
-        backupGateway: PreferencesBackupGateway = FakePreferencesBackupGateway(),
-        privilegeCoordinator: PrivilegeCoordinator = FakePrivilegeCoordinator()
+        backupGateway: PreferencesBackupGateway = FakePreferencesBackupGateway()
     ) = OnboardingViewModel(
         onboardingPreferencesStore = store,
         backupGateway = backupGateway,
-        appVersionCodeProvider = AppVersionCodeProvider { 321 },
-        privilegeCoordinator = privilegeCoordinator
+        appVersionCodeProvider = AppVersionCodeProvider { 321 }
     )
-}
-
-private class FakePrivilegeCoordinator : PrivilegeCoordinator {
-    private val mutableState = MutableStateFlow(PrivilegeState())
-    override val state: StateFlow<PrivilegeState> = mutableState.asStateFlow()
-    var selectedMode: PrivilegeMode? = null
-    var requestedAuthorization: Boolean = false
-    val selections = mutableListOf<Pair<PrivilegeMode, Boolean>>()
-
-    fun emit(state: PrivilegeState) {
-        mutableState.value = state
-    }
-
-    override suspend fun start() = Unit
-    override suspend fun refresh() = Unit
-    override suspend fun selectMode(mode: PrivilegeMode, requestAuthorization: Boolean) {
-        selectedMode = mode
-        requestedAuthorization = requestAuthorization
-        selections += mode to requestAuthorization
-        mutableState.value = mutableState.value.copy(preferredMode = mode)
-    }
-
-    override suspend fun reconnect(requestAuthorization: Boolean) {
-        requestedAuthorization = requestAuthorization
-    }
-
-    override suspend fun useNormal() {
-        selectedMode = PrivilegeMode.NORMAL
-    }
-
-    override fun captureSession(): Result<PrivilegeSession> =
-        Result.failure(IllegalStateException("No active backend"))
 }
 
 private class FakeOnboardingPreferencesStore(

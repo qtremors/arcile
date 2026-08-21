@@ -76,8 +76,6 @@ private val libraries = listOf(
     LibraryInfo("Zip4j", "Apache 2.0", "https://github.com/srikanth-lingala/zip4j"),
     LibraryInfo("Tukaani XZ", "Public domain", "https://tukaani.org/xz/java.html"),
     LibraryInfo("Bouncy Castle", "Bouncy Castle Licence", "https://www.bouncycastle.org/"),
-    LibraryInfo("Shizuku API", "Apache 2.0", "https://github.com/RikkaApps/Shizuku-API"),
-    LibraryInfo("libsu", "Apache 2.0", "https://github.com/topjohnwu/libsu")
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)

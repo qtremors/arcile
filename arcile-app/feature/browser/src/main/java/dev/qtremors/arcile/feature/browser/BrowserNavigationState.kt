@@ -8,7 +8,6 @@ import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.collections.immutable.PersistentList
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.PersistentSet
@@ -20,7 +19,6 @@ import kotlinx.collections.immutable.toPersistentList
 @Immutable
 internal data class BrowserLocationState(
     val currentPath: String = "",
-    val currentNodeRef: StorageNodeRef? = null,
     val currentVolumeId: String? = null,
     val isRootStorageScope: Boolean = false,
     val isVolumeRootScreen: Boolean = false,
@@ -55,7 +53,6 @@ internal data class BrowserNavigationState(
     val listing: BrowserListingState = BrowserListingState()
 ) {
     val currentPath get() = location.currentPath
-    val currentNodeRef get() = location.currentNodeRef
     val currentVolumeId get() = location.currentVolumeId
     val isRootStorageScope get() = location.isRootStorageScope
     val isVolumeRootScreen get() = location.isVolumeRootScreen
@@ -82,7 +79,6 @@ internal data class BrowserNavigationState(
     @Suppress("LongParameterList")
     fun withValues(
         currentPath: String = this.currentPath,
-        currentNodeRef: StorageNodeRef? = this.currentNodeRef,
         currentVolumeId: String? = this.currentVolumeId,
         isRootStorageScope: Boolean = this.isRootStorageScope,
         isVolumeRootScreen: Boolean = this.isVolumeRootScreen,
@@ -107,7 +103,6 @@ internal data class BrowserNavigationState(
     ): BrowserNavigationState = BrowserNavigationState(
         location = location.copy(
             currentPath = currentPath,
-            currentNodeRef = currentNodeRef,
             currentVolumeId = currentVolumeId,
             isRootStorageScope = isRootStorageScope,
             isVolumeRootScreen = isVolumeRootScreen,
@@ -141,7 +136,6 @@ internal sealed interface BrowserNavigationEvent {
     data class OpenDirectory(
         val path: String,
         val volumeId: String?,
-        val nodeRef: StorageNodeRef? = null,
         val isRootStorageScope: Boolean = false
     ) : BrowserNavigationEvent
     data class OpenCategory(val categoryName: String, val volumeId: String?) : BrowserNavigationEvent
@@ -155,7 +149,6 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
     is BrowserNavigationEvent.OpenVolumeRoots -> withValues(
         archiveContext = null,
         currentPath = "",
-        currentNodeRef = null,
         currentVolumeId = null,
         isRootStorageScope = false,
         isVolumeRootScreen = true,
@@ -173,12 +166,10 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
             !isVolumeRootScreen &&
             !isCategoryScreen &&
             currentPath == event.path &&
-            currentNodeRef == event.nodeRef &&
             currentVolumeId == event.volumeId
         withValues(
             archiveContext = null,
             currentPath = event.path,
-            currentNodeRef = event.nodeRef,
             currentVolumeId = event.volumeId,
             isRootStorageScope = event.isRootStorageScope,
             isVolumeRootScreen = false,
@@ -198,7 +189,6 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
         withValues(
             archiveContext = null,
             currentPath = "",
-            currentNodeRef = null,
             currentVolumeId = event.volumeId,
             isRootStorageScope = false,
             isVolumeRootScreen = false,

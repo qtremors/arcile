@@ -24,7 +24,6 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.RootStorageUsage
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -49,7 +48,6 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
-import javax.inject.Provider
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -142,8 +140,7 @@ class FocusedStorageRepositoriesTest {
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
             testDispatchers(),
-            RootStorageUsageProvider { null },
-            Provider { RecordingFileSystemDataSource() }
+            RootStorageUsageProvider { null }
         )
 
         try {
@@ -175,8 +172,7 @@ class FocusedStorageRepositoriesTest {
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
             testDispatchers(),
-            RootStorageUsageProvider { rootUsage },
-            Provider { RecordingFileSystemDataSource() }
+            RootStorageUsageProvider { rootUsage }
         )
 
         try {
@@ -229,8 +225,7 @@ class FocusedStorageRepositoriesTest {
                 RecordingTrashManager(),
                 snapshotStore,
                 testDispatchers(),
-                RootStorageUsageProvider { null },
-                Provider { RecordingFileSystemDataSource() }
+                RootStorageUsageProvider { null }
             )
 
             val result = repository.getRecentFiles(scope, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()
@@ -425,17 +420,6 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
 
     override fun getStandardFolders(): Map<String, String?> = emptyMap()
     override suspend fun listFiles(path: String): Result<List<FileModel>> = Result.success(emptyList())
-    override suspend fun inspectNode(node: StorageNodeRef): Result<FileModel> = runCatching {
-        val file = File(node.displayPath.absolutePath)
-        require(file.exists()) { "Path does not exist: ${file.absolutePath}" }
-        file.toModel(node)
-    }
-    override suspend fun listNodeFiles(directory: StorageNodeRef): Result<List<FileModel>> = runCatching {
-        val file = File(directory.displayPath.absolutePath)
-        require(file.isDirectory) { "Not a directory: ${file.absolutePath}" }
-        requireNotNull(file.listFiles()) { "Directory is unavailable: ${file.absolutePath}" }
-            .map { child -> child.toModel() }
-    }
     override fun list(path: StorageNodePath, pageSize: Int): Flow<ListingPage> =
         flowOf(ListingPage(path, emptyList(), pageIndex = 0, isComplete = true))
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", isDirectory = true))
@@ -473,17 +457,6 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
         return Result.success(Unit)
     }
 
-    private fun File.toModel(node: StorageNodeRef = StorageNodeRef.local(absolutePath)): FileModel =
-        FileModel(
-            name = name,
-            absolutePath = absolutePath,
-            size = if (isFile) length() else 0L,
-            lastModified = lastModified(),
-            isDirectory = isDirectory,
-            extension = extension.lowercase(),
-            isHidden = name.startsWith('.'),
-            nodeRef = node
-        )
 }
 
 private class RecordingFolderStatsStore : FolderStatsStore {

@@ -26,7 +26,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.feature.browser.ui.BrowserScreen
 import dev.qtremors.arcile.feature.browser.ui.BrowserArchiveIntents
@@ -37,7 +36,6 @@ import dev.qtremors.arcile.feature.browser.ui.BrowserMutationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserNavigationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserOperationIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserScrollBindings
-import dev.qtremors.arcile.feature.browser.ui.BrowserBackendAccessSurface
 import dev.qtremors.arcile.feature.browser.ui.BrowserSearchIntents
 import dev.qtremors.arcile.feature.browser.ui.BrowserSelectionIntents
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
@@ -52,8 +50,7 @@ sealed interface BrowserEntry {
     data class Path(
         val path: String,
         val seedInitialPathHistory: Boolean = true,
-        val isRootStorageScope: Boolean = false,
-        val backendId: String? = null
+        val isRootStorageScope: Boolean = false
     ) : BrowserEntry
     data class Category(
         val name: String,
@@ -62,8 +59,7 @@ sealed interface BrowserEntry {
     data class Archive(
         val path: String,
         val entryPrefix: String? = null,
-        val isRootStorageScope: Boolean = false,
-        val backendId: String? = null
+        val isRootStorageScope: Boolean = false
     ) : BrowserEntry
 }
 
@@ -91,8 +87,6 @@ sealed interface BrowserDestination {
         val surroundingFiles: List<FileModel>
     ) : BrowserDestination
     data class OpenFileWith(val path: String) : BrowserDestination
-    data class AnalyzeStorage(val root: StorageNodeRef) : BrowserDestination
-    data class CleanStorage(val root: StorageNodeRef) : BrowserDestination
 }
 
 @Composable
@@ -117,7 +111,6 @@ fun BrowserRoute(
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val initializationState by viewModel.initializationState.collectAsStateWithLifecycle()
-    val backendAccessState by viewModel.backendAccessState.collectAsStateWithLifecycle()
     val batchRenameHistory by viewModel.batchRenameHistory.collectAsStateWithLifecycle()
     val state = uiState
     val scope = rememberCoroutineScope()
@@ -163,10 +156,7 @@ fun BrowserRoute(
         state.archiveContext != null -> BrowserEntry.Archive(
             path = state.archiveContext.archivePath,
             entryPrefix = state.archiveContext.entryPrefix,
-            isRootStorageScope = state.isRootStorageScope,
-            backendId = state.archiveContext.archiveNodeRef
-                ?.backendId
-                ?.takeIf { it == StorageNodeRef.ROOT_BACKEND_ID || it == StorageNodeRef.SHIZUKU_BACKEND_ID }
+            isRootStorageScope = state.isRootStorageScope
         )
         state.isCategoryScreen -> BrowserEntry.Category(
             name = state.activeCategoryName,
@@ -175,10 +165,7 @@ fun BrowserRoute(
         state.currentPath.isNotBlank() -> BrowserEntry.Path(
             path = state.currentPath,
             seedInitialPathHistory = false,
-            isRootStorageScope = state.isRootStorageScope,
-            backendId = state.currentNodeRef
-                ?.backendId
-                ?.takeIf { it == StorageNodeRef.ROOT_BACKEND_ID || it == StorageNodeRef.SHIZUKU_BACKEND_ID }
+            isRootStorageScope = state.isRootStorageScope
         )
         else -> BrowserEntry.Root(restorePersistentLocation = false)
     }
@@ -260,9 +247,9 @@ fun BrowserRoute(
     val screenIntents = BrowserIntents(
         navigation = BrowserNavigationIntents(
             onNavigateBack = navigateBack,
-            onNavigateTo = { path, nodeRef ->
+            onNavigateTo = { path ->
                 saveCurrentScrollPosition()
-                viewModel.navigateToFolder(path, nodeRef)
+                viewModel.navigateToFolder(path)
             },
             onOpenFile = { path ->
                 saveCurrentScrollPosition()
@@ -287,13 +274,7 @@ fun BrowserRoute(
                 saveCurrentScrollPosition()
                 viewModel.selectFolderTab(path)
             },
-            onToggleHiddenFiles = viewModel::toggleHiddenFiles,
-            onAnalyzeStorage = {
-                state.currentScopeNode()?.let { onDestination(BrowserDestination.AnalyzeStorage(it)) }
-            },
-            onCleanStorage = {
-                state.currentScopeNode()?.let { onDestination(BrowserDestination.CleanStorage(it)) }
-            }
+            onToggleHiddenFiles = viewModel::toggleHiddenFiles
         ),
         selection = BrowserSelectionIntents(
             onToggleSelection = viewModel::toggleSelection,
@@ -436,34 +417,7 @@ fun BrowserRoute(
                 )
             }
         }
-        BrowserBackendAccessSurface(
-            state = backendAccessState,
-            onReconnect = viewModel::reconnectBackendAccess,
-            onUseNormal = viewModel::useNormalBackendAccess,
-            onGrantNormalAccess = {
-                viewModel.useNormalBackendAccess()
-                context.openNormalStorageAccessSettings()
-            }
-        )
     }
-}
-
-private fun android.content.Context.openNormalStorageAccessSettings() {
-    val appIntent = android.content.Intent(
-        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-        android.net.Uri.parse("package:$packageName")
-    ).addCategory(android.content.Intent.CATEGORY_DEFAULT)
-    runCatching { startActivity(appIntent) }.getOrElse {
-        startActivity(
-            android.content.Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-        )
-    }
-}
-
-private fun BrowserUiState.currentScopeNode(): StorageNodeRef? = when {
-    currentPath.isBlank() || isCategoryScreen || isVolumeRootScreen || archiveContext != null -> null
-    currentNodeRef != null -> currentNodeRef
-    else -> runCatching { StorageNodeRef.local(currentPath, currentVolumeId) }.getOrNull()
 }
 
 internal fun canPublishBrowserStatus(state: BrowserInitializationState): Boolean =

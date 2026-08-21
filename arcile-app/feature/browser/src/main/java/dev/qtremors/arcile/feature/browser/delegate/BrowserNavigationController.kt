@@ -6,8 +6,6 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveRepository
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -61,10 +59,16 @@ internal class BrowserNavigationController(
         val restorePersistentLocation = savedStateHandle.get<Boolean>("restorePersistentLocation") ?: true
 
         when {
-            archivePath != null -> openArchive(archivePath, archiveEntryPrefix, seedHistory = seedInitialPathHistory)
+            archivePath != null -> openArchive(
+                archivePath,
+                archiveEntryPrefix,
+                seedHistory = seedInitialPathHistory,
+                isRootStorageScope = archivePath.normalizeStorageSeparators() == "/"
+            )
             path != null -> navigateToSpecificFolder(
                 path,
-                seedInitialPathHistory = seedInitialPathHistory
+                seedInitialPathHistory = seedInitialPathHistory,
+                isRootStorageScope = path.normalizeStorageSeparators() == "/"
             )
             category != null -> navigateToCategory(category, volumeId)
             else -> openFileBrowser(restorePersistentLocation = restorePersistentLocation)
@@ -123,8 +127,7 @@ internal class BrowserNavigationController(
                             lastVolumeId,
                             clearHistory = !alreadyAtRestoredLocation,
                             errorMessage = errorMessage,
-                            isRootStorageScope = false,
-                            inheritCurrentNodeRef = false
+                            isRootStorageScope = false
                         )
                         return@launch
                     }
@@ -144,8 +147,7 @@ internal class BrowserNavigationController(
                         clearHistory = true,
                         errorMessage = errorMessage,
                         persistAsLastOpened = false,
-                        isRootStorageScope = false,
-                        inheritCurrentNodeRef = false
+                        isRootStorageScope = false
                     )
                 } else {
                     openVolumeRoots(errorMessage)
@@ -167,8 +169,7 @@ internal class BrowserNavigationController(
             clearHistory = true,
             errorMessage = errorMessage,
             persistAsLastOpened = false,
-            isRootStorageScope = false,
-            inheritCurrentNodeRef = false
+            isRootStorageScope = false
         )
     }
 
@@ -198,49 +199,32 @@ internal class BrowserNavigationController(
         path: String,
         seedInitialPathHistory: Boolean = true,
         allowDirectPath: Boolean = false,
-        isRootStorageScope: Boolean = path.normalizeStorageSeparators() == "/",
-        backendId: String? = null
+        isRootStorageScope: Boolean = path.normalizeStorageSeparators() == "/"
     ) {
         if (ArchiveFormat.isSupported(path)) {
             openArchive(
-                archivePath = path,
+                path,
                 seedHistory = seedInitialPathHistory,
-                isRootStorageScope = isRootStorageScope,
-                backendId = backendId
+                isRootStorageScope = isRootStorageScope
             )
             return
         }
         val volume = if (isRootStorageScope) null else findVolumeForPath(path)
-        val restoredNodeRef = when {
-            isRootStorageScope || backendId == StorageNodeRef.ROOT_BACKEND_ID ->
-                StorageNodeRef.root(path, path, volumeId = volume?.id)
-            backendId == StorageNodeRef.SHIZUKU_BACKEND_ID ->
-                StorageNodeRef.shizuku(path, path, volumeId = volume?.id)
-            else -> navigationPersistence.restoredCurrentNodeRef(path)
-        }
-        val directPathAllowed = allowDirectPath || isRootStorageScope ||
-            restoredNodeRef?.isPrivileged == true
+        val directPathAllowed = allowDirectPath || isRootStorageScope
         if (volume == null && !directPathAllowed) {
             openFileBrowser(errorMessage = UiText.StringResource(R.string.error_storage_for_path_unavailable))
             return
         }
         navigationPersistence.clear()
         if (seedInitialPathHistory && volume != null && path != volume.path) {
-            navigationPersistence.push(
-                BrowserHistoryEntry.Directory(
-                    volume.path,
-                    StorageNodeRef.local(volume.path, volumeId = volume.id)
-                )
-            )
+            navigationPersistence.push(BrowserHistoryEntry.Directory(volume.path))
         }
         loadDirectory(
             path = path,
             volumeId = volume?.id,
             clearHistory = false,
             allowDirectPath = directPathAllowed,
-            nodeRef = restoredNodeRef,
-            isRootStorageScope = isRootStorageScope,
-            inheritCurrentNodeRef = false
+            isRootStorageScope = isRootStorageScope
         )
     }
 
@@ -249,7 +233,7 @@ internal class BrowserNavigationController(
         loadCategory(categoryName, volumeId)
     }
 
-    fun navigateToFolder(path: String, nodeRef: StorageNodeRef? = null) {
+    fun navigateToFolder(path: String) {
         state.value.archiveContext?.let {
             if (path.startsWith(ARCHIVE_VIRTUAL_PREFIX)) {
                 ArchiveEntryThumbnailData.entryPathFromVirtualPath(path)?.let(::openArchiveFolder)
@@ -274,7 +258,6 @@ internal class BrowserNavigationController(
             path,
             state.value.currentVolumeId,
             clearHistory = false,
-            nodeRef = nodeRef,
             isRootStorageScope = state.value.isRootStorageScope
         )
     }
@@ -288,20 +271,18 @@ internal class BrowserNavigationController(
             val prefix = archive.entryPrefix?.trimEnd('/')?.takeIf { it.isNotBlank() }
             if (prefix != null) {
                 val parent = prefix.substringBeforeLast('/', missingDelimiterValue = "").takeIf { it.isNotBlank() }
-                loadArchiveEntries(
-                    archive.archivePath,
-                    archive.archiveNodeRef,
-                    parent,
-                    archive.password,
-                    archive.nameEncoding,
-                    pushHistory = false
-                )
+                loadArchiveEntries(archive.archivePath, parent, archive.password, archive.nameEncoding, pushHistory = false)
                 return true
             }
             val parentPath = storageParentPath(archive.archivePath)
             if (!parentPath.isNullOrBlank()) {
                 navigationPersistence.clear()
-                loadDirectory(parentPath, state.value.currentVolumeId, clearHistory = false)
+                loadDirectory(
+                    parentPath,
+                    state.value.currentVolumeId,
+                    clearHistory = false,
+                    isRootStorageScope = state.value.isRootStorageScope
+                )
                 return true
             }
             return false
@@ -315,16 +296,13 @@ internal class BrowserNavigationController(
                         previous.path,
                         volume?.id,
                         clearHistory = false,
-                        nodeRef = previous.nodeRef,
-                        isRootStorageScope = previous.isRootStorageScope,
-                        inheritCurrentNodeRef = false
+                        isRootStorageScope = previous.isRootStorageScope
                     )
                     return true
                 }
                 is BrowserHistoryEntry.Archive -> {
                     loadArchiveEntries(
                         archivePath = previous.archivePath,
-                        archiveNodeRef = previous.archiveNodeRef,
                         entryPrefix = previous.entryPrefix,
                         password = state.value.archiveContext?.takeIf { it.archivePath == previous.archivePath }?.password,
                         nameEncoding = state.value.archiveContext?.takeIf { it.archivePath == previous.archivePath }?.nameEncoding
@@ -379,7 +357,6 @@ internal class BrowserNavigationController(
                 val archive = state.value.archiveContext ?: return
                 loadArchiveEntries(
                     archivePath = archive.archivePath,
-                    archiveNodeRef = archive.archiveNodeRef,
                     entryPrefix = archive.entryPrefix,
                     password = archive.password,
                     nameEncoding = archive.nameEncoding,

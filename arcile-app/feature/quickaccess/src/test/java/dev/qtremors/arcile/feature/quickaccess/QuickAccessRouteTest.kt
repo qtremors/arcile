@@ -42,7 +42,7 @@ class QuickAccessRouteTest {
     }
 
     @Test
-    fun `restricted folder uri maps to local path for privileged browsing`() {
+    fun `restricted folder uri maps to its local path`() {
         val uri = restrictedExternalStorageUri("Android/data")
 
         assertEquals("/storage/emulated/0/Android/data", restrictedLocalPath(uri.toString()))

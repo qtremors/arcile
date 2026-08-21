@@ -12,7 +12,6 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageKind
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageUsageNode
 import dev.qtremors.arcile.core.storage.domain.StorageUsageScanState
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -34,7 +33,6 @@ internal data class StorageUsageUiState(
     val selectedNode: StorageUsageNode? = null,
     val breadcrumbs: List<StorageUsageNode> = emptyList(),
     val unavailableVolume: StorageVolume? = null,
-    val explicitRoot: StorageNodeRef? = null,
     val error: UiText? = null,
     val isDrilledDown: Boolean = false
 ) {
@@ -67,20 +65,14 @@ internal class StorageUsageViewModel @Inject constructor(
             bulkFileOperationCoordinator.events.collect { event ->
                 val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
                 if (request.type.refreshesStorageUsage()) {
-                    val explicitRoot = _state.value.explicitRoot
-                    if (explicitRoot != null) {
-                        scanner.invalidateStorageUsageNodes(listOf(explicitRoot))
-                    } else {
-                        scanner.invalidateStorageUsage(request.sourcePaths)
-                    }
+                    scanner.invalidateStorageUsage(request.sourcePaths)
                     refresh(forceScan = false)
                 }
             }
         }
         viewModelScope.launch {
             storageMutationNotifier.events.collect { event ->
-                _state.value.explicitRoot?.let { scanner.invalidateStorageUsageNodes(listOf(it)) }
-                    ?: scanner.invalidateStorageUsage(event.paths)
+                scanner.invalidateStorageUsage(event.paths)
                 refresh(forceScan = false)
             }
         }
@@ -88,40 +80,16 @@ internal class StorageUsageViewModel @Inject constructor(
 
 
     fun load(selectedVolumeId: String?) {
-        if (_state.value.explicitRoot == null &&
-            _state.value.selectedVolumeId == selectedVolumeId &&
-            _state.value.scanState !is StorageUsageScanState.Idle
-        ) {
+        if (_state.value.selectedVolumeId == selectedVolumeId && _state.value.scanState !is StorageUsageScanState.Idle) {
             return
         }
         _state.update { StorageUsageUiState(selectedVolumeId = selectedVolumeId) }
         refresh(forceScan = false)
     }
 
-    fun loadExplicitRoot(root: StorageNodeRef) {
-        if (_state.value.explicitRoot?.canonicalIdentity == root.canonicalIdentity &&
-            _state.value.explicitRoot?.backendId == root.backendId &&
-            _state.value.scanState !is StorageUsageScanState.Idle
-        ) {
-            return
-        }
-        _state.update {
-            StorageUsageUiState(
-                selectedVolumeId = root.volumeId?.value,
-                explicitRoot = root
-            )
-        }
-        refresh(forceScan = false)
-    }
-
     fun refresh(forceScan: Boolean = true) {
         scanJob?.cancel()
         scanJob = viewModelScope.launch {
-            val explicitRoot = _state.value.explicitRoot
-            if (explicitRoot != null) {
-                scanExplicitRoot(explicitRoot, forceScan)
-                return@launch
-            }
             val volumes = volumeRepository.getStorageVolumes().getOrElse { error ->
                 _state.update { it.copy(scanState = StorageUsageScanState.Error(error.message.orEmpty())) }
                 return@launch
@@ -181,42 +149,6 @@ internal class StorageUsageViewModel @Inject constructor(
                         )
                         else -> current.copy(scanState = scanState)
                     }
-                }
-            }
-        }
-    }
-
-    private suspend fun scanExplicitRoot(root: StorageNodeRef, forceScan: Boolean) {
-        if (forceScan) scanner.invalidateStorageUsageNodes(listOf(root))
-        _state.update {
-            it.copy(
-                rootVolume = null,
-                unavailableVolume = null,
-                scanState = StorageUsageScanState.Loading(
-                    dev.qtremors.arcile.core.storage.domain.StorageUsageScanProgress(
-                        root.displayPath.absolutePath,
-                        0,
-                        0L,
-                        null
-                    )
-                ),
-                currentRoot = null,
-                selectedNode = null,
-                breadcrumbs = emptyList(),
-                error = null
-            )
-        }
-        scanner.scanStorageUsage(root).collect { scanState ->
-            _state.update { current ->
-                when (scanState) {
-                    is StorageUsageScanState.Loaded -> current.copy(
-                        scanState = scanState,
-                        currentRoot = scanState.root,
-                        selectedNode = scanState.root,
-                        breadcrumbs = listOf(scanState.root),
-                        isDrilledDown = false
-                    )
-                    else -> current.copy(scanState = scanState)
                 }
             }
         }

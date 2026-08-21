@@ -73,40 +73,4 @@ class AppRoutesTest {
         )
         assertEquals(externalBrowserEntry, json.decodeFromString<AppRoutes.Main>(json.encodeToString(externalBrowserEntry)))
     }
-
-    @Test
-    fun `serializes backend aware storage tool routes without losing identity`() {
-        val dashboard = AppRoutes.StorageDashboard(
-            volumeId = "primary",
-            scopePath = "/storage/emulated/0/Android/data",
-            scopeBackendId = "shizuku",
-            scopeBackendIdentity = "shizuku-user-0:/storage/emulated/0/Android/data"
-        )
-        val cleaner = AppRoutes.StorageCleaner(
-            scopePath = "/data/local/tmp",
-            scopeBackendId = "root",
-            scopeBackendIdentity = "root-device:/data/local/tmp"
-        )
-
-        assertEquals(
-            dashboard,
-            json.decodeFromString<AppRoutes.StorageDashboard>(json.encodeToString(dashboard))
-        )
-        assertEquals(
-            cleaner,
-            json.decodeFromString<AppRoutes.StorageCleaner>(json.encodeToString(cleaner))
-        )
-    }
-
-    @Test
-    fun `storage tool route defaults remain local volume compatible`() {
-        val dashboard = AppRoutes.StorageDashboard()
-        val cleaner = AppRoutes.StorageCleaner()
-
-        assertEquals(dashboard, json.decodeFromString<AppRoutes.StorageDashboard>(json.encodeToString(dashboard)))
-        assertEquals(cleaner, json.decodeFromString<AppRoutes.StorageCleaner>(json.encodeToString(cleaner)))
-        assertEquals(null, dashboard.scopePath)
-        assertEquals(null, dashboard.scopeBackendIdentity)
-        assertEquals(null, cleaner.scopeBackendId)
-    }
 }

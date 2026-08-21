@@ -23,28 +23,17 @@ import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendId
-import dev.qtremors.arcile.core.privilege.PrivilegeBackendState
-import dev.qtremors.arcile.core.privilege.PrivilegeConnectionState
-import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeFailure
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
-import dev.qtremors.arcile.core.privilege.PrivilegeSession
-import dev.qtremors.arcile.core.privilege.PrivilegeState
 import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeBulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 
 internal fun createViewModel(
     repository: BrowserFakeFileRepository,
@@ -52,7 +41,6 @@ internal fun createViewModel(
     savedStateHandle: SavedStateHandle,
     bulkFileOperationCoordinator: BulkFileOperationCoordinator = FakeBulkFileOperationCoordinator(),
     storageMutationNotifier: StorageMutationNotifier = FakeStorageMutationNotifier(),
-    privilegeCoordinator: PrivilegeCoordinator = FakeBrowserPrivilegeCoordinator(),
     initialize: Boolean = true
 ): BrowserViewModel = BrowserViewModel(
     fileBrowserRepository = repository.fileBrowserRepository,
@@ -67,91 +55,10 @@ internal fun createViewModel(
     savedStateHandle = savedStateHandle,
     getStorageVolumesUseCase = GetStorageVolumesUseCase(repository.volumeRepository),
     bulkFileCoordinator = bulkFileOperationCoordinator,
-    privilegeCoordinator = privilegeCoordinator,
     storageMutationNotifier = storageMutationNotifier
 ).also { viewModel ->
     if (initialize) viewModel.initialize(entryRequest = null)
 }
-
-internal class FakeBrowserPrivilegeCoordinator(
-    initialState: PrivilegeState = normalReadyPrivilegeState()
-) : PrivilegeCoordinator {
-    private val mutableState = MutableStateFlow(initialState)
-    override val state: StateFlow<PrivilegeState> = mutableState
-    val modeSelections = mutableListOf<Pair<PrivilegeMode, Boolean>>()
-    var reconnectRequests = 0
-        private set
-    var normalRequests = 0
-        private set
-
-    override suspend fun start() = Unit
-
-    override suspend fun refresh() = Unit
-
-    override suspend fun selectMode(mode: PrivilegeMode, requestAuthorization: Boolean) {
-        modeSelections += mode to requestAuthorization
-    }
-
-    override suspend fun reconnect(requestAuthorization: Boolean) {
-        reconnectRequests += 1
-    }
-
-    override suspend fun useNormal() {
-        normalRequests += 1
-        val current = mutableState.value
-        val normal = current.backendStates[PrivilegeBackendId.NORMAL]
-            ?: PrivilegeBackendState(
-                PrivilegeBackendId.NORMAL,
-                PrivilegeConnectionState.PERMISSION_REQUIRED
-            )
-        mutableState.value = if (normal.connectionState == PrivilegeConnectionState.READY) {
-            current.copy(
-                preferredMode = PrivilegeMode.NORMAL,
-                activeBackend = PrivilegeBackendId.NORMAL,
-                connectionGeneration = current.connectionGeneration + 1,
-                identity = null,
-                capabilities = emptySet(),
-                lastFailure = null
-            )
-        } else {
-            current.copy(
-                preferredMode = PrivilegeMode.NORMAL,
-                activeBackend = null,
-                identity = null,
-                capabilities = emptySet(),
-                lastFailure = normal.failure
-                    ?: PrivilegeFailure.Failed("All-files access is required for Normal storage")
-            )
-        }
-    }
-
-    override fun captureSession(): Result<PrivilegeSession> =
-        Result.failure(PrivilegeFailure.BackendDisconnected())
-
-    fun emit(state: PrivilegeState) {
-        mutableState.value = state
-    }
-}
-
-internal fun normalReadyPrivilegeState(): PrivilegeState = PrivilegeState(
-    preferredMode = PrivilegeMode.NORMAL,
-    activeBackend = PrivilegeBackendId.NORMAL,
-    connectionGeneration = 1,
-    backendStates = mapOf(
-        PrivilegeBackendId.ROOT to PrivilegeBackendState(
-            PrivilegeBackendId.ROOT,
-            PrivilegeConnectionState.UNAVAILABLE
-        ),
-        PrivilegeBackendId.SHIZUKU to PrivilegeBackendState(
-            PrivilegeBackendId.SHIZUKU,
-            PrivilegeConnectionState.UNAVAILABLE
-        ),
-        PrivilegeBackendId.NORMAL to PrivilegeBackendState(
-            PrivilegeBackendId.NORMAL,
-            PrivilegeConnectionState.READY
-        )
-    )
-)
 
 private object BrowserTestArchivePathResolver :
     dev.qtremors.arcile.core.storage.domain.ArchivePathResolver {
@@ -240,10 +147,6 @@ class BrowserFakeFileRepository(
         get() = delegate.copyConflictRequests.lastOrNull()?.destinationPath
     val lastQueuedFolderStats: List<String>?
         get() = delegate.queuedFolderStatsRequests.lastOrNull()
-    val lastQueuedFolderStatNodes: List<StorageNodeRef>?
-        get() = delegate.queuedNodeFolderStatsRequests.lastOrNull()
-    val lastCachedFolderStatNodes: List<StorageNodeRef>?
-        get() = delegate.cachedNodeFolderStatsRequests.lastOrNull()
     val lastRenamePath: String?
         get() = delegate.renameRequests.lastOrNull()?.first
     val lastRenameNewName: String?

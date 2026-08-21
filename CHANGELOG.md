@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.1
-> **Last Updated:** 2026-08-15
+> **Version:** 2.0.2
+> **Last Updated:** 2026-08-21
 
 ---
+
+## [2.0.2] - 2026-08-15
+
+- **Simplified Storage Architecture**: Removed optional Root and Shizuku access and their provider-specific workflows. Arcile now uses Android storage access throughout, with less service, routing, and operation overhead.
+- **Long-Press New Tab Storage Selection**: Added a storage volume and root chooser dropdown menu when long-pressing the `+` button in the browser tab bar, allowing users to open a new tab directly in Internal Storage, Root Storage, SD cards, or USB OTG drives.
+- **Settings Page Controls**: Added the Browser tabs toggle and Start page selector (Home vs Browse) directly to the Appearance settings page while keeping the 3-dot dropdown menu toggles intact.
 
 ## [2.0.1] - 2026-08-15
 

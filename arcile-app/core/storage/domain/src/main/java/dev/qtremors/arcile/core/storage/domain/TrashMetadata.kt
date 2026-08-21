@@ -4,16 +4,14 @@ enum class TrashRestoreStatus {
     ORIGINAL_AVAILABLE,
     ORIGINAL_CONFLICT_RENAME,
     DESTINATION_REQUIRED,
-    RECOVERED_ITEM,
-    BACKEND_UNAVAILABLE
+    RECOVERED_ITEM
 }
 
 /**
  * Metadata record for a file or directory that has been moved to the trash.
  *
- * Local trash entries use JSON sidecars on the source volume. Privileged entries keep their
- * recovery metadata in app-private storage while their payload remains in the source volume's
- * backend-owned trash directory.
+ * Trash entries are stored as JSON sidecar files inside `.arcile/.trash` on external storage.
+ * The actual file data is stored alongside with a name derived from [id].
  *
  * @property id Unique identifier for this trash entry (used to locate the trashed blob).
  * @property originalPath Absolute path the file occupied before being trashed.

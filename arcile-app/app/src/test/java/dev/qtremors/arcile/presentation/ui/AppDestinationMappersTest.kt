@@ -82,11 +82,10 @@ class AppDestinationMappersTest {
     }
 
     @Test
-    fun `quick access privileged path preserves its backend`() {
+    fun `quick access local path opens browser without seeding history`() {
         mappers.quickAccess.map(
             QuickAccessDestination.LocalPath(
-                path = "/storage/emulated/0/Android/data",
-                backendId = "shizuku"
+                path = "/storage/emulated/0/Android/data"
             )
         )
 
@@ -94,8 +93,7 @@ class AppDestinationMappersTest {
             AppRoutes.Main(
                 initialPage = BROWSER_PAGE,
                 path = "/storage/emulated/0/Android/data",
-                seedInitialPathHistory = false,
-                pathBackendId = "shizuku"
+                seedInitialPathHistory = false
             ),
             browserRoutes.single()
         )

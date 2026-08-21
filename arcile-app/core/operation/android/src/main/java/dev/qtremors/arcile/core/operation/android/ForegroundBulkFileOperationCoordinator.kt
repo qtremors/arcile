@@ -8,7 +8,6 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
-import dev.qtremors.arcile.core.operation.OperationStorageNodeRef
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
 import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
@@ -22,7 +21,6 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.NoOpClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
@@ -143,84 +141,6 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             importItems = importItems
         )
         return startRequest(request)
-    }
-
-    override fun startNodeOperation(
-        type: BulkFileOperationType,
-        sourceNodes: List<StorageNodeRef>,
-        destinationNode: StorageNodeRef?,
-        resolutions: Map<String, ConflictResolution>,
-        presentationOwnerId: String?,
-        clipboardSessionId: String?
-    ): Boolean {
-        if (_activeRequest.value != null) return false
-        val request = BulkFileOperationRequest(
-            operationId = UUID.randomUUID().toString(),
-            type = type,
-            sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
-            destinationPath = destinationNode?.displayPath?.absolutePath,
-            resolutions = resolutions,
-            presentationOwnerId = presentationOwnerId,
-            clipboardSessionId = clipboardSessionId,
-            sourceNodeRefs = sourceNodes.map(OperationStorageNodeRef::from),
-            destinationNodeRef = destinationNode?.let(OperationStorageNodeRef::from)
-        )
-        return startRequest(request)
-    }
-
-    override fun startArchiveNodeOperation(
-        type: BulkFileOperationType,
-        sourceNodes: List<StorageNodeRef>,
-        destinationNode: StorageNodeRef,
-        resolutions: Map<String, ConflictResolution>,
-        archiveFormat: ArchiveFormat?,
-        archiveEntryPrefix: String?,
-        archivePassword: String?,
-        archiveNameEncoding: ArchiveNameEncoding?,
-        archiveCompressionLevel: ArchiveCompressionLevel?,
-        presentationOwnerId: String?
-    ): Boolean {
-        if (_activeRequest.value != null) return false
-        require(type == BulkFileOperationType.EXTRACT_ARCHIVE || type == BulkFileOperationType.CREATE_ARCHIVE) {
-            "Archive node requests require an archive operation type"
-        }
-        require(sourceNodes.isNotEmpty()) { "Archive request has no sources" }
-        val request = BulkFileOperationRequest(
-            operationId = UUID.randomUUID().toString(),
-            type = type,
-            sourcePaths = sourceNodes.map { it.displayPath.absolutePath },
-            destinationPath = destinationNode.displayPath.absolutePath,
-            resolutions = resolutions,
-            archiveFormat = archiveFormat,
-            archiveEntryPrefix = archiveEntryPrefix,
-            archivePassword = archivePassword?.takeIf(String::isNotEmpty),
-            archiveNameEncoding = archiveNameEncoding,
-            archiveCompressionLevel = archiveCompressionLevel,
-            presentationOwnerId = presentationOwnerId,
-            sourceNodeRefs = sourceNodes.map(OperationStorageNodeRef::from),
-            destinationNodeRef = OperationStorageNodeRef.from(destinationNode)
-        )
-        return startRequest(request)
-    }
-
-    override fun startCreateFakeNodeOperation(
-        parent: StorageNodeRef,
-        name: String,
-        size: Long,
-        presentationOwnerId: String?
-    ): Boolean {
-        if (_activeRequest.value != null) return false
-        return startRequest(
-            BulkFileOperationRequest(
-                operationId = UUID.randomUUID().toString(),
-                type = BulkFileOperationType.CREATE_FAKE,
-                sourcePaths = listOf(name),
-                destinationPath = parent.displayPath.absolutePath,
-                fakeFileSize = size,
-                presentationOwnerId = presentationOwnerId,
-                destinationNodeRef = OperationStorageNodeRef.from(parent)
-            )
-        )
     }
 
     override fun cancelActiveOperation() {

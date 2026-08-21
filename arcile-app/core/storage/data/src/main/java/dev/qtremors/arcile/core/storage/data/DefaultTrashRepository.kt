@@ -3,14 +3,12 @@ package dev.qtremors.arcile.core.storage.data
 import android.app.RecoverableSecurityException
 import dev.qtremors.arcile.core.runtime.NativeStorageAuthorizationGateway
 import dev.qtremors.arcile.core.storage.data.manager.TrashManager
-import dev.qtremors.arcile.core.storage.data.manager.TrashTarget
 import dev.qtremors.arcile.core.storage.domain.FileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationOperation
 import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.toStorageMutationResult
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
@@ -23,14 +21,6 @@ class DefaultTrashRepository(
         paths: List<String>,
         onProgress: ((FileOperationProgress) -> Unit)?
     ): Result<Unit> = trashManager.moveToTrash(paths, onProgress)
-
-    override suspend fun moveNodesToTrash(
-        nodes: List<StorageNodeRef>,
-        onProgress: ((FileOperationProgress) -> Unit)?
-    ): Result<Unit> = trashManager.moveToTrashTargets(
-        nodes.map { TrashTarget(it.displayPath.absolutePath, it) },
-        onProgress
-    )
 
     override suspend fun restoreFromTrash(
         trashIds: List<String>,

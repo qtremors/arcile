@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 2.0.0
-> **Last Updated:** 2026-08-13
+> **Version:** 2.0.2
+> **Last Updated:** 2026-08-21
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v2.0.2](#v202) | 2026-08-15 | Simplified Android storage access, direct browser-tab controls, reliable APK updates, and video playback fixes |
 | [v2.0.0](#v200) | 2026-08-13 | Provider-aware Root and Shizuku workflows, refined video playback, clearer documentation, and compatible platform updates |
 | [v1.9.0](#v190) | 2026-08-09 | Customizable workspaces, complete search and viewer controls, safer file operations, faster storage tools, and release reliability |
 | [v1.8.0](#v180) | 2026-08-02 | Category UI parity, native PDF and document tools, Markdown editor, dual browser workspaces, and unified audio playback |
@@ -15,6 +16,23 @@
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v2.0.2
+
+**Release Date:** August 15, 2026
+
+**Previous public release:** v2.0.1
+
+Arcile v2.0.2 removes optional Root and Shizuku access and their provider-specific workflows. File management now consistently uses Android storage access, reducing service, routing, and operation overhead while retaining the unrelated browser, playback, updater, and reliability improvements delivered after v1.9.0.
+
+## Highlights
+
+- Open Internal Storage, Root Storage, SD cards, or USB drives directly by long-pressing the browser-tab `+` button. Root Storage remains the limited standard-Android `/` browser introduced in v1.9.0; it does not provide elevated access.
+- Control browser tabs and choose Home or Browse as the start page from Appearance settings.
+- Install Arcile APK updates with clearer unknown-source permission recovery.
+- Keep the post-v1.9.0 video playback, sorting, cleaner, image-decoding, PDF compatibility, cancellation, and storage-safety improvements.
 
 ---
 

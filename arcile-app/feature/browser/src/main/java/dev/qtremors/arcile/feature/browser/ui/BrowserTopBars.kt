@@ -17,12 +17,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Tab
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Storage
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.feature.browser.browserPathTitle
@@ -47,8 +44,6 @@ internal fun BrowserTopBars(
     mutationIntents: BrowserMutationIntents,
     clipboardIntents: BrowserClipboardIntents,
     onToggleHiddenFiles: () -> Unit,
-    onAnalyzeStorage: () -> Unit,
-    onCleanStorage: () -> Unit,
     appStartPage: AppStartPage?,
     onAppStartPageChange: (AppStartPage) -> Unit,
     onBackClick: () -> Unit,
@@ -128,28 +123,6 @@ internal fun BrowserTopBars(
                 ),
                 scrollBehavior = scrollBehavior,
                 menuActions = buildList {
-                    if (
-                        state.currentNodeRef?.isPrivileged == true &&
-                        state.currentPath.isNotBlank() &&
-                        !state.isCategoryScreen &&
-                        !state.isVolumeRootScreen &&
-                        state.archiveContext == null
-                    ) {
-                        add(
-                            ArcileTopBarMenuAction(
-                                label = stringResource(R.string.browser_analyze_this_folder),
-                                icon = Icons.Default.Storage,
-                                onClick = onAnalyzeStorage
-                            )
-                        )
-                        add(
-                            ArcileTopBarMenuAction(
-                                label = stringResource(R.string.browser_clean_this_folder),
-                                icon = Icons.Default.DeleteSweep,
-                                onClick = onCleanStorage
-                            )
-                        )
-                    }
                     if (onWorkspaceTabsEnabledChange != null) {
                         add(
                             ArcileTopBarMenuAction(

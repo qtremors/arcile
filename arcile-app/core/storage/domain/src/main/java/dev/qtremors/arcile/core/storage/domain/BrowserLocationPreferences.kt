@@ -14,7 +14,8 @@ data class BrowserLocationPreferences(
     val scrollbarEnabled: Boolean = true,
     val categoryGroupings: Map<String, CategoryGrouping> = emptyMap(),
     val categoryDefaultPages: Map<String, CategoryLibraryPage> = emptyMap(),
-    val categoryShowFileDetails: Map<String, Boolean> = emptyMap()
+    val categoryShowFileDetails: Map<String, Boolean> = emptyMap(),
+    val browserTabsEnabled: Boolean = false
 ) {
     fun getPresentationForPath(path: String): FileListingPreferences {
         var currentPath = path.trimEnd('/').ifEmpty { "/" }
@@ -75,7 +76,8 @@ data class BrowserLocationPreferences(
             scrollbarEnabled = preferences.browserScrollbarEnabled,
             categoryGroupings = preferences.categoryGroupings,
             categoryDefaultPages = preferences.categoryDefaultPages,
-            categoryShowFileDetails = preferences.categoryShowFileDetails
+            categoryShowFileDetails = preferences.categoryShowFileDetails,
+            browserTabsEnabled = preferences.browserTabsEnabled
         )
     }
 }
@@ -86,6 +88,7 @@ interface BrowserLocationPreferencesStore {
     suspend fun updateGlobalPresentation(presentation: FileListingPreferences)
     suspend fun updateShowHiddenFiles(show: Boolean)
     suspend fun updateBrowserScrollbarEnabled(enabled: Boolean)
+    suspend fun updateBrowserTabsEnabled(enabled: Boolean)
     suspend fun updatePathPresentation(
         path: String,
         presentation: FileListingPreferences?,

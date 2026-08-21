@@ -29,38 +29,6 @@ interface ClipboardRepository {
         resolutions: Map<String, ConflictResolution> = emptyMap(),
         onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
-
-    suspend fun detectNodeCopyConflicts(
-        sources: List<StorageNodeRef>,
-        destination: StorageNodeRef
-    ): Result<List<FileConflict>> = detectCopyConflicts(
-        sources.map { it.displayPath.absolutePath },
-        destination.displayPath.absolutePath
-    )
-
-    suspend fun copyNodes(
-        sources: List<StorageNodeRef>,
-        destination: StorageNodeRef,
-        resolutions: Map<String, ConflictResolution> = emptyMap(),
-        onProgress: ((FileOperationProgress) -> Unit)? = null
-    ): Result<Unit> = copyFiles(
-        sources.map { it.displayPath.absolutePath },
-        destination.displayPath.absolutePath,
-        resolutions,
-        onProgress
-    )
-
-    suspend fun moveNodes(
-        sources: List<StorageNodeRef>,
-        destination: StorageNodeRef,
-        resolutions: Map<String, ConflictResolution> = emptyMap(),
-        onProgress: ((FileOperationProgress) -> Unit)? = null
-    ): Result<Unit> = moveFiles(
-        sources.map { it.displayPath.absolutePath },
-        destination.displayPath.absolutePath,
-        resolutions,
-        onProgress
-    )
 }
 
 object NoOpClipboardRepository : ClipboardRepository {

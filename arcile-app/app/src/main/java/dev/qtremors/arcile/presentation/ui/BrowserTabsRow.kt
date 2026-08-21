@@ -14,11 +14,15 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.AccountTree
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.SdCard
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -39,6 +43,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.R
@@ -52,6 +58,10 @@ internal fun BrowserTabsRow(
     isRouteVisible: Boolean,
     onSelectTab: (Int) -> Unit,
     onNewTab: () -> Unit,
+    onNewTabInternal: () -> Unit = onNewTab,
+    onNewTabRoot: () -> Unit = {},
+    onNewTabStorageVolume: (StorageVolume) -> Unit = {},
+    storageVolumes: List<StorageVolume> = emptyList(),
     onSetPinned: (Int, Boolean) -> Unit,
     onDuplicate: (Int) -> Unit,
     onMoveLeft: (Int) -> Unit,
@@ -62,6 +72,7 @@ internal fun BrowserTabsRow(
 ) {
     val listState = rememberLazyListState()
     var menuTabId by remember { mutableStateOf<Int?>(null) }
+    var showNewTabMenu by remember { mutableStateOf(false) }
     val activeIndex = tabs.indexOfFirst { it.id == activeTabId }
     val tabActionsLabel = stringResource(R.string.browser_tab_actions)
 
@@ -70,7 +81,10 @@ internal fun BrowserTabsRow(
         if (menuTabId != null && tabs.none { it.id == menuTabId }) menuTabId = null
     }
     LaunchedEffect(isRouteVisible) {
-        if (!isRouteVisible) menuTabId = null
+        if (!isRouteVisible) {
+            menuTabId = null
+            showNewTabMenu = false
+        }
     }
 
     Box(
@@ -185,13 +199,23 @@ internal fun BrowserTabsRow(
             }
         }
 
+        val newTabStorageMenuLabel = stringResource(R.string.browser_new_tab)
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .padding(end = 8.dp)
                 .size(48.dp)
                 .clip(MaterialTheme.shapes.extraLarge)
-                .bounceCombinedClickable(onClick = onNewTab),
+                .semantics {
+                    onLongClick(label = newTabStorageMenuLabel) {
+                        showNewTabMenu = true
+                        true
+                    }
+                }
+                .bounceCombinedClickable(
+                    onClick = onNewTab,
+                    onLongClick = { showNewTabMenu = true }
+                ),
             contentAlignment = Alignment.Center
         ) {
             Surface(
@@ -208,6 +232,57 @@ internal fun BrowserTabsRow(
                     )
                 }
             }
+
+            val newTabMenuItems = buildList<@Composable () -> Unit> {
+                // Internal storage
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.internal_storage),
+                        leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null) },
+                        onClick = {
+                            showNewTabMenu = false
+                            onNewTabInternal()
+                        }
+                    )
+                }
+                // Root storage
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.root_storage),
+                        leadingIcon = { Icon(Icons.Default.AccountTree, contentDescription = null) },
+                        onClick = {
+                            showNewTabMenu = false
+                            onNewTabRoot()
+                        }
+                    )
+                }
+                // Other storage volumes (e.g. SD Card, USB OTG)
+                storageVolumes.filterNot { it.isPrimary }.forEach { volume ->
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = volume.name,
+                            leadingIcon = {
+                                val icon = when (volume.kind) {
+                                    StorageKind.OTG -> Icons.Default.Usb
+                                    StorageKind.SD_CARD -> Icons.Default.SdCard
+                                    else -> Icons.Default.Storage
+                                }
+                                Icon(icon, contentDescription = null)
+                            },
+                            onClick = {
+                                showNewTabMenu = false
+                                onNewTabStorageVolume(volume)
+                            }
+                        )
+                    }
+                }
+            }
+
+            ArcileDropdownMenu(
+                expanded = showNewTabMenu,
+                onDismissRequest = { showNewTabMenu = false },
+                items = newTabMenuItems
+            )
         }
     }
 }

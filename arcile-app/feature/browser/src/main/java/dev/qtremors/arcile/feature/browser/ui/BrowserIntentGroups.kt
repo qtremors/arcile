@@ -7,19 +7,16 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.feature.browser.ArchiveExtractionTarget
 
 @Stable
 internal data class BrowserNavigationIntents(
     val onNavigateBack: () -> Unit,
-    val onNavigateTo: (String, StorageNodeRef?) -> Unit,
+    val onNavigateTo: (String) -> Unit,
     val onOpenFile: (String) -> Unit,
     val onRefresh: () -> Unit,
     val onSelectFolderTab: (String?) -> Unit,
-    val onToggleHiddenFiles: () -> Unit = {},
-    val onAnalyzeStorage: () -> Unit = {},
-    val onCleanStorage: () -> Unit = {}
+    val onToggleHiddenFiles: () -> Unit = {}
 )
 
 @Stable

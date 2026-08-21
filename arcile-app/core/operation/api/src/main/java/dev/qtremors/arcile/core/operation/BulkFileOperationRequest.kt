@@ -31,16 +31,10 @@ data class BulkFileOperationRequest(
     val archiveCompressionLevel: ArchiveCompressionLevel? = null,
     val importItems: List<SaveToArcileImportItem> = emptyList(),
     val presentationOwnerId: String? = null,
-    val clipboardSessionId: String? = null,
-    val sourceNodeRefs: List<OperationStorageNodeRef> = emptyList(),
-    val destinationNodeRef: OperationStorageNodeRef? = null
+    val clipboardSessionId: String? = null
 ) {
     val sourceRefs: List<StorageNodeRef>
-        get() = sourceNodeRefs.takeIf { it.isNotEmpty() }
-            ?.mapNotNull { runCatching { it.toStorageNodeRef() }.getOrNull() }
-            ?: sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }
+        get() = sourcePaths.mapNotNull { runCatching { StorageNodeRef.local(it) }.getOrNull() }
     val destinationRef: StorageNodeRef?
-        get() = destinationNodeRef
-            ?.let { runCatching { it.toStorageNodeRef() }.getOrNull() }
-            ?: destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }
+        get() = destinationPath?.let { runCatching { StorageNodeRef.local(it) }.getOrNull() }
 }

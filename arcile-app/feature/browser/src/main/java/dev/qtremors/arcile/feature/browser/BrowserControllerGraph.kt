@@ -87,7 +87,6 @@ internal fun createBrowserControllerGraph(
             val current = navigation.state.value
             BrowserSearchContext(
                 currentPath = current.currentPath,
-                currentNodeRef = current.currentNodeRef,
                 currentVolumeId = current.currentVolumeId,
                 isVolumeRootScreen = current.isVolumeRootScreen,
                 isCategoryScreen = current.isCategoryScreen,
@@ -174,9 +173,7 @@ internal fun createBrowserControllerGraph(
             BrowserArchiveWorkflowContext(
                 archiveContext = current.archiveContext,
                 currentPath = current.currentPath,
-                selectedPaths = selection.state.value.selectedFiles,
-                currentNodeRef = current.currentNodeRef,
-                files = current.files
+                selectedPaths = selection.state.value.selectedFiles
             )
         },
         clearSelection = selection::clear,
@@ -197,11 +194,9 @@ internal fun createBrowserControllerGraph(
             val current = navigation.state.value
             BrowserMutationContext(
                 currentPath = current.currentPath,
-                currentNodeRef = current.currentNodeRef,
                 isVolumeRootScreen = current.isVolumeRootScreen,
                 isArchive = current.archiveContext != null,
-                selectedPaths = selection.state.value.selectedFiles.toList(),
-                files = current.files
+                selectedPaths = selection.state.value.selectedFiles.toList()
             )
         },
         clearSelection = selection::clear,

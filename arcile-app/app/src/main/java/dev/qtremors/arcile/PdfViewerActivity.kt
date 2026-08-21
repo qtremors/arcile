@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.provider.OpenableColumns
 import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -15,10 +14,6 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
-import dev.qtremors.arcile.core.storage.domain.PrivilegedContentGrantPurpose
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.ui.ExternalViewerLoadScreen
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
@@ -35,7 +30,6 @@ import javax.inject.Inject
 @AndroidEntryPoint
 open class PdfViewerActivity : ComponentActivity() {
     @Inject lateinit var dispatchers: ArcileDispatchers
-    @Inject lateinit var privilegedContentAccessManager: PrivilegedContentAccessManager
     private var target by mutableStateOf<StandalonePdfTarget?>(null)
     private var loadError by mutableStateOf<String?>(null)
 
@@ -69,8 +63,7 @@ open class PdfViewerActivity : ComponentActivity() {
 
     private fun shareTarget(target: StandalonePdfTarget) {
         lifecycleScope.launch {
-            val reference = runCatching { target.toHandoffReference() }
-                .getOrElse { return@launch showFailure() }
+            val reference = target.toExternalReference()
             val shared = ShareHelper.shareFileReferences(
                 this@PdfViewerActivity,
                 listOf(reference)
@@ -84,7 +77,7 @@ open class PdfViewerActivity : ComponentActivity() {
             runCatching {
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     this@PdfViewerActivity,
-                    target.toHandoffReference()
+                    target.toExternalReference()
                 )
                 startActivity(
                     ExternalFileAccessHelper.createExternalOpenChooser(
@@ -100,43 +93,18 @@ open class PdfViewerActivity : ComponentActivity() {
     private fun showFailure() {
         showArcileToast(getString(R.string.cannot_open_file, getString(R.string.no_app_found)))
     }
-
-    private suspend fun StandalonePdfTarget.toHandoffReference(): ExternalFileAccessHelper.ExternalFileReference {
-        val node = nodeRef
-        if (node?.isPrivileged != true) return toExternalReference()
-        val grant = privilegedContentAccessManager.issue(
-            node = node,
-            displayName = displayName,
-            mimeType = PDF_MIME_TYPE,
-            purpose = PrivilegedContentGrantPurpose.EXTERNAL_HANDOFF,
-            lifetimeMillis = PrivilegedContentAccessManager.DEFAULT_EXTERNAL_GRANT_LIFETIME_MILLIS,
-            expectedConsumerUid = null
-        ).getOrThrow()
-        return ExternalFileAccessHelper.ExternalFileReference(
-            path = node.displayPath.absolutePath,
-            displayName = displayName,
-            sizeBytes = grant.sizeBytes,
-            mimeType = grant.mimeType,
-            nodeRef = node.copy(contentUri = grant.contentUri)
-        )
-    }
 }
-
-/** Main-process host used only for content backed by the active privileged session. */
-class ProtectedPdfViewerActivity : PdfViewerActivity()
 
 data class StandalonePdfTarget(
     val reference: String,
     val displayName: String,
-    val sizeBytes: Long?,
-    val nodeRef: StorageNodeRef? = null
+    val sizeBytes: Long?
 ) {
     fun toExternalReference() = ExternalFileAccessHelper.ExternalFileReference(
         path = reference,
         displayName = displayName,
         sizeBytes = sizeBytes,
-        mimeType = PDF_MIME_TYPE,
-        nodeRef = nodeRef
+        mimeType = PDF_MIME_TYPE
     )
 }
 
@@ -151,8 +119,7 @@ internal fun resolveStandalonePdfTarget(context: Context, intent: Intent): Stand
             displayName = intent.getStringExtra(Intent.EXTRA_TITLE)
                 ?: uri.lastPathSegment
                 ?: "Document.pdf",
-            sizeBytes = null,
-            nodeRef = intent.protectedPdfNodeRef(uri.toString())
+            sizeBytes = null
         )
         "file", null -> {
             val file = File(uri.path.orEmpty())
@@ -184,8 +151,7 @@ internal suspend fun resolveStandalonePdfTarget(
             StandalonePdfTarget(
                 reference = uri.toString(),
                 displayName = metadata.displayName ?: uri.lastPathSegment ?: "Document.pdf",
-                sizeBytes = metadata.sizeBytes,
-                nodeRef = intent.protectedPdfNodeRef(uri.toString())
+                sizeBytes = metadata.sizeBytes
             )
         }
         "file", null -> withContext(ioDispatcher) {
@@ -211,39 +177,5 @@ internal suspend fun resolveStandalonePdfTarget(
     }
 }
 
-fun createProtectedPdfViewerIntent(context: Context, file: FileModel): Intent {
-    require(file.nodeRef.isPrivileged) { "PDF target is not a protected file" }
-    val contentUri = requireNotNull(file.nodeRef.contentUri) {
-        "Protected PDF target has no content capability"
-    }
-    return Intent(Intent.ACTION_VIEW).apply {
-        setClass(context, ProtectedPdfViewerActivity::class.java)
-        setDataAndType(Uri.parse(contentUri), PDF_MIME_TYPE)
-        putExtra(Intent.EXTRA_TITLE, file.name)
-        putExtra(EXTRA_PDF_BACKEND_ID, file.nodeRef.backendId)
-        putExtra(EXTRA_PDF_DISPLAY_PATH, file.nodeRef.displayPath.absolutePath)
-        putExtra(EXTRA_PDF_BACKEND_IDENTITY, file.nodeRef.backendIdentity)
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    }
-}
-
-private fun Intent.protectedPdfNodeRef(contentUri: String): StorageNodeRef? {
-    val backendId = getStringExtra(EXTRA_PDF_BACKEND_ID) ?: return null
-    val displayPath = getStringExtra(EXTRA_PDF_DISPLAY_PATH) ?: return null
-    val backendIdentity = getStringExtra(EXTRA_PDF_BACKEND_IDENTITY) ?: return null
-    if (backendId !in setOf(StorageNodeRef.ROOT_BACKEND_ID, StorageNodeRef.SHIZUKU_BACKEND_ID)) {
-        return null
-    }
-    return StorageNodeRef.privileged(
-        backendId = backendId,
-        displayPath = displayPath,
-        remoteCanonicalIdentity = backendIdentity
-    ).copy(contentUri = contentUri)
-}
-
 private const val PDF_MIME_TYPE = "application/pdf"
 private const val PDF_EXTENSION = "pdf"
-private const val EXTRA_PDF_BACKEND_ID = "dev.qtremors.arcile.extra.PROTECTED_PDF_BACKEND_ID"
-private const val EXTRA_PDF_DISPLAY_PATH = "dev.qtremors.arcile.extra.PROTECTED_PDF_DISPLAY_PATH"
-private const val EXTRA_PDF_BACKEND_IDENTITY =
-    "dev.qtremors.arcile.extra.PROTECTED_PDF_BACKEND_IDENTITY"

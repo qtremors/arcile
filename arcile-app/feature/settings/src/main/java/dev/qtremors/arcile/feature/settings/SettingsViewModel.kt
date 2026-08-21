@@ -5,12 +5,10 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import android.net.Uri
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.core.privilege.PrivilegeCoordinator
-import dev.qtremors.arcile.core.privilege.PrivilegeMode
-import dev.qtremors.arcile.core.privilege.PrivilegePreferences
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupGateway
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
+import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -22,19 +20,14 @@ import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalStagingCache
 import dev.qtremors.arcile.feature.settings.ui.SettingsExternalCacheState
-import dev.qtremors.arcile.feature.settings.ui.SettingsAccessState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 @HiltViewModel
 internal class SettingsViewModel @Inject constructor(
@@ -42,9 +35,7 @@ internal class SettingsViewModel @Inject constructor(
     private val recentFilesPreferencesStore: RecentFilesPreferencesStore,
     private val galleryPreferencesStore: GalleryPreferencesStore,
     private val preferencesBackupManager: PreferencesBackupGateway,
-    private val externalStagingCache: ExternalStagingCache,
-    private val privilegePreferences: PrivilegePreferences,
-    private val privilegeCoordinator: PrivilegeCoordinator
+    private val externalStagingCache: ExternalStagingCache
 ) : ViewModel() {
     val browserPreferences = combine(
         browserPreferencesStore.locationPreferencesFlow,
@@ -59,34 +50,8 @@ internal class SettingsViewModel @Inject constructor(
     private val _externalCache = MutableStateFlow(SettingsExternalCacheState())
     val externalCache: StateFlow<SettingsExternalCacheState> = _externalCache.asStateFlow()
 
-    private val accessActionMutex = Mutex()
-    private val accessActionBusy = MutableStateFlow(false)
-    private val accessActionFailure = MutableStateFlow<UiText?>(null)
-    val accessState: StateFlow<SettingsAccessState> = combine(
-        privilegePreferences.state,
-        privilegeCoordinator.state,
-        accessActionBusy,
-        accessActionFailure
-    ) { preference, access, busy, failure ->
-        SettingsAccessState(
-            preference = preference,
-            access = access,
-            isBusy = busy,
-            actionFailure = failure
-        )
-    }.stateIn(
-        viewModelScope,
-        SharingStarted.WhileSubscribed(5_000),
-        SettingsAccessState()
-    )
-
     init {
         refreshExternalCache()
-        viewModelScope.launch {
-            privilegePreferences.state.first().takeIf { it.mode != PrivilegeMode.AUTOMATIC }?.let {
-                privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
-            }
-        }
     }
 
     fun refreshExternalCache() {
@@ -141,6 +106,18 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun updateAppStartPage(page: AppStartPage) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateAppStartPage(page)
+        }
+    }
+
+    fun updateBrowserTabsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            browserPreferencesStore.updateBrowserTabsEnabled(enabled)
+        }
+    }
+
     fun updateBrowserScrollbarEnabled(enabled: Boolean) {
         viewModelScope.launch {
             browserPreferencesStore.updateBrowserScrollbarEnabled(enabled)
@@ -156,21 +133,6 @@ internal class SettingsViewModel @Inject constructor(
     fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
         viewModelScope.launch {
             browserPreferencesStore.updateFileOpenBehavior(categoryName, behavior)
-        }
-    }
-
-    fun updateShizukuEnabled(enabled: Boolean) = runAccessAction {
-        if (enabled) {
-            privilegeCoordinator.selectMode(PrivilegeMode.SHIZUKU, requestAuthorization = true)
-        } else {
-            privilegePreferences.setShizukuPreviouslyAuthorized(false)
-        }
-        privilegeCoordinator.selectMode(PrivilegeMode.AUTOMATIC, requestAuthorization = false)
-    }
-
-    fun updateProtectedFilesystemWrites(enabled: Boolean) {
-        viewModelScope.launch {
-            privilegePreferences.setProtectedFilesystemWritesEnabled(enabled)
         }
     }
 
@@ -222,26 +184,6 @@ internal class SettingsViewModel @Inject constructor(
     fun clearBackupState() {
         _backupState.value = PreferencesBackupUiState.Idle
     }
-
-    private fun runAccessAction(action: suspend () -> Unit) {
-        viewModelScope.launch {
-            accessActionMutex.withLock {
-                accessActionBusy.value = true
-                accessActionFailure.value = null
-                try {
-                    action()
-                } catch (error: CancellationException) {
-                    throw error
-                } catch (error: Throwable) {
-                    accessActionFailure.value = UiText.StringResource(
-                        R.string.settings_access_action_failed
-                    )
-                } finally {
-                    accessActionBusy.value = false
-                }
-            }
-        }
-    }
 }
 
 internal data class SettingsPreferences(
@@ -261,6 +203,10 @@ internal data class SettingsPreferences(
         get() = gallery.scrollbarEnabled
     val fileOpenBehaviors: Map<String, FileOpenBehavior>
         get() = browser.fileOpenBehaviors
+    val appStartPage: AppStartPage
+        get() = browser.appStartPage
+    val browserTabsEnabled: Boolean
+        get() = browser.browserTabsEnabled
 }
 
 internal sealed interface PreferencesBackupUiState {

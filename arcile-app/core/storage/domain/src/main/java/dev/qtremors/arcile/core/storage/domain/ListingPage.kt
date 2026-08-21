@@ -7,8 +7,7 @@ data class ListingPage(
     val files: List<FileModel>,
     val pageIndex: Int,
     val isComplete: Boolean,
-    val error: Throwable? = null,
-    val directoryRef: StorageNodeRef? = null
+    val error: Throwable? = null
 ) {
     companion object {
         const val DEFAULT_PAGE_SIZE = 256

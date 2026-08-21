@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.core.ui
 
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -27,31 +27,6 @@ class ArcileTopBarTest {
     @get:Rule
     val composeRule = createComposeRule()
 
-    @Test
-    fun `Shizuku badge is shown when active`() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-
-        composeRule.setContent {
-            ArcileTestTheme {
-                CompositionLocalProvider(LocalShizukuTopBarBadgeVisible provides true) {
-                    ArcileTopBar(
-                        title = "Files",
-                        actions = ArcileTopBarActions(
-                            onClearSelection = {},
-                            onSearchClick = {},
-                            onSortClick = {},
-                            onActionSelected = {}
-                        )
-                    )
-                }
-            }
-        }
-
-        composeRule.onNodeWithContentDescription(
-            context.getString(R.string.top_bar_shizuku_access_active)
-        ).assertExists()
-    }
-
     @org.junit.Ignore("Outdated UI test, dropdown interactions fail in Robolectric after 0.6.0")
     @Test
     fun `overflow menu dispatches grid view action`() {
@@ -75,11 +50,9 @@ class ArcileTopBarTest {
 
         composeRule.onNodeWithContentDescription(context.getString(R.string.action_more_options)).performClick()
         composeRule.waitForIdle()
-        composeRule.onNode(androidx.compose.ui.test.hasText("Grid View") or androidx.compose.ui.test.hasText("Grid View", ignoreCase = true), useUnmergedTree = true).performClick()
+        composeRule.onNode(hasText("Grid View") or hasText("Grid View", ignoreCase = true), useUnmergedTree = true).performClick()
         composeRule.waitForIdle()
 
         assertEquals(TopBarAction.GridView, selectedAction)
     }
-
 }
-

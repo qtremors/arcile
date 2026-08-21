@@ -73,7 +73,7 @@ internal class BrowserTabsCoordinator(
         showTab(targetId)
     }
 
-    fun addTab(): Boolean {
+    fun addTab(entry: BrowserEntry = BrowserEntry.Root(restorePersistentLocation = false)): Boolean {
         if (tabs.size >= MAX_BROWSER_TABS) return false
         val newId = (1..MAX_BROWSER_TABS).first { candidate -> tabs.none { it.id == candidate } }
         val insertionIndex = browserTabInsertionIndex(tabs, activeBrowserTabId)
@@ -82,7 +82,7 @@ internal class BrowserTabsCoordinator(
         browserEntryRequests = browserEntryRequests + (
             newId to BrowserEntryRequest(
                 id = requestId,
-                entry = BrowserEntry.Root(restorePersistentLocation = false),
+                entry = entry,
                 resetWorkspace = true
             )
         )
@@ -363,7 +363,6 @@ private fun persistedBrowserTab(
         entryType = "path",
         path = entry.path,
         isRootStorageScope = entry.isRootStorageScope,
-        backendId = entry.backendId,
         browserPage = browserPage
     )
     is BrowserEntry.Category -> PersistedBrowserTab(
@@ -379,7 +378,6 @@ private fun persistedBrowserTab(
         path = entry.path,
         entryPrefix = entry.entryPrefix,
         isRootStorageScope = entry.isRootStorageScope,
-        backendId = entry.backendId,
         browserPage = browserPage
     )
 }
@@ -391,8 +389,7 @@ private fun PersistedBrowserTab.browserEntry(): BrowserEntry? = when (entryType)
         BrowserEntry.Path(
             path = it,
             seedInitialPathHistory = false,
-            isRootStorageScope = isRootStorageScope,
-            backendId = backendId
+            isRootStorageScope = isRootStorageScope
         )
     }
     "category" -> name?.takeIf(String::isNotBlank)?.let { BrowserEntry.Category(it, volumeId) }
@@ -400,8 +397,7 @@ private fun PersistedBrowserTab.browserEntry(): BrowserEntry? = when (entryType)
         BrowserEntry.Archive(
             path = it,
             entryPrefix = entryPrefix,
-            isRootStorageScope = isRootStorageScope,
-            backendId = backendId
+            isRootStorageScope = isRootStorageScope
         )
     }
     else -> null

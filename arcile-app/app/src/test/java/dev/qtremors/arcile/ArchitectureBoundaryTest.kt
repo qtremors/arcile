@@ -913,7 +913,7 @@ class ArchitectureBoundaryTest {
         )
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 780,
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 790,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1102,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/category/FileCategoryLibrary.kt" to 1576,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/pdf/StandalonePdfViewer.kt" to 1009,

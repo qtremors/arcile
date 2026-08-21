@@ -50,11 +50,8 @@ import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.storage.domain.PrivilegedContentAccessManager
-import dev.qtremors.arcile.core.storage.domain.PrivilegedContentGrantPurpose
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
-import dev.qtremors.arcile.core.storage.domain.isPrivileged
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.ui.ExternalViewerLoadScreen
 import dev.qtremors.arcile.core.ui.R
@@ -71,8 +68,6 @@ import kotlinx.coroutines.withContext
 
 @AndroidEntryPoint
 class AudioPlayerActivity : ComponentActivity() {
-    @Inject
-    internal lateinit var privilegedContentAccessManager: PrivilegedContentAccessManager
 
     @Inject
     internal lateinit var playback: AudioPlaybackController
@@ -269,31 +264,14 @@ class AudioPlayerActivity : ComponentActivity() {
         }
     }
 
-    private suspend fun FileModel.toHandoffReference(): ExternalFileAccessHelper.ExternalFileReference {
-        val sourceNode = nodeRef
-        val handoffNode = if (sourceNode.isPrivileged) {
-            val grant = privilegedContentAccessManager.issue(
-                node = sourceNode,
-                displayName = name,
-                mimeType = mimeType,
-                sizeBytes = size.takeIf { it > 0L },
-                modifiedAtMillis = lastModified.takeIf { it > 0L },
-                purpose = PrivilegedContentGrantPurpose.EXTERNAL_HANDOFF,
-                lifetimeMillis = PrivilegedContentAccessManager.DEFAULT_EXTERNAL_GRANT_LIFETIME_MILLIS,
-                expectedConsumerUid = null
-            ).getOrThrow()
-            sourceNode.copy(contentUri = grant.contentUri)
-        } else {
-            sourceNode
-        }
-        return ExternalFileAccessHelper.ExternalFileReference(
+    private fun FileModel.toHandoffReference() =
+        ExternalFileAccessHelper.ExternalFileReference(
             path = absolutePath,
             displayName = name,
             sizeBytes = size,
             mimeType = mimeType,
-            nodeRef = handoffNode
+            nodeRef = nodeRef
         )
-    }
 
     private fun showFailure() {
         showArcileToast(getString(R.string.cannot_open_file, ""))
@@ -491,11 +469,6 @@ fun createAudioPlayerIntent(
         setDataAndType(Uri.parse(contentUri), mimeType ?: "audio/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra(EXTRA_DISPLAY_NAME, displayName)
-        nodeRef?.takeIf { it.isPrivileged }?.let { node ->
-            putExtra(EXTRA_NODE_BACKEND_ID, node.backendId)
-            putExtra(EXTRA_NODE_DISPLAY_PATH, node.displayPath.absolutePath)
-            putExtra(EXTRA_NODE_BACKEND_IDENTITY, node.backendIdentity)
-        }
     }
 
     putStringArrayListExtra(EXTRA_QUEUE_PATHS, ArrayList(contextPaths))
@@ -547,8 +520,7 @@ private suspend fun resolveStandaloneAudioTarget(
                     ?: "Audio",
                 mimeType = metadata.mimeType,
                 sizeBytes = metadata.sizeBytes,
-                internalPath = null,
-                nodeRef = intent.privilegedNodeRef(uri.toString())
+                internalPath = null
             )
         }
         "file", null -> withContext(ioDispatcher) {
@@ -594,30 +566,16 @@ private fun StandaloneAudioTarget.toBasicAudioTrack(): AudioTrack {
     )
 }
 
-private fun Intent.privilegedNodeRef(contentUri: String): StorageNodeRef? {
-    val backendId = getStringExtra(EXTRA_NODE_BACKEND_ID) ?: return null
-    val displayPath = getStringExtra(EXTRA_NODE_DISPLAY_PATH) ?: return null
-    val backendIdentity = getStringExtra(EXTRA_NODE_BACKEND_IDENTITY) ?: return null
-    if (backendId !in setOf(StorageNodeRef.ROOT_BACKEND_ID, StorageNodeRef.SHIZUKU_BACKEND_ID)) {
-        return null
-    }
-    return StorageNodeRef.privileged(
-        backendId = backendId,
-        displayPath = displayPath,
-        remoteCanonicalIdentity = backendIdentity
-    ).copy(contentUri = contentUri)
-}
-
 private fun StandaloneAudioTarget.toAudioTrack(context: Context): AudioTrack {
-    val metadata = MediaMetadataRetriever()
+    val metadata = android.media.MediaMetadataRetriever()
     val values = runCatching {
         if (uri.scheme == "content") metadata.setDataSource(context, uri)
         else metadata.setDataSource(reference)
         AudioMetadataValues(
-            title = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
-            artist = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
-            album = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM),
-            duration = metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+            title = metadata.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_TITLE),
+            artist = metadata.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ARTIST),
+            album = metadata.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_ALBUM),
+            duration = metadata.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)
                 ?.toLongOrNull() ?: 0L
         )
     }.getOrDefault(AudioMetadataValues())
@@ -639,7 +597,6 @@ private data class AudioMetadataValues(
 
 private fun AudioTrack?.orFallback(fallback: AudioTrack): AudioTrack = this ?: fallback
 
-
 private const val EXTRA_INTERNAL_PATH =
     "dev.qtremors.arcile.feature.audio.extra.INTERNAL_PATH"
 private const val EXTRA_QUEUE_PATHS =
@@ -650,12 +607,6 @@ private const val EXTRA_BOTTOM_CLEARANCE_DP =
     "dev.qtremors.arcile.feature.audio.extra.BOTTOM_CLEARANCE_DP"
 private const val EXTRA_DISPLAY_NAME =
     "dev.qtremors.arcile.feature.audio.extra.DISPLAY_NAME"
-private const val EXTRA_NODE_BACKEND_ID =
-    "dev.qtremors.arcile.feature.audio.extra.NODE_BACKEND_ID"
-private const val EXTRA_NODE_DISPLAY_PATH =
-    "dev.qtremors.arcile.feature.audio.extra.NODE_DISPLAY_PATH"
-private const val EXTRA_NODE_BACKEND_IDENTITY =
-    "dev.qtremors.arcile.feature.audio.extra.NODE_BACKEND_IDENTITY"
 private const val IN_APP_PLAYER_BOTTOM_CLEARANCE_DP = 80
 internal const val ACTION_CLOSE_AUDIO_PLAYER =
     "dev.qtremors.arcile.feature.audio.action.CLOSE_PLAYER"

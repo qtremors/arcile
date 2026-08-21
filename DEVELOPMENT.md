@@ -88,7 +88,7 @@ graph TD
 | State and architecture | Feature-owned MVVM, StateFlow, Kotlin Coroutines, immutable collections, Hilt/Dagger |
 | Navigation | Navigation Compose with Kotlin Serialization typed routes |
 | Persistence | Room cache database and DataStore Preferences |
-| Storage | Android filesystem APIs, MediaStore, Storage Access Framework, FileProvider/content grants, Root through libsu, Shizuku |
+| Storage | Android filesystem APIs, MediaStore, Storage Access Framework, FileProvider/content grants |
 | Media and metadata | Media3, Coil 2, ExifInterface, platform PDF and media APIs |
 | Archives | Apache Commons Compress, Tukaani XZ, Zip4j |
 | Vault cryptography | Android Keystore and Bouncy Castle |
@@ -100,13 +100,13 @@ Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intenti
 
 ## Project Structure
 
-Arcile's codebase is divided into **38 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
+Arcile's codebase is divided into **36 Gradle modules** split into application composition, neutral core capabilities, independent feature modules, and optional plugin infrastructure:
 
 ```text
 arcile/
 ├── arcile-app/
 │   ├── build-logic/                             # Convention and release-verification plugins
-│   ├── app/                                     # Activities, Hilt composition, root shell, route mapping
+│   ├── app/                                     # Activities, Hilt composition, app shell, route mapping
 │   │   └── src/main/java/dev/qtremors/arcile/
 │   │       ├── AppSessionTracker.kt              # Cold-launch vs configuration recreation ownership
 │   │       ├── MainActivity.kt                   # Splash preload and app-shell entry
@@ -457,7 +457,7 @@ Arcile plugins are independent Android application APKs. They are discovered and
 | Module | Responsibility |
 |--------|----------------|
 | `plugin-api` | Stable contract constants, API version, MIME constants, and immutable plugin metadata/status models. It must not acquire runtime library dependencies. |
-| `plugin-ui` | Stateless Compose viewer primitives that can be packaged into both Arcile and plugin APKs. It must not depend on app storage, feature modules, Hilt, or privileged file APIs. |
+| `plugin-ui` | Stateless Compose viewer primitives that can be packaged into both Arcile and plugin APKs. It must not depend on app storage, feature modules, Hilt, or app-specific file APIs. |
 | `core:plugin:android` | Plugin discovery, signature/API validation, and installed-plugin compatibility checks. |
 | `feature:plugins` | Installed/available plugin management UI and route ownership. |
 | `app` | Root file routing, temporary URI creation, plugin prompt mapping, and application-level composition. |

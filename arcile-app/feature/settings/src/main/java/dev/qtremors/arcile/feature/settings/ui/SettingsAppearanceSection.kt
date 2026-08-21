@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Tab
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.ViewColumn
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -41,6 +42,7 @@ import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
+import dev.qtremors.arcile.core.ui.settings.AppStartPageSelector
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
 import dev.qtremors.arcile.core.ui.theme.ThemeState
@@ -82,6 +84,12 @@ internal fun SettingsAppearanceSection(
                 )
             }
         }
+        ArcileListSurface {
+            AppStartPageSelector(
+                currentPage = preferences.appStartPage,
+                onPageSelected = actions.appStartPageChange
+            )
+        }
         Column(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
         ) {
@@ -116,6 +124,20 @@ internal fun SettingsAppearanceSection(
                 SettingsSwitchRow(
                     index = 3,
                     count = 11,
+                    title = stringResource(R.string.settings_browser_tabs),
+                    description = stringResource(R.string.settings_browser_tabs_description),
+                    checked = preferences.browserTabsEnabled,
+                    switchTag = "browser_tabs_switch",
+                    rowTag = "browser_tabs_setting_row",
+                    leadingIcon = Icons.Default.Tab,
+                    onCheckedChange = { checked ->
+                        haptics.toggleMenu()
+                        actions.browserTabsEnabledChange(checked)
+                    }
+                )
+                SettingsSwitchRow(
+                    index = 4,
+                    count = 11,
                     title = stringResource(R.string.settings_browser_scrollbar),
                     description = stringResource(R.string.settings_browser_scrollbar_description),
                     checked = preferences.browserScrollbarEnabled,
@@ -125,7 +147,7 @@ internal fun SettingsAppearanceSection(
                     onCheckedChange = actions.browserScrollbarEnabledChange
                 )
                 SettingsSwitchRow(
-                    index = 4,
+                    index = 5,
                     count = 11,
                     title = stringResource(R.string.settings_gallery_scrollbar),
                     description = stringResource(R.string.settings_gallery_scrollbar_description),
@@ -136,7 +158,7 @@ internal fun SettingsAppearanceSection(
                     onCheckedChange = actions.galleryScrollbarEnabledChange
                 )
                 SettingsSwitchRow(
-                    index = 5,
+                    index = 6,
                     count = 11,
                     title = stringResource(R.string.settings_landscape_dual_pane),
                     description = stringResource(R.string.settings_landscape_dual_pane_description),
@@ -150,7 +172,7 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 6,
+                    index = 7,
                     count = 11,
                     title = stringResource(R.string.settings_harmonize_colors),
                     description = stringResource(R.string.settings_harmonize_colors_description),
@@ -164,7 +186,7 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 7,
+                    index = 8,
                     count = 11,
                     title = stringResource(R.string.settings_vibrations),
                     description = stringResource(R.string.settings_vibrations_description),
@@ -178,7 +200,7 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 8,
+                    index = 9,
                     count = 11,
                     title = stringResource(R.string.settings_double_line_filenames),
                     description = stringResource(R.string.settings_double_line_filenames_description),
@@ -192,7 +214,7 @@ internal fun SettingsAppearanceSection(
                     }
                 )
                 SettingsSwitchRow(
-                    index = 9,
+                    index = 10,
                     count = 11,
                     title = stringResource(R.string.settings_marquee_filenames),
                     description = stringResource(R.string.settings_marquee_filenames_description),
@@ -203,20 +225,6 @@ internal fun SettingsAppearanceSection(
                     onCheckedChange = { checked ->
                         haptics.toggleMenu()
                         actions.themeChange(theme.withMarqueeFilenames(checked))
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 10,
-                    count = 11,
-                    title = stringResource(R.string.settings_shizuku_status_icon),
-                    description = stringResource(R.string.settings_shizuku_status_icon_description),
-                    checked = theme.showShizukuStatusIcon,
-                    switchTag = "shizuku_status_icon_switch",
-                    rowTag = "shizuku_status_icon_setting_row",
-                    leadingIcon = Icons.Default.Bolt,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.withShizukuStatusIcon(checked))
                     }
                 )
         }
@@ -294,9 +302,6 @@ internal fun ThemeState.withLandscapeDualPane(enabled: Boolean): ThemeState = co
     landscapeDualPaneEnabled = enabled
 )
 
-internal fun ThemeState.withShizukuStatusIcon(enabled: Boolean): ThemeState = copy(
-    showShizukuStatusIcon = enabled
-)
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable

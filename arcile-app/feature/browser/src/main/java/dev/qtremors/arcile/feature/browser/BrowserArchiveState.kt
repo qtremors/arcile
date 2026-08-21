@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.browser
 import androidx.compose.runtime.Immutable
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 
@@ -16,7 +15,6 @@ internal enum class ArchiveExtractionTarget {
 @Immutable
 internal data class BrowserArchiveContext(
     val archivePath: String,
-    val archiveNodeRef: StorageNodeRef? = null,
     val entryPrefix: String? = null,
     val password: String? = null,
     val nameEncoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8,
@@ -37,8 +35,6 @@ internal enum class ArchivePasswordAction {
 internal data class PendingArchiveExtraction(
     val archivePath: String,
     val destinationPath: String,
-    val archiveNodeRef: StorageNodeRef? = null,
-    val destinationNodeRef: StorageNodeRef? = null,
     val entryPrefix: String? = null,
     val entryPrefixes: List<String> = emptyList(),
     val password: String? = null,

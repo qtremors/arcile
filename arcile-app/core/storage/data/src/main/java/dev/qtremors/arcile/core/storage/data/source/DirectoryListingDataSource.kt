@@ -2,7 +2,6 @@ package dev.qtremors.arcile.core.storage.data.source
 
 import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
-import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.coroutines.flow.Flow
 
 interface DirectoryListingDataSource {
@@ -10,9 +9,4 @@ interface DirectoryListingDataSource {
         path: StorageNodePath,
         pageSize: Int = ListingPage.DEFAULT_PAGE_SIZE
     ): Flow<ListingPage>
-
-    fun list(
-        directory: StorageNodeRef,
-        pageSize: Int = ListingPage.DEFAULT_PAGE_SIZE
-    ): Flow<ListingPage> = list(directory.displayPath, pageSize)
 }

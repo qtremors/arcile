@@ -109,11 +109,10 @@ internal fun BrowserContent(
                 ArchiveBreadcrumbs(
                     archiveName = state.archiveContext.archiveName,
                     entryPrefix = state.archiveContext.entryPrefix,
-                    onArchiveRootClick = { navigationIntents.onNavigateTo(state.archiveContext.archivePath, null) },
+                    onArchiveRootClick = { navigationIntents.onNavigateTo(state.archiveContext.archivePath) },
                     onEntryClick = {
                         navigationIntents.onNavigateTo(
-                            ArchiveEntryThumbnailData.virtualPath(state.archiveContext.archivePath, it),
-                            null
+                            ArchiveEntryThumbnailData.virtualPath(state.archiveContext.archivePath, it)
                         )
                     }
                 )
@@ -122,7 +121,7 @@ internal fun BrowserContent(
                     currentPath = state.currentPath,
                     storageVolumes = state.storageVolumes,
                     isRootStorageScope = state.isRootStorageScope,
-                    onPathSegmentClick = { path -> navigationIntents.onNavigateTo(path, null) }
+                    onPathSegmentClick = { path -> navigationIntents.onNavigateTo(path) }
                 )
             }
 
@@ -327,7 +326,7 @@ private fun BrowserSearchResults(
                             onShowSearchBarChange(false)
                             searchIntents.onClearSearch()
                             if (file.isDirectory) {
-                                navigationIntents.onNavigateTo(file.absolutePath, file.nodeRef)
+                                navigationIntents.onNavigateTo(file.absolutePath)
                             } else if (state.archiveContext == null) {
                                 navigationIntents.onOpenFile(file.absolutePath)
                             }
@@ -374,7 +373,7 @@ private fun BrowserListingContent(
     } else if (state.isVolumeRootScreen) {
         VolumeRootList(
             volumes = state.storageVolumes,
-            onNavigateTo = { path -> navigationIntents.onNavigateTo(path, null) },
+            onNavigateTo = { path -> navigationIntents.onNavigateTo(path) },
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 top = 8.dp,
@@ -399,7 +398,7 @@ private fun BrowserListingContent(
             FileGridRows(
                 rows = state.displayState.visibleGridRows,
                 selectedFiles = state.selectedFiles,
-                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath, file.nodeRef) },
+                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
                 onSelectMultiple = selectionIntents.onSelectMultiple,
@@ -436,7 +435,7 @@ private fun BrowserListingContent(
             FileListRows(
                 rows = state.displayState.visibleListRows,
                 selectedFiles = state.selectedFiles,
-                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath, file.nodeRef) },
+                onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
                 onSelectMultiple = selectionIntents.onSelectMultiple,

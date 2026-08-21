@@ -84,34 +84,10 @@ class OperationRequestStore @Inject constructor(
 }
 
 internal fun BulkFileOperationRequest.isWithinDurableHandoffLimits(): Boolean {
-    if (sourcePaths.size > MAX_OPERATION_SOURCE_ITEMS ||
-        sourceNodeRefs.size > MAX_OPERATION_SOURCE_ITEMS ||
-        importItems.size > MAX_OPERATION_IMPORT_ITEMS
-    ) return false
-    if (sourceNodeRefs.isNotEmpty() && sourceNodeRefs.size != sourcePaths.size) return false
-    if (sourceNodeRefs.any { runCatching { it.toStorageNodeRef() }.isFailure }) return false
-    if (destinationNodeRef?.let { runCatching { it.toStorageNodeRef() }.isFailure } == true) {
-        return false
-    }
+    if (sourcePaths.size > MAX_OPERATION_SOURCE_ITEMS || importItems.size > MAX_OPERATION_IMPORT_ITEMS) return false
     val values = buildList {
         addAll(sourcePaths)
         destinationPath?.let(::add)
-        sourceNodeRefs.forEach { ref ->
-            add(ref.backendId)
-            add(ref.displayPath)
-            add(ref.canonicalIdentity)
-            ref.volumeId?.let(::add)
-            ref.contentUri?.let(::add)
-            ref.backendIdentity?.let(::add)
-        }
-        destinationNodeRef?.let { ref ->
-            add(ref.backendId)
-            add(ref.displayPath)
-            add(ref.canonicalIdentity)
-            ref.volumeId?.let(::add)
-            ref.contentUri?.let(::add)
-            ref.backendIdentity?.let(::add)
-        }
         addAll(resolutions.keys)
         addAll(importItems.flatMap { listOf(it.uri, it.displayName) })
     }

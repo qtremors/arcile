@@ -180,15 +180,13 @@ internal class BrowserInitializer(
             is BrowserEntry.Archive -> navigation.openArchive(
                 archivePath = entry.path,
                 entryPrefix = entry.entryPrefix,
-                isRootStorageScope = entry.isRootStorageScope,
-                backendId = entry.backendId
+                isRootStorageScope = entry.isRootStorageScope
             )
             is BrowserEntry.Category -> navigation.navigateToCategory(entry.name, entry.volumeId)
             is BrowserEntry.Path -> navigation.navigateToSpecificFolder(
                 entry.path,
                 seedInitialPathHistory = entry.seedInitialPathHistory,
-                isRootStorageScope = entry.isRootStorageScope,
-                backendId = entry.backendId
+                isRootStorageScope = entry.isRootStorageScope
             )
             is BrowserEntry.Root -> navigation.openFileBrowser(entry.restorePersistentLocation)
         }

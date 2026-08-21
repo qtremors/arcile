@@ -65,11 +65,6 @@ fun OnboardingRoute(
         )
     }
 
-    LaunchedEffect(state.step) {
-        if (state.step == OnboardingStep.SetupPermissions) {
-            viewModel.prepareAutomaticAccess()
-        }
-    }
 
     LaunchedEffect(
         state.preferencesLoaded,

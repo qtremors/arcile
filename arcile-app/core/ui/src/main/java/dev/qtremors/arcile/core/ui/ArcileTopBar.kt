@@ -116,7 +116,6 @@ fun ArcileTopBar(
     menuActions: List<ArcileTopBarMenuAction> = emptyList(),
     actions: ArcileTopBarActions
 ) {
-    val showShizukuBadge = LocalShizukuTopBarBadgeVisible.current
     val showBackArrow = options.showBackArrow
     val showSettingsIcon = options.showSettingsIcon
     val showSearchAction = options.showSearchAction
@@ -239,10 +238,6 @@ fun ArcileTopBar(
                         }
                     }
 
-                    if (showShizukuBadge) {
-                        ShizukuTopBarBadge()
-                        Spacer(modifier = androidx.compose.ui.Modifier.width(8.dp))
-                    }
 
                     if (showSettingsIcon) {
                         Surface(

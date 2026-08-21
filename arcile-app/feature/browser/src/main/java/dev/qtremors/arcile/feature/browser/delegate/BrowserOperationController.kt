@@ -380,13 +380,10 @@ internal class BrowserOperationController(
     private fun undoRename(undo: BrowserUndoAction.Rename) {
         update { it.copy(pendingUndoAction = null) }
         scope.launch {
-            val result = undo.renamedNode?.let { node ->
-                fileMutationRepository.renameNode(node, storagePathName(undo.originalPath))
-            } ?: fileMutationRepository.renameFile(
+            fileMutationRepository.renameFile(
                 undo.renamedPath,
                 storagePathName(undo.originalPath)
-            )
-            result.onSuccess {
+            ).onSuccess {
                 refreshAction()
             }.onFailure(::reportStorageError)
         }
@@ -395,18 +392,10 @@ internal class BrowserOperationController(
     private fun undoBatchRename(undo: BrowserUndoAction.BatchRename) {
         update { it.copy(pendingUndoAction = null) }
         scope.launch {
-            val nodeEntries = undo.entries.mapNotNull { entry ->
-                entry.renamedNode?.let { it to storagePathName(entry.originalPath) }
+            val reverseRenames = undo.entries.map { entry ->
+                entry.renamedPath to storagePathName(entry.originalPath)
             }
-            val result = if (nodeEntries.size == undo.entries.size) {
-                fileMutationRepository.batchRenameNodes(nodeEntries).map { Unit }
-            } else {
-                val reverseRenames = undo.entries.map { entry ->
-                    entry.renamedPath to storagePathName(entry.originalPath)
-                }
-                fileMutationRepository.batchRenameFiles(reverseRenames).map { Unit }
-            }
-            result.onSuccess {
+            fileMutationRepository.batchRenameFiles(reverseRenames).onSuccess {
                 refreshAction()
             }.onFailure(::reportStorageError)
         }
