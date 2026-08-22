@@ -176,7 +176,7 @@ fun DeleteConfirmationDialog(
                                 )
                         ) {
                             ListItem(
-                                headlineContent = {
+                                content = {
                                     Text(
                                         text = permanentlyDeleteLabel,
                                         style = MaterialTheme.typography.bodyLarge,
@@ -229,7 +229,7 @@ fun DeleteConfirmationDialog(
                                     .bounceClickable(onClick = toggleShredClick)
                             ) {
                                 ListItem(
-                                    headlineContent = {
+                                    content = {
                                         Text(
                                             text = stringResource(R.string.shred_permanently_checkbox),
                                             style = MaterialTheme.typography.bodyLarge,

@@ -10,6 +10,7 @@ import android.print.PrintAttributes
 import android.print.PrintDocumentAdapter
 import android.print.PrintDocumentInfo
 import android.print.PrintManager
+import androidx.core.net.toUri
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -26,7 +27,6 @@ internal fun printPdf(
         ExistingPdfPrintAdapter(context.applicationContext, reference, title),
         PrintAttributes.Builder().build()
     )
-    Unit
 }
 
 private class ExistingPdfPrintAdapter(
@@ -84,7 +84,7 @@ private class ExistingPdfPrintAdapter(
         }
     }
 
-    private fun openInput() = Uri.parse(reference).let { uri ->
+    private fun openInput() = reference.toUri().let { uri ->
         if (uri.scheme == "content") {
             context.contentResolver.openInputStream(uri) ?: error("Unable to read PDF")
         } else {

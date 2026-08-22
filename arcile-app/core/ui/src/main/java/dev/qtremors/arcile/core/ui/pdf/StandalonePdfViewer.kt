@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
+import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -170,9 +171,7 @@ class PdfDocumentHandle private constructor(
         val cacheKey = "$pageIndex:$width:$height"
         bitmapCache.get(cacheKey)?.let { return@synchronized it }
 
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
-            eraseColor(AndroidColor.WHITE)
-        }
+        val bitmap = androidx.core.graphics.createBitmap(width, height).apply { eraseColor(AndroidColor.WHITE) }
         renderer.openPage(pageIndex).use { page ->
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         }
@@ -226,7 +225,7 @@ class PdfDocumentHandle private constructor(
         }
 
         private fun openDescriptor(context: Context, reference: String): ParcelFileDescriptor? {
-            val uri = runCatching { Uri.parse(reference) }.getOrNull()
+            val uri = runCatching { reference.toUri() }.getOrNull()
             return if (uri?.scheme == "content") {
                 context.contentResolver.openFileDescriptor(uri, "r")
             } else {
@@ -350,11 +349,12 @@ fun StandalonePdfViewer(
             val density = LocalDensity.current
             val baseWidthPx = with(density) { maxWidth.roundToPx() }
             val pageWidth = maxWidth * zoom
-            val currentPage = remember(listState.firstVisibleItemIndex, document?.pageCount) {
-                if (document == null) 0
-                else listState.firstVisibleItemIndex.coerceIn(0, document.pageCount - 1)
+            val pageCount = document?.pageCount ?: 0
+            val currentPage by remember(listState, pageCount) {
+                androidx.compose.runtime.derivedStateOf {
+                    listState.firstVisibleItemIndex.takeIf { pageCount > 0 }?.coerceAtMost(pageCount - 1) ?: 0
+                }
             }
-
             when (val currentLoadState = loadState) {
                 PdfLoadState.Loading -> LoadingIndicator(
                     color = Color.White,

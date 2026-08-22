@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.operation.android
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import dev.qtremors.arcile.core.operation.SaveToArcileImportItem
 
 class SaveToArcileUriGrantManager(
@@ -39,7 +40,7 @@ class SaveToArcileUriGrantManager(
             .forEach { value ->
                 runCatching {
                     contentResolver.releasePersistableUriPermission(
-                        Uri.parse(value),
+                        value.toUri(),
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
                 }

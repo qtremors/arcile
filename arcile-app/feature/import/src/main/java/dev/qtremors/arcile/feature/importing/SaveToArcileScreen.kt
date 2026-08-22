@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -125,7 +126,7 @@ private fun SaveToArcileBottomBar(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                text = LocalContext.current.resources.getQuantityString(
+                text = LocalResources.current.getQuantityString(
                     R.plurals.save_to_arcile_selected_files,
                     state.incoming.size,
                     state.incoming.size
@@ -191,7 +192,7 @@ private fun SaveToArcileDirectoryList(
         if (state.currentDirectory == null) {
             items(state.volumes, key = { it.id }) { volume ->
                 ListItem(
-                    headlineContent = { Text(volume.name) },
+                    content = { Text(volume.name) },
                     supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     leadingContent = { Icon(Icons.Outlined.Storage, contentDescription = null) },
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -202,7 +203,7 @@ private fun SaveToArcileDirectoryList(
         } else {
             items(state.childDirectories, key = { it.path }) { directory ->
                 ListItem(
-                    headlineContent = { Text(directory.name) },
+                    content = { Text(directory.name) },
                     supportingContent = {
                         Text(directory.path, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },

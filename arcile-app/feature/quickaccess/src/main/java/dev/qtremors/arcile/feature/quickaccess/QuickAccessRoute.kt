@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.quickaccess
 import android.content.ContentResolver
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.DocumentsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -143,7 +144,7 @@ internal fun persistTreePermission(contentResolver: ContentResolver, uri: Uri): 
 }
 
 internal fun restrictedLocalPath(uriString: String): String? = runCatching {
-    val uri = Uri.parse(uriString)
+    val uri = uriString.toUri()
     require(uri.scheme == ContentResolver.SCHEME_CONTENT)
     require(uri.authority == EXTERNAL_STORAGE_AUTHORITY)
     val documentId = DocumentsContract.getDocumentId(uri)

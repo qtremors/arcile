@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.ui.image
 
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
+import androidx.core.graphics.drawable.toDrawable
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -48,7 +49,7 @@ class ArchiveEntryImageFetcher(
                     }
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return@withContext null
                     DrawableResult(
-                        drawable = BitmapDrawable(options.context.resources, bitmap),
+                        drawable = bitmap.toDrawable(options.context.resources),
                         isSampled = true,
                         dataSource = DataSource.DISK
                     )

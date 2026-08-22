@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data
 
 import android.content.Context
+import androidx.core.content.edit
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
@@ -45,7 +46,7 @@ class DefaultMutationJournal(
     }
 
     init {
-        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
+        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit { clear() }
     }
 
     override fun recordTemporaryPath(path: String) {

@@ -287,7 +287,6 @@ internal class ImageGalleryViewModel @Inject constructor(
 
     override fun onCleared() {
         fileActions.stopObserving()
-        super.onCleared()
     }
 
     private companion object {

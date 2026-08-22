@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -138,7 +139,7 @@ internal fun RecentFilesScreen(
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
     PredictiveBackHandler(enabled = isSelectionMode || showSearchBar) { progressFlow ->
@@ -172,7 +173,7 @@ internal fun RecentFilesScreen(
                     .fillMaxWidth()
                     .graphicsLayer {
                         if (isBackPredicting) {
-                            translationY = -backProgress * size.height.toFloat()
+                            translationY = -backProgress * size.height
                             alpha = 1f - backProgress
                         }
                     }

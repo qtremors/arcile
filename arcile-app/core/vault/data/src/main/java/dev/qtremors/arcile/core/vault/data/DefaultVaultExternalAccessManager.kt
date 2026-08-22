@@ -7,6 +7,7 @@ import android.app.PendingIntent
 import android.content.Intent
 import androidx.core.app.NotificationCompat
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Process
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
@@ -155,7 +156,7 @@ internal class DefaultVaultExternalAccessManager @Inject constructor(
         true
     } ?: fallbacks.remove(token)?.let { record ->
         synchronized(record) { record.autoRevoke?.cancel() }
-        val uri = Uri.parse(record.public.contentUri)
+        val uri = record.public.contentUri.toUri()
         runCatching { ExternalFileAccessProvider.unregisterAccessObserver(context, uri) }
         ExternalFileAccessHelper.deletePrivatePlaintextFallback(context, record.fallbackId)
         updateNotification()

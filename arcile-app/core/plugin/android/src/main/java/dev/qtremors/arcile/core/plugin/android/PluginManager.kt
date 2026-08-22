@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.plugin.android
 
+import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ComponentName
 import android.content.Context
@@ -7,6 +8,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import dev.qtremors.arcile.plugin.api.PluginCompatibility
 import dev.qtremors.arcile.plugin.api.PluginContract
 import dev.qtremors.arcile.plugin.api.PluginMetadata
@@ -15,6 +17,7 @@ import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 class PluginManager(private val context: Context) {
     private val packageManager: PackageManager = context.packageManager
 
+    @SuppressLint("QueryPermissionsNeeded")
     fun getInstalledPlugins(): List<PluginMetadata> {
         val registerIntent = Intent(PluginContract.ACTION_REGISTER).addCategory(Intent.CATEGORY_DEFAULT)
         val flags = PackageManager.GET_META_DATA.toLong()
@@ -33,20 +36,16 @@ class PluginManager(private val context: Context) {
                     return@mapNotNull null
                 }
                 val metadata = activity.metaData ?: return@mapNotNull null
-                val apiVersion = when (val value = metadata.get(PluginContract.METADATA_API_VERSION)) {
-                    is Int -> value
-                    is String -> value.toIntOrNull() ?: -1
-                    else -> -1
-                }
-                val name = metadataString(activity.packageName, metadata.get(PluginContract.METADATA_PLUGIN_NAME))
+                val apiVersion = metadataInt(metadata, PluginContract.METADATA_API_VERSION)
+                val name = metadataString(activity.packageName, metadata, PluginContract.METADATA_PLUGIN_NAME)
                     ?.trim()
                     ?.takeIf { it.isNotEmpty() }
                     ?: return@mapNotNull null
                 val mimeTypes = parseCsv(
-                    metadataString(activity.packageName, metadata.get(PluginContract.METADATA_SUPPORTED_MIME_TYPES))
+                    metadataString(activity.packageName, metadata, PluginContract.METADATA_SUPPORTED_MIME_TYPES)
                 )
                 val extensions = parseCsv(
-                    metadataString(activity.packageName, metadata.get(PluginContract.METADATA_SUPPORTED_EXTENSIONS))
+                    metadataString(activity.packageName, metadata, PluginContract.METADATA_SUPPORTED_EXTENSIONS)
                 ).mapTo(linkedSetOf()) { it.removePrefix(".") }
                 if (apiVersion < 0 || (mimeTypes.isEmpty() && extensions.isEmpty())) return@mapNotNull null
 
@@ -57,16 +56,11 @@ class PluginManager(private val context: Context) {
                     packageName = activity.packageName,
                     activityName = activity.name,
                     versionName = packageInfo.versionName.orEmpty(),
-                    versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                        packageInfo.longVersionCode
-                    } else {
-                        @Suppress("DEPRECATION")
-                        packageInfo.versionCode.toLong()
-                    },
+                    versionCode = packageInfo.longVersionCode,
                     apiVersion = apiVersion,
                     supportedMimeTypes = mimeTypes,
                     supportedExtensions = extensions,
-                    homepage = metadataString(activity.packageName, metadata.get(PluginContract.METADATA_HOMEPAGE)),
+                    homepage = metadataString(activity.packageName, metadata, PluginContract.METADATA_HOMEPAGE),
                     compatibility = if (apiVersion == PluginContract.PLUGIN_API_VERSION) {
                         PluginCompatibility.COMPATIBLE
                     } else {
@@ -160,11 +154,15 @@ class PluginManager(private val context: Context) {
             compareBy<PluginMetadata> { it.versionCode }.thenBy { it.activityName }
     }
 
-    private fun metadataString(packageName: String, value: Any?): String? = when (value) {
-        is String -> value
-        is Int -> runCatching { packageManager.getResourcesForApplication(packageName).getString(value) }.getOrNull()
-        else -> null
+    private fun metadataInt(metadata: Bundle, key: String): Int {
+        val directValue = metadata.getInt(key, -1)
+        return if (directValue >= 0) directValue else metadata.getString(key)?.toIntOrNull() ?: -1
     }
+
+    private fun metadataString(packageName: String, metadata: Bundle, key: String): String? =
+        metadata.getString(key) ?: metadata.getInt(key, 0).takeIf { it != 0 }?.let { resourceId ->
+            runCatching { packageManager.getResourcesForApplication(packageName).getString(resourceId) }.getOrNull()
+        }
 }
 
 internal fun buildPluginLaunchIntent(

@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.vault.data
 
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
+import androidx.core.graphics.drawable.toDrawable
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -27,7 +28,7 @@ class VaultThumbnailFetcher(
         )
         val bytes = cache.loadOrCreate(ref, request.revision, request.requestedSizePx).getOrNull() ?: return null
         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-        return DrawableResult(BitmapDrawable(options.context.resources, bitmap), true, DataSource.DISK)
+        return DrawableResult(bitmap.toDrawable(options.context.resources), true, DataSource.DISK)
     }
 
     class Factory(private val cache: VaultThumbnailCache) : Fetcher.Factory<VaultThumbnailRequest> {

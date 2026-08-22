@@ -58,12 +58,12 @@ import kotlin.math.roundToInt
 internal fun GalleryImageListItem(
     file: FileModel,
     isSelected: Boolean,
-    isSelectionMode: Boolean = false,
     zoom: Float,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelectionMode: Boolean = false,
     onLongClick: (() -> Unit)? = null,
-    onOpenDirectly: () -> Unit = onClick,
-    modifier: Modifier = Modifier
+    onOpenDirectly: () -> Unit = onClick
 ) {
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }

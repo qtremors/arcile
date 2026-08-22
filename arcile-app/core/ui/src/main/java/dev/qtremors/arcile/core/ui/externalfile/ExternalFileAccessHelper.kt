@@ -11,6 +11,7 @@ import android.os.StatFs
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
+import androidx.core.net.toUri
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
@@ -310,7 +311,7 @@ object ExternalFileAccessHelper {
             ?: "*/*"
 
     private fun isContentReference(reference: String): Boolean =
-        runCatching { Uri.parse(reference).scheme == "content" }.getOrDefault(false)
+        runCatching { reference.toUri().scheme == "content" }.getOrDefault(false)
 
     private fun createStagedContentUri(context: Context, file: File): Uri =
         ExternalFileAccessProvider.uriFor(context, file)
@@ -424,7 +425,7 @@ object ExternalFileAccessHelper {
     suspend fun createOpenIntent(context: Context, reference: ExternalFileReference): Intent {
         val contentUri = reference.contentUri ?: reference.path.takeIf(::isContentReference)
         val target = if (contentUri != null) {
-            val uri = Uri.parse(contentUri)
+            val uri = contentUri.toUri()
             val displayName = reference.displayName
                 ?: displayNameForContentUri(context, uri)
                 ?: uri.lastPathSegment
@@ -490,7 +491,7 @@ object ExternalFileAccessHelper {
             references.mapIndexed { index, reference ->
                 val contentUri = reference.contentUri ?: reference.path.takeIf(::isContentReference)
                 if (contentUri != null) {
-                    val uri = Uri.parse(contentUri)
+                    val uri = contentUri.toUri()
                     val displayName = reference.displayName
                         ?: displayNameForContentUri(context, uri)
                         ?: uri.lastPathSegment
@@ -612,7 +613,7 @@ object ExternalFileAccessHelper {
 
     fun openInFilesApp(context: Context, uriString: String): Boolean {
         return runCatching {
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, DocumentsContract.Document.MIME_TYPE_DIR)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)

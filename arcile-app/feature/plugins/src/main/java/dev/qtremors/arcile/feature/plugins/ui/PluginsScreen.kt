@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.plugins.ui
 
 import android.content.Intent
+import androidx.core.net.toUri
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,7 +38,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.plugin.api.PluginCompatibility
 import dev.qtremors.arcile.plugin.api.PluginMetadata
@@ -145,7 +146,7 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
                         else -> Icons.Default.RemoveCircleOutline
                     }
                     ListItem(
-                        headlineContent = { Text(plugin?.name ?: row.catalog!!.name) },
+                        content = { Text(plugin?.name ?: row.catalog!!.name) },
                         supportingContent = { Text(status) },
                         leadingContent = {
                             Icon(
@@ -163,7 +164,7 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
                                 if (plugin != null) {
                                     IconButton(onClick = {
                                         context.startActivity(
-                                            Intent(Intent.ACTION_DELETE, Uri.parse("package:${plugin.packageName}"))
+                                            Intent(Intent.ACTION_DELETE, "package:${plugin.packageName}".toUri())
                                         )
                                     }) {
                                         Icon(Icons.Default.Delete, stringResource(R.string.uninstall))

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.WindowManager
@@ -34,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -83,7 +85,7 @@ class AudioPlayerActivity : ComponentActivity() {
 
     private var queue by mutableStateOf<List<AudioTrack>>(emptyList())
     private var initialPath by mutableStateOf<String?>(null)
-    private var playerLaunchId by mutableStateOf(0)
+    private var playerLaunchId by mutableIntStateOf(0)
     private var miniPlayerBottomClearanceDp = 0
     private var queueLoadJob: Job? = null
     private var loadError by mutableStateOf<String?>(null)
@@ -475,7 +477,7 @@ fun createAudioPlayerIntent(
         putExtra(EXTRA_INTERNAL_PATH, path)
     }
     if (!contentUri.isNullOrBlank()) {
-        setDataAndType(Uri.parse(contentUri), mimeType ?: "audio/*")
+        setDataAndType(contentUri.toUri(), mimeType ?: "audio/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra(EXTRA_DISPLAY_NAME, displayName)
     }

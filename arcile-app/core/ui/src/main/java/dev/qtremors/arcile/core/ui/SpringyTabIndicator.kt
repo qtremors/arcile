@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 
 @Composable
 fun SpringyTabIndicator(
@@ -53,7 +54,7 @@ fun SpringyTabIndicator(
         modifier = modifier
             .fillMaxWidth()
             .wrapContentSize(Alignment.BottomStart)
-            .offset(x = animatedLeft)
+            .offset { IntOffset(animatedLeft.roundToPx(), 0) }
             .width(animatedWidth)
             .height(3.dp)
             .background(

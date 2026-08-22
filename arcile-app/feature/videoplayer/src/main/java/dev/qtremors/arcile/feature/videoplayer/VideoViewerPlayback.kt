@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.videoplayer
 
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -531,7 +532,7 @@ private fun videoPlaybackReferenceKeys(item: VideoPlaybackItem): Set<String> {
 }
 
 private fun videoPlaybackUri(reference: String): Uri {
-    val parsed = Uri.parse(reference)
+    val parsed = reference.toUri()
     return if (parsed.scheme.isNullOrBlank()) Uri.fromFile(File(reference)) else parsed
 }
 

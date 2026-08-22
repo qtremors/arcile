@@ -103,7 +103,13 @@ fun SearchFiltersSheet(
     val foldersLabel = stringResource(R.string.folders)
     val filesLabel = stringResource(R.string.item_type_files)
     val categories = listOf(allLabel) + FileCategories.all.map { it.displayName }
-    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = androidx.compose.material3.rememberBottomSheetState(
+        initialValue = androidx.compose.material3.SheetValue.Hidden,
+        enabledValues = setOf(
+            androidx.compose.material3.SheetValue.Hidden,
+            androidx.compose.material3.SheetValue.Expanded
+        )
+    )
     var showAdvanced by rememberSaveable { mutableStateOf(currentFilters.hasActiveAdvancedFilters()) }
     var itemType by rememberSaveable(currentFilters.itemType) { mutableStateOf(currentFilters.itemType) }
     var fileType by rememberSaveable(currentFilters.fileType) { mutableStateOf(currentFilters.fileType) }
@@ -363,7 +369,7 @@ fun SearchFiltersSheet(
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.filter_include_hidden)) },
+                    content = { Text(stringResource(R.string.filter_include_hidden)) },
                     leadingContent = {
                         Icon(
                             imageVector = if (includeHidden) Icons.Default.Visibility else Icons.Default.VisibilityOff,

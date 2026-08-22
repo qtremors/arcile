@@ -39,6 +39,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +85,7 @@ fun PasteConflictDialog(
     val resolutions = remember { mutableMapOf<String, ConflictResolution>() }
     val formatter = rememberDateFormatter("MMM dd, yyyy · HH:mm")
 
-    var currentIndex by remember { mutableStateOf(0) }
+    var currentIndex by remember { mutableIntStateOf(0) }
     var applyToAll by remember { mutableStateOf(false) }
 
     if (currentIndex >= conflicts.size) {

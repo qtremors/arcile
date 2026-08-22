@@ -5,8 +5,10 @@ import android.graphics.BitmapFactory
 import android.media.MediaScannerConnection
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.net.toUri
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
+import java.util.Locale
 
 data class ImageFileMetadata(
     val path: String,
@@ -74,7 +76,7 @@ sealed interface ImageMetadataWriteResult {
 
 object SharedImageMetadataReader {
     fun readMetadata(context: Context, reference: String, mimeType: String? = null): ImageFileMetadata {
-        val uri = runCatching { Uri.parse(reference) }.getOrNull()
+        val uri = runCatching { reference.toUri() }.getOrNull()
         return if (uri?.scheme == "content") {
             readContentMetadata(context, uri, mimeType)
         } else {
@@ -376,5 +378,5 @@ fun formatImageFileSize(size: Long): String {
     if (size <= 0) return "0 B"
     val units = arrayOf("B", "KB", "MB", "GB", "TB")
     val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(units.indices)
-    return String.format("%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+    return String.format(Locale.getDefault(), "%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }

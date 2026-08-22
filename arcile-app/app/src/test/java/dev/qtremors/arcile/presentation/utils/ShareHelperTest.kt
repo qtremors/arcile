@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.content.IntentCompat
 import androidx.test.core.app.ApplicationProvider
 import io.mockk.coEvery
 import io.mockk.mockkObject
@@ -70,11 +71,17 @@ class ShareHelperTest {
             assertTrue(ShareHelper.shareFiles(context, listOf("/storage/emulated/0/file.txt")))
             val startedIntent = shadowOf(context as android.app.Application).nextStartedActivity
             assertEquals(Intent.ACTION_CHOOSER, startedIntent.action)
-            val sendIntent = startedIntent.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+            val sendIntent = IntentCompat.getParcelableExtra(
+                startedIntent,
+                Intent.EXTRA_INTENT,
+                Intent::class.java
+            )
             assertEquals(Intent.ACTION_SEND, sendIntent?.action)
             assertEquals(
                 Uri.parse("content://dev.qtremors.arcile/test"),
-                sendIntent?.getParcelableExtra(Intent.EXTRA_STREAM)
+                sendIntent?.let {
+                    IntentCompat.getParcelableExtra(it, Intent.EXTRA_STREAM, Uri::class.java)
+                }
             )
             assertEquals("file.txt", sendIntent?.getStringExtra(Intent.EXTRA_TITLE))
             assertEquals("file.txt", sendIntent?.clipData?.description?.label?.toString())
@@ -112,13 +119,23 @@ class ShareHelperTest {
                 )
             )
             val chooser = shadowOf(context as android.app.Application).nextStartedActivity
-            val sendIntent = chooser.getParcelableExtra<Intent>(Intent.EXTRA_INTENT)
+            val sendIntent = IntentCompat.getParcelableExtra(
+                chooser,
+                Intent.EXTRA_INTENT,
+                Intent::class.java
+            )
             assertNotNull(sendIntent)
             assertEquals(Intent.ACTION_SEND_MULTIPLE, sendIntent?.action)
             assertEquals("application/pdf", sendIntent?.type)
             assertEquals(
                 targets.map { it.uri },
-                sendIntent?.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                sendIntent?.let {
+                    IntentCompat.getParcelableArrayListExtra(
+                        it,
+                        Intent.EXTRA_STREAM,
+                        Uri::class.java
+                    )
+                }
             )
             assertEquals(3, sendIntent?.clipData?.itemCount)
             assertEquals(targets[2].uri, sendIntent?.clipData?.getItemAt(2)?.uri)

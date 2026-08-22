@@ -51,11 +51,11 @@ data class CategoryItemInfo(
 fun CategoryListItem(
     info: CategoryItemInfo,
     selected: Boolean,
-    highlighted: Boolean = false,
-    zoom: Float = 1f,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
+    zoom: Float = 1f,
     preview: @Composable BoxScope.() -> Unit
 ) {
     val scale by animateFloatAsState(
@@ -114,11 +114,11 @@ fun CategoryListItem(
 fun CategoryGridItem(
     info: CategoryItemInfo,
     selected: Boolean,
-    highlighted: Boolean = false,
     showInfo: Boolean,
     onClick: () -> Unit,
     onLongClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    highlighted: Boolean = false,
     previewAspectRatio: Float = 1f,
     previewBackground: Boolean = true,
     preview: @Composable BoxScope.() -> Unit
@@ -234,8 +234,8 @@ private fun BoxScope.CategorySelectionOverlay(selected: Boolean) {
 fun CategoryFolderGridItem(
     info: CategoryItemInfo,
     onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onLongClick: (() -> Unit)? = null,
     preview: @Composable BoxScope.() -> Unit
 ) {
     val shape = ExpressiveShapes.large

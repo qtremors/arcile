@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,7 +100,7 @@ internal fun ApkLibraryScreen(
             onClearError()
         }
     }
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val labels = CategoryLibraryLabels(
         searchPlaceholder = stringResource(R.string.apk_search),
         filesTab = stringResource(R.string.apk_all),

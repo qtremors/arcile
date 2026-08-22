@@ -85,7 +85,7 @@ internal fun CleanerDetailsScreen(
     var showRiskInfo by rememberSaveable(group.type.name) { mutableStateOf(false) }
     var showSectionSettings by rememberSaveable(group.type.name) { mutableStateOf(false) }
     var comparePaths by rememberSaveable(group.type.name) {
-        mutableStateOf(arrayListOf<String>())
+        mutableStateOf<List<String>>(emptyList())
     }
     val compareFiles = remember(comparePaths, group.candidates) {
         val candidatesByPath = group.candidates.associateBy(CleanerCandidate::absolutePath)
@@ -241,7 +241,7 @@ internal fun CleanerDetailsScreen(
                                 } else {
                                     filesInGroup.take(2)
                                 }
-                                comparePaths = ArrayList(filesToCompare.map(CleanerCandidate::absolutePath))
+                                comparePaths = filesToCompare.map(CleanerCandidate::absolutePath)
                             },
                             onIgnoreFile = { path ->
                                 onSelectedFilesChange(selectedFiles - path)
@@ -347,7 +347,7 @@ internal fun CleanerDetailsScreen(
             selectedFiles = selectedFiles,
             onSelectedFilesChange = onSelectedFilesChange,
             onRequestClean = { paths ->
-                comparePaths = arrayListOf()
+                comparePaths = emptyList()
                 onRequestClean(paths)
             },
             onOpenFile = onOpenFile,
@@ -356,7 +356,7 @@ internal fun CleanerDetailsScreen(
                 onSelectedFilesChange(selectedFiles - path)
                 onIgnorePath(path)
             },
-            onDismiss = { comparePaths = arrayListOf() }
+            onDismiss = { comparePaths = emptyList() }
         )
     }
 }

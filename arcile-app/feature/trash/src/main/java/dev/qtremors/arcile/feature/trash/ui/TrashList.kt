@@ -168,7 +168,7 @@ private fun TrashRow(
                         onClick = { onToggleSelection(trashItem.id) },
                         onLongClick = { onToggleSelection(trashItem.id) }
                     ),
-                headlineContent = {
+                content = {
                     Text(
                         text = trashItem.fileModel.name,
                         maxLines = 1,

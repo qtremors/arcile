@@ -119,7 +119,7 @@ internal class VideoViewerViewModel @Inject constructor(
             override fun clearSelection() {
                 val originalSelection = selectionBeforeCurrentDelete
                 val restoredSelection = currentDeleteTarget
-                    ?.let { target -> originalSelection?.remove(target) }
+                    ?.let { target -> originalSelection?.removing(target) }
                     ?: originalSelection
                     ?: persistentSetOf()
                 _state.update { it.copy(selectedFiles = restoredSelection) }

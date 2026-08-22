@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
+import androidx.core.content.edit
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
@@ -45,7 +46,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
 
     init {
         // Remove records written by versions that used backup-eligible SharedPreferences.
-        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
+        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit { clear() }
     }
 
     override fun activeRecord(): OperationJournalRecord? = synchronized(lock) { readState().active }
@@ -55,7 +56,10 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
         writeState(state.copy(active = record.withoutSecrets()))
     }
 
-    override fun update(operationId: String, transform: (OperationJournalRecord) -> OperationJournalRecord) =
+    override fun update(
+        operationId: String,
+        transform: (OperationJournalRecord) -> OperationJournalRecord
+    ): Unit =
         synchronized(lock) {
             val state = readState()
             val current = state.active ?: return
@@ -69,7 +73,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
             )
         }
 
-    override fun clearActive(operationId: String) = synchronized(lock) {
+    override fun clearActive(operationId: String): Unit = synchronized(lock) {
         val state = readState()
         val current = state.active ?: return
         if (current.request.operationId == operationId) {

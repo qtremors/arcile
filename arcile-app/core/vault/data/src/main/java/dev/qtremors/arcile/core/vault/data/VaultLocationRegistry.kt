@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.vault.data
 
 import android.content.Context
+import androidx.core.content.edit
 import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryAccess
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultLocation
@@ -38,7 +39,9 @@ internal class VaultLocationRegistry(context: Context) {
 
     fun put(pointer: ExternalVaultPointer) {
         val next = load().filterNot { it.vaultId == pointer.vaultId } + pointer
-        preferences.edit().putStringSet(KEY_POINTERS, next.mapTo(mutableSetOf()) { json.encodeToString(it) }).apply()
+        preferences.edit {
+            putStringSet(KEY_POINTERS, next.mapTo(mutableSetOf()) { json.encodeToString(it) })
+        }
     }
 
     fun find(vaultId: VaultId): ExternalVaultPointer? = load().firstOrNull { it.vaultId == vaultId.value }
@@ -47,7 +50,9 @@ internal class VaultLocationRegistry(context: Context) {
         val current = load()
         val next = current.filterNot { it.vaultId == vaultId.value }
         if (next.size == current.size) return false
-        preferences.edit().putStringSet(KEY_POINTERS, next.mapTo(mutableSetOf()) { json.encodeToString(it) }).commit()
+        preferences.edit(commit = true) {
+            putStringSet(KEY_POINTERS, next.mapTo(mutableSetOf()) { json.encodeToString(it) })
+        }
         return true
     }
 

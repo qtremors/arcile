@@ -17,6 +17,8 @@
 <p align="center">
   <a href="https://github.com/qtremors/arcile/releases"><img src="https://img.shields.io/github/downloads/qtremors/arcile/total?label=Total%20Downloads&color=0969da" alt="Total Downloads"></a>
   <a href="https://github.com/qtremors/arcile/releases"><img src="https://img.shields.io/github/downloads/qtremors/arcile/latest/total?label=Latest%20Downloads&color=2da44e" alt="Latest Downloads"></a>
+</p>
+<p align="center">
   <img src="https://img.shields.io/badge/Android-11%2B-34A853?logo=android" alt="Android 11+">
   <img src="https://img.shields.io/badge/License-TSL-red" alt="License">
 </p>
@@ -46,12 +48,6 @@ Arcile needs Android's all-files access permission for full shared-storage manag
 - **Trash:** Restore deleted files or remove them permanently.
 - **OnlyFiles vaults:** Encrypt private files, unlock with a password or biometrics, and safely import, export, view, open, or share them.
 - **Personalization:** Customize Home, themes, layouts, shortcuts, thumbnails, and how files open.
-
-> [!WARNING]
-> OnlyFiles has not received an independent security audit. Vaults stored inside Arcile are deleted when the app is uninstalled. For long-term storage, use a portable vault and keep a separate backup.
-## File format support
-
-Arcile can manage files with any extension, including unknown and custom formats. Built-in handling covers common images and videos supported by the device, audio, text, Markdown, PDF, APK packages, ZIP, 7z, TAR-family archives, GZIP, BZIP2, and XZ. Other formats can be opened, edited, or shared through compatible installed Android apps.
 
 ## Community and support
 

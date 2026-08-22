@@ -102,20 +102,20 @@ data class BrowserWorkspaceOptions(
 
 @Composable
 fun BrowserRoute(
-    viewModelKey: String = "browser",
     entryRequest: BrowserEntryRequest?,
     isVisible: Boolean,
     hasPreviousRoute: Boolean,
     onStatusChange: (BrowserRouteStatus) -> Unit,
     onDestination: (BrowserDestination) -> Unit,
     onShareSelected: suspend (List<String>, List<FileModel>) -> Boolean,
+    onFeedback: (ArcileFeedbackEvent) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModelKey: String = "browser",
     appStartPage: AppStartPage? = null,
     onAppStartPageChange: (AppStartPage) -> Unit = {},
-    onFeedback: (ArcileFeedbackEvent) -> Unit,
     workspaceTabs: @Composable () -> Unit = {},
     workspaceOptions: BrowserWorkspaceOptions = BrowserWorkspaceOptions(),
-    renderContent: Boolean = true,
-    modifier: Modifier = Modifier
+    renderContent: Boolean = true
 ) {
     val viewModel = hiltViewModel<BrowserViewModel>(key = viewModelKey)
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()

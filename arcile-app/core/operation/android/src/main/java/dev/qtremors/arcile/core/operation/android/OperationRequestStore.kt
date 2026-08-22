@@ -16,7 +16,7 @@ import kotlinx.serialization.json.Json
 
 @Singleton
 class OperationRequestStore @Inject constructor(
-    @param:ApplicationContext context: Context
+    @ApplicationContext context: Context
 ) {
     private val directory = File(context.noBackupFilesDir, STORE_DIRECTORY)
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }

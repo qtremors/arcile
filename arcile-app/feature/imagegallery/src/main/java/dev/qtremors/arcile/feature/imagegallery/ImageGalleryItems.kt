@@ -118,7 +118,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -189,13 +188,13 @@ import kotlinx.coroutines.flow.SharedFlow
 internal fun GalleryImageItem(
     file: FileModel,
     isSelected: Boolean,
-    isSelectionMode: Boolean = false,
     aspectRatio: Float,
     showDetails: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelectionMode: Boolean = false,
     onLongClick: (() -> Unit)? = null,
-    onOpenDirectly: () -> Unit = onClick,
-    modifier: Modifier = Modifier
+    onOpenDirectly: () -> Unit = onClick
 ) {
     val context = LocalContext.current
     val haptics = rememberArcileHaptics()

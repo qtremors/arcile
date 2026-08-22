@@ -222,9 +222,9 @@ internal fun VideoViewerBottomChrome(
     canOpenWith: Boolean,
     canShare: Boolean,
     resizeModeIndex: Int,
-    showThumbnails: Boolean = true,
     actions: VideoViewerChromeActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showThumbnails: Boolean = true
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()

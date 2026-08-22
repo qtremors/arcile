@@ -5,6 +5,7 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.net.Uri
+import androidx.core.net.toUri
 import java.io.File
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -59,7 +60,7 @@ object ApkPackageParser {
         return try {
             val (directory, source) = stageContentApkPackage(
                 context = context,
-                uri = Uri.parse(contentUri),
+                uri = contentUri.toUri(),
                 displayName = displayName
             )
             sourceDirectory = directory
@@ -309,14 +310,7 @@ object ApkPackageParser {
         }
     }
 
-    @Suppress("DEPRECATION")
-    private fun getVersionCode(packageInfo: PackageInfo): Long {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            packageInfo.versionCode.toLong()
-        }
-    }
+    private fun getVersionCode(packageInfo: PackageInfo): Long = packageInfo.longVersionCode
 
     private fun getInstalledPackageInfo(pm: PackageManager, packageName: String): PackageInfo? {
         return try {

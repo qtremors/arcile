@@ -15,7 +15,10 @@ class NativeStorageAuthorizationIntegrationTest {
     @Test
     fun `application component implements native storage authorization entry point`() {
         val application = ApplicationProvider.getApplicationContext<ArcileApp>()
-        val component = (application as GeneratedComponentManager<*>).generatedComponent()
+        val componentManager = requireNotNull(
+            GeneratedComponentManager::class.java.cast(application)
+        )
+        val component = componentManager.generatedComponent()
         val entryPoint = Class.forName(
             "dev.qtremors.arcile.core.ui.NativeStorageAuthorizationEntryPoint"
         )

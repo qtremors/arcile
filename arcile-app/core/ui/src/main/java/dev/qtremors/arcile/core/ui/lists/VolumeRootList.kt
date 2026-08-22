@@ -93,7 +93,7 @@ fun VolumeItemRow(
                     modifier = Modifier.size(40.dp)
                 )
             },
-            headlineContent = {
+            content = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(volume.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (badgeText != null) {

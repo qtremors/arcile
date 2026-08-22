@@ -58,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -153,7 +154,7 @@ internal fun ArchiveViewerScreen(
             onClearActiveOperation()
         }
     }
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
     PredictiveBackHandler { progressFlow ->
@@ -370,7 +371,7 @@ internal fun ArchiveViewerScreen(
                         )
                 ) {
                     ListItem(
-                        headlineContent = {
+                        content = {
                             Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         },
                         supportingContent = {
@@ -412,7 +413,7 @@ internal fun ArchiveViewerScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = stringResource(R.string.selected),
+                                            contentDescription = stringResource(R.string.item_selected_label),
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .padding(2.dp)

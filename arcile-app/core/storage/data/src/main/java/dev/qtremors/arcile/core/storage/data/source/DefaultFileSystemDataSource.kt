@@ -75,13 +75,13 @@ class DefaultFileSystemDataSource(
         dispatchers = dispatchers,
         conflictDetector = conflictDetector,
         transferEngine = transferEngine,
-        validateDestination = { file -> validatedDestructiveRef(file).map { Unit } },
+        validateDestination = { file -> validatedDestructiveRef(file).map { } },
         finalizeMutation = { paths -> finalizeMutation(*paths.toTypedArray()) }
     )
     private val syntheticFileCreator = SyntheticFileCreator(
         dispatchers = dispatchers,
         validateName = ::validateFileName,
-        validatePath = { file -> validatedDestructiveRef(file).map { Unit } },
+        validatePath = { file -> validatedDestructiveRef(file).map { } },
         finalizeMutation = { path -> finalizeMutation(path) },
         fileModelMapper = fileModelMapper
     )

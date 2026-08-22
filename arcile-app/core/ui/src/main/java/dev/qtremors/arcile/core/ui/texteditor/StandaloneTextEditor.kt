@@ -5,6 +5,7 @@ import android.net.Uri
 import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -560,7 +561,7 @@ private fun InfoRow(label: String, value: String) {
 }
 
 internal fun readTextFileContent(context: Context, reference: String): String {
-    val uri = Uri.parse(reference)
+    val uri = reference.toUri()
     return when (uri.scheme) {
         "content" -> context.contentResolver.openInputStream(uri)?.use {
             it.bufferedReader().readText()
@@ -583,7 +584,7 @@ internal fun writeAndVerifyTextFile(
 ): Result<Unit> = persistVerifiedText(
     content = content,
     write = { snapshot ->
-        val uri = Uri.parse(reference)
+        val uri = reference.toUri()
         when (uri.scheme) {
             "content" -> context.contentResolver.openOutputStream(uri, "wt")?.use {
                 it.bufferedWriter().use { writer -> writer.write(snapshot) }

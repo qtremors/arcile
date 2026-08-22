@@ -141,7 +141,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         }
         if (decision == VaultConflictDecision.SKIP) return VaultItemOutcome.SKIPPED
         if (decision == VaultConflictDecision.MERGE_DIRECTORIES &&
-            (!source.isDirectory || existing?.isDirectory != true)
+            (!source.isDirectory || existing.isDirectory != true)
         ) throw VaultFailure.NameConflict(source.name)
         val finalName = if (decision == VaultConflictDecision.KEEP_BOTH) uniqueLocalName(parent, source.name) else source.name
         val staging = File(parent, ".arcile-${UUID.randomUUID()}.tmp")
@@ -189,10 +189,10 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                     if (decision == VaultConflictDecision.SKIP) return@forEach
                     val name = if (decision == VaultConflictDecision.KEEP_BOTH) uniqueLocalName(destination, child.name) else child.name
                     if (child.isDirectory) {
-                        if (decision == VaultConflictDecision.MERGE_DIRECTORIES && existing?.isDirectory != true) {
+                        if (decision == VaultConflictDecision.MERGE_DIRECTORIES && existing.isDirectory != true) {
                             throw VaultFailure.NameConflict(child.name)
                         }
-                        if (decision == VaultConflictDecision.REPLACE) existing?.deleteRecursively()
+                        if (decision == VaultConflictDecision.REPLACE) existing.deleteRecursively()
                         val target = if (decision == VaultConflictDecision.MERGE_DIRECTORIES) requireNotNull(existing)
                         else File(destination, name).also { check(it.mkdir()) { "Unable to create exported folder" } }
                         pending += child to target

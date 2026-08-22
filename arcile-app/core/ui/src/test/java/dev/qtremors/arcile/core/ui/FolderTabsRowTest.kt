@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.ui
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.core.presentation.FolderTab
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme

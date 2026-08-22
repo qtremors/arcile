@@ -297,7 +297,7 @@ private fun FileGridPreview(
             ) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = stringResource(R.string.selected),
+                    contentDescription = stringResource(R.string.item_selected_label),
                     modifier = Modifier.fillMaxSize().padding(4.dp)
                 )
             }
@@ -308,7 +308,7 @@ private fun FileGridPreview(
 @Composable
 private fun GridFileIcon(
     file: FileModel,
-    modifier: Modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+    modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier.padding(16.dp), contentAlignment = Alignment.Center) {
         Icon(

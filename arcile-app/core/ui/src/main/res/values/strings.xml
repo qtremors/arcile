@@ -164,7 +164,7 @@
     <string name="settings_backup_store_reset_failed">Unable to reset preference store</string>
     <string name="settings_backup_store_restore_failed">Unable to restore preference store</string>
     <string name="settings_backup_theme_restore_failed">Unable to restore theme preferences</string>
-    <string name="settings_backup_loading">Reading backup...</string>
+    <string name="settings_backup_loading">Reading backup…</string>
     <string name="settings_backup_restore_preview_title">Restore this backup?</string>
     <string name="settings_backup_restore_preview_description">Review what will be restored. Preference groups missing from the backup will be reset to defaults.</string>
     <string name="settings_backup_status_exported">Exported</string>
@@ -402,8 +402,8 @@
     <string name="browse_title">Browse</string>
     <string name="home_title">Home</string>
     <string name="search_placeholder">Search all files…</string>
-    <string name="search_files_placeholder">Search files...</string>
-    <string name="search_category_placeholder">Search %1$s...</string>
+    <string name="search_files_placeholder">Search files…</string>
+    <string name="search_category_placeholder">Search %1$s…</string>
     <string name="no_results_found">No results found</string>
     <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
     <string name="no_results_for_filters">No files match the selected filters. Try clearing or changing a filter.</string>

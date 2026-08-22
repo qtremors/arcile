@@ -2,9 +2,9 @@
 
 > **Project:** Arcile
 >
-> **Version:** 2.0.5
+> **Version:** 2.0.6
 >
-> **Last Updated:** 2026-08-21
+> **Last Updated:** 2026-08-22
 
 ## Status
 

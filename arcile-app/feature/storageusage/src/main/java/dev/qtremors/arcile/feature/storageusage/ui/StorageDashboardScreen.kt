@@ -43,6 +43,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -134,7 +135,7 @@ internal fun StorageDashboardScreen(
 
     var showLoading by remember { mutableStateOf(false) }
     var selectedTabIndex by remember(explicitScope) {
-        mutableStateOf(if (explicitScope) 1 else 0)
+        mutableIntStateOf(if (explicitScope) 1 else 0)
     }
 
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {

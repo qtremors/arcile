@@ -74,10 +74,10 @@ fun FileItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     onOpenDirectly: () -> Unit = {},
     onToggleSelectionDirectly: () -> Unit = {},
-    modifier: Modifier = Modifier,
     presentation: FileItemPresentation = FileItemPresentation(),
     folderStats: FolderStats? = null,
     isFolderStatsLoading: Boolean = false
@@ -111,10 +111,10 @@ fun FileItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     onOpenDirectly: () -> Unit = {},
     onToggleSelectionDirectly: () -> Unit = {},
-    modifier: Modifier = Modifier,
     presentation: FileItemPresentation = FileItemPresentation(),
     itemIndex: Int = 0,
     visibleRange: IntRange? = null,
@@ -330,7 +330,7 @@ private fun FileListThumbnail(
             ) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = stringResource(R.string.selected),
+                    contentDescription = stringResource(R.string.item_selected_label),
                     modifier = Modifier.fillMaxSize().padding(3.dp)
                 )
             }

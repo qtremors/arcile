@@ -101,7 +101,7 @@ internal fun ImageViewerScreen(
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
     val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     var backActionAtStart by remember { mutableStateOf<ViewerBackAction?>(null) }
 
@@ -351,7 +351,7 @@ internal fun ImageViewerScreen(
                                     .fillMaxSize()
                                     .graphicsLayer {
                                         if (isBackPredicting && backActionAtStart == ViewerBackAction.DismissMetadata) {
-                                            translationY = backProgress * size.height.toFloat()
+                                            translationY = backProgress * size.height
                                         }
                                     }
                             ) {

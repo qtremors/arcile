@@ -207,9 +207,9 @@ internal fun ArchiveEncodingDialog(
                 ArchiveNameEncoding.entries.forEach { encoding ->
                     val onEncodingSelect = { onSelect(encoding) }
                     ListItem(
-                        headlineContent = { Text(encoding.displayName) },
+                        content = { Text(encoding.displayName) },
                         supportingContent = if (encoding == selected) {
-                            { Text(stringResource(R.string.selected)) }
+                            { Text(stringResource(R.string.item_selected_label)) }
                         } else {
                             null
                         },

@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.5
-> **Last Updated:** 2026-08-21
+> **Version:** 2.0.6
+> **Last Updated:** 2026-08-22
 
 ---
+
+## [2.0.6] - 2026-08-22
+
+- **Clean Modern Android Build**: Updated Android and Compose integrations, removed obsolete packaged resources, and cleared compiler and static-analysis warnings across the app and tests.
 
 ## [2.0.5] - 2026-08-21
 

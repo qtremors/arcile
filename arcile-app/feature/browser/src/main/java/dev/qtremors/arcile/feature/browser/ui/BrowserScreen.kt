@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -109,7 +110,7 @@ internal fun BrowserScreen(
     val haptics = rememberArcileHaptics()
     val dialogVisibility = rememberBrowserDialogVisibility()
     val lifecycleOwner = LocalLifecycleOwner.current
-    var resumeRestoreTick by remember { mutableStateOf(0) }
+    var resumeRestoreTick by remember { mutableIntStateOf(0) }
     var showSearchBar by rememberSaveable {
         mutableStateOf(state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
     }
@@ -277,7 +278,7 @@ internal fun BrowserScreen(
         }
     }
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     var backActionAtStart by remember { mutableStateOf<BrowserBackAction?>(null) }
 
@@ -374,7 +375,7 @@ internal fun BrowserScreen(
                     .browserWorkspaceSwipe(onWorkspaceAppBarSwipe)
                     .graphicsLayer {
                         if (isBackPredicting && (backActionAtStart == BrowserBackAction.CloseSearch || backActionAtStart == BrowserBackAction.ClearSelection)) {
-                            translationY = -backProgress * size.height.toFloat()
+                            translationY = -backProgress * size.height
                             alpha = 1f - backProgress
                         }
                     }

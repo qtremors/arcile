@@ -207,7 +207,7 @@
     <string name="all">All</string>
     <string name="file_size">File Size</string>
     <string name="size_under_10_mb">&lt; 10 MB</string>
-    <string name="size_10_to_100_mb">10 - 100 MB</string>
+    <string name="size_10_to_100_mb">10–100 MB</string>
     <string name="size_over_100_mb">&gt; 100 MB</string>
     <string name="date_modified">Date Modified</string>
     <string name="today">Today</string>
@@ -216,7 +216,7 @@
     <string name="last_30_days">Last 30 days</string>
     <string name="apply_to_folder_and_subfolders">Apply to this folder and subfolders</string>
     <string name="apply">Apply</string>
-    <string name="selected">Selected</string>
+    <string name="item_selected_label">Selected</string>
     <string name="advanced_filters">Advanced filters</string>
     <string name="filter_extensions">Extensions</string>
     <string name="filter_include_hidden">Include hidden files</string>
@@ -242,7 +242,7 @@
     <string name="filter_chip_scope">Scope: %1$s</string>
     <string name="filter_chip_mime">MIME: %1$s</string>
     <string name="filter_chip_preset">Preset: %1$s</string>
-    <string name="select_range">Select range...</string>
+    <string name="select_range">Select range…</string>
     <string name="file_operation_copying">Copying</string>
     <string name="file_operation_moving">Moving</string>
     <string name="file_operation_cancelling">Cancelling…</string>

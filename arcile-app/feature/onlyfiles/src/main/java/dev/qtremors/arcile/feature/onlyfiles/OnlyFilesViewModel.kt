@@ -470,6 +470,5 @@ internal class OnlyFilesViewModel @Inject constructor(
         boundary.clear()
         cancelImportSelection()
         folderPicker.clear()
-        super.onCleared()
     }
 }

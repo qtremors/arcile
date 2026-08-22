@@ -353,7 +353,6 @@ internal class BrowserViewModel @Inject constructor(
     override fun onCleared() {
         operationController.stopObserving()
         archiveController.stopObserving()
-        super.onCleared()
     }
 
     private companion object {

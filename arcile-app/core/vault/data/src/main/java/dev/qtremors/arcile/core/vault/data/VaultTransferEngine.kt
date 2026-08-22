@@ -76,7 +76,7 @@ internal class VaultTransferEngine(
                 }
                 val cloned = if (
                     decision == VaultConflictDecision.MERGE_DIRECTORIES &&
-                    existing?.kind == VaultNodeKind.DIRECTORY && resolved.entry.kind == VaultNodeKind.DIRECTORY
+                    existing.kind == VaultNodeKind.DIRECTORY && resolved.entry.kind == VaultNodeKind.DIRECTORY
                 ) {
                     context.cloneMergedDirectory(existing, destination, resolved.entry, source, replacementName)
                 } else {
@@ -141,7 +141,7 @@ internal class VaultTransferEngine(
                 val decision = existing?.let { conflicts.decide(it.conflictWith(resolved.entry)) }
                 if (decision == VaultConflictDecision.SKIP) return result(ref, resolved.entry, VaultItemOutcome.SKIPPED)
                 val useClone = decision == VaultConflictDecision.MERGE_DIRECTORIES &&
-                    existing?.kind == VaultNodeKind.DIRECTORY && resolved.entry.kind == VaultNodeKind.DIRECTORY
+                    existing.kind == VaultNodeKind.DIRECTORY && resolved.entry.kind == VaultNodeKind.DIRECTORY
                 val moved = when {
                     useClone -> context.cloneMergedDirectory(
                         requireNotNull(existing), session, resolved.entry, session, resolved.entry.name

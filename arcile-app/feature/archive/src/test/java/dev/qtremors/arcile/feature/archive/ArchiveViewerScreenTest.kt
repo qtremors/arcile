@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.archive
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import dev.qtremors.arcile.feature.archive.ArchiveViewerState
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme

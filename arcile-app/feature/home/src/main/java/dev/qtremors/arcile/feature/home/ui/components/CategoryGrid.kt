@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.core.ui.theme.ArcileMotion
@@ -117,7 +118,7 @@ internal fun CategoryGrid(
                 modifier = Modifier
                     .width(columnWidth)
                     .height(rowHeight)
-                    .offset(x = xOffset, y = yOffset)
+                    .offset { IntOffset(xOffset.roundToPx(), yOffset.roundToPx()) }
             ) {
                 CategoryItem(
                     name = cat.label,
@@ -139,8 +140,8 @@ internal fun CategoryItem(
     icon: ImageVector,
     color: Color,
     sizeBytes: Long,
-    reserveSizeLine: Boolean = false,
     modifier: Modifier = Modifier,
+    reserveSizeLine: Boolean = false,
     onClick: () -> Unit = {}
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }

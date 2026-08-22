@@ -53,7 +53,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -66,8 +65,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -126,10 +125,10 @@ internal fun AudioNowPlayingScreen(
     val artworkOffset = remember { Animatable(0f) }
     val gestureScope = rememberCoroutineScope()
     val density = LocalDensity.current
-    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val screenHeightPx = LocalWindowInfo.current.containerSize.height.toFloat()
     val haptics = rememberArcileHaptics()
     val effectiveDuration = playback.durationMs.takeIf { it > 0L } ?: track.durationMs
-    val collapseThreshold = with(density) { screenHeight.toPx() * 0.14f }
+    val collapseThreshold = screenHeightPx * 0.14f
     val collapseProgress = max(
         (dragOffset.value / collapseThreshold).coerceIn(0f, 1f),
         backProgress

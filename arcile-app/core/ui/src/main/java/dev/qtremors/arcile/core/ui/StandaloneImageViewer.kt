@@ -98,7 +98,7 @@ fun StandaloneImageViewer(
         }
     }
 
-    var metadataBackProgress by remember { mutableStateOf(0f) }
+    var metadataBackProgress by remember { mutableFloatStateOf(0f) }
     var isMetadataBackPredicting by remember { mutableStateOf(false) }
 
     PredictiveBackHandler(enabled = metadataVisible) { progressFlow ->
@@ -325,7 +325,7 @@ fun StandaloneImageViewer(
                     onDismiss = { metadataVisible = false },
                     modifier = Modifier.graphicsLayer {
                         if (isMetadataBackPredicting) {
-                            translationY = metadataBackProgress * size.height.toFloat()
+                            translationY = metadataBackProgress * size.height
                         }
                     }
                 )

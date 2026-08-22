@@ -90,11 +90,7 @@ object ApkPresentationMetadataReader {
         val appInfo = packageInfo.applicationInfo ?: return null
         appInfo.sourceDir = apkFile.absolutePath
         appInfo.publicSourceDir = apkFile.absolutePath
-        val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            packageInfo.longVersionCode
-        } else {
-            packageInfo.versionCode.toLong()
-        }
+        val versionCode = packageInfo.longVersionCode
         return ApkPresentationMetadata(
             label = appInfo.loadLabel(packageManager).toString()
                 .ifBlank { packageInfo.packageName },

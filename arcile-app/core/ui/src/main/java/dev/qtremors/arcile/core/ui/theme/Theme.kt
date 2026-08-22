@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.core.graphics.toColorInt
 import androidx.core.view.WindowCompat
 
 // Baseline schemes moved to Color.kt
@@ -200,7 +201,7 @@ fun ArcileTheme(
 
 private fun parseColor(hex: String, fallback: Color): Color {
     return try {
-        Color(android.graphics.Color.parseColor(hex))
+        Color(hex.toColorInt())
     } catch (e: Exception) {
         fallback
     }

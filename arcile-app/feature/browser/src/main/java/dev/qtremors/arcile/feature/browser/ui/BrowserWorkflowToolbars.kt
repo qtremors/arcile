@@ -23,7 +23,7 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Unarchive
@@ -263,7 +263,7 @@ internal fun BrowserSelectionToolbar(
                         if (!isArchiveSelection && selectedPath != null && selectedFile?.isDirectory == false) add {
                             ArcileDropdownMenuItem(
                                 text = { Text(stringResource(R.string.image_gallery_open_with)) },
-                                leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                                 onClick = {
                                     showSelectionMenu = false
                                     selectionIntents.onOpenSelectedWith(selectedPath)
@@ -273,7 +273,7 @@ internal fun BrowserSelectionToolbar(
                         if (!isArchiveSelection && selectedPath != null && selectedFile?.isDirectory == false) add {
                             ArcileDropdownMenuItem(
                                 text = { Text(stringResource(R.string.open_as)) },
-                                leadingIcon = { Icon(Icons.Default.OpenInNew, contentDescription = null) },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                                 onClick = {
                                     showSelectionMenu = false
                                     openAsPath = selectedPath

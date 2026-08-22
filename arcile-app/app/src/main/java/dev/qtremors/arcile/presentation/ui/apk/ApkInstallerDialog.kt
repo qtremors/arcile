@@ -362,8 +362,8 @@ fun ApkInstallerDialog(
                                     tint = MaterialTheme.colorScheme.primary
                                 )
                                 val successText = when {
-                                    details?.isUpdate == true -> "Application updated successfully!"
-                                    details?.isSameVersion == true -> "Application reinstalled successfully!"
+                                    details.isUpdate -> "Application updated successfully!"
+                                    details.isSameVersion -> "Application reinstalled successfully!"
                                     else -> "Application installed successfully!"
                                 }
                                 Text(
@@ -501,7 +501,7 @@ fun ApkInstallerDialog(
                             val isDowngrade = details?.isDowngrade == true
                             if (isDowngrade) {
                                 Button(
-                                    onClick = { onOpenApp(details?.packageName.orEmpty()) },
+                                    onClick = { onOpenApp(details.packageName) },
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Row(

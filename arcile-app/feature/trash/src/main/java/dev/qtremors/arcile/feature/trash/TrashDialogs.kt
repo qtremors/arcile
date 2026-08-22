@@ -94,7 +94,7 @@ internal fun RestoreDestinationDialog(
                 LazyColumn {
                     items(indexedVolumes) { volume ->
                         ListItem(
-                            headlineContent = { Text(volume.name) },
+                            content = { Text(volume.name) },
                             supportingContent = {
                                 Text(
                                     volume.path,

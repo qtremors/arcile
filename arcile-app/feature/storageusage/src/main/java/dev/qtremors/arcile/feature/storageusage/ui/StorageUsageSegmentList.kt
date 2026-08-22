@@ -104,7 +104,7 @@ internal fun StorageUsageSegmentList(
                         }
                     },
                     onLongClick = if (canOpen) {
-                        { onOpenNode?.invoke(node) }
+                        { onOpenNode(node) }
                     } else {
                         null
                     },

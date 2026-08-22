@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.core.operation.android
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
@@ -32,6 +34,7 @@ internal class SharedFileImporter(
     private val appContext = context.applicationContext
     private val contentResolver = appContext.contentResolver
 
+    @SuppressLint("UsableSpace")
     suspend fun import(
         request: BulkFileOperationRequest,
         onProgress: (BulkFileOperationProgress) -> Unit
@@ -61,7 +64,7 @@ internal class SharedFileImporter(
             mutationJournal.recordTemporaryPath(staged.absolutePath)
             onCheckpoint(listOf(staged.absolutePath), emptyList(), emptyList())
             try {
-                val input = contentResolver.openInputStream(Uri.parse(item.uri))
+                val input = contentResolver.openInputStream(item.uri.toUri())
                     ?: throw IOException(appContext.getString(R.string.save_to_arcile_failed_open_stream))
                 input.use { rawInput ->
                     BufferedInputStream(rawInput).use { bufferedInput ->

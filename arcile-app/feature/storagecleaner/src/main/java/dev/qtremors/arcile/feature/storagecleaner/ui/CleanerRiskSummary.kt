@@ -26,8 +26,8 @@ import dev.qtremors.arcile.core.ui.rememberApplicationIconInfo
 @Composable
 internal fun CleanerRiskSummary(
     file: CleanerCandidate,
-    appContext: ApplicationIconInfo? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    appContext: ApplicationIconInfo? = null
 ) {
     val reasonLabels = buildList {
         file.riskReasons.take(2).forEach { reason ->
