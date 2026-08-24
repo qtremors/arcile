@@ -115,6 +115,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
+import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportState
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
@@ -159,7 +160,7 @@ private fun OnlyFilesScreen(
     val context = LocalContext.current
     val snackbarHost = remember { SnackbarHostState() }
     var showCreateVault by remember { mutableStateOf(false) }
-    var unlockVault by remember { mutableStateOf<VaultSummary?>(null) }
+    var unlockVaultId by remember { mutableStateOf<VaultId?>(null) }
     var createItem by remember { mutableStateOf<CreateItemKind?>(null) }
     var renameNode by remember { mutableStateOf<VaultNodeMetadata?>(null) }
     var deleteNodes by remember { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
@@ -218,6 +219,11 @@ private fun OnlyFilesScreen(
             )
             viewModel.clearMessage()
         }
+    }
+
+    val unlockVault = pendingUnlockVault(unlockVaultId, state.selectedVaultId, state.vaults)
+    LaunchedEffect(unlockVaultId, state.selectedVaultId, state.vaults) {
+        if (unlockVaultId != null && unlockVault == null) unlockVaultId = null
     }
 
     state.viewer?.let { node ->
@@ -402,7 +408,7 @@ private fun OnlyFilesScreen(
             onPlayVideo = onPlayVideo,
             onImportFiles = onImportFiles,
             onImportFolder = onImportFolder,
-            onUnlockRequired = { unlockVault = it },
+            onUnlockRequired = { unlockVaultId = it },
             onShowCreateVault = { showCreateVault = true }
         )
     }
@@ -417,7 +423,7 @@ private fun OnlyFilesScreen(
             vault = vault,
             biometricEnrolled = vault.id in state.biometricVaultIds,
             viewModel = viewModel,
-            onDismiss = { unlockVault = null }
+            onDismiss = { unlockVaultId = null }
         )
     }
     createItem?.let { kind ->

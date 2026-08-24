@@ -6,7 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.ui.R
@@ -41,6 +43,11 @@ class VaultImportService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        clearPersistedNotifications()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         synchronized(operationLock) {
             latestStartId = startId
@@ -51,7 +58,7 @@ class VaultImportService : Service() {
                     val vaultId = VaultId.of(vaultIdValue)
                     val (cancelledJob, stopStartId) = synchronized(operationLock) {
                         val job = jobs.remove(vaultIdValue)
-                        if (job != null) removeImportNotificationLocked(vaultId)
+                        removeImportNotificationLocked(vaultId)
                         job to latestStartId.takeIf { jobs.isEmpty() }
                     }
                     cancelledJob?.cancel(CancellationException("Import cancelled"))
@@ -59,15 +66,16 @@ class VaultImportService : Service() {
                 }
                 return START_NOT_STICKY
             }
-            ACTION_START -> startImport(intent)
+            ACTION_START -> startImport(intent, startId)
         }
         return START_NOT_STICKY
     }
 
-    private fun startImport(intent: Intent) {
-        val vaultId = VaultId.of(intent.getStringExtra(EXTRA_VAULT_ID) ?: return)
+    private fun startImport(intent: Intent, startId: Int) {
+        val vaultIdValue = intent.getStringExtra(EXTRA_VAULT_ID) ?: return finishRejectedStart(startId)
+        val vaultId = VaultId.of(vaultIdValue)
         val destination = VaultPath.of(intent.getStringExtra(EXTRA_DESTINATION).orEmpty())
-        val token = intent.getStringExtra(EXTRA_RESERVATION_TOKEN) ?: return
+        val token = intent.getStringExtra(EXTRA_RESERVATION_TOKEN) ?: return finishRejectedStart(startId, vaultId)
         val sourceUris = intent.getStringArrayListExtra(EXTRA_SOURCE_URIS)?.toList().orEmpty()
         val notificationId = notificationId(vaultId)
         val initialNotification = buildNotification(vaultId, null)
@@ -90,6 +98,7 @@ class VaultImportService : Service() {
         val previousJob = synchronized(operationLock) {
             val previous = jobs.put(vaultId.value, importJob)
             activeNotifications[vaultId.value] = initialNotification
+            persistNotificationOwner(vaultId)
             foregroundVaultId = vaultId.value
             startForeground(notificationId, initialNotification)
             previous
@@ -115,8 +124,8 @@ class VaultImportService : Service() {
     }
 
     private fun removeImportNotificationLocked(vaultId: VaultId) {
-        if (activeNotifications.remove(vaultId.value) == null) return
-        if (foregroundVaultId == vaultId.value) {
+        val wasTracked = activeNotifications.remove(vaultId.value) != null
+        if (wasTracked && foregroundVaultId == vaultId.value) {
             val replacement = activeNotifications.entries.lastOrNull()
             if (replacement != null) {
                 foregroundVaultId = replacement.key
@@ -127,7 +136,30 @@ class VaultImportService : Service() {
                 runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
             }
         }
+        removePersistedNotificationOwner(vaultId)
         getSystemService(NotificationManager::class.java).cancel(notificationId(vaultId))
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        val timedOut = synchronized(operationLock) {
+            val snapshot = jobs.toMap()
+            jobs.clear()
+            snapshot.keys.forEach { removeImportNotificationLocked(VaultId.of(it)) }
+            foregroundVaultId = null
+            snapshot
+        }
+        if (timedOut.isNotEmpty()) {
+            timedOut.values.forEach { job ->
+                job.cancel(CancellationException("Vault import exceeded the foreground-service time limit"))
+            }
+            coordinator.onServiceTimeout(
+                timedOut.keys.map(VaultId::of),
+                getString(R.string.file_operation_background_time_limit)
+            )
+        }
+        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        stopSelfResult(startId)
     }
 
     private fun buildNotification(vaultId: VaultId, progress: VaultImportProgress?): Notification {
@@ -207,9 +239,47 @@ class VaultImportService : Service() {
         runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
         val notificationManager = getSystemService(NotificationManager::class.java)
         notificationIds.forEach(notificationManager::cancel)
+        notificationPreferences().edit().remove(PREF_ACTIVE_VAULT_IDS).apply()
         serviceScope.cancel()
         super.onDestroy()
     }
+
+    private fun finishRejectedStart(startId: Int, vaultId: VaultId? = null) {
+        synchronized(operationLock) {
+            vaultId?.let(::removeImportNotificationLocked)
+            if (jobs.isNotEmpty()) return
+        }
+        runCatching { stopForeground(STOP_FOREGROUND_REMOVE) }
+        stopSelfResult(startId)
+    }
+
+    private fun persistNotificationOwner(vaultId: VaultId) {
+        val preferences = notificationPreferences()
+        preferences.edit()
+            .putStringSet(
+                PREF_ACTIVE_VAULT_IDS,
+                preferences.getStringSet(PREF_ACTIVE_VAULT_IDS, emptySet()).orEmpty() + vaultId.value
+            )
+            .apply()
+    }
+
+    private fun removePersistedNotificationOwner(vaultId: VaultId) {
+        val preferences = notificationPreferences()
+        val remaining = preferences.getStringSet(PREF_ACTIVE_VAULT_IDS, emptySet()).orEmpty() - vaultId.value
+        preferences.edit().putStringSet(PREF_ACTIVE_VAULT_IDS, remaining).apply()
+    }
+
+    private fun clearPersistedNotifications() {
+        val preferences = notificationPreferences()
+        val notificationManager = getSystemService(NotificationManager::class.java)
+        preferences.getStringSet(PREF_ACTIVE_VAULT_IDS, emptySet()).orEmpty().forEach { value ->
+            notificationManager.cancel(notificationId(VaultId.of(value)))
+        }
+        preferences.edit().remove(PREF_ACTIVE_VAULT_IDS).apply()
+    }
+
+    private fun notificationPreferences() =
+        getSharedPreferences(PREFS_NOTIFICATIONS, MODE_PRIVATE)
 
     companion object {
         const val ACTION_START = "dev.qtremors.arcile.onlyfiles.IMPORT"
@@ -219,6 +289,8 @@ class VaultImportService : Service() {
         const val EXTRA_RESERVATION_TOKEN = "vault_import_token"
         const val EXTRA_SOURCE_URIS = "vault_source_uris"
         private const val CHANNEL_ID = "onlyfiles_imports"
+        private const val PREFS_NOTIFICATIONS = "onlyfiles_import_notifications"
+        private const val PREF_ACTIVE_VAULT_IDS = "active_vault_ids"
         private const val BRAND_ACCENT_COLOR = 0xFF0878F8.toInt()
 
         private fun notificationId(vaultId: VaultId): Int = 0x0F10 + vaultId.value.hashCode().and(0x0FFF)

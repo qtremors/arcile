@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.printToLog
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -193,6 +195,54 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("Internal").performClick()
 
         assertEquals("/storage/emulated/0", navigatedPath)
+    }
+
+    @Test
+    fun `search result long press enters selection instead of opening`() {
+        val resultPath = "/storage/emulated/0/Docs/report.pdf"
+        var toggledPath: String? = null
+        var openedPath: String? = null
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = browserUiState(
+                        browserSearchQuery = "report",
+                        searchResults = listOf(browserFile("report.pdf", resultPath)).toPersistentList(),
+                        isSearching = false,
+                        isLoading = false
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = { openedPath = it },
+                    onToggleSelection = { toggledPath = it },
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("report.pdf").performTouchInput { longClick() }
+
+        assertEquals(resultPath, toggledPath)
+        assertEquals(null, openedPath)
     }
 
     @Test

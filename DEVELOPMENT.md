@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.0.6 | **Last Updated:** 2026-08-22
+**Version:** 2.0.7 | **Last Updated:** 2026-08-24
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -747,8 +747,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 206 |
-| **Version Name** | `2.0.6` |
+| **Version Code** | 207 |
+| **Version Name** | `2.0.7` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.5.0 |
 | **Gradle JVM** | JDK 21 |
@@ -902,7 +902,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.0.6-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.0.7-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -924,8 +924,8 @@ signing.keyPassword=your_key_password
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.0.6-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.0.6.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.0.7-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.0.7.apk`
 
 ---
 

@@ -37,6 +37,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -96,7 +97,9 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.vaults.collect { vaults ->
+            combine(repository.vaults, repository.unlockedVaultIds) { vaults, unlockedVaultIds ->
+                vaults.withCurrentUnlockState(unlockedVaultIds)
+            }.collect { vaults ->
                 val biometricVaultIds = vaults.filter { sessionManager.hasBiometricEnrollment(it.id) }
                     .mapTo(linkedSetOf(), VaultSummary::id)
                 _state.update { current ->
@@ -159,11 +162,12 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun openVault(vault: VaultSummary): Boolean {
-        if (!vault.isAvailable) {
+        val currentVault = _state.value.vaults.firstOrNull { it.id == vault.id } ?: vault
+        if (!currentVault.isAvailable) {
             _state.update { it.copy(message = "This vault is unavailable. Reconnect its storage and refresh.") }
             return true
         }
-        if (!vault.isUnlocked) return false
+        if (vault.id !in repository.unlockedVaultIds.value) return false
         selectVault(vault.id)
         return true
     }
@@ -314,8 +318,13 @@ internal class OnlyFilesViewModel @Inject constructor(
         administration.changePassword(current, replacement, weakConfirmed)
     fun prepareBiometricEnrollment(password: String, onReady: (VaultBiometricChallenge) -> Unit) =
         administration.prepareBiometricEnrollment(password, onReady)
-    fun prepareBiometricUnlock(vaultId: VaultId, onReady: (VaultBiometricChallenge) -> Unit) =
+    fun prepareBiometricUnlock(vaultId: VaultId, onReady: (VaultBiometricChallenge) -> Unit) {
+        if (vaultId in repository.unlockedVaultIds.value) {
+            selectVault(vaultId)
+            return
+        }
         administration.prepareBiometricUnlock(vaultId, onReady)
+    }
     fun biometricCompleted(vaultId: VaultId) = administration.biometricCompleted(vaultId)
     fun removeBiometric() = administration.removeBiometric()
     fun removeRegistration() = administration.removeRegistration()

@@ -551,6 +551,25 @@ internal class ImageGalleryFileActionController(
         onStateChange(_state.value)
     }
 
+    fun batchRename(renames: List<Pair<FileModel, String>>) {
+        if (renames.isEmpty()) return
+        val selected = state.value.selectedFiles
+        if (renames.any { (file, _) -> file.absolutePath !in selected }) return
+        scope.launch {
+            fileMutationRepository.batchRenameFiles(
+                renames.map { (file, newName) -> file.absolutePath to newName }
+            ).onSuccess {
+                clearSelection()
+                onRefreshRequested()
+            }.onFailure { error ->
+                onError(
+                    error.message?.let(UiText::Dynamic)
+                        ?: UiText.StringResource(R.string.error_rename_file_failed)
+                )
+            }
+        }
+    }
+
     private companion object {
         const val TERMINAL_OPERATION_HOLD_MS = 800L
     }

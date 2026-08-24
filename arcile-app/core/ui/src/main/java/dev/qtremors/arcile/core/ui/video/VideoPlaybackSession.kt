@@ -22,7 +22,9 @@ data class VideoPlaybackSession(
     /** Selection inherited from a gallery so the viewer can return any changes. */
     val initialSelectedPaths: Set<String> = emptySet(),
     /** Managed-trash media is shareable/openable but must remain read-only in the viewer. */
-    val managedTrash: Boolean = false
+    val managedTrash: Boolean = false,
+    /** Keeps the host window protected while this sensitive playback session is visible. */
+    val screenshotProtectionEnabled: Boolean = false
 ) {
     init {
         require(items.isNotEmpty())

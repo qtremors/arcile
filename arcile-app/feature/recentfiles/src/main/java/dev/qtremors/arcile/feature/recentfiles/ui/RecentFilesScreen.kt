@@ -29,7 +29,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -221,8 +221,8 @@ internal fun RecentFilesScreen(
                                             onClick = { showSearchBar = true }
                                         ),
                                         ToolbarAction(
-                                            icon = Icons.AutoMirrored.Filled.Sort,
-                                            contentDescription = stringResource(R.string.action_sort),
+                                            icon = Icons.Default.ViewModule,
+                                            contentDescription = stringResource(R.string.view_options),
                                             onClick = { showPresentationSheet = true }
                                         )
                                     )
@@ -387,9 +387,10 @@ internal fun RecentFilesScreen(
 
     if (showPresentationSheet) {
         SortOptionDialog(
-            title = stringResource(R.string.recent_sort_title),
+            title = stringResource(R.string.view_options),
             selectedPreferences = state.presentation,
             showApplyToSubfolders = false,
+            showSortControls = false,
             onDismiss = { showPresentationSheet = false },
             onApply = { preferences, _ -> onPresentationChange(preferences) },
             minDateMillis = state.activeSearchFilters.minDateMillis,

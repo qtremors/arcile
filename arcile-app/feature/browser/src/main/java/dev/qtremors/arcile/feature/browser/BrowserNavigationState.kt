@@ -42,6 +42,7 @@ internal data class BrowserListingState(
     val browserListZoom: Float = FileListingPreferences.DEFAULT_LIST_ZOOM,
     val browserGridMinCellSize: Float = FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val browserShowThumbnails: Boolean = FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
+    val browserPresentationAppliesToSubfolders: Boolean = false,
     val browserScrollbarEnabled: Boolean = true,
     val showHiddenFiles: Boolean = true,
     val displayState: BrowserDisplayState = BrowserDisplayState()
@@ -72,6 +73,7 @@ internal data class BrowserNavigationState(
     val browserListZoom get() = listing.browserListZoom
     val browserGridMinCellSize get() = listing.browserGridMinCellSize
     val browserShowThumbnails get() = listing.browserShowThumbnails
+    val browserPresentationAppliesToSubfolders get() = listing.browserPresentationAppliesToSubfolders
     val browserScrollbarEnabled get() = listing.browserScrollbarEnabled
     val showHiddenFiles get() = listing.showHiddenFiles
     val displayState get() = listing.displayState
@@ -98,6 +100,7 @@ internal data class BrowserNavigationState(
         browserListZoom: Float = this.browserListZoom,
         browserGridMinCellSize: Float = this.browserGridMinCellSize,
         browserShowThumbnails: Boolean = this.browserShowThumbnails,
+        browserPresentationAppliesToSubfolders: Boolean = this.browserPresentationAppliesToSubfolders,
         browserScrollbarEnabled: Boolean = this.browserScrollbarEnabled,
         showHiddenFiles: Boolean = this.showHiddenFiles
     ): BrowserNavigationState = BrowserNavigationState(
@@ -124,6 +127,7 @@ internal data class BrowserNavigationState(
             browserListZoom = browserListZoom,
             browserGridMinCellSize = browserGridMinCellSize,
             browserShowThumbnails = browserShowThumbnails,
+            browserPresentationAppliesToSubfolders = browserPresentationAppliesToSubfolders,
             browserScrollbarEnabled = browserScrollbarEnabled,
             showHiddenFiles = showHiddenFiles
         )

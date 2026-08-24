@@ -323,6 +323,7 @@ internal fun createVaultVideoPlaybackSession(
     nodes: List<VaultNodeMetadata>,
     vaultId: VaultId,
     selectedNode: VaultNodeMetadata,
+    screenshotProtectionEnabled: Boolean,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
 ) : VideoPlaybackSession {
     val queue = nodes.filter(VaultNodeMetadata::isViewableVideo).takeIf { selectedNode in it }
@@ -345,7 +346,8 @@ internal fun createVaultVideoPlaybackSession(
             VaultMediaDataSource(refsByOpaqueId, openReader)
         },
         securityScopeId = vaultSecurityScope(vaultId),
-        files = sharedFiles
+        files = sharedFiles,
+        screenshotProtectionEnabled = screenshotProtectionEnabled
     )
 }
 

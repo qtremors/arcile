@@ -43,10 +43,12 @@ class OnlyFilesFormattingTest {
             nodes = listOf(video),
             vaultId = VaultId.of("vault"),
             selectedNode = video,
+            screenshotProtectionEnabled = true,
             openReader = { Result.failure(IllegalStateException("Not opened by this test")) }
         )
 
         assertEquals(session.files?.single()?.absolutePath, session.items.single().mediaItem.mediaId)
+        assertTrue(session.screenshotProtectionEnabled)
     }
 
     private fun node(name: String, mimeType: String?) = VaultNodeMetadata(

@@ -75,8 +75,10 @@ fun SortOptionDialog(
     title: String,
     selectedPreferences: FileListingPreferences,
     showApplyToSubfolders: Boolean,
+    initialApplyToSubfolders: Boolean = false,
     onDismiss: () -> Unit,
     onApply: (FileListingPreferences, Boolean) -> Unit,
+    showSortControls: Boolean = true,
     minDateMillis: Long? = null,
     maxDateMillis: Long? = null,
     onDateRangeChange: ((Long?, Long?) -> Unit)? = null,
@@ -84,7 +86,9 @@ fun SortOptionDialog(
     maxSize: Long? = null,
     onSizeRangeChange: ((Long?, Long?) -> Unit)? = null
 ) {
-    var applyToSubfolders by remember { mutableStateOf(false) }
+    var applyToSubfolders by remember(initialApplyToSubfolders) {
+        mutableStateOf(initialApplyToSubfolders)
+    }
     var draftPreferences by remember(selectedPreferences) {
         mutableStateOf(selectedPreferences.normalized())
     }
@@ -219,44 +223,46 @@ fun SortOptionDialog(
                     }
                 }
 
-                // Sort Section (Grid Layout to prevent horizontal scroll)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = stringResource(R.string.action_sort),
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                if (showSortControls) {
+                    // Sort Section (Grid Layout to prevent horizontal scroll)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.action_sort),
+                            style = MaterialTheme.typography.titleMedium
+                        )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.NAME_ASC, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.NAME_ASC, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.NAME_DESC, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
                             }
-                            SortOptionChip(FileSortOption.NAME_DESC, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.DATE_NEWEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.DATE_OLDEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
                             }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.DATE_NEWEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.SIZE_LARGEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
                             }
-                            SortOptionChip(FileSortOption.DATE_OLDEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.SIZE_LARGEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortOptionChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.FILE_COUNT_HIGHEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortOptionChip(FileSortOption.FILE_COUNT_LOWEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.FILE_COUNT_HIGHEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.FILE_COUNT_LOWEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
                             }
                         }
                     }

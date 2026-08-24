@@ -1,10 +1,24 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.6
-> **Last Updated:** 2026-08-22
+> **Version:** 2.0.7
+> **Last Updated:** 2026-08-24
 
 ---
+
+## [2.0.7] - 2026-08-24
+
+- **Protected Vault Viewing**: Kept screenshot protection active while moving from OnlyFiles into vault video viewers, including overlapping screen transitions.
+- **Accurate Vault Unlock State**: Prevented stale unlock prompts after returning from an already unlocked vault file or completing biometric unlock.
+- **Reliable Background Operations**: Stopped timed-out file operations and vault imports cleanly with visible failure feedback, and removed their notifications after completion, failure, cancellation, rejected starts, or stale-process recovery.
+- **Safe Settings Restore**: Bounded settings backup imports, verified their contents before changing live preferences, and rolled back every applied store when a restore could not finish.
+- **Reliable Shared Imports**: Reserved reclaimable storage before shared-file imports, staged each batch before exposing files, and removed staged data when space changed or an import could not finish.
+- **Predictable Thumbnail Scrubbing**: Made held thumbnail strips follow the finger directly without disappearing or jumping outside the available queue.
+- **Complete Gallery Batch Rename**: Added Rename to Gallery multi-selection and connected it to the transactional batch-rename flow.
+- **Reliable Recents**: Repaired grouped list and grid selection, kept range selection anchored to stable files, enforced newest-first ordering, and removed Recents sort controls while preserving view options.
+- **Dependable File Renames and Browser Preferences**: Fixed case-only file and folder renames and kept the selected apply-to-subfolders sort scope when reopening Browser options.
+- **Non-Blocking Mini-Player**: Let back gestures, text fields, and the keyboard work outside the collapsed player, and made swipe-down dismissal settle consistently from distance or velocity.
+- **Selectable Search Results**: Restored long-press and range selection in Browser search results and replaced search-header back arrows with clear close icons.
 
 ## [2.0.6] - 2026-08-22
 

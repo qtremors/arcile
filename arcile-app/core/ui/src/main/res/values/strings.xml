@@ -39,6 +39,7 @@
     <string name="action_close">Close</string>
     <string name="action_paste_here">Paste here</string>
     <string name="action_sort">Sort</string>
+    <string name="view_options">View options</string>
     <string name="action_settings">Settings</string>
     <string name="action_more_options">More options</string>
     <string name="action_copy">Copy</string>
@@ -651,4 +652,5 @@
     <string name="text_editor_words">Words</string>
     <string name="text_editor_characters">Characters</string>
     <string name="text_editor_file_size">File size</string>
+    <string name="file_operation_background_time_limit">Android stopped this operation after its background time limit. Try it again to continue.</string>
 </resources>

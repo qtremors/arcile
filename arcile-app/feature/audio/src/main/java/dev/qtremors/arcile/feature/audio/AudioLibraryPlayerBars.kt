@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -77,7 +78,9 @@ internal fun AudioMiniPlayer(
 ) {
     val dragOffset = remember { Animatable(0f) }
     val gestureThresholdPx = with(LocalDensity.current) { 48.dp.toPx() }
+    val flingThresholdPxPerSecond = with(LocalDensity.current) { 800.dp.toPx() }
     val gestureScope = rememberCoroutineScope()
+    var dismissCommitted by remember(track.file.absolutePath) { mutableStateOf(false) }
     val containerModifier = with(sharedTransitionScope) {
         Modifier
             .fillMaxWidth()
@@ -92,13 +95,18 @@ internal fun AudioMiniPlayer(
                 alpha = 1f -
                     (dragOffset.value / (gestureThresholdPx * 2f)).coerceIn(0f, 0.5f)
             }
-            .pointerInput(gestureThresholdPx) {
+            .pointerInput(gestureThresholdPx, flingThresholdPxPerSecond) {
                 var totalDrag = 0f
-                var hasTriggeredExpand = false
                 var gestureJob: Job? = null
+                var velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
+                    onDragStart = {
+                        totalDrag = 0f
+                        velocityTracker = VelocityTracker()
+                    },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                         totalDrag += dragAmount
                         val dragTarget = totalDrag.coerceIn(
                             -gestureThresholdPx * 10f,
@@ -106,47 +114,48 @@ internal fun AudioMiniPlayer(
                         )
                         gestureJob?.cancel()
                         gestureJob = gestureScope.launch { dragOffset.snapTo(dragTarget) }
-                        if (totalDrag <= -gestureThresholdPx && !hasTriggeredExpand) {
-                            hasTriggeredExpand = true
-                            onExpand()
-                        }
                     },
                     onDragCancel = {
                         gestureJob?.cancel()
                         gestureJob = gestureScope.launch { dragOffset.settleMiniDrag() }
                         totalDrag = 0f
-                        hasTriggeredExpand = false
                     },
                     onDragEnd = {
-                        if (!hasTriggeredExpand) {
-                            val gesture = resolveAudioMiniPlayerGesture(
-                                dragOffsetPx = totalDrag,
-                                thresholdPx = gestureThresholdPx
-                            )
-                            gestureJob?.cancel()
-                            gestureJob = gestureScope.launch {
-                                when (gesture) {
-                                    AudioMiniPlayerGesture.EXPAND -> {
-                                        onExpand()
-                                    }
-                                    AudioMiniPlayerGesture.DISMISS -> {
-                                        dragOffset.animateTo(
-                                            targetValue = gestureThresholdPx * 2.5f,
-                                            animationSpec = spring(
-                                                stiffness = Spring.StiffnessMedium,
-                                                dampingRatio = Spring.DampingRatioNoBouncy
+                        val gesture = resolveAudioMiniPlayerGesture(
+                            dragOffsetPx = totalDrag,
+                            thresholdPx = gestureThresholdPx,
+                            velocityPxPerSecond = velocityTracker.calculateVelocity().y,
+                            velocityThresholdPxPerSecond = flingThresholdPxPerSecond
+                        )
+                        gestureJob?.cancel()
+                        gestureJob = gestureScope.launch {
+                            when (gesture) {
+                                AudioMiniPlayerGesture.EXPAND -> {
+                                    dragOffset.settleMiniDrag()
+                                    onExpand()
+                                }
+                                AudioMiniPlayerGesture.DISMISS -> {
+                                    if (!dismissCommitted) {
+                                        dismissCommitted = true
+                                        try {
+                                            dragOffset.animateTo(
+                                                targetValue = gestureThresholdPx * 2.5f,
+                                                animationSpec = spring(
+                                                    stiffness = Spring.StiffnessMedium,
+                                                    dampingRatio = Spring.DampingRatioNoBouncy
+                                                )
                                             )
-                                        )
-                                        onDismiss()
+                                        } finally {
+                                            onDismiss()
+                                        }
                                     }
-                                    AudioMiniPlayerGesture.NONE -> {
-                                        dragOffset.settleMiniDrag()
-                                    }
+                                }
+                                AudioMiniPlayerGesture.NONE -> {
+                                    dragOffset.settleMiniDrag()
                                 }
                             }
                         }
                         totalDrag = 0f
-                        hasTriggeredExpand = false
                     }
                 )
             }
@@ -245,9 +254,15 @@ internal enum class AudioMiniPlayerGesture {
 
 internal fun resolveAudioMiniPlayerGesture(
     dragOffsetPx: Float,
-    thresholdPx: Float
+    thresholdPx: Float,
+    velocityPxPerSecond: Float = 0f,
+    velocityThresholdPxPerSecond: Float = Float.POSITIVE_INFINITY
 ): AudioMiniPlayerGesture = when {
     thresholdPx <= 0f -> AudioMiniPlayerGesture.NONE
+    velocityThresholdPxPerSecond > 0f &&
+        velocityPxPerSecond <= -velocityThresholdPxPerSecond -> AudioMiniPlayerGesture.EXPAND
+    velocityThresholdPxPerSecond > 0f &&
+        velocityPxPerSecond >= velocityThresholdPxPerSecond -> AudioMiniPlayerGesture.DISMISS
     dragOffsetPx <= -thresholdPx -> AudioMiniPlayerGesture.EXPAND
     dragOffsetPx >= thresholdPx -> AudioMiniPlayerGesture.DISMISS
     else -> AudioMiniPlayerGesture.NONE

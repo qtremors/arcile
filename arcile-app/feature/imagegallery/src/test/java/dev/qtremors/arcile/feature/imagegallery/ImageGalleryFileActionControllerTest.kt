@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.storage.domain.SelectionProperties
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -68,15 +69,43 @@ class ImageGalleryFileActionControllerTest {
         assertNull(controller.state.value.properties)
     }
 
+    @Test
+    fun `batch rename submits the selected files transactionally and refreshes`() = runTest {
+        val mutationRepository = mockk<FileMutationRepository>(relaxed = true)
+        coEvery { mutationRepository.batchRenameFiles(any()) } returns Result.success(
+            listOf("/a" to "/A", "/b" to "/B")
+        )
+        var refreshCount = 0
+        val files = listOf(file("/a"), file("/b"))
+        val controller = controller(
+            files = files,
+            displayedPaths = files.map { it.absolutePath },
+            fileMutationRepository = mutationRepository,
+            onRefreshRequested = { refreshCount += 1 }
+        )
+        controller.selectMultiple(files.map { it.absolutePath })
+
+        controller.batchRename(listOf(files[0] to "A", files[1] to "B"))
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) {
+            mutationRepository.batchRenameFiles(listOf("/a" to "A", "/b" to "B"))
+        }
+        assertEquals(emptySet<String>(), controller.state.value.selectedFiles)
+        assertEquals(1, refreshCount)
+    }
+
     private fun kotlinx.coroutines.test.TestScope.controller(
         files: List<FileModel>,
         displayedPaths: List<String>,
-        fileBrowserRepository: FileBrowserRepository = mockk(relaxed = true)
+        fileBrowserRepository: FileBrowserRepository = mockk(relaxed = true),
+        fileMutationRepository: FileMutationRepository = mockk(relaxed = true),
+        onRefreshRequested: () -> Unit = {}
     ) = ImageGalleryFileActionController(
         initialState = ImageGalleryFileActionState(),
         scope = this,
         fileBrowserRepository = fileBrowserRepository,
-        fileMutationRepository = mockk<FileMutationRepository>(relaxed = true),
+        fileMutationRepository = fileMutationRepository,
         clipboardRepository = mockk<ClipboardRepository>(relaxed = true),
         volumeRepository = mockk<VolumeRepository>(relaxed = true),
         operationCoordinator = mockk<BulkFileOperationCoordinator>(relaxed = true),
@@ -87,7 +116,7 @@ class ImageGalleryFileActionControllerTest {
         onBusyChange = {},
         onError = {},
         onPathsRemoved = {},
-        onRefreshRequested = {}
+        onRefreshRequested = onRefreshRequested
     )
 
     private fun file(path: String) = FileModel(

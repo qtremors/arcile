@@ -154,6 +154,7 @@ fun NavGraphBuilder.registerImageGalleryRoute(
             ),
             fileActions = GalleryFileActions(
                 rename = viewModel::renameFile,
+                batchRename = viewModel::batchRenameFiles,
                 createZipFromSelection = viewModel::createZipFromSelection,
                 setAlbumCover = viewModel::setAlbumCover
             )

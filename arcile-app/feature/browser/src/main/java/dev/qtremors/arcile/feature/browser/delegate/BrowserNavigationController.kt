@@ -405,8 +405,16 @@ internal class BrowserNavigationController(
         update { it.reduce(BrowserNavigationEvent.SelectFolderTab(path)) }
     }
 
-    fun updatePresentation(presentation: FileListingPreferences) {
+    fun updatePresentation(
+        presentation: FileListingPreferences,
+        applyToSubfolders: Boolean
+    ) {
         applyPresentation(presentation.normalized())
+        update {
+            it.withValues(
+                browserPresentationAppliesToSubfolders = applyToSubfolders
+            )
+        }
     }
 
     fun applyArchiveWorkflow(state: BrowserArchiveWorkflowState) {

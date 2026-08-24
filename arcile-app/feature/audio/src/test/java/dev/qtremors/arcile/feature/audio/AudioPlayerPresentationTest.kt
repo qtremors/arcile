@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import android.view.WindowManager
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import org.junit.Assert.assertFalse
@@ -68,6 +69,35 @@ class AudioPlayerPresentationTest {
             AudioMiniPlayerGesture.NONE,
             resolveAudioMiniPlayerGesture(dragOffsetPx = 100f, thresholdPx = 0f)
         )
+    }
+
+    @Test
+    fun `mini player fast fling settles by velocity`() {
+        assertEquals(
+            AudioMiniPlayerGesture.DISMISS,
+            resolveAudioMiniPlayerGesture(12f, 48f, 1_400f, 800f)
+        )
+        assertEquals(
+            AudioMiniPlayerGesture.EXPAND,
+            resolveAudioMiniPlayerGesture(-12f, 48f, -1_400f, 800f)
+        )
+    }
+
+    @Test
+    fun `mini window yields focus and ime while expanded window restores them`() {
+        val unrelatedFlag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        val mini = audioPlayerWindowFlags(unrelatedFlag, expanded = false)
+
+        assertTrue(mini and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0)
+        assertTrue(mini and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL != 0)
+        assertTrue(mini and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM != 0)
+        assertTrue(mini and unrelatedFlag != 0)
+
+        val expanded = audioPlayerWindowFlags(mini, expanded = true)
+        assertFalse(expanded and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0)
+        assertFalse(expanded and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL != 0)
+        assertFalse(expanded and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM != 0)
+        assertTrue(expanded and unrelatedFlag != 0)
     }
 
     @Test

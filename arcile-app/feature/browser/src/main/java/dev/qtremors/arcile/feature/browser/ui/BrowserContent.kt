@@ -17,10 +17,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
@@ -52,9 +51,10 @@ import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.FolderTabsRow
 import dev.qtremors.arcile.core.ui.lists.FileGridRows
-import dev.qtremors.arcile.core.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileListRows
+import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.ui.lists.VolumeRootList
 import dev.qtremors.arcile.core.ui.rememberDateOnlyFormatter
 import dev.qtremors.arcile.core.ui.scrollbar.ArcileFastScrollbar
@@ -212,6 +212,7 @@ internal fun BrowserContent(
                         state = state,
                         currentPresentation = currentPresentation,
                         navigationIntents = navigationIntents,
+                        selectionIntents = selectionIntents,
                         searchIntents = searchIntents,
                         onShowSearchBarChange = onShowSearchBarChange
                     )
@@ -298,6 +299,7 @@ private fun BrowserSearchResults(
     state: BrowserUiState,
     currentPresentation: FileListingPreferences,
     navigationIntents: BrowserNavigationIntents,
+    selectionIntents: BrowserSelectionIntents,
     searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit
 ) {
@@ -315,43 +317,71 @@ private fun BrowserSearchResults(
     } else {
         val formatter = rememberDateOnlyFormatter()
         val searchListState = rememberLazyListState()
+        val searchGridState = rememberLazyGridState()
+        val bottomPadding = WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding() + if (state.selectedFiles.isNotEmpty()) {
+            MaterialTheme.spacing.toolbarBottomGap
+        } else {
+            MaterialTheme.spacing.screenGutter
+        }
+        val openSearchResult: (String) -> Unit = { path ->
+            onShowSearchBarChange(false)
+            searchIntents.onClearSearch()
+            navigationIntents.onOpenFile(path)
+        }
+        val navigateToSearchResult: (String) -> Unit = { path ->
+            onShowSearchBarChange(false)
+            searchIntents.onClearSearch()
+            navigationIntents.onNavigateTo(path)
+        }
         Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = searchListState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    bottom = WindowInsets.navigationBars
-                        .asPaddingValues()
-                        .calculateBottomPadding() + MaterialTheme.spacing.screenGutter
-                )
-            ) {
-                items(
-                    items = state.searchResults,
-                    key = { it.absolutePath },
-                    contentType = { if (it.isDirectory) "directory" else "file" }
-                ) { file ->
-                    FileItemRow(
-                        file = file,
-                        formattedDate = formatter.format(Date(file.lastModified)),
-                        isSelected = false,
-                        presentation = FileItemPresentation(
-                            showThumbnails = currentPresentation.showThumbnails
-                        ),
-                        onClick = {
-                            onShowSearchBarChange(false)
-                            searchIntents.onClearSearch()
-                            if (file.isDirectory) {
-                                navigationIntents.onNavigateTo(file.absolutePath)
-                            } else if (state.archiveContext == null) {
-                                navigationIntents.onOpenFile(file.absolutePath)
-                            }
-                        },
-                        onLongClick = {}
+            if (currentPresentation.viewMode == FileViewMode.GRID) {
+                FileGrid(
+                    files = state.searchResults,
+                    selectedFiles = state.selectedFiles,
+                    onNavigateTo = navigateToSearchResult,
+                    onOpenFile = if (state.archiveContext == null) openSearchResult else { _ -> },
+                    onToggleSelection = selectionIntents.onToggleSelection,
+                    onSelectMultiple = selectionIntents.onSelectMultiple,
+                    gridState = searchGridState,
+                    minCellSize = currentPresentation.gridMinCellSize.dp,
+                    presentation = FileItemPresentation(
+                        showThumbnails = currentPresentation.showThumbnails,
+                        openFileFromThumbnailInSelectionMode = state.archiveContext == null
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 8.dp,
+                        top = 8.dp,
+                        end = 8.dp,
+                        bottom = bottomPadding
                     )
-                }
+                )
+            } else {
+                FileList(
+                    files = state.searchResults,
+                    selectedFiles = state.selectedFiles,
+                    onNavigateTo = navigateToSearchResult,
+                    onOpenFile = if (state.archiveContext == null) openSearchResult else { _ -> },
+                    onToggleSelection = selectionIntents.onToggleSelection,
+                    onSelectMultiple = selectionIntents.onSelectMultiple,
+                    listState = searchListState,
+                    presentation = FileItemPresentation(
+                        zoom = currentPresentation.listZoom,
+                        showThumbnails = currentPresentation.showThumbnails,
+                        openFileFromThumbnailInSelectionMode = state.archiveContext == null
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding)
+                )
             }
             ArcileFastScrollbar(
-                scrollbarState = LazyListScrollbarState(searchListState),
+                scrollbarState = if (currentPresentation.viewMode == FileViewMode.GRID) {
+                    LazyGridScrollbarState(searchGridState)
+                } else {
+                    LazyListScrollbarState(searchListState)
+                },
                 labelForIndex = { index -> state.searchResults.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)

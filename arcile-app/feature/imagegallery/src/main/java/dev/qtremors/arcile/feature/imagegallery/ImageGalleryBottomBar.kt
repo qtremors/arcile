@@ -201,15 +201,13 @@ private fun GallerySelectionActionsBar(
                     onClick = deleteActions.request
                 )
             )
-            if (state.selectedFiles.size == 1) {
-                add(
-                    ToolbarAction(
-                        icon = Icons.Default.Edit,
-                        contentDescription = renameDescription,
-                        onClick = onShowRenameDialog
-                    )
+            add(
+                ToolbarAction(
+                    icon = Icons.Default.Edit,
+                    contentDescription = renameDescription,
+                    onClick = onShowRenameDialog
                 )
-            }
+            )
         }
     }
 

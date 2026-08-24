@@ -284,6 +284,7 @@ internal class ImageGalleryViewModel @Inject constructor(
     fun clearActiveFileOperation() = fileActions.clearActiveOperation()
     fun createZipFromSelection() = fileActions.createZip()
     fun renameFile(path: String, newName: String) = fileActions.rename(path, newName)
+    fun batchRenameFiles(renames: List<Pair<FileModel, String>>) = fileActions.batchRename(renames)
 
     override fun onCleared() {
         fileActions.stopObserving()

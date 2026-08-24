@@ -161,13 +161,9 @@ class AudioPlayerActivity : ComponentActivity() {
             } else {
                 (miniPlayerBottomClearanceDp * resources.displayMetrics.density).toInt()
             }
+            flags = audioPlayerWindowFlags(flags, expanded)
         }
         window.attributes = layoutParams
-        if (expanded) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-        } else {
-            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-        }
     }
 
     private fun openIntent(intent: Intent) {
@@ -451,6 +447,13 @@ internal fun shouldStartAudioPlayerExpansion(
 ): Boolean =
     presentation == AudioPlayerPresentation.PREPARING_EXPANSION &&
         parentHeightPx > miniPlayerHeightPx
+
+internal fun audioPlayerWindowFlags(currentFlags: Int, expanded: Boolean): Int {
+    val miniFlags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+    return if (expanded) currentFlags and miniFlags.inv() else currentFlags or miniFlags
+}
 
 data class StandaloneAudioTarget(
     val reference: String,

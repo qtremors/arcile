@@ -6,7 +6,9 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationCompat
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.ui.R
@@ -91,11 +93,19 @@ class BulkFileOperationService : Service() {
     private var notificationMetrics = NotificationMetrics()
     private val notificationLock = Any()
     private var notificationOperationId: String? = null
+    @Volatile private var timedOutOperationId: String? = null
     private val serviceMutationJournal: MutationJournal
         get() = if (::mutationJournal.isInitialized) mutationJournal else NoOpMutationJournal()
+    internal var importSpaceAllocatorFactory: (android.content.Context) -> ImportSpaceAllocator =
+        ::AndroidImportSpaceAllocator
 
 
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onCreate() {
+        super.onCreate()
+        getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
@@ -111,16 +121,31 @@ class BulkFileOperationService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_START -> {
-                val operationId = intent.getStringExtra(EXTRA_OPERATION_ID) ?: return START_NOT_STICKY
+                val operationId = intent.getStringExtra(EXTRA_OPERATION_ID) ?: run {
+                    finishRejectedStart(startId)
+                    return START_NOT_STICKY
+                }
                 if (currentRequest?.operationId == operationId || currentOperationJob?.isActive == true) {
                     return START_NOT_STICKY
                 }
-                val request = requestStore.claim(operationId) ?: return START_NOT_STICKY
+                val request = requestStore.claim(operationId) ?: run {
+                    finishRejectedStart(startId)
+                    return START_NOT_STICKY
+                }
                 currentRequest = request
                 notificationMetrics = NotificationMetrics(startedAtMillis = System.currentTimeMillis())
-                synchronized(notificationLock) {
-                    notificationOperationId = request.operationId
-                    startForeground(NOTIFICATION_ID, buildNotification(request))
+                try {
+                    synchronized(notificationLock) {
+                        notificationOperationId = request.operationId
+                        startForeground(NOTIFICATION_ID, buildNotification(request))
+                    }
+                } catch (error: Throwable) {
+                    currentRequest = null
+                    notificationOperationId = null
+                    requestStore.retire(request.operationId)
+                    coordinator.onOperationFailed(request, operationFailureMessage(error))
+                    finishRejectedStart(startId)
+                    return START_NOT_STICKY
                 }
                 storageWorkCoordinator.beginMutation()
                 val capturedStartId = startId
@@ -194,17 +219,25 @@ class BulkFileOperationService : Service() {
                             }
                         }
 
-                        result.onSuccess {
-                            coordinator.onOperationCompleted(request)
-                        }.onFailure { error ->
-                            if (error is CancellationException) throw error
-                            coordinator.onOperationFailed(
-                                request,
-                                operationFailureMessage(error)
-                            )
+                        if (timedOutOperationId != request.operationId) {
+                            result.onSuccess {
+                                coordinator.onOperationCompleted(request)
+                            }.onFailure { error ->
+                                if (error is CancellationException) throw error
+                                coordinator.onOperationFailed(
+                                    request,
+                                    operationFailureMessage(error)
+                                )
+                            }
                         }
                     } catch (_: CancellationException) {
-                        coordinator.onOperationCancelled(request)
+                        if (timedOutOperationId != request.operationId) {
+                            coordinator.onOperationCancelled(request)
+                        }
+                    } catch (error: Throwable) {
+                        if (timedOutOperationId != request.operationId) {
+                            coordinator.onOperationFailed(request, operationFailureMessage(error))
+                        }
                     } finally {
                         SaveToArcileUriGrantManager(contentResolver)
                             .releaseOwnedPersistableReadGrants(request.importItems)
@@ -212,6 +245,7 @@ class BulkFileOperationService : Service() {
                         storageWorkCoordinator.endMutation()
                         currentRequest = null
                         currentOperationJob = null
+                        if (timedOutOperationId == request.operationId) timedOutOperationId = null
                         notificationMetrics = NotificationMetrics()
                         stopForegroundAndRemoveNotification(request.operationId)
                         stopSelf(capturedStartId)
@@ -220,6 +254,25 @@ class BulkFileOperationService : Service() {
             }
         }
         return START_NOT_STICKY
+    }
+
+    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        val request = currentRequest
+        if (request != null) {
+            timedOutOperationId = request.operationId
+            currentOperationJob?.cancel(
+                CancellationException("Bulk file operation exceeded the foreground-service time limit")
+            )
+            coordinator.onOperationFailed(
+                request,
+                getString(R.string.file_operation_background_time_limit)
+            )
+            stopForegroundAndRemoveNotification(request.operationId)
+        } else {
+            stopForegroundAndRemoveNotification(operationId = null)
+        }
+        stopSelfResult(startId)
     }
 
     override fun onDestroy() {
@@ -318,7 +371,8 @@ class BulkFileOperationService : Service() {
                 finalizedPaths = finalizedPaths,
                 rollbackHints = rollbackHints
             )
-        }
+        },
+        spaceAllocator = importSpaceAllocatorFactory(this)
     ).import(request, onProgress)
 
     private fun progressContent(progress: BulkFileOperationProgress): String {
@@ -418,6 +472,12 @@ class BulkFileOperationService : Service() {
             }
             getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
         }
+    }
+
+    private fun finishRejectedStart(startId: Int) {
+        if (currentOperationJob?.isActive == true) return
+        stopForegroundAndRemoveNotification(operationId = null)
+        stopSelfResult(startId)
     }
 
     companion object {

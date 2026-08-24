@@ -48,12 +48,14 @@ class RecentFilesScreenTest {
     }
 
     @Test
-    fun `sort action opens browser presentation sheet`() {
+    fun `view action opens presentation sheet without sort controls`() {
         setScreen(recentScreenState())
 
-        composeRule.onNodeWithContentDescription("Sort").performClick()
+        composeRule.onNodeWithContentDescription("Sort").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("View options").performClick()
 
-        composeRule.onNodeWithText("Sort recent files").assertExists()
+        composeRule.onNodeWithText("View options").assertExists()
+        composeRule.onNodeWithText("Sort").assertDoesNotExist()
         composeRule.onNodeWithText("View mode").assertExists()
         composeRule.onNodeWithText("Grid View").assertExists()
     }

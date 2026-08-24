@@ -31,7 +31,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.browserTabsDataStore by preferencesDataStore(name = "browser_tabs")
+internal val Context.browserTabsDataStore by preferencesDataStore(name = "browser_tabs")
 private val PINNED_BROWSER_TABS_KEY = stringPreferencesKey("pinned_browser_tabs")
 private val BROWSER_TABS_ENABLED_KEY = booleanPreferencesKey("browser_tabs_enabled")
 

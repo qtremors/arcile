@@ -193,6 +193,7 @@ internal fun BrowserDialogs(
             title = stringResource(R.string.sort_folder_title),
             selectedPreferences = currentPresentation,
             showApplyToSubfolders = !state.isCategoryScreen,
+            initialApplyToSubfolders = state.browserPresentationAppliesToSubfolders,
             onDismiss = { dialogVisibility.showSortDialog = false },
             onApply = { presentation, applyToSubfolders ->
                 searchIntents.onPresentationChange(presentation, applyToSubfolders)

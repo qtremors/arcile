@@ -67,6 +67,7 @@ internal data class GalleryClipboardActions(
 
 internal data class GalleryFileActions(
     val rename: (String, String) -> Unit,
+    val batchRename: (List<Pair<FileModel, String>>) -> Unit,
     val createZipFromSelection: () -> Unit,
     val setAlbumCover: (String, String) -> Unit
 )
