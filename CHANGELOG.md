@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.7
-> **Last Updated:** 2026-08-24
+> **Version:** 2.0.8
+> **Last Updated:** 2026-08-25
 
 ---
+
+## [2.0.8] - 2026-08-25
+
+- **Precision Audio Editing**: Added zoomable waveforms, millisecond boundary controls, scrubbing, looped selection previews, section extraction, middle removal, and ordered combining for compatible M4A/AAC, WAV, Opus/Ogg, and WebM audio. Exports prefer stream-copy, fall back to re-encoding with a visible warning, copy readable tags and artwork, inherit the first item’s metadata when combining, and keep completed audio when some metadata cannot be copied.
+- **Reliable Audio Selection**: Kept waveform handles attached throughout a drag, centered high zoom levels on the playhead, and added a Classic slider option without the waveform.
+- **Smarter Audio Editor**: Added a compact theme-aware layout with artwork and file details, side-by-side boundary controls, default-on Loop and Waveform switches, export notes behind an info button, multiple trim ranges, and in-editor audio adding, ordering, and removal.
 
 ## [2.0.7] - 2026-08-24
 

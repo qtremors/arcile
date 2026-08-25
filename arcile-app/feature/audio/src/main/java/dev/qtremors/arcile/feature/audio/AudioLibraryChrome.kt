@@ -125,6 +125,7 @@ internal fun AudioLibraryBottomBar(
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onEditAudio: () -> Unit,
     onPaste: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShowClipboardContents: () -> Unit,
@@ -184,7 +185,8 @@ internal fun AudioLibraryBottomBar(
                 onProperties = onOpenProperties,
                 onCreateZip = onCreateZip,
                 onOpenWith = onOpenWith,
-                onToggleFavorite = onToggleFavorite
+                onToggleFavorite = onToggleFavorite,
+                onEditAudio = onEditAudio
             )
         }
     )

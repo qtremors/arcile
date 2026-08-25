@@ -36,6 +36,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.MoreVert
@@ -111,6 +112,7 @@ internal fun AudioNowPlayingScreen(
     onToggleShuffle: () -> Unit,
     onSeek: (Long) -> Unit,
     onShare: () -> Unit,
+    onEdit: () -> Unit,
     onOpenWith: () -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -424,6 +426,7 @@ internal fun AudioNowPlayingScreen(
                     showMenu = true
                 },
                 onDismissMenu = { showMenu = false },
+                onEdit = onEdit,
                 onOpenWith = onOpenWith,
                 modifier = Modifier.align(Alignment.TopCenter)
             )
@@ -451,6 +454,7 @@ private fun AudioPlayerTopBar(
     onCollapse: () -> Unit,
     onShowMenu: () -> Unit,
     onDismissMenu: () -> Unit,
+    onEdit: () -> Unit,
     onOpenWith: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -515,18 +519,32 @@ private fun AudioPlayerTopBar(
             ArcileDropdownMenu(
                 expanded = showMenu,
                 onDismissRequest = onDismissMenu,
-                items = listOf {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.audio_open_with),
-                        leadingIcon = {
-                            Icon(Icons.Default.Headphones, contentDescription = null)
-                        },
-                        onClick = {
-                            onDismissMenu()
-                            onOpenWith()
-                        }
-                    )
-                }
+                items = listOf(
+                    {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.audio_edit),
+                            leadingIcon = {
+                                Icon(Icons.Default.Edit, contentDescription = null)
+                            },
+                            onClick = {
+                                onDismissMenu()
+                                onEdit()
+                            }
+                        )
+                    },
+                    {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.audio_open_with),
+                            leadingIcon = {
+                                Icon(Icons.Default.Headphones, contentDescription = null)
+                            },
+                            onClick = {
+                                onDismissMenu()
+                                onOpenWith()
+                            }
+                        )
+                    }
+                )
             )
         }
     }

@@ -22,5 +22,10 @@
                 <data android:mimeType="audio/*" />
             </intent-filter>
         </activity>
+        <activity
+            android:name=".AudioEditorActivity"
+            android:exported="false"
+            android:label="@string/audio_editor_title"
+            android:theme="@style/Theme.Arcile.AudioEditor" />
     </application>
 </manifest>

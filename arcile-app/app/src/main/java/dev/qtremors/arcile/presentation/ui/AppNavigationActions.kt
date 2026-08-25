@@ -32,6 +32,7 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.audio.createAudioPlayerIntent
+import dev.qtremors.arcile.feature.audio.createAudioEditorIntent
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -148,6 +149,12 @@ internal class AppNavigationActions(
                 nodeRef = track.file.nodeRef
             )
         )
+    }
+
+    fun openAudioEditor(paths: List<String>) {
+        if (paths.isNotEmpty()) {
+            context.startActivity(createAudioEditorIntent(context, paths))
+        }
     }
 
     fun openExternalFolder(uri: String) {

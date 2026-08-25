@@ -127,6 +127,7 @@ class AudioPlayerActivity : ComponentActivity() {
                         onWindowModeChange = ::setPlayerWindowExpanded,
                         onFinish = ::finish,
                         onShare = { share(it.file) },
+                        onEdit = { openEditor(it.file) },
                         onOpenWith = { openWith(it.file) }
                     )
                 }
@@ -261,6 +262,14 @@ class AudioPlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun openEditor(file: FileModel) {
+        if (!File(file.absolutePath).isFile) {
+            showFailure()
+            return
+        }
+        startActivity(createAudioEditorIntent(this, listOf(file.absolutePath)))
+    }
+
     private fun FileModel.toHandoffReference() =
         ExternalFileAccessHelper.ExternalFileReference(
             path = absolutePath,
@@ -296,6 +305,7 @@ private fun StandaloneAudioPlayer(
     onWindowModeChange: (Boolean) -> Unit,
     onFinish: () -> Unit,
     onShare: (AudioTrack) -> Unit,
+    onEdit: (AudioTrack) -> Unit,
     onOpenWith: (AudioTrack) -> Unit
 ) {
     var presentation by remember(launchId) {
@@ -425,6 +435,7 @@ private fun StandaloneAudioPlayer(
                         onToggleShuffle = playbackController::toggleShuffle,
                         onSeek = playbackController::seekTo,
                         onShare = { onShare(track) },
+                        onEdit = { onEdit(track) },
                         onOpenWith = { onOpenWith(track) }
                     )
                 }

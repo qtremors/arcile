@@ -294,7 +294,8 @@ internal fun AudioSelectionActionsBar(
     onProperties: () -> Unit,
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    onEditAudio: () -> Unit
 ) {
     var showMenu by rememberSaveable { mutableStateOf(false) }
     Row(
@@ -365,6 +366,16 @@ internal fun AudioSelectionActionsBar(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
                 items = buildList {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.audio_edit),
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onEditAudio()
+                            }
+                        )
+                    }
                     add {
                         ArcileDropdownMenuItem(
                             text = stringResource(
