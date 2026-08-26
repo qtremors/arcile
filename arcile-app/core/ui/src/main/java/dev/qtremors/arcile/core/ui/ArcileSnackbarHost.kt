@@ -30,12 +30,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.theme.spacing
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class ArcileFeedbackSeverity {
@@ -73,14 +73,28 @@ fun ArcileSnackbarHost(
                 .wrapContentWidth(Alignment.CenterHorizontally)
                 .offset { IntOffset(swipeOffset.roundToInt(), 0) }
                 .pointerInput(data) {
+                    var velocityTracker = VelocityTracker()
                     detectHorizontalDragGestures(
+                        onDragStart = {
+                            velocityTracker = VelocityTracker()
+                        },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
                             swipeOffset += dragAmount
                         },
                         onDragEnd = {
-                            if (abs(swipeOffset) >= 96.dp.toPx()) data.dismiss()
-                            else swipeOffset = 0f
+                            val velocity = velocityTracker.calculateVelocity()
+                            val direction = arcileSwipeDirection(
+                                axis = ArcileGestureAxis.Horizontal,
+                                deltaX = swipeOffset,
+                                deltaY = 0f,
+                                velocityX = velocity.x,
+                                velocityY = velocity.y,
+                                minimumDistance = 96.dp.toPx(),
+                                minimumVelocity = ArcileGestureDefaults.MinimumSwipeVelocity.toPx()
+                            )
+                            if (direction != null) data.dismiss() else swipeOffset = 0f
                         },
                         onDragCancel = { swipeOffset = 0f }
                     )

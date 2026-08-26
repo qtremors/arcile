@@ -48,7 +48,9 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.category.CategoryFolderSummary
 import dev.qtremors.arcile.core.ui.category.CategoryFolderGridItem
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryActions
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryLabels
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryState
 import dev.qtremors.arcile.core.ui.category.FileCategoryLibrary
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryFileActionCallbacks
 import dev.qtremors.arcile.core.ui.category.CategoryGridItem
@@ -116,42 +118,46 @@ internal fun DocumentLibraryScreen(
         selectedCount = { count -> resources.getQuantityString(R.plurals.documents_selected, count, count) }
     )
     FileCategoryLibrary(
-        files = state.files,
-        folders = state.folders,
-        selectedPaths = state.selectedPaths,
-        query = state.query,
-        searchFilters = state.searchFilters,
-        tab = state.tab,
-        itemPresentation = state.presentation,
-        folderPresentation = state.folderPresentation,
-        defaultPage = state.defaultPage,
-        grouping = state.grouping,
-        showFileDetails = state.showFileDetails,
-        scrollbarEnabled = state.scrollbarEnabled,
-        isLoading = state.isLoading,
-        folderFilterLabel = state.folderFilter?.label,
-        folderFilterPath = state.folderFilter?.path,
-        labels = labels,
-        onNavigateBack = onNavigateBack,
-        onQueryChange = onQueryChange,
-        onSearchFiltersChange = onSearchFiltersChange,
-        onTabChange = onTabChange,
-        onPresentationChange = onPresentationChange,
-        onDefaultPageChange = onDefaultPageChange,
-        onGroupingChange = onGroupingChange,
-        onShowFileDetailsChange = onShowFileDetailsChange,
-        onRefresh = onRefresh,
-        onClearFolderFilter = onClearFolderFilter,
-        onToggleSelection = onToggleSelection,
-        onSelectPaths = onSelectPaths,
-        onClearSelection = onClearSelection,
-        onSelectAll = onSelectAll,
-        onInvertSelection = onInvertSelection,
-        onShareSelection = onShareSelection,
-        onOpenSelectionWith = onOpenSelectionWith,
-        fileActions = fileActions,
-        onOpenFile = onOpenFile,
-        onOpenFolder = onOpenFolder,
+        state = CategoryLibraryState(
+            files = state.files,
+            folders = state.folders,
+            selectedPaths = state.selectedPaths,
+            query = state.query,
+            searchFilters = state.searchFilters,
+            tab = state.tab,
+            itemPresentation = state.presentation,
+            folderPresentation = state.folderPresentation,
+            defaultPage = state.defaultPage,
+            grouping = state.grouping,
+            showFileDetails = state.showFileDetails,
+            scrollbarEnabled = state.scrollbarEnabled,
+            isLoading = state.isLoading,
+            folderFilterLabel = state.folderFilter?.label,
+            folderFilterPath = state.folderFilter?.path,
+            labels = labels
+        ),
+        actions = CategoryLibraryActions(
+            onNavigateBack = onNavigateBack,
+            onQueryChange = onQueryChange,
+            onSearchFiltersChange = onSearchFiltersChange,
+            onTabChange = onTabChange,
+            onPresentationChange = onPresentationChange,
+            onDefaultPageChange = onDefaultPageChange,
+            onGroupingChange = onGroupingChange,
+            onShowFileDetailsChange = onShowFileDetailsChange,
+            onRefresh = onRefresh,
+            onClearFolderFilter = onClearFolderFilter,
+            onToggleSelection = onToggleSelection,
+            onSelectPaths = onSelectPaths,
+            onClearSelection = onClearSelection,
+            onSelectAll = onSelectAll,
+            onInvertSelection = onInvertSelection,
+            onShareSelection = onShareSelection,
+            onOpenSelectionWith = onOpenSelectionWith,
+            fileActions = fileActions,
+            onOpenFile = onOpenFile,
+            onOpenFolder = onOpenFolder
+        ),
         fileItem = { file, selected, selectionMode, onClick, onLongClick, modifier ->
             DocumentItem(
                 file = file,

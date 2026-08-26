@@ -7,7 +7,7 @@ import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.feature.importing.SaveToArcileActivity
 import dev.qtremors.arcile.feature.audio.AudioPlayerActivity
-import dev.qtremors.arcile.feature.audio.canResolveStandaloneAudio
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -104,7 +104,7 @@ class AppActivityManifestTest {
             "audio/mpeg"
         )
 
-        assertTrue(canResolveStandaloneAudio(context, intent))
+        assertTrue(AudioFeatureEntryPoint.canResolveStandaloneAudio(context, intent))
         assertEquals(
             AudioPlayerActivity::class.java.name,
             resolveStandaloneViewerActivityName(context, intent)

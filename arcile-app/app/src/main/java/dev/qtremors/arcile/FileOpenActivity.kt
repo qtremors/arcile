@@ -6,7 +6,7 @@ import android.content.Intent
 import android.os.Bundle
 import dev.qtremors.arcile.core.ui.showArcileToast
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.feature.audio.canResolveStandaloneAudio
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 
 class FileOpenActivity : Activity() {
@@ -30,7 +30,8 @@ internal fun resolveStandaloneViewerActivityName(context: Context, intent: Inten
             ImageViewerActivity::class.java.name
         intent.type?.startsWith("video/") == true || intent.extension() in FileCategories.Videos.extensions ->
             "dev.qtremors.arcile.feature.videoplayer.VideoViewerActivity"
-        canResolveStandaloneAudio(context, intent) -> "dev.qtremors.arcile.feature.audio.AudioPlayerActivity"
+        AudioFeatureEntryPoint.canResolveStandaloneAudio(context, intent) ->
+            "dev.qtremors.arcile.feature.audio.AudioPlayerActivity"
         intent.type == "application/pdf" || intent.extension() == "pdf" -> PdfViewerActivity::class.java.name
         resolveStandaloneTextTarget(context, intent) != null -> TextEditorActivity::class.java.name
         else -> null

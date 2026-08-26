@@ -66,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
@@ -77,8 +78,13 @@ import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ArcileGestureAxis
+import dev.qtremors.arcile.core.ui.ArcileGestureDefaults
+import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.arcileGestureAxis
+import dev.qtremors.arcile.core.ui.arcileSwipeDirection
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.CancellationException
@@ -88,7 +94,6 @@ import java.text.DateFormat
 import java.util.Date
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.sign
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -185,21 +190,22 @@ internal fun AudioNowPlayingScreen(
                 .fillMaxSize()
                 .pointerInput(dismissThreshold) {
                     var totalY = 0f
-                    var hasTriggeredCollapse = false
                     var gestureJob: Job? = null
+                    var velocityTracker = VelocityTracker()
                     detectVerticalDragGestures(
+                        onDragStart = {
+                            totalY = 0f
+                            velocityTracker = VelocityTracker()
+                        },
                         onVerticalDrag = { change, dragAmount ->
                             if (dragAmount > 0f || totalY > 0f) {
                                 change.consume()
+                                velocityTracker.addPosition(change.uptimeMillis, change.position)
                                 totalY += dragAmount
                                 val targetY = totalY.coerceAtLeast(0f)
                                 gestureJob?.cancel()
                                 gestureJob = gestureScope.launch {
                                     dragOffset.snapTo(targetY)
-                                }
-                                if (totalY >= dismissThreshold && !hasTriggeredCollapse) {
-                                    hasTriggeredCollapse = true
-                                    onCollapse()
                                 }
                             }
                         },
@@ -209,22 +215,29 @@ internal fun AudioNowPlayingScreen(
                                 dragOffset.springBack()
                             }
                             totalY = 0f
-                            hasTriggeredCollapse = false
                         },
                         onDragEnd = {
-                            if (!hasTriggeredCollapse) {
-                                val finalY = totalY
-                                gestureJob?.cancel()
-                                if (finalY > dismissThreshold) {
-                                    onCollapse()
-                                } else {
-                                    gestureJob = gestureScope.launch {
-                                        dragOffset.springBack()
-                                    }
+                            val velocity = velocityTracker.calculateVelocity()
+                            val resolution = resolveAudioNowPlayingGesture(
+                                lockedAxis = ArcileGestureAxis.Vertical,
+                                deltaX = 0f,
+                                deltaY = totalY,
+                                velocityX = velocity.x,
+                                velocityY = velocity.y,
+                                horizontalThreshold = Float.MAX_VALUE,
+                                collapseThreshold = dismissThreshold,
+                                queueThreshold = dismissThreshold,
+                                minimumVelocity = ArcileGestureDefaults.MinimumSwipeVelocity.toPx()
+                            )
+                            gestureJob?.cancel()
+                            if (resolution == AudioNowPlayingGesture.Collapse) {
+                                onCollapse()
+                            } else {
+                                gestureJob = gestureScope.launch {
+                                    dragOffset.springBack()
                                 }
                             }
                             totalY = 0f
-                            hasTriggeredCollapse = false
                         }
                     )
                 }
@@ -282,17 +295,34 @@ internal fun AudioNowPlayingScreen(
                             ) {
                                 var totalX = 0f
                                 var totalY = 0f
+                                var lockedAxis: ArcileGestureAxis? = null
                                 var gestureJob: Job? = null
+                                var velocityTracker = VelocityTracker()
                                 detectDragGestures(
+                                    onDragStart = {
+                                        totalX = 0f
+                                        totalY = 0f
+                                        lockedAxis = null
+                                        velocityTracker = VelocityTracker()
+                                    },
                                     onDrag = { change, amount ->
-                                        change.consume()
+                                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                                         totalX += amount.x
                                         totalY += amount.y
+                                        if (lockedAxis == null) {
+                                            lockedAxis = arcileGestureAxis(
+                                                deltaX = totalX,
+                                                deltaY = totalY,
+                                                touchSlop = viewConfiguration.touchSlop
+                                            )
+                                        }
+                                        val axis = lockedAxis ?: return@detectDragGestures
+                                        change.consume()
                                         val dragX = totalX
                                         val dragY = totalY
                                         gestureJob?.cancel()
                                         gestureJob = gestureScope.launch {
-                                            if (abs(dragX) > abs(dragY)) {
+                                            if (axis == ArcileGestureAxis.Horizontal) {
                                                 artworkOffset.snapTo(dragX)
                                             } else {
                                                 dragOffset.snapTo(dragY.coerceAtLeast(0f))
@@ -307,36 +337,49 @@ internal fun AudioNowPlayingScreen(
                                         }
                                         totalX = 0f
                                         totalY = 0f
+                                        lockedAxis = null
                                     },
                                     onDragEnd = {
                                         val finalX = totalX
                                         val finalY = totalY
+                                        val velocity = velocityTracker.calculateVelocity()
                                         gestureJob?.cancel()
-                                        when {
-                                            abs(finalX) > abs(finalY) &&
-                                                abs(finalX) > horizontalThreshold -> {
+                                        val resolution = resolveAudioNowPlayingGesture(
+                                            lockedAxis = lockedAxis,
+                                            deltaX = finalX,
+                                            deltaY = finalY,
+                                            velocityX = velocity.x,
+                                            velocityY = velocity.y,
+                                            horizontalThreshold = horizontalThreshold,
+                                            collapseThreshold = dismissThreshold,
+                                            queueThreshold = queueThreshold,
+                                            minimumVelocity = ArcileGestureDefaults.MinimumSwipeVelocity.toPx()
+                                        )
+                                        when (resolution) {
+                                            AudioNowPlayingGesture.Next,
+                                            AudioNowPlayingGesture.Previous -> {
                                                 gestureJob = gestureScope.launch {
-                                                    val direction = finalX.sign
+                                                    val directionSign = if (resolution == AudioNowPlayingGesture.Next) -1f else 1f
                                                     artworkOffset.animateTo(
-                                                        direction * horizontalThreshold * 2f,
+                                                        directionSign * horizontalThreshold * 2f,
                                                         spring(stiffness = Spring.StiffnessMedium)
                                                     )
-                                                    if (finalX < 0f) onNext() else onPrevious()
+                                                    if (resolution == AudioNowPlayingGesture.Next) onNext() else onPrevious()
                                                     artworkOffset.snapTo(
-                                                        -direction * horizontalThreshold
+                                                        -directionSign * horizontalThreshold
                                                     )
                                                     artworkOffset.springBack()
                                                 }
                                             }
-                                            finalY > dismissThreshold -> onCollapse()
-                                            finalY < -queueThreshold -> {
+                                            AudioNowPlayingGesture.Collapse -> onCollapse()
+                                            AudioNowPlayingGesture.Queue -> {
                                                 haptics.selectionStart()
                                                 showQueue = true
                                                 gestureJob = gestureScope.launch {
                                                     dragOffset.snapTo(0f)
                                                 }
                                             }
-                                            else -> {
+                                            AudioNowPlayingGesture.None -> {
                                                 gestureJob = gestureScope.launch {
                                                     dragOffset.springBack()
                                                     artworkOffset.springBack()
@@ -345,6 +388,7 @@ internal fun AudioNowPlayingScreen(
                                         }
                                         totalX = 0f
                                         totalY = 0f
+                                        lockedAxis = null
                                     }
                                 )
                             }
@@ -447,266 +491,6 @@ internal fun AudioNowPlayingScreen(
     }
 }
 
-@Composable
-private fun AudioPlayerTopBar(
-    track: AudioTrack,
-    showMenu: Boolean,
-    onCollapse: () -> Unit,
-    onShowMenu: () -> Unit,
-    onDismissMenu: () -> Unit,
-    onEdit: () -> Unit,
-    onOpenWith: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .height(52.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f),
-            tonalElevation = 3.dp,
-            modifier = Modifier
-                .size(48.dp)
-                .bounceClickable(onClick = onCollapse)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Default.KeyboardArrowDown,
-                    contentDescription = stringResource(R.string.audio_collapse_player)
-                )
-            }
-        }
-        Column(
-            modifier = Modifier.weight(1f),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                stringResource(R.string.audio_now_playing),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1
-            )
-            Text(
-                track.album ?: track.artist ?: stringResource(R.string.audio_title),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Box {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.94f),
-                tonalElevation = 3.dp,
-                modifier = Modifier
-                    .size(48.dp)
-                    .bounceClickable(onClick = onShowMenu)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.MoreVert,
-                        contentDescription = stringResource(R.string.audio_more)
-                    )
-                }
-            }
-            ArcileDropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = onDismissMenu,
-                items = listOf(
-                    {
-                        ArcileDropdownMenuItem(
-                            text = stringResource(R.string.audio_edit),
-                            leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null)
-                            },
-                            onClick = {
-                                onDismissMenu()
-                                onEdit()
-                            }
-                        )
-                    },
-                    {
-                        ArcileDropdownMenuItem(
-                            text = stringResource(R.string.audio_open_with),
-                            leadingIcon = {
-                                Icon(Icons.Default.Headphones, contentDescription = null)
-                            },
-                            onClick = {
-                                onDismissMenu()
-                                onOpenWith()
-                            }
-                        )
-                    }
-                )
-            )
-        }
-    }
-}
-
-@Composable
-private fun AudioPlaybackControls(
-    playback: AudioPlaybackState,
-    onTogglePlayback: () -> Unit,
-    onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onToggleRepeat: () -> Unit,
-    onToggleShuffle: () -> Unit
-) {
-    val repeatActive = playback.repeatMode != AudioRepeatMode.OFF
-    val shuffleActive = playback.shuffleEnabled
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .widthIn(max = 420.dp)
-    ) {
-        val compact = maxWidth < 360.dp
-        val toggleSize = if (compact) 46.dp else 52.dp
-        val skipWidth = if (compact) 56.dp else 64.dp
-        val skipHeight = if (compact) 64.dp else 72.dp
-        val playSize = if (compact) 72.dp else 82.dp
-        val spacing = if (compact) 5.dp else 8.dp
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(
-                space = spacing,
-                alignment = Alignment.CenterHorizontally
-            ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AudioPlaybackToggleButton(
-                icon = if (playback.repeatMode == AudioRepeatMode.ONE) {
-                    Icons.Default.RepeatOne
-                } else {
-                    Icons.Default.Repeat
-                },
-                contentDescription = stringResource(
-                    when (playback.repeatMode) {
-                        AudioRepeatMode.OFF -> R.string.audio_repeat
-                        AudioRepeatMode.ALL -> R.string.audio_repeat_all
-                        AudioRepeatMode.ONE -> R.string.audio_repeat_one
-                    }
-                ),
-                selected = repeatActive,
-                size = toggleSize,
-                onClick = onToggleRepeat
-            )
-            AudioTransportButton(
-                icon = Icons.Default.SkipPrevious,
-                contentDescription = stringResource(R.string.audio_previous),
-                width = skipWidth,
-                height = skipHeight,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                onClick = onPrevious
-            )
-            AudioTransportButton(
-                icon = if (playback.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = stringResource(
-                    if (playback.isPlaying) R.string.audio_pause else R.string.audio_play
-                ),
-                width = playSize,
-                height = playSize,
-                iconSize = 34.dp,
-                shape = RoundedCornerShape(28.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                onClick = onTogglePlayback
-            )
-            AudioTransportButton(
-                icon = Icons.Default.SkipNext,
-                contentDescription = stringResource(R.string.audio_next),
-                width = skipWidth,
-                height = skipHeight,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                onClick = onNext
-            )
-            AudioPlaybackToggleButton(
-                icon = Icons.Default.Shuffle,
-                contentDescription = stringResource(R.string.audio_shuffle),
-                selected = shuffleActive,
-                size = toggleSize,
-                onClick = onToggleShuffle
-            )
-        }
-    }
-}
-
-@Composable
-private fun AudioTransportButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    width: Dp,
-    height: Dp,
-    containerColor: androidx.compose.ui.graphics.Color,
-    contentColor: androidx.compose.ui.graphics.Color,
-    onClick: () -> Unit,
-    iconSize: Dp = 28.dp,
-    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(22.dp)
-) {
-    Surface(
-        shape = shape,
-        color = containerColor,
-        contentColor = contentColor,
-        tonalElevation = 2.dp,
-        modifier = Modifier
-            .width(width)
-            .height(height)
-            .bounceClickable(onClick = onClick)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(iconSize)
-            )
-        }
-    }
-}
-
-@Composable
-private fun AudioPlaybackToggleButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    selected: Boolean,
-    size: Dp,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = CircleShape,
-        color = if (selected) {
-            MaterialTheme.colorScheme.primaryContainer
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerHigh
-        },
-        contentColor = if (selected) {
-            MaterialTheme.colorScheme.onPrimaryContainer
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        border = if (selected) {
-            null
-        } else {
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-        },
-        modifier = Modifier
-            .size(size)
-            .bounceClickable(onClick = onClick)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(24.dp))
-        }
-    }
-}
-
 private suspend fun Animatable<Float, *>.springBack() {
     animateTo(
         0f,
@@ -715,4 +499,47 @@ private suspend fun Animatable<Float, *>.springBack() {
             stiffness = Spring.StiffnessMedium
         )
     )
+}
+
+internal enum class AudioNowPlayingGesture {
+    Previous,
+    Next,
+    Collapse,
+    Queue,
+    None
+}
+
+internal fun resolveAudioNowPlayingGesture(
+    lockedAxis: ArcileGestureAxis?,
+    deltaX: Float,
+    deltaY: Float,
+    velocityX: Float,
+    velocityY: Float,
+    horizontalThreshold: Float,
+    collapseThreshold: Float,
+    queueThreshold: Float,
+    minimumVelocity: Float
+): AudioNowPlayingGesture {
+    val axis = lockedAxis ?: return AudioNowPlayingGesture.None
+    val minimumDistance = when (axis) {
+        ArcileGestureAxis.Horizontal -> horizontalThreshold
+        ArcileGestureAxis.Vertical -> if (deltaY >= 0f) collapseThreshold else queueThreshold
+    }
+    return when (
+        arcileSwipeDirection(
+            axis = axis,
+            deltaX = deltaX,
+            deltaY = deltaY,
+            velocityX = velocityX,
+            velocityY = velocityY,
+            minimumDistance = minimumDistance,
+            minimumVelocity = minimumVelocity
+        )
+    ) {
+        ArcileSwipeDirection.Left -> AudioNowPlayingGesture.Next
+        ArcileSwipeDirection.Right -> AudioNowPlayingGesture.Previous
+        ArcileSwipeDirection.Down -> AudioNowPlayingGesture.Collapse
+        ArcileSwipeDirection.Up -> AudioNowPlayingGesture.Queue
+        null -> AudioNowPlayingGesture.None
+    }
 }

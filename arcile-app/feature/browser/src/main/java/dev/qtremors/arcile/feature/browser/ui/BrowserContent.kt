@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.browser.ui
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -33,7 +32,6 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -46,10 +44,12 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
 import dev.qtremors.arcile.core.ui.Breadcrumbs
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.FolderTabsRow
+import dev.qtremors.arcile.core.ui.arcileHorizontalSwipe
 import dev.qtremors.arcile.core.ui.lists.FileGridRows
 import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
@@ -64,7 +64,6 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
 import java.util.Date
-import kotlin.math.abs
 
 private data class BrowserContentKey(
     val isSearch: Boolean,
@@ -179,21 +178,13 @@ internal fun BrowserContent(
                 .weight(1f)
                 .then(
                     if (categoryFolderSwipeEnabled) {
-                        Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
-                            var horizontalDrag = 0f
-                            detectHorizontalDragGestures(
-                                onDragStart = { horizontalDrag = 0f },
-                                onHorizontalDrag = { change, dragAmount ->
-                                    horizontalDrag += dragAmount
-                                    if (abs(horizontalDrag) > 96.dp.toPx()) {
-                                        change.consume()
-                                        onSwitchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
-                                        horizontalDrag = 0f
-                                    }
-                                },
-                                onDragEnd = { horizontalDrag = 0f },
-                                onDragCancel = { horizontalDrag = 0f }
-                            )
+                        Modifier.arcileHorizontalSwipe(minimumDistance = 96.dp) { direction ->
+                            when (direction) {
+                                ArcileSwipeDirection.Left -> onSwitchCategoryFolderTab(1)
+                                ArcileSwipeDirection.Right -> onSwitchCategoryFolderTab(-1)
+                                ArcileSwipeDirection.Up,
+                                ArcileSwipeDirection.Down -> Unit
+                            }
                         }
                     } else {
                         Modifier.browserWorkspaceSwipe(onWorkspaceSwipe)
@@ -525,42 +516,14 @@ private fun BrowserListingContent(
 }
 
 internal fun Modifier.browserWorkspaceSwipe(onSwipe: (Int) -> Unit): Modifier =
-    pointerInput(onSwipe) {
-        awaitEachGesture {
-            val down = awaitFirstDown(
-                requireUnconsumed = false,
-                pass = PointerEventPass.Initial
-            )
-            var lastPosition = down.position
-            var released = false
-            while (!released) {
-                val change = awaitPointerEvent(PointerEventPass.Final)
-                    .changes
-                    .firstOrNull { it.id == down.id }
-                    ?: break
-                lastPosition = change.position
-                released = !change.pressed
-            }
-            if (released) {
-                browserWorkspaceSwipeDirection(
-                    deltaX = lastPosition.x - down.position.x,
-                    deltaY = lastPosition.y - down.position.y,
-                    thresholdPx = 72.dp.toPx()
-                )?.let(onSwipe)
-            }
+    arcileHorizontalSwipe { direction ->
+        when (direction) {
+            ArcileSwipeDirection.Left -> onSwipe(1)
+            ArcileSwipeDirection.Right -> onSwipe(-1)
+            ArcileSwipeDirection.Up,
+            ArcileSwipeDirection.Down -> Unit
         }
     }
-
-internal fun browserWorkspaceSwipeDirection(
-    deltaX: Float,
-    deltaY: Float,
-    thresholdPx: Float
-): Int? {
-    if (thresholdPx <= 0f || abs(deltaX) < thresholdPx || abs(deltaX) <= abs(deltaY)) {
-        return null
-    }
-    return if (deltaX < 0f) 1 else -1
-}
 
 private fun Modifier.pinchToResizeGrid(
     currentCellSize: State<Float>,

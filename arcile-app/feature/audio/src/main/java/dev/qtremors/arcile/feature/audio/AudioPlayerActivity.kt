@@ -466,7 +466,7 @@ internal fun audioPlayerWindowFlags(currentFlags: Int, expanded: Boolean): Int {
     return if (expanded) currentFlags and miniFlags.inv() else currentFlags or miniFlags
 }
 
-data class StandaloneAudioTarget(
+internal data class StandaloneAudioTarget(
     val reference: String,
     val uri: Uri,
     val displayName: String,
@@ -476,7 +476,7 @@ data class StandaloneAudioTarget(
     val nodeRef: StorageNodeRef? = null
 )
 
-fun createAudioPlayerIntent(
+internal fun createAudioPlayerIntent(
     context: Context,
     path: String,
     contextPaths: List<String> = emptyList(),
@@ -501,7 +501,7 @@ fun createAudioPlayerIntent(
     putExtra(EXTRA_BOTTOM_CLEARANCE_DP, IN_APP_PLAYER_BOTTOM_CLEARANCE_DP)
 }
 
-fun canResolveStandaloneAudio(context: Context, intent: Intent): Boolean =
+internal fun canResolveStandaloneAudio(context: Context, intent: Intent): Boolean =
     intent.action == Intent.ACTION_VIEW && intent.data != null && (
         intent.type?.startsWith("audio/") == true ||
             intent.data?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in FileCategories.Audio.extensions

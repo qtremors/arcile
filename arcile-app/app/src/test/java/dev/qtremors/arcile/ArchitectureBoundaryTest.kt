@@ -495,8 +495,7 @@ class ArchitectureBoundaryTest {
             "archive.ArchiveDestination",
             "archive.registerArchiveViewerRoute",
             "apk.registerApkLibraryRoute",
-            "audio.canResolveStandaloneAudio",
-            "audio.createAudioPlayerIntent",
+            "audio.AudioFeatureEntryPoint",
             "audio.registerAudioLibraryRoute",
             "browser.BrowserDestination",
             "browser.BrowserEntry",
@@ -887,10 +886,9 @@ class ArchitectureBoundaryTest {
                     )
                 ) ||
                 publicDeclaration.matches(Regex("""class SaveToArcileActivity\b.*""")) ||
-                publicDeclaration.matches(Regex("""class AudioPlayerActivity\b.*""")) ||
-                publicDeclaration.matches(Regex("""data class StandaloneAudioTarget\b.*""")) ||
-                publicDeclaration.matches(Regex("""fun createAudioPlayerIntent\(.*""")) ||
-                publicDeclaration.matches(Regex("""fun canResolveStandaloneAudio\(.*"""))
+                publicDeclaration.matches(Regex("""object AudioFeatureEntryPoint\b.*""")) ||
+                publicDeclaration.matches(Regex("""class AudioEditorActivity\b.*""")) ||
+                publicDeclaration.matches(Regex("""class AudioPlayerActivity\b.*"""))
         }
 
     private fun violation(file: File, index: Int, line: String): String =
@@ -914,12 +912,8 @@ class ArchitectureBoundaryTest {
         )
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 804,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1102,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/category/FileCategoryLibrary.kt" to 1576,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/pdf/StandalonePdfViewer.kt" to 1009,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800,
-            "arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioNowPlayingScreen.kt" to 701
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800
         )
 
         val LARGE_VIEWMODEL_BASELINE = mapOf(
@@ -928,8 +922,6 @@ class ArchitectureBoundaryTest {
 
         val FEATURE_VIEWMODEL_BOUNDARY_BASELINE = emptyMap<String, Set<String>>()
 
-        val COMPOSABLE_PARAMETER_BASELINE = mapOf(
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/category/FileCategoryLibrary.kt:FileCategoryLibrary" to 41
-        )
+        val COMPOSABLE_PARAMETER_BASELINE = emptyMap<String, Int>()
     }
 }

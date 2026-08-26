@@ -7,12 +7,14 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.ThemePreferences
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 
+@AndroidEntryPoint
 class AudioEditorActivity : ComponentActivity() {
     private val viewModel by viewModels<AudioEditorViewModel>()
     private val themePreferences by lazy { ThemePreferences(applicationContext) }
@@ -49,7 +51,7 @@ class AudioEditorActivity : ComponentActivity() {
     }
 }
 
-fun createAudioEditorIntent(context: Context, paths: List<String>): Intent =
+internal fun createAudioEditorIntent(context: Context, paths: List<String>): Intent =
     Intent(context, AudioEditorActivity::class.java).apply {
         putStringArrayListExtra(EXTRA_AUDIO_EDIT_PATHS, ArrayList(paths))
     }

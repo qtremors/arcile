@@ -42,6 +42,7 @@ class BrowserPreferencesDataSource(
         storage = Dispatchers.IO
     )
 ) {
+    private val writer = BrowserPreferenceWriter(dataStore)
     internal val preferencesFlow: Flow<BrowserPreferences> = dataStore.data
         .catch { exception ->
             if (exception is IOException) {
@@ -654,13 +655,13 @@ class BrowserPreferencesDataSource(
     }
 
     suspend fun updateCategoryShowFileDetails(categoryName: String, show: Boolean) =
-        updateCategoryBoolean(CATEGORY_SHOW_FILE_DETAILS_KEY, categoryName, show)
+        writer.updateCategoryBoolean(CATEGORY_SHOW_FILE_DETAILS_KEY, categoryName, show)
 
     suspend fun updateCategoryAspectRatio(categoryName: String, enabled: Boolean) =
-        updateCategoryBoolean(CATEGORY_ASPECT_RATIOS_KEY, categoryName, enabled)
+        writer.updateCategoryBoolean(CATEGORY_ASPECT_RATIOS_KEY, categoryName, enabled)
 
     suspend fun updateCategorySectioned(categoryName: String, enabled: Boolean) =
-        updateCategoryBoolean(CATEGORY_SECTIONED_KEY, categoryName, enabled)
+        writer.updateCategoryBoolean(CATEGORY_SECTIONED_KEY, categoryName, enabled)
 
     suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
         dataStore.edit { prefs ->
@@ -677,128 +678,16 @@ class BrowserPreferencesDataSource(
         }
     }
 
-    suspend fun updateDefaultSaveToArcilePath(path: String?) {
-        dataStore.edit { prefs ->
-            if (path.isNullOrBlank()) {
-                prefs.remove(DEFAULT_SAVE_TO_ARCILE_PATH_KEY)
-            } else {
-                prefs[DEFAULT_SAVE_TO_ARCILE_PATH_KEY] = path
-            }
-        }
-    }
+    suspend fun updateDefaultSaveToArcilePath(path: String?) =
+        writer.updateDefaultSaveToArcilePath(path)
 
-    suspend fun updateFavorite(path: String, isFavorite: Boolean) {
-        dataStore.edit { prefs ->
-            val favoriteFilesStr = prefs[FAVORITE_FILES_KEY]
-            val currentFavorites = if (!favoriteFilesStr.isNullOrEmpty()) {
-                runCatchingPreservingCancellation { Json.decodeFromString<Set<String>>(favoriteFilesStr) }.getOrDefault(emptySet())
-            } else {
-                emptySet()
-            }
-            val newFavorites = if (isFavorite) {
-                currentFavorites + path
-            } else {
-                currentFavorites - path
-            }
-            prefs[FAVORITE_FILES_KEY] = Json.encodeToString(newFavorites)
-        }
-    }
+    suspend fun updateFavorite(path: String, isFavorite: Boolean) =
+        writer.updateFavorite(path, isFavorite)
 
-    suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
-        dataStore.edit { prefs ->
-            val pinnedStr = prefs[PINNED_ALBUMS_KEY]
-            val currentPinned = if (!pinnedStr.isNullOrEmpty()) {
-                runCatchingPreservingCancellation { Json.decodeFromString<Set<String>>(pinnedStr) }.getOrDefault(emptySet())
-            } else {
-                emptySet()
-            }
-            val newPinned = if (isPinned) {
-                currentPinned + albumPath
-            } else {
-                currentPinned - albumPath
-            }
-            prefs[PINNED_ALBUMS_KEY] = Json.encodeToString(newPinned)
-        }
-    }
+    suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) =
+        writer.updatePinnedAlbum(albumPath, isPinned)
 
-    suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
-        dataStore.edit { prefs ->
-            val albumCoversStr = prefs[ALBUM_COVERS_KEY]
-            val currentCovers = if (!albumCoversStr.isNullOrEmpty()) {
-                runCatchingPreservingCancellation { Json.decodeFromString<Map<String, String>>(albumCoversStr) }.getOrDefault(emptyMap())
-            } else {
-                emptyMap()
-            }
-            val newCovers = if (coverPath.isEmpty()) {
-                currentCovers - albumPath
-            } else {
-                currentCovers + (albumPath to coverPath)
-            }
-            prefs[ALBUM_COVERS_KEY] = Json.encodeToString(newCovers)
-        }
-    }
+    suspend fun updateAlbumCover(albumPath: String, coverPath: String) =
+        writer.updateAlbumCover(albumPath, coverPath)
 
-    private fun parseSortOption(value: String?, fallback: FileSortOption): FileSortOption {
-        return FileSortOption.entries.find { it.name == value } ?: fallback
-    }
-
-    private fun parseViewMode(value: String?, fallback: FileViewMode): FileViewMode {
-        return FileViewMode.entries.find { it.name == value } ?: fallback
-    }
-
-    private fun parseCategoryLibraryPage(value: String?): CategoryLibraryPage? = when (value) {
-        CategoryLibraryPage.ITEMS.name,
-        "PHOTOS",
-        "AUDIO" -> CategoryLibraryPage.ITEMS
-        CategoryLibraryPage.FOLDERS.name,
-        "ALBUMS" -> CategoryLibraryPage.FOLDERS
-        else -> null
-    }
-
-    private fun parseCategoryBooleanMap(value: String?): Map<String, Boolean> =
-        value?.let { encoded ->
-            runCatchingPreservingCancellation {
-                Json.decodeFromString<Map<String, Boolean>>(encoded)
-            }.getOrDefault(emptyMap())
-        }.orEmpty()
-
-    private suspend fun updateCategoryBoolean(
-        key: androidx.datastore.preferences.core.Preferences.Key<String>,
-        categoryName: String,
-        value: Boolean
-    ) {
-        dataStore.edit { prefs ->
-            val current = parseCategoryBooleanMap(prefs[key])
-            prefs[key] = Json.encodeToString(current + (categoryName to value))
-        }
-    }
-
-    private fun currentPresentation(
-        existing: FileListingPreferences?,
-        globalPresentation: FileListingPreferences
-    ): FileListingPreferences {
-        return existing ?: globalPresentation
-    }
-
-    private fun presentationKeys(path: String, recursive: Boolean): PresentationKeys {
-        val prefix = if (recursive) "path" else "exact_path"
-        return PresentationKeys(
-            sort = stringPreferencesKey("${prefix}_sort_$path"),
-            viewMode = stringPreferencesKey("${prefix}_view_mode_$path"),
-            listZoom = floatPreferencesKey("${prefix}_list_zoom_$path"),
-            gridMinCellSize = floatPreferencesKey("${prefix}_grid_min_cell_size_$path"),
-            showThumbnails = booleanPreferencesKey("${prefix}_show_thumbnails_$path")
-        )
-    }
-
-    private data class PresentationKeys(
-        val sort: androidx.datastore.preferences.core.Preferences.Key<String>,
-        val viewMode: androidx.datastore.preferences.core.Preferences.Key<String>,
-        val listZoom: androidx.datastore.preferences.core.Preferences.Key<Float>,
-        val gridMinCellSize: androidx.datastore.preferences.core.Preferences.Key<Float>,
-        val showThumbnails: androidx.datastore.preferences.core.Preferences.Key<Boolean>
-    ) {
-        fun all(): List<androidx.datastore.preferences.core.Preferences.Key<*>> =
-            listOf(sort, viewMode, listZoom, gridMinCellSize, showThumbnails)
-    }
 }

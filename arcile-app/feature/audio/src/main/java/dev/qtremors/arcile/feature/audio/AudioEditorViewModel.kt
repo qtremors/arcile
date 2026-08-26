@@ -1,10 +1,7 @@
 package dev.qtremors.arcile.feature.audio
 
 import android.app.Application
-import android.media.MediaMetadataRetriever
-import android.media.MediaScannerConnection
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.media3.common.AudioAttributes
@@ -14,8 +11,8 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.transformer.ExportResult
-import java.io.File
-import kotlinx.coroutines.Dispatchers
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 internal data class AudioEditorSource(
     val path: String,
@@ -64,9 +60,12 @@ internal data class AudioEditorState(
     val loopEnabled: Boolean = true
 )
 
-internal class AudioEditorViewModel(application: Application) : AndroidViewModel(application) {
+@HiltViewModel
+internal class AudioEditorViewModel @Inject constructor(
+    application: Application,
+    private val workspace: AudioEditorWorkspace
+) : AndroidViewModel(application) {
     private val exporter = AudioLosslessExporter(application)
-    private val waveformExtractor = AudioWaveformExtractor()
     private val previewPlayer = ExoPlayer.Builder(application)
         .setAudioAttributes(
             AudioAttributes.Builder()
@@ -85,7 +84,6 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
     private var previewStartMs = 0L
     private var previewEndMs = 0L
     private var loaded = false
-    private val temporaryInputs = mutableSetOf<String>()
     private val addedUris = mutableSetOf<String>()
 
     init {
@@ -127,9 +125,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         if (loaded) return
         loaded = true
         viewModelScope.launch {
-            val sources = withContext(Dispatchers.IO) {
-                paths.distinct().mapNotNull(::readSource)
-            }
+            val sources = workspace.readSources(paths)
             if (sources.isEmpty()) {
                 _state.value = AudioEditorState(
                     isLoading = false,
@@ -154,9 +150,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         if (freshUris.isEmpty()) return
         _state.update { it.copy(isAddingSources = true, error = null) }
         viewModelScope.launch {
-            val importResults = withContext(Dispatchers.IO) {
-                freshUris.map { uri -> uri to importTemporarySource(uri) }
-            }
+            val importResults = workspace.importSources(freshUris)
             importResults.filter { it.second == null }.forEach { (uri, _) ->
                 addedUris -= uri.toString()
             }
@@ -196,8 +190,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
             )
         }
         if (source.temporary) {
-            temporaryInputs -= path
-            File(path).delete()
+            workspace.removeTemporary(path)
         }
     }
 
@@ -214,7 +207,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         previewStartMs = startMs
         previewEndMs = endMs
         val mediaItem = MediaItem.Builder()
-            .setUri(Uri.fromFile(File(path)))
+            .setUri(workspace.previewUri(path))
             .setClippingConfiguration(
                 MediaItem.ClippingConfiguration.Builder()
                     .setStartPositionMs(startMs)
@@ -288,9 +281,10 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         progressJob?.cancel()
         _state.update { it.copy(progress = 100, isPreservingMetadata = true) }
         metadataJob = viewModelScope.launch {
-            val metadataResult = withContext(Dispatchers.IO) {
-                AudioMetadataPreserver.copy(plan.segments.first().path, plan.outputPath)
-            }
+            val metadataResult = workspace.preserveMetadata(
+                plan.segments.first().path,
+                plan.outputPath
+            )
             val warnings = buildList {
                 if (exportResult.audioConversionProcess != ExportResult.CONVERSION_PROCESS_TRANSMUXED) {
                     add(getApplication<Application>().getString(R.string.audio_editor_reencoded_warning))
@@ -305,12 +299,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
                 }
             }
             activeOutputPath = null
-            MediaScannerConnection.scanFile(
-                getApplication(),
-                arrayOf(plan.outputPath),
-                null,
-                null
-            )
+            workspace.scan(plan.outputPath)
             _state.update {
                 it.copy(
                     isExporting = false,
@@ -341,7 +330,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         progressJob?.cancel()
         metadataJob?.cancel()
         exporter.cancel()
-        activeOutputPath?.let { File(it).delete() }
+        activeOutputPath?.let(workspace::delete)
         activeOutputPath = null
         _state.update {
             it.copy(
@@ -358,7 +347,7 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         metadataJob?.cancel()
         previewPlayer.release()
         if (_state.value.isExporting) cancelExport()
-        temporaryInputs.forEach { path -> File(path).delete() }
+        workspace.clearTemporaryInputs()
         super.onCleared()
     }
 
@@ -377,47 +366,8 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         }
     }
 
-    private fun readSource(path: String): AudioEditorSource? {
-        val file = File(path)
-        if (!file.isFile) return null
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(file.absolutePath)
-            val duration = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
-                ?.toLongOrNull()
-                ?: return null
-            AudioEditorSource(
-                path = file.absolutePath,
-                name = file.name,
-                durationMs = duration,
-                sizeBytes = file.length(),
-                metadata = AudioEditorMetadata(
-                    title = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_TITLE),
-                    artist = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_ARTIST),
-                    album = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_ALBUM),
-                    albumArtist = retriever.metadata(
-                        MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST
-                    ),
-                    genre = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_GENRE),
-                    year = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_YEAR),
-                    bitrate = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_BITRATE),
-                    mimeType = retriever.metadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE),
-                    artwork = retriever.embeddedPicture
-                )
-            )
-        } catch (_: RuntimeException) {
-            null
-        } finally {
-            retriever.release()
-        }
-    }
-
     private suspend fun extractWaveform(source: AudioEditorSource) {
-        val waveform = runCatching {
-            withContext(Dispatchers.IO) {
-                waveformExtractor.extract(source.path, source.durationMs)
-            }
-        }.getOrNull()
+        val waveform = workspace.extractWaveform(source)
         _state.update { current ->
             current.copy(
                 waveforms = waveform?.let {
@@ -428,42 +378,4 @@ internal class AudioEditorViewModel(application: Application) : AndroidViewModel
         }
     }
 
-    private fun importTemporarySource(uri: Uri): AudioEditorSource? {
-        val resolver = getApplication<Application>().contentResolver
-        val displayName = resolver.query(
-            uri,
-            arrayOf(OpenableColumns.DISPLAY_NAME),
-            null,
-            null,
-            null
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        }?.takeIf(String::isNotBlank) ?: "audio_${System.currentTimeMillis()}"
-        val safeName = displayName.replace(Regex("[^A-Za-z0-9._ -]"), "_")
-        val directory = File(getApplication<Application>().cacheDir, "audio_editor_inputs")
-            .apply(File::mkdirs)
-        val destination = generateSequence(1) { it + 1 }
-            .map { suffix ->
-                if (suffix == 1) File(directory, safeName)
-                else File(
-                    directory,
-                    "${safeName.substringBeforeLast('.', safeName)}_$suffix." +
-                        safeName.substringAfterLast('.', "audio")
-                )
-            }
-            .first { !it.exists() }
-        return runCatching {
-            resolver.openInputStream(uri)?.use { input ->
-                destination.outputStream().use(input::copyTo)
-            } ?: return null
-            temporaryInputs += destination.absolutePath
-            readSource(destination.absolutePath)?.copy(temporary = true)
-        }.getOrElse {
-            destination.delete()
-            null
-        }
-    }
-
-    private fun MediaMetadataRetriever.metadata(key: Int): String? =
-        extractMetadata(key)?.trim()?.takeIf(String::isNotBlank)
 }

@@ -58,8 +58,11 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ArcileGestureAxis
+import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.arcileSwipeDirection
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -257,15 +260,23 @@ internal fun resolveAudioMiniPlayerGesture(
     thresholdPx: Float,
     velocityPxPerSecond: Float = 0f,
     velocityThresholdPxPerSecond: Float = Float.POSITIVE_INFINITY
-): AudioMiniPlayerGesture = when {
-    thresholdPx <= 0f -> AudioMiniPlayerGesture.NONE
-    velocityThresholdPxPerSecond > 0f &&
-        velocityPxPerSecond <= -velocityThresholdPxPerSecond -> AudioMiniPlayerGesture.EXPAND
-    velocityThresholdPxPerSecond > 0f &&
-        velocityPxPerSecond >= velocityThresholdPxPerSecond -> AudioMiniPlayerGesture.DISMISS
-    dragOffsetPx <= -thresholdPx -> AudioMiniPlayerGesture.EXPAND
-    dragOffsetPx >= thresholdPx -> AudioMiniPlayerGesture.DISMISS
-    else -> AudioMiniPlayerGesture.NONE
+): AudioMiniPlayerGesture {
+    val direction = arcileSwipeDirection(
+        axis = ArcileGestureAxis.Vertical,
+        deltaX = 0f,
+        deltaY = dragOffsetPx,
+        velocityX = 0f,
+        velocityY = velocityPxPerSecond,
+        minimumDistance = thresholdPx,
+        minimumVelocity = velocityThresholdPxPerSecond
+    )
+    return when (direction) {
+        ArcileSwipeDirection.Up -> AudioMiniPlayerGesture.EXPAND
+        ArcileSwipeDirection.Down -> AudioMiniPlayerGesture.DISMISS
+        ArcileSwipeDirection.Left,
+        ArcileSwipeDirection.Right,
+        null -> AudioMiniPlayerGesture.NONE
+    }
 }
 
 private suspend fun Animatable<Float, *>.settleMiniDrag() {

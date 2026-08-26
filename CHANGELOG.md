@@ -1,10 +1,14 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.8
-> **Last Updated:** 2026-08-25
+> **Version:** 2.0.9
+> **Last Updated:** 2026-08-26
 
 ---
+
+## [2.0.9] - 2026-08-26
+
+- **Predictable App Gestures**: Added shared touch-slop, direction-lock, velocity, cancellation, and system-edge rules so Browser swipes, Gallery viewer gestures, audio-player gestures, and feedback dismissal distinguish taps from intentional swipes and settle once at release.
 
 ## [2.0.8] - 2026-08-25
 
