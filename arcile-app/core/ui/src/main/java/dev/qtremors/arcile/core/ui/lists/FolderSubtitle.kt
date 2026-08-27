@@ -19,7 +19,7 @@ internal fun folderSubtitleText(folderStats: FolderStats?): String {
         folderStats.fileCount.toInt(),
         folderStats.fileCount
     )
-    val sizeLabel = formatFileSize(folderStats.totalBytes)
+    val sizeLabel = formatFileSize(androidx.compose.ui.platform.LocalContext.current, folderStats.totalBytes)
 
     return when (folderStats.status) {
         FolderStatsStatus.Ready -> "$filesLabel • $sizeLabel"

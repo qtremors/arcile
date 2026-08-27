@@ -55,6 +55,13 @@
     <string name="cleaner_old_downloads_desc">Downloads older than 30 days.</string>
     <string name="cleaner_duplicates">Duplicate files</string>
     <string name="cleaner_duplicates_desc">Files with identical content, verified by checksum.</string>
+    <string name="cleaner_filename_versions">Filename versions</string>
+    <string name="cleaner_filename_versions_desc">Old or duplicate versions of files with version numbers or copy suffixes.</string>
+    <string name="cleaner_likely_newest">Likely newest</string>
+    <string name="cleaner_evidence_semantic_version">Semantic version</string>
+    <string name="cleaner_evidence_duplicate_suffix">Duplicate suffix</string>
+    <string name="cleaner_evidence_apk_package">Matched APK package</string>
+    <plurals name="cleaner_version_count"><item quantity="one">%1$d version</item><item quantity="other">%1$d versions</item></plurals>
     <string name="cleaner_apks">APK files</string>
     <string name="cleaner_apks_desc">Installer packages that may no longer be needed.</string>
     <string name="cleaner_videos">Videos</string>

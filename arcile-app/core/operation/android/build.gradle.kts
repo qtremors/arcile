@@ -36,6 +36,8 @@ dependencies {
     implementation(project(":core:storage:data"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:ui"))
+    implementation(project(":plugin-api"))
+    implementation(project(":core:plugin:android"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.hilt.android)

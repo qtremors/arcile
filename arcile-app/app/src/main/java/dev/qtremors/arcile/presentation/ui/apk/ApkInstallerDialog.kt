@@ -248,7 +248,7 @@ fun ApkInstallerDialog(
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = formatFileSize(details.totalSizeBytes),
+                                    text = formatFileSize(androidx.compose.ui.platform.LocalContext.current, details.totalSizeBytes),
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Medium
                                 )

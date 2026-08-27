@@ -7,7 +7,8 @@ fun filterAndSortFiles(
     files: List<FileModel>,
     query: String,
     sortOption: FileSortOption,
-    fileCountFor: (FileModel) -> Long? = { file -> if (file.isDirectory) null else 1L }
+    fileCountFor: (FileModel) -> Long? = { file -> if (file.isDirectory) null else 1L },
+    foldersFirst: Boolean = true
 ): List<FileModel> {
     val normalizedQuery = query.trim().lowercase()
     val filteredFiles = if (normalizedQuery.isBlank()) {
@@ -31,10 +32,10 @@ fun filterAndSortFiles(
             .thenBy { fileCountFor(it) ?: Long.MAX_VALUE }
     }
 
-    val comparator = when (sortOption) {
-        FileSortOption.DATE_NEWEST,
-        FileSortOption.DATE_OLDEST -> sortComparator
-        else -> compareBy<FileModel> { !it.isDirectory }.then(sortComparator)
+    val comparator = if (foldersFirst) {
+        compareBy<FileModel> { !it.isDirectory }.then(sortComparator)
+    } else {
+        sortComparator
     }
     return filteredFiles.sortedWith(
         comparator.thenBy(String.CASE_INSENSITIVE_ORDER, FileModel::name)

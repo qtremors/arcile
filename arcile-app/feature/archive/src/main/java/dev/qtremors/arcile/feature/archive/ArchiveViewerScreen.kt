@@ -92,6 +92,9 @@ import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
@@ -101,7 +104,10 @@ internal fun ArchiveViewerScreen(
     navigationActions: ArchiveNavigationActions,
     extractionActions: ArchiveExtractionActions,
     conflictActions: ArchiveConflictActions,
-    selectionActions: ArchiveSelectionActions
+    selectionActions: ArchiveSelectionActions,
+    archiveFileModel: FileModel = FileModel(name = "", absolutePath = ""),
+    viewerActions: Set<ViewerFileAction> = emptySet(),
+    onViewerAction: (ViewerFileAction) -> Unit = {}
 ) {
     val onNavigateBack = navigationActions.navigateBack
     val onNavigateUpInArchive = navigationActions.navigateUpInArchive
@@ -301,8 +307,15 @@ internal fun ArchiveViewerScreen(
                         }
                     }
                 }
-            )
-        }
+                        )
+                        ViewerOverflowMenu(
+                            currentFile = archiveFileModel,
+                            allowedActions = viewerActions,
+                            onAction = onViewerAction,
+                            buttonColor = Color.Transparent,
+                            buttonContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -383,7 +396,7 @@ internal fun ArchiveViewerScreen(
                                         stringResource(R.string.folder_label)
                                     }
                                 } else {
-                                    formatFileSize(item.size)
+                                    formatFileSize(androidx.compose.ui.platform.LocalContext.current, item.size)
                                 },
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis

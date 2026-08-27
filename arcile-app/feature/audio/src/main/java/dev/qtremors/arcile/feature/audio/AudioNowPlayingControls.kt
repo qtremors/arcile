@@ -47,6 +47,15 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.FolderZip
+
 @Composable
 internal fun AudioPlayerTopBar(
     track: AudioTrack,
@@ -56,6 +65,13 @@ internal fun AudioPlayerTopBar(
     onDismissMenu: () -> Unit,
     onEdit: () -> Unit,
     onOpenWith: () -> Unit,
+    onShare: (() -> Unit)? = null,
+    onCopy: (() -> Unit)? = null,
+    onCut: (() -> Unit)? = null,
+    onRename: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null,
+    onProperties: (() -> Unit)? = null,
+    onArchive: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -116,35 +132,121 @@ internal fun AudioPlayerTopBar(
                     )
                 }
             }
-            ArcileDropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = onDismissMenu,
-                items = listOf(
-                    {
+            val menuItems = buildList<@Composable () -> Unit> {
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.audio_edit),
+                        leadingIcon = {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                        },
+                        onClick = {
+                            onDismissMenu()
+                            onEdit()
+                        }
+                    )
+                }
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.audio_open_with),
+                        leadingIcon = {
+                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                        },
+                        onClick = {
+                            onDismissMenu()
+                            onOpenWith()
+                        }
+                    )
+                }
+                if (onShare != null) {
+                    add {
                         ArcileDropdownMenuItem(
-                            text = stringResource(R.string.audio_edit),
-                            leadingIcon = {
-                                Icon(Icons.Default.Edit, contentDescription = null)
-                            },
+                            text = stringResource(R.string.audio_share),
+                            leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                             onClick = {
                                 onDismissMenu()
-                                onEdit()
-                            }
-                        )
-                    },
-                    {
-                        ArcileDropdownMenuItem(
-                            text = stringResource(R.string.audio_open_with),
-                            leadingIcon = {
-                                Icon(Icons.Default.Headphones, contentDescription = null)
-                            },
-                            onClick = {
-                                onDismissMenu()
-                                onOpenWith()
+                                onShare()
                             }
                         )
                     }
-                )
+                }
+                if (onRename != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(dev.qtremors.arcile.core.ui.R.string.action_rename),
+                            leadingIcon = { Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null) },
+                            onClick = {
+                                onDismissMenu()
+                                onRename()
+                            }
+                        )
+                    }
+                }
+                if (onCopy != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(dev.qtremors.arcile.core.ui.R.string.action_copy),
+                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+                            onClick = {
+                                onDismissMenu()
+                                onCopy()
+                            }
+                        )
+                    }
+                }
+                if (onCut != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(dev.qtremors.arcile.core.ui.R.string.action_cut),
+                            leadingIcon = { Icon(Icons.Default.ContentCut, contentDescription = null) },
+                            onClick = {
+                                onDismissMenu()
+                                onCut()
+                            }
+                        )
+                    }
+                }
+                if (onProperties != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(dev.qtremors.arcile.core.ui.R.string.action_properties),
+                            leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                            onClick = {
+                                onDismissMenu()
+                                onProperties()
+                            }
+                        )
+                    }
+                }
+                if (onArchive != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(dev.qtremors.arcile.core.ui.R.string.action_create_archive),
+                            leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
+                            onClick = {
+                                onDismissMenu()
+                                onArchive()
+                            }
+                        )
+                    }
+                }
+                if (onDelete != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(dev.qtremors.arcile.core.ui.R.string.action_delete),
+                            leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
+                            onClick = {
+                                onDismissMenu()
+                                onDelete()
+                            }
+                        )
+                    }
+                }
+            }
+
+            ArcileDropdownMenu(
+                expanded = showMenu,
+                onDismissRequest = onDismissMenu,
+                items = menuItems
             )
         }
     }

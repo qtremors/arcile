@@ -123,10 +123,10 @@ fun SearchFiltersSheet(
     var folderScopeText by rememberSaveable(currentFilters.folderScopePath) { mutableStateOf(currentFilters.folderScopePath.orEmpty()) }
     var volumeText by rememberSaveable(currentFilters.storageVolumeId) { mutableStateOf(currentFilters.storageVolumeId.orEmpty()) }
     var minSizeText by rememberSaveable(currentFilters.minSize) {
-        mutableStateOf(currentFilters.minSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+        mutableStateOf(currentFilters.minSize?.let { (it / 1_000_000f).toString() }.orEmpty())
     }
     var maxSizeText by rememberSaveable(currentFilters.maxSize) {
-        mutableStateOf(currentFilters.maxSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+        mutableStateOf(currentFilters.maxSize?.let { (it / 1_000_000f).toString() }.orEmpty())
     }
     var minDateMillis by rememberSaveable(currentFilters.minDateMillis) { mutableStateOf(currentFilters.minDateMillis) }
     var maxDateMillis by rememberSaveable(currentFilters.maxDateMillis) { mutableStateOf(currentFilters.maxDateMillis) }
@@ -144,8 +144,8 @@ fun SearchFiltersSheet(
         mimeType = mimeText.trim().ifBlank { null },
         folderScopePath = folderScopeText.trim().ifBlank { null },
         storageVolumeId = volumeText.trim().ifBlank { null },
-        minSize = minSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() },
-        maxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() },
+        minSize = minSizeText.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() },
+        maxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() },
         minDateMillis = minDateMillis,
         maxDateMillis = maxDateMillis,
         includeHidden = includeHidden,
@@ -229,9 +229,10 @@ fun SearchFiltersSheet(
 
             Text(stringResource(R.string.file_size), style = MaterialTheme.typography.titleMedium)
 
-            val sizePresets = remember(allLabel) { getPresetSizes(allLabel) }
-            val parsedMinSize = minSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
-            val parsedMaxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val sizePresets = remember(allLabel, context) { getPresetSizes(context, allLabel) }
+            val parsedMinSize = minSizeText.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }
+            val parsedMaxSize = maxSizeText.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }
 
             val selectedSizePreset = sizePresets.find { (_, sizeRange) ->
                 parsedMinSize == sizeRange.first && parsedMaxSize == sizeRange.second
@@ -245,8 +246,8 @@ fun SearchFiltersSheet(
                     ExpressiveFilterChip(
                         selected = selectedSizePreset.first == preset.first,
                         onClick = {
-                            minSizeText = preset.second.first?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
-                            maxSizeText = preset.second.second?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
+                            minSizeText = preset.second.first?.let { (it / 1_000_000f).toString() }.orEmpty()
+                            maxSizeText = preset.second.second?.let { (it / 1_000_000f).toString() }.orEmpty()
                         },
                         label = { Text(preset.first) }
                     )

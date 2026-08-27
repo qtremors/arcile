@@ -207,7 +207,7 @@ internal fun GalleryImageItem(
     CategoryGridItem(
         info = CategoryItemInfo(
             title = file.name,
-            detailLines = listOf(formatFileSize(file.size))
+            detailLines = listOf(formatFileSize(context, file.size))
         ),
         selected = isSelected,
         showInfo = showDetails,
@@ -289,7 +289,10 @@ internal fun GalleryThumbnail(
         }
         if (showPlaceholder) {
             Icon(
-                imageVector = getFileIconVector(file),
+                imageVector = getFileIconVector(
+                    file,
+                    dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                ),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )

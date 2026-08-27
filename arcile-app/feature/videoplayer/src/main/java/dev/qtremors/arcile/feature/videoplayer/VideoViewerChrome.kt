@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.videoplayer
 
-import android.content.res.Configuration
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -74,8 +73,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -89,13 +88,15 @@ import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import dev.qtremors.arcile.core.ui.viewerThumbnailFastScroll
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.launch
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowExtraAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
 
 internal data class VideoViewerChromeActions(
     val onPageSelected: suspend (Int) -> Unit,
@@ -128,7 +129,8 @@ internal fun VideoViewerTopChrome(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowSize = LocalWindowInfo.current.containerSize
+    val isLandscape = windowSize.width > windowSize.height
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
@@ -221,6 +223,8 @@ internal fun VideoViewerBottomChrome(
     playbackDuration: Long,
     canOpenWith: Boolean,
     canShare: Boolean,
+    viewerActions: Set<ViewerFileAction>,
+    onViewerAction: (ViewerFileAction) -> Unit,
     resizeModeIndex: Int,
     actions: VideoViewerChromeActions,
     modifier: Modifier = Modifier,
@@ -229,7 +233,8 @@ internal fun VideoViewerBottomChrome(
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
     val context = LocalContext.current
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowSize = LocalWindowInfo.current.containerSize
+    val isLandscape = windowSize.width > windowSize.height
     val thumbnailEntries = remember(context, files) {
         files.associate { file ->
             val thumbnailKey = ThumbnailKey.from(file)
@@ -295,11 +300,6 @@ internal fun VideoViewerBottomChrome(
                     state = thumbnailListState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .viewerThumbnailFastScroll(
-                            state = thumbnailListState,
-                            orientation = Orientation.Vertical,
-                            onFastScrollStart = haptics::selectionStart
-                        )
                         .background(Color.Black.copy(alpha = 0.5f)),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -344,13 +344,7 @@ internal fun VideoViewerBottomChrome(
                     val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
                     LazyRow(
                         state = thumbnailListState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .viewerThumbnailFastScroll(
-                                state = thumbnailListState,
-                                orientation = Orientation.Horizontal,
-                                onFastScrollStart = haptics::selectionStart
-                            ),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                         contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
@@ -358,7 +352,7 @@ internal fun VideoViewerBottomChrome(
                         itemsIndexed(
                             items = files,
                             key = { _, file -> file.absolutePath }
-                    ) { index, file ->
+                        ) { index, file ->
                             VideoViewerStripThumbnail(
                                 file = file,
                                 selected = currentPage == index,
@@ -605,13 +599,28 @@ internal fun VideoViewerBottomChrome(
                     iconSize = 24.dp
                 )
 
-                VideoViewerOverflowMenu(
+                ViewerOverflowMenu(
                     currentFile = currentFile,
-                    readOnly = readOnly,
-                    canOpenWith = canOpenWith,
-                    canShare = canShare,
-                    showThumbnails = showThumbnails,
-                    actions = actions
+                    allowedActions = viewerActions,
+                    onAction = onViewerAction,
+                    onShowMetadata = if (!readOnly && currentFile != null) {
+                        { actions.onShowMetadata(currentFile.absolutePath) }
+                    } else {
+                        null
+                    },
+                    extraActions = listOf(
+                        ViewerOverflowExtraAction(
+                            label = stringResource(
+                                if (showThumbnails) {
+                                    R.string.video_player_hide_thumbnails
+                                } else {
+                                    R.string.video_player_show_thumbnails
+                                }
+                            ),
+                            icon = Icons.Default.VideoLibrary,
+                            onClick = actions.onToggleThumbnails
+                        )
+                    )
                 )
             }
         }

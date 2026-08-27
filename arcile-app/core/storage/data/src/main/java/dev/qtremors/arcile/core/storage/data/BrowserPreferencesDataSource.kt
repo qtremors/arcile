@@ -64,7 +64,10 @@ class BrowserPreferencesDataSource(
                 listZoom = prefs[GLOBAL_LIST_ZOOM_KEY] ?: FileListingPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY]
                     ?: FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
-                showThumbnails = prefs[GLOBAL_SHOW_THUMBNAILS_KEY] ?: FileListingPreferences.DEFAULT_SHOW_THUMBNAILS
+                showThumbnails = prefs[GLOBAL_SHOW_THUMBNAILS_KEY]
+                    ?: FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
+                foldersFirst = prefs[GLOBAL_FOLDERS_FIRST_KEY]
+                    ?: FileListingPreferences.DEFAULT_FOLDERS_FIRST
             ).normalized()
 
             val recentPresentation = FileListingPreferences(
@@ -81,7 +84,9 @@ class BrowserPreferencesDataSource(
                     ?: FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
                 showThumbnails = prefs[RECENT_SHOW_THUMBNAILS_KEY]
                     ?: prefs[GLOBAL_SHOW_THUMBNAILS_KEY]
-                    ?: FileListingPreferences.DEFAULT_SHOW_THUMBNAILS
+                    ?: FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
+                foldersFirst = prefs[RECENT_FOLDERS_FIRST_KEY]
+                    ?: BrowserPreferences().recentPresentation.foldersFirst
             ).normalized()
 
             val pathMap = mutableMapOf<String, FileListingPreferences>()
@@ -167,6 +172,22 @@ class BrowserPreferencesDataSource(
                             globalPresentation
                         ).copy(showThumbnails = value)
                     }
+
+                    key.name.startsWith("path_folders_first_") && value is Boolean -> {
+                        val path = key.name.removePrefix("path_folders_first_")
+                        pathMap[path] = currentPresentation(
+                            pathMap[path],
+                            globalPresentation
+                        ).copy(foldersFirst = value)
+                    }
+
+                    key.name.startsWith("exact_path_folders_first_") && value is Boolean -> {
+                        val path = key.name.removePrefix("exact_path_folders_first_")
+                        exactPathMap[path] = currentPresentation(
+                            exactPathMap[path],
+                            globalPresentation
+                        ).copy(foldersFirst = value)
+                    }
                 }
             }
 
@@ -189,7 +210,9 @@ class BrowserPreferencesDataSource(
                 listZoom = FileListingPreferences.DEFAULT_LIST_ZOOM,
                 gridMinCellSize = prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY]
                     ?: BrowserPreferences().albumPresentation.gridMinCellSize,
-                showThumbnails = true
+                showThumbnails = true,
+                foldersFirst = prefs[ALBUM_FOLDERS_FIRST_KEY]
+                    ?: FileListingPreferences.DEFAULT_FOLDERS_FIRST
             ).normalized()
 
             val defaults = BrowserPreferences()
@@ -205,7 +228,9 @@ class BrowserPreferencesDataSource(
                 listZoom = prefs[AUDIO_LIST_ZOOM_KEY] ?: defaults.audioPresentation.listZoom,
                 gridMinCellSize = prefs[AUDIO_GRID_MIN_CELL_SIZE_KEY]
                     ?: defaults.audioPresentation.gridMinCellSize,
-                showThumbnails = true
+                showThumbnails = true,
+                foldersFirst = prefs[AUDIO_FOLDERS_FIRST_KEY]
+                    ?: FileListingPreferences.DEFAULT_FOLDERS_FIRST
             ).normalized()
             val audioFolderPresentation = FileListingPreferences(
                 sortOption = parseSortOption(
@@ -220,7 +245,9 @@ class BrowserPreferencesDataSource(
                     ?: defaults.audioFolderPresentation.listZoom,
                 gridMinCellSize = prefs[AUDIO_FOLDER_GRID_MIN_CELL_SIZE_KEY]
                     ?: defaults.audioFolderPresentation.gridMinCellSize,
-                showThumbnails = true
+                showThumbnails = true,
+                foldersFirst = prefs[AUDIO_FOLDER_FOLDERS_FIRST_KEY]
+                    ?: FileListingPreferences.DEFAULT_FOLDERS_FIRST
             ).normalized()
             val audioGrouping = CategoryGrouping.entries.firstOrNull {
                 it.name == prefs[AUDIO_GROUPING_KEY]
@@ -394,6 +421,7 @@ class BrowserPreferencesDataSource(
             prefs[GLOBAL_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[GLOBAL_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
             prefs[GLOBAL_SHOW_THUMBNAILS_KEY] = normalized.showThumbnails
+            prefs[GLOBAL_FOLDERS_FIRST_KEY] = normalized.foldersFirst
         }
     }
 
@@ -405,6 +433,7 @@ class BrowserPreferencesDataSource(
             prefs[RECENT_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[RECENT_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
             prefs[RECENT_SHOW_THUMBNAILS_KEY] = normalized.showThumbnails
+            prefs[RECENT_FOLDERS_FIRST_KEY] = normalized.foldersFirst
         }
     }
 
@@ -486,6 +515,7 @@ class BrowserPreferencesDataSource(
             prefs[ALBUM_SORT_OPTION_KEY] = normalized.sortOption.name
             prefs[ALBUM_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[ALBUM_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+            prefs[ALBUM_FOLDERS_FIRST_KEY] = normalized.foldersFirst
         }
     }
 
@@ -521,6 +551,7 @@ class BrowserPreferencesDataSource(
                 prefs[keys.listZoom] = normalized.listZoom
                 prefs[keys.gridMinCellSize] = normalized.gridMinCellSize
                 prefs[keys.showThumbnails] = normalized.showThumbnails
+                prefs[keys.foldersFirst] = normalized.foldersFirst
             }
         }
     }
@@ -544,6 +575,7 @@ class BrowserPreferencesDataSource(
             prefs[AUDIO_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[AUDIO_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[AUDIO_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+            prefs[AUDIO_FOLDERS_FIRST_KEY] = normalized.foldersFirst
         }
     }
 
@@ -554,6 +586,7 @@ class BrowserPreferencesDataSource(
             prefs[AUDIO_FOLDER_VIEW_MODE_KEY] = normalized.viewMode.name
             prefs[AUDIO_FOLDER_LIST_ZOOM_KEY] = normalized.listZoom
             prefs[AUDIO_FOLDER_GRID_MIN_CELL_SIZE_KEY] = normalized.gridMinCellSize
+            prefs[AUDIO_FOLDER_FOLDERS_FIRST_KEY] = normalized.foldersFirst
         }
     }
 

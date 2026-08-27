@@ -15,6 +15,9 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanner
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanPhase
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanUpdate
+import dev.qtremors.arcile.core.storage.domain.FilenameVersionEvidence
+import dev.qtremors.arcile.core.storage.domain.FilenameVersionMetadata
+import dev.qtremors.arcile.core.vault.domain.OnlyFilesVaultFormat
 import java.io.File
 import java.io.RandomAccessFile
 import java.security.MessageDigest
@@ -28,10 +31,17 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 
-class DefaultStorageCleanerScanner @Inject constructor(
+class DefaultStorageCleanerScanner(
     private val dispatchers: ArcileDispatchers,
-    private val snapshotStore: StorageCleanerSnapshotStore? = null
+    private val snapshotStore: StorageCleanerSnapshotStore? = null,
+    private val apkPackageResolver: (String) -> Pair<String, Long>? = { extractApkPackageInfo(it) }
 ) : StorageCleanerScanner {
+
+    @Inject
+    constructor(
+        dispatchers: ArcileDispatchers,
+        snapshotStore: StorageCleanerSnapshotStore
+    ) : this(dispatchers, snapshotStore, { extractApkPackageInfo(it) })
     override suspend fun cachedScan(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
@@ -51,19 +61,24 @@ class DefaultStorageCleanerScanner @Inject constructor(
         groupTypes: Set<CleanerGroupType>,
         limits: StorageCleanerScanLimits,
         rules: StorageCleanerRules
-    ): CachedStorageCleanerResult? {
-        val store = snapshotStore ?: return null
+    ): CachedStorageCleanerResult? = withContext(dispatchers.storage) {
+        val store = snapshotStore ?: return@withContext null
         val allGroups = CleanerGroupType.entries.toSet()
         val cached = (
             store.get(rootPaths, limits, rules, groupTypes)
                 ?: if (groupTypes != allGroups) store.get(rootPaths, limits, rules, allGroups) else null
-            ) ?: return null
-        return cached.copy(
+            ) ?: return@withContext null
+        cached.copy(
             result = cached.result.copy(
                 groups = cached.result.groups.filter { it.type in groupTypes }
             ).withoutStaleCandidates()
         )
     }
+
+    override suspend fun protectedCleanerPaths(paths: Collection<String>): Set<String> =
+        withContext(dispatchers.storage) {
+            OnlyFilesVaultFormat.pathsInsideVault(paths)
+        }
 
     override suspend fun scan(
         rootPaths: List<String>,
@@ -133,15 +148,18 @@ class DefaultStorageCleanerScanner @Inject constructor(
             snapshotStore?.put(rootPaths, limits, rules, requestedGroups, emptyResult)
             return emptyResult
         }
-        val lightweightGroups = CleanerGroupType.entries.toSet() - CleanerGroupType.Duplicates
+        val expensiveGroups = setOf(CleanerGroupType.Duplicates, CleanerGroupType.FilenameVersions)
+        val lightweightGroups = CleanerGroupType.entries.toSet() - expensiveGroups
         val workGroups = when {
-            CleanerGroupType.Duplicates in requestedGroups -> requestedGroups
+            requestedGroups.any { it in expensiveGroups } -> requestedGroups
             else -> lightweightGroups
         }
         val activeGroups = workGroups.filterTo(linkedSetOf()) { normalizedRules.section(it).enabled }
-        val classificationGroups = activeGroups - CleanerGroupType.Duplicates
+        val classificationGroups = activeGroups - CleanerGroupType.Duplicates - CleanerGroupType.FilenameVersions
         val needsDuplicates = CleanerGroupType.Duplicates in activeGroups
+        val needsFilenameVersions = CleanerGroupType.FilenameVersions in activeGroups
         val duplicateFiles = if (needsDuplicates) ArrayList<FileSnapshot>() else null
+        val versionFiles = if (needsFilenameVersions) ArrayList<FileSnapshot>() else null
         val accumulators = activeGroups.associateWith { CandidateAccumulator(limits.maxCandidatesPerGroup) }
         val largeFileThreshold = normalizedRules.section(CleanerGroupType.LargeFiles)
             .largeFileThresholdBytes ?: limits.largeFileThresholdBytes
@@ -154,10 +172,14 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val walkResult = walk(
             rootPaths = rootPaths,
             limits = limits,
+            ignoredPaths = normalizedRules.ignoredPaths,
             includeDownloadClassification = CleanerGroupType.OldDownloads in activeGroups
         ) { snapshot, scannedFiles, visitedEntries, pendingEntries ->
-            if (snapshot.absolutePath !in normalizedRules.ignoredPaths) {
-                if (!snapshot.isDirectory) duplicateFiles?.add(snapshot)
+            if (!isPathIgnored(snapshot.absolutePath, normalizedRules.ignoredPaths)) {
+                if (!snapshot.isDirectory) {
+                    duplicateFiles?.add(snapshot)
+                    versionFiles?.add(snapshot)
+                }
                 val matchingGroups = matchingGroups(
                     file = snapshot,
                     requestedGroups = classificationGroups,
@@ -198,6 +220,25 @@ class DefaultStorageCleanerScanner @Inject constructor(
         }
 
         val completedWithoutDuplicates = (activeGroups - CleanerGroupType.Duplicates).intersect(requestedGroups)
+        if (needsFilenameVersions) {
+            findFilenameVersionFamilies(versionFiles.orEmpty(), apkPackageResolver).forEach { family ->
+                family.members.forEach { member ->
+                    val risk = classifyRisk(member.snapshot).copy(level = CleanerRiskLevel.Review)
+                    accumulators.getValue(CleanerGroupType.FilenameVersions).add(
+                        member.snapshot.toCandidate(
+                            groups = setOf(CleanerGroupType.FilenameVersions),
+                            risk = risk,
+                            filenameVersionMetadata = FilenameVersionMetadata(
+                                familyKey = family.key,
+                                displayStem = family.displayStem,
+                                evidenceType = family.evidenceType,
+                                isLikelyNewest = member.isLikelyNewest
+                            )
+                        )
+                    )
+                }
+            }
+        }
         if (needsDuplicates) {
             onUpdate(
                 StorageCleanerScanUpdate(
@@ -495,13 +536,16 @@ class DefaultStorageCleanerScanner @Inject constructor(
     private suspend fun walk(
         rootPaths: List<String>,
         limits: StorageCleanerScanLimits,
+        ignoredPaths: Set<String> = emptySet(),
         includeDownloadClassification: Boolean,
         onSnapshot: suspend (FileSnapshot, scannedFiles: Int, visitedEntries: Int, pendingEntries: Int) -> Unit
     ): WalkResult {
         val pending = ArrayDeque<Pair<File, Int>>()
-        rootPaths.map { File(it) }
+        val rootFiles = rootPaths.map { File(it) }
             .distinctBy { it.absolutePath }
-            .filter { it.exists() && it.isDirectory }
+        val protectedRoots = OnlyFilesVaultFormat.pathsInsideVault(rootFiles.map(File::getAbsolutePath))
+        rootFiles
+            .filter { it.exists() && it.isDirectory && it.absolutePath !in protectedRoots }
             .forEach { pending.add(it to 0) }
         var partial = false
         var scannedFiles = 0
@@ -513,16 +557,18 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
             val (current, depth) = pending.removeFirst()
             visitedEntries++
-            if (shouldSkip(current)) continue
+            if (shouldSkip(current) || isPathIgnored(current.absolutePath, ignoredPaths)) continue
 
             if (current.isFile) {
-                scannedFiles++
-                onSnapshot(
-                    current.toSnapshot(includeDownloadClassification = includeDownloadClassification),
-                    scannedFiles,
-                    visitedEntries,
-                    pending.size
-                )
+                if (!OnlyFilesVaultFormat.isVaultHeaderName(current.name)) {
+                    scannedFiles++
+                    onSnapshot(
+                        current.toSnapshot(includeDownloadClassification = includeDownloadClassification),
+                        scannedFiles,
+                        visitedEntries,
+                        pending.size
+                    )
+                }
                 continue
             }
             if (!current.isDirectory) continue
@@ -543,6 +589,10 @@ class DefaultStorageCleanerScanner @Inject constructor(
                 // cleaner results incomplete.
                 continue
             }
+            if (children.any { OnlyFilesVaultFormat.isVaultHeaderName(it.name) }) {
+                // Directory contains vault headers - prune this entire vault root
+                continue
+            }
             if (children.isEmpty() && depth > 0) {
                 scannedFiles++
                 onSnapshot(
@@ -559,6 +609,17 @@ class DefaultStorageCleanerScanner @Inject constructor(
             children.forEach { child -> pending.add(child to depth + 1) }
         }
         return WalkResult(scannedFiles, partial)
+    }
+
+    private fun isPathIgnored(path: String, ignoredPaths: Set<String>): Boolean {
+        if (ignoredPaths.isEmpty()) return false
+        val normalized = path.removeSuffix(File.separator).removeSuffix("/")
+        return ignoredPaths.any { ignored ->
+            val normIgnored = ignored.removeSuffix(File.separator).removeSuffix("/")
+            normalized == normIgnored ||
+                normalized.startsWith("$normIgnored/") ||
+                normalized.startsWith("$normIgnored\\")
+        }
     }
 
     private fun File.toSnapshot(
@@ -581,7 +642,8 @@ class DefaultStorageCleanerScanner @Inject constructor(
 
     private fun shouldSkip(file: File): Boolean {
         val name = file.name.lowercase(Locale.ROOT)
-        return name == ".arcile" || name == ".trash" || name == ".thumbnails"
+        return name == ".arcile" || name == ".trash" || name == ".thumbnails" ||
+            OnlyFilesVaultFormat.isVaultHeaderName(file.name)
     }
 
     private fun isJunk(file: FileSnapshot): Boolean {
@@ -641,7 +703,8 @@ class DefaultStorageCleanerScanner @Inject constructor(
     private fun FileSnapshot.toCandidate(
         groups: Set<CleanerGroupType>,
         risk: RiskClassification,
-        duplicateGroupKey: String? = null
+        duplicateGroupKey: String? = null,
+        filenameVersionMetadata: FilenameVersionMetadata? = null
     ) = CleanerCandidate(
         name = name,
         absolutePath = absolutePath,
@@ -651,28 +714,42 @@ class DefaultStorageCleanerScanner @Inject constructor(
         riskLevel = risk.level,
         riskReasons = risk.reasons,
         isDirectory = isDirectory,
-        duplicateGroupKey = duplicateGroupKey
+        duplicateGroupKey = duplicateGroupKey,
+        filenameVersionMetadata = filenameVersionMetadata
     )
 
-    private fun StorageCleanerResult.withoutStaleCandidates(): StorageCleanerResult = copy(
-        groups = groups.map { group ->
-            val existingCandidates = group.candidates.filter { candidate ->
-                val file = File(candidate.absolutePath)
-                file.exists() && file.isDirectory == candidate.isDirectory &&
-                    (candidate.isDirectory || file.length().coerceAtLeast(0L) == candidate.size)
-            }
-            group.copy(
-                candidates = if (group.type == CleanerGroupType.Duplicates) {
-                    existingCandidates.groupBy { it.duplicateGroupKey ?: it.absolutePath }
-                        .values
-                        .filter { it.size > 1 }
-                        .flatten()
-                } else {
-                    existingCandidates
+    private fun StorageCleanerResult.withoutStaleCandidates(): StorageCleanerResult {
+        val protectedPaths = OnlyFilesVaultFormat.pathsInsideVault(
+            groups.flatMap(CleanerGroup::candidates).map(CleanerCandidate::absolutePath)
+        )
+        return copy(
+            groups = groups.map { group ->
+                val existingCandidates = group.candidates.filter { candidate ->
+                    val file = File(candidate.absolutePath)
+                    file.exists() && file.isDirectory == candidate.isDirectory &&
+                        (candidate.isDirectory || file.length().coerceAtLeast(0L) == candidate.size) &&
+                        candidate.absolutePath !in protectedPaths
                 }
-            )
-        }
-    )
+                group.copy(
+                    candidates = when (group.type) {
+                        CleanerGroupType.Duplicates -> {
+                            existingCandidates.groupBy { it.duplicateGroupKey ?: it.absolutePath }
+                                .values
+                                .filter { it.size > 1 }
+                                .flatten()
+                        }
+                        CleanerGroupType.FilenameVersions -> {
+                            existingCandidates.groupBy { it.filenameVersionMetadata?.familyKey ?: it.absolutePath }
+                                .values
+                                .filter { it.size > 1 }
+                                .flatten()
+                        }
+                        else -> existingCandidates
+                    }
+                )
+            }
+        )
+    }
 
     private data class FileSnapshot(
         val name: String,
@@ -690,6 +767,185 @@ class DefaultStorageCleanerScanner @Inject constructor(
     )
 
     private data class WalkResult(val scannedFiles: Int, val isPartial: Boolean)
+
+    private data class VersionMemberWithStatus(
+        val snapshot: FileSnapshot,
+        val rank: List<Long>,
+        val isLikelyNewest: Boolean
+    )
+
+    private data class VersionFamily(
+        val key: String,
+        val displayStem: String,
+        val evidenceType: FilenameVersionEvidence,
+        val members: List<VersionMemberWithStatus>
+    )
+
+    private data class ParsedVersionInfo(
+        val normalizedStem: String,
+        val displayStem: String,
+        val evidenceType: FilenameVersionEvidence,
+        val rank: List<Long>,
+        val isExplicitVersion: Boolean,
+        val packageName: String? = null
+    )
+
+    private fun parseFilenameVersion(
+        snapshot: FileSnapshot,
+        apkPackageResolver: (String) -> Pair<String, Long>?
+    ): ParsedVersionInfo? {
+        val stem = snapshot.name.substringBeforeLast('.', snapshot.name).trim()
+        if (stem.isBlank()) return null
+        if (isRejectedVersionCandidate(stem)) return null
+
+        val ext = snapshot.extension.lowercase(Locale.ROOT)
+        val isApk = ext == "apk"
+
+        // 1. Check duplicate suffix: (1), (2), - Copy, - Copy (2), etc.
+        val dupMatch = DUPLICATE_SUFFIX_REGEX.find(stem)
+        if (dupMatch != null) {
+            val baseStem = dupMatch.groupValues[1].trimEnd(' ', '-', '_', '.')
+            if (baseStem.isNotBlank() && !isRejectedVersionCandidate(baseStem)) {
+                val ordinal = dupMatch.groupValues[2].takeIf { it.isNotBlank() }?.toLongOrNull()
+                    ?: dupMatch.groupValues[3].takeIf { it.isNotBlank() }?.toLongOrNull()
+                    ?: 1L
+                return ParsedVersionInfo(
+                    normalizedStem = normalizeStemKey(baseStem),
+                    displayStem = baseStem,
+                    evidenceType = FilenameVersionEvidence.DuplicateSuffix,
+                    rank = listOf(ordinal, snapshot.lastModified),
+                    isExplicitVersion = true
+                )
+            }
+        }
+
+        // 2. Check explicit semantic version: at least 2 numeric components (e.g. 1.0, 2.1.3, v1.2, 1.0.0-rc1)
+        val semMatch = SEMANTIC_VERSION_REGEX.find(stem)
+        if (semMatch != null) {
+            val baseStem = stem.substring(0, semMatch.range.first).trimEnd(' ', '-', '_', '.')
+            val verString = semMatch.groupValues[1]
+            val digits = extractVersionNumbers(verString)
+            if (digits.size >= 2) {
+                val effectiveBase = if (baseStem.isBlank()) "app" else baseStem
+                if (!isRejectedVersionCandidate(effectiveBase)) {
+                    var pkgName: String? = null
+                    var pkgVersionCode = 0L
+                    if (isApk) {
+                        val pkgInfo = apkPackageResolver(snapshot.absolutePath)
+                        if (pkgInfo != null) {
+                            pkgName = pkgInfo.first
+                            pkgVersionCode = pkgInfo.second
+                        }
+                    }
+                    val rank = if (pkgVersionCode > 0L) {
+                        listOf(pkgVersionCode) + digits + listOf(snapshot.lastModified)
+                    } else {
+                        digits + listOf(snapshot.lastModified)
+                    }
+                    return ParsedVersionInfo(
+                        normalizedStem = normalizeStemKey(effectiveBase),
+                        displayStem = effectiveBase,
+                        evidenceType = if (pkgName != null) FilenameVersionEvidence.PackageVersion else FilenameVersionEvidence.SemanticVersion,
+                        rank = rank,
+                        isExplicitVersion = true,
+                        packageName = pkgName
+                    )
+                }
+            }
+        }
+
+        // 3. For APKs only: single numeric version when parsed package IDs match (e.g. arcile-1.apk, arcile-2.apk)
+        if (isApk) {
+            val singleNumMatch = SINGLE_NUMBER_VERSION_REGEX.find(stem)
+            if (singleNumMatch != null) {
+                val baseStem = stem.substring(0, singleNumMatch.range.first).trimEnd(' ', '-', '_', '.')
+                val singleNum = singleNumMatch.groupValues[1].toLongOrNull() ?: 0L
+                val pkgInfo = apkPackageResolver(snapshot.absolutePath)
+                if (pkgInfo != null) {
+                    val pkgName = pkgInfo.first
+                    val pkgVersionCode = pkgInfo.second
+                    val effectiveBase = if (baseStem.isBlank()) pkgName else baseStem
+                    return ParsedVersionInfo(
+                        normalizedStem = normalizeStemKey(effectiveBase),
+                        displayStem = effectiveBase,
+                        evidenceType = FilenameVersionEvidence.PackageVersion,
+                        rank = listOf(pkgVersionCode, singleNum, snapshot.lastModified),
+                        isExplicitVersion = true,
+                        packageName = pkgName
+                    )
+                }
+            }
+        }
+
+        // Base candidate for duplicate copy families (e.g. "document.pdf" paired with "document (1).pdf")
+        if (!isRejectedVersionCandidate(stem)) {
+            return ParsedVersionInfo(
+                normalizedStem = normalizeStemKey(stem),
+                displayStem = stem,
+                evidenceType = FilenameVersionEvidence.DuplicateSuffix,
+                rank = listOf(0L, snapshot.lastModified),
+                isExplicitVersion = false
+            )
+        }
+
+        return null
+    }
+
+    private fun findFilenameVersionFamilies(
+        files: List<FileSnapshot>,
+        apkPackageResolver: (String) -> Pair<String, Long>?
+    ): List<VersionFamily> {
+        val parentMap = files.groupBy { File(it.absolutePath).parent.orEmpty() }
+        val result = mutableListOf<VersionFamily>()
+
+        for ((parentPath, siblingFiles) in parentMap) {
+            if (parentPath.isBlank() || siblingFiles.size < 2) continue
+
+            val parsedList = siblingFiles.mapNotNull { file ->
+                val info = parseFilenameVersion(file, apkPackageResolver)
+                if (info != null) file to info else null
+            }
+
+            val stemGroups = parsedList.groupBy { (file, info) ->
+                Triple(info.normalizedStem, file.extension.lowercase(Locale.ROOT), info.packageName)
+            }
+
+            for ((key, members) in stemGroups) {
+                if (members.size < 2) continue
+
+                val hasExplicitVersion = members.any { it.second.isExplicitVersion }
+                if (!hasExplicitVersion) continue
+
+                val evidenceType = when {
+                    members.any { it.second.evidenceType == FilenameVersionEvidence.PackageVersion } ->
+                        FilenameVersionEvidence.PackageVersion
+                    members.any { it.second.evidenceType == FilenameVersionEvidence.SemanticVersion } ->
+                        FilenameVersionEvidence.SemanticVersion
+                    else -> FilenameVersionEvidence.DuplicateSuffix
+                }
+
+                val displayStem = members.first { it.second.isExplicitVersion }.second.displayStem
+                val sortedMembers = members.sortedWith(versionRankComparator.reversed())
+                val newestMember = sortedMembers.first()
+
+                val normalizedParent = parentPath.replace('\\', '/')
+                val familyKey = "${evidenceType.name}:$normalizedParent/${key.first}.${key.second}"
+                result += VersionFamily(
+                    key = familyKey,
+                    displayStem = displayStem,
+                    evidenceType = evidenceType,
+                    members = sortedMembers.map { member ->
+                        VersionMemberWithStatus(
+                            snapshot = member.first,
+                            rank = member.second.rank,
+                            isLikelyNewest = member == newestMember
+                        )
+                    }
+                )
+            }
+        }
+        return result
+    }
 
     private class CandidateAccumulator(private val limit: Int) {
         private val candidates = PriorityQueue<CleanerCandidate>(
@@ -729,6 +985,124 @@ class DefaultStorageCleanerScanner @Inject constructor(
         val userFolderNames = setOf("download", "downloads", "documents", "document")
         val mediaFolderNames = setOf("dcim", "pictures", "picture", "movies", "movie", "videos", "video")
         val packageSegmentRegex = Regex("[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){1,}")
+        private val DUPLICATE_SUFFIX_REGEX = Regex("^(.*?)(?:[\\s._-]+(?:copy|copie))?(?:[\\s._-]*\\((\\d+)\\)|[\\s._-]+(?:copy|copie)(?:\\s+(\\d+))?)$", RegexOption.IGNORE_CASE)
+        private val SEMANTIC_VERSION_REGEX = Regex("(?:[-_.\\s]+[vV]?|[vV])(\\d+(?:\\.\\d+)+(?:[-._]?[a-zA-Z0-9]+)*)$")
+        private val SINGLE_NUMBER_VERSION_REGEX = Regex("(?:[-_.\\s]+[vV]?|[vV])(\\d+)$")
+        private val DATE_REGEX = Regex("(?:^|[^0-9])(?:20\\d{2}[-_.]?(?:0[1-9]|1[0-2])[-_.]?(?:0[1-9]|[12][0-9]|3[01])|(?:0[1-9]|[12][0-9]|3[01])[-_.](?:0[1-9]|1[0-2])[-_.](?:19|20)\\d{2})(?:[^0-9]|$)")
+        private val CAMERA_REGEX = Regex("^(?:img|vid|dsc|pano|sam|wp|screenshot|screen_recording|mov|aud)[-_]?\\d+", RegexOption.IGNORE_CASE)
+        private val DOCUMENT_NUMBERING_REGEX = Regex("\\b(?:page|chapter|part|vol|volume|p|ch|track|ep|episode)[-_.\\s]*\\d+\\b", RegexOption.IGNORE_CASE)
+
+        private fun isRejectedVersionCandidate(stem: String): Boolean {
+            val lower = stem.lowercase(Locale.ROOT).trim()
+            if (DATE_REGEX.containsMatchIn(lower)) return true
+            if (CAMERA_REGEX.containsMatchIn(lower)) return true
+            if (DOCUMENT_NUMBERING_REGEX.containsMatchIn(lower)) return true
+            return false
+        }
+
+        private fun normalizeStemKey(stem: String): String =
+            stem.lowercase(Locale.ROOT)
+                .replace(Regex("[^a-z0-9]+"), "_")
+                .trim('_')
+
+        private fun extractVersionNumbers(versionString: String): List<Long> {
+            return Regex("\\d+").findAll(versionString).mapNotNull {
+                it.value.toLongOrNull()
+            }.toList()
+        }
+
+        private val versionRankComparator = Comparator<Pair<FileSnapshot, ParsedVersionInfo>> { a, b ->
+            val rankA = a.second.rank
+            val rankB = b.second.rank
+            val maxLen = maxOf(rankA.size, rankB.size)
+            for (i in 0 until maxLen) {
+                val valA = rankA.getOrNull(i) ?: 0L
+                val valB = rankB.getOrNull(i) ?: 0L
+                if (valA != valB) {
+                    return@Comparator valA.compareTo(valB)
+                }
+            }
+            a.first.lastModified.compareTo(b.first.lastModified)
+        }
+
+        internal fun parseManifestPackageAndVersion(bytes: ByteArray): Pair<String, Long>? {
+            return runCatchingPreservingCancellation {
+                if (bytes.size < 8) return@runCatchingPreservingCancellation null
+                val buffer = java.nio.ByteBuffer.wrap(bytes).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                val chunkType = buffer.short.toInt() and 0xFFFF
+                if (chunkType != 0x0003) return@runCatchingPreservingCancellation null
+                buffer.position(8)
+                val poolType = buffer.short.toInt() and 0xFFFF
+                if (poolType != 0x0001) return@runCatchingPreservingCancellation null
+                buffer.position(buffer.position() + 2)
+                buffer.int
+                val stringCount = buffer.int
+                buffer.int
+                val flags = buffer.int
+                val isUtf8 = (flags and (1 shl 8)) != 0
+                val stringsStart = buffer.int
+                buffer.int
+                val stringOffsets = IntArray(stringCount)
+                for (i in 0 until stringCount) {
+                    stringOffsets[i] = buffer.int
+                }
+                val strings = ArrayList<String>(stringCount)
+                val stringsBase = 8 + stringsStart
+                for (i in 0 until stringCount) {
+                    val pos = stringsBase + stringOffsets[i]
+                    if (pos >= bytes.size) continue
+                    if (isUtf8) {
+                        var offset = pos
+                        var charLen = bytes[offset].toInt() and 0xFF
+                        offset++
+                        if ((charLen and 0x80) != 0) {
+                            charLen = ((charLen and 0x7F) shl 8) or (bytes[offset].toInt() and 0xFF)
+                            offset++
+                        }
+                        var byteLen = bytes[offset].toInt() and 0xFF
+                        offset++
+                        if ((byteLen and 0x80) != 0) {
+                            byteLen = ((byteLen and 0x7F) shl 8) or (bytes[offset].toInt() and 0xFF)
+                            offset++
+                        }
+                        if (offset + byteLen <= bytes.size) {
+                            strings.add(String(bytes, offset, byteLen, Charsets.UTF_8))
+                        }
+                    } else {
+                        var offset = pos
+                        var charLen = (bytes[offset].toInt() and 0xFF) or ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+                        offset += 2
+                        if ((charLen and 0x8000) != 0) {
+                            val high = (bytes[offset].toInt() and 0xFF) or ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+                            charLen = ((charLen and 0x7FFF) shl 16) or high
+                            offset += 2
+                        }
+                        val byteLen = charLen * 2
+                        if (offset + byteLen <= bytes.size) {
+                            strings.add(String(bytes, offset, byteLen, Charsets.UTF_16LE))
+                        }
+                    }
+                }
+                val pkgName = strings.firstOrNull { it.contains('.') && packageSegmentRegex.matches(it) }
+                if (pkgName != null) {
+                    pkgName to 0L
+                } else null
+            }.getOrNull()
+        }
+
+        private fun extractApkPackageInfo(path: String): Pair<String, Long>? {
+            return runCatchingPreservingCancellation {
+                val file = File(path)
+                if (!file.exists() || !file.name.endsWith(".apk", ignoreCase = true)) return@runCatchingPreservingCancellation null
+                java.util.zip.ZipFile(file).use { zip ->
+                    val entry = zip.getEntry("AndroidManifest.xml") ?: return@runCatchingPreservingCancellation null
+                    zip.getInputStream(entry).use { stream ->
+                        parseManifestPackageAndVersion(stream.readBytes())
+                    }
+                }
+            }.getOrNull()
+        }
+
         const val SAMPLE_WINDOW_BYTES = 4096
         const val PROGRESS_FILE_INTERVAL = 256
         const val HASH_PROGRESS_INTERVAL = 16

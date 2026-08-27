@@ -143,4 +143,5 @@
     <string name="audio_editor_exporting">Exporting audio…</string>
     <string name="audio_editor_reencoded_warning">The container required audio conversion, so this export was re-encoded.</string>
     <string name="audio_editor_first_metadata_warning">Metadata was inherited from the first audio item.</string>
+    <string name="audio_editor_warning_item">• %1$s</string>
 </resources>

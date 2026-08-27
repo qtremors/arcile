@@ -16,6 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanLimits
 import dev.qtremors.arcile.core.storage.domain.StorageMutationEvent
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.vault.domain.OnlyFilesVaultFormat
 import dev.qtremors.arcile.core.ui.image.ThumbnailCacheService
 import dev.qtremors.arcile.core.ui.image.ThumbnailCacheStats
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
@@ -75,6 +76,9 @@ class FakeStorageCleanerScanner : StorageCleanerScanner {
     override suspend fun invalidateStorageCleaner(paths: Collection<String>) {
         invalidatedPaths += paths.toList()
     }
+
+    override suspend fun protectedCleanerPaths(paths: Collection<String>): Set<String> =
+        OnlyFilesVaultFormat.pathsInsideVault(paths)
 }
 
 private class FakeStorageMutationNotifier : StorageMutationNotifier {
@@ -726,6 +730,93 @@ class StorageCleanerViewModelTest {
 
         assertEquals(0L, viewModel.state.value.thumbnailCache.stats.totalBytes)
         assertFalse(viewModel.state.value.thumbnailCache.isClearing)
+    }
+
+    @Test
+    fun `clean rejects paths inside onlyfiles vault and removes stale candidates`() = runTest(dispatcher) {
+        val root = File("build/tmp/test-vault-cleaner").apply { mkdirs() }
+        val vaultDir = File(root, "MyVault").apply { mkdirs() }
+        File(vaultDir, "vault.onlyfiles").createNewFile()
+        val secretFile = File(vaultDir, "secret.tmp").apply { createNewFile() }
+        val candidate = CleanerCandidate(
+            name = "secret.tmp",
+            absolutePath = secretFile.absolutePath,
+            size = 12L,
+            lastModified = 1L,
+            groupTypes = setOf(CleanerGroupType.Junk),
+            riskLevel = CleanerRiskLevel.Low,
+            riskReasons = emptySet()
+        )
+        fakeScanner.result = StorageCleanerResult(
+            groups = listOf(CleanerGroup(CleanerGroupType.Junk, listOf(candidate))),
+            scannedFiles = 1,
+            isPartial = false
+        )
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore
+        )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Junk)
+        advanceUntilIdle()
+
+        viewModel.clean(listOf(secretFile.absolutePath))
+        advanceUntilIdle()
+
+        assertEquals("Protected vault contents cannot be cleaned.", viewModel.state.value.errorMessage)
+        assertFalse(viewModel.state.value.isCleaning)
+        assertTrue(viewModel.state.value.group(CleanerGroupType.Junk).candidates.isEmpty())
+        assertTrue(repository.trashRepository.getTrashFiles().getOrNull().isNullOrEmpty())
+        root.deleteRecursively()
+    }
+
+    @Test
+    fun `clean rejects a mixed vault selection without hiding safe candidates`() = runTest(dispatcher) {
+        val root = File("build/tmp/test-mixed-vault-cleaner").apply { mkdirs() }
+        val vaultDir = File(root, "MyVault").apply { mkdirs() }
+        File(vaultDir, "vault.onlyfiles").createNewFile()
+        val secretFile = File(vaultDir, "secret.tmp").apply { createNewFile() }
+        val safeFile = File(root, "safe.tmp").apply { createNewFile() }
+        val secretCandidate = CleanerCandidate(
+            name = secretFile.name,
+            absolutePath = secretFile.absolutePath,
+            size = 0L,
+            lastModified = 1L,
+            groupTypes = setOf(CleanerGroupType.Junk),
+            riskLevel = CleanerRiskLevel.Low,
+            riskReasons = emptySet()
+        )
+        val safeCandidate = secretCandidate.copy(
+            name = safeFile.name,
+            absolutePath = safeFile.absolutePath
+        )
+        fakeScanner.result = StorageCleanerResult(
+            groups = listOf(CleanerGroup(CleanerGroupType.Junk, listOf(secretCandidate, safeCandidate))),
+            scannedFiles = 2,
+            isPartial = false
+        )
+        val repository = FakeStorageRepositoryBundle(volumes = listOf(volume("internal", root, StorageKind.INTERNAL)))
+        val viewModel = StorageCleanerViewModel(
+            repository.volumeRepository,
+            repository.trashRepository,
+            fakeScanner,
+            NoOpStorageCleanerPreferencesStore
+        )
+        advanceUntilIdle()
+        viewModel.scanGroup(CleanerGroupType.Junk)
+        advanceUntilIdle()
+
+        viewModel.clean(listOf(secretFile.absolutePath, safeFile.absolutePath))
+        advanceUntilIdle()
+
+        val remaining = viewModel.state.value.group(CleanerGroupType.Junk).candidates
+        assertEquals(listOf(safeFile.absolutePath), remaining.map { it.absolutePath })
+        assertTrue(safeFile.exists())
+        assertTrue(repository.trashRepository.getTrashFiles().getOrNull().isNullOrEmpty())
+        root.deleteRecursively()
     }
 
     private fun volume(id: String, root: File, kind: StorageKind) = testVolume(

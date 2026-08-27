@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -55,7 +56,8 @@ class PreferencesBackupManagerTest {
                 themeMode = ThemeMode.DARK,
                 accentColor = AccentColor.GREEN,
                 harmonizeColors = false,
-                landscapeDualPaneEnabled = true
+                landscapeDualPaneEnabled = true,
+                folderIconsEnabled = false
             )
         )
         val backupFile = backupFile("settings-backup.json")
@@ -81,6 +83,7 @@ class PreferencesBackupManagerTest {
         assertEquals(AccentColor.GREEN, themePreferences.themeState.first().accentColor)
         assertEquals(false, themePreferences.themeState.first().harmonizeColors)
         assertTrue(themePreferences.themeState.first().landscapeDualPaneEnabled)
+        assertFalse(themePreferences.themeState.first().folderIconsEnabled)
     }
 
     @Test

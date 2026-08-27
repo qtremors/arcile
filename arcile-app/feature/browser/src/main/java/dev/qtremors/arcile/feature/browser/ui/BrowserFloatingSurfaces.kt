@@ -400,10 +400,11 @@ private fun BrowserClipboardOperationToolbar(
                                 overflow = TextOverflow.Ellipsis
                             )
 
+                            val context = androidx.compose.ui.platform.LocalContext.current
                             val subtitle = if (activeOp != null) {
                                 if (activeOp.totalBytes != null && activeOp.totalBytes!! > 0L) {
                                     val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
-                                    formatFileSize(remaining.coerceAtLeast(0L))
+                                    formatFileSize(context, remaining.coerceAtLeast(0L))
                                 } else {
                                     androidx.compose.ui.res.pluralStringResource(
                                         R.plurals.transfer_progress_items,
@@ -413,7 +414,7 @@ private fun BrowserClipboardOperationToolbar(
                                     )
                                 }
                             } else {
-                                formatFileSize(clipboard?.totalSize ?: 0L)
+                                formatFileSize(context, clipboard?.totalSize ?: 0L)
                             }
 
                             Text(

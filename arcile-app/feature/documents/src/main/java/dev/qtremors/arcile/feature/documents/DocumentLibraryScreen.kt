@@ -36,6 +36,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -183,6 +185,25 @@ internal fun DocumentLibraryScreen(
     )
 }
 
+internal fun documentItemDetailLines(
+    context: android.content.Context,
+    extension: String,
+    sizeBytes: Long,
+    lastModified: Long,
+    isGrid: Boolean,
+    dateFormatter: (Long) -> String,
+    fileSizeFormatter: ((android.content.Context, Long) -> String)? = null
+): List<String> {
+    val sizeText = fileSizeFormatter?.invoke(context, sizeBytes) ?: formatFileSize(context, sizeBytes)
+    val sizeAndDate = "$sizeText • ${dateFormatter(lastModified)}"
+    return if (isGrid) {
+        listOf(sizeAndDate)
+    } else {
+        val typeLabel = extension.uppercase().ifBlank { "FILE" }
+        listOf(typeLabel, sizeAndDate)
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DocumentItem(
@@ -197,12 +218,17 @@ private fun DocumentItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val formatter = rememberDateTimeFormatter()
     val info = CategoryItemInfo(
         title = file.name,
-        detailLines = listOf(
-            file.extension.uppercase().ifBlank { "FILE" },
-            "${formatFileSize(file.size)} • ${formatter.format(file.lastModified)}"
+        detailLines = documentItemDetailLines(
+            context = context,
+            extension = file.extension,
+            sizeBytes = file.size,
+            lastModified = file.lastModified,
+            isGrid = grid,
+            dateFormatter = { formatter.format(it) }
         )
     )
     if (grid) {
@@ -236,11 +262,14 @@ private fun DocumentPreview(
     file: FileModel,
     showThumbnail: Boolean,
     modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Fit
+    contentScale: ContentScale = ContentScale.Crop
 ) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Icon(
-            imageVector = getFileIconVector(file),
+            imageVector = getFileIconVector(
+                file,
+                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+            ),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(38.dp)
@@ -250,7 +279,9 @@ private fun DocumentPreview(
                 model = ThumbnailKey.from(file),
                 contentDescription = null,
                 contentScale = contentScale,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
             )
         }
     }
@@ -258,14 +289,17 @@ private fun DocumentPreview(
 
 @Composable
 private fun DocumentTypeBadge(extension: String, modifier: Modifier = Modifier) {
+    val typeLabel = extension.uppercase().ifBlank { "FILE" }
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.tertiaryContainer,
         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        modifier = modifier
+        modifier = modifier.clearAndSetSemantics {
+            contentDescription = typeLabel
+        }
     ) {
         Text(
-            extension.uppercase().ifBlank { "FILE" },
+            text = typeLabel,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)

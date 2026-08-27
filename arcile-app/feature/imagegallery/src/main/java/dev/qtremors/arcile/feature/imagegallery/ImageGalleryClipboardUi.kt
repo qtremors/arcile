@@ -207,11 +207,13 @@ private fun GalleryClipboardProgressPill(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     val subtitle = if (activeOperation != null) {
                         activeOperation.totalBytes
                             ?.takeIf { it > 0L }
                             ?.let { total ->
                                 formatFileSize(
+                                    context,
                                     (total - (activeOperation.bytesCopied ?: 0L)).coerceAtLeast(0L)
                                 )
                             }
@@ -222,7 +224,7 @@ private fun GalleryClipboardProgressPill(
                                 activeOperation.totalItems
                             )
                     } else {
-                        formatFileSize(clipboardTotalSize)
+                        formatFileSize(context, clipboardTotalSize)
                     }
                     Text(
                         text = subtitle,

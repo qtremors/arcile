@@ -2,7 +2,6 @@ package dev.qtremors.arcile.core.ui.texteditor
 
 import android.content.Context
 import android.net.Uri
-import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.core.net.toUri
@@ -133,6 +132,7 @@ fun StandaloneTextEditor(
     var redoStack by remember { mutableStateOf(listOf<TextFieldValue>()) }
     val editorScrollState = rememberScrollState()
     val previewScrollState = rememberScrollState()
+    val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
 
     val isDirty = writable && textState.text != originalText
 
@@ -166,31 +166,33 @@ fun StandaloneTextEditor(
         )
     }
 
-    LaunchedEffect(reference, textState.text, originalText, isDirty) {
-        if (loadState !is TextLoadState.Ready || !writable) return@LaunchedEffect
-        delay(250)
+    LaunchedEffect(reference, textState.text, originalText, sessionInitialized) {
+        if (!writable || !sessionInitialized) return@LaunchedEffect
+        delay(600)
+        val textToPersist = textState.text
         val draftResult = withContext(Dispatchers.IO) {
             runCatching {
-            if (isDirty) {
-                writeDraft(context, reference, originalText, textState.text)
-            } else {
-                clearDraft(context, reference)
-            }
+                if (textToPersist != originalText) {
+                    writeDraft(context, reference, originalText, textToPersist)
+                } else {
+                    clearDraft(context, reference)
+                }
             }
         }
         if (draftResult.isFailure && !draftFailureShown) {
             draftFailureShown = true
-            context.showArcileToast(
-                resources.getString(R.string.text_editor_draft_failed),
-                longDuration = true
-            )
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar(resources.getString(R.string.text_editor_draft_failed))
+            }
         }
     }
 
     val attemptBack: () -> Unit = {
         when {
             infoVisible -> infoVisible = false
-            isSaving -> context.showArcileToast(resources.getString(R.string.text_editor_wait_for_save))
+            isSaving -> coroutineScope.launch {
+                snackbarHostState.showSnackbar(resources.getString(R.string.text_editor_wait_for_save))
+            }
             isDirty -> showUnsavedDialog = true
             else -> onNavigateBack()
         }
@@ -260,18 +262,21 @@ fun StandaloneTextEditor(
                     withContext(Dispatchers.IO) {
                         if (noNewEdits) clearDraft(context, reference)
                     }
-                    context.showArcileToast(resources.getString(R.string.text_editor_save_success))
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(resources.getString(R.string.text_editor_save_success))
+                    }
                     if (noNewEdits) onSuccess()
                 },
                 onFailure = { error ->
                     if (error is CancellationException) throw error
-                    context.showArcileToast(
-                        resources.getString(
-                            R.string.text_editor_save_failed_detail,
-                            error.localizedMessage ?: resources.getString(R.string.text_editor_unknown_error)
-                        ),
-                        longDuration = true
-                    )
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(
+                            resources.getString(
+                                R.string.text_editor_save_failed_detail,
+                                error.localizedMessage ?: resources.getString(R.string.text_editor_unknown_error)
+                            )
+                        )
+                    }
                 }
             )
         }
@@ -403,6 +408,12 @@ fun StandaloneTextEditor(
                     onDismiss = { infoVisible = false }
                 )
             }
+            dev.qtremors.arcile.core.ui.ArcileSnackbarHost(
+                hostState = snackbarHostState,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .navigationBarsPadding()
+            )
         }
     }
 
@@ -528,7 +539,7 @@ private fun TextDocumentInfoSheet(
                         InfoRow(stringResource(R.string.text_editor_words), words.toString())
                         InfoRow(stringResource(R.string.text_editor_characters), chars.toString())
                         if (sizeBytes > 0) {
-                            InfoRow(stringResource(R.string.text_editor_file_size), formatFileSize(sizeBytes))
+                            InfoRow(stringResource(R.string.text_editor_file_size), formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes))
                         }
                     }
                 }

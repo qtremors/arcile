@@ -106,7 +106,7 @@ internal fun StorageUsageSunburst(
         R.plurals.storage_usage_map_selected_state,
         selectedForSemantics.childCount,
         selectedForSemantics.name,
-        formatFileSize(selectedForSemantics.sizeBytes),
+        formatFileSize(androidx.compose.ui.platform.LocalContext.current, selectedForSemantics.sizeBytes),
         selectedForSemantics.childCount
     )
     val segmentActionLabels = visibleSegments.map { node ->
@@ -426,7 +426,7 @@ internal fun StorageUsageSunburst(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = formatFileSize(centerNode.sizeBytes),
+                        text = formatFileSize(androidx.compose.ui.platform.LocalContext.current, centerNode.sizeBytes),
                         style = MaterialTheme.typography.labelMedium,
                         color = colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center

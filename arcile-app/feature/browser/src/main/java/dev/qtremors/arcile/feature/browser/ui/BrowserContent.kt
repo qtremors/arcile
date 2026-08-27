@@ -28,6 +28,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.presentation.filterAndSortFiles
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
@@ -86,6 +88,7 @@ internal fun BrowserContent(
     layoutDirection: LayoutDirection,
     listState: LazyListState,
     gridState: LazyGridState,
+    highlightedPath: String?,
     navigationIntents: BrowserNavigationIntents,
     selectionIntents: BrowserSelectionIntents,
     searchIntents: BrowserSearchIntents,
@@ -228,6 +231,7 @@ internal fun BrowserContent(
                         layoutDirection = layoutDirection,
                         listState = listState,
                         gridState = gridState,
+                        highlightedPath = highlightedPath,
                         navigationIntents = navigationIntents,
                         selectionIntents = selectionIntents,
                         onGridSizeChange = onGridSizeChange,
@@ -294,7 +298,19 @@ private fun BrowserSearchResults(
     searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit
 ) {
-    if (state.searchResults.isEmpty()) {
+    val sortedSearchResults = remember(
+        state.searchResults,
+        currentPresentation.sortOption,
+        currentPresentation.foldersFirst
+    ) {
+        filterAndSortFiles(
+            files = state.searchResults,
+            query = "",
+            sortOption = currentPresentation.sortOption,
+            foldersFirst = currentPresentation.foldersFirst
+        )
+    }
+    if (sortedSearchResults.isEmpty()) {
         EmptyState(
             variant = EmptyStateVariant.Search,
             title = stringResource(R.string.no_results_found),
@@ -329,7 +345,7 @@ private fun BrowserSearchResults(
         Box(modifier = Modifier.fillMaxSize()) {
             if (currentPresentation.viewMode == FileViewMode.GRID) {
                 FileGrid(
-                    files = state.searchResults,
+                    files = sortedSearchResults,
                     selectedFiles = state.selectedFiles,
                     onNavigateTo = navigateToSearchResult,
                     onOpenFile = if (state.archiveContext == null) openSearchResult else { _ -> },
@@ -351,7 +367,7 @@ private fun BrowserSearchResults(
                 )
             } else {
                 FileList(
-                    files = state.searchResults,
+                    files = sortedSearchResults,
                     selectedFiles = state.selectedFiles,
                     onNavigateTo = navigateToSearchResult,
                     onOpenFile = if (state.archiveContext == null) openSearchResult else { _ -> },
@@ -373,7 +389,7 @@ private fun BrowserSearchResults(
                 } else {
                     LazyListScrollbarState(searchListState)
                 },
-                labelForIndex = { index -> state.searchResults.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
+                labelForIndex = { index -> sortedSearchResults.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight(),
@@ -396,6 +412,7 @@ private fun BrowserListingContent(
     layoutDirection: LayoutDirection,
     listState: LazyListState,
     gridState: LazyGridState,
+    highlightedPath: String?,
     navigationIntents: BrowserNavigationIntents,
     selectionIntents: BrowserSelectionIntents,
     onGridSizeChange: (Float) -> Unit,
@@ -439,6 +456,7 @@ private fun BrowserListingContent(
             FileGridRows(
                 rows = state.displayState.visibleGridRows,
                 selectedFiles = state.selectedFiles,
+                highlightedPath = highlightedPath,
                 onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
@@ -458,7 +476,6 @@ private fun BrowserListingContent(
                     ),
                 gridState = gridState,
                 minCellSize = currentPresentation.gridMinCellSize.dp,
-                folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding,
@@ -482,6 +499,7 @@ private fun BrowserListingContent(
             FileListRows(
                 rows = state.displayState.visibleListRows,
                 selectedFiles = state.selectedFiles,
+                highlightedPath = highlightedPath,
                 onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
@@ -495,7 +513,6 @@ private fun BrowserListingContent(
                 ),
                 modifier = Modifier.fillMaxSize(),
                 listState = listState,
-                folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding
@@ -535,27 +552,29 @@ private fun Modifier.pinchToResizeGrid(
         var accumulatedScale = 1f
         val startCellSize = currentCellSize.value
         var isPinching = false
+        var lastRawSize = startCellSize
         do {
             val event = awaitPointerEvent()
             if (event.changes.size >= 2) {
                 isPinching = true
                 accumulatedScale *= event.calculateZoom()
-                onSizeChanged.value(
-                    (startCellSize * accumulatedScale).coerceIn(
-                        FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
-                        FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
-                    )
+                lastRawSize = (startCellSize * accumulatedScale).coerceIn(
+                    FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
+                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
                 )
+                onSizeChanged.value(lastRawSize)
                 event.changes.forEach { it.consume() }
             }
         } while (event.changes.any { it.pressed })
         if (isPinching) {
-            onSizeFinalized.value(
-                (startCellSize * accumulatedScale).coerceIn(
-                    FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
-                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
-                )
+            val widthDp = if (density > 0f) size.width.toFloat() / density else size.width.toFloat()
+            val snapped = dev.qtremors.arcile.core.ui.GridColumnModel.snapCellSize(
+                currentCellSize = lastRawSize,
+                contentWidthDp = widthDp,
+                horizontalPaddingDp = 16f,
+                itemSpacingDp = 16f
             )
+            onSizeFinalized.value(snapped)
         }
     }
 }

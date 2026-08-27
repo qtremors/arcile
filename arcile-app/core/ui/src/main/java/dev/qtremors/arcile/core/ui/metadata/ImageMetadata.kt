@@ -317,7 +317,9 @@ fun buildImageMetadataDetailRows(
     extension: String?,
     metadata: ImageFileMetadata?,
     labels: ImageMetadataDetailLabels,
-    isUriReference: Boolean = reference.startsWith("content://")
+    context: Context,
+    isUriReference: Boolean = reference.startsWith("content://"),
+    fileSizeFormatter: ((Long) -> String)? = null
 ): List<ImageMetadataDetailRow> {
     val rows = mutableListOf<ImageMetadataDetailRow>()
     title.takeIf { it.isNotBlank() }?.let { rows += ImageMetadataDetailRow(labels.title, it) }
@@ -327,7 +329,12 @@ fun buildImageMetadataDetailRows(
     metadata?.let { formatImageAspectRatio(it.width, it.height) }?.let {
         rows += ImageMetadataDetailRow(labels.aspectRatio, it)
     }
-    rows += ImageMetadataDetailRow(labels.size, formatImageFileSize(size.takeIf { it > 0L } ?: metadata?.size ?: 0L))
+    val formattedSize = fileSizeFormatter?.invoke(size.takeIf { it > 0L } ?: metadata?.size ?: 0L)
+        ?: dev.qtremors.arcile.core.presentation.formatFileSize(
+            context,
+            size.takeIf { it > 0L } ?: metadata?.size ?: 0L
+        )
+    rows += ImageMetadataDetailRow(labels.size, formattedSize)
     reference.takeIf { it.isNotBlank() }?.let {
         rows += ImageMetadataDetailRow(if (isUriReference) labels.uri else labels.path, it)
     }
@@ -373,10 +380,3 @@ fun formatImageAspectRatio(width: Int, height: Int): String? {
 
 private tailrec fun greatestCommonDivisor(a: Int, b: Int): Int =
     if (b == 0) kotlin.math.abs(a).coerceAtLeast(1) else greatestCommonDivisor(b, a % b)
-
-fun formatImageFileSize(size: Long): String {
-    if (size <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(units.indices)
-    return String.format(Locale.getDefault(), "%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
-}

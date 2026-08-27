@@ -63,7 +63,7 @@ internal fun OperationProgressDetailsSheet(
         -1L
     }
     val speedText = if (speedBytesPerSec > 0f) {
-        stringResource(R.string.transfer_speed_value, formatFileSize(speedBytesPerSec.toLong()))
+        stringResource(R.string.transfer_speed_value, formatFileSize(androidx.compose.ui.platform.LocalContext.current, speedBytesPerSec.toLong()))
     } else {
         stringResource(R.string.transfer_calculating)
     }
@@ -161,10 +161,11 @@ private fun TransferProgress(activeOp: OperationUiState) {
     )
     Spacer(modifier = Modifier.height(8.dp))
     val progressText = if (totalBytes != null && totalBytes > 0L) {
+        val context = androidx.compose.ui.platform.LocalContext.current
         stringResource(
             R.string.transfer_progress_bytes,
-            formatFileSize(activeOp.bytesCopied ?: 0L),
-            formatFileSize(totalBytes)
+            formatFileSize(context, activeOp.bytesCopied ?: 0L),
+            formatFileSize(context, totalBytes)
         )
     } else {
         androidx.compose.ui.res.pluralStringResource(R.plurals.transfer_progress_items, activeOp.totalItems, activeOp.completedItems, activeOp.totalItems)

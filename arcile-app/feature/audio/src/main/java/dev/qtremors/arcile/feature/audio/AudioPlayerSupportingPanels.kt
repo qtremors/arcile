@@ -115,7 +115,7 @@ internal fun AudioMetadataSheet(
             )
             AudioMetadataRow(
                 stringResource(R.string.audio_metadata_size),
-                formatFileSize(track.file.size)
+                formatFileSize(androidx.compose.ui.platform.LocalContext.current, track.file.size)
             )
             AudioMetadataRow(
                 stringResource(R.string.audio_metadata_modified),

@@ -128,7 +128,20 @@ class AudioPlayerActivity : ComponentActivity() {
                         onFinish = ::finish,
                         onShare = { share(it.file) },
                         onEdit = { openEditor(it.file) },
-                        onOpenWith = { openWith(it.file) }
+                        onOpenWith = { openWith(it.file) },
+                        onFileRenamed = { oldPath, newFile ->
+                            val oldTrack = queue.firstOrNull { it.file.absolutePath == oldPath }
+                            if (oldTrack != null) {
+                                val renamedTrack = oldTrack.copy(file = newFile)
+                                queue = queue.map { if (it.file.absolutePath == oldPath) renamedTrack else it }
+                                playback.replaceQueueItem(oldPath, renamedTrack)
+                            }
+                        },
+                        onFileDeleted = { deletedPath ->
+                            queue = queue.filterNot { it.file.absolutePath == deletedPath }
+                            playback.removeQueueItems(listOf(deletedPath))
+                            if (queue.isEmpty()) finish()
+                        }
                     )
                 }
             }
@@ -306,7 +319,9 @@ private fun StandaloneAudioPlayer(
     onFinish: () -> Unit,
     onShare: (AudioTrack) -> Unit,
     onEdit: (AudioTrack) -> Unit,
-    onOpenWith: (AudioTrack) -> Unit
+    onOpenWith: (AudioTrack) -> Unit,
+    onFileRenamed: (String, FileModel) -> Unit,
+    onFileDeleted: (String) -> Unit
 ) {
     var presentation by remember(launchId) {
         mutableStateOf(AudioPlayerPresentation.MINI)
@@ -436,7 +451,9 @@ private fun StandaloneAudioPlayer(
                         onSeek = playbackController::seekTo,
                         onShare = { onShare(track) },
                         onEdit = { onEdit(track) },
-                        onOpenWith = { onOpenWith(track) }
+                        onOpenWith = { onOpenWith(track) },
+                        onFileRenamed = onFileRenamed,
+                        onFileDeleted = onFileDeleted
                     )
                 }
             }

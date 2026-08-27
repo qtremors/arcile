@@ -477,7 +477,7 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
+        composeRule.onNodeWithText("3 files • 2.0 kB").assertExists()
     }
 
     @Test
@@ -566,7 +566,7 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
+        composeRule.onNodeWithText("3 files • 2.0 kB").assertExists()
     }
 
     @Test
@@ -786,6 +786,64 @@ class BrowserScreenTest {
         assertEquals(filePath, toggledPath)
     }
 
+    @Test
+    fun `focused browser entry scrolls to and highlights its file`() {
+        val targetPath = "/storage/emulated/0/Documents/file-20.txt"
+        val listState = androidx.compose.foundation.lazy.LazyListState()
+        var revealedPath: String? = null
+        val files = (0 until 40).map { index ->
+            browserFile("file-$index.txt", "/storage/emulated/0/Documents/file-$index.txt")
+        }.toPersistentList()
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = browserUiState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Documents",
+                        files = files
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> },
+                    listState = listState,
+                    focusPath = targetPath,
+                    onFocusRevealed = { revealedPath = it }
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("highlighted_file_$targetPath").assertExists()
+        composeRule.runOnIdle {
+            assertEquals(targetPath, revealedPath)
+            assertEquals(
+                true,
+                listState.layoutInfo.visibleItemsInfo.any { it.key == targetPath }
+            )
+        }
+    }
+
     private fun setBrowserContent(state: BrowserUiState) {
         composeRule.setContent {
             ArcileTestTheme {
@@ -849,9 +907,11 @@ private fun BrowserScreen(
     onOpenProperties: () -> Unit = {},
     onClearActiveFileOperation: () -> Unit = {},
     workspaceTabsEnabled: Boolean = false,
-    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    focusPath: String? = null,
+    onFocusRevealed: (String) -> Unit = {}
 ) {
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     BrowserScreen(
         state = state,
@@ -931,6 +991,9 @@ private fun BrowserScreen(
             state.scrollPositionKey(),
             savedPositionProvider = { null },
             onSavePosition = { _, _ -> },
+            highlightedPath = focusPath,
+            requestedFocusPath = focusPath,
+            onFocusRevealed = onFocusRevealed,
             pendingRevealFilePath = state.pendingRevealFilePath,
             pendingRevealReady = state.pendingRevealReady,
             onArmPendingReveal = {},

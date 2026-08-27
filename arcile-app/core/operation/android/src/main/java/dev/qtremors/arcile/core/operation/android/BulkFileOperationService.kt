@@ -400,7 +400,7 @@ class BulkFileOperationService : Service() {
         if (copied <= 0L) return null
         val elapsedMillis = (nowMillis - notificationMetrics.startedAtMillis).coerceAtLeast(1L)
         val bytesPerSecond = (copied * 1000L / elapsedMillis).coerceAtLeast(1L)
-        val speed = getString(R.string.transfer_speed_value, formatFileSize(bytesPerSecond))
+        val speed = getString(R.string.transfer_speed_value, formatFileSize(this, bytesPerSecond))
         val remainingBytes = (total - copied).coerceAtLeast(0L)
         val eta = if (remainingBytes == 0L) {
             null

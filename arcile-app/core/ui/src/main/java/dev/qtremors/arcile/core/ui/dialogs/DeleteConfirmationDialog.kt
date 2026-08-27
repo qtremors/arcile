@@ -74,7 +74,7 @@ fun DeleteConfirmationDialog(
         R.plurals.delete_decision_summary,
         resolvedDecision.selectedCount,
         resolvedDecision.selectedCount,
-        formatFileSize(resolvedDecision.totalBytes),
+        formatFileSize(androidx.compose.ui.platform.LocalContext.current, resolvedDecision.totalBytes),
         resolvedDecision.folderCount
     )
 

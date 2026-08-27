@@ -226,10 +226,24 @@ internal fun CategoryFilesContent(
         } else {
             LazyListScrollbarState(listState)
         }
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
         if (presentation.viewMode == FileViewMode.GRID) {
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+            val horizontalPaddingDp = with(density) {
+                (gridContentPadding.calculateLeftPadding(layoutDirection) +
+                    gridContentPadding.calculateRightPadding(layoutDirection)).toPx() / density.density
+            }
+            val columnCount = remember(presentation.gridMinCellSize, maxWidth, horizontalPaddingDp) {
+                dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
+                    cellSizeDp = presentation.gridMinCellSize,
+                    contentWidthDp = maxWidth.value,
+                    horizontalPaddingDp = horizontalPaddingDp,
+                    itemSpacingDp = 8f
+                )
+            }
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(presentation.gridMinCellSize.dp),
+                columns = GridCells.Fixed(columnCount),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = gridContentPadding,
@@ -337,9 +351,23 @@ internal fun CategoryFoldersContent(
     )
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val scrollbarState: ScrollbarState = LazyGridScrollbarState(gridState)
-    Box(Modifier.fillMaxSize()) {
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val density = androidx.compose.ui.platform.LocalDensity.current
+        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val horizontalPaddingDp = with(density) {
+            (contentPadding.calculateLeftPadding(layoutDirection) +
+                contentPadding.calculateRightPadding(layoutDirection)).toPx() / density.density
+        }
+        val columnCount = remember(presentation.gridMinCellSize, maxWidth, horizontalPaddingDp) {
+            dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
+                cellSizeDp = presentation.gridMinCellSize,
+                contentWidthDp = maxWidth.value,
+                horizontalPaddingDp = horizontalPaddingDp,
+                itemSpacingDp = 16f
+            )
+        }
         LazyVerticalGrid(
-            columns = GridCells.Adaptive(presentation.gridMinCellSize.dp),
+            columns = GridCells.Fixed(columnCount),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
@@ -497,18 +525,20 @@ internal fun CategoryClipboardToolbar(
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Bold
                     )
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Text(
                         text = operation?.totalBytes
                             ?.takeIf { it > 0L }
                             ?.let { total ->
                                 formatFileSize(
+                                    context,
                                     (total - (operation.bytesCopied ?: 0L)).coerceAtLeast(0L)
                                 )
                             }
                             ?: if (operation != null) {
                                 "${operation.completedItems}/${operation.totalItems}"
                             } else {
-                                clipboard?.let { formatFileSize(it.totalSize) }.orEmpty()
+                                clipboard?.let { formatFileSize(context, it.totalSize) }.orEmpty()
                             },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

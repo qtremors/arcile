@@ -99,7 +99,7 @@ internal fun AudioSelectionTopBar(
 ) {
     CategorySelectionTopBar(
         selectedCountText = androidx.compose.ui.res.pluralStringResource(R.plurals.audio_selected_count, selectedCount, selectedCount),
-        selectedSizeText = formatFileSize(selectedSize),
+        selectedSizeText = formatFileSize(androidx.compose.ui.platform.LocalContext.current, selectedSize),
         onClearSelection = onClearSelection,
         onSelectAll = onSelectAll,
         onInvertSelection = onInvertSelection,

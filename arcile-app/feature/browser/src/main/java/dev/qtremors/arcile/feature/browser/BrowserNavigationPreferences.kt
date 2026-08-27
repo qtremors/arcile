@@ -16,6 +16,7 @@ internal fun BrowserNavigationState.applyNavigationPreferences(
         browserListZoom = presentation.listZoom,
         browserGridMinCellSize = presentation.gridMinCellSize,
         browserShowThumbnails = presentation.showThumbnails,
+        browserFoldersFirst = presentation.foldersFirst,
         browserPresentationAppliesToSubfolders =
             currentPath.isNotEmpty() && preferences.pathPresentationOptions.containsKey(currentPath),
         browserScrollbarEnabled = preferences.scrollbarEnabled,

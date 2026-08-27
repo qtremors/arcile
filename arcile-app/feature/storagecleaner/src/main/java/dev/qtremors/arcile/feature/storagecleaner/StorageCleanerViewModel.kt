@@ -389,6 +389,27 @@ internal class StorageCleanerViewModel @Inject constructor(
             _state.update { it.copy(errorMessage = "Review high-risk files before cleanup.") }
             return
         }
+        _state.update { current ->
+            current.copy(isCleaning = true, errorMessage = null, successMessage = null)
+        }
+        viewModelScope.launch {
+            val vaultPaths = scanner.protectedCleanerPaths(uniquePaths)
+            if (vaultPaths.isNotEmpty()) {
+                scanner.invalidateStorageCleaner()
+                _state.update { current ->
+                    current.copy(
+                        isCleaning = false,
+                        groups = current.groups.withoutPaths(vaultPaths),
+                        errorMessage = "Protected vault contents cannot be cleaned."
+                    )
+                }
+                return@launch
+            }
+            cleanValidatedPaths(uniquePaths)
+        }
+    }
+
+    private suspend fun cleanValidatedPaths(uniquePaths: List<String>) {
         val groupsBeforeCleanup = _state.value.groups
         val groupsAfterCleanup = groupsBeforeCleanup.withoutPaths(uniquePaths.toSet())
         val remainingPathsByGroup = groupsAfterCleanup.associate { group ->
@@ -402,39 +423,36 @@ internal class StorageCleanerViewModel @Inject constructor(
         lastCleanedGroups = removedByGroup.keys
         _state.update { current ->
             current.copy(
-                isCleaning = true,
                 groups = groupsAfterCleanup,
                 errorMessage = null,
                 successMessage = null
             )
         }
-        viewModelScope.launch {
-            trashRepository.moveToTrash(uniquePaths)
-                .onSuccess {
-                    scanner.invalidateStorageCleaner(uniquePaths)
-                    val undoIds = trashRepository.getTrashFiles().getOrNull()
-                        ?.filter { it.originalPath in uniquePaths }
-                        ?.sortedByDescending { it.deletionTime }
-                        ?.map { it.id }
-                        ?.take(uniquePaths.size)
-                        .orEmpty()
-                    _state.update { current ->
-                        current.copy(
-                            isCleaning = false,
-                            successMessage = CleanerSuccessMessage(uniquePaths.size, undoIds)
-                        )
-                    }
+        trashRepository.moveToTrash(uniquePaths)
+            .onSuccess {
+                scanner.invalidateStorageCleaner(uniquePaths)
+                val undoIds = trashRepository.getTrashFiles().getOrNull()
+                    ?.filter { it.originalPath in uniquePaths }
+                    ?.sortedByDescending { it.deletionTime }
+                    ?.map { it.id }
+                    ?.take(uniquePaths.size)
+                    .orEmpty()
+                _state.update { current ->
+                    current.copy(
+                        isCleaning = false,
+                        successMessage = CleanerSuccessMessage(uniquePaths.size, undoIds)
+                    )
                 }
-                .onFailure { error ->
-                    _state.update { current ->
-                        current.copy(
-                            isCleaning = false,
-                            groups = current.groups.restore(removedByGroup),
-                            errorMessage = error.message.orEmpty()
-                        )
-                    }
+            }
+            .onFailure { error ->
+                _state.update { current ->
+                    current.copy(
+                        isCleaning = false,
+                        groups = current.groups.restore(removedByGroup),
+                        errorMessage = error.message.orEmpty()
+                    )
                 }
-        }
+            }
     }
 
     fun undoClean(trashIds: List<String>) {
@@ -512,8 +530,13 @@ private fun List<CleanerGroup>.merge(updates: List<CleanerGroup>): List<CleanerG
 private fun List<CleanerGroup>.withoutPaths(paths: Set<String>): List<CleanerGroup> = map { group ->
     val remainingCandidates = group.candidates.filterNot { it.absolutePath in paths }
     group.copy(
-        candidates = if (group.type == CleanerGroupType.Duplicates) {
-            remainingCandidates.groupBy { it.duplicateGroupKey ?: it.absolutePath }
+        candidates = if (
+            group.type == CleanerGroupType.Duplicates ||
+            group.type == CleanerGroupType.FilenameVersions
+        ) {
+            remainingCandidates.groupBy {
+                it.duplicateGroupKey ?: it.filenameVersionMetadata?.familyKey ?: it.absolutePath
+            }
                 .values
                 .filter { it.size > 1 }
                 .flatten()

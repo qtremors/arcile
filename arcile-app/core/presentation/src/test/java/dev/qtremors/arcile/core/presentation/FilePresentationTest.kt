@@ -56,9 +56,57 @@ class FilePresentationTest {
             fileModel(name = "middle-folder", isDirectory = true, lastModified = 200)
         )
 
-        val result = filterAndSortFiles(files, query = "", sortOption = FileSortOption.DATE_NEWEST)
+        val result = filterAndSortFiles(
+            files,
+            query = "",
+            sortOption = FileSortOption.DATE_NEWEST,
+            foldersFirst = false
+        )
 
         assertEquals(listOf("latest.txt", "middle-folder", "old-folder"), result.map { it.name })
+    }
+
+    @Test
+    fun `folders first applies to every sort mode and can be disabled`() {
+        FileSortOption.entries.forEach { option ->
+            val (file, folder) = when (option) {
+                FileSortOption.NAME_ASC ->
+                    fileModel("alpha.txt") to fileModel("zeta", isDirectory = true)
+                FileSortOption.NAME_DESC ->
+                    fileModel("zeta.txt") to fileModel("alpha", isDirectory = true)
+                FileSortOption.DATE_NEWEST ->
+                    fileModel("file.txt", lastModified = 2) to
+                        fileModel("folder", isDirectory = true, lastModified = 1)
+                FileSortOption.DATE_OLDEST ->
+                    fileModel("file.txt", lastModified = 1) to
+                        fileModel("folder", isDirectory = true, lastModified = 2)
+                FileSortOption.SIZE_LARGEST ->
+                    fileModel("file.txt", size = 2) to
+                        fileModel("folder", isDirectory = true, size = 1)
+                FileSortOption.SIZE_SMALLEST ->
+                    fileModel("file.txt", size = 1) to
+                        fileModel("folder", isDirectory = true, size = 2)
+                FileSortOption.FILE_COUNT_HIGHEST,
+                FileSortOption.FILE_COUNT_LOWEST ->
+                    fileModel("file.txt") to fileModel("folder", isDirectory = true)
+            }
+
+            val grouped = filterAndSortFiles(
+                files = listOf(file, folder),
+                query = "",
+                sortOption = option,
+                foldersFirst = true
+            )
+            val ungrouped = filterAndSortFiles(
+                files = listOf(file, folder),
+                query = "",
+                sortOption = option,
+                foldersFirst = false
+            )
+
+            assertTrue("$option should group folders first", grouped.first().isDirectory)
+            assertTrue("$option should use only its sort comparator when disabled", !ungrouped.first().isDirectory)
+        }
     }
 
     @Test

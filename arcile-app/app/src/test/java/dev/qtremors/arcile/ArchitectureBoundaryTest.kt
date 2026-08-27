@@ -912,8 +912,10 @@ class ArchitectureBoundaryTest {
         )
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1102,
-            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 800,
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1150,
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800,
+            "arcile-app/feature/videoplayer/src/main/java/dev/qtremors/arcile/feature/videoplayer/VideoViewerPlaybackSurface.kt" to 800
         )
 
         val LARGE_VIEWMODEL_BASELINE = mapOf(

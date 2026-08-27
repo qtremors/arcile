@@ -477,17 +477,17 @@ private fun AudioEditorContent(
                             }
                             is AudioEditPlanResult.UnsupportedFormat -> planningError =
                                 if (result.extension.isBlank()) {
-                                    context.getString(R.string.audio_editor_unsupported_unknown)
+                                    context.resources.getString(R.string.audio_editor_unsupported_unknown)
                                 } else {
-                                    context.getString(
+                                    context.resources.getString(
                                         R.string.audio_editor_unsupported_format,
                                         result.extension.lowercase()
                                     )
                                 }
                             AudioEditPlanResult.MixedFormats -> planningError =
-                                context.getString(R.string.audio_editor_same_container)
+                                context.resources.getString(R.string.audio_editor_same_container)
                             AudioEditPlanResult.InvalidSelection -> planningError =
-                                context.getString(R.string.audio_editor_invalid_range)
+                                context.resources.getString(R.string.audio_editor_invalid_range)
                         }
                     },
                     modifier = Modifier.fillMaxWidth()

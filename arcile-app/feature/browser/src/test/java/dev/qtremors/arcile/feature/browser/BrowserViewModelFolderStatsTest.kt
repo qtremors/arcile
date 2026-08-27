@@ -196,4 +196,64 @@ class BrowserViewModelFolderStatsTest {
         assertEquals("Docs", viewModel.uiState.value.properties?.title)
         assertEquals(PropertiesAccessStatus.Partial, viewModel.uiState.value.properties?.accessStatus)
     }
+
+    @Test
+    fun `root storage scope hydrates and queues folder stats even when volumeId is null`() = runTest(mainDispatcherRule.dispatcher) {
+        val cachedStats = FolderStats(fileCount = 12, totalBytes = 12000L, cachedAt = System.currentTimeMillis())
+        val repo = BrowserFakeFileRepository(
+            volumes = emptyList(),
+            filesByPath = mapOf(
+                "/root" to listOf(
+                    browserFile("etc", "/root/etc", isDirectory = true),
+                    browserFile("var", "/root/var", isDirectory = true)
+                )
+            ),
+            cachedFolderStats = mapOf("/root/etc" to cachedStats)
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeFilePreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to false, "currentPath" to "/root", "isRootStorageScope" to true))
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(cachedStats, viewModel.uiState.value.folderStatsByPath["/root/etc"])
+        assertTrue(viewModel.uiState.value.folderStatsLoadingPaths.contains("/root/var"))
+        assertEquals(listOf("/root/var"), repo.lastQueuedFolderStats)
+    }
+
+    @Test
+    fun `unavailable folder stat update merges and removes from loading paths`() = runTest(mainDispatcherRule.dispatcher) {
+        val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
+        val repo = BrowserFakeFileRepository(
+            volumes = listOf(internal),
+            filesByPath = mapOf(
+                "/storage/emulated/0/Download" to listOf(
+                    browserFile("Restricted", "/storage/emulated/0/Download/Restricted", isDirectory = true)
+                )
+            )
+        )
+        val viewModel = createViewModel(
+            repository = repo,
+            browserPreferencesRepository = FakeFilePreferencesStore(),
+            savedStateHandle = SavedStateHandle(mapOf("isVolumeRootScreen" to true))
+        )
+
+        advanceUntilIdle()
+        viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
+        advanceUntilIdle()
+
+        val unavailableStats = FolderStats(
+            fileCount = 0L,
+            totalBytes = 0L,
+            cachedAt = System.currentTimeMillis(),
+            status = dev.qtremors.arcile.core.storage.domain.FolderStatsStatus.Unavailable
+        )
+        repo.emitFolderStatUpdate(FolderStatUpdate("/storage/emulated/0/Download/Restricted", unavailableStats))
+        advanceUntilIdle()
+
+        assertEquals(unavailableStats, viewModel.uiState.value.folderStatsByPath["/storage/emulated/0/Download/Restricted"])
+        assertFalse(viewModel.uiState.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Restricted"))
+    }
 }

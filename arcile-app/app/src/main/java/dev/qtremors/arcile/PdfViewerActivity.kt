@@ -45,7 +45,15 @@ open class PdfViewerActivity : ComponentActivity() {
                         sizeBytes = resolved.sizeBytes ?: 0L,
                         onNavigateBack = ::finish,
                         onShare = { shareTarget(resolved) },
-                        onOpenWith = { openTargetWithChooser(resolved) }
+                        onOpenWith = { openTargetWithChooser(resolved) },
+                        onFileRenamed = { _, newFile ->
+                            target = resolved.copy(
+                                reference = newFile.absolutePath,
+                                displayName = newFile.name,
+                                sizeBytes = newFile.size
+                            )
+                        },
+                        onFileDeleted = { finish() }
                     )
                 }
             }

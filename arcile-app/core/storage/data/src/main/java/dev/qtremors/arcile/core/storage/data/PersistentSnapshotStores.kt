@@ -159,8 +159,13 @@ class StorageCleanerSnapshotStore @Inject constructor(
                 groups = cached.groups.map { group ->
                     val remaining = group.candidates.filterNot { it.absolutePath in normalizedPaths }
                     group.copy(
-                        candidates = if (group.type == CleanerGroupType.Duplicates) {
-                            remaining.groupBy { it.duplicateGroupKey ?: it.absolutePath }
+                        candidates = if (
+                            group.type == CleanerGroupType.Duplicates ||
+                            group.type == CleanerGroupType.FilenameVersions
+                        ) {
+                            remaining.groupBy {
+                                it.duplicateGroupKey ?: it.filenameVersionMetadata?.familyKey ?: it.absolutePath
+                            }
                                 .values
                                 .filter { it.size > 1 }
                                 .flatten()
@@ -185,7 +190,7 @@ class StorageCleanerSnapshotStore @Inject constructor(
         rules: StorageCleanerRules,
         groupTypes: Set<CleanerGroupType>
     ): String =
-        "cleaner:${rootPathsKey(rootPaths)}:${groupTypes.map { it.name }.sorted().joinToString(",")}:" +
+        "cleaner:v2:${rootPathsKey(rootPaths)}:${groupTypes.map { it.name }.sorted().joinToString(",")}:" +
             "${limits.maxFiles}:${limits.maxDepth}:${limits.maxCandidatesPerGroup}:" +
             "${limits.largeFileThresholdBytes}:${limits.oldDownloadAgeMs}:${rules.normalized().stableHash()}"
 

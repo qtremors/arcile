@@ -11,18 +11,13 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.presentation.formatFileSize
-
-/**
- * A custom modifier that applies accessibility semantics for file/folder items.
- * Merges descendants so TalkBack reads the entire row/card as one unified element.
- */
 fun Modifier.fileItemSemantics(
     file: FileModel,
     isSelected: Boolean,
     formattedDate: String,
     folderStatsText: String?,
     isInSelectionMode: Boolean,
+    fileSizeText: String? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onOpenDirectly: () -> Unit,
@@ -41,7 +36,7 @@ fun Modifier.fileItemSemantics(
     val sizeOrStats = if (file.isDirectory) {
         folderStatsText ?: ""
     } else {
-        formatFileSize(file.size)
+        fileSizeText ?: ""
     }
     
     contentDescription = buildString {

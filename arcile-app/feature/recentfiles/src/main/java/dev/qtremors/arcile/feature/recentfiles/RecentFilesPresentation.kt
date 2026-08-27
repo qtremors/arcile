@@ -22,7 +22,8 @@ internal fun buildRecentFilesDisplay(
     return filterAndSortFiles(
         files = filtered,
         query = "",
-        sortOption = FileSortOption.DATE_NEWEST
+        sortOption = FileSortOption.DATE_NEWEST,
+        foldersFirst = presentation.foldersFirst
     )
 }
 

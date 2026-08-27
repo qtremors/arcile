@@ -108,7 +108,7 @@ fun ClipboardContentsDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = formatFileSize(state.totalSize),
+                            text = formatFileSize(androidx.compose.ui.platform.LocalContext.current, state.totalSize),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Medium
                         )
@@ -144,7 +144,10 @@ private fun ClipboardFileItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Icon(
-                imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(file),
+                imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(
+                    file,
+                    dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                ),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
@@ -159,7 +162,7 @@ private fun ClipboardFileItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = if (file.isDirectory) stringResource(R.string.directory_label) else formatFileSize(file.size),
+                    text = if (file.isDirectory) stringResource(R.string.directory_label) else formatFileSize(androidx.compose.ui.platform.LocalContext.current, file.size),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

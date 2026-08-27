@@ -50,7 +50,8 @@ internal fun presentationKeys(path: String, recursive: Boolean): PresentationKey
         viewMode = stringPreferencesKey("${prefix}_view_mode_$path"),
         listZoom = floatPreferencesKey("${prefix}_list_zoom_$path"),
         gridMinCellSize = floatPreferencesKey("${prefix}_grid_min_cell_size_$path"),
-        showThumbnails = booleanPreferencesKey("${prefix}_show_thumbnails_$path")
+        showThumbnails = booleanPreferencesKey("${prefix}_show_thumbnails_$path"),
+        foldersFirst = booleanPreferencesKey("${prefix}_folders_first_$path")
     )
 }
 
@@ -59,8 +60,9 @@ internal data class PresentationKeys(
     val viewMode: androidx.datastore.preferences.core.Preferences.Key<String>,
     val listZoom: androidx.datastore.preferences.core.Preferences.Key<Float>,
     val gridMinCellSize: androidx.datastore.preferences.core.Preferences.Key<Float>,
-    val showThumbnails: androidx.datastore.preferences.core.Preferences.Key<Boolean>
+    val showThumbnails: androidx.datastore.preferences.core.Preferences.Key<Boolean>,
+    val foldersFirst: androidx.datastore.preferences.core.Preferences.Key<Boolean>
 ) {
     fun all(): List<androidx.datastore.preferences.core.Preferences.Key<*>> =
-        listOf(sort, viewMode, listZoom, gridMinCellSize, showThumbnails)
+        listOf(sort, viewMode, listZoom, gridMinCellSize, showThumbnails, foldersFirst)
 }

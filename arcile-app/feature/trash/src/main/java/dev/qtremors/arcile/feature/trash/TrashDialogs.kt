@@ -133,8 +133,22 @@ internal fun TrashPropertiesDialog(
         title = { Text(stringResource(R.string.properties_title)) },
         text = {
             val model = properties ?: return@AlertDialog
+            val context = androidx.compose.ui.platform.LocalContext.current
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(model.title, style = MaterialTheme.typography.titleMedium)
+                Column {
+                    Text(
+                        text = stringResource(R.string.properties_size),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = dev.qtremors.arcile.core.presentation.formatFileSize(context, model.totalSizeBytes),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
                 model.rows.forEach { (label, value) ->
                     Column {
                         Text(

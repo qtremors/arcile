@@ -21,7 +21,6 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Using Roboto for a more native Android M3 feel, with Outfit as fallback -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&icon_names=android" />
     
     <!-- Custom Styles -->
     <link rel="stylesheet" href="styles.css">
@@ -327,13 +326,13 @@
                                 <i data-lucide="music" class="w-7 h-7 text-violet-400"></i>
                             </div>
                             <div class="flex flex-wrap gap-2">
+                                <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Waveform Editor</div>
                                 <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Background Playback</div>
                                 <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Editable Queue</div>
-                                <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">File Actions</div>
                             </div>
                         </div>
-                        <h3 class="text-3xl sm:text-4xl font-medium text-m3-onSurface mb-4 font-display">Audio Library & Player</h3>
-                        <p class="text-m3-onSurfaceVariant text-lg leading-relaxed max-w-4xl">Browse songs and folders with artwork, search, sorting, and flexible layouts, then keep listening through connected mini and full players, system media controls, repeat, shuffle, seeking, and queue management.</p>
+                        <h3 class="text-3xl sm:text-4xl font-medium text-m3-onSurface mb-4 font-display">Audio Library & Waveform Editor</h3>
+                        <p class="text-m3-onSurfaceVariant text-lg leading-relaxed max-w-4xl">Browse songs and folders with artwork, search, and queue management, or edit audio with zoomable waveforms, millisecond precision, trimming, middle-cuts, and track combining.</p>
                     </div>
                 </div>
 
@@ -349,7 +348,7 @@
                             </div>
                         </div>
                         <h3 class="text-2xl font-medium text-m3-onSurface mb-3 font-display">Storage Insights</h3>
-                        <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Map free space, drill into cached folder sizes, and review cleanup candidates before deleting.</p>
+                        <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Map free space, review duplicate comparisons and version families, and clean storage safely.</p>
                     </div>
                 </div>
 
@@ -726,7 +725,9 @@
     <section id="download" class="relative z-10 py-24 bg-m3-surfaceContainer">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center reveal opacity-0 translate-y-8 transition-all duration-700 ease-out">
             <div class="flex items-center justify-center mb-8">
-                <span class="material-symbols-outlined text-[80px] leading-none text-m3-primary">android</span>
+                <div class="w-20 h-20 rounded-full bg-white flex items-center justify-center shadow-lg shadow-black/25">
+                    <img src="assets/Arcile.svg" alt="Arcile Logo" class="w-[60px] h-[60px] object-contain">
+                </div>
             </div>
             <h2 class="text-4xl md:text-5xl font-display font-medium text-m3-onSurface mb-6">Download Arcile</h2>
             <p class="text-m3-onSurfaceVariant text-lg mb-10 max-w-2xl mx-auto">

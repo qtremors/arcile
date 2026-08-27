@@ -187,7 +187,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
 internal enum class GalleryViewState {

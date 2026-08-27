@@ -42,6 +42,7 @@ internal data class BrowserListingState(
     val browserListZoom: Float = FileListingPreferences.DEFAULT_LIST_ZOOM,
     val browserGridMinCellSize: Float = FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE,
     val browserShowThumbnails: Boolean = FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
+    val browserFoldersFirst: Boolean = FileListingPreferences.DEFAULT_FOLDERS_FIRST,
     val browserPresentationAppliesToSubfolders: Boolean = false,
     val browserScrollbarEnabled: Boolean = true,
     val showHiddenFiles: Boolean = true,
@@ -73,6 +74,7 @@ internal data class BrowserNavigationState(
     val browserListZoom get() = listing.browserListZoom
     val browserGridMinCellSize get() = listing.browserGridMinCellSize
     val browserShowThumbnails get() = listing.browserShowThumbnails
+    val browserFoldersFirst get() = listing.browserFoldersFirst
     val browserPresentationAppliesToSubfolders get() = listing.browserPresentationAppliesToSubfolders
     val browserScrollbarEnabled get() = listing.browserScrollbarEnabled
     val showHiddenFiles get() = listing.showHiddenFiles
@@ -100,6 +102,7 @@ internal data class BrowserNavigationState(
         browserListZoom: Float = this.browserListZoom,
         browserGridMinCellSize: Float = this.browserGridMinCellSize,
         browserShowThumbnails: Boolean = this.browserShowThumbnails,
+        browserFoldersFirst: Boolean = this.browserFoldersFirst,
         browserPresentationAppliesToSubfolders: Boolean = this.browserPresentationAppliesToSubfolders,
         browserScrollbarEnabled: Boolean = this.browserScrollbarEnabled,
         showHiddenFiles: Boolean = this.showHiddenFiles
@@ -127,6 +130,7 @@ internal data class BrowserNavigationState(
             browserListZoom = browserListZoom,
             browserGridMinCellSize = browserGridMinCellSize,
             browserShowThumbnails = browserShowThumbnails,
+            browserFoldersFirst = browserFoldersFirst,
             browserPresentationAppliesToSubfolders = browserPresentationAppliesToSubfolders,
             browserScrollbarEnabled = browserScrollbarEnabled,
             showHiddenFiles = showHiddenFiles
@@ -212,6 +216,7 @@ internal fun BrowserNavigationState.withUpdatedDisplayState(): BrowserNavigation
         displayState = buildBrowserDisplayState(
             files = files,
             sortOption = browserSortOption,
+            foldersFirst = browserFoldersFirst,
             selectedFolderTabPath = selectedFolderTabPath,
             isCategoryScreen = isCategoryScreen,
             currentVolumeId = currentVolumeId,

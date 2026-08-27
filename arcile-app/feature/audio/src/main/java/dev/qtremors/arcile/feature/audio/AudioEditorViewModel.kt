@@ -60,6 +60,7 @@ internal data class AudioEditorState(
     val loopEnabled: Boolean = true
 )
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @HiltViewModel
 internal class AudioEditorViewModel @Inject constructor(
     application: Application,

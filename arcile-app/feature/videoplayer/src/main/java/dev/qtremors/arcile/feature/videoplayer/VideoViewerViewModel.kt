@@ -288,6 +288,40 @@ internal class VideoViewerViewModel @Inject constructor(
         _state.update { it.copy(viewerCurrentPath = path) }
     }
 
+    fun applyViewerRename(oldPath: String, newFile: FileModel) {
+        savedStateHandle[KEY_CURRENT_PATH] = newFile.absolutePath
+        _state.update { current ->
+            current.copy(
+                files = current.files.map { if (it.absolutePath == oldPath) newFile else it }.toPersistentList(),
+                displayedFiles = current.displayedFiles
+                    .map { if (it.absolutePath == oldPath) newFile else it }
+                    .toPersistentList(),
+                selectedFiles = current.selectedFiles
+                    .map { if (it == oldPath) newFile.absolutePath else it }
+                    .toPersistentSet(),
+                viewerCurrentPath = if (current.viewerCurrentPath == oldPath) {
+                    newFile.absolutePath
+                } else {
+                    current.viewerCurrentPath
+                }
+            )
+        }
+    }
+
+    fun applyViewerDelete(deletedPath: String) {
+        _state.update { current ->
+            val remaining = current.displayedFiles.filterNot { it.absolutePath == deletedPath }.toPersistentList()
+            current.copy(
+                files = current.files.filterNot { it.absolutePath == deletedPath }.toPersistentList(),
+                displayedFiles = remaining,
+                selectedFiles = current.selectedFiles.removing(deletedPath),
+                viewerCurrentPath = current.viewerCurrentPath
+                    .takeUnless { it == deletedPath }
+                    ?: remaining.firstOrNull()?.absolutePath
+            )
+        }
+    }
+
     fun setViewerMetadataVisible(path: String?, visible: Boolean) {
         val metadataPath = if (visible) path else null
         savedStateHandle[KEY_METADATA_PATH] = metadataPath

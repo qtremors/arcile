@@ -33,6 +33,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +57,25 @@ import dev.qtremors.arcile.core.ui.ArcileSectionHeader
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.showArcileToast
+
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.font.FontWeight
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import dev.qtremors.arcile.core.operation.android.apk.ApkUpdateCandidate
+import dev.qtremors.arcile.core.operation.android.apk.OnDeviceApkDiscovery
+import kotlinx.coroutines.launch
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface PluginsScreenEntryPoint {
+    fun onDeviceApkDiscovery(): OnDeviceApkDiscovery
+}
 
 private data class PluginRowModel(
     val catalog: PluginCatalogEntry?,
@@ -64,13 +84,34 @@ private data class PluginRowModel(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun PluginsScreen(onNavigateBack: () -> Unit) {
+internal fun PluginsScreen(
+    onNavigateBack: () -> Unit,
+    onInstallUpdate: (String) -> Unit
+) {
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    val coroutineScope = rememberCoroutineScope()
     val manager = remember(context) { PluginManager(context) }
     var installed by remember { mutableStateOf(manager.getInstalledPlugins()) }
+
+    val discovery = remember(context) {
+        runCatching {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                PluginsScreenEntryPoint::class.java
+            ).onDeviceApkDiscovery()
+        }.getOrNull()
+    }
+
+    val updateCandidates by produceState<List<ApkUpdateCandidate>>(
+        initialValue = emptyList(),
+        installed,
+        discovery
+    ) {
+        value = discovery?.discoverPluginUpdates() ?: emptyList()
+    }
 
     DisposableEffect(lifecycleOwner, manager) {
         val observer = LifecycleEventObserver { _, event ->
@@ -131,6 +172,9 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
                 items(rows, key = { it.installed?.packageName ?: it.catalog!!.packageName }) { row ->
                     val plugin = row.installed
                     val compatible = plugin?.compatibility == PluginCompatibility.COMPATIBLE
+                    val updateCandidate = plugin?.let { inst ->
+                        updateCandidates.firstOrNull { it.metadata.packageName == inst.packageName }
+                    }
                     val status = when {
                         plugin != null && compatible -> stringResource(
                             R.string.plugin_status_installed,
@@ -147,7 +191,22 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
                     }
                     ListItem(
                         content = { Text(plugin?.name ?: row.catalog!!.name) },
-                        supportingContent = { Text(status) },
+                        supportingContent = {
+                            Column {
+                                Text(status)
+                                if (updateCandidate != null) {
+                                    Text(
+                                        text = stringResource(
+                                            R.string.plugin_update_available,
+                                            updateCandidate.metadata.versionName
+                                        ),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
+                            }
+                        },
                         leadingContent = {
                             Icon(
                                 statusIcon,
@@ -161,6 +220,26 @@ internal fun PluginsScreen(onNavigateBack: () -> Unit) {
                         },
                         trailingContent = {
                             Row {
+                                if (updateCandidate != null) {
+                                    IconButton(onClick = {
+                                        coroutineScope.launch {
+                                            val freshCandidate = discovery?.revalidateCandidate(updateCandidate)
+                                            if (freshCandidate?.isValid == true) {
+                                                onInstallUpdate(freshCandidate.metadata.filePath)
+                                            } else {
+                                                context.showArcileToast(
+                                                    context.getString(R.string.error_file_operation_failed)
+                                                )
+                                            }
+                                        }
+                                    }) {
+                                        Icon(
+                                            Icons.Default.SystemUpdate,
+                                            stringResource(R.string.plugin_update_action),
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
                                 if (plugin != null) {
                                     IconButton(onClick = {
                                         context.startActivity(

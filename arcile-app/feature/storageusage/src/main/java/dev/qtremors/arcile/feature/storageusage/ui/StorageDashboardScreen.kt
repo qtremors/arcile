@@ -352,8 +352,9 @@ private fun StorageSummaryTab(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Text(
-                        text = stringResource(R.string.used_of, formatFileSize(used), formatFileSize(volume.totalBytes)),
+                        text = stringResource(R.string.used_of, formatFileSize(context, used), formatFileSize(context, volume.totalBytes)),
                         style = MaterialTheme.typography.titleLargeBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -497,11 +498,12 @@ private fun RootStorageSummary(
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
+        val context = androidx.compose.ui.platform.LocalContext.current
         Text(
             text = stringResource(
                 R.string.used_of,
-                formatFileSize(usage.usedBytes),
-                formatFileSize(usage.totalBytes)
+                formatFileSize(context, usage.usedBytes),
+                formatFileSize(context, usage.totalBytes)
             ),
             style = MaterialTheme.typography.titleLargeBold,
             color = MaterialTheme.colorScheme.onSurface

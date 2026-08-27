@@ -82,7 +82,6 @@ import dev.qtremors.arcile.core.ui.rememberDateFormatter
 import dev.qtremors.arcile.core.ui.theme.bodyLargeMedium
 import dev.qtremors.arcile.core.ui.theme.bodyMediumBold
 import dev.qtremors.arcile.core.ui.theme.titleMediumBold
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers

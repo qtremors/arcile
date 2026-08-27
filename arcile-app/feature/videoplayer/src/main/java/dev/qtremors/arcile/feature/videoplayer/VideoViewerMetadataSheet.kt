@@ -72,7 +72,6 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
@@ -104,9 +103,11 @@ internal fun VideoMetadataSheet(
         aspectRatio = stringResource(R.string.image_gallery_metadata_label_aspect_ratio)
     )
     val durationLabel = stringResource(R.string.video_gallery_metadata_duration)
+    val context = androidx.compose.ui.platform.LocalContext.current
 
-    val rows = remember(file, metadata, durationMs, labels, durationLabel) {
+    val rows = remember(context, file, metadata, durationMs, labels, durationLabel) {
         buildVideoMetadataRows(
+            context,
             file,
             metadata,
             labels,

@@ -30,6 +30,7 @@ import androidx.core.view.WindowCompat
 val LocalHapticsEnabled = staticCompositionLocalOf { true }
 val LocalDoubleLineFilenames = staticCompositionLocalOf { false }
 val LocalMarqueeFilenames = staticCompositionLocalOf { false }
+val LocalFolderIconsEnabled = staticCompositionLocalOf { false }
 
 @Composable
 fun ArcileTheme(
@@ -187,6 +188,7 @@ fun ArcileTheme(
         LocalHapticsEnabled provides themeState.vibrationsEnabled,
         LocalDoubleLineFilenames provides themeState.doubleLineFilenames,
         LocalMarqueeFilenames provides themeState.marqueeFilenames,
+        LocalFolderIconsEnabled provides themeState.folderIconsEnabled,
         LocalHapticFeedback provides customHapticFeedback,
         LocalReducedMotionEnabled provides reducedMotionEnabled
     ) {

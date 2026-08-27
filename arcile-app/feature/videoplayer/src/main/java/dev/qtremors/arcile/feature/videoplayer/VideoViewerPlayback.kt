@@ -75,7 +75,6 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics

@@ -25,18 +25,20 @@ class FileRowUiModelTest {
 
     @Test
     fun `preformats file metadata for lazy rows`() {
+        val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         val row = FileModel(
             name = "clip.mp4",
             absolutePath = "/storage/emulated/0/Movies/clip.mp4",
-            size = 1024,
+            size = 1000,
             lastModified = 0,
             extension = "mp4",
             mimeType = "video/mp4"
-        ).toFileRowUiModel(formatter, thumbnailSizePx = 192)
+        ).toFileRowUiModel(formatter, thumbnailSizePx = 192, context = context)
 
         assertEquals("1970-01-01", row.formattedDate)
         assertEquals(FileIconType.Video, row.iconType)
         assertEquals(192, row.thumbnailSizePx)
+        assertEquals(dev.qtremors.arcile.core.presentation.formatFileSize(context, 1000), row.subtitle)
         assertTrue(row.canShowThumbnail)
     }
 
@@ -112,5 +114,14 @@ class FileRowUiModelTest {
         ).toFileRowUiModel(formatter)
 
         assertTrue(row.thumbnailRequestData() is ThumbnailKey)
+    }
+
+    @Test
+    fun `fileModel thumbnailRequestData returns null for directories and unsupported types`() {
+        val folder = FileModel(name = "Docs", absolutePath = "/storage/emulated/0/Docs", isDirectory = true)
+        val unknown = FileModel(name = "test.unknown", absolutePath = "/storage/emulated/0/test.unknown", extension = "unknown")
+
+        assertEquals(null, folder.thumbnailRequestData())
+        assertEquals(null, unknown.thumbnailRequestData())
     }
 }

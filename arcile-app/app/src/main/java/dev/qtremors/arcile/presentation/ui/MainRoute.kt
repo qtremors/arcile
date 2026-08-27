@@ -1,11 +1,19 @@
 package dev.qtremors.arcile.presentation.ui
 
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.TopAppBarState
@@ -23,8 +31,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
@@ -47,6 +57,10 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.R
 
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
+import androidx.compose.material3.adaptive.separatingVerticalHingeBounds
+import androidx.window.core.layout.WindowWidthSizeClass
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun MainRoute(
@@ -67,10 +81,25 @@ internal fun MainRoute(
     val tabsEnabled by browserTabsViewModel.tabsEnabled.collectAsStateWithLifecycle()
     val storageVolumes by browserTabsViewModel.storageVolumes.collectAsStateWithLifecycle()
     val coroutineScope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
+    val windowInfo = LocalWindowInfo.current
+    val density = LocalDensity.current
+    val adaptiveInfo = currentWindowAdaptiveInfoV2()
+    val widthSizeClass = adaptiveInfo.windowSizeClass.windowWidthSizeClass
+    val adaptation = resolveMainWorkspaceAdaptation(
+        isCompactWidth = widthSizeClass == WindowWidthSizeClass.COMPACT,
+        isMediumWidth = widthSizeClass == WindowWidthSizeClass.MEDIUM,
+        isLandscape = windowInfo.containerSize.width > windowInfo.containerSize.height,
+        isTabletop = adaptiveInfo.windowPosture.isTabletop,
+        hasSeparatingVerticalHinge = adaptiveInfo.windowPosture.separatingVerticalHingeBounds.isNotEmpty(),
+        landscapeDualPaneEnabled = landscapeDualPaneEnabled
+    )
+    val separatingHingeWidth = adaptiveInfo.windowPosture.separatingVerticalHingeBounds
+        .firstOrNull()
+        ?.width
+        ?.let { width -> with(density) { width.toDp() } }
+        ?: 0.dp
     val sharedBrowserTopAppBarState = rememberTopAppBarState()
-    val dualPaneEnabled = landscapeDualPaneEnabled &&
-        configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val dualPaneEnabled = adaptation.dualPane
     val coordinator = rememberMainShellCoordinator(
         backStackEntry = backStackEntry,
         mainArgs = mainArgs,
@@ -138,20 +167,42 @@ internal fun MainRoute(
         coordinator.coordinate(showBrowserPageRequests)
     }
 
-    HorizontalPager(
-        state = coordinator.pagerState,
-        modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = coordinator.pagerState.currentPage == HOME_PAGE,
-        beyondViewportPageCount = 1,
-        key = { page ->
-            when (page) {
-                HOME_PAGE -> "home"
-                BROWSER_PAGE -> if (dualPaneEnabled) "browser-dual" else "browser-primary"
-                else -> "browser-secondary"
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (adaptation.persistentNavigation) {
+            NavigationRail {
+                Spacer(modifier = Modifier.weight(1f))
+                NavigationRailItem(
+                    selected = coordinator.pagerState.currentPage == HOME_PAGE,
+                    onClick = coordinator::showHome,
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text(stringResource(R.string.home_title)) }
+                )
+                NavigationRailItem(
+                    selected = coordinator.pagerState.currentPage != HOME_PAGE,
+                    onClick = coordinator::showPrimaryBrowser,
+                    icon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                    label = { Text(stringResource(R.string.browse_title)) }
+                )
+                Spacer(modifier = Modifier.weight(1f))
             }
         }
-    ) { page ->
-        when (page) {
+        HorizontalPager(
+            state = coordinator.pagerState,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
+            userScrollEnabled = !adaptation.persistentNavigation &&
+                coordinator.pagerState.currentPage == HOME_PAGE,
+            beyondViewportPageCount = 1,
+            key = { page ->
+                when (page) {
+                    HOME_PAGE -> "home"
+                    BROWSER_PAGE -> if (dualPaneEnabled) "browser-dual" else "browser-primary"
+                    else -> "browser-secondary"
+                }
+            }
+        ) { page ->
+            when (page) {
             HOME_PAGE -> HomeRoute(
                 appStartPage = appStartPage,
                 onAppStartPageChange = onAppStartPageChange,
@@ -211,7 +262,15 @@ internal fun MainRoute(
                             .weight(1f)
                             .fillMaxHeight()
                     )
-                    VerticalDivider(modifier = Modifier.fillMaxHeight())
+                    if (separatingHingeWidth > 0.dp) {
+                        Spacer(
+                            modifier = Modifier
+                                .width(separatingHingeWidth)
+                                .fillMaxHeight()
+                        )
+                    } else {
+                        VerticalDivider(modifier = Modifier.fillMaxHeight())
+                    }
                     BrowserWorkspacePage(
                         browserPage = SECONDARY_BROWSER_PAGE,
                         coordinator = secondaryTabs,
@@ -289,8 +348,32 @@ internal fun MainRoute(
                     coordinator.showRelativeTo(SECONDARY_BROWSER_PAGE, direction)
                 }
             )
+            }
         }
     }
+}
+
+internal data class MainWorkspaceAdaptation(
+    val persistentNavigation: Boolean,
+    val dualPane: Boolean
+)
+
+internal fun resolveMainWorkspaceAdaptation(
+    isCompactWidth: Boolean,
+    isMediumWidth: Boolean,
+    isLandscape: Boolean,
+    isTabletop: Boolean,
+    hasSeparatingVerticalHinge: Boolean,
+    landscapeDualPaneEnabled: Boolean
+): MainWorkspaceAdaptation {
+    val persistentNavigation = !isCompactWidth
+    val isExpandedOrLarger = !isCompactWidth && !isMediumWidth
+    val dualPane = !isTabletop && (
+        hasSeparatingVerticalHinge ||
+            isExpandedOrLarger ||
+            (landscapeDualPaneEnabled && isLandscape)
+        )
+    return MainWorkspaceAdaptation(persistentNavigation, dualPane)
 }
 
 @Composable

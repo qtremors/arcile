@@ -188,7 +188,8 @@ internal class BrowserNavigationController(
                     browserViewMode = presentation.viewMode,
                     browserListZoom = presentation.listZoom,
                     browserGridMinCellSize = presentation.gridMinCellSize,
-                    browserShowThumbnails = presentation.showThumbnails
+                    browserShowThumbnails = presentation.showThumbnails,
+                    browserFoldersFirst = presentation.foldersFirst
                 ).withUpdatedDisplayState()
             }
             saveNavStateIfActive(generation)
@@ -385,6 +386,7 @@ internal class BrowserNavigationController(
         update { current ->
             if (current.isVolumeRootScreen ||
                 current.isCategoryScreen ||
+                current.archiveContext != null ||
                 current.files.none { it.isDirectory && it.absolutePath == path }
             ) {
                 current
@@ -468,7 +470,8 @@ internal class BrowserNavigationController(
                         browserViewMode = categoryPresentation.viewMode,
                         browserListZoom = categoryPresentation.listZoom,
                         browserGridMinCellSize = categoryPresentation.gridMinCellSize,
-                        browserShowThumbnails = categoryPresentation.showThumbnails
+                        browserShowThumbnails = categoryPresentation.showThumbnails,
+                        browserFoldersFirst = categoryPresentation.foldersFirst
                     ).withUpdatedDisplayState()
                 }
                 saveNavStateIfActive(generation)
@@ -493,7 +496,8 @@ internal class BrowserNavigationController(
                 browserViewMode = presentation.viewMode,
                 browserListZoom = presentation.listZoom,
                 browserGridMinCellSize = presentation.gridMinCellSize,
-                browserShowThumbnails = presentation.showThumbnails
+                browserShowThumbnails = presentation.showThumbnails,
+                browserFoldersFirst = presentation.foldersFirst
             ).withUpdatedDisplayState()
         }
     }

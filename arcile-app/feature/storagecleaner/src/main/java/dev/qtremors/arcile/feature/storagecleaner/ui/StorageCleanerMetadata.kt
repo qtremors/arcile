@@ -24,6 +24,7 @@ internal fun cleanerTitle(type: CleanerGroupType): String = when (type) {
     CleanerGroupType.LargeFiles -> stringResource(R.string.cleaner_large_files)
     CleanerGroupType.OldDownloads -> stringResource(R.string.cleaner_old_downloads)
     CleanerGroupType.Duplicates -> stringResource(R.string.cleaner_duplicates)
+    CleanerGroupType.FilenameVersions -> stringResource(R.string.cleaner_filename_versions)
     CleanerGroupType.Apks -> stringResource(R.string.cleaner_apks)
     CleanerGroupType.Videos -> stringResource(R.string.cleaner_videos)
     CleanerGroupType.MarkerFiles -> stringResource(R.string.cleaner_marker_files)
@@ -36,6 +37,7 @@ internal fun cleanerDescription(type: CleanerGroupType): String = when (type) {
     CleanerGroupType.LargeFiles -> stringResource(R.string.cleaner_large_files_desc)
     CleanerGroupType.OldDownloads -> stringResource(R.string.cleaner_old_downloads_desc)
     CleanerGroupType.Duplicates -> stringResource(R.string.cleaner_duplicates_desc)
+    CleanerGroupType.FilenameVersions -> stringResource(R.string.cleaner_filename_versions_desc)
     CleanerGroupType.Apks -> stringResource(R.string.cleaner_apks_desc)
     CleanerGroupType.Videos -> stringResource(R.string.cleaner_videos_desc)
     CleanerGroupType.MarkerFiles -> stringResource(R.string.cleaner_marker_files_desc)
@@ -48,6 +50,7 @@ internal fun cleanerColor(type: CleanerGroupType): Color = when (type) {
     CleanerGroupType.LargeFiles -> MaterialTheme.colorScheme.primary
     CleanerGroupType.OldDownloads -> MaterialTheme.colorScheme.secondary
     CleanerGroupType.Duplicates -> MaterialTheme.colorScheme.tertiary
+    CleanerGroupType.FilenameVersions -> MaterialTheme.colorScheme.tertiary
     CleanerGroupType.Apks -> MaterialTheme.colorScheme.primary
     CleanerGroupType.Videos -> MaterialTheme.colorScheme.secondary
     CleanerGroupType.MarkerFiles -> MaterialTheme.colorScheme.tertiary
@@ -59,6 +62,7 @@ internal fun cleanerIcon(type: CleanerGroupType): ImageVector = when (type) {
     CleanerGroupType.LargeFiles -> Icons.Default.Storage
     CleanerGroupType.OldDownloads -> Icons.Default.Download
     CleanerGroupType.Duplicates -> Icons.Default.CopyAll
+    CleanerGroupType.FilenameVersions -> Icons.AutoMirrored.Filled.FactCheck
     CleanerGroupType.Apks -> Icons.Default.Android
     CleanerGroupType.Videos -> Icons.Default.VideoFile
     CleanerGroupType.MarkerFiles -> Icons.AutoMirrored.Filled.FactCheck

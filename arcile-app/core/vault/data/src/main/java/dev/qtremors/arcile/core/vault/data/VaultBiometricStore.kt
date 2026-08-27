@@ -19,8 +19,8 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
-internal class VaultBiometricStore(context: Context) {
-    private val root = File(context.noBackupFilesDir, DIRECTORY).apply { mkdirs() }
+internal class VaultBiometricStore(private val context: Context) {
+    private val root by lazy { File(context.noBackupFilesDir, DIRECTORY).apply { mkdirs() } }
 
     fun prepareEnrollment(vaultId: VaultId): Cipher = mapInvalidation {
         removeKey(vaultId)

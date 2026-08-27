@@ -181,7 +181,7 @@ internal fun RecentFilesScreen(
                 when {
                     isSelectionMode -> RecentSelectionTopBar(
                         selectedCount = state.selectedFiles.size,
-                        selectedSize = dev.qtremors.arcile.core.presentation.formatFileSize(state.selectedFilesTotalSize),
+                        selectedSize = dev.qtremors.arcile.core.presentation.formatFileSize(androidx.compose.ui.platform.LocalContext.current, state.selectedFilesTotalSize),
                         onClearSelection = onClearSelection
                     )
                     showSearchBar -> Column {
@@ -393,16 +393,18 @@ internal fun RecentFilesScreen(
             showSortControls = false,
             onDismiss = { showPresentationSheet = false },
             onApply = { preferences, _ -> onPresentationChange(preferences) },
-            minDateMillis = state.activeSearchFilters.minDateMillis,
-            maxDateMillis = state.activeSearchFilters.maxDateMillis,
-            onDateRangeChange = { minDate, maxDate ->
-                onSearchFiltersChange(state.activeSearchFilters.copy(minDateMillis = minDate, maxDateMillis = maxDate))
-            },
-            minSize = state.activeSearchFilters.minSize,
-            maxSize = state.activeSearchFilters.maxSize,
-            onSizeRangeChange = { minSizeVal, maxSizeVal ->
-                onSearchFiltersChange(state.activeSearchFilters.copy(minSize = minSizeVal, maxSize = maxSizeVal))
-            }
+            filterOptions = dev.qtremors.arcile.core.ui.SortDialogFilterOptions(
+                minDateMillis = state.activeSearchFilters.minDateMillis,
+                maxDateMillis = state.activeSearchFilters.maxDateMillis,
+                onDateRangeChange = { minDate, maxDate ->
+                    onSearchFiltersChange(state.activeSearchFilters.copy(minDateMillis = minDate, maxDateMillis = maxDate))
+                },
+                minSize = state.activeSearchFilters.minSize,
+                maxSize = state.activeSearchFilters.maxSize,
+                onSizeRangeChange = { minSizeVal, maxSizeVal ->
+                    onSearchFiltersChange(state.activeSearchFilters.copy(minSize = minSizeVal, maxSize = maxSizeVal))
+                }
+            )
         )
     }
 

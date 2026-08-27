@@ -54,6 +54,11 @@ import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.FitScreen
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DriveFileRenameOutline
+import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Search
@@ -118,6 +123,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
 import kotlin.math.sqrt
 
 @Composable
@@ -189,7 +195,9 @@ internal fun PdfBottomChrome(
     onOpenWith: () -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    onPrint: () -> Unit
+    onPrint: () -> Unit,
+    viewerActions: Set<ViewerFileAction> = emptySet(),
+    onViewerAction: (ViewerFileAction) -> Unit = {}
 ) {
     var sliderPage by remember(page) { mutableFloatStateOf(page.toFloat()) }
     Column(
@@ -273,7 +281,9 @@ internal fun PdfBottomChrome(
                 onOpenWith = onOpenWith,
                 keepScreenOn = keepScreenOn,
                 onKeepScreenOnChange = onKeepScreenOnChange,
-                onPrint = onPrint
+                onPrint = onPrint,
+                viewerActions = viewerActions,
+                onViewerAction = onViewerAction
             )
         }
     }
@@ -286,7 +296,9 @@ private fun PdfOverflowMenu(
     onOpenWith: () -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    onPrint: () -> Unit
+    onPrint: () -> Unit,
+    viewerActions: Set<ViewerFileAction>,
+    onViewerAction: (ViewerFileAction) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val haptics = rememberArcileHaptics()
@@ -316,7 +328,8 @@ private fun PdfOverflowMenu(
         ArcileDropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            items = listOf(
+            items = buildList {
+                add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.pdf_keep_screen_on),
@@ -329,7 +342,8 @@ private fun PdfOverflowMenu(
                             onKeepScreenOnChange(!keepScreenOn)
                         }
                     )
-                },
+                })
+                add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.pdf_print),
@@ -339,7 +353,8 @@ private fun PdfOverflowMenu(
                             onPrint()
                         }
                     )
-                },
+                })
+                add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.action_info),
@@ -349,7 +364,8 @@ private fun PdfOverflowMenu(
                             onInfo()
                         }
                     )
-                },
+                })
+                add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.image_gallery_open_with),
@@ -361,7 +377,8 @@ private fun PdfOverflowMenu(
                             onOpenWith()
                         }
                     )
-                },
+                })
+                add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.share),
@@ -371,8 +388,26 @@ private fun PdfOverflowMenu(
                             onShare()
                         }
                     )
+                })
+                fun addViewerAction(action: ViewerFileAction, label: Int, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+                    if (action !in viewerActions) return
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(label),
+                            leadingIcon = { Icon(icon, contentDescription = null) },
+                            onClick = {
+                                expanded = false
+                                onViewerAction(action)
+                            }
+                        )
+                    }
                 }
-            )
+                addViewerAction(ViewerFileAction.Rename, R.string.action_rename, Icons.Default.DriveFileRenameOutline)
+                addViewerAction(ViewerFileAction.Copy, R.string.action_copy, Icons.Default.ContentCopy)
+                addViewerAction(ViewerFileAction.Cut, R.string.action_cut, Icons.Default.ContentCut)
+                addViewerAction(ViewerFileAction.CreateArchive, R.string.action_create_archive, Icons.Default.FolderZip)
+                addViewerAction(ViewerFileAction.Delete, R.string.action_delete, Icons.Default.Delete)
+            }
         )
     }
 }
@@ -399,7 +434,7 @@ internal fun PdfInfoSheet(
         PdfInfoRow(stringResource(R.string.pdf_name), title)
         PdfInfoRow(stringResource(R.string.pdf_pages), pageCount.toString())
         if (sizeBytes > 0L) {
-            PdfInfoRow(stringResource(R.string.pdf_size), formatFileSize(sizeBytes))
+            PdfInfoRow(stringResource(R.string.pdf_size), formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes))
         }
         PdfInfoRow(
             stringResource(

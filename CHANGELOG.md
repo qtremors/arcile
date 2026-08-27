@@ -1,10 +1,21 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.9
-> **Last Updated:** 2026-08-26
+> **Version:** 2.1.0
+> **Last Updated:** 2026-08-28
 
 ---
+
+## [2.1.0] - 2026-08-28
+
+- **Adaptive Primary Workspace**: Added persistent navigation and automatic dual-pane browsing for larger displays and foldables, adapting smoothly to live resizing and fold postures.
+- **Refined Conflict Resolution**: Compacted file conflict dialogs with circular thumbnails, single-row metadata, full-width path labels, and side-by-side action buttons.
+- **Consistent Viewer Actions**: Added capability-aware file actions (rename, copy, move, delete, share, open-with, archive, properties) across all media viewers, PDFs, and OnlyFiles vaults.
+- **Predictable Storage Cleaner**: Replaced candidate checkboxes with long-press selection, added filename-version grouping, expanded duplicate comparisons, and excluded OnlyFiles vaults and ignored folders from cleanup scans.
+- **App-Aware Folder Icons & Ordering**: Added an opt-in toggle for app-matched folder icons and a persisted setting to group folders above files across all sort modes.
+- **Improved Browsing & Presentation**: Aligned grid sizing to discrete density steps, preserved cached folder statistics during background refreshes, and standardized locale-aware file size formatting.
+- **Signed Update Discovery**: Added on-device update checks for Arcile in About and compatible plugin updates in Plugins with rate-limited notifications.
+- **Smoother Startup Performance**: Deferred disk reads and preference storage initialization during composition and dependency injection to eliminate main-thread StrictMode violations and startup frame drops.
 
 ## [2.0.9] - 2026-08-26
 

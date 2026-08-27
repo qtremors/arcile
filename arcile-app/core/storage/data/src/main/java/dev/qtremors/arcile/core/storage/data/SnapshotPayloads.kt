@@ -111,6 +111,32 @@ internal data class CachedStorageUsageNode(
 }
 
 @Serializable
+internal data class CachedFilenameVersionMetadata(
+    val familyKey: String,
+    val displayStem: String,
+    val evidenceType: String,
+    val isLikelyNewest: Boolean = false
+) {
+    fun toDomain(): dev.qtremors.arcile.core.storage.domain.FilenameVersionMetadata =
+        dev.qtremors.arcile.core.storage.domain.FilenameVersionMetadata(
+            familyKey = familyKey,
+            displayStem = displayStem,
+            evidenceType = dev.qtremors.arcile.core.storage.domain.FilenameVersionEvidence.valueOf(evidenceType),
+            isLikelyNewest = isLikelyNewest
+        )
+
+    companion object {
+        fun from(domain: dev.qtremors.arcile.core.storage.domain.FilenameVersionMetadata): CachedFilenameVersionMetadata =
+            CachedFilenameVersionMetadata(
+                familyKey = domain.familyKey,
+                displayStem = domain.displayStem,
+                evidenceType = domain.evidenceType.name,
+                isLikelyNewest = domain.isLikelyNewest
+            )
+    }
+}
+
+@Serializable
 internal data class CachedCleanerCandidate(
     val name: String,
     val absolutePath: String,
@@ -120,10 +146,22 @@ internal data class CachedCleanerCandidate(
     val riskLevel: String,
     val riskReasons: Set<String>,
     val isDirectory: Boolean,
-    val duplicateGroupKey: String?
+    val duplicateGroupKey: String?,
+    val versionFamilyKey: String? = null,
+    val isLikelyNewestVersion: Boolean = false,
+    val filenameVersionMetadata: CachedFilenameVersionMetadata? = null
 ) {
-    fun toDomain(): CleanerCandidate =
-        CleanerCandidate(
+    fun toDomain(): CleanerCandidate {
+        val metadata = filenameVersionMetadata?.toDomain()
+            ?: versionFamilyKey?.let { key ->
+                dev.qtremors.arcile.core.storage.domain.FilenameVersionMetadata(
+                    familyKey = key,
+                    displayStem = name.substringBeforeLast('.', name),
+                    evidenceType = dev.qtremors.arcile.core.storage.domain.FilenameVersionEvidence.SemanticVersion,
+                    isLikelyNewest = isLikelyNewestVersion
+                )
+            }
+        return CleanerCandidate(
             name = name,
             absolutePath = absolutePath,
             size = size,
@@ -132,8 +170,10 @@ internal data class CachedCleanerCandidate(
             riskLevel = CleanerRiskLevel.valueOf(riskLevel),
             riskReasons = riskReasons.mapTo(linkedSetOf()) { CleanerRiskReason.valueOf(it) },
             isDirectory = isDirectory,
-            duplicateGroupKey = duplicateGroupKey
+            duplicateGroupKey = duplicateGroupKey,
+            filenameVersionMetadata = metadata
         )
+    }
 
     companion object {
         fun from(candidate: CleanerCandidate): CachedCleanerCandidate =
@@ -146,7 +186,12 @@ internal data class CachedCleanerCandidate(
                 riskLevel = candidate.riskLevel.name,
                 riskReasons = candidate.riskReasons.mapTo(linkedSetOf()) { it.name },
                 isDirectory = candidate.isDirectory,
-                duplicateGroupKey = candidate.duplicateGroupKey
+                duplicateGroupKey = candidate.duplicateGroupKey,
+                versionFamilyKey = candidate.filenameVersionMetadata?.familyKey,
+                isLikelyNewestVersion = candidate.filenameVersionMetadata?.isLikelyNewest ?: false,
+                filenameVersionMetadata = candidate.filenameVersionMetadata?.let {
+                    CachedFilenameVersionMetadata.from(it)
+                }
             )
     }
 }

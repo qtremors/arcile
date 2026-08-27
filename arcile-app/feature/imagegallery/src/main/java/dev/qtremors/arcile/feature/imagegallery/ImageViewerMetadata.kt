@@ -84,7 +84,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
@@ -125,7 +124,9 @@ internal fun buildMetadataDetailRows(
     file: FileModel,
     metadata: GalleryFileMetadata?,
     labels: MetadataDetailLabels,
-    dateText: String? = formatViewerDateTime(file.lastModified)
+    context: android.content.Context,
+    dateText: String? = formatViewerDateTime(file.lastModified),
+    fileSizeFormatter: ((Long) -> String)? = null
 ): List<MetadataDetailRow> = buildImageMetadataDetailRows(
     title = file.name,
     reference = file.absolutePath,
@@ -135,7 +136,9 @@ internal fun buildMetadataDetailRows(
     extension = file.extension,
     metadata = metadata,
     labels = labels,
-    isUriReference = false
+    isUriReference = false,
+    context = context,
+    fileSizeFormatter = fileSizeFormatter
 ).let { rows ->
     val uri = file.nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: return@let rows
     val pathIndex = rows.indexOfFirst { it.label == labels.path }.takeIf { it >= 0 } ?: rows.size
@@ -278,8 +281,9 @@ internal fun MetadataSheet(
                             }
                         }
                         val displayMetadata = metadata?.copy(dateTaken = formattedDateTaken)
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         ImageMetadataSections(
-                            fileRows = buildMetadataDetailRows(file, displayMetadata, labels),
+                            fileRows = buildMetadataDetailRows(file, displayMetadata, labels, context = context),
                             metadata = displayMetadata,
                             sectionTitle = stringResource(R.string.image_gallery_metadata_file_information),
                             cameraTitle = stringResource(R.string.image_gallery_metadata_camera_exif),

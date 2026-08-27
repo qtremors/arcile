@@ -36,10 +36,10 @@ import kotlinx.coroutines.withContext
 
 @Singleton
 internal class DefaultVaultThumbnailCache @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val repository: DefaultVaultRepository
 ) : VaultThumbnailCache {
-    private val root = File(context.noBackupFilesDir, "onlyfiles-thumbnail-cache")
+    private val root by lazy { File(context.noBackupFilesDir, "onlyfiles-thumbnail-cache") }
     private val mutex = Mutex()
 
     override suspend fun loadOrCreate(ref: VaultNodeRef, revision: Long, requestedSizePx: Int): Result<ByteArray> =

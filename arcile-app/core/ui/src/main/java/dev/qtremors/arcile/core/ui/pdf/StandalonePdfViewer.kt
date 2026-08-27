@@ -110,6 +110,13 @@ import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
+import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import java.io.Closeable
 import java.io.File
@@ -260,6 +267,8 @@ fun StandalonePdfViewer(
     onNavigateBack: () -> Unit,
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
+    onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
+    onFileDeleted: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -270,6 +279,43 @@ fun StandalonePdfViewer(
     val listState = rememberLazyListState()
     val horizontalScrollState = rememberScrollState()
     val marqueeEnabled = LocalMarqueeFilenames.current
+    val isExternalReference = remember(reference) {
+        runCatching { android.net.Uri.parse(reference).scheme == "content" }.getOrDefault(false)
+    }
+    val currentFile = remember(reference, title, sizeBytes, isExternalReference) {
+        val capabilities = if (isExternalReference) {
+            StorageNodeCapabilities(
+                canRead = true,
+                canWrite = false,
+                canDelete = false,
+                canTrash = false,
+                canArchive = false,
+                canRename = false,
+                canCopy = false,
+                canMove = false,
+                canShare = true,
+                canOpenWith = true
+            )
+        } else {
+            StorageNodeCapabilities(canTrash = true)
+        }
+        FileModel(
+            name = title,
+            absolutePath = reference,
+            size = sizeBytes,
+            extension = "pdf",
+            mimeType = "application/pdf",
+            nodeRef = StorageNodeRef.local(reference, capabilities = capabilities).copy(
+                contentUri = reference.takeIf { isExternalReference }
+            )
+        )
+    }
+    val viewerActionController = rememberViewerActionController(
+        currentFile = currentFile,
+        sourceScope = if (isExternalReference) ViewerSourceScope.External else ViewerSourceScope.Normal,
+        onFileRenamed = onFileRenamed,
+        onFileDeleted = onFileDeleted
+    )
     var uiVisible by remember { mutableStateOf(true) }
     var infoVisible by remember { mutableStateOf(false) }
     var searchVisible by rememberSaveable(reference) { mutableStateOf(false) }
@@ -520,6 +566,15 @@ fun StandalonePdfViewer(
                                     snackbarHostState.showSnackbar(resources.getString(R.string.pdf_print_failed))
                                 }
                             }
+                        },
+                        viewerActions = viewerActionController.state.allowedActions,
+                        onViewerAction = { action ->
+                            when (action) {
+                                ViewerFileAction.Share -> onShare()
+                                ViewerFileAction.OpenWith -> onOpenWith()
+                                ViewerFileAction.Properties -> infoVisible = true
+                                else -> viewerActionController.onAction(action)
+                            }
                         }
                     )
                 }
@@ -531,8 +586,9 @@ fun StandalonePdfViewer(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 112.dp)
             )
+            }
+            ViewerActionHost(viewerActionController)
         }
-    }
 
     if (infoVisible) {
         ModalBottomSheet(

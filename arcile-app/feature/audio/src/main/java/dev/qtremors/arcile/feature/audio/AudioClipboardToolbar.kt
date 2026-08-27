@@ -137,7 +137,9 @@ internal fun AudioClipboardToolbar(
                         operation?.totalBytes
                             ?.takeIf { it > 0L }
                             ?.let { total ->
+                                val context = androidx.compose.ui.platform.LocalContext.current
                                 formatFileSize(
+                                    context,
                                     (
                                         total -
                                             (operation.bytesCopied ?: 0L)
@@ -147,7 +149,7 @@ internal fun AudioClipboardToolbar(
                             ?: if (operation != null) {
                                 "${operation.completedItems}/${operation.totalItems}"
                             } else if (clipboard != null) {
-                                formatFileSize(clipboard.totalSize)
+                                formatFileSize(androidx.compose.ui.platform.LocalContext.current, clipboard.totalSize)
                             } else {
                                 ""
                             },

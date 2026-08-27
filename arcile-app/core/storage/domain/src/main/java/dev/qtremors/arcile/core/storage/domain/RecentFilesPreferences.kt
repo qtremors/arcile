@@ -4,7 +4,8 @@ import kotlinx.coroutines.flow.Flow
 
 data class RecentFilesPreferences(
     val presentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION
+        sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION,
+        foldersFirst = false
     ),
     val homeCarouselLimit: Int = BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
 ) {

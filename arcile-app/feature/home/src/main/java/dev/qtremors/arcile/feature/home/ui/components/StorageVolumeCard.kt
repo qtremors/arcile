@@ -140,8 +140,9 @@ internal fun StorageVolumeCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 Text(
-                    text = "${formatFileSize(used)} / ${formatFileSize(volume.totalBytes)}",
+                    text = "${formatFileSize(context, used)} / ${formatFileSize(context, volume.totalBytes)}",
                     style = MaterialTheme.typography.bodySmallMedium
                 )
                 val percent = if (volume.totalBytes > 0) {

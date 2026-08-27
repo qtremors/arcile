@@ -187,6 +187,8 @@ fun ArcileAppShell(
                         appStartPage = appStartPage ?: AppStartPage.HOME,
                         onAppStartPageChange = onAppStartPageChange,
                         onRestartApp = onRestartApp,
+                        enableStartupUpdateCheck = appLaunchContext.mode == AppLaunchMode.ColdLauncher &&
+                            !isColdLaunchResetting,
                         onFeedback = emitOwnedFeedback
                     )
                     if (isColdLaunchResetting) {

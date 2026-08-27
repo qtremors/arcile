@@ -9,7 +9,10 @@ import org.junit.Test
 
 class BrowserNavigationPreferencesTest {
     private val path = "/storage/emulated/0/Pictures"
-    private val presentation = FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST)
+    private val presentation = FileListingPreferences(
+        sortOption = FileSortOption.DATE_NEWEST,
+        foldersFirst = false
+    )
 
     @Test
     fun `direct recursive preference restores folder-tree scope`() {
@@ -20,6 +23,7 @@ class BrowserNavigationPreferencesTest {
         )
 
         assertTrue(state.browserPresentationAppliesToSubfolders)
+        assertFalse(state.browserFoldersFirst)
     }
 
     @Test

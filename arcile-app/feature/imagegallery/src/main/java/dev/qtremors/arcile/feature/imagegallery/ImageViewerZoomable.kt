@@ -65,6 +65,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -418,15 +419,15 @@ internal fun ZoomableImageViewer(
             },
         contentAlignment = Alignment.Center
     ) {
-        val dragFraction = (abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
-        val backdropAlpha = (1f - dragFraction * 0.8f).coerceIn(0.1f, 1f)
-        val viewScale = viewerRenderScale(scale.value, dragFraction)
-
         // Backdrop fade overlay on vertical drag
         Box(
             modifier = imageModifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = backdropAlpha))
+                .drawBehind {
+                    val dragFraction = (kotlin.math.abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
+                    val backdropAlpha = (1f - dragFraction * 0.8f).coerceIn(0.1f, 1f)
+                    drawRect(Color.Black.copy(alpha = backdropAlpha))
+                }
         )
 
         AsyncImage(
@@ -449,6 +450,8 @@ internal fun ZoomableImageViewer(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val dragFraction = (kotlin.math.abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
+                    val viewScale = viewerRenderScale(scale.value, dragFraction)
                     scaleX = viewScale
                     scaleY = viewScale
                     translationX = offsetX.value
@@ -482,14 +485,6 @@ internal fun ZoomableImageViewer(
             }
         }
     }
-}
-
-// Reusable utility method for format size
-internal fun formatFileSize(size: Long): String {
-    if (size <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
-    return String.format(Locale.getDefault(), "%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
 
 private data class ViewerPointerTransform(

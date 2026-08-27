@@ -159,7 +159,7 @@ internal fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
                     R.plurals.storage_usage_map_scan_progress,
                     scanState.progress.scannedNodes,
                     scanState.progress.scannedNodes,
-                    formatFileSize(scanState.progress.scannedBytes)
+                    formatFileSize(androidx.compose.ui.platform.LocalContext.current, scanState.progress.scannedBytes)
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

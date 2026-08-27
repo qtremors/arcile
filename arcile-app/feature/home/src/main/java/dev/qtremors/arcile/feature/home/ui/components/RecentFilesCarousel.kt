@@ -127,7 +127,10 @@ internal fun RecentFileCarouselItem(
 ) {
     val extension = file.extension.lowercase()
     val previewAccent = previewAccentFor(file)
-    val previewIcon = dev.qtremors.arcile.core.ui.getFileIconVector(file)
+    val previewIcon = dev.qtremors.arcile.core.ui.getFileIconVector(
+        file,
+        dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+    )
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {

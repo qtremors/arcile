@@ -94,6 +94,11 @@ import java.text.DateFormat
 import java.util.Date
 import kotlin.math.abs
 import kotlin.math.max
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
+import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 
 @OptIn(
     ExperimentalMaterial3Api::class,
@@ -118,7 +123,9 @@ internal fun AudioNowPlayingScreen(
     onSeek: (Long) -> Unit,
     onShare: () -> Unit,
     onEdit: () -> Unit,
-    onOpenWith: () -> Unit
+    onOpenWith: () -> Unit,
+    onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
+    onFileDeleted: (String) -> Unit = {}
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showMetadata by remember { mutableStateOf(false) }
@@ -134,6 +141,16 @@ internal fun AudioNowPlayingScreen(
     val density = LocalDensity.current
     val screenHeightPx = LocalWindowInfo.current.containerSize.height.toFloat()
     val haptics = rememberArcileHaptics()
+    val viewerActionController = rememberViewerActionController(
+        currentFile = track.file,
+        sourceScope = if (track.file.nodeRef.contentUri != null) {
+            ViewerSourceScope.External
+        } else {
+            ViewerSourceScope.Normal
+        },
+        onFileRenamed = onFileRenamed,
+        onFileDeleted = onFileDeleted
+    )
     val effectiveDuration = playback.durationMs.takeIf { it > 0L } ?: track.durationMs
     val collapseThreshold = screenHeightPx * 0.14f
     val collapseProgress = max(
@@ -472,8 +489,28 @@ internal fun AudioNowPlayingScreen(
                 onDismissMenu = { showMenu = false },
                 onEdit = onEdit,
                 onOpenWith = onOpenWith,
+                onShare = onShare.takeIf { ViewerFileAction.Share in viewerActionController.state.allowedActions },
+                onCopy = {
+                    viewerActionController.onAction(ViewerFileAction.Copy)
+                }.takeIf { ViewerFileAction.Copy in viewerActionController.state.allowedActions },
+                onCut = {
+                    viewerActionController.onAction(ViewerFileAction.Cut)
+                }.takeIf { ViewerFileAction.Cut in viewerActionController.state.allowedActions },
+                onRename = {
+                    viewerActionController.onAction(ViewerFileAction.Rename)
+                }.takeIf { ViewerFileAction.Rename in viewerActionController.state.allowedActions },
+                onDelete = {
+                    viewerActionController.onAction(ViewerFileAction.Delete)
+                }.takeIf { ViewerFileAction.Delete in viewerActionController.state.allowedActions },
+                onProperties = {
+                    viewerActionController.onAction(ViewerFileAction.Properties)
+                }.takeIf { ViewerFileAction.Properties in viewerActionController.state.allowedActions },
+                onArchive = {
+                    viewerActionController.onAction(ViewerFileAction.CreateArchive)
+                }.takeIf { ViewerFileAction.CreateArchive in viewerActionController.state.allowedActions },
                 modifier = Modifier.align(Alignment.TopCenter)
             )
+            ViewerActionHost(viewerActionController)
         }
     }
     }

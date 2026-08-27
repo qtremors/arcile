@@ -28,8 +28,8 @@ internal data class ExternalVaultPointer(
     val path: String? = null
 )
 
-internal class VaultLocationRegistry(context: Context) {
-    private val preferences = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
+internal class VaultLocationRegistry(private val context: Context) {
+    private val preferences by lazy { context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE) }
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun load(): List<ExternalVaultPointer> = preferences.getStringSet(KEY_POINTERS, emptySet())

@@ -265,7 +265,7 @@ internal fun CompletionCard(outputPath: String, warnings: List<String>) {
             }
             Text(outputPath, style = MaterialTheme.typography.bodySmall)
             warnings.forEach { warning ->
-                Text("• $warning", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.audio_editor_warning_item, warning), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -311,18 +311,6 @@ internal fun metadataRows(source: AudioEditorSource): List<Pair<String, String>>
     source.metadata.mimeType?.let {
         add(stringResource(R.string.audio_editor_info_format) to it)
     }
-    add(stringResource(R.string.audio_editor_info_size) to formatFileSize(source.sizeBytes))
+    add(stringResource(R.string.audio_editor_info_size) to dev.qtremors.arcile.core.presentation.formatFileSize(androidx.compose.ui.platform.LocalContext.current, source.sizeBytes))
     add(stringResource(R.string.audio_editor_info_location) to source.path)
-}
-
-private fun formatFileSize(bytes: Long): String {
-    if (bytes < 1_024) return "$bytes B"
-    val units = listOf("KB", "MB", "GB", "TB")
-    var value = bytes.toDouble() / 1_024
-    var unit = 0
-    while (value >= 1_024 && unit < units.lastIndex) {
-        value /= 1_024
-        unit += 1
-    }
-    return "%.1f %s".format(value, units[unit])
 }

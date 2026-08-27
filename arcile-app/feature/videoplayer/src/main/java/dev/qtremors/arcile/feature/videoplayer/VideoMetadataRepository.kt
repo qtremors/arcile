@@ -10,7 +10,6 @@ import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailRow
 import dev.qtremors.arcile.core.ui.metadata.buildImageMetadataDetailRows
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.util.Locale
@@ -98,6 +97,7 @@ internal class DefaultVideoMetadataRepository @Inject constructor(
 }
 
 internal fun buildVideoMetadataRows(
+    context: Context,
     file: FileModel,
     metadata: VideoFileMetadata?,
     labels: ImageMetadataDetailLabels,
@@ -114,6 +114,7 @@ internal fun buildVideoMetadataRows(
         extension = file.extension,
         metadata = metadata,
         labels = labels,
+        context = context,
         isUriReference = file.absolutePath.startsWith("content://")
     )
 

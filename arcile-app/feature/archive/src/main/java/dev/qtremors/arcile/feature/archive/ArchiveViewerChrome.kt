@@ -210,17 +210,18 @@ internal fun ArchiveSummaryHeader(state: ArchiveViewerState) {
             style = MaterialTheme.typography.labelLarge,
             fontWeight = FontWeight.Bold
         )
+        val context = androidx.compose.ui.platform.LocalContext.current
         Row(horizontalArrangement = Arrangement.spacedBy(MaterialTheme.spacing.sectionGap)) {
             Text(
                 text = pluralStringResource(R.plurals.archive_entry_count, summary.entryCount, summary.entryCount),
                 style = MaterialTheme.typography.bodySmall
             )
-            Text(formatFileSize(summary.totalUncompressedSize), style = MaterialTheme.typography.bodySmall)
+            Text(formatFileSize(context, summary.totalUncompressedSize), style = MaterialTheme.typography.bodySmall)
         }
         val ratio = summary.compressionRatio?.let { "${(it * 100).toInt()}%" }
             ?: stringResource(R.string.archive_ratio_unavailable)
         Text(
-            text = stringResource(R.string.archive_summary_size_ratio, formatFileSize(summary.archiveSize), ratio),
+            text = stringResource(R.string.archive_summary_size_ratio, formatFileSize(context, summary.archiveSize), ratio),
             style = MaterialTheme.typography.bodySmall
         )
         summary.newestModifiedAt?.let {

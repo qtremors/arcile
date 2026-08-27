@@ -78,10 +78,15 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
+import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
 import coil.compose.AsyncImage
@@ -432,9 +437,36 @@ internal fun VideoViewerPlaybackSurface(
             val currentPlaybackItem = remember(playbackItemResolver, currentFile, settledPage) {
                 currentFile?.let { playbackItemResolver.resolve(it, settledPage) }
             }
-            val fallbackFileActionsAllowed = session.securityScopeId == null
+            val isArchiveEntry = currentFile?.absolutePath
+                ?.startsWith(ArchiveEntryThumbnailData.VIRTUAL_PREFIX) == true
+            val fallbackFileActionsAllowed = session.securityScopeId == null && !isArchiveEntry
             val canOpenWith = currentPlaybackItem?.onOpenWith != null || fallbackFileActionsAllowed
             val canShare = currentPlaybackItem?.onShare != null || fallbackFileActionsAllowed
+            val actionFile = currentFile?.let { file ->
+                val capabilities = file.nodeRef.capabilities.copy(
+                    canWrite = fallbackFileActionsAllowed && !readOnly,
+                    canDelete = fallbackFileActionsAllowed && file.nodeRef.capabilities.canDelete,
+                    canTrash = fallbackFileActionsAllowed && file.nodeRef.capabilities.canTrash,
+                    canArchive = fallbackFileActionsAllowed && file.nodeRef.capabilities.canArchive,
+                    canRename = fallbackFileActionsAllowed && !readOnly && file.nodeRef.capabilities.canRename,
+                    canCopy = fallbackFileActionsAllowed && file.nodeRef.capabilities.canCopy,
+                    canMove = fallbackFileActionsAllowed && !readOnly && file.nodeRef.capabilities.canMove,
+                    canShare = canShare,
+                    canOpenWith = canOpenWith
+                )
+                file.copy(nodeRef = file.nodeRef.copy(capabilities = capabilities))
+            }
+            val viewerActionController = rememberViewerActionController(
+                currentFile = actionFile,
+                sourceScope = when {
+                    readOnly -> ViewerSourceScope.ManagedTrash
+                    session.securityScopeId != null -> ViewerSourceScope.Vault
+                    isArchiveEntry -> ViewerSourceScope.ArchiveEntry
+                    else -> ViewerSourceScope.Normal
+                },
+                onFileRenamed = viewModel::applyViewerRename,
+                onFileDeleted = viewModel::applyViewerDelete
+            )
             val metadataCache = remember { mutableStateMapOf<String, VideoFileMetadata>() }
             LaunchedEffect(state.isRefreshing) {
                 if (state.isRefreshing) {
@@ -460,10 +492,10 @@ internal fun VideoViewerPlaybackSurface(
                 ?.let(metadataCache::get)
                 ?.let { formatResolution(it.width, it.height) }
                 .orEmpty()
-            val currentSizeText = remember(currentFile) {
+            val currentSizeText = remember(currentFile, context) {
                 currentFile?.size
                     ?.takeIf { it > 0L }
-                    ?.let(::formatImageFileSize)
+                    ?.let { formatFileSize(context, it) }
                     .orEmpty()
             }
             val positionText = viewerPositionLabel(settledPage, displayedFiles.size)
@@ -686,11 +718,29 @@ internal fun VideoViewerPlaybackSurface(
                 playbackDuration = playbackDuration,
                 canOpenWith = canOpenWith,
                 canShare = canShare,
+                viewerActions = viewerActionController.state.allowedActions,
+                onViewerAction = { action ->
+                    when (action) {
+                        ViewerFileAction.Share -> {
+                            currentPlaybackItem?.onShare?.invoke()
+                                ?: viewerActionController.onAction(action)
+                        }
+                        ViewerFileAction.OpenWith -> {
+                            currentPlaybackItem?.onOpenWith?.invoke()
+                                ?: viewerActionController.onAction(action)
+                        }
+                        ViewerFileAction.Properties -> currentFile?.let {
+                            viewModel.setViewerMetadataVisible(it.absolutePath, visible = true)
+                        }
+                        else -> viewerActionController.onAction(action)
+                    }
+                },
                 resizeModeIndex = resizeModeIndex,
                 showThumbnails = state.showThumbnails,
                 actions = chromeActions,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
+            ViewerActionHost(viewerActionController)
         }
     }
 }

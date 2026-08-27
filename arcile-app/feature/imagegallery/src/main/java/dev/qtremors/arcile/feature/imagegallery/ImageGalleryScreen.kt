@@ -263,9 +263,11 @@ internal fun ImageGalleryScreen(
         },
         topChrome = {
             if (isSelectionMode) {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 FloatingGallerySelectionTopBar(
                     selectedCount = state.selectedFiles.size,
                     selectedSize = formatFileSize(
+                        context,
                         state.files.filter { state.selectedFiles.contains(it.absolutePath) }
                             .sumOf { it.size }
                     ),

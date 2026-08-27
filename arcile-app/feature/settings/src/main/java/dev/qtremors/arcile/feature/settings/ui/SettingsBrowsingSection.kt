@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Expand
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
@@ -42,7 +43,7 @@ internal fun SettingsBrowsingSection(
         Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
             SettingsSwitchRow(
                 index = 0,
-                count = 9,
+                count = 10,
                 title = stringResource(R.string.settings_show_thumbnails),
                 description = stringResource(R.string.settings_show_thumbnails_description),
                 checked = preferences.globalPresentation.showThumbnails,
@@ -51,15 +52,29 @@ internal fun SettingsBrowsingSection(
                 leadingIcon = Icons.Default.Image,
                 onCheckedChange = actions.showThumbnailsChange
             )
-            HomeRecentCarouselLimit(
+            SettingsSwitchRow(
                 index = 1,
-                count = 9,
+                count = 10,
+                title = stringResource(R.string.settings_folder_icons),
+                description = stringResource(R.string.settings_folder_icons_description),
+                checked = theme.folderIconsEnabled,
+                switchTag = "folder_icons_switch",
+                rowTag = "folder_icons_setting_row",
+                leadingIcon = Icons.Default.FolderSpecial,
+                onCheckedChange = { checked ->
+                    haptics.toggleMenu()
+                    actions.themeChange(theme.withFolderIcons(checked))
+                }
+            )
+            HomeRecentCarouselLimit(
+                index = 2,
+                count = 10,
                 value = preferences.homeRecentCarouselLimit,
                 onValueChange = actions.homeRecentCarouselLimitChange
             )
             SettingsSwitchRow(
-                index = 2,
-                count = 9,
+                index = 3,
+                count = 10,
                 title = stringResource(R.string.settings_show_hidden_files),
                 description = stringResource(R.string.settings_show_hidden_files_description),
                 checked = preferences.showHiddenFiles,
@@ -69,8 +84,8 @@ internal fun SettingsBrowsingSection(
                 onCheckedChange = actions.showHiddenFilesChange
             )
             SettingsSwitchRow(
-                index = 3,
-                count = 9,
+                index = 4,
+                count = 10,
                 title = stringResource(R.string.settings_browser_tabs),
                 description = stringResource(R.string.settings_browser_tabs_description),
                 checked = preferences.browserTabsEnabled,
@@ -83,8 +98,8 @@ internal fun SettingsBrowsingSection(
                 }
             )
             SettingsSwitchRow(
-                index = 4,
-                count = 9,
+                index = 5,
+                count = 10,
                 title = stringResource(R.string.settings_remember_last_folder),
                 description = stringResource(R.string.settings_remember_last_folder_description),
                 checked = preferences.rememberLastFolder,
@@ -94,8 +109,8 @@ internal fun SettingsBrowsingSection(
                 onCheckedChange = actions.rememberLastFolderChange
             )
             SettingsSwitchRow(
-                index = 5,
-                count = 9,
+                index = 6,
+                count = 10,
                 title = stringResource(R.string.settings_expandable_app_bars),
                 description = stringResource(R.string.settings_expandable_app_bars_description),
                 checked = !preferences.expandableAppBar,
@@ -107,8 +122,8 @@ internal fun SettingsBrowsingSection(
                 }
             )
             SettingsSwitchRow(
-                index = 6,
-                count = 9,
+                index = 7,
+                count = 10,
                 title = stringResource(R.string.settings_browser_scrollbar),
                 description = stringResource(R.string.settings_browser_scrollbar_description),
                 checked = preferences.browserScrollbarEnabled,
@@ -118,8 +133,8 @@ internal fun SettingsBrowsingSection(
                 onCheckedChange = actions.browserScrollbarEnabledChange
             )
             SettingsSwitchRow(
-                index = 7,
-                count = 9,
+                index = 8,
+                count = 10,
                 title = stringResource(R.string.settings_gallery_scrollbar),
                 description = stringResource(R.string.settings_gallery_scrollbar_description),
                 checked = preferences.galleryScrollbarEnabled,
@@ -129,8 +144,8 @@ internal fun SettingsBrowsingSection(
                 onCheckedChange = actions.galleryScrollbarEnabledChange
             )
             SettingsSwitchRow(
-                index = 8,
-                count = 9,
+                index = 9,
+                count = 10,
                 title = stringResource(R.string.settings_landscape_dual_pane),
                 description = stringResource(R.string.settings_landscape_dual_pane_description),
                 checked = theme.landscapeDualPaneEnabled,

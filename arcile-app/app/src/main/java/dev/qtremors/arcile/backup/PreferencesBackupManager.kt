@@ -361,6 +361,7 @@ private data class ThemeBackupState(
     val doubleLineFilenames: Boolean,
     val marqueeFilenames: Boolean,
     val landscapeDualPaneEnabled: Boolean = false,
+    val folderIconsEnabled: Boolean = false,
     val themePreset: String,
     val customPrimaryColorHex: String,
     val customBackgroundColorHex: String
@@ -374,6 +375,7 @@ private fun ThemeState.toBackupState(): ThemeBackupState = ThemeBackupState(
     doubleLineFilenames = doubleLineFilenames,
     marqueeFilenames = marqueeFilenames,
     landscapeDualPaneEnabled = landscapeDualPaneEnabled,
+    folderIconsEnabled = folderIconsEnabled,
     themePreset = themePreset.name,
     customPrimaryColorHex = customPrimaryColorHex,
     customBackgroundColorHex = customBackgroundColorHex
@@ -388,6 +390,7 @@ private fun ThemeBackupState.toPreferences(): Preferences {
     preferences[ThemePreferences.DOUBLE_LINE_FILENAMES_KEY] = doubleLineFilenames
     preferences[ThemePreferences.MARQUEE_FILENAMES_KEY] = marqueeFilenames
     preferences[ThemePreferences.LANDSCAPE_DUAL_PANE_KEY] = landscapeDualPaneEnabled
+    preferences[ThemePreferences.FOLDER_ICONS_ENABLED_KEY] = folderIconsEnabled
     preferences[ThemePreferences.THEME_PRESET_KEY] = themePreset
     preferences[ThemePreferences.CUSTOM_PRIMARY_KEY] = customPrimaryColorHex
     preferences[ThemePreferences.CUSTOM_BACKGROUND_KEY] = customBackgroundColorHex

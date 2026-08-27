@@ -76,11 +76,7 @@ internal fun BrowserNavigationController.loadDirectory(
             } else {
                 loadedFiles
             }
-            val folderPaths = if (resolvedVolumeId == null) {
-                emptyList()
-            } else {
-                page.files.filter(FileModel::isDirectory).map(FileModel::absolutePath)
-            }
+            val folderPaths = page.files.filter(FileModel::isDirectory).map(FileModel::absolutePath)
             val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
             if (!isActiveLoad(generation)) return@collect
             val now = System.currentTimeMillis()
@@ -93,6 +89,7 @@ internal fun BrowserNavigationController.loadDirectory(
                 }
                 now - cached.cachedAt > ttl
             }
+            val freshCachedPaths = cachedStats.keys.filter { it !in pathsToQueue }.toSet()
             update {
                 it.withValues(
                     isLoading = !page.isComplete,
@@ -100,7 +97,7 @@ internal fun BrowserNavigationController.loadDirectory(
                     files = updatedFiles.toPersistentList(),
                     folderStatsByPath = (it.folderStatsByPath + cachedStats).toPersistentMap(),
                     folderStatsLoadingPaths =
-                        (it.folderStatsLoadingPaths + pathsToQueue).toPersistentSet()
+                        ((it.folderStatsLoadingPaths + pathsToQueue) - freshCachedPaths).toPersistentSet()
                 ).withUpdatedDisplayState()
             }
             fileBrowserRepository.queueFolderStats(pathsToQueue)

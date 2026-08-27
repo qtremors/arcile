@@ -33,4 +33,10 @@
     <string name="could_not_open_folder_files_app">Could not open folder in Files app</string>
     <string name="share_files_via">Share files via</string>
     <string name="volume_usage">%1$s used of %2$s</string>
+    <string name="plugin_update_available">Update available: %1$s</string>
+    <string name="plugin_update_action">Update</string>
+    <string name="arcile_update_available_title">Arcile update found</string>
+    <string name="arcile_update_available_message">A signed update for Arcile (v%1$s) was found on your device.</string>
+    <string name="arcile_update_action">Install Update</string>
+    <string name="arcile_update_dismiss">Dismiss</string>
 </resources>

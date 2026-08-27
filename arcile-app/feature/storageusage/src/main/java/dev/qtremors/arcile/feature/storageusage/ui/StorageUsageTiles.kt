@@ -116,7 +116,7 @@ private fun StorageUsageTileContent(
                 )
             }
             Text(
-                text = formatFileSize(sizeBytes),
+                text = formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes),
                 style = MaterialTheme.typography.bodyMediumBold,
                 color = MaterialTheme.colorScheme.onSurface
             )

@@ -203,7 +203,7 @@ private fun ApkItem(
             metadata?.label ?: packageKind(file),
             metadata?.let { "${it.versionName} • ${it.packageName}" }
                 ?: file.extension.uppercase(),
-            formatFileSize(file.size)
+            formatFileSize(androidx.compose.ui.platform.LocalContext.current, file.size)
         )
     )
     if (grid) {

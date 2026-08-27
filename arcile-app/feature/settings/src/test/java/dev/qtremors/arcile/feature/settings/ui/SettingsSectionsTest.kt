@@ -117,6 +117,16 @@ class SettingsSectionsTest {
     }
 
     @Test
+    fun `folder icon setting updates independently`() {
+        val original = ThemeState(marqueeFilenames = true)
+        val updated = original.withFolderIcons(true)
+
+        assertFalse(original.folderIconsEnabled)
+        assertTrue(updated.folderIconsEnabled)
+        assertTrue(updated.marqueeFilenames)
+    }
+
+    @Test
     fun `busy external cache cannot launch a second clear`() {
         var clearCount = 0
         composeRule.setContent {

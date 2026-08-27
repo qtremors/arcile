@@ -84,7 +84,10 @@ private fun CleanerPreviewFallback(
 ) {
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Icon(
-            imageVector = getFileIconVector(fileModel),
+            imageVector = getFileIconVector(
+                fileModel,
+                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+            ),
             contentDescription = fileModel.name,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(20.dp)

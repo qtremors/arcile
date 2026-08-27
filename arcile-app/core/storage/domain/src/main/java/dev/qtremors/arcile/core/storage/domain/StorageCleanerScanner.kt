@@ -98,6 +98,8 @@ interface StorageCleanerScanner {
         )
     }
 
+    suspend fun protectedCleanerPaths(paths: Collection<String>): Set<String> = emptySet()
+
     suspend fun invalidateStorageCleaner(paths: Collection<String> = emptyList()) = Unit
 }
 

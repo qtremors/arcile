@@ -207,7 +207,7 @@ internal fun CategoryItem(
         ) {
             if (hasSize || reserveSizeLine) {
                 Text(
-                    text = if (hasSize) formatFileSize(sizeBytes) else "",
+                    text = if (hasSize) formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes) else "",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = sizeAlpha)
                 )

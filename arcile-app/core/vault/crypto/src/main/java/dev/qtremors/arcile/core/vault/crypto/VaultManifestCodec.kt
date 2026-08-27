@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.crypto
 
+import dev.qtremors.arcile.core.vault.domain.OnlyFilesVaultFormat
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultName
@@ -319,9 +320,9 @@ class VaultManifestCodec(
     private fun fingerprint(bytes: ByteArray): String = VaultCryptography.sha256(bytes).toBase64()
 
     companion object {
-        const val PRIMARY_FILE = "vault.onlyfiles"
-        const val BACKUP_FILE = "vault.onlyfiles.bak"
-        const val COMMIT_FILE = ".header.commit"
+        const val PRIMARY_FILE = OnlyFilesVaultFormat.PRIMARY_FILE
+        const val BACKUP_FILE = OnlyFilesVaultFormat.BACKUP_FILE
+        const val COMMIT_FILE = OnlyFilesVaultFormat.COMMIT_FILE
         const val FORMAT_VERSION = 1
         private const val MAGIC = "ARCILE_ONLYFILES"
         private val MAGIC_BYTES = MAGIC.toByteArray(StandardCharsets.US_ASCII)

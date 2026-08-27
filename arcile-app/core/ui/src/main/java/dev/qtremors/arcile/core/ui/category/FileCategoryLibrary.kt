@@ -339,6 +339,7 @@ internal fun FileCategoryLibraryContent(
                 CategorySelectionTopBar(
                     selectedCountText = labels.selectedCount(selectedPaths.size),
                     selectedSizeText = formatFileSize(
+                        androidx.compose.ui.platform.LocalContext.current,
                         files.filter { it.absolutePath in selectedPaths }.sumOf(FileModel::size)
                     ),
                     onClearSelection = onClearSelection,

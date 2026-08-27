@@ -3,17 +3,21 @@ package dev.qtremors.arcile.feature.storagecleaner
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.hasScrollAction
 import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTouchInput
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
@@ -69,7 +73,7 @@ class StorageCleanerScreenTest {
     }
 
     @Test
-    fun `candidate checkbox invokes one selection callback`() {
+    fun `candidate row invokes selection callback on long click`() {
         val file = candidate(CleanerGroupType.Junk)
         var callbackCount = 0
         composeRule.setContent {
@@ -82,8 +86,62 @@ class StorageCleanerScreenTest {
             }
         }
 
-        composeRule.onNode(hasTestTag("checkbox_${file.absolutePath}")).performClick()
+        composeRule.onNode(hasTestTag("cleaner_row_${file.absolutePath}")).performTouchInput { longClick() }
         composeRule.runOnIdle { assertEquals(1, callbackCount) }
+    }
+
+    @Test
+    fun `candidate row reveals its folder while thumbnail opens the file`() {
+        val file = candidate(CleanerGroupType.Junk)
+        var openedFile: String? = null
+        var revealedFile: String? = null
+        composeRule.setContent {
+            ArcileTestTheme {
+                CleanerCandidateRow(
+                    file = file,
+                    selected = false,
+                    onToggle = {},
+                    onOpenFile = { openedFile = it },
+                    onOpenContainingFolder = { revealedFile = it }
+                )
+            }
+        }
+
+        composeRule.onNode(hasTestTag("cleaner_row_${file.absolutePath}")).performClick()
+        composeRule.runOnIdle {
+            assertEquals(file.absolutePath, revealedFile)
+            assertEquals(null, openedFile)
+        }
+
+        composeRule.onNode(hasTestTag("cleaner_thumbnail_${file.absolutePath}")).performClick()
+        composeRule.runOnIdle { assertEquals(file.absolutePath, openedFile) }
+    }
+
+    @Test
+    fun `successful cleanup stays on the current cleaner page`() {
+        var backCalls = 0
+        var clearCalls = 0
+        composeRule.setContent {
+            ArcileTestTheme {
+                StorageCleanerGroupScreen(
+                    state = stateWith(CleanerGroupType.Junk).copy(
+                        successMessage = CleanerSuccessMessage(cleanedCount = 1)
+                    ),
+                    type = CleanerGroupType.Junk,
+                    onNavigateBack = { backCalls += 1 },
+                    onRefresh = {},
+                    onCleanFiles = { _, _ -> },
+                    onClearMessages = { clearCalls += 1 }
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.runOnIdle {
+            assertEquals(0, backCalls)
+            assertEquals(1, clearCalls)
+        }
+        composeRule.onNodeWithText("Nothing found").assertExists()
     }
 
     @Test
@@ -258,8 +316,8 @@ class StorageCleanerScreenTest {
             }
         }
 
-        composeRule.onNode(hasTestTag("checkbox_${highRisk.absolutePath}")).performClick()
-        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").performClick()
+        composeRule.onNode(hasTestTag("cleaner_row_${highRisk.absolutePath}")).performTouchInput { longClick() }
+        composeRule.onNodeWithContentDescription("Delete selected").performClick()
         composeRule.onNodeWithText("I reviewed these high-risk files and still want to move them to Trash.").assertExists()
         composeRule.onNodeWithText("Delete").assertIsNotEnabled()
     }
@@ -287,8 +345,8 @@ class StorageCleanerScreenTest {
             }
         }
 
-        composeRule.onNode(hasTestTag("checkbox_${highRisk.absolutePath}")).performClick()
-        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").performClick()
+        composeRule.onNode(hasTestTag("cleaner_row_${highRisk.absolutePath}")).performTouchInput { longClick() }
+        composeRule.onNodeWithContentDescription("Delete selected").performClick()
         composeRule.runOnIdle { state.value = StorageCleanerState() }
         composeRule.onNodeWithText("Delete").assertIsNotEnabled()
         composeRule.runOnIdle {
@@ -351,7 +409,7 @@ class StorageCleanerScreenTest {
 
         composeRule.onNodeWithText("Compare duplicates").assertExists()
         composeRule.onAllNodesWithText("Keep file").assertCountEquals(1)
-        composeRule.onAllNodesWithText("Move 1 to Trash • 64.0 B").assertCountEquals(2)
+        composeRule.onAllNodesWithText("Move 1 to Trash • 64 B").assertCountEquals(1)
     }
 
     @Test
@@ -371,13 +429,13 @@ class StorageCleanerScreenTest {
             }
         }
 
-        composeRule.onNode(hasTestTag("checkbox_${file.absolutePath}")).performClick()
+        composeRule.onNode(hasTestTag("cleaner_row_${file.absolutePath}")).performTouchInput { longClick() }
         composeRule.runOnIdle { state.value = StorageCleanerState() }
-        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Delete selected").assertIsNotEnabled()
         composeRule.runOnIdle {
             state.value = stateWith(CleanerGroupType.Junk, file)
         }
-        composeRule.onNodeWithText("Move 1 to Trash • 64.0 B").assertExists()
+        composeRule.onNodeWithContentDescription("Delete selected").assertIsEnabled()
     }
 
     private fun stateWith(type: CleanerGroupType, vararg candidates: CleanerCandidate) =

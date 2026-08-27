@@ -326,6 +326,23 @@ private fun CategorySizeSection(
     availableWidth: androidx.compose.ui.unit.Dp,
     onPreferencesChange: (FileListingPreferences) -> Unit
 ) {
+    val isList = preferences.viewMode == FileViewMode.LIST
+    val gridOptions = remember(availableWidth) {
+        dev.qtremors.arcile.core.ui.GridColumnModel.options(
+            contentWidthDp = availableWidth.value,
+            horizontalPaddingDp = 32f,
+            itemSpacingDp = 8f
+        )
+    }
+    val gridColumnCount = dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
+        cellSizeDp = preferences.gridMinCellSize,
+        contentWidthDp = availableWidth.value,
+        horizontalPaddingDp = 32f,
+        itemSpacingDp = 8f
+    )
+    val selectedOptionIndex = gridOptions.indexOf(gridColumnCount).coerceAtLeast(0)
+    val maxGridIndex = max(1, gridOptions.size - 1).toFloat()
+
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -334,7 +351,7 @@ private fun CategorySizeSection(
         ) {
             Text(
                 text = stringResource(
-                    if (preferences.viewMode == FileViewMode.LIST) {
+                    if (isList) {
                         R.string.browser_layout_list_zoom
                     } else {
                         R.string.browser_layout_grid_size
@@ -342,19 +359,17 @@ private fun CategorySizeSection(
                 ),
                 style = MaterialTheme.typography.bodyMedium
             )
-            val value = if (preferences.viewMode == FileViewMode.LIST) {
+            val value = if (isList) {
                 stringResource(
                     R.string.browser_layout_list_zoom_value,
                     (preferences.listZoom * 100).roundToInt()
                 )
             } else {
-                val columns = max(
-                    1,
-                    floor(
-                        ((availableWidth.value - 32f) / preferences.gridMinCellSize).toDouble()
-                    ).toInt()
+                androidx.compose.ui.res.pluralStringResource(
+                    R.plurals.browser_layout_grid_columns_value,
+                    gridColumnCount,
+                    gridColumnCount
                 )
-                androidx.compose.ui.res.pluralStringResource(R.plurals.browser_layout_grid_columns_value, columns, columns)
             }
             Text(
                 text = value,
@@ -362,29 +377,34 @@ private fun CategorySizeSection(
                 color = MaterialTheme.colorScheme.primary
             )
         }
-        Slider(
-            value = if (preferences.viewMode == FileViewMode.LIST) {
-                preferences.listZoom
-            } else {
-                preferences.gridMinCellSize
-            },
-            onValueChange = {
-                onPreferencesChange(
-                    if (preferences.viewMode == FileViewMode.LIST) {
-                        preferences.copy(listZoom = it)
-                    } else {
-                        preferences.copy(gridMinCellSize = it)
-                    }
-                )
-            },
-            valueRange = if (preferences.viewMode == FileViewMode.LIST) {
-                FileListingPreferences.MIN_LIST_ZOOM..FileListingPreferences.MAX_LIST_ZOOM
-            } else {
-                FileListingPreferences.MIN_GRID_MIN_CELL_SIZE..
-                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
-            },
-            steps = if (preferences.viewMode == FileViewMode.LIST) 7 else 1
-        )
+        if (isList) {
+            Slider(
+                value = preferences.listZoom,
+                onValueChange = {
+                    onPreferencesChange(preferences.copy(listZoom = it))
+                },
+                valueRange = FileListingPreferences.MIN_LIST_ZOOM..FileListingPreferences.MAX_LIST_ZOOM,
+                steps = 7
+            )
+        } else {
+            Slider(
+                value = selectedOptionIndex.toFloat().coerceIn(0f, maxGridIndex),
+                onValueChange = { indexFloat ->
+                    val idx = indexFloat.roundToInt().coerceIn(0, gridOptions.size - 1)
+                    val cols = gridOptions[idx]
+                    val newCellSize = dev.qtremors.arcile.core.ui.GridColumnModel.cellSizeForColumnCount(
+                        columnCount = cols,
+                        contentWidthDp = availableWidth.value,
+                        horizontalPaddingDp = 32f,
+                        itemSpacingDp = 8f
+                    )
+                    onPreferencesChange(preferences.copy(gridMinCellSize = newCellSize))
+                },
+                valueRange = 0f..maxGridIndex,
+                steps = max(0, gridOptions.size - 2),
+                enabled = gridOptions.size > 1
+            )
+        }
     }
 }
 

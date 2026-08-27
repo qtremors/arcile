@@ -287,7 +287,7 @@ internal fun PropertiesDialog(nodes: List<VaultNodeMetadata>, onDismiss: () -> U
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_properties)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.onlyfiles_property_items, nodes.size))
-            Text(stringResource(R.string.onlyfiles_property_size, formatBytes(nodes.sumOf(VaultNodeMetadata::sizeBytes))))
+            Text(stringResource(R.string.onlyfiles_property_size, formatBytes(androidx.compose.ui.platform.LocalContext.current, nodes.sumOf(VaultNodeMetadata::sizeBytes))))
             if (nodes.size == 1) {
                 Text(nodes.single().name)
                 Text(nodes.single().mimeType ?: stringResource(R.string.onlyfiles_unknown_type))
@@ -553,7 +553,7 @@ internal fun OnlyFilesSettingsSheet(
                     shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 4),
                     content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache)) },
                     supportingContent = {
-                        Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, state.encryptedThumbnailFiles, formatBytes(state.encryptedThumbnailBytes)))
+                        Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, state.encryptedThumbnailFiles, formatBytes(androidx.compose.ui.platform.LocalContext.current, state.encryptedThumbnailBytes)))
                     },
                     trailingContent = {
                         Box(
