@@ -20,9 +20,9 @@ import kotlinx.coroutines.withContext
 
 @Singleton
 internal class DefaultVaultRepository @Inject constructor(
-    @param:ApplicationContext context: Context,
+    @ApplicationContext context: Context,
     dispatchers: ArcileDispatchers,
-    @param:ApplicationScope applicationScope: CoroutineScope,
+    @ApplicationScope applicationScope: CoroutineScope,
     portableLocationResolver: VaultPortableLocationResolver
 ) : VaultHealthLayer(context, dispatchers, applicationScope, portableLocationResolver),
     VaultFileSystem {

@@ -198,7 +198,7 @@ class ExternalFileAccessHelperTest {
         val uri = Uri.parse("content://media/external_primary/images/media/42")
         every { resolver.getType(uri) } returns "image/png"
         every { resolver.query(any(), any(), isNull(), isNull(), isNull()) } answers {
-            val projection = invocation.args[1] as Array<String>
+            val projection = (invocation.args[1] as Array<*>).filterIsInstance<String>()
             openableCursor(projection.single(), "photo.png", 123L)
         }
         val context = ResolverContext(baseContext, resolver)
@@ -219,7 +219,7 @@ class ExternalFileAccessHelperTest {
         val uri = Uri.parse("content://media/external_primary/images/media/42")
         every { resolver.getType(uri) } returns "image/png"
         every { resolver.query(any(), any(), isNull(), isNull(), isNull()) } answers {
-            val projection = invocation.args[1] as Array<String>
+            val projection = (invocation.args[1] as Array<*>).filterIsInstance<String>()
             openableCursor(projection.single(), "photo.png", 123L)
         }
         val context = ResolverContext(baseContext, resolver)

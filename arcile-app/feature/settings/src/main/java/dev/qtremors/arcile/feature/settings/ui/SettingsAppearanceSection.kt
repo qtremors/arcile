@@ -211,6 +211,10 @@ internal fun ThemeState.withLandscapeDualPane(enabled: Boolean): ThemeState = co
     landscapeDualPaneEnabled = enabled
 )
 
+internal fun ThemeState.withFolderIcons(enabled: Boolean): ThemeState = copy(
+    folderIconsEnabled = enabled
+)
+
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable

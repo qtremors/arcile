@@ -75,7 +75,7 @@ internal fun CategoryLegend(
                         .background(color)
                 )
                 Text(
-                    text = "$name ${formatFileSize(sizeBytes)}",
+                    text = "$name ${formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface
                 )

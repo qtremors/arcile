@@ -19,12 +19,12 @@ import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "quick_access_prefs")
+val Context.quickAccessDataStore: DataStore<Preferences> by preferencesDataStore(name = "quick_access_prefs")
 
 @Singleton
 class QuickAccessPreferencesRepository @Inject constructor(
     private val context: Context,
-    private val dataStore: DataStore<Preferences> = context.dataStore
+    private val dataStore: DataStore<Preferences> = context.quickAccessDataStore
 ) : QuickAccessPreferencesStore {
     private val QUICK_ACCESS_ITEMS_KEY = stringPreferencesKey("quick_access_items")
     private val ROOT_DEFAULT_UNPINNED_KEY = booleanPreferencesKey("root_default_unpinned")

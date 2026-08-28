@@ -3,8 +3,12 @@ package dev.qtremors.arcile.core.vault.data
 import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.vault.domain.VaultImportProgress
+import io.mockk.mockk
+import io.mockk.verify
+import kotlinx.coroutines.awaitCancellation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -32,6 +36,7 @@ class VaultImportServiceTest {
         context = ApplicationProvider.getApplicationContext()
         controller = Robolectric.buildService(VaultImportService::class.java)
         service = controller.get()
+        service.coordinator = mockk(relaxed = true)
         notificationManager = context.getSystemService(NotificationManager::class.java)
     }
 
@@ -108,6 +113,29 @@ class VaultImportServiceTest {
         progressCallback.get().invoke(progress(completedItems = 2, totalItems = 2))
         assertEquals(0, shadowOf(notificationManager).allNotifications.size)
         finish.countDown()
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun `foreground timeout fails imports and removes their notifications`() {
+        val started = CountDownLatch(1)
+        service.executeImport = { _, _, _, _, _ ->
+            started.countDown()
+            awaitCancellation()
+        }
+        controller.withIntent(startIntent("vault-one")).startCommand(0, 1)
+        assertTrue(started.await(2, TimeUnit.SECONDS))
+        awaitNotificationCount(1)
+
+        service.onTimeout(1, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+
+        verify(timeout = 2_000) {
+            service.coordinator.onServiceTimeout(
+                match { vaultIds -> vaultIds.single().value == "vault-one" },
+                match { message -> message.contains("background time limit") }
+            )
+        }
+        awaitNotificationCount(0)
     }
 
     private fun startIntent(vaultId: String): Intent =

@@ -24,6 +24,7 @@ fun AppNavigationGraph(
     appStartPage: AppStartPage,
     onAppStartPageChange: (AppStartPage) -> Unit,
     onRestartApp: () -> Unit,
+    enableStartupUpdateCheck: Boolean = false,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
     val actions = rememberAppNavigationActions(
@@ -44,6 +45,12 @@ fun AppNavigationGraph(
     AppApkInstallerDialog(
         target = actions.apkInstallTarget,
         onDismiss = actions::dismissApkInstaller
+    )
+
+    ArcileUpdatePromptCoordinator(
+        enabled = enableStartupUpdateCheck,
+        onInstallUpdate = actions::openPath,
+        onFeedback = onFeedback
     )
 
     NavHost(

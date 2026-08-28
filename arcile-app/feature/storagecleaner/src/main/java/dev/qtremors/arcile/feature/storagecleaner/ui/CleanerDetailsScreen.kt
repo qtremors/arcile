@@ -6,12 +6,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -21,11 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Tune
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,20 +32,22 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
-import androidx.compose.ui.draw.clip
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.SelectAll
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.CleanerCandidate
 import dev.qtremors.arcile.core.storage.domain.CleanerGroup
 import dev.qtremors.arcile.core.storage.domain.CleanerGroupType
@@ -59,7 +55,13 @@ import dev.qtremors.arcile.core.storage.domain.CleanerRiskLevel
 import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerScanProgress
-import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.R
+
+private val cleanerPathListSaver = Saver<List<String>, ArrayList<String>>(
+    save = { ArrayList(it) },
+    restore = { it.toList() }
+)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -84,50 +86,105 @@ internal fun CleanerDetailsScreen(
 ) {
     var showRiskInfo by rememberSaveable(group.type.name) { mutableStateOf(false) }
     var showSectionSettings by rememberSaveable(group.type.name) { mutableStateOf(false) }
-    var comparePaths by rememberSaveable(group.type.name) {
-        mutableStateOf(arrayListOf<String>())
+    var comparePaths by rememberSaveable(group.type.name, stateSaver = cleanerPathListSaver) {
+        mutableStateOf<List<String>>(emptyList())
     }
     val compareFiles = remember(comparePaths, group.candidates) {
         val candidatesByPath = group.candidates.associateBy(CleanerCandidate::absolutePath)
         comparePaths.mapNotNull(candidatesByPath::get).takeIf { it.size >= 2 }
     }
 
+    val isInSelectionMode = selectedFiles.isNotEmpty()
+    val selectableCandidates = remember(group.candidates) {
+        group.candidates.filterNot { it.riskLevel == CleanerRiskLevel.High }
+    }
+    val allSelectableSelected = selectableCandidates.isNotEmpty() &&
+        selectableCandidates.all { it.absolutePath in selectedFiles }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(cleanerTitle(group.type)) },
+                title = {
+                    if (isInSelectionMode) {
+                        Text(pluralStringResource(R.plurals.selected_count, selectedFiles.size, selectedFiles.size))
+                    } else {
+                        Text(cleanerTitle(group.type))
+                    }
+                },
                 navigationIcon = {
                     IconButton(
-                        onClick = onNavigateBack,
+                        onClick = {
+                            if (isInSelectionMode) {
+                                onSelectedFilesChange(emptySet())
+                            } else {
+                                onNavigateBack()
+                            }
+                        },
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back)
+                            if (isInSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(
+                                if (isInSelectionMode) R.string.clear_selection else R.string.back
+                            )
                         )
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { showSectionSettings = true },
-                        modifier = Modifier.clip(CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = stringResource(
-                                R.string.cleaner_section_settings_title,
-                                cleanerTitle(group.type)
+                    if (isInSelectionMode) {
+                        IconButton(
+                            onClick = { onRequestClean(selectedFiles) },
+                            enabled = isLoaded && !isCleaning && !isScanning,
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.cleaner_delete_selected),
+                                tint = MaterialTheme.colorScheme.error
                             )
-                        )
+                        }
                     }
                     IconButton(
-                        onClick = { showRiskInfo = true },
+                        onClick = {
+                            val selectablePaths = selectableCandidates.map { it.absolutePath }.toSet()
+                            if (allSelectableSelected) {
+                                onSelectedFilesChange(selectedFiles - selectablePaths)
+                            } else {
+                                onSelectedFilesChange(selectedFiles + selectablePaths)
+                            }
+                        },
                         modifier = Modifier.clip(CircleShape)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = stringResource(R.string.cleaner_risk_info_title)
+                            imageVector = Icons.Default.SelectAll,
+                            contentDescription = stringResource(
+                                if (allSelectableSelected) R.string.clear_selection else R.string.cleaner_select_all
+                            ),
+                            tint = if (allSelectableSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
+                    }
+                    if (!isInSelectionMode) {
+                        IconButton(
+                            onClick = { showSectionSettings = true },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Tune,
+                                contentDescription = stringResource(
+                                    R.string.cleaner_section_settings_title,
+                                    cleanerTitle(group.type)
+                                )
+                            )
+                        }
+                        IconButton(
+                            onClick = { showRiskInfo = true },
+                            modifier = Modifier.clip(CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = stringResource(R.string.cleaner_risk_info_title)
+                            )
+                        }
                     }
                 }
             )
@@ -155,45 +212,6 @@ internal fun CleanerDetailsScreen(
                     .fillMaxSize()
                     .padding(horizontal = 16.dp)
             ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val selectableCandidates = remember(group.candidates) {
-                    group.candidates.filterNot { it.riskLevel == CleanerRiskLevel.High }
-                }
-                Checkbox(
-                    checked = selectableCandidates.isNotEmpty() &&
-                        selectableCandidates.all { it.absolutePath in selectedFiles },
-                    onCheckedChange = { checked ->
-                        onSelectedFilesChange(if (checked) {
-                            selectedFiles + selectableCandidates.map { it.absolutePath }
-                        } else {
-                            selectedFiles - selectableCandidates.map { it.absolutePath }.toSet()
-                        })
-                    }
-                )
-                Text(
-                    text = stringResource(R.string.cleaner_select_all),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .clip(ExpressiveShapes.medium)
-                        .bounceClickable {
-                            val selectablePaths = selectableCandidates.map { it.absolutePath }.toSet()
-                            onSelectedFilesChange(if (selectablePaths.isNotEmpty() && selectablePaths.all { it in selectedFiles }) {
-                                selectedFiles - selectablePaths
-                            } else {
-                                selectedFiles + selectablePaths
-                            })
-                        }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-
-            HorizontalDivider()
             if (isScanning) {
                 CleanerScanStatus(
                     progress = scanProgress,
@@ -235,14 +253,32 @@ internal fun CleanerDetailsScreen(
                             onOpenFile = onOpenFile,
                             onOpenContainingFolder = onOpenContainingFolder,
                             onCompare = {
-                                val selectedInGroup = filesInGroup.filter { it.absolutePath in selectedFiles }
-                                val filesToCompare = if (selectedInGroup.size == 2) {
-                                    selectedInGroup
-                                } else {
-                                    filesInGroup.take(2)
-                                }
-                                comparePaths = ArrayList(filesToCompare.map(CleanerCandidate::absolutePath))
+                                comparePaths = filesInGroup.map(CleanerCandidate::absolutePath)
                             },
+                            onIgnoreFile = { path ->
+                                onSelectedFilesChange(selectedFiles - path)
+                                onIgnorePath(path)
+                            }
+                        )
+                    }
+                }
+            } else if (group.type == CleanerGroupType.FilenameVersions) {
+                val versionFamilies = remember(group.candidates) {
+                    group.candidates.groupBy { it.filenameVersionMetadata?.familyKey ?: it.absolutePath }.values
+                        .filter { it.size > 1 }
+                        .toList()
+                }
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(versionFamilies, key = { it.first().filenameVersionMetadata?.familyKey ?: it.first().absolutePath }) { filesInFamily ->
+                        FilenameVersionFamilyCard(
+                            filesInFamily = filesInFamily,
+                            selectedFiles = selectedFiles,
+                            onSelectedFilesChange = onSelectedFilesChange,
+                            onOpenFile = onOpenFile,
+                            onOpenContainingFolder = onOpenContainingFolder,
                             onIgnoreFile = { path ->
                                 onSelectedFilesChange(selectedFiles - path)
                                 onIgnorePath(path)
@@ -266,6 +302,7 @@ internal fun CleanerDetailsScreen(
                             selected = file.absolutePath in selectedFiles,
                             index = index,
                             count = group.candidates.size,
+                            isInSelectionMode = isInSelectionMode,
                             onToggle = {
                                 onSelectedFilesChange(if (file.absolutePath in selectedFiles) {
                                     selectedFiles - file.absolutePath
@@ -284,26 +321,6 @@ internal fun CleanerDetailsScreen(
                 }
             }
 
-            val totalSelectedSize = remember(selectedFiles, group.candidates) {
-                group.candidates.filter { it.absolutePath in selectedFiles }.sumOf { it.size }
-            }
-
-            Button(
-                onClick = { onRequestClean(selectedFiles) },
-                enabled = isLoaded && selectedFiles.isNotEmpty() && !isCleaning && !isScanning,
-                shape = ExpressiveShapes.medium,
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp)
-                    .height(56.dp)
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = stringResource(R.string.clean_selected_summary, selectedFiles.size, formatFileSize(totalSelectedSize))
-                )
-            }
             }
         }
     }
@@ -347,7 +364,7 @@ internal fun CleanerDetailsScreen(
             selectedFiles = selectedFiles,
             onSelectedFilesChange = onSelectedFilesChange,
             onRequestClean = { paths ->
-                comparePaths = arrayListOf()
+                comparePaths = emptyList()
                 onRequestClean(paths)
             },
             onOpenFile = onOpenFile,
@@ -356,7 +373,7 @@ internal fun CleanerDetailsScreen(
                 onSelectedFilesChange(selectedFiles - path)
                 onIgnorePath(path)
             },
-            onDismiss = { comparePaths = arrayListOf() }
+            onDismiss = { comparePaths = emptyList() }
         )
     }
 }
@@ -383,11 +400,12 @@ private fun CleanerDetailStorageMap(
                 style = MaterialTheme.typography.labelLarge,
                 modifier = Modifier.weight(1f)
             )
+            val context = androidx.compose.ui.platform.LocalContext.current
             Text(
                 stringResource(
                     R.string.cleaner_detail_storage_selected,
-                    formatFileSize(selected),
-                    formatFileSize(total)
+                    formatFileSize(context, selected),
+                    formatFileSize(context, total)
                 ),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

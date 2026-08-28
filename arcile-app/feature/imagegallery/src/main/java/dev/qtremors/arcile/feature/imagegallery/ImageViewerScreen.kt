@@ -52,7 +52,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -66,6 +65,11 @@ import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
+import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import kotlin.math.abs
 
 internal enum class ViewerBackAction {
@@ -101,7 +105,7 @@ internal fun ImageViewerScreen(
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
     val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     var backActionAtStart by remember { mutableStateOf<ViewerBackAction?>(null) }
 
@@ -229,6 +233,20 @@ internal fun ImageViewerScreen(
 
             val currentFileForSheet = displayedFiles.getOrNull(pagerState.currentPage)
             val currentFile = currentFileForSheet
+            val viewerActionController = rememberViewerActionController(
+                currentFile = currentFile,
+                sourceScope = when {
+                    readOnly -> ViewerSourceScope.ManagedTrash
+                    currentFile?.absolutePath?.startsWith(ArchiveEntryThumbnailData.VIRTUAL_PREFIX) == true ->
+                        ViewerSourceScope.ArchiveEntry
+                    currentFile?.nodeRef?.contentUri != null &&
+                        currentFile.nodeRef.backendId == dev.qtremors.arcile.core.storage.domain.StorageNodeRef.LOCAL_BACKEND_ID ->
+                        ViewerSourceScope.External
+                    else -> ViewerSourceScope.Normal
+                },
+                onFileRenamed = viewModel::applyViewerRename,
+                onFileDeleted = viewModel::applyViewerDelete
+            )
             val metadataCache = remember { mutableStateMapOf<String, GalleryFileMetadata>() }
             LaunchedEffect(state.isRefreshing, state.viewerMetadataRevision) {
                 if (state.isRefreshing || state.viewerMetadataRevision > 0L) {
@@ -251,8 +269,9 @@ internal fun ImageViewerScreen(
                 ?.let(metadataCache::get)
                 ?.let { formatResolution(it.width, it.height) }
                 .orEmpty()
-            val currentSizeText = remember(currentFile) {
-                currentFile?.size?.takeIf { it > 0L }?.let(::formatFileSize).orEmpty()
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val currentSizeText = remember(currentFile, context) {
+                currentFile?.size?.takeIf { it > 0L }?.let { dev.qtremors.arcile.core.presentation.formatFileSize(context, it) }.orEmpty()
             }
             val positionText = viewerPositionLabel(pagerState.currentPage, displayedFiles.size)
             HorizontalPager(
@@ -351,7 +370,7 @@ internal fun ImageViewerScreen(
                                     .fillMaxSize()
                                     .graphicsLayer {
                                         if (isBackPredicting && backActionAtStart == ViewerBackAction.DismissMetadata) {
-                                            translationY = backProgress * size.height.toFloat()
+                                            translationY = backProgress * size.height
                                         }
                                     }
                             ) {
@@ -450,9 +469,21 @@ internal fun ImageViewerScreen(
                 selectedFiles = state.selectedFiles,
                 selectionModeEnabled = selectionModeEnabled,
                 readOnly = readOnly,
+                viewerActions = viewerActionController.state.allowedActions,
+                onViewerAction = { action ->
+                    when (action) {
+                        ViewerFileAction.Share -> currentFile?.let(onShareFile)
+                        ViewerFileAction.OpenWith -> currentFile?.let(onOpenWith)
+                        ViewerFileAction.Properties -> currentFile?.let {
+                            viewModel.setViewerMetadataVisible(it.absolutePath, visible = true)
+                        }
+                        else -> viewerActionController.onAction(action)
+                    }
+                },
                 actions = chromeActions,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
+            ViewerActionHost(viewerActionController)
         }
     }
 

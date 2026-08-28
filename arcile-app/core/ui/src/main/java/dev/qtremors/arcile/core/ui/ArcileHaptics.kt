@@ -23,11 +23,7 @@ class ArcileHaptics(private val view: View, private val enabled: Boolean) {
 
     fun success() {
         if (!enabled) return
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-        } else {
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        }
+        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
     }
 
     fun warning() {
@@ -36,12 +32,7 @@ class ArcileHaptics(private val view: View, private val enabled: Boolean) {
 
     fun error() {
         if (!enabled) return
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-            view.performHapticFeedback(HapticFeedbackConstants.REJECT)
-        } else {
-            // Fallback long press vibration pattern
-            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-        }
+        view.performHapticFeedback(HapticFeedbackConstants.REJECT)
     }
 
     fun destructiveConfirm() {

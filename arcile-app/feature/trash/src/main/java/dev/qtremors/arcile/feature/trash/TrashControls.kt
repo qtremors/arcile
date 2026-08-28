@@ -71,7 +71,7 @@ internal fun TrashSortDialog(
             Column {
                 TrashSortOption.entries.forEach { option ->
                     ListItem(
-                        headlineContent = { Text(trashSortLabel(option)) },
+                        content = { Text(trashSortLabel(option)) },
                         modifier = Modifier
                             .clip(ExpressiveShapes.medium)
                             .bounceClickable { onSelect(option) },

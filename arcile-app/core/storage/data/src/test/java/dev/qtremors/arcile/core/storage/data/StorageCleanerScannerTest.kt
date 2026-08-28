@@ -279,6 +279,193 @@ class StorageCleanerScannerTest {
         assertEquals(200, completed.result?.groups?.single()?.candidates?.size)
     }
 
+    @Test
+    fun `scanner recognizes semantic version families and marks newest version`() = runTest {
+        val root = temporaryFolder.newFolder("versions-storage")
+        val now = 10_000L
+        File(root, "app-1.0.0.apk").apply { writeBytes(ByteArray(10)); setLastModified(now - 2000) }
+        File(root, "app-1.1.0.apk").apply { writeBytes(ByteArray(15)); setLastModified(now - 1000) }
+        File(root, "app-2.0.0.apk").apply { writeBytes(ByteArray(20)); setLastModified(now) }
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            now = now
+        )
+
+        val candidates = result.groups.first { it.type == CleanerGroupType.FilenameVersions }.candidates
+        assertEquals(3, candidates.size)
+        val newest = candidates.first { it.name == "app-2.0.0.apk" }
+        assertTrue(newest.isLikelyNewestVersion)
+        assertEquals(dev.qtremors.arcile.core.storage.domain.FilenameVersionEvidence.SemanticVersion, newest.filenameVersionMetadata?.evidenceType)
+        assertFalse(candidates.first { it.name == "app-1.0.0.apk" }.isLikelyNewestVersion)
+        assertFalse(candidates.first { it.name == "app-1.1.0.apk" }.isLikelyNewestVersion)
+    }
+
+    @Test
+    fun `scanner recognizes duplicate suffix families and marks newest duplicate ordinal`() = runTest {
+        val root = temporaryFolder.newFolder("dup-versions-storage")
+        val now = 10_000L
+        File(root, "document.pdf").apply { writeBytes(ByteArray(10)); setLastModified(now - 2000) }
+        File(root, "document (1).pdf").apply { writeBytes(ByteArray(10)); setLastModified(now - 1000) }
+        File(root, "document (2).pdf").apply { writeBytes(ByteArray(10)); setLastModified(now) }
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            now = now
+        )
+
+        val candidates = result.groups.first { it.type == CleanerGroupType.FilenameVersions }.candidates
+        assertEquals(3, candidates.size)
+        val newest = candidates.first { it.name == "document (2).pdf" }
+        assertTrue(newest.isLikelyNewestVersion)
+        assertEquals(dev.qtremors.arcile.core.storage.domain.FilenameVersionEvidence.DuplicateSuffix, newest.filenameVersionMetadata?.evidenceType)
+        assertFalse(candidates.first { it.name == "document.pdf" }.isLikelyNewestVersion)
+        assertFalse(candidates.first { it.name == "document (1).pdf" }.isLikelyNewestVersion)
+    }
+
+    @Test
+    fun `scanner recognizes single numeric apk versions when package id matches`() = runTest {
+        val root = temporaryFolder.newFolder("apk-versions-storage")
+        val now = 10_000L
+        File(root, "arcile-1.apk").apply { writeBytes(ByteArray(10)); setLastModified(now - 2000) }
+        File(root, "arcile-2.apk").apply { writeBytes(ByteArray(12)); setLastModified(now) }
+
+        val customScanner = DefaultStorageCleanerScanner(
+            dispatchers = ArcileDispatchers(
+                io = dispatcher,
+                default = dispatcher,
+                main = dispatcher,
+                storage = dispatcher
+            ),
+            apkPackageResolver = { path ->
+                if (path.contains("arcile")) "dev.qtremors.arcile" to if (path.contains("-2")) 200L else 100L
+                else null
+            }
+        )
+
+        val result = customScanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            now = now
+        )
+
+        val candidates = result.groups.first { it.type == CleanerGroupType.FilenameVersions }.candidates
+        assertEquals(2, candidates.size)
+        val newest = candidates.first { it.name == "arcile-2.apk" }
+        assertTrue(newest.isLikelyNewestVersion)
+        assertEquals(dev.qtremors.arcile.core.storage.domain.FilenameVersionEvidence.PackageVersion, newest.filenameVersionMetadata?.evidenceType)
+    }
+
+    @Test
+    fun `scanner rejects dates camera photos numbered documents mixed extensions and weak single number matches`() = runTest {
+        val root = temporaryFolder.newFolder("rejected-versions-storage")
+        // Dates
+        File(root, "2026-08-28.log").writeBytes(ByteArray(5))
+        File(root, "2026-08-29.log").writeBytes(ByteArray(5))
+        // Camera
+        File(root, "IMG_0001.jpg").writeBytes(ByteArray(5))
+        File(root, "IMG_0002.jpg").writeBytes(ByteArray(5))
+        // Chapter / Page
+        File(root, "chapter 1.pdf").writeBytes(ByteArray(5))
+        File(root, "chapter 2.pdf").writeBytes(ByteArray(5))
+        // Weak single number on non-APK
+        File(root, "notes1.txt").writeBytes(ByteArray(5))
+        File(root, "notes2.txt").writeBytes(ByteArray(5))
+        // Mixed extensions
+        File(root, "tool-1.0.apk").writeBytes(ByteArray(5))
+        File(root, "tool-1.0.zip").writeBytes(ByteArray(5))
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath)
+        )
+
+        val candidates = result.groups.first { it.type == CleanerGroupType.FilenameVersions }.candidates
+        assertTrue(candidates.isEmpty())
+    }
+
+    @Test
+    fun `scanner marks filename version candidates as review risk`() = runTest {
+        val root = temporaryFolder.newFolder("risk-versions-storage")
+        File(root, "tool-1.0.zip").writeBytes(ByteArray(5))
+        File(root, "tool-2.0.zip").writeBytes(ByteArray(5))
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath)
+        )
+
+        val candidates = result.groups.first { it.type == CleanerGroupType.FilenameVersions }.candidates
+        assertEquals(2, candidates.size)
+        assertTrue(candidates.all { it.riskLevel == CleanerRiskLevel.Review })
+    }
+
+    @Test
+    fun `scanner prunes onlyfiles vault root and its contents entirely`() = runTest {
+        val root = temporaryFolder.newFolder("storage-with-vault")
+        val vaultDir = File(root, "SecretVault").apply { mkdirs() }
+        File(vaultDir, "vault.onlyfiles").writeBytes(ByteArray(100))
+        File(vaultDir, "vault.onlyfiles.bak").writeBytes(ByteArray(100))
+        val subDir = File(vaultDir, "payload").apply { mkdirs() }
+        File(subDir, "large_secret.bin").writeBytes(ByteArray(500))
+        File(subDir, "old_secret.txt").apply {
+            writeBytes(ByteArray(50))
+            setLastModified(1000L)
+        }
+
+        File(root, "regular.bin").apply { writeBytes(ByteArray(300)) }
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            limits = StorageCleanerScanLimits(largeFileThresholdBytes = 100)
+        )
+
+        assertTrue(result.group(CleanerGroupType.LargeFiles).contains("regular.bin"))
+        assertFalse(result.group(CleanerGroupType.LargeFiles).contains("large_secret.bin"))
+        assertFalse(result.group(CleanerGroupType.LargeFiles).contains("vault.onlyfiles"))
+        assertTrue(result.groups.all { group ->
+            group.candidates.none { it.absolutePath.contains("SecretVault") }
+        })
+        assertEquals(
+            setOf(File(subDir, "large_secret.bin").absolutePath),
+            scanner.protectedCleanerPaths(
+                listOf(
+                    File(subDir, "large_secret.bin").absolutePath,
+                    File(root, "regular.bin").absolutePath
+                )
+            )
+        )
+    }
+
+    @Test
+    fun `scanner does not treat an ordinary folder named onlyfiles as a vault`() = runTest {
+        val root = temporaryFolder.newFolder("storage-with-ordinary-onlyfiles-folder")
+        val ordinaryDir = File(root, "OnlyFiles").apply { mkdirs() }
+        File(ordinaryDir, "large.bin").writeBytes(ByteArray(500))
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            limits = StorageCleanerScanLimits(largeFileThresholdBytes = 100)
+        )
+
+        assertTrue(result.group(CleanerGroupType.LargeFiles).contains("large.bin"))
+    }
+
+    @Test
+    fun `scanner excludes entire subtree of ignored paths`() = runTest {
+        val root = temporaryFolder.newFolder("storage-with-ignored")
+        val ignoredDir = File(root, "IgnoredSubtree").apply { mkdirs() }
+        val nestedDir = File(ignoredDir, "Nested").apply { mkdirs() }
+        File(nestedDir, "large.bin").writeBytes(ByteArray(500))
+        File(root, "other.bin").writeBytes(ByteArray(500))
+
+        val result = scanner.scan(
+            rootPaths = listOf(root.absolutePath),
+            limits = StorageCleanerScanLimits(largeFileThresholdBytes = 100),
+            rules = StorageCleanerRules(ignoredPaths = setOf(ignoredDir.absolutePath))
+        )
+
+        assertTrue(result.group(CleanerGroupType.LargeFiles).contains("other.bin"))
+        assertFalse(result.group(CleanerGroupType.LargeFiles).contains("large.bin"))
+    }
+
     private fun dev.qtremors.arcile.core.storage.domain.StorageCleanerResult.group(type: CleanerGroupType): List<String> =
         groups.first { it.type == type }.candidates.map { it.name }
 

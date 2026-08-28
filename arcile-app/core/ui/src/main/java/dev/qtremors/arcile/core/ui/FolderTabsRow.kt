@@ -61,8 +61,9 @@ fun FolderTabsRow(
                     onClick = { onSelectTab(tab.path) },
                     modifier = Modifier.widthIn(max = 280.dp),
                     label = {
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         Text(
-                            text = "${tab.label} (${tab.count}) • ${formatFileSize(tab.totalSizeBytes)}",
+                            text = "${tab.label} (${tab.count}) • ${formatFileSize(context, tab.totalSizeBytes)}",
                             style = MaterialTheme.typography.labelLarge,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis

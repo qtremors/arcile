@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.ui.dialogs
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -48,7 +48,7 @@ class DeleteConfirmationDialogTest {
 
         composeRule.onNodeWithText("Destination: Trash Bin").assertExists()
         composeRule.onNodeWithText("Selected items will be moved to the Trash Bin. You can restore them later.").assertExists()
-        composeRule.onNodeWithText("2 items • 2.0 KB • Folders: 1").assertExists()
+        composeRule.onNodeWithText("2 items • 2.0 kB • Folders: 1").assertExists()
         composeRule.onNodeWithText("Permanently delete").performClick()
 
         assertEquals(1, toggleCount)

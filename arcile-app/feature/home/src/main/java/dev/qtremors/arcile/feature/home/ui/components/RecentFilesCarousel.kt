@@ -43,9 +43,9 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -80,16 +80,16 @@ internal fun RecentFilesCarousel(
     files: List<FileModel>,
     onOpenFile: (String) -> Unit,
     onNavigateToPath: (String) -> Unit,
-    onShareFile: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onShareFile: (String) -> Unit = {}
 ) {
-    val configuration = LocalConfiguration.current
     val density = LocalDensity.current.density
-    val primaryWidth = configuration.screenWidthDp.dp / 2
+    val screenWidthDp = (LocalWindowInfo.current.containerSize.width / density).roundToInt()
+    val primaryWidth = screenWidthDp.dp / 2
     val itemHeight = primaryWidth * 1.25f
-    val renderedThumbnailSizePx = remember(configuration.screenWidthDp, density) {
+    val renderedThumbnailSizePx = remember(screenWidthDp, density) {
         homeCarouselRenderedThumbnailSizePx(
-            screenWidthDp = configuration.screenWidthDp,
+            screenWidthDp = screenWidthDp,
             density = density
         )
     }
@@ -127,7 +127,10 @@ internal fun RecentFileCarouselItem(
 ) {
     val extension = file.extension.lowercase()
     val previewAccent = previewAccentFor(file)
-    val previewIcon = dev.qtremors.arcile.core.ui.getFileIconVector(file)
+    val previewIcon = dev.qtremors.arcile.core.ui.getFileIconVector(
+        file,
+        dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+    )
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }
     val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {

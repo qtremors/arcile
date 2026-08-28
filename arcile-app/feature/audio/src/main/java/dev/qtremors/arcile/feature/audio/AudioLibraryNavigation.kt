@@ -27,6 +27,7 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
     onNavigateBack: () -> Unit,
     onShareSelected: suspend (List<AudioTrack>) -> Boolean,
     onOpenPlayer: (AudioTrack, List<AudioTrack>, Boolean) -> Unit,
+    onEditSelected: (List<AudioTrack>) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit = {}
 ) {
@@ -111,6 +112,7 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
                     if (onShareSelected(tracks)) onShared()
                 }
             },
+            onEditSelected = onEditSelected,
             onOpenWith = onOpenWith,
             onClearError = {
                 viewModel.clearError()

@@ -15,6 +15,9 @@ import dev.qtremors.arcile.core.storage.domain.FileCategories
 import java.io.File
 import java.io.FileOutputStream
 import android.net.Uri
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 
 class ApkIconFetcher(
     private val data: File,
@@ -97,7 +100,7 @@ internal inline fun <T> withApkCapabilityFile(
         ?: return null
     val temporary = File.createTempFile("arcile_capability_apk_", ".$safeExtension", context.cacheDir)
     return try {
-        context.contentResolver.openInputStream(Uri.parse(contentUri))?.use { input ->
+        context.contentResolver.openInputStream(contentUri.toUri())?.use { input ->
             FileOutputStream(temporary).use { output ->
                 val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                 var total = 0L
@@ -124,10 +127,10 @@ private fun Drawable.toBoundedDrawable(context: Context, targetSize: Int): Drawa
     val outWidth = (width * scale).toInt().coerceAtLeast(1)
     val outHeight = (height * scale).toInt().coerceAtLeast(1)
     val bitmap = runCatching {
-        Bitmap.createBitmap(outWidth, outHeight, Bitmap.Config.ARGB_8888)
+        createBitmap(outWidth, outHeight)
     }.getOrElse { return this }
     val canvas = Canvas(bitmap)
     setBounds(0, 0, outWidth, outHeight)
     runCatching { draw(canvas) }.getOrElse { return this }
-    return BitmapDrawable(context.resources, bitmap)
+    return bitmap.toDrawable(context.resources)
 }

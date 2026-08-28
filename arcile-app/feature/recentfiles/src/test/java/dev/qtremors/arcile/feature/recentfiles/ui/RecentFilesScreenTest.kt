@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.feature.recentfiles.ui
 
 import androidx.compose.ui.test.assertCountEquals
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
@@ -48,12 +48,14 @@ class RecentFilesScreenTest {
     }
 
     @Test
-    fun `sort action opens browser presentation sheet`() {
+    fun `view action opens presentation sheet without sort controls`() {
         setScreen(recentScreenState())
 
-        composeRule.onNodeWithContentDescription("Sort").performClick()
+        composeRule.onNodeWithContentDescription("Sort").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("View options").performClick()
 
-        composeRule.onNodeWithText("Sort recent files").assertExists()
+        composeRule.onNodeWithText("View options").assertExists()
+        composeRule.onNodeWithText("Sort").assertDoesNotExist()
         composeRule.onNodeWithText("View mode").assertExists()
         composeRule.onNodeWithText("Grid View").assertExists()
     }
@@ -98,6 +100,23 @@ class RecentFilesScreenTest {
 
         composeRule.onNodeWithText("Today").assertExists()
         composeRule.onNodeWithText("photo.jpg").assertExists()
+    }
+
+    @Test
+    fun `selection mode renders selection top bar and toolbar`() {
+        val file = recentScreenFile("photo.jpg", "/storage/emulated/0/DCIM/photo.jpg")
+        setScreen(
+            recentScreenState().copy(
+                selectedFiles = setOf(file.absolutePath),
+                selectedFilesTotalSize = file.size
+            )
+        )
+
+        composeRule.onNodeWithContentDescription("Clear Selection").assertExists()
+        composeRule.onNodeWithText("1 selected").assertExists()
+        composeRule.onNodeWithContentDescription("Select All").assertExists()
+        composeRule.onNodeWithContentDescription("Share").assertExists()
+        composeRule.onNodeWithContentDescription("Delete").assertExists()
     }
 
     private fun setScreen(state: RecentFilesState) {

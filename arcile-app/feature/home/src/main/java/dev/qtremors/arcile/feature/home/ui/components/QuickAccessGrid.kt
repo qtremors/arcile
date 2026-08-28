@@ -14,7 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.AccountTree
 import androidx.compose.material.icons.outlined.CameraAlt
-import androidx.compose.material.icons.outlined.Chat
+import androidx.compose.material.icons.automirrored.outlined.Chat
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Folder
@@ -119,7 +119,7 @@ internal fun iconForHomeQuickAccessItem(item: QuickAccessItem): ImageVector {
     return when (item.label.lowercase()) {
         "dcim" -> Icons.Outlined.CameraAlt
         "downloads", "download" -> Icons.Outlined.Download
-        "whatsapp" -> Icons.Outlined.Chat
+        "whatsapp" -> Icons.AutoMirrored.Outlined.Chat
         "pictures", "images" -> Icons.Outlined.Image
         "documents", "docs" -> Icons.Outlined.Description
         "music", "audio" -> Icons.Outlined.MusicNote

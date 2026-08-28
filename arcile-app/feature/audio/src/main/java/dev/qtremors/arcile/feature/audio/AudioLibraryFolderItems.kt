@@ -96,7 +96,7 @@ internal fun AudioFolderListItem(
             )
             if (showDetails) {
                 Text(
-                    "${folder.subtitle.orEmpty()} • ${formatFileSize(folder.totalSize)}",
+                    "${folder.subtitle.orEmpty()} • ${formatFileSize(androidx.compose.ui.platform.LocalContext.current, folder.totalSize)}",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -163,7 +163,7 @@ internal fun AudioFolderGridItem(
                 title = folder.displayTitle(stringResource(R.string.audio_favorites)),
                 detailLines = listOf(
                     androidx.compose.ui.res.pluralStringResource(R.plurals.audio_track_count, folder.tracks.size, folder.tracks.size),
-                    formatFileSize(folder.totalSize)
+                    formatFileSize(androidx.compose.ui.platform.LocalContext.current, folder.totalSize)
                 )
             ),
             onClick = onClick,

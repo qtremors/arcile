@@ -5,7 +5,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.HighlightOff
 import androidx.compose.material.icons.filled.History
@@ -36,8 +36,8 @@ internal fun ActivityLogRow(entry: ActivityLogEntry) {
 @Composable
 private fun FileOpenedRow(entry: ActivityLogEntry.FileOpened) {
     ListItem(
-        leadingContent = { Icon(Icons.Default.InsertDriveFile, contentDescription = null) },
-        headlineContent = { Text(entry.path.displayName()) },
+        leadingContent = { Icon(Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null) },
+        content = { Text(entry.path.displayName()) },
         supportingContent = {
             Text(
                 text = "${stringResource(R.string.activity_log_file_opened)} • ${entry.path}",
@@ -55,7 +55,7 @@ private fun FileOpenedRow(entry: ActivityLogEntry.FileOpened) {
 private fun FolderOpenedRow(entry: ActivityLogEntry.FolderOpened) {
     ListItem(
         leadingContent = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
-        headlineContent = { Text(entry.path.displayName()) },
+        content = { Text(entry.path.displayName()) },
         supportingContent = {
             Text(
                 text = "${stringResource(R.string.activity_log_folder_opened)} • ${entry.path}",
@@ -73,7 +73,7 @@ private fun FolderOpenedRow(entry: ActivityLogEntry.FolderOpened) {
 private fun PageVisitedRow(entry: ActivityLogEntry.PageVisited) {
     ListItem(
         leadingContent = { Icon(Icons.Default.History, contentDescription = null) },
-        headlineContent = { Text(stringResource(entry.page.activityLogPageNameRes())) },
+        content = { Text(stringResource(entry.page.activityLogPageNameRes())) },
         supportingContent = {
             Text(
                 text = listOfNotNull(
@@ -94,7 +94,7 @@ private fun PageVisitedRow(entry: ActivityLogEntry.PageVisited) {
 private fun FileOperationRow(entry: ActivityLogEntry.FileOperation) {
     ListItem(
         leadingContent = { Icon(operationStatusIcon(entry.status), contentDescription = null) },
-        headlineContent = { Text(operationTitle(entry.operationType, entry.status)) },
+        content = { Text(operationTitle(entry.operationType, entry.status)) },
         supportingContent = {
             Text(
                 text = operationDescription(entry),

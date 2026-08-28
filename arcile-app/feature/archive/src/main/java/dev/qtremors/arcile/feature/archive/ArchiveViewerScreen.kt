@@ -58,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -91,6 +92,9 @@ import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 
@@ -100,7 +104,10 @@ internal fun ArchiveViewerScreen(
     navigationActions: ArchiveNavigationActions,
     extractionActions: ArchiveExtractionActions,
     conflictActions: ArchiveConflictActions,
-    selectionActions: ArchiveSelectionActions
+    selectionActions: ArchiveSelectionActions,
+    archiveFileModel: FileModel = FileModel(name = "", absolutePath = ""),
+    viewerActions: Set<ViewerFileAction> = emptySet(),
+    onViewerAction: (ViewerFileAction) -> Unit = {}
 ) {
     val onNavigateBack = navigationActions.navigateBack
     val onNavigateUpInArchive = navigationActions.navigateUpInArchive
@@ -153,7 +160,7 @@ internal fun ArchiveViewerScreen(
             onClearActiveOperation()
         }
     }
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
     PredictiveBackHandler { progressFlow ->
@@ -300,8 +307,15 @@ internal fun ArchiveViewerScreen(
                         }
                     }
                 }
-            )
-        }
+                        )
+                        ViewerOverflowMenu(
+                            currentFile = archiveFileModel,
+                            allowedActions = viewerActions,
+                            onAction = onViewerAction,
+                            buttonColor = Color.Transparent,
+                            buttonContentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -370,7 +384,7 @@ internal fun ArchiveViewerScreen(
                         )
                 ) {
                     ListItem(
-                        headlineContent = {
+                        content = {
                             Text(item.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         },
                         supportingContent = {
@@ -382,7 +396,7 @@ internal fun ArchiveViewerScreen(
                                         stringResource(R.string.folder_label)
                                     }
                                 } else {
-                                    formatFileSize(item.size)
+                                    formatFileSize(androidx.compose.ui.platform.LocalContext.current, item.size)
                                 },
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -412,7 +426,7 @@ internal fun ArchiveViewerScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
-                                            contentDescription = stringResource(R.string.selected),
+                                            contentDescription = stringResource(R.string.item_selected_label),
                                             modifier = Modifier
                                                 .fillMaxSize()
                                                 .padding(2.dp)

@@ -31,7 +31,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,6 +68,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+
+data class SortDialogFilterOptions(
+    val minDateMillis: Long? = null,
+    val maxDateMillis: Long? = null,
+    val onDateRangeChange: ((Long?, Long?) -> Unit)? = null,
+    val minSize: Long? = null,
+    val maxSize: Long? = null,
+    val onSizeRangeChange: ((Long?, Long?) -> Unit)? = null
+)
+
+internal fun resolveGridControlWidthDp(
+    sheetWidthDp: Float,
+    gridContentWidthDp: Float?
+): Float = gridContentWidthDp?.takeIf { it > 0f } ?: sheetWidthDp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,21 +90,34 @@ fun SortOptionDialog(
     title: String,
     selectedPreferences: FileListingPreferences,
     showApplyToSubfolders: Boolean,
+    initialApplyToSubfolders: Boolean = false,
     onDismiss: () -> Unit,
     onApply: (FileListingPreferences, Boolean) -> Unit,
-    minDateMillis: Long? = null,
-    maxDateMillis: Long? = null,
-    onDateRangeChange: ((Long?, Long?) -> Unit)? = null,
-    minSize: Long? = null,
-    maxSize: Long? = null,
-    onSizeRangeChange: ((Long?, Long?) -> Unit)? = null
+    showSortControls: Boolean = true,
+    showFoldersFirst: Boolean = false,
+    gridContentWidth: Dp? = null,
+    gridHorizontalPadding: Dp = 32.dp,
+    gridItemSpacing: Dp = 16.dp,
+    filterOptions: SortDialogFilterOptions = SortDialogFilterOptions()
 ) {
-    var applyToSubfolders by remember { mutableStateOf(false) }
+    val minDateMillis = filterOptions.minDateMillis
+    val maxDateMillis = filterOptions.maxDateMillis
+    val onDateRangeChange = filterOptions.onDateRangeChange
+    val minSize = filterOptions.minSize
+    val maxSize = filterOptions.maxSize
+    val onSizeRangeChange = filterOptions.onSizeRangeChange
+
+    var applyToSubfolders by remember(initialApplyToSubfolders) {
+        mutableStateOf(initialApplyToSubfolders)
+    }
     var draftPreferences by remember(selectedPreferences) {
         mutableStateOf(selectedPreferences.normalized())
     }
 
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -101,10 +130,24 @@ fun SortOptionDialog(
                 .navigationBarsPadding()
                 .padding(bottom = 16.dp)
         ) {
-            val liveColumnCount = max(
-                1,
-                floor(((maxWidth.value - 32f) / draftPreferences.gridMinCellSize).toDouble()).toInt()
+            val contentWidthDp = resolveGridControlWidthDp(maxWidth.value, gridContentWidth?.value)
+            val horizontalPaddingDp = gridHorizontalPadding.value
+            val itemSpacingDp = gridItemSpacing.value
+            val gridOptions = remember(contentWidthDp, horizontalPaddingDp, itemSpacingDp) {
+                GridColumnModel.options(
+                    contentWidthDp = contentWidthDp,
+                    horizontalPaddingDp = horizontalPaddingDp,
+                    itemSpacingDp = itemSpacingDp
+                )
+            }
+            val liveColumnCount = GridColumnModel.columnCountForCellSize(
+                cellSizeDp = draftPreferences.gridMinCellSize,
+                contentWidthDp = contentWidthDp,
+                horizontalPaddingDp = horizontalPaddingDp,
+                itemSpacingDp = itemSpacingDp
             )
+            val selectedOptionIndex = gridOptions.indexOf(liveColumnCount).coerceAtLeast(0)
+            val gridSteps = max(0, gridOptions.size - 2)
 
             Column(
                 modifier = Modifier
@@ -141,7 +184,7 @@ fun SortOptionDialog(
                                     Icons.AutoMirrored.Filled.ViewList
                                 } else {
                                     Icons.Default.GridView
-                                },
+                                } ,
                                 contentDescription = null
                             )
                             Text(viewModeLabel(mode))
@@ -202,57 +245,101 @@ fun SortOptionDialog(
                                         color = MaterialTheme.colorScheme.primary
                                     )
                                 }
+                                val maxIndex = max(1, gridOptions.size - 1).toFloat()
                                 Slider(
-                                    value = draftPreferences.gridMinCellSize,
-                                    onValueChange = {
-                                        draftPreferences = draftPreferences.copy(gridMinCellSize = it)
+                                    value = selectedOptionIndex.toFloat().coerceIn(0f, maxIndex),
+                                    onValueChange = { indexFloat ->
+                                        val idx = indexFloat.roundToInt().coerceIn(0, gridOptions.size - 1)
+                                        val cols = gridOptions[idx]
+                                        val newCellSize = GridColumnModel.cellSizeForColumnCount(
+                                            columnCount = cols,
+                                            contentWidthDp = contentWidthDp,
+                                            horizontalPaddingDp = horizontalPaddingDp,
+                                            itemSpacingDp = itemSpacingDp
+                                        )
+                                        draftPreferences = draftPreferences.copy(gridMinCellSize = newCellSize)
                                     },
-                                    valueRange = FileListingPreferences.MIN_GRID_MIN_CELL_SIZE..FileListingPreferences.MAX_GRID_MIN_CELL_SIZE,
-                                    steps = 1
+                                    valueRange = 0f..maxIndex,
+                                    steps = gridSteps,
+                                    enabled = gridOptions.size > 1
                                 )
                             }
                         }
                     }
                 }
 
-                // Sort Section (Grid Layout to prevent horizontal scroll)
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = stringResource(R.string.action_sort),
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                if (showSortControls) {
+                    // Sort Section (Grid Layout to prevent horizontal scroll)
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            text = stringResource(R.string.action_sort),
+                            style = MaterialTheme.typography.titleMedium
+                        )
 
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.NAME_ASC, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.NAME_ASC, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.NAME_DESC, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
                             }
-                            SortOptionChip(FileSortOption.NAME_DESC, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.DATE_NEWEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.DATE_OLDEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.SIZE_LARGEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                SortOptionChip(FileSortOption.FILE_COUNT_HIGHEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
+                                SortOptionChip(FileSortOption.FILE_COUNT_LOWEST, draftPreferences, Modifier.weight(1f)) {
+                                    draftPreferences = draftPreferences.copy(sortOption = it)
+                                }
                             }
                         }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.DATE_NEWEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortOptionChip(FileSortOption.DATE_OLDEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.SIZE_LARGEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortOptionChip(FileSortOption.SIZE_SMALLEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SortOptionChip(FileSortOption.FILE_COUNT_HIGHEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
-                            }
-                            SortOptionChip(FileSortOption.FILE_COUNT_LOWEST, draftPreferences, Modifier.weight(1f)) {
-                                draftPreferences = draftPreferences.copy(sortOption = it)
+
+                        if (showFoldersFirst) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(MaterialTheme.shapes.large)
+                                    .bounceClickable {
+                                        draftPreferences = draftPreferences.copy(
+                                            foldersFirst = !draftPreferences.foldersFirst
+                                        )
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = stringResource(R.string.sort_folders_first),
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.sort_folders_first_description),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Switch(
+                                    checked = draftPreferences.foldersFirst,
+                                    onCheckedChange = null
+                                )
                             }
                         }
                     }
@@ -267,18 +354,19 @@ fun SortOptionDialog(
                 }
 
                 if (onSizeRangeChange != null) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     var minSizeTextState by remember(minSize) {
-                        mutableStateOf(minSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+                        mutableStateOf(minSize?.let { (it / 1_000_000f).toString() }.orEmpty())
                     }
                     var maxSizeTextState by remember(maxSize) {
-                        mutableStateOf(maxSize?.let { (it / (1024f * 1024f)).toString() }.orEmpty())
+                        mutableStateOf(maxSize?.let { (it / 1_000_000f).toString() }.orEmpty())
                     }
 
                     val anyLabel = stringResource(R.string.all)
-                    val sizePresets = remember(anyLabel) { getPresetSizes(anyLabel) }
+                    val sizePresets = remember(anyLabel, context) { getPresetSizes(context, anyLabel) }
 
-                    val parsedMinSize = minSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
-                    val parsedMaxSize = maxSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
+                    val parsedMinSize = minSizeTextState.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }
+                    val parsedMaxSize = maxSizeTextState.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }
 
                     val selectedSizePreset = sizePresets.find { (_, sizeRange) ->
                         parsedMinSize == sizeRange.first && parsedMaxSize == sizeRange.second
@@ -298,8 +386,8 @@ fun SortOptionDialog(
                                 ExpressiveFilterChip(
                                     selected = selectedSizePreset.first == preset.first,
                                     onClick = {
-                                        minSizeTextState = preset.second.first?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
-                                        maxSizeTextState = preset.second.second?.let { (it / (1024f * 1024f)).toString() }.orEmpty()
+                                        minSizeTextState = preset.second.first?.let { (it / 1_000_000f).toString() }.orEmpty()
+                                        maxSizeTextState = preset.second.second?.let { (it / 1_000_000f).toString() }.orEmpty()
                                         onSizeRangeChange(preset.second.first, preset.second.second)
                                     },
                                     label = { Text(preset.first) }
@@ -312,8 +400,8 @@ fun SortOptionDialog(
                                 value = minSizeTextState,
                                 onValueChange = {
                                     minSizeTextState = it
-                                    val parsedMin = it.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
-                                    onSizeRangeChange(parsedMin, maxSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() })
+                                    val parsedMin = it.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }
+                                    onSizeRangeChange(parsedMin, maxSizeTextState.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() })
                                 },
                                 label = { Text(stringResource(R.string.filter_min_size)) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -325,8 +413,8 @@ fun SortOptionDialog(
                                 value = maxSizeTextState,
                                 onValueChange = {
                                     maxSizeTextState = it
-                                    val parsedMax = it.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }
-                                    onSizeRangeChange(minSizeTextState.trim().toFloatOrNull()?.let { (it * 1024 * 1024).toLong() }, parsedMax)
+                                    val parsedMax = it.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }
+                                    onSizeRangeChange(minSizeTextState.trim().toFloatOrNull()?.let { (it * 1_000_000L).toLong() }, parsedMax)
                                 },
                                 label = { Text(stringResource(R.string.filter_max_size)) },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),

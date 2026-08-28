@@ -167,19 +167,14 @@ class DefaultMediaStoreClient(
             val selection = selectionParts.joinToString(" AND ")
             val args = selectionArgs.toTypedArray()
             val queryLimit = (limit * RECENT_FILES_QUERY_MULTIPLIER).coerceAtLeast(limit)
-            val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val bundle = android.os.Bundle().apply {
-                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
-                    putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
-                    putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
-                    putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, queryLimit)
-                    putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
-                }
-                context.contentResolver.query(uri, projection, bundle, null)
-            } else {
-                @Suppress("DEPRECATION")
-                context.contentResolver.query(uri, projection, selection, args, "$sortOrder LIMIT $queryLimit OFFSET $offset")
+            val bundle = android.os.Bundle().apply {
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION, selection)
+                putStringArray(android.content.ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, args)
+                putString(android.content.ContentResolver.QUERY_ARG_SQL_SORT_ORDER, sortOrder)
+                putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, queryLimit)
+                putInt(android.content.ContentResolver.QUERY_ARG_OFFSET, offset)
             }
+            val cursor = context.contentResolver.query(uri, projection, bundle, null)
             cursor?.use { cursor ->
                 while (cursor.moveToNext() && filesList.size < limit) {
                     val row = cursor.readMediaStoreFileRow()
@@ -452,12 +447,7 @@ class DefaultMediaStoreClient(
                     putInt(android.content.ContentResolver.QUERY_ARG_LIMIT, MAX_PATH_SEARCH_RESULTS)
                 }
 
-                val cursor = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                    context.contentResolver.query(uri, projection, bundle, null)
-                } else {
-                    @Suppress("DEPRECATION")
-                    context.contentResolver.query(uri, projection, selection, selectionArgs.toTypedArray(), "$sortOrder LIMIT $MAX_PATH_SEARCH_RESULTS")
-                }
+                val cursor = context.contentResolver.query(uri, projection, bundle, null)
 
                 cursor?.use { c ->
                     while (c.moveToNext()) {

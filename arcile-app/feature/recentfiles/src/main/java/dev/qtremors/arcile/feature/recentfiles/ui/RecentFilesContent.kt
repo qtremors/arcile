@@ -27,6 +27,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -37,6 +39,7 @@ import dev.qtremors.arcile.core.ui.lists.FileItemRow
 import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.rememberDateFormatter
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.spacing
 import java.util.Date
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -55,6 +58,33 @@ internal fun RecentFilesContent(
     onLoadMore: () -> Unit
 ) {
     val isSelectionMode = state.selectedFiles.isNotEmpty()
+    val haptics = rememberArcileHaptics()
+    val visiblePaths = remember(filesToDisplay) { filesToDisplay.map { it.absolutePath } }
+    var selectionAnchorPath by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(visiblePaths) {
+        if (selectionAnchorPath !in visiblePaths) selectionAnchorPath = null
+    }
+    val onGroupedClick: (String) -> Unit = { path ->
+        if (isSelectionMode) {
+            selectionAnchorPath = path
+            onToggleSelection(path)
+            haptics.selectionChanged()
+        } else {
+            onOpenFile(path)
+        }
+    }
+    val onGroupedLongClick: (String) -> Unit = { path ->
+        val range = recentSelectionRange(selectionAnchorPath, path, visiblePaths)
+        if (isSelectionMode && range.size > 1) {
+            onSelectMultiple(range)
+            haptics.selectionChanged()
+        } else {
+            val wasEmpty = !isSelectionMode
+            onToggleSelection(path)
+            if (wasEmpty) haptics.selectionStart() else haptics.selectionChanged()
+        }
+        selectionAnchorPath = path
+    }
     val topPadding = contentPadding.calculateTopPadding()
     val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + (if (isSelectionMode) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
 
@@ -128,10 +158,8 @@ internal fun RecentFilesContent(
                                 showThumbnails = state.presentation.showThumbnails,
                                 openFileFromThumbnailInSelectionMode = true
                             ),
-                            onClick = {
-                                if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
-                            },
-                            onLongClick = { onToggleSelection(file.absolutePath) },
+                            onClick = { onGroupedClick(file.absolutePath) },
+                            onLongClick = { onGroupedLongClick(file.absolutePath) },
                             onOpenDirectly = { onOpenFile(file.absolutePath) }
                         )
                     }
@@ -232,10 +260,8 @@ internal fun RecentFilesContent(
                             showThumbnails = state.presentation.showThumbnails,
                             openFileFromThumbnailInSelectionMode = true
                         ),
-                        onClick = {
-                            if (isSelectionMode) onToggleSelection(file.absolutePath) else onOpenFile(file.absolutePath)
-                        },
-                        onLongClick = { onToggleSelection(file.absolutePath) },
+                        onClick = { onGroupedClick(file.absolutePath) },
+                        onLongClick = { onGroupedLongClick(file.absolutePath) },
                         onOpenDirectly = { onOpenFile(file.absolutePath) }
                     )
                 }
@@ -286,4 +312,17 @@ internal fun RecentFilesContent(
             contentPadding = PaddingValues(bottom = bottomPadding)
         )
     }
+}
+
+internal fun recentSelectionRange(
+    anchorPath: String?,
+    currentPath: String,
+    visiblePaths: List<String>
+): List<String> {
+    val anchorIndex = anchorPath?.let(visiblePaths::indexOf) ?: return listOf(currentPath)
+    val currentIndex = visiblePaths.indexOf(currentPath)
+    if (anchorIndex < 0 || currentIndex < 0) return listOf(currentPath)
+    val start = minOf(anchorIndex, currentIndex)
+    val end = maxOf(anchorIndex, currentIndex)
+    return visiblePaths.subList(start, end + 1).distinct()
 }

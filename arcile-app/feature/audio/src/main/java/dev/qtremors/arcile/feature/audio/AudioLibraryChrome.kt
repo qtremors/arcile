@@ -99,7 +99,7 @@ internal fun AudioSelectionTopBar(
 ) {
     CategorySelectionTopBar(
         selectedCountText = androidx.compose.ui.res.pluralStringResource(R.plurals.audio_selected_count, selectedCount, selectedCount),
-        selectedSizeText = formatFileSize(selectedSize),
+        selectedSizeText = formatFileSize(androidx.compose.ui.platform.LocalContext.current, selectedSize),
         onClearSelection = onClearSelection,
         onSelectAll = onSelectAll,
         onInvertSelection = onInvertSelection,
@@ -125,6 +125,7 @@ internal fun AudioLibraryBottomBar(
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onEditAudio: () -> Unit,
     onPaste: () -> Unit,
     onCancelClipboard: () -> Unit,
     onShowClipboardContents: () -> Unit,
@@ -184,7 +185,8 @@ internal fun AudioLibraryBottomBar(
                 onProperties = onOpenProperties,
                 onCreateZip = onCreateZip,
                 onOpenWith = onOpenWith,
-                onToggleFavorite = onToggleFavorite
+                onToggleFavorite = onToggleFavorite,
+                onEditAudio = onEditAudio
             )
         }
     )

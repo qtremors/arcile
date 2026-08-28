@@ -95,7 +95,8 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
-        onNavigateBack = { navController.popBackStack() }
+        onNavigateBack = { navController.popBackStack() },
+        onInstallUpdate = actions::openPath
     )
     registerStorageManagementRoute(
         enterTransition = transitions.utilityEnter,
@@ -112,7 +113,9 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
     ) {
         AboutScreen(
             onNavigateBack = { navController.popBackStack() },
-            onNavigateToLicenses = { navController.navigate(AppRoutes.Licenses) }
+            onNavigateToLicenses = { navController.navigate(AppRoutes.Licenses) },
+            onInstallUpdate = actions::openPath,
+            onFeedback = onFeedback
         )
     }
     composable<AppRoutes.Licenses>(

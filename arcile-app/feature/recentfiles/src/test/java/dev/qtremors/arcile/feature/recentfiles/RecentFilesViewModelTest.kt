@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.recentfiles
 
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -114,11 +115,11 @@ class RecentFilesViewModelTest {
     }
 
     @Test
-    fun `updatePresentation changes displayed order without replacing loaded files`() = runTest(mainDispatcherRule.dispatcher) {
+    fun `updatePresentation changes layout without changing newest-first order`() = runTest(mainDispatcherRule.dispatcher) {
         val files = listOf(
-            recentFile("beta.txt"),
-            recentFile("alpha.txt"),
-            recentFile("gamma.txt")
+            recentFile("beta.txt", lastModified = 200L),
+            recentFile("alpha.txt", lastModified = 300L),
+            recentFile("gamma.txt", lastModified = 100L)
         )
         val repository = FakeStorageRepositoryBundle(
             initialRecentFilesByScope = mapOf(StorageScope.AllStorage to files)
@@ -126,9 +127,18 @@ class RecentFilesViewModelTest {
         val viewModel = recentViewModel(repository)
 
         advanceUntilIdle()
-        viewModel.updatePresentation(FileListingPreferences(sortOption = FileSortOption.NAME_ASC))
+        viewModel.updatePresentation(
+            FileListingPreferences(
+                sortOption = FileSortOption.NAME_ASC,
+                viewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID
+            )
+        )
 
-        assertEquals(FileSortOption.NAME_ASC, viewModel.state.value.presentation.sortOption)
+        assertEquals(FileSortOption.DATE_NEWEST, viewModel.state.value.presentation.sortOption)
+        assertEquals(
+            dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID,
+            viewModel.state.value.presentation.viewMode
+        )
         assertEquals(listOf("beta.txt", "alpha.txt", "gamma.txt"), viewModel.state.value.recentFiles.map { it.name })
         assertEquals(listOf("alpha.txt", "beta.txt", "gamma.txt"), viewModel.state.value.displayedRecentFiles.map { it.name })
     }
@@ -390,7 +400,41 @@ class RecentFilesViewModelTest {
         viewModel.updatePresentation(presentation)
         advanceUntilIdle()
 
-        assertEquals(presentation, preferences.lastUpdatedRecentPresentation)
+        assertEquals(
+            presentation.copy(sortOption = FileSortOption.DATE_NEWEST),
+            preferences.lastUpdatedRecentPresentation
+        )
+    }
+
+    @Test
+    fun `saved recent sort is migrated to newest first`() = runTest(mainDispatcherRule.dispatcher) {
+        val preferences = FakeFilePreferencesStore(
+            BrowserPreferences(
+                recentPresentation = FileListingPreferences(
+                    sortOption = FileSortOption.NAME_ASC,
+                    viewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID
+                )
+            )
+        )
+        val repository = FakeStorageRepositoryBundle(
+            initialRecentFilesByScope = mapOf(
+                StorageScope.AllStorage to listOf(
+                    recentFile("older.txt", lastModified = 100L),
+                    recentFile("newer.txt", lastModified = 200L)
+                )
+            )
+        )
+
+        val viewModel = recentViewModel(repository, preferences = preferences)
+        advanceUntilIdle()
+
+        assertEquals(FileSortOption.DATE_NEWEST, viewModel.state.value.presentation.sortOption)
+        assertEquals(listOf("newer.txt", "older.txt"), viewModel.state.value.displayedRecentFiles.map { it.name })
+        assertEquals(FileSortOption.DATE_NEWEST, preferences.lastUpdatedRecentPresentation?.sortOption)
+        assertEquals(
+            dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID,
+            preferences.lastUpdatedRecentPresentation?.viewMode
+        )
     }
 
     @Test

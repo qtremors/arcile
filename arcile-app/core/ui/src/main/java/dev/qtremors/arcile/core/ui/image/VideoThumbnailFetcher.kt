@@ -5,6 +5,8 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.util.Size
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -41,21 +43,18 @@ class VideoThumbnailFetcher(
             val context = options.context
             val targetSize = ThumbnailTargetSize.fromOptions(options)
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                try {
-                    contentUri?.let { uri ->
-                        val bitmap = context.contentResolver.loadThumbnail(Uri.parse(uri), Size(targetSize, targetSize), null)
-                        return@withContext DrawableResult(
-                            drawable = BitmapDrawable(context.resources, bitmap),
-                            isSampled = true,
-                            dataSource = DataSource.DISK
-                        )
-                    }
-
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    // Fall back to MediaMetadataRetriever below for raw browser paths or provider failures.
+            try {
+                contentUri?.let { uri ->
+                    val bitmap = context.contentResolver.loadThumbnail(uri.toUri(), Size(targetSize, targetSize), null)
+                    return@withContext DrawableResult(
+                        drawable = bitmap.toDrawable(context.resources),
+                        isSampled = true,
+                        dataSource = DataSource.DISK
+                    )
                 }
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                // Fall back to MediaMetadataRetriever below for raw browser paths or provider failures.
             }
 
             if (contentUri == null && (!file.exists() || !file.isFile)) return@withContext null
@@ -63,23 +62,19 @@ class VideoThumbnailFetcher(
             val retriever = MediaMetadataRetriever()
             try {
                 if (contentUri != null) {
-                    retriever.setDataSource(context, Uri.parse(contentUri))
+                    retriever.setDataSource(context, contentUri.toUri())
                 } else {
                     retriever.setDataSource(file.absolutePath)
                 }
-                val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-                    retriever.getScaledFrameAtTime(
-                        -1,
-                        MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
-                        targetSize,
-                        targetSize
-                    )
-                } else {
-                    retriever.getFrameAtTime(-1, MediaMetadataRetriever.OPTION_CLOSEST_SYNC)
-                } ?: return@withContext null
+                val bitmap = retriever.getScaledFrameAtTime(
+                    -1,
+                    MediaMetadataRetriever.OPTION_CLOSEST_SYNC,
+                    targetSize,
+                    targetSize
+                ) ?: return@withContext null
 
                 DrawableResult(
-                    drawable = BitmapDrawable(context.resources, bitmap),
+                    drawable = bitmap.toDrawable(context.resources),
                     isSampled = true,
                     dataSource = DataSource.DISK
                 )

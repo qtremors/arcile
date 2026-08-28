@@ -168,7 +168,7 @@ private fun TrashRow(
                         onClick = { onToggleSelection(trashItem.id) },
                         onLongClick = { onToggleSelection(trashItem.id) }
                     ),
-                headlineContent = {
+                content = {
                     Text(
                         text = trashItem.fileModel.name,
                         maxLines = 1,
@@ -195,7 +195,7 @@ private fun TrashRow(
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "${stringResource(R.string.deleted_at, formatter.format(Date(trashItem.deletionTime)))} • ${formatFileSize(trashItem.fileModel.size)}",
+                            text = "${stringResource(R.string.deleted_at, formatter.format(Date(trashItem.deletionTime)))} • ${formatFileSize(androidx.compose.ui.platform.LocalContext.current, trashItem.fileModel.size)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.secondary
                         )
@@ -282,7 +282,10 @@ private fun TrashPreviewFallback(file: FileModel) {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = getFileIconVector(file),
+            imageVector = getFileIconVector(
+                file,
+                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+            ),
             contentDescription = null,
             tint = if (file.isDirectory) {
                 MaterialTheme.colorScheme.primary

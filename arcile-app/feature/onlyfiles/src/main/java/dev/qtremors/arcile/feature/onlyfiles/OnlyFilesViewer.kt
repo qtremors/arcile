@@ -61,6 +61,11 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionPolicy
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
 import java.text.DateFormat
 
 @Composable
@@ -75,6 +80,14 @@ internal fun ViewerScreen(
     var confirmDelete by remember(node.ref.nodeId) { mutableStateOf(false) }
     var externalAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
     var fallbackAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
+    var showRename by remember(node.ref.nodeId) { mutableStateOf(false) }
+    val sharedFile = remember(node) { node.toSharedFileModel() }
+    val allowedActions = remember(sharedFile.nodeRef.capabilities) {
+        ViewerActionPolicy.resolveAllowedActions(
+            scope = ViewerSourceScope.Vault,
+            capabilities = sharedFile.nodeRef.capabilities
+        )
+    }
 
     Box(modifier.fillMaxSize().background(Color.Black)) {
         if (node.isViewableImage()) VaultImage(node, viewModel::openReader)
@@ -119,48 +132,22 @@ internal fun ViewerScreen(
                 )
             }
             Spacer(modifier = Modifier.width(12.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .bounceClickable { showInfo = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Info, stringResource(R.string.onlyfiles_properties), tint = Color.White)
+            ViewerOverflowMenu(
+                currentFile = sharedFile,
+                allowedActions = allowedActions,
+                onAction = { action ->
+                    when (action) {
+                        ViewerFileAction.Rename -> showRename = true
+                        ViewerFileAction.Copy -> viewModel.copy(listOf(node))
+                        ViewerFileAction.Cut -> viewModel.move(listOf(node))
+                        ViewerFileAction.Delete -> confirmDelete = true
+                        ViewerFileAction.Share -> externalAction = ExternalAction.SHARE
+                        ViewerFileAction.OpenWith -> externalAction = ExternalAction.OPEN_WITH
+                        ViewerFileAction.Properties -> showInfo = true
+                        ViewerFileAction.CreateArchive -> Unit
+                    }
                 }
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .bounceClickable { externalAction = ExternalAction.SHARE },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Share, stringResource(R.string.onlyfiles_share), tint = Color.White)
-                }
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .bounceClickable { externalAction = ExternalAction.OPEN_WITH },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.onlyfiles_open_with), tint = Color.White)
-                }
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(Color.Black.copy(alpha = 0.5f))
-                        .bounceClickable { confirmDelete = true },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Delete, stringResource(R.string.onlyfiles_delete), tint = Color.White)
-                }
-            }
+            )
         }
 
         // Left/Right Navigation Arrows
@@ -192,7 +179,10 @@ internal fun ViewerScreen(
 
     if (showInfo) AlertDialog(
         onDismissRequest = { showInfo = false }, title = { Text(node.name) },
-        text = { Text("${formatBytes(node.sizeBytes)}\n${node.mimeType ?: stringResource(R.string.onlyfiles_unknown_type)}\n${DateFormat.getDateTimeInstance().format(node.modifiedAtMillis)}") },
+        text = {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Text("${formatBytes(context, node.sizeBytes)}\n${node.mimeType ?: stringResource(R.string.onlyfiles_unknown_type)}\n${DateFormat.getDateTimeInstance().format(node.modifiedAtMillis)}")
+        },
         confirmButton = {
             Button(
                 onClick = { showInfo = false },
@@ -292,6 +282,16 @@ internal fun ViewerScreen(
             ) { Text(stringResource(R.string.onlyfiles_cancel)) }
         }
     ) }
+    if (showRename) {
+        RenameDialog(
+            currentName = node.name,
+            onDismiss = { showRename = false },
+            onConfirm = { newName ->
+                showRename = false
+                viewModel.rename(node, newName)
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -323,6 +323,7 @@ internal fun createVaultVideoPlaybackSession(
     nodes: List<VaultNodeMetadata>,
     vaultId: VaultId,
     selectedNode: VaultNodeMetadata,
+    screenshotProtectionEnabled: Boolean,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
 ) : VideoPlaybackSession {
     val queue = nodes.filter(VaultNodeMetadata::isViewableVideo).takeIf { selectedNode in it }
@@ -345,7 +346,8 @@ internal fun createVaultVideoPlaybackSession(
             VaultMediaDataSource(refsByOpaqueId, openReader)
         },
         securityScopeId = vaultSecurityScope(vaultId),
-        files = sharedFiles
+        files = sharedFiles,
+        screenshotProtectionEnabled = screenshotProtectionEnabled
     )
 }
 

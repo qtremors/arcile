@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.vault.data
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.core.graphics.scale
 import android.graphics.BitmapFactory
 import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
@@ -35,10 +36,10 @@ import kotlinx.coroutines.withContext
 
 @Singleton
 internal class DefaultVaultThumbnailCache @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     private val repository: DefaultVaultRepository
 ) : VaultThumbnailCache {
-    private val root = File(context.noBackupFilesDir, "onlyfiles-thumbnail-cache")
+    private val root by lazy { File(context.noBackupFilesDir, "onlyfiles-thumbnail-cache") }
     private val mutex = Mutex()
 
     override suspend fun loadOrCreate(ref: VaultNodeRef, revision: Long, requestedSizePx: Int): Result<ByteArray> =
@@ -190,9 +191,7 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
 
     private fun encodeScaled(source: Bitmap, bucket: Int): ByteArray {
         val scale = minOf(1f, bucket.toFloat() / maxOf(source.width, source.height).coerceAtLeast(1))
-        val bitmap = if (scale < 1f) Bitmap.createScaledBitmap(
-            source, (source.width * scale).toInt().coerceAtLeast(1), (source.height * scale).toInt().coerceAtLeast(1), true
-        ) else source
+        val bitmap = if (scale < 1f) source.scale((source.width * scale).toInt().coerceAtLeast(1), (source.height * scale).toInt().coerceAtLeast(1)) else source
         return try {
             ByteArrayOutputStream().use { output ->
                 check(bitmap.compress(Bitmap.CompressFormat.WEBP_LOSSLESS, 90, output))

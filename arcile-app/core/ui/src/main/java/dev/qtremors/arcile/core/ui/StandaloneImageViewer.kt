@@ -67,12 +67,20 @@ import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
 import dev.qtremors.arcile.core.ui.metadata.SharedImageMetadataReader
+import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.metadata.buildImageMetadataDetailRows
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.ui.metadata.formatImageResolution
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
+import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 
 @Composable
 fun StandaloneImageViewer(
@@ -82,7 +90,9 @@ fun StandaloneImageViewer(
     mimeType: String?,
     onNavigateBack: () -> Unit,
     onShare: () -> Unit,
-    onOpenWith: () -> Unit
+    onOpenWith: () -> Unit,
+    onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
+    onFileDeleted: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     var uiVisible by remember { mutableStateOf(true) }
@@ -91,6 +101,43 @@ fun StandaloneImageViewer(
     var metadata by remember(reference) { mutableStateOf<ImageFileMetadata?>(null) }
     var renderFailed by remember(reference) { mutableStateOf(false) }
     val marqueeEnabled = LocalMarqueeFilenames.current
+    val isExternalReference = remember(reference) {
+        runCatching { android.net.Uri.parse(reference).scheme == "content" }.getOrDefault(false)
+    }
+    val currentFile = remember(reference, title, sizeBytes, mimeType, isExternalReference) {
+        val capabilities = if (isExternalReference) {
+            StorageNodeCapabilities(
+                canRead = true,
+                canWrite = false,
+                canDelete = false,
+                canTrash = false,
+                canArchive = false,
+                canRename = false,
+                canCopy = false,
+                canMove = false,
+                canShare = true,
+                canOpenWith = true
+            )
+        } else {
+            StorageNodeCapabilities(canTrash = true)
+        }
+        FileModel(
+            name = title,
+            absolutePath = reference,
+            size = sizeBytes,
+            extension = title.substringAfterLast('.', ""),
+            mimeType = mimeType,
+            nodeRef = StorageNodeRef.local(reference, capabilities = capabilities).copy(
+                contentUri = reference.takeIf { isExternalReference }
+            )
+        )
+    }
+    val viewerActionController = rememberViewerActionController(
+        currentFile = currentFile,
+        sourceScope = if (isExternalReference) ViewerSourceScope.External else ViewerSourceScope.Normal,
+        onFileRenamed = onFileRenamed,
+        onFileDeleted = onFileDeleted
+    )
 
     LaunchedEffect(reference) {
         metadata = withContext(Dispatchers.IO) {
@@ -98,7 +145,7 @@ fun StandaloneImageViewer(
         }
     }
 
-    var metadataBackProgress by remember { mutableStateOf(0f) }
+    var metadataBackProgress by remember { mutableFloatStateOf(0f) }
     var isMetadataBackPredicting by remember { mutableStateOf(false) }
 
     PredictiveBackHandler(enabled = metadataVisible) { progressFlow ->
@@ -204,7 +251,7 @@ fun StandaloneImageViewer(
                         )
                         val topDetails = listOfNotNull(
                             formatImageResolution(metadata?.width ?: 0, metadata?.height ?: 0),
-                            sizeBytes.takeIf { it > 0L }?.let(::formatImageFileSize)
+                            sizeBytes.takeIf { it > 0L }?.let { formatFileSize(context, it) }
                         )
                         if (topDetails.isNotEmpty()) {
                             Text(
@@ -252,66 +299,19 @@ fun StandaloneImageViewer(
                         iconSize = 24.dp
                     )
                     Spacer(Modifier.weight(1f))
-                    Box {
-                        var menuVisible by remember { mutableStateOf(false) }
-                        val haptics = rememberArcileHaptics()
-                        Surface(
-                            onClick = {
-                                haptics.selectionStart()
-                                menuVisible = true
-                            },
-                            shape = CircleShape,
-                            color = Color.Black.copy(alpha = 0.5f),
-                            modifier = Modifier
-                                .size(48.dp)
-                                .bounceClickable(
-                                    onClick = {
-                                        haptics.selectionStart()
-                                        menuVisible = true
-                                    }
-                                )
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.action_more_options), tint = Color.White, modifier = Modifier.size(24.dp))
+                    ViewerOverflowMenu(
+                        currentFile = currentFile,
+                        allowedActions = viewerActionController.state.allowedActions,
+                        onAction = { action ->
+                            when (action) {
+                                ViewerFileAction.Share -> onShare()
+                                ViewerFileAction.OpenWith -> onOpenWith()
+                                ViewerFileAction.Properties -> metadataVisible = true
+                                else -> viewerActionController.onAction(action)
                             }
-                        }
-                        ArcileDropdownMenu(
-                            expanded = menuVisible,
-                            onDismissRequest = { menuVisible = false },
-                            items = listOf(
-                                {
-                                    ArcileDropdownMenuItem(
-                                        text = { Text(stringResource(R.string.action_info)) },
-                                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                                        onClick = {
-                                            menuVisible = false
-                                            metadataVisible = true
-                                        }
-                                    )
-                                },
-                                {
-                                    ArcileDropdownMenuItem(
-                                        text = { Text(stringResource(R.string.image_gallery_open_with)) },
-                                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                                        onClick = {
-                                            menuVisible = false
-                                            onOpenWith()
-                                        }
-                                    )
-                                },
-                                {
-                                    ArcileDropdownMenuItem(
-                                        text = { Text(stringResource(R.string.share)) },
-                                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                                        onClick = {
-                                            menuVisible = false
-                                            onShare()
-                                        }
-                                    )
-                                }
-                            )
-                        )
-                    }
+                        },
+                        onShowMetadata = { metadataVisible = true }
+                    )
                 }
             }
 
@@ -325,11 +325,12 @@ fun StandaloneImageViewer(
                     onDismiss = { metadataVisible = false },
                     modifier = Modifier.graphicsLayer {
                         if (isMetadataBackPredicting) {
-                            translationY = metadataBackProgress * size.height.toFloat()
+                            translationY = metadataBackProgress * size.height
                         }
                     }
                 )
             }
+            ViewerActionHost(viewerActionController)
         }
     }
 }
@@ -403,7 +404,8 @@ private fun StandaloneImageMetadata(
                             extension = title.substringAfterLast('.', ""),
                             metadata = metadata,
                             labels = labels,
-                            isUriReference = reference.startsWith("content://")
+                            isUriReference = reference.startsWith("content://"),
+                            context = androidx.compose.ui.platform.LocalContext.current
                         ),
                         metadata = metadata,
                         sectionTitle = stringResource(R.string.image_gallery_metadata_file_information),

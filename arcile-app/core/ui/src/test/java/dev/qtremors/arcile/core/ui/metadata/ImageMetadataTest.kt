@@ -3,7 +3,13 @@ package dev.qtremors.arcile.core.ui.metadata
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class ImageMetadataTest {
     @Test
     fun `detail rows include content uri image metadata`() {
@@ -38,14 +44,15 @@ class ImageMetadataTest {
             extension = "jpg",
             metadata = metadata,
             labels = labels,
-            isUriReference = true
+            isUriReference = true,
+            context = RuntimeEnvironment.getApplication()
         )
 
         assertEquals("photo.jpg", rows.valueFor("Title"))
         assertEquals("2026:06:21 10:00:00", rows.valueFor("Date taken"))
         assertEquals("4000 x 3000", rows.valueFor("Resolution"))
         assertEquals("4:3", rows.valueFor("Aspect ratio"))
-        assertEquals("4.00 KB", rows.valueFor("Size"))
+        assertEquals("4.1 kB", rows.valueFor("Size"))
         assertEquals("content://example/photo", rows.valueFor("URI"))
         assertEquals("image/jpeg", rows.valueFor("MIME type"))
         assertEquals("JPG", rows.valueFor("Extension"))
@@ -62,7 +69,8 @@ class ImageMetadataTest {
             mimeType = null,
             extension = null,
             metadata = null,
-            labels = labels
+            labels = labels,
+            context = RuntimeEnvironment.getApplication()
         )
 
         assertEquals("0 B", rows.valueFor("Size"))

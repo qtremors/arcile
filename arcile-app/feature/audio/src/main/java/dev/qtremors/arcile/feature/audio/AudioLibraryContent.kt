@@ -357,8 +357,9 @@ private fun AudioTrackListItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     CategoryListItem(
-        info = track.categoryItemInfo(showDetails = true),
+        info = track.categoryItemInfo(context, showDetails = true),
         selected = isSelected,
         highlighted = isCurrent,
         zoom = zoom,
@@ -381,8 +382,9 @@ private fun AudioTrackGridItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     CategoryGridItem(
-        info = track.categoryItemInfo(showDetails = true),
+        info = track.categoryItemInfo(context, showDetails = true),
         selected = isSelected,
         highlighted = isCurrent,
         showInfo = showDetails,
@@ -394,13 +396,13 @@ private fun AudioTrackGridItem(
     }
 }
 
-private fun AudioTrack.categoryItemInfo(showDetails: Boolean): CategoryItemInfo =
+private fun AudioTrack.categoryItemInfo(context: android.content.Context, showDetails: Boolean): CategoryItemInfo =
     CategoryItemInfo(
         title = file.name,
         detailLines = buildList {
             add(buildTrackSubtitle(this@categoryItemInfo))
             if (showDetails) {
-                add("${formatAudioDuration(durationMs)} • ${formatFileSize(file.size)}")
+                add("${formatAudioDuration(durationMs)} • ${formatFileSize(context, file.size)}")
             }
         }
     )

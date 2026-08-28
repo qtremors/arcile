@@ -52,11 +52,7 @@ object PackageInstallerEngine {
     }
 
     fun canRequestPackageInstalls(context: Context): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.packageManager.canRequestPackageInstalls()
-        } else {
-            true
-        }
+        return context.packageManager.canRequestPackageInstalls()
     }
 
     fun installPackage(context: Context, details: ApkPackageDetails) {

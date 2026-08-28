@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.recentfiles
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.presentation.filterAndSortFiles
 
@@ -21,9 +22,13 @@ internal fun buildRecentFilesDisplay(
     return filterAndSortFiles(
         files = filtered,
         query = "",
-        sortOption = presentation.normalized().sortOption
+        sortOption = FileSortOption.DATE_NEWEST,
+        foldersFirst = presentation.foldersFirst
     )
 }
+
+internal fun FileListingPreferences.normalizedRecentPresentation(): FileListingPreferences =
+    normalized().copy(sortOption = FileSortOption.DATE_NEWEST)
 
 private fun FileModel.matches(filters: SearchFilters): Boolean {
     val itemType = filters.itemType?.lowercase()

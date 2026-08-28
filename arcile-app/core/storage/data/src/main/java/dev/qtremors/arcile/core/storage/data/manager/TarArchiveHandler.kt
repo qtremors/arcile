@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
+import android.annotation.SuppressLint
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
@@ -52,7 +53,7 @@ internal class TarArchiveHandler(
             val entries = mutableListOf<ArchiveEntryModel>()
             while (true) {
                 currentCoroutineContext().ensureActive()
-                val entry = tar.nextTarEntry ?: break
+                val entry = tar.nextEntry ?: break
                 val name = entry.name.normalizeEntryName()
                 if (skipUnsafeEntries) {
                     if (!safety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) {
@@ -99,7 +100,7 @@ internal class TarArchiveHandler(
         tarInput(archive, format).use { tar ->
             while (true) {
                 currentCoroutineContext().ensureActive()
-                val entry = tar.nextTarEntry ?: break
+                val entry = tar.nextEntry ?: break
                 val name = entry.name.normalizeEntryName()
                 if (!name.matchesPrefix(entryPrefix)) continue
                 if (!extractionSafety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) continue
@@ -173,6 +174,7 @@ internal class TarArchiveHandler(
         }
     }
 
+    @SuppressLint("UsableSpace")
     private suspend fun extractSingleStream(
         archive: File,
         format: ArchiveFormat,
@@ -242,9 +244,15 @@ internal class TarArchiveHandler(
         val input = archive.inputStream()
         return when (format.compressionKind) {
             CompressionKind.NONE -> input
-            CompressionKind.GZIP -> GzipCompressorInputStream(input, true)
+            CompressionKind.GZIP -> GzipCompressorInputStream.builder()
+                .setInputStream(input)
+                .setDecompressConcatenated(true)
+                .get()
             CompressionKind.BZIP2 -> BZip2CompressorInputStream(input, true)
-            CompressionKind.XZ -> XZCompressorInputStream(input, true)
+            CompressionKind.XZ -> XZCompressorInputStream.builder()
+                .setInputStream(input)
+                .setDecompressConcatenated(true)
+                .get()
         }
     }
 

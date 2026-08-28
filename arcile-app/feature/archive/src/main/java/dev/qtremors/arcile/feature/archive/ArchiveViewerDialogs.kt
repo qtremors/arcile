@@ -1,39 +1,16 @@
 package dev.qtremors.arcile.feature.archive
 
-import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import dev.qtremors.arcile.core.ui.theme.spacing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderZip
-import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.Visibility
@@ -41,61 +18,36 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
-import androidx.compose.material3.Surface
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ConflictResolution
+import dev.qtremors.arcile.core.ui.ConflictCard
+import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import dev.qtremors.arcile.core.ui.keyboardInputField
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import dev.qtremors.arcile.feature.archive.ArchiveOperationStatusMessage
-import dev.qtremors.arcile.feature.archive.ArchiveViewerState
-import dev.qtremors.arcile.core.operation.OperationCompletionStatus
-import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
-import dev.qtremors.arcile.core.storage.domain.ConflictResolution
-import dev.qtremors.arcile.core.ui.EmptyState
-import dev.qtremors.arcile.core.ui.EmptyStateVariant
-import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
-import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
-import dev.qtremors.arcile.core.ui.ConflictCard
-import dev.qtremors.arcile.core.presentation.formatFileSize
-import java.text.DateFormat
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ArchivePasswordDialog(
     onDismiss: () -> Unit,
@@ -209,7 +161,7 @@ internal fun ArchiveEncodingDialog(
                     ListItem(
                         headlineContent = { Text(encoding.displayName) },
                         supportingContent = if (encoding == selected) {
-                            { Text(stringResource(R.string.selected)) }
+                            { Text(stringResource(R.string.item_selected_label)) }
                         } else {
                             null
                         },
@@ -283,38 +235,35 @@ internal fun ArchiveConflictDialog(
                 ) {
                     items(state.pendingConflicts, key = { it.sourcePath }) { conflict ->
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ConflictCard(
-                                conflict = conflict,
-                                resolution = state.conflictResolutions[conflict.sourcePath],
-                                formatter = formatter,
-                                onResolutionChange = { onSetConflictResolution(conflict.sourcePath, it) }
-                            )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 val onKeepBoth = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.KEEP_BOTH) }
                                 TextButton(
                                     onClick = onKeepBoth,
-                                    shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.bounceClickable(onClick = onKeepBoth)
+                                    shape = ExpressiveShapes.medium
                                 ) {
                                     Text(stringResource(R.string.action_keep_both))
                                 }
                                 val onReplace = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.REPLACE) }
                                 TextButton(
                                     onClick = onReplace,
-                                    shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.bounceClickable(onClick = onReplace)
+                                    shape = ExpressiveShapes.medium
                                 ) {
                                     Text(stringResource(R.string.action_replace))
                                 }
                                 val onSkip = { onSetConflictResolution(conflict.sourcePath, ConflictResolution.SKIP) }
                                 TextButton(
                                     onClick = onSkip,
-                                    shape = ExpressiveShapes.medium,
-                                    modifier = Modifier.bounceClickable(onClick = onSkip)
+                                    shape = ExpressiveShapes.medium
                                 ) {
                                     Text(stringResource(R.string.action_skip))
                                 }
                             }
+                            ConflictCard(
+                                conflict = conflict,
+                                resolution = state.conflictResolutions[conflict.sourcePath],
+                                formatter = formatter,
+                                onResolutionChange = { onSetConflictResolution(conflict.sourcePath, it) }
+                            )
                         }
                     }
                 }

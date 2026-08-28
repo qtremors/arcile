@@ -74,8 +74,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.security.SecureWindowEffect
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
@@ -104,6 +104,7 @@ internal fun VideoViewerScreen(
     onShareFile: (FileModel) -> Unit,
     onOpenWith: (FileModel) -> Unit
 ) {
+    SecureWindowEffect(session.screenshotProtectionEnabled)
     val state by viewModel.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val marqueeEnabled = LocalMarqueeFilenames.current

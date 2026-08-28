@@ -148,9 +148,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import coil.imageLoader
 import coil.request.CachePolicy
 import coil.request.ImageRequest
@@ -187,11 +187,11 @@ internal fun HomeScreen(
     onHomeLayoutPreferencesChange: (HomeLayoutPreferences) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val configuration = LocalConfiguration.current
     val density = LocalDensity.current.density
-    val homeRecentRenderedThumbnailSizePx = remember(configuration.screenWidthDp, density) {
+    val screenWidthDp = (LocalWindowInfo.current.containerSize.width / density).roundToInt()
+    val homeRecentRenderedThumbnailSizePx = remember(screenWidthDp, density) {
         homeCarouselRenderedThumbnailSizePx(
-            screenWidthDp = configuration.screenWidthDp,
+            screenWidthDp = screenWidthDp,
             density = density
         )
     }

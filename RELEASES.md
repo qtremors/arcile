@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 2.0.5
-> **Last Updated:** 2026-08-21
+> **Version:** 2.1.0
+> **Last Updated:** 2026-08-28
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v2.1.0](#v210) | 2026-08-28 | Adaptive workspaces, unified viewer actions, precision audio editing, safer storage cleaning, and conflict dialog refinements |
 | [v2.0.5](#v205) | 2026-08-21 | Responsive navigation, focused Root access, richer file opening and sorting, complete activity history, and surrounding-aware media controls |
 | [v2.0.0](#v200) | 2026-08-13 | Provider-aware Root and Shizuku workflows, refined video playback, clearer documentation, and compatible platform updates |
 | [v1.9.0](#v190) | 2026-08-09 | Customizable workspaces, complete search and viewer controls, safer file operations, faster storage tools, and release reliability |
@@ -16,6 +17,56 @@
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v2.1.0
+
+**Release Date:** August 28, 2026
+
+**Previous public release:** v2.0.5
+
+**Development range included:** v2.0.6 through v2.1.0
+
+**Known issues & roadmap:** Track active issues and ongoing engineering tasks in [TASKS.md](TASKS.md).
+
+Arcile v2.1.0 introduces adaptive workspaces for large screens and foldables, unified file actions across native viewers, precision audio editing, smarter storage cleaning, and on-device update discovery.
+
+## Highlights
+
+- **Adaptive Multi-Pane Browsing**: Automatic dual-pane navigation on tablets and foldables, with compact swipe navigation on phones.
+- **Unified Viewer Actions**: Rename, copy, move, delete, share, open-with, archive, and view properties directly within media viewers and OnlyFiles vaults.
+- **Precision Audio Editor**: Trim, extract, remove sections, and combine tracks with zoomable waveforms, millisecond controls, and looped previews.
+- **Safer Storage Cleaner**: Long-press selection, filename-version cleanup, full duplicate comparisons, and strict OnlyFiles vault protection.
+- **Streamlined Conflict Resolution**: Compact file comparison cards with circular thumbnails, single-row metadata, and side-by-side action buttons.
+- **Signed Update Discovery**: Check for signed Arcile and plugin updates on-device with rate-limited notifications.
+
+## What's New Since v2.0.5
+
+### Adaptive Workspaces & Browsing
+
+- **Large-Screen Layouts**: Automatic dual-pane browsing and persistent navigation rails on tablets and foldables that adjust dynamically to window resizing and fold postures.
+- **Folders-First Sorting**: Persisted preference to keep folders grouped above files across all sort and search views, with optional subfolder inheritance.
+- **App-Matched Folder Icons**: Opt-in toggle to display recognizable app and category icons on supported media and system folders.
+- **Refined Grid Sizing**: Snapped grid columns to discrete window density steps and preserved cached folder statistics during background refreshes.
+
+### Viewers & Conflict Resolution
+
+- **Complete In-Viewer Actions**: Full set of file management actions across image, video, PDF, audio, and archive viewers respecting read-only and vault boundaries.
+- **Redesigned Conflict Dialogs**: Streamlined layout with round thumbnails, single-line metadata, and side-by-side action buttons for quick resolutions.
+- **Smooth Gesture Handling**: Consistent touch slop, direction locking, and velocity curves across swipes, viewers, and dismissible feedback cards.
+
+### Storage Cleaner & Protection
+
+- **Predictable Selection**: Browser-style long-press multi-selection replaces checkboxes, keeping your position on the current screen after deletion.
+- **Filename-Version Families**: Smart grouping for semantic versioning, duplicate suffixes, and APK variants without automatic preselection.
+- **Vault & System Safety**: Completely excludes OnlyFiles vaults and ignored folders from cleanup scans to prevent accidental data loss.
+
+### Audio Editing & Performance
+
+- **Waveform & Range Controls**: High-precision waveform editor supporting M4A, AAC, WAV, Opus, Ogg, and WebM audio formats.
+- **Non-Destructive Workflows**: Stream-copy exports, multiple trim ranges, middle-cut, and track merging with metadata retention.
+- **Reliability & Updates**: Secure on-device update verification, hardened vault transitions, and general performance optimizations.
 
 ---
 

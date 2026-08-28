@@ -11,6 +11,7 @@ import android.os.ParcelFileDescriptor
 import android.util.LruCache
 import androidx.activity.compose.BackHandler
 import androidx.annotation.RequiresApi
+import androidx.core.net.toUri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -109,6 +110,13 @@ import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
+import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import java.io.Closeable
 import java.io.File
@@ -125,7 +133,6 @@ data class PdfPageSize(
     val aspectRatio: Float
         get() = width.toFloat() / height.coerceAtLeast(1).toFloat()
 }
-
 internal data class PdfTextMatch(
     val pageIndex: Int,
     val bounds: List<RectF>
@@ -170,9 +177,7 @@ class PdfDocumentHandle private constructor(
         val cacheKey = "$pageIndex:$width:$height"
         bitmapCache.get(cacheKey)?.let { return@synchronized it }
 
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888).apply {
-            eraseColor(AndroidColor.WHITE)
-        }
+        val bitmap = androidx.core.graphics.createBitmap(width, height).apply { eraseColor(AndroidColor.WHITE) }
         renderer.openPage(pageIndex).use { page ->
             page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
         }
@@ -226,7 +231,7 @@ class PdfDocumentHandle private constructor(
         }
 
         private fun openDescriptor(context: Context, reference: String): ParcelFileDescriptor? {
-            val uri = runCatching { Uri.parse(reference) }.getOrNull()
+            val uri = runCatching { reference.toUri() }.getOrNull()
             return if (uri?.scheme == "content") {
                 context.contentResolver.openFileDescriptor(uri, "r")
             } else {
@@ -262,6 +267,8 @@ fun StandalonePdfViewer(
     onNavigateBack: () -> Unit,
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
+    onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
+    onFileDeleted: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -272,6 +279,43 @@ fun StandalonePdfViewer(
     val listState = rememberLazyListState()
     val horizontalScrollState = rememberScrollState()
     val marqueeEnabled = LocalMarqueeFilenames.current
+    val isExternalReference = remember(reference) {
+        runCatching { android.net.Uri.parse(reference).scheme == "content" }.getOrDefault(false)
+    }
+    val currentFile = remember(reference, title, sizeBytes, isExternalReference) {
+        val capabilities = if (isExternalReference) {
+            StorageNodeCapabilities(
+                canRead = true,
+                canWrite = false,
+                canDelete = false,
+                canTrash = false,
+                canArchive = false,
+                canRename = false,
+                canCopy = false,
+                canMove = false,
+                canShare = true,
+                canOpenWith = true
+            )
+        } else {
+            StorageNodeCapabilities(canTrash = true)
+        }
+        FileModel(
+            name = title,
+            absolutePath = reference,
+            size = sizeBytes,
+            extension = "pdf",
+            mimeType = "application/pdf",
+            nodeRef = StorageNodeRef.local(reference, capabilities = capabilities).copy(
+                contentUri = reference.takeIf { isExternalReference }
+            )
+        )
+    }
+    val viewerActionController = rememberViewerActionController(
+        currentFile = currentFile,
+        sourceScope = if (isExternalReference) ViewerSourceScope.External else ViewerSourceScope.Normal,
+        onFileRenamed = onFileRenamed,
+        onFileDeleted = onFileDeleted
+    )
     var uiVisible by remember { mutableStateOf(true) }
     var infoVisible by remember { mutableStateOf(false) }
     var searchVisible by rememberSaveable(reference) { mutableStateOf(false) }
@@ -350,11 +394,12 @@ fun StandalonePdfViewer(
             val density = LocalDensity.current
             val baseWidthPx = with(density) { maxWidth.roundToPx() }
             val pageWidth = maxWidth * zoom
-            val currentPage = remember(listState.firstVisibleItemIndex, document?.pageCount) {
-                if (document == null) 0
-                else listState.firstVisibleItemIndex.coerceIn(0, document.pageCount - 1)
+            val pageCount = document?.pageCount ?: 0
+            val currentPage by remember(listState, pageCount) {
+                androidx.compose.runtime.derivedStateOf {
+                    listState.firstVisibleItemIndex.takeIf { pageCount > 0 }?.coerceAtMost(pageCount - 1) ?: 0
+                }
             }
-
             when (val currentLoadState = loadState) {
                 PdfLoadState.Loading -> LoadingIndicator(
                     color = Color.White,
@@ -521,6 +566,15 @@ fun StandalonePdfViewer(
                                     snackbarHostState.showSnackbar(resources.getString(R.string.pdf_print_failed))
                                 }
                             }
+                        },
+                        viewerActions = viewerActionController.state.allowedActions,
+                        onViewerAction = { action ->
+                            when (action) {
+                                ViewerFileAction.Share -> onShare()
+                                ViewerFileAction.OpenWith -> onOpenWith()
+                                ViewerFileAction.Properties -> infoVisible = true
+                                else -> viewerActionController.onAction(action)
+                            }
                         }
                     )
                 }
@@ -532,8 +586,9 @@ fun StandalonePdfViewer(
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 112.dp)
             )
+            }
+            ViewerActionHost(viewerActionController)
         }
-    }
 
     if (infoVisible) {
         ModalBottomSheet(
@@ -548,462 +603,4 @@ fun StandalonePdfViewer(
             )
         }
     }
-}
-
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun PdfPage(
-    document: PdfDocumentHandle,
-    pageIndex: Int,
-    requestedWidthPx: Int,
-    matches: List<PdfTextMatch>,
-    activeMatch: PdfTextMatch?,
-    onTap: () -> Unit,
-    onDoubleTap: () -> Unit
-) {
-    val rendered by produceState<Bitmap?>(
-        initialValue = null,
-        document,
-        pageIndex,
-        requestedWidthPx
-    ) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { document.renderPage(pageIndex, requestedWidthPx) }.getOrNull()
-        }
-    }
-    val pageSize = document.pageSizes[pageIndex]
-    Surface(
-        shape = RoundedCornerShape(4.dp),
-        color = Color.White,
-        shadowElevation = 8.dp,
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(pageSize.aspectRatio)
-            .pointerInput(document, pageIndex) {
-                detectTapGestures(
-                    onTap = { onTap() },
-                    onDoubleTap = { onDoubleTap() }
-                )
-            }
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            val bitmap = rendered
-            if (bitmap == null) {
-                LoadingIndicator(
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(40.dp)
-                )
-            } else {
-                Image(
-                    bitmap = bitmap.asImageBitmap(),
-                    contentDescription = stringResource(R.string.pdf_page_description, pageIndex + 1),
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-                if (matches.isNotEmpty()) {
-                    Canvas(Modifier.fillMaxSize()) {
-                        val sourceWidth = pageSize.width.coerceAtLeast(1).toFloat()
-                        val sourceHeight = pageSize.height.coerceAtLeast(1).toFloat()
-                        matches.forEach { match ->
-                            match.bounds.forEach { bounds ->
-                                drawRect(
-                                    color = if (match == activeMatch) {
-                                        Color(0xFFFFA000).copy(alpha = 0.52f)
-                                    } else {
-                                        Color(0xFFFFEB3B).copy(alpha = 0.34f)
-                                    },
-                                    topLeft = Offset(
-                                        bounds.left / sourceWidth * size.width,
-                                        bounds.top / sourceHeight * size.height
-                                    ),
-                                    size = Size(
-                                        bounds.width() / sourceWidth * size.width,
-                                        bounds.height() / sourceHeight * size.height
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PdfTopChrome(
-    title: String,
-    page: Int,
-    pageCount: Int,
-    marqueeEnabled: Boolean,
-    onNavigateBack: () -> Unit,
-    onSearch: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        IconButtonSurface(
-            icon = Icons.AutoMirrored.Filled.ArrowBack,
-            description = stringResource(R.string.back),
-            onClick = onNavigateBack
-        )
-        Spacer(Modifier.width(12.dp))
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.62f))
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            Text(
-                text = title,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
-            )
-            if (pageCount > 0) {
-                Text(
-                    text = stringResource(R.string.pdf_page_position, page + 1, pageCount),
-                    color = Color.White.copy(alpha = 0.72f),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        IconButtonSurface(
-            icon = Icons.Default.Search,
-            description = stringResource(R.string.pdf_search),
-            onClick = onSearch
-        )
-    }
-}
-
-@Composable
-private fun PdfBottomChrome(
-    page: Int,
-    pageCount: Int,
-    zoom: Float,
-    onZoomOut: () -> Unit,
-    onZoomIn: () -> Unit,
-    onFit: () -> Unit,
-    onPageChange: (Int) -> Unit,
-    onInfo: () -> Unit,
-    onShare: () -> Unit,
-    onOpenWith: () -> Unit,
-    keepScreenOn: Boolean,
-    onKeepScreenOnChange: (Boolean) -> Unit,
-    onPrint: () -> Unit
-) {
-    var sliderPage by remember(page) { mutableFloatStateOf(page.toFloat()) }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Black.copy(alpha = 0.62f))
-            .navigationBarsPadding()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        if (pageCount > 1) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Slider(
-                    value = sliderPage,
-                    onValueChange = { sliderPage = it },
-                    onValueChangeFinished = { onPageChange(sliderPage.roundToInt()) },
-                    valueRange = 0f..(pageCount - 1).toFloat(),
-                    steps = (pageCount - 2).coerceIn(0, 100),
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    text = "${page + 1}/$pageCount",
-                    color = Color.White,
-                    style = MaterialTheme.typography.labelMedium
-                )
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SplitButtonGroup(
-                actions = listOf(
-                    ToolbarAction(
-                        icon = Icons.Default.ZoomOut,
-                        contentDescription = stringResource(R.string.pdf_zoom_out),
-                        tint = if (zoom > MIN_ZOOM) {
-                            Color.White
-                        } else {
-                            Color.White.copy(alpha = 0.35f)
-                        },
-                        onClick = {
-                            if (zoom > MIN_ZOOM) onZoomOut()
-                        }
-                    ),
-                    ToolbarAction(
-                        icon = Icons.Default.FitScreen,
-                        contentDescription = stringResource(R.string.pdf_fit_page),
-                        tint = Color.White,
-                        onClick = onFit
-                    ),
-                    ToolbarAction(
-                        icon = Icons.Default.ZoomIn,
-                        contentDescription = stringResource(R.string.pdf_zoom_in),
-                        tint = if (zoom < MAX_ZOOM) {
-                            Color.White
-                        } else {
-                            Color.White.copy(alpha = 0.35f)
-                        },
-                        onClick = {
-                            if (zoom < MAX_ZOOM) onZoomIn()
-                        }
-                    )
-                ),
-                containerColor = Color.Black.copy(alpha = 0.5f),
-                contentColor = Color.White,
-                height = 48.dp,
-                minWidth = 48.dp,
-                iconSize = 24.dp
-            )
-            Text(
-                text = "${(zoom * 100).roundToInt()}%",
-                color = Color.White.copy(alpha = 0.8f),
-                style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(start = 12.dp)
-            )
-            Spacer(Modifier.weight(1f))
-            PdfOverflowMenu(
-                onInfo = onInfo,
-                onShare = onShare,
-                onOpenWith = onOpenWith,
-                keepScreenOn = keepScreenOn,
-                onKeepScreenOnChange = onKeepScreenOnChange,
-                onPrint = onPrint
-            )
-        }
-    }
-}
-
-@Composable
-private fun PdfOverflowMenu(
-    onInfo: () -> Unit,
-    onShare: () -> Unit,
-    onOpenWith: () -> Unit,
-    keepScreenOn: Boolean,
-    onKeepScreenOnChange: (Boolean) -> Unit,
-    onPrint: () -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val haptics = rememberArcileHaptics()
-    Box {
-        Surface(
-            onClick = {
-                haptics.toggleMenu()
-                expanded = true
-            },
-            shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.5f),
-            modifier = Modifier
-                .size(48.dp)
-                .bounceClickable {
-                    haptics.toggleMenu()
-                    expanded = true
-                }
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.action_more_options),
-                    tint = Color.White
-                )
-            }
-        }
-        ArcileDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            items = listOf(
-                {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.pdf_keep_screen_on),
-                        leadingIcon = {
-                            Icon(Icons.Default.ScreenLockPortrait, contentDescription = null)
-                        },
-                        isSelected = keepScreenOn,
-                        onClick = {
-                            expanded = false
-                            onKeepScreenOnChange(!keepScreenOn)
-                        }
-                    )
-                },
-                {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.pdf_print),
-                        leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            onPrint()
-                        }
-                    )
-                },
-                {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.action_info),
-                        leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            onInfo()
-                        }
-                    )
-                },
-                {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.image_gallery_open_with),
-                        leadingIcon = {
-                            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-                        },
-                        onClick = {
-                            expanded = false
-                            onOpenWith()
-                        }
-                    )
-                },
-                {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.share),
-                        leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            onShare()
-                        }
-                    )
-                }
-            )
-        )
-    }
-}
-
-@Composable
-private fun PdfInfoSheet(
-    title: String,
-    reference: String,
-    sizeBytes: Long,
-    pageCount: Int
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .navigationBarsPadding()
-            .padding(horizontal = 24.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.pdf_details),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-        )
-        PdfInfoRow(stringResource(R.string.pdf_name), title)
-        PdfInfoRow(stringResource(R.string.pdf_pages), pageCount.toString())
-        if (sizeBytes > 0L) {
-            PdfInfoRow(stringResource(R.string.pdf_size), formatFileSize(sizeBytes))
-        }
-        PdfInfoRow(
-            stringResource(
-                if (reference.startsWith("content://")) {
-                    R.string.image_gallery_metadata_label_uri
-                } else {
-                    R.string.image_gallery_metadata_label_path
-                }
-            ),
-            reference
-        )
-        Spacer(Modifier.height(16.dp))
-    }
-}
-
-@Composable
-private fun PdfInfoRow(label: String, value: String) {
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyLarge
-        )
-    }
-}
-
-@Composable
-private fun PdfLoadFailure(
-    message: String?,
-    onOpenWith: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .padding(24.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color.Black.copy(alpha = 0.68f))
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.pdf_cannot_open),
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        if (!message.isNullOrBlank()) {
-            Text(
-                text = message,
-                color = Color.White.copy(alpha = 0.72f),
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-        Button(onClick = onOpenWith) {
-            Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.image_gallery_open_with))
-        }
-    }
-}
-
-@Composable
-private fun IconButtonSurface(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    description: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.62f),
-        modifier = Modifier
-            .size(48.dp)
-            .bounceClickable(onClick = onClick)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = description, tint = Color.White)
-        }
-    }
-}
-
-private const val MIN_ZOOM = 1f
-private const val MAX_ZOOM = 3f
-private const val ZOOM_STEP = 0.25f
-private const val PDF_SEARCH_DEBOUNCE_MILLIS = 250L
-
-private enum class PdfSearchStatus {
-    Searching,
-    NoResults,
-    Unsupported,
-    Failed
 }

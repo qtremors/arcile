@@ -78,9 +78,9 @@ internal fun ImageGalleryAlbumsGrid(
     onSelectAlbum: (String?) -> Unit,
     onRefresh: () -> Unit,
     gridState: LazyGridState,
+    modifier: Modifier = Modifier,
     onPasteToAlbum: (String) -> Unit = {},
-    onTogglePinnedAlbum: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    onTogglePinnedAlbum: (String) -> Unit = {}
 ) {
     val pullRefreshState = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     val thumbnailPolicy = remember { ThumbnailPolicy() }

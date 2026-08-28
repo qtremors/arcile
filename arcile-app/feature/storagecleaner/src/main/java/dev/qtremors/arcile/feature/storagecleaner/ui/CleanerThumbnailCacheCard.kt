@@ -76,16 +76,19 @@ internal fun CleanerThumbnailCacheCard(
                     text = when {
                         state.isLoading -> stringResource(R.string.settings_thumbnail_cache_calculating)
                         state.isClearing -> stringResource(R.string.settings_thumbnail_cache_clearing)
-                        else -> androidx.compose.ui.res.pluralStringResource(
-                            R.plurals.settings_thumbnail_cache_stats,
-                            state.stats.loadedCount,
-                            formatFileSize(state.stats.totalBytes),
-                            formatFileSize(state.stats.memoryBytes),
-                            formatFileSize(state.stats.diskBytes),
-                            state.stats.loadedCount,
-                            state.stats.failedCount,
-                            state.stats.inFlightCount
-                        )
+                        else -> {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.settings_thumbnail_cache_stats,
+                                state.stats.loadedCount,
+                                formatFileSize(context, state.stats.totalBytes),
+                                formatFileSize(context, state.stats.memoryBytes),
+                                formatFileSize(context, state.stats.diskBytes),
+                                state.stats.loadedCount,
+                                state.stats.failedCount,
+                                state.stats.inFlightCount
+                            )
+                        }
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -6,6 +6,9 @@ import android.graphics.drawable.BitmapDrawable
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.net.Uri
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -31,7 +34,7 @@ class PdfThumbnailFetcher(
 
         try {
             val descriptor = contentUri?.let { uri ->
-                options.context.contentResolver.openFileDescriptor(Uri.parse(uri), "r")
+                options.context.contentResolver.openFileDescriptor(uri.toUri(), "r")
             } ?: ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
             descriptor?.use { openedDescriptor ->
                 PdfRenderer(openedDescriptor).use { renderer ->
@@ -44,12 +47,12 @@ class PdfThumbnailFetcher(
                         )
                         val width = (page.width * scale).toInt().coerceAtLeast(1)
                         val height = (page.height * scale).toInt().coerceAtLeast(1)
-                        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                        val bitmap = createBitmap(width, height)
                         bitmap.eraseColor(Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
 
                         DrawableResult(
-                            drawable = BitmapDrawable(options.context.resources, bitmap),
+                            drawable = bitmap.toDrawable(options.context.resources),
                             isSampled = true,
                             dataSource = DataSource.DISK
                         )

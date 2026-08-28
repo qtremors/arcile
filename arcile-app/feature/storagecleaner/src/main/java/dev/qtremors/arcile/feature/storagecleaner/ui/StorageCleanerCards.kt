@@ -103,7 +103,7 @@ internal fun CleanerCategoryCard(
                                 R.plurals.cleaner_group_stat,
                                 group.candidates.size,
                                 group.candidates.size,
-                                formatFileSize(group.totalBytes)
+                                formatFileSize(androidx.compose.ui.platform.LocalContext.current, group.totalBytes)
                             )
                         }
                     } else if (!isLoaded) {

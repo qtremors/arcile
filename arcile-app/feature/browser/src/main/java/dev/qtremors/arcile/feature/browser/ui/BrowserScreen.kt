@@ -25,6 +25,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,6 +34,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -109,7 +112,7 @@ internal fun BrowserScreen(
     val haptics = rememberArcileHaptics()
     val dialogVisibility = rememberBrowserDialogVisibility()
     val lifecycleOwner = LocalLifecycleOwner.current
-    var resumeRestoreTick by remember { mutableStateOf(0) }
+    var resumeRestoreTick by remember { mutableIntStateOf(0) }
     var showSearchBar by rememberSaveable {
         mutableStateOf(state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
     }
@@ -170,14 +173,16 @@ internal fun BrowserScreen(
         state.browserViewMode,
         state.browserListZoom,
         activeGridCellSize,
-        state.browserShowThumbnails
+        state.browserShowThumbnails,
+        state.browserFoldersFirst
     ) {
         FileListingPreferences(
             sortOption = state.browserSortOption,
             viewMode = state.browserViewMode,
             listZoom = state.browserListZoom,
             gridMinCellSize = activeGridCellSize,
-            showThumbnails = state.browserShowThumbnails && state.archiveContext == null
+            showThumbnails = state.browserShowThumbnails && state.archiveContext == null,
+            foldersFirst = state.browserFoldersFirst
         )
     }
     BrowserScrollEffects(state, scroll, resumeRestoreTick)
@@ -277,7 +282,7 @@ internal fun BrowserScreen(
         }
     }
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     var backActionAtStart by remember { mutableStateOf<BrowserBackAction?>(null) }
 
@@ -352,9 +357,14 @@ internal fun BrowserScreen(
     val bottomContentPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() +
         (if (isSelectionMode || isClipboardActive || isRecoveryVisible) MaterialTheme.spacing.toolbarBottomGap else MaterialTheme.spacing.screenGutter)
     val layoutDirection = LocalLayoutDirection.current
+    val density = LocalDensity.current
+    var gridContentWidth by remember { mutableStateOf<androidx.compose.ui.unit.Dp?>(null) }
 
     Scaffold(
         modifier = Modifier
+            .onSizeChanged { size ->
+                gridContentWidth = with(density) { size.width.toDp() }
+            }
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .graphicsLayer {
                 if (isBackPredicting && backActionAtStart == BrowserBackAction.PopRoute) {
@@ -374,7 +384,7 @@ internal fun BrowserScreen(
                     .browserWorkspaceSwipe(onWorkspaceAppBarSwipe)
                     .graphicsLayer {
                         if (isBackPredicting && (backActionAtStart == BrowserBackAction.CloseSearch || backActionAtStart == BrowserBackAction.ClearSelection)) {
-                            translationY = -backProgress * size.height.toFloat()
+                            translationY = -backProgress * size.height
                             alpha = 1f - backProgress
                         }
                     }
@@ -450,6 +460,7 @@ internal fun BrowserScreen(
                     layoutDirection = layoutDirection,
                     listState = listState,
                     gridState = gridState,
+                    highlightedPath = scroll.highlightedPath,
                     navigationIntents = intents.navigation,
                     selectionIntents = intents.selection,
                     searchIntents = intents.search,
@@ -503,6 +514,7 @@ internal fun BrowserScreen(
         searchIntents = intents.search,
         clipboardIntents = intents.clipboard,
         archiveIntents = intents.archive,
+        gridContentWidth = gridContentWidth,
         batchRenameHistory = batchRenameHistory
     )
 }

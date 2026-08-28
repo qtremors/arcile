@@ -31,7 +31,6 @@ internal abstract class VaultHealthLayer(
 
     override suspend fun recoverTransactions(vaultId: VaultId): Result<Unit> = mutate(vaultId) { session ->
         transactionManager.recover(session.directory, session.id, session.masterSecret)
-        Unit
     }
 
     private fun verifyHealth(session: VaultSessionRecord, mode: VaultHealthMode): VaultHealthReport {

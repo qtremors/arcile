@@ -17,7 +17,7 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-private val Context.classificationDataStore by preferencesDataStore(name = "storage_classifications_prefs")
+val Context.classificationDataStore by preferencesDataStore(name = "storage_classifications_prefs")
 
 class StorageClassificationRepository(
     context: Context,

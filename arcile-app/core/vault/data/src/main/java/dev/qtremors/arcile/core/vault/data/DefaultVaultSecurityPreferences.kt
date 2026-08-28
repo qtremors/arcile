@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 
-private val Context.vaultSecurityDataStore: DataStore<Preferences> by preferencesDataStore("onlyfiles_security")
+val Context.vaultSecurityDataStore: DataStore<Preferences> by preferencesDataStore("onlyfiles_security")
 
 @Singleton
 class DefaultVaultSecurityPreferences @Inject constructor(

@@ -182,13 +182,17 @@ fun getPresetRanges(anyLabel: String): List<Pair<String, Pair<Long?, Long?>>> {
     return presets
 }
 
-fun getPresetSizes(anyLabel: String): List<Pair<String, Pair<Long?, Long?>>> {
+fun getPresetSizes(context: android.content.Context, anyLabel: String): List<Pair<String, Pair<Long?, Long?>>> {
+    val k100 = 100_000L
+    val m1 = 1_000_000L
+    val m50 = 50_000_000L
+    val m500 = 500_000_000L
     return listOf(
         anyLabel to (null to null),
-        "Tiny (< 100 KB)" to (null to 100L * 1024),
-        "Small (100 KB - 1 MB)" to (100L * 1024 to 1L * 1024 * 1024),
-        "Medium (1 MB - 50 MB)" to (1L * 1024 * 1024 to 50L * 1024 * 1024),
-        "Large (50 MB - 500 MB)" to (50L * 1024 * 1024 to 500L * 1024 * 1024),
-        "Huge (> 500 MB)" to (500L * 1024 * 1024 to null)
+        "< ${dev.qtremors.arcile.core.presentation.formatFileSize(context, k100)}" to (null to k100),
+        "${dev.qtremors.arcile.core.presentation.formatFileSize(context, k100)} - ${dev.qtremors.arcile.core.presentation.formatFileSize(context, m1)}" to (k100 to m1),
+        "${dev.qtremors.arcile.core.presentation.formatFileSize(context, m1)} - ${dev.qtremors.arcile.core.presentation.formatFileSize(context, m50)}" to (m1 to m50),
+        "${dev.qtremors.arcile.core.presentation.formatFileSize(context, m50)} - ${dev.qtremors.arcile.core.presentation.formatFileSize(context, m500)}" to (m50 to m500),
+        "> ${dev.qtremors.arcile.core.presentation.formatFileSize(context, m500)}" to (m500 to null)
     )
 }

@@ -38,9 +38,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -64,6 +66,7 @@ import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.core.ui.theme.ArcileMotion
 import dev.qtremors.arcile.core.ui.theme.LocalDoubleLineFilenames
+import dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 
@@ -74,20 +77,21 @@ fun FileItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     onOpenDirectly: () -> Unit = {},
     onToggleSelectionDirectly: () -> Unit = {},
-    modifier: Modifier = Modifier,
     presentation: FileItemPresentation = FileItemPresentation(),
-    folderStats: FolderStats? = null,
-    isFolderStatsLoading: Boolean = false
+    folderStats: FolderStats? = null
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val formatter = rememberDateTimeFormatter()
-    val row = remember(file, formattedDate, folderStats) {
+    val row = remember(file, formattedDate, folderStats, context) {
         file.toFileRowUiModel(
             formatter = formatter,
             folderStats = folderStats,
-            thumbnailSizePx = ThumbnailTargetSize.fromBounds(128)
+            thumbnailSizePx = ThumbnailTargetSize.fromBounds(128),
+            context = context
         ).copy(formattedDate = formattedDate)
     }
     FileItemRow(
@@ -99,8 +103,7 @@ fun FileItemRow(
         onOpenDirectly = onOpenDirectly,
         onToggleSelectionDirectly = onToggleSelectionDirectly,
         modifier = modifier,
-        presentation = presentation,
-        isFolderStatsLoading = isFolderStatsLoading
+        presentation = presentation
     )
 }
 
@@ -109,17 +112,17 @@ fun FileItemRow(
 fun FileItemRow(
     row: FileRowUiModel,
     isSelected: Boolean,
+    isHighlighted: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
     isInSelectionMode: Boolean = false,
     onOpenDirectly: () -> Unit = {},
     onToggleSelectionDirectly: () -> Unit = {},
-    modifier: Modifier = Modifier,
     presentation: FileItemPresentation = FileItemPresentation(),
     itemIndex: Int = 0,
     visibleRange: IntRange? = null,
-    thumbnailPolicy: ThumbnailPolicy = remember { ThumbnailPolicy() },
-    isFolderStatsLoading: Boolean = false
+    thumbnailPolicy: ThumbnailPolicy = remember { ThumbnailPolicy() }
 ) {
     val file = row.file
     val context = LocalContext.current
@@ -149,7 +152,7 @@ fun FileItemRow(
         .copy(fontWeight = FontWeight.Medium)
     val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale)
         .copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-    val subtitleText = row.displaySubtitle(isFolderStatsLoading)
+    val subtitleText = row.displaySubtitle()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val reducedMotion = LocalReducedMotionEnabled.current
@@ -161,7 +164,7 @@ fun FileItemRow(
         ),
         label = "fileItemScale"
     )
-    val itemShape = if (isSelected) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
+    val itemShape = if (isSelected || isHighlighted) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
     val shouldOpenThumbnailInSelection =
         presentation.openFileFromThumbnailInSelectionMode &&
             isInSelectionMode &&
@@ -169,8 +172,16 @@ fun FileItemRow(
 
     Surface(
         shape = itemShape,
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+        color = when {
+            isSelected -> MaterialTheme.colorScheme.primaryContainer
+            isHighlighted -> MaterialTheme.colorScheme.secondaryContainer
+            else -> Color.Transparent
+        },
         modifier = modifier
+            .then(
+                if (isHighlighted) Modifier.testTag("highlighted_file_${file.absolutePath}")
+                else Modifier
+            )
             .padding(
                 horizontal = animatedHorizontalPadding.coerceAtLeast(0.dp),
                 vertical = animatedVerticalPadding.coerceAtLeast(0.dp)
@@ -186,6 +197,7 @@ fun FileItemRow(
                 formattedDate = row.formattedDate,
                 folderStatsText = subtitleText.takeIf { file.isDirectory },
                 isInSelectionMode = isInSelectionMode,
+                fileSizeText = subtitleText.takeUnless { file.isDirectory },
                 onClick = onClick,
                 onLongClick = onLongClick,
                 onOpenDirectly = onOpenDirectly,
@@ -330,7 +342,7 @@ private fun FileListThumbnail(
             ) {
                 Icon(
                     imageVector = Icons.Default.CheckCircle,
-                    contentDescription = stringResource(R.string.selected),
+                    contentDescription = stringResource(R.string.item_selected_label),
                     modifier = Modifier.fillMaxSize().padding(3.dp)
                 )
             }
@@ -340,12 +352,26 @@ private fun FileListThumbnail(
 
 @Composable
 private fun ListFileIcon(file: FileModel, iconSize: androidx.compose.ui.unit.Dp) {
+    val folderIconsEnabled = LocalFolderIconsEnabled.current
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Icon(
-            imageVector = getFileIconVector(file),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(iconSize)
-        )
+        val folderAppIcon = if (file.isDirectory) {
+            dev.qtremors.arcile.core.ui.rememberFolderAppIcon(file.name, file.absolutePath)
+        } else null
+
+        if (folderAppIcon != null) {
+            Image(
+                bitmap = folderAppIcon.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize().clip(CircleShape),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Icon(
+                imageVector = getFileIconVector(file, folderIconsEnabled),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(iconSize)
+            )
+        }
     }
 }

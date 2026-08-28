@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data
 
 import android.content.Context
+import androidx.core.content.edit
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
@@ -33,19 +34,25 @@ class NoOpMutationJournal : MutationJournal {
 }
 
 class DefaultMutationJournal(
-    context: Context,
+    private val context: Context,
     private val volumeProvider: VolumeProvider,
     private val dispatchers: ArcileDispatchers
 ) : MutationJournal {
-    private val store = storeFile(context)
+    private val store by lazy { storeFile(context) }
     private val lock = Any()
+    private var legacyPreferencesCleaned = false
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
 
-    init {
-        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
+    private fun ensureLegacyPreferencesCleaned() {
+        if (!legacyPreferencesCleaned) {
+            legacyPreferencesCleaned = true
+            runCatchingPreservingCancellation {
+                context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit { clear() }
+            }
+        }
     }
 
     override fun recordTemporaryPath(path: String) {
@@ -201,6 +208,7 @@ class DefaultMutationJournal(
     }
 
     private fun readEntries(): List<MutationJournalEntry> {
+        ensureLegacyPreferencesCleaned()
         if (!store.exists()) return emptyList()
         if (store.length() > MAX_STORE_BYTES) {
             AppLogger.w(TAG, "Dropping oversized mutation journal")
@@ -220,6 +228,7 @@ class DefaultMutationJournal(
     }
 
     private fun writeEntries(entries: List<MutationJournalEntry>) {
+        ensureLegacyPreferencesCleaned()
         var bounded = entries.takeLast(MAX_ENTRIES)
         var encoded = json.encodeToString(bounded).encodeToByteArray()
         while (encoded.size > MAX_STORE_BYTES && bounded.isNotEmpty()) {

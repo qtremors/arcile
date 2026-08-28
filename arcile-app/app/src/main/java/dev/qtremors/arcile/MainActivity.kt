@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 
 import androidx.compose.foundation.layout.fillMaxSize
@@ -142,14 +143,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun checkStoragePermission(): Boolean {
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            android.os.Environment.isExternalStorageManager()
-        } else {
-            androidx.core.content.ContextCompat.checkSelfPermission(
-                this,
-                android.Manifest.permission.READ_EXTERNAL_STORAGE
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
+        return android.os.Environment.isExternalStorageManager()
     }
 
     private fun openFile(path: String) {
@@ -199,7 +193,7 @@ class MainActivity : ComponentActivity() {
     private fun requestStoragePermission() {
         val intent = android.content.Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION)
         intent.addCategory("android.intent.category.DEFAULT")
-        intent.data = android.net.Uri.parse(String.format("package:%s", packageName))
+        intent.data = String.format("package:%s", packageName).toUri()
         try {
             startActivity(intent)
         } catch (e: Exception) {
@@ -265,6 +259,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun String.isContentReference(): Boolean =
-        runCatching { android.net.Uri.parse(this).scheme == "content" }.getOrDefault(false)
+        runCatching { this.toUri().scheme == "content" }.getOrDefault(false)
 
 }

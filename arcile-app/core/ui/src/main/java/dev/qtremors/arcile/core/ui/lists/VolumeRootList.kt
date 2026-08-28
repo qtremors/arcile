@@ -62,7 +62,8 @@ fun VolumeItemRow(
     modifier: Modifier = Modifier
 ) {
     val usedBytes = volume.totalBytes - volume.freeBytes
-    val subtitle = stringResource(R.string.volume_usage, formatFileSize(usedBytes), formatFileSize(volume.totalBytes))
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val subtitle = stringResource(R.string.volume_usage, formatFileSize(context, usedBytes), formatFileSize(context, volume.totalBytes))
 
     val icon = when (volume.kind) {
         StorageKind.INTERNAL -> Icons.Default.Storage
@@ -93,7 +94,7 @@ fun VolumeItemRow(
                     modifier = Modifier.size(40.dp)
                 )
             },
-            headlineContent = {
+            content = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Text(volume.name, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (badgeText != null) {

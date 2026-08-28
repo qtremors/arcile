@@ -1,35 +1,63 @@
 package dev.qtremors.arcile.core.presentation
 
+import android.content.Context
+import android.content.res.Configuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
+import java.util.Locale
 
-class FormatUtilsTest {
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
+class FormatFileSizeTest {
+
+    private lateinit var context: Context
+
+    @Before
+    fun setUp() {
+        context = RuntimeEnvironment.getApplication()
+    }
+
+    private fun createLocalizedContext(locale: Locale): Context {
+        val config = Configuration(context.resources.configuration)
+        config.setLocale(locale)
+        return context.createConfigurationContext(config)
+    }
 
     @Test
     fun `formatFileSize returns zero bytes for non-positive sizes`() {
-        assertEquals("0 B", formatFileSize(0))
-        assertEquals("0 B", formatFileSize(-128))
+        val formattedZero = formatFileSize(context, 0)
+        val formattedNegative = formatFileSize(context, -128)
+        assertEquals(formattedZero, formattedNegative)
+        assertTrue(formattedZero.contains("0"))
     }
 
     @Test
-    fun `formatFileSize keeps bytes below one kilobyte`() {
-        assertEquals("1.0 B", formatFileSize(1))
-        assertEquals("512.0 B", formatFileSize(512))
-        assertEquals("999.0 B", formatFileSize(999))
+    fun `formatFileSize handles boundary and large byte sizes`() {
+        val usContext = createLocalizedContext(Locale.US)
+        assertEquals("0 B", formatFileSize(usContext, 0))
+        assertEquals("1.0 kB", formatFileSize(usContext, 1000))
+        assertEquals("1.5 MB", formatFileSize(usContext, 1_500_000))
+        assertEquals("1.0 GB", formatFileSize(usContext, 1_000_000_000L))
+        assertEquals("1.0 TB", formatFileSize(usContext, 1_000_000_000_000L))
     }
 
     @Test
-    fun `formatFileSize converts values across decimal units`() {
-        assertEquals("1.0 KB", formatFileSize(1000))
-        assertEquals("1.5 KB", formatFileSize(1500))
-        assertEquals("1.0 MB", formatFileSize(1000L * 1000))
-        assertEquals("1.0 GB", formatFileSize(1000L * 1000 * 1000))
-        assertEquals("1.0 TB", formatFileSize(1000L * 1000 * 1000 * 1000))
+    fun `formatFileSize respects comma decimal in German locale`() {
+        val deContext = createLocalizedContext(Locale.GERMANY)
+        val formatted = formatFileSize(deContext, 1_500_000)
+        assertEquals("1,5 MB", formatted)
     }
 
     @Test
-    fun `formatFileSize promotes rounded boundaries to the next unit`() {
-        assertEquals("1.0 MB", formatFileSize((1000L * 1000) - 1))
-        assertEquals("1.0 GB", formatFileSize((1000L * 1000 * 1000) - 1))
+    fun `formatFileSize clamps negative values to zero`() {
+        val usContext = createLocalizedContext(Locale.US)
+        assertEquals("0 B", formatFileSize(usContext, -1024L))
+        assertEquals("0 B", formatFileSize(usContext, Long.MIN_VALUE))
     }
 }

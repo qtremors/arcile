@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.operation.android.apk
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import java.io.BufferedInputStream
@@ -30,6 +31,7 @@ internal data class ApkStagingResult(
     val apks: List<ApkPackageParser.ExtractedApk>
 )
 
+@SuppressLint("UsableSpace")
 internal suspend fun stageCompatibleArchiveApks(
     cacheDir: File,
     archiveFile: File,
@@ -157,6 +159,7 @@ internal fun createUniqueStagingDirectory(cacheDir: File): File {
     error("Could not create a unique APK staging directory")
 }
 
+@SuppressLint("UsableSpace")
 internal suspend fun stageContentApkPackage(
     context: Context,
     uri: Uri,

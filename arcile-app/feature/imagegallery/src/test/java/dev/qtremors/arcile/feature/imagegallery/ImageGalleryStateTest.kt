@@ -598,19 +598,20 @@ class ImageGalleryStateTest {
             longitude = null,
             altitude = null
         )
-
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
         val rows = buildMetadataDetailRows(
             file = file,
             metadata = metadata,
             labels = testMetadataLabels,
-            dateText = formatViewerDateTime(file.lastModified, Locale.US, TimeZone.getTimeZone("UTC"))
+            dateText = formatViewerDateTime(file.lastModified, Locale.US, TimeZone.getTimeZone("UTC")),
+            context = context
         )
 
         assertEquals("photo.jpg", rows.valueFor("Title"))
         assertEquals("Jun 10, 2026 • 10:14 AM", rows.valueFor("Date"))
         assertEquals("2026:06:10 10:14:00", rows.valueFor("Date taken"))
         assertEquals("1053 x 317", rows.valueFor("Resolution"))
-        assertEquals("29.65 KB", rows.valueFor("Size"))
+        assertEquals("30 kB", rows.valueFor("Size"))
         assertEquals("content://media/external/images/media/42", rows.valueFor("URI"))
         assertEquals("/storage/emulated/0/DCIM/photo.jpg", rows.valueFor("Path"))
         assertEquals("image/jpeg", rows.valueFor("MIME type"))
@@ -619,6 +620,7 @@ class ImageGalleryStateTest {
 
     @Test
     fun `metadata detail rows omit unavailable uri and resolution`() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
         val file = FileModel(
             name = "photo",
             absolutePath = "/storage/emulated/0/DCIM/photo",
@@ -630,7 +632,8 @@ class ImageGalleryStateTest {
         val rows = buildMetadataDetailRows(
             file = file,
             metadata = null,
-            labels = testMetadataLabels
+            labels = testMetadataLabels,
+            context = context
         )
 
         assertNull(rows.valueFor("Date"))

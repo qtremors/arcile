@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
@@ -170,10 +171,10 @@ internal fun ImageGalleryScreen(
     val coroutineScope = rememberCoroutineScope()
 
     var activePhotosGridCellSize by remember(state.presentation.gridMinCellSize) {
-        mutableStateOf(state.presentation.gridMinCellSize)
+        mutableFloatStateOf(state.presentation.gridMinCellSize)
     }
     var activeAlbumsGridCellSize by remember(state.albumPresentation.gridMinCellSize) {
-        mutableStateOf(state.albumPresentation.gridMinCellSize)
+        mutableFloatStateOf(state.albumPresentation.gridMinCellSize)
     }
 
     val shellState = rememberCategoryLibraryShellState()
@@ -207,7 +208,7 @@ internal fun ImageGalleryScreen(
 
 
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     var backActionAtStart by remember { mutableStateOf<GalleryBackAction?>(null) }
 
@@ -262,9 +263,11 @@ internal fun ImageGalleryScreen(
         },
         topChrome = {
             if (isSelectionMode) {
+                val context = androidx.compose.ui.platform.LocalContext.current
                 FloatingGallerySelectionTopBar(
                     selectedCount = state.selectedFiles.size,
                     selectedSize = formatFileSize(
+                        context,
                         state.files.filter { state.selectedFiles.contains(it.absolutePath) }
                             .sumOf { it.size }
                     ),

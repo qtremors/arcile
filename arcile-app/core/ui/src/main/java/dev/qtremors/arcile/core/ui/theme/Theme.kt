@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.core.graphics.toColorInt
 import androidx.core.view.WindowCompat
 
 // Baseline schemes moved to Color.kt
@@ -29,6 +30,7 @@ import androidx.core.view.WindowCompat
 val LocalHapticsEnabled = staticCompositionLocalOf { true }
 val LocalDoubleLineFilenames = staticCompositionLocalOf { false }
 val LocalMarqueeFilenames = staticCompositionLocalOf { false }
+val LocalFolderIconsEnabled = staticCompositionLocalOf { false }
 
 @Composable
 fun ArcileTheme(
@@ -186,6 +188,7 @@ fun ArcileTheme(
         LocalHapticsEnabled provides themeState.vibrationsEnabled,
         LocalDoubleLineFilenames provides themeState.doubleLineFilenames,
         LocalMarqueeFilenames provides themeState.marqueeFilenames,
+        LocalFolderIconsEnabled provides themeState.folderIconsEnabled,
         LocalHapticFeedback provides customHapticFeedback,
         LocalReducedMotionEnabled provides reducedMotionEnabled
     ) {
@@ -200,7 +203,7 @@ fun ArcileTheme(
 
 private fun parseColor(hex: String, fallback: Color): Color {
     return try {
-        Color(android.graphics.Color.parseColor(hex))
+        Color(hex.toColorInt())
     } catch (e: Exception) {
         fallback
     }

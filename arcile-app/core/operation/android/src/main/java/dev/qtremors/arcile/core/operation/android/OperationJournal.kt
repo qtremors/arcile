@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.operation.android
 
 import android.content.Context
+import androidx.core.content.edit
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.operation.BulkFileOperationRequest
 import dev.qtremors.arcile.core.operation.OperationRecoveryRecord
@@ -35,17 +36,22 @@ class NoOpOperationJournal : OperationJournal {
     override fun recoverInterrupted(): List<OperationJournalRecord> = emptyList()
 }
 
-class DefaultOperationJournal(context: Context) : OperationJournal {
-    private val store = storeFile(context)
+class DefaultOperationJournal(private val context: Context) : OperationJournal {
+    private val store by lazy { storeFile(context) }
     private val lock = Any()
+    private var legacyPreferencesCleaned = false
     private val json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
 
-    init {
-        // Remove records written by versions that used backup-eligible SharedPreferences.
-        context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit().clear().apply()
+    private fun ensureLegacyPreferencesCleaned() {
+        if (!legacyPreferencesCleaned) {
+            legacyPreferencesCleaned = true
+            runCatching {
+                context.getSharedPreferences(LEGACY_PREFERENCES, Context.MODE_PRIVATE).edit { clear() }
+            }
+        }
     }
 
     override fun activeRecord(): OperationJournalRecord? = synchronized(lock) { readState().active }
@@ -55,7 +61,10 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
         writeState(state.copy(active = record.withoutSecrets()))
     }
 
-    override fun update(operationId: String, transform: (OperationJournalRecord) -> OperationJournalRecord) =
+    override fun update(
+        operationId: String,
+        transform: (OperationJournalRecord) -> OperationJournalRecord
+    ): Unit =
         synchronized(lock) {
             val state = readState()
             val current = state.active ?: return
@@ -69,7 +78,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
             )
         }
 
-    override fun clearActive(operationId: String) = synchronized(lock) {
+    override fun clearActive(operationId: String): Unit = synchronized(lock) {
         val state = readState()
         val current = state.active ?: return
         if (current.request.operationId == operationId) {
@@ -108,6 +117,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
     }
 
     private fun readState(): OperationJournalState {
+        ensureLegacyPreferencesCleaned()
         if (!store.exists()) return OperationJournalState()
         if (store.length() > MAX_STORE_BYTES) {
             AppLogger.w(TAG, "Dropping oversized operation journal")
@@ -135,6 +145,7 @@ class DefaultOperationJournal(context: Context) : OperationJournal {
     }
 
     private fun writeState(state: OperationJournalState) {
+        ensureLegacyPreferencesCleaned()
         var bounded = state.copy(
             active = state.active?.withoutSecrets(),
             recovery = state.recovery.map { it.withoutSecrets() }

@@ -115,10 +115,10 @@ fun CategoryFloatingTopBar(
     onQueryChange: (String) -> Unit,
     onViewSort: () -> Unit,
     onNavigateBack: () -> Unit,
+    modifier: Modifier = Modifier,
     searchFilters: SearchFilters? = null,
     onSearchFiltersChange: ((SearchFilters) -> Unit)? = null,
-    showCategoryFilter: Boolean = false,
-    modifier: Modifier = Modifier
+    showCategoryFilter: Boolean = false
 ) {
     val haptics = rememberArcileHaptics()
     var showOverflow by rememberSaveable { mutableStateOf(false) }
@@ -522,11 +522,11 @@ private fun CategoryTabItem(tab: CategoryTabSpec) {
 fun CategoryBottomChrome(
     visible: Boolean,
     selectionMode: Boolean,
+    modifier: Modifier = Modifier,
     selectionBackProgress: Float = 0f,
     supportingContent: @Composable ColumnScope.() -> Unit = {},
     normalContent: @Composable () -> Unit,
-    selectionContent: @Composable () -> Unit,
-    modifier: Modifier = Modifier
+    selectionContent: @Composable () -> Unit
 ) {
     val bottomOffset by animateDpAsState(
         targetValue = if (visible || selectionMode) 0.dp else 160.dp,

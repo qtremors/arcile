@@ -73,13 +73,14 @@ internal fun StorageUsageSegmentList(
                 } else {
                     0.0
                 }
-                val sizeText = formatFileSize(node.sizeBytes)
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val sizeText = formatFileSize(context, node.sizeBytes)
                 val shareText = String.format(locale, "%.1f%%", share)
                 val segmentDescription = androidx.compose.ui.res.pluralStringResource(
                     R.plurals.storage_usage_map_segment_description,
                     node.childCount,
                     node.name,
-                    formatFileSize(node.sizeBytes),
+                    formatFileSize(context, node.sizeBytes),
                     node.childCount
                 )
                 val canOpen = node.kind != StorageUsageNodeKind.Grouped && onOpenNode != null
@@ -104,7 +105,7 @@ internal fun StorageUsageSegmentList(
                         }
                     },
                     onLongClick = if (canOpen) {
-                        { onOpenNode?.invoke(node) }
+                        { onOpenNode(node) }
                     } else {
                         null
                     },

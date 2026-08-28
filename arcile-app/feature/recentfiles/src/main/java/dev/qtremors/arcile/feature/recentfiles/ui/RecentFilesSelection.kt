@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -56,21 +55,16 @@ internal fun RecentSelectionTopBar(
 ) {
     TopAppBar(
         title = {
-            Box(
-                modifier = Modifier.fillMaxHeight(),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Column {
-                    Text(androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, selectedCount, selectedCount))
-                    if (selectedSize != null) {
-                        Text(
-                            text = selectedSize,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+            Column {
+                Text(androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, selectedCount, selectedCount))
+                if (selectedSize != null) {
+                    Text(
+                        text = selectedSize,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         },

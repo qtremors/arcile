@@ -102,20 +102,20 @@ data class BrowserWorkspaceOptions(
 
 @Composable
 fun BrowserRoute(
-    viewModelKey: String = "browser",
     entryRequest: BrowserEntryRequest?,
     isVisible: Boolean,
     hasPreviousRoute: Boolean,
     onStatusChange: (BrowserRouteStatus) -> Unit,
     onDestination: (BrowserDestination) -> Unit,
     onShareSelected: suspend (List<String>, List<FileModel>) -> Boolean,
+    onFeedback: (ArcileFeedbackEvent) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModelKey: String = "browser",
     appStartPage: AppStartPage? = null,
     onAppStartPageChange: (AppStartPage) -> Unit = {},
-    onFeedback: (ArcileFeedbackEvent) -> Unit,
     workspaceTabs: @Composable () -> Unit = {},
     workspaceOptions: BrowserWorkspaceOptions = BrowserWorkspaceOptions(),
-    renderContent: Boolean = true,
-    modifier: Modifier = Modifier
+    renderContent: Boolean = true
 ) {
     val viewModel = hiltViewModel<BrowserViewModel>(key = viewModelKey)
     val pinViewModel = hiltViewModel<BrowserQuickAccessViewModel>()
@@ -202,24 +202,6 @@ fun BrowserRoute(
     }
 
     if (!renderContent) return
-
-    LaunchedEffect(
-        entryRequest?.focusPath,
-        isVisible,
-        state.displayState.visibleFiles
-    ) {
-        val focusPath = entryRequest?.focusPath
-        if (focusPath != null && focusPath != revealedFocusPath && isVisible) {
-            val index = state.displayState.visibleFiles.indexOfFirst {
-                it.absolutePath == focusPath
-            }
-            if (index >= 0) {
-                listState.scrollToItem(index)
-                gridState.scrollToItem(index)
-                revealedFocusPath = focusPath
-            }
-        }
-    }
 
     DisposableEffect(scrollPositionKey, isVisible) {
         onDispose(saveCurrentScrollPosition)
@@ -404,6 +386,10 @@ fun BrowserRoute(
                     positionKey = scrollPositionKey,
                     savedPositionProvider = viewModel::savedScrollPosition,
                     onSavePosition = viewModel::saveScrollPosition,
+                    highlightedPath = entryRequest?.focusPath,
+                    requestedFocusPath = entryRequest?.focusPath
+                        ?.takeIf { isVisible && it != revealedFocusPath },
+                    onFocusRevealed = { revealedFocusPath = it },
                     pendingRevealFilePath = state.pendingRevealFilePath,
                     pendingRevealReady = state.pendingRevealReady,
                     onArmPendingReveal = viewModel::armOpenedFileReveal,

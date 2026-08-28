@@ -13,6 +13,8 @@ import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.ThumbnailType
 import java.io.File
+import android.content.Context
+import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import java.text.DateFormat
 import java.util.Date
@@ -45,7 +47,9 @@ enum class FileIconType {
 fun FileModel.toFileRowUiModel(
     formatter: DateFormat,
     folderStats: FolderStats? = null,
-    thumbnailSizePx: Int = 128
+    thumbnailSizePx: Int = 128,
+    context: Context? = null,
+    fileSizeFormatter: ((Long) -> String)? = null
 ): FileRowUiModel {
     val normalizedExtension = extension.lowercase()
     val iconType = when {
@@ -60,7 +64,9 @@ fun FileModel.toFileRowUiModel(
     val subtitle = if (isDirectory) {
         ""
     } else {
-        formatFileSize(size)
+        fileSizeFormatter?.invoke(size)
+            ?: context?.let { formatFileSize(it, size) }
+            ?: ""
     }
 
     return FileRowUiModel(
@@ -76,32 +82,45 @@ fun FileModel.toFileRowUiModel(
 }
 
 val FileRowUiModel.canShowThumbnail: Boolean
-    get() = !isDirectory && thumbnailKey.type != ThumbnailType.Unsupported
+    get() = file.canShowThumbnail
 
-fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any =
-    archiveThumbnailData ?: when (thumbnailKey.type) {
+val FileModel.canShowThumbnail: Boolean
+    get() = !isDirectory && ThumbnailKey.from(this).type != ThumbnailType.Unsupported
+
+fun FileModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any? {
+    if (isDirectory) return null
+    val key = ThumbnailKey.from(this)
+    if (key.type == ThumbnailType.Unsupported) return null
+    return archiveThumbnailData ?: when (key.type) {
         ThumbnailType.Audio,
         ThumbnailType.Video,
         ThumbnailType.Pdf,
-        ThumbnailType.Apk -> thumbnailKey
-        ThumbnailType.Image,
-        ThumbnailType.Unsupported -> file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
-            ?: File(file.absolutePath)
+        ThumbnailType.Apk -> key
+        ThumbnailType.Image -> nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+            ?: File(absolutePath)
+        ThumbnailType.Unsupported -> null
     }
+}
+
+fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any =
+    file.thumbnailRequestData(archiveThumbnailData)
+        ?: file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
+        ?: File(file.absolutePath)
 
 @Composable
-fun FileRowUiModel.displaySubtitle(isFolderStatsLoading: Boolean = false): String {
-    if (!isDirectory) return subtitle
+fun FileRowUiModel.displaySubtitle(): String {
+    if (!isDirectory) {
+        return subtitle.ifBlank { formatFileSize(LocalContext.current, file.size) }
+    }
     val stats = folderStats
     if (stats == null || stats.status == FolderStatsStatus.Unavailable) {
-        return stringResource(
-            if (isFolderStatsLoading) R.string.folder_stats_loading else R.string.folder_label
-        )
+        return stringResource(R.string.folder_label)
     }
     val filesLabel = pluralStringResource(
         R.plurals.folder_stats_files,
         stats.fileCount.toInt(),
         stats.fileCount
     )
-    return stringResource(R.string.folder_stats_summary, filesLabel, formatFileSize(stats.totalBytes))
+    val context = LocalContext.current
+    return stringResource(R.string.folder_stats_summary, filesLabel, formatFileSize(context, stats.totalBytes))
 }

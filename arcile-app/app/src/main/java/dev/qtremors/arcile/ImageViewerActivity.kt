@@ -50,7 +50,16 @@ class ImageViewerActivity : ComponentActivity() {
                         mimeType = resolved.mimeType,
                         onNavigateBack = { finish() },
                         onShare = { shareTarget(resolved) },
-                        onOpenWith = { openTargetWithChooser(resolved) }
+                        onOpenWith = { openTargetWithChooser(resolved) },
+                        onFileRenamed = { _, newFile ->
+                            target = resolved.copy(
+                                reference = newFile.absolutePath,
+                                displayName = newFile.name,
+                                mimeType = newFile.mimeType,
+                                sizeBytes = newFile.size
+                            )
+                        },
+                        onFileDeleted = { finish() }
                     )
                 }
             }

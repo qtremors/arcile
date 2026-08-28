@@ -69,3 +69,19 @@ internal data class OnlyFilesUiState(
     val selectedNodes: List<VaultNodeMetadata>
         get() = displayedNodes.filter { it.ref.nodeId.value in selectedNodeIds }
 }
+
+internal fun List<VaultSummary>.withCurrentUnlockState(
+    unlockedVaultIds: Set<VaultId>
+): List<VaultSummary> = map { vault ->
+    val isUnlocked = vault.id in unlockedVaultIds
+    if (vault.isUnlocked == isUnlocked) vault else vault.copy(isUnlocked = isUnlocked)
+}
+
+internal fun pendingUnlockVault(
+    requestedId: VaultId?,
+    selectedId: VaultId?,
+    vaults: List<VaultSummary>
+): VaultSummary? {
+    if (requestedId == null || requestedId == selectedId) return null
+    return vaults.firstOrNull { vault -> vault.id == requestedId && !vault.isUnlocked }
+}

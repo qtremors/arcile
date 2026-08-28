@@ -81,8 +81,9 @@ internal fun BrowserTopBars(
         }
     } else {
         Column {
+            val context = androidx.compose.ui.platform.LocalContext.current
             val selectedSizeFormatted = if (state.selectedFiles.isNotEmpty()) {
-                formatFileSize(state.selectedFilesTotalSize)
+                formatFileSize(context, state.selectedFilesTotalSize)
             } else {
                 null
             }

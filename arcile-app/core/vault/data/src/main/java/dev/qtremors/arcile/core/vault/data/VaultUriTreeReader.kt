@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.vault.data
 
 import android.content.ContentResolver
 import android.net.Uri
+import androidx.core.net.toUri
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
@@ -26,7 +27,7 @@ internal class VaultUriTreeReader(
         require(uriStrings.isNotEmpty()) { "At least one import source is required" }
         return uriStrings.flatMap { value ->
             val localFile = File(value)
-            val uri = Uri.parse(value)
+            val uri = value.toUri()
             when {
                 localFile.isAbsolute -> collectLocalFile(localFile)
                 uri.scheme == ContentResolver.SCHEME_FILE -> collectLocalFile(

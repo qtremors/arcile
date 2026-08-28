@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.feature.audio
 
+import android.view.WindowManager
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.ArcileGestureAxis
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -71,6 +73,84 @@ class AudioPlayerPresentationTest {
     }
 
     @Test
+    fun `mini player fast fling settles by velocity`() {
+        assertEquals(
+            AudioMiniPlayerGesture.DISMISS,
+            resolveAudioMiniPlayerGesture(12f, 48f, 1_400f, 800f)
+        )
+        assertEquals(
+            AudioMiniPlayerGesture.EXPAND,
+            resolveAudioMiniPlayerGesture(-12f, 48f, -1_400f, 800f)
+        )
+    }
+
+    @Test
+    fun `now playing gestures keep their locked axis`() {
+        assertEquals(
+            AudioNowPlayingGesture.Next,
+            resolveNowPlaying(ArcileGestureAxis.Horizontal, deltaX = -120f, deltaY = 180f)
+        )
+        assertEquals(
+            AudioNowPlayingGesture.Queue,
+            resolveNowPlaying(ArcileGestureAxis.Vertical, deltaX = 180f, deltaY = -120f)
+        )
+    }
+
+    @Test
+    fun `now playing gestures settle all directions once`() {
+        assertEquals(
+            AudioNowPlayingGesture.Previous,
+            resolveNowPlaying(ArcileGestureAxis.Horizontal, deltaX = 120f)
+        )
+        assertEquals(
+            AudioNowPlayingGesture.Next,
+            resolveNowPlaying(ArcileGestureAxis.Horizontal, deltaX = -120f)
+        )
+        assertEquals(
+            AudioNowPlayingGesture.Collapse,
+            resolveNowPlaying(ArcileGestureAxis.Vertical, deltaY = 120f)
+        )
+        assertEquals(
+            AudioNowPlayingGesture.Queue,
+            resolveNowPlaying(ArcileGestureAxis.Vertical, deltaY = -120f)
+        )
+    }
+
+    @Test
+    fun `now playing rejects undecided and short gestures but accepts flings`() {
+        assertEquals(AudioNowPlayingGesture.None, resolveNowPlaying(null, deltaX = 120f))
+        assertEquals(
+            AudioNowPlayingGesture.None,
+            resolveNowPlaying(ArcileGestureAxis.Horizontal, deltaX = 40f)
+        )
+        assertEquals(
+            AudioNowPlayingGesture.Next,
+            resolveNowPlaying(
+                ArcileGestureAxis.Horizontal,
+                deltaX = -40f,
+                velocityX = -1_200f
+            )
+        )
+    }
+
+    @Test
+    fun `mini window yields focus and ime while expanded window restores them`() {
+        val unrelatedFlag = WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+        val mini = audioPlayerWindowFlags(unrelatedFlag, expanded = false)
+
+        assertTrue(mini and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0)
+        assertTrue(mini and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL != 0)
+        assertTrue(mini and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM != 0)
+        assertTrue(mini and unrelatedFlag != 0)
+
+        val expanded = audioPlayerWindowFlags(mini, expanded = true)
+        assertFalse(expanded and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE != 0)
+        assertFalse(expanded and WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL != 0)
+        assertFalse(expanded and WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM != 0)
+        assertTrue(expanded and unrelatedFlag != 0)
+    }
+
+    @Test
     fun `surrounding audio queue preserves the visible category order`() {
         val indexed = listOf("one.mp3", "two.mp3", "three.mp3").map(::audioTrack)
 
@@ -96,5 +176,23 @@ class AudioPlayerPresentationTest {
             isHidden = false
         ),
         title = name
+    )
+
+    private fun resolveNowPlaying(
+        axis: ArcileGestureAxis?,
+        deltaX: Float = 0f,
+        deltaY: Float = 0f,
+        velocityX: Float = 0f,
+        velocityY: Float = 0f
+    ) = resolveAudioNowPlayingGesture(
+        lockedAxis = axis,
+        deltaX = deltaX,
+        deltaY = deltaY,
+        velocityX = velocityX,
+        velocityY = velocityY,
+        horizontalThreshold = 100f,
+        collapseThreshold = 100f,
+        queueThreshold = 80f,
+        minimumVelocity = 800f
     )
 }

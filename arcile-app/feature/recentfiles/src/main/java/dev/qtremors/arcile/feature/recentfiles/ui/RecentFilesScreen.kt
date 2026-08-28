@@ -29,7 +29,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.ViewModule
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -138,7 +139,7 @@ internal fun RecentFilesScreen(
     var showFilterSheet by rememberSaveable { mutableStateOf(false) }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
 
-    var backProgress by remember { mutableStateOf(0f) }
+    var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
 
     PredictiveBackHandler(enabled = isSelectionMode || showSearchBar) { progressFlow ->
@@ -172,7 +173,7 @@ internal fun RecentFilesScreen(
                     .fillMaxWidth()
                     .graphicsLayer {
                         if (isBackPredicting) {
-                            translationY = -backProgress * size.height.toFloat()
+                            translationY = -backProgress * size.height
                             alpha = 1f - backProgress
                         }
                     }
@@ -180,7 +181,7 @@ internal fun RecentFilesScreen(
                 when {
                     isSelectionMode -> RecentSelectionTopBar(
                         selectedCount = state.selectedFiles.size,
-                        selectedSize = dev.qtremors.arcile.core.presentation.formatFileSize(state.selectedFilesTotalSize),
+                        selectedSize = dev.qtremors.arcile.core.presentation.formatFileSize(androidx.compose.ui.platform.LocalContext.current, state.selectedFilesTotalSize),
                         onClearSelection = onClearSelection
                     )
                     showSearchBar -> Column {
@@ -220,8 +221,8 @@ internal fun RecentFilesScreen(
                                             onClick = { showSearchBar = true }
                                         ),
                                         ToolbarAction(
-                                            icon = Icons.AutoMirrored.Filled.Sort,
-                                            contentDescription = stringResource(R.string.action_sort),
+                                            icon = Icons.Default.ViewModule,
+                                            contentDescription = stringResource(R.string.view_options),
                                             onClick = { showPresentationSheet = true }
                                         )
                                     )
@@ -386,21 +387,24 @@ internal fun RecentFilesScreen(
 
     if (showPresentationSheet) {
         SortOptionDialog(
-            title = stringResource(R.string.recent_sort_title),
+            title = stringResource(R.string.view_options),
             selectedPreferences = state.presentation,
             showApplyToSubfolders = false,
+            showSortControls = false,
             onDismiss = { showPresentationSheet = false },
             onApply = { preferences, _ -> onPresentationChange(preferences) },
-            minDateMillis = state.activeSearchFilters.minDateMillis,
-            maxDateMillis = state.activeSearchFilters.maxDateMillis,
-            onDateRangeChange = { minDate, maxDate ->
-                onSearchFiltersChange(state.activeSearchFilters.copy(minDateMillis = minDate, maxDateMillis = maxDate))
-            },
-            minSize = state.activeSearchFilters.minSize,
-            maxSize = state.activeSearchFilters.maxSize,
-            onSizeRangeChange = { minSizeVal, maxSizeVal ->
-                onSearchFiltersChange(state.activeSearchFilters.copy(minSize = minSizeVal, maxSize = maxSizeVal))
-            }
+            filterOptions = dev.qtremors.arcile.core.ui.SortDialogFilterOptions(
+                minDateMillis = state.activeSearchFilters.minDateMillis,
+                maxDateMillis = state.activeSearchFilters.maxDateMillis,
+                onDateRangeChange = { minDate, maxDate ->
+                    onSearchFiltersChange(state.activeSearchFilters.copy(minDateMillis = minDate, maxDateMillis = maxDate))
+                },
+                minSize = state.activeSearchFilters.minSize,
+                maxSize = state.activeSearchFilters.maxSize,
+                onSizeRangeChange = { minSizeVal, maxSizeVal ->
+                    onSearchFiltersChange(state.activeSearchFilters.copy(minSize = minSizeVal, maxSize = maxSizeVal))
+                }
+            )
         )
     }
 

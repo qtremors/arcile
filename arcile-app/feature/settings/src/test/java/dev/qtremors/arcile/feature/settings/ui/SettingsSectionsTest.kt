@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.settings.ui
 
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
@@ -113,6 +113,16 @@ class SettingsSectionsTest {
         val updated = original.withLandscapeDualPane(true)
 
         assertTrue(updated.landscapeDualPaneEnabled)
+        assertTrue(updated.marqueeFilenames)
+    }
+
+    @Test
+    fun `folder icon setting updates independently`() {
+        val original = ThemeState(marqueeFilenames = true)
+        val updated = original.withFolderIcons(true)
+
+        assertFalse(original.folderIconsEnabled)
+        assertTrue(updated.folderIconsEnabled)
         assertTrue(updated.marqueeFilenames)
     }
 

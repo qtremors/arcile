@@ -20,8 +20,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.InsertDriveFile
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
@@ -161,7 +159,7 @@ internal fun StorageUsageLoading(scanState: StorageUsageScanState.Loading) {
                     R.plurals.storage_usage_map_scan_progress,
                     scanState.progress.scannedNodes,
                     scanState.progress.scannedNodes,
-                    formatFileSize(scanState.progress.scannedBytes)
+                    formatFileSize(androidx.compose.ui.platform.LocalContext.current, scanState.progress.scannedBytes)
                 ),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

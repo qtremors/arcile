@@ -45,6 +45,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import kotlinx.coroutines.channels.BufferOverflow
@@ -370,7 +371,7 @@ fun ArcileFastScrollbar(
 
             Box(
                 modifier = Modifier
-                    .offset(y = thumbOffset)
+                    .offset { IntOffset(0, thumbOffset.roundToPx()) }
                     .size(width = currentThumbWidth, height = thumbHeight)
                     .align(Alignment.TopEnd)
                     .background(thumbColor, RoundedCornerShape(50))
@@ -390,7 +391,12 @@ fun ArcileFastScrollbar(
                     shape = MaterialTheme.shapes.extraLarge,
                     elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
                     modifier = Modifier
-                        .offset(x = (-136).dp, y = thumbOffset + (thumbHeight / 2) - 20.dp)
+                        .offset {
+                            IntOffset(
+                                (-136).dp.roundToPx(),
+                                (thumbOffset + (thumbHeight / 2) - 20.dp).roundToPx()
+                            )
+                        }
                         .requiredWidthIn(min = 112.dp, max = 140.dp)
                         .graphicsLayer { alpha = fastScrollAlphaState.value }
                         .align(Alignment.TopEnd)

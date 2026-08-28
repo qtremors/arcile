@@ -111,7 +111,8 @@ internal fun ImageGalleryState.withResolvedDisplayedFiles(): ImageGalleryState {
         displayedFiles = filterAndSortFiles(
             searchFiltered,
             searchQuery,
-            presentation.sortOption
+            presentation.sortOption,
+            foldersFirst = presentation.foldersFirst
         ).toPersistentList()
     )
 }

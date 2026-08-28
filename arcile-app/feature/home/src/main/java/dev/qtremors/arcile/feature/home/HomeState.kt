@@ -62,7 +62,8 @@ internal fun HomeState.withUpdatedDisplayState(): HomeState {
             todayRecentFiles = filterAndSortFiles(
                 todayFiles,
                 homeSearchQuery,
-                homeSortOption
+                homeSortOption,
+                foldersFirst = false
             ).toPersistentList(),
             indexedDashboardVolumes = storageInfo
                 ?.volumes

@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":core:runtime"))
     implementation(project(":core:operation:api"))
     implementation(project(":core:storage:domain"))
+    implementation(project(":core:vault:domain"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.hilt.android)

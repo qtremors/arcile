@@ -58,12 +58,12 @@ import kotlin.math.roundToInt
 internal fun GalleryImageListItem(
     file: FileModel,
     isSelected: Boolean,
-    isSelectionMode: Boolean = false,
     zoom: Float,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSelectionMode: Boolean = false,
     onLongClick: (() -> Unit)? = null,
-    onOpenDirectly: () -> Unit = onClick,
-    modifier: Modifier = Modifier
+    onOpenDirectly: () -> Unit = onClick
 ) {
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }
@@ -75,7 +75,7 @@ internal fun GalleryImageListItem(
     CategoryListItem(
         info = CategoryItemInfo(
             title = file.name,
-            detailLines = listOf(formatFileSize(file.size))
+            detailLines = listOf(formatFileSize(context, file.size))
         ),
         selected = isSelected,
         zoom = zoom,
@@ -116,7 +116,10 @@ internal fun GalleryImageListItem(
             }
             if (showPlaceholder) {
                 Icon(
-                    imageVector = getFileIconVector(file),
+                    imageVector = getFileIconVector(
+                        file,
+                        dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                    ),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                     modifier = Modifier.size(18.dp)

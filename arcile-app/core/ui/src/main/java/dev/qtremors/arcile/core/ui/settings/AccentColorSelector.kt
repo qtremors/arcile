@@ -328,7 +328,7 @@ fun AccentColorPickerSheet(
     onAccentSelected: (AccentColor) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
+    val sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,

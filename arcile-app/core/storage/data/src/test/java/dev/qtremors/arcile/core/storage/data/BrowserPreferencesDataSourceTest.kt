@@ -75,6 +75,8 @@ class BrowserPreferencesDataSourceTest {
         assertEquals(FileViewMode.LIST, preferences.audioPresentation.viewMode)
         assertEquals(FileListingPreferences.DEFAULT_LIST_ZOOM, preferences.globalPresentation.listZoom)
         assertEquals(FileListingPreferences.DEFAULT_GRID_MIN_CELL_SIZE, preferences.globalPresentation.gridMinCellSize)
+        assertEquals(true, preferences.globalPresentation.foldersFirst)
+        assertEquals(false, preferences.recentPresentation.foldersFirst)
         assertEquals(BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT, preferences.homeRecentCarouselLimit)
         assertEquals(CategoryLibraryPage.ITEMS, preferences.imageGalleryDefaultPage)
         assertEquals(AppStartPage.HOME, preferences.appStartPage)
@@ -97,7 +99,8 @@ class BrowserPreferencesDataSourceTest {
                 sortOption = FileSortOption.SIZE_LARGEST,
                 viewMode = FileViewMode.GRID,
                 listZoom = 1.1f,
-                gridMinCellSize = 148f
+                gridMinCellSize = 148f,
+                foldersFirst = false
             ),
             applyToSubfolders = false
         )
@@ -116,6 +119,7 @@ class BrowserPreferencesDataSourceTest {
 
         assertEquals(FileSortOption.SIZE_LARGEST, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.sortOption)
         assertEquals(FileViewMode.GRID, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.viewMode)
+        assertEquals(false, preferences.exactPathPresentationOptions["/storage/emulated/0/Download"]?.foldersFirst)
         assertEquals(FileSortOption.DATE_NEWEST, preferences.pathPresentationOptions["/storage/emulated/0/Pictures"]?.sortOption)
         assertEquals(124f, preferences.pathPresentationOptions["/storage/emulated/0/Pictures"]?.gridMinCellSize)
     }

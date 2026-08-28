@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.imagegallery
 
-import android.content.res.Configuration
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -69,8 +68,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -83,13 +82,14 @@ import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import dev.qtremors.arcile.core.ui.viewerThumbnailFastScroll
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.launch
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
 
 internal data class ImageViewerChromeActions(
     val onPageSelected: suspend (Int) -> Unit,
@@ -116,7 +116,8 @@ internal fun ImageViewerTopChrome(
     marqueeEnabled: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowSize = LocalWindowInfo.current.containerSize
+    val isLandscape = windowSize.width > windowSize.height
     AnimatedVisibility(
         visible = visible,
         enter = fadeIn(animationSpec = spring(stiffness = Spring.StiffnessLow)),
@@ -183,12 +184,15 @@ internal fun ImageViewerBottomChrome(
     selectedFiles: Set<String>,
     selectionModeEnabled: Boolean,
     readOnly: Boolean,
+    viewerActions: Set<ViewerFileAction>,
+    onViewerAction: (ViewerFileAction) -> Unit,
     actions: ImageViewerChromeActions,
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
-    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val windowSize = LocalWindowInfo.current.containerSize
+    val isLandscape = windowSize.width > windowSize.height
 
     AnimatedVisibility(
         visible = visible,
@@ -225,11 +229,6 @@ internal fun ImageViewerBottomChrome(
                     state = lazyListState,
                     modifier = Modifier
                         .fillMaxSize()
-                        .viewerThumbnailFastScroll(
-                            state = lazyListState,
-                            orientation = Orientation.Vertical,
-                            onFastScrollStart = haptics::selectionStart
-                        )
                         .background(Color.Black.copy(alpha = 0.5f)),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
@@ -271,13 +270,7 @@ internal fun ImageViewerBottomChrome(
                 val thumbnailSidePadding = ((maxWidth - thumbnailWidth) / 2).coerceAtLeast(16.dp)
                 LazyRow(
                     state = lazyListState,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .viewerThumbnailFastScroll(
-                            state = lazyListState,
-                            orientation = Orientation.Horizontal,
-                            onFastScrollStart = haptics::selectionStart
-                        ),
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterHorizontally),
                     contentPadding = PaddingValues(horizontal = thumbnailSidePadding)
@@ -400,10 +393,15 @@ internal fun ImageViewerBottomChrome(
                     iconSize = 24.dp
                 )
 
-                ImageViewerOverflowMenu(
+                ViewerOverflowMenu(
                     currentFile = currentFile,
-                    readOnly = readOnly,
-                    actions = actions
+                    allowedActions = viewerActions,
+                    onAction = onViewerAction,
+                    onShowMetadata = if (!readOnly && currentFile != null) {
+                        { actions.onShowMetadata(currentFile.absolutePath) }
+                    } else {
+                        null
+                    }
                 )
             }
         }

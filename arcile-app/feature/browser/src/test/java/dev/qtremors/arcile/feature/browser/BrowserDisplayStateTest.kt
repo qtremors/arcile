@@ -39,6 +39,28 @@ class BrowserDisplayStateTest {
     }
 
     @Test
+    fun `display state honors disabled folders first for date sorting`() {
+        val files = listOf(
+            file("folder", "/storage/emulated/0/folder", isDirectory = true, size = 1),
+            file("latest.txt", "/storage/emulated/0/latest.txt", size = 2)
+        )
+
+        val display = buildBrowserDisplayState(
+            files = files,
+            sortOption = FileSortOption.DATE_NEWEST,
+            foldersFirst = false,
+            selectedFolderTabPath = null,
+            isCategoryScreen = false,
+            currentVolumeId = null,
+            storageVolumes = emptyList(),
+            showHiddenFiles = true,
+            allFilesLabel = "All files"
+        )
+
+        assertEquals(listOf("latest.txt", "folder"), display.visibleFiles.map { it.name })
+    }
+
+    @Test
     fun `category display state builds folder tabs and selected index`() {
         val files = listOf(
             file("one.jpg", "/storage/emulated/0/DCIM/one.jpg"),

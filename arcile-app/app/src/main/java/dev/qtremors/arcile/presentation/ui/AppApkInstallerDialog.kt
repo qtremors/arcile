@@ -13,6 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -131,7 +132,7 @@ internal fun AppApkInstallerDialog(
 
 private fun android.content.Context.openUnknownAppSourcesSettings() {
     val appSources = Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES).apply {
-        data = Uri.parse("package:$packageName")
+        data = "package:$packageName".toUri()
     }
     runCatching { startActivity(appSources) }.recoverCatching {
         startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))

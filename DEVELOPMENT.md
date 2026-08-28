@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.0.5 | **Last Updated:** 2026-08-21
+**Version:** 2.1.0 | **Last Updated:** 2026-08-27
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -84,7 +84,7 @@ graph TD
 |------|------------|
 | Language and toolchain | Kotlin 2.4.10, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.5.0, Android Gradle Plugin 9.3.1, KSP 2.3.11 |
 | Android platform | compileSdk/targetSdk 37, minSdk 30, AndroidX Core, Lifecycle, Activity, SplashScreen |
-| UI | Jetpack Compose BOM 2026.06.01, Material 3 1.5.0-alpha25, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor |
+| UI | Jetpack Compose BOM 2026.08.00, Material 3 1.5.0-alpha26, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor 5.0.0 |
 | State and architecture | Feature-owned MVVM, StateFlow, Kotlin Coroutines, immutable collections, Hilt/Dagger |
 | Navigation | Navigation Compose with Kotlin Serialization typed routes |
 | Persistence | Room cache database and DataStore Preferences |
@@ -747,14 +747,14 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 205 |
-| **Version Name** | `2.0.5` |
+| **Version Code** | 210 |
+| **Version Name** | `2.1.0` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.5.0 |
 | **Gradle JVM** | JDK 21 |
 | **Kotlin Version** | 2.4.10 |
 | **AGP Version** | 9.3.1 |
-| **Compose BOM** | 2026.06.01 |
+| **Compose BOM** | 2026.08.00 |
 
 ### Manifest Declarations
 
@@ -902,7 +902,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.0.5-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.1.0-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -924,8 +924,8 @@ signing.keyPassword=your_key_password
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.0.5-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.0.5.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.1.0-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.1.0.apk`
 
 ---
 

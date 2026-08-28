@@ -3,6 +3,8 @@ package dev.qtremors.arcile.feature.browser.ui
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
@@ -32,6 +34,7 @@ internal fun BrowserDialogs(
     searchIntents: BrowserSearchIntents,
     clipboardIntents: BrowserClipboardIntents,
     archiveIntents: BrowserArchiveIntents,
+    gridContentWidth: Dp? = null,
     batchRenameHistory: List<String> = emptyList()
 ) {
     if (state.isSearchFilterMenuVisible) {
@@ -193,6 +196,11 @@ internal fun BrowserDialogs(
             title = stringResource(R.string.sort_folder_title),
             selectedPreferences = currentPresentation,
             showApplyToSubfolders = !state.isCategoryScreen,
+            showFoldersFirst = true,
+            initialApplyToSubfolders = state.browserPresentationAppliesToSubfolders,
+            gridContentWidth = gridContentWidth,
+            gridHorizontalPadding = 16.dp,
+            gridItemSpacing = 16.dp,
             onDismiss = { dialogVisibility.showSortDialog = false },
             onApply = { presentation, applyToSubfolders ->
                 searchIntents.onPresentationChange(presentation, applyToSubfolders)

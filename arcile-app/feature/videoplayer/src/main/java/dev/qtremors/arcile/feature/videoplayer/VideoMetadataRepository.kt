@@ -3,13 +3,13 @@ package dev.qtremors.arcile.feature.videoplayer
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailRow
 import dev.qtremors.arcile.core.ui.metadata.buildImageMetadataDetailRows
-import dev.qtremors.arcile.core.ui.metadata.formatImageFileSize
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.util.Locale
@@ -42,7 +42,7 @@ internal class DefaultVideoMetadataRepository @Inject constructor(
 
         try {
             if (filePath.startsWith("content://")) {
-                retriever.setDataSource(context, Uri.parse(filePath))
+                retriever.setDataSource(context, filePath.toUri())
             } else {
                 retriever.setDataSource(filePath)
             }
@@ -97,6 +97,7 @@ internal class DefaultVideoMetadataRepository @Inject constructor(
 }
 
 internal fun buildVideoMetadataRows(
+    context: Context,
     file: FileModel,
     metadata: VideoFileMetadata?,
     labels: ImageMetadataDetailLabels,
@@ -113,6 +114,7 @@ internal fun buildVideoMetadataRows(
         extension = file.extension,
         metadata = metadata,
         labels = labels,
+        context = context,
         isUriReference = file.absolutePath.startsWith("content://")
     )
 

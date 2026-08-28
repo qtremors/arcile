@@ -89,6 +89,7 @@ internal fun AudioLibraryScreen(
     onPlay: (String) -> Unit,
     onPlaySelection: (Collection<String>) -> Unit,
     onShareSelected: (List<AudioTrack>, () -> Unit) -> Unit,
+    onEditSelected: (List<AudioTrack>) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
     onClearError: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
@@ -272,6 +273,10 @@ internal fun AudioLibraryScreen(
                     },
                     onToggleFavorite = {
                         onToggleFavoriteSelection()
+                        onClearSelection()
+                    },
+                    onEditAudio = {
+                        onEditSelected(selectedTracks)
                         onClearSelection()
                     },
                     onPaste = onPaste,

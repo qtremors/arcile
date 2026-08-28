@@ -196,7 +196,7 @@ internal fun CleanerConfirmContent(
                     Text(
                         text = stringResource(
                             R.string.cleaner_confirm_file_detail,
-                            formatFileSize(candidate.size),
+                            formatFileSize(androidx.compose.ui.platform.LocalContext.current, candidate.size),
                             cleanerRiskLabel(candidate.riskLevel)
                         ),
                         style = MaterialTheme.typography.labelSmall,

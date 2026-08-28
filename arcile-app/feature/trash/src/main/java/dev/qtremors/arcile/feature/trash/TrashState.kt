@@ -24,7 +24,8 @@ internal enum class TrashFilter { ALL, CAN_RESTORE, NEEDS_DESTINATION, RECOVERED
 
 internal data class TrashPropertiesUiModel(
     val title: String,
-    val rows: List<Pair<String, String>>
+    val rows: List<Pair<String, String>>,
+    val totalSizeBytes: Long = 0L
 )
 
 internal data class TrashState(
@@ -106,7 +107,7 @@ internal fun List<TrashMetadata>.toPropertiesModel(): TrashPropertiesUiModel {
     rows += "Items" to size.toString()
     rows += "Files" to count { !it.fileModel.isDirectory }.toString()
     rows += "Folders" to count { it.fileModel.isDirectory }.toString()
-    rows += "Size" to dev.qtremors.arcile.core.presentation.formatFileSize(sumOf { it.fileModel.size })
+    val totalBytes = sumOf { it.fileModel.size }
     if (single != null) {
         rows += "Original path" to single.originalPath.ifBlank { "Unavailable" }
         rows += "Trash payload" to single.fileModel.absolutePath
@@ -126,6 +127,7 @@ internal fun List<TrashMetadata>.toPropertiesModel(): TrashPropertiesUiModel {
     }
     return TrashPropertiesUiModel(
         title = single?.fileModel?.name ?: "$size selected",
-        rows = rows
+        rows = rows,
+        totalSizeBytes = totalBytes
     )
 }

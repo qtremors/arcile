@@ -55,6 +55,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -158,7 +159,7 @@ private data class FeatureInfo(
 )
 @Composable
 internal fun OnboardingWelcomeAndFeatures() {
-    var selectedFeatureIndex by remember { mutableStateOf(0) }
+    var selectedFeatureIndex by remember { mutableIntStateOf(0) }
 
     val features = remember {
         listOf(
@@ -178,7 +179,7 @@ internal fun OnboardingWelcomeAndFeatures() {
             MorphingBackgroundIcon {
                 val context = androidx.compose.ui.platform.LocalContext.current
                 val launcherIconResId = remember(context) {
-                    context.resources.getIdentifier("ic_launcher", "mipmap", context.packageName)
+                    context.applicationInfo.icon
                         .takeIf { it != 0 } ?: android.R.drawable.sym_def_app_icon
                 }
                 AsyncImage(

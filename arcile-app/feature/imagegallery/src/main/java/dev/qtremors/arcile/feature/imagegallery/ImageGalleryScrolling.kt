@@ -116,7 +116,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -188,7 +187,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
 import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.flow.SharedFlow
 
 internal enum class GalleryViewState {

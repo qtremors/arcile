@@ -191,17 +191,17 @@ internal fun OnboardingScreen(
             userScrollEnabled = canSwipe,
             beyondViewportPageCount = 1
         ) { page ->
-            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
-            val alpha = 1f - (pageOffset.coerceIn(0f, 1f) * 0.18f)
-            val scale = 1f - (pageOffset.coerceIn(0f, 1f) * 0.03f)
-
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        this.alpha = alpha
-                        this.scaleX = scale
-                        this.scaleY = scale
+                        val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                            .absoluteValue
+                            .coerceIn(0f, 1f)
+                        alpha = 1f - (pageOffset * 0.18f)
+                        val scale = 1f - (pageOffset * 0.03f)
+                        scaleX = scale
+                        scaleY = scale
                     }
             ) {
                 when (steps[page]) {

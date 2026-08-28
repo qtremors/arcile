@@ -193,6 +193,9 @@ internal fun NavGraphBuilder.registerFileRoutes(
             )
         },
         onOpenPlayer = actions::openAudioPlayer,
+        onEditSelected = { tracks ->
+            actions.openAudioEditor(tracks.map { it.file.absolutePath })
+        },
         onOpenWith = { track -> actions.openFileWith(track.file.absolutePath) },
         onFeedback = onFeedback
     )

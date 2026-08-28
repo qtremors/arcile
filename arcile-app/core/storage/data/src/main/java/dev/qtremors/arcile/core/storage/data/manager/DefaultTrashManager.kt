@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import android.content.Context
+import androidx.core.net.toUri
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.NoOpMutationJournal
@@ -399,7 +400,7 @@ class DefaultTrashManager(
     private fun deleteMediaStoreContentUri(contentUri: String?) {
         if (contentUri.isNullOrBlank()) return
         try {
-            context.contentResolver.delete(android.net.Uri.parse(contentUri), null, null)
+            context.contentResolver.delete(contentUri.toUri(), null, null)
         } catch (e: Exception) {
             e.rethrowIfCancellation()
             AppLogger.e("TrashManager", "Failed to explicitly delete from MediaStore", e)

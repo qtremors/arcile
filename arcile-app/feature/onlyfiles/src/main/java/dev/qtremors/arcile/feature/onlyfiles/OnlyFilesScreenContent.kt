@@ -35,6 +35,7 @@ import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
+import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 
 @Composable
@@ -119,7 +120,7 @@ internal fun OnlyFilesMainContent(
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
-    onUnlockRequired: (VaultSummary) -> Unit,
+    onUnlockRequired: (VaultId) -> Unit,
     onShowCreateVault: () -> Unit
 ) {
     val context = LocalContext.current
@@ -129,7 +130,7 @@ internal fun OnlyFilesMainContent(
                 vaults = state.vaults,
                 imports = state.activeImports,
                 biometricVaultIds = state.biometricVaultIds,
-                onOpen = { if (!viewModel.openVault(it)) onUnlockRequired(it) },
+                onOpen = { if (!viewModel.openVault(it)) onUnlockRequired(it.id) },
                 onUnlockBiometric = { vault ->
                     viewModel.prepareBiometricUnlock(vault.id) { challenge ->
                         val activity = context.findActivity()
@@ -176,6 +177,7 @@ internal fun OnlyFilesMainContent(
                                 state.displayedNodes,
                                 vaultId,
                                 node,
+                                state.screenshotProtectionEnabled,
                                 viewModel::openReader
                             )
                         )

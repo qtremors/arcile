@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.browser
 
 import androidx.compose.runtime.Immutable
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FolderStats
@@ -38,6 +39,7 @@ internal data class BrowserDisplayState(
 internal fun buildBrowserDisplayState(
     files: List<FileModel>,
     sortOption: FileSortOption,
+    foldersFirst: Boolean = FileListingPreferences.DEFAULT_FOLDERS_FIRST,
     selectedFolderTabPath: String?,
     isCategoryScreen: Boolean,
     currentVolumeId: String?,
@@ -47,15 +49,17 @@ internal fun buildBrowserDisplayState(
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
     browserListZoom: Float = 1f,
     browserGridMinCellSize: Float = 100f,
-    previousDisplayState: BrowserDisplayState? = null
+    previousDisplayState: BrowserDisplayState? = null,
+    context: android.content.Context? = null,
+    fileSizeFormatter: ((Long) -> String)? = null
 ): BrowserDisplayState {
     val baseFiles = if (showHiddenFiles) files else files.filterNot { it.isHidden }
     val tabFilteredFiles = filterFilesByFolderTab(baseFiles, selectedFolderTabPath)
     val fileCountFor: (FileModel) -> Long? = { file ->
         if (file.isDirectory) folderStatsByPath[file.absolutePath]?.fileCount else 1L
     }
-    val visibleFiles = filterAndSortFiles(tabFilteredFiles, "", sortOption, fileCountFor)
-    val sortedCategoryFiles = filterAndSortFiles(baseFiles, "", sortOption, fileCountFor)
+    val visibleFiles = filterAndSortFiles(tabFilteredFiles, "", sortOption, fileCountFor, foldersFirst)
+    val sortedCategoryFiles = filterAndSortFiles(baseFiles, "", sortOption, fileCountFor, foldersFirst)
     val formatter = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.getDefault())
     val listThumbnailSizePx = ThumbnailTargetSize.fromBounds((64f * browserListZoom).roundToInt())
     val gridThumbnailSizePx = ThumbnailTargetSize.fromBounds(browserGridMinCellSize.roundToInt())
@@ -64,14 +68,18 @@ internal fun buildBrowserDisplayState(
         folderStatsByPath = folderStatsByPath,
         thumbnailSizePx = listThumbnailSizePx,
         formatter = formatter,
-        previousRows = previousDisplayState?.visibleListRows.orEmpty()
+        previousRows = previousDisplayState?.visibleListRows.orEmpty(),
+        context = context,
+        fileSizeFormatter = fileSizeFormatter
     )
     val visibleGridRows = buildRows(
         files = visibleFiles,
         folderStatsByPath = folderStatsByPath,
         thumbnailSizePx = gridThumbnailSizePx,
         formatter = formatter,
-        previousRows = previousDisplayState?.visibleGridRows.orEmpty()
+        previousRows = previousDisplayState?.visibleGridRows.orEmpty(),
+        context = context,
+        fileSizeFormatter = fileSizeFormatter
     )
     val categoryFolderTabs = if (isCategoryScreen) {
         buildFolderTabs(sortedCategoryFiles, allFilesLabel)
@@ -101,7 +109,9 @@ private fun buildRows(
     folderStatsByPath: Map<String, FolderStats>,
     thumbnailSizePx: Int,
     formatter: DateFormat,
-    previousRows: List<FileRowUiModel>
+    previousRows: List<FileRowUiModel>,
+    context: android.content.Context? = null,
+    fileSizeFormatter: ((Long) -> String)? = null
 ): List<FileRowUiModel> {
     val previousByPath = previousRows.associateBy { it.absolutePath }
     return files.map { file ->
@@ -117,7 +127,9 @@ private fun buildRows(
             file.toFileRowUiModel(
                 formatter = formatter,
                 folderStats = stats,
-                thumbnailSizePx = thumbnailSizePx
+                thumbnailSizePx = thumbnailSizePx,
+                context = context,
+                fileSizeFormatter = fileSizeFormatter
             )
         }
     }

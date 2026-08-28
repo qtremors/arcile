@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.feature.browser.ui
 
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithContentDescription
@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.printToLog
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -193,6 +195,54 @@ class BrowserScreenTest {
         composeRule.onNodeWithText("Internal").performClick()
 
         assertEquals("/storage/emulated/0", navigatedPath)
+    }
+
+    @Test
+    fun `search result long press enters selection instead of opening`() {
+        val resultPath = "/storage/emulated/0/Docs/report.pdf"
+        var toggledPath: String? = null
+        var openedPath: String? = null
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = browserUiState(
+                        browserSearchQuery = "report",
+                        searchResults = listOf(browserFile("report.pdf", resultPath)).toPersistentList(),
+                        isSearching = false,
+                        isLoading = false
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = { openedPath = it },
+                    onToggleSelection = { toggledPath = it },
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> }
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("report.pdf").performTouchInput { longClick() }
+
+        assertEquals(resultPath, toggledPath)
+        assertEquals(null, openedPath)
     }
 
     @Test
@@ -427,7 +477,7 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
+        composeRule.onNodeWithText("3 files • 2.0 kB").assertExists()
     }
 
     @Test
@@ -516,7 +566,7 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("3 files • 2.0 KB").assertExists()
+        composeRule.onNodeWithText("3 files • 2.0 kB").assertExists()
     }
 
     @Test
@@ -736,6 +786,64 @@ class BrowserScreenTest {
         assertEquals(filePath, toggledPath)
     }
 
+    @Test
+    fun `focused browser entry scrolls to and highlights its file`() {
+        val targetPath = "/storage/emulated/0/Documents/file-20.txt"
+        val listState = androidx.compose.foundation.lazy.LazyListState()
+        var revealedPath: String? = null
+        val files = (0 until 40).map { index ->
+            browserFile("file-$index.txt", "/storage/emulated/0/Documents/file-$index.txt")
+        }.toPersistentList()
+
+        composeRule.setContent {
+            ArcileTestTheme {
+                BrowserScreen(
+                    state = browserUiState(
+                        isLoading = false,
+                        currentPath = "/storage/emulated/0/Documents",
+                        files = files
+                    ),
+                    onNavigateBack = {},
+                    onNavigateTo = {},
+                    onOpenFile = {},
+                    onToggleSelection = {},
+                    onSelectMultiple = {},
+                    onClearSelection = {},
+                    onCreateFolder = {},
+                    onCreateFile = {},
+                    onRequestDeleteSelected = {},
+                    onConfirmDelete = {},
+                    onTogglePermanentDelete = {},
+                    onDismissDeleteConfirmation = {},
+                    onRenameFile = { _, _ -> },
+                    onSearchQueryChange = {},
+                    onClearSearch = {},
+                    onPresentationChange = { _, _ -> },
+                    onClearError = {},
+                    onCopySelected = {},
+                    onCutSelected = {},
+                    onPasteFromClipboard = {},
+                    onCancelClipboard = {},
+                    onShareSelected = {},
+                    onCreateFakeFile = { _, _ -> },
+                    listState = listState,
+                    focusPath = targetPath,
+                    onFocusRevealed = { revealedPath = it }
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("highlighted_file_$targetPath").assertExists()
+        composeRule.runOnIdle {
+            assertEquals(targetPath, revealedPath)
+            assertEquals(
+                true,
+                listState.layoutInfo.visibleItemsInfo.any { it.key == targetPath }
+            )
+        }
+    }
+
     private fun setBrowserContent(state: BrowserUiState) {
         composeRule.setContent {
             ArcileTestTheme {
@@ -799,9 +907,11 @@ private fun BrowserScreen(
     onOpenProperties: () -> Unit = {},
     onClearActiveFileOperation: () -> Unit = {},
     workspaceTabsEnabled: Boolean = false,
-    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null
+    onWorkspaceTabsEnabledChange: ((Boolean) -> Unit)? = null,
+    listState: androidx.compose.foundation.lazy.LazyListState = androidx.compose.foundation.lazy.rememberLazyListState(),
+    focusPath: String? = null,
+    onFocusRevealed: (String) -> Unit = {}
 ) {
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     BrowserScreen(
         state = state,
@@ -881,6 +991,9 @@ private fun BrowserScreen(
             state.scrollPositionKey(),
             savedPositionProvider = { null },
             onSavePosition = { _, _ -> },
+            highlightedPath = focusPath,
+            requestedFocusPath = focusPath,
+            onFocusRevealed = onFocusRevealed,
             pendingRevealFilePath = state.pendingRevealFilePath,
             pendingRevealReady = state.pendingRevealReady,
             onArmPendingReveal = {},

@@ -29,10 +29,11 @@ class OnlyFilesFormattingTest {
 
     @Test
     fun `file sizes stay compact and readable`() {
-        assertEquals("42 B", formatBytes(42L))
-        assertEquals("2 KB", formatBytes(2048L))
-        assertEquals("3 MB", formatBytes(3L * 1024L * 1024L))
-        assertEquals("1.5 GB", formatBytes(3L * 1024L * 1024L * 1024L / 2L))
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        assertEquals("42 B", formatBytes(context, 42L))
+        assertEquals("2.0 kB", formatBytes(context, 2000L))
+        assertEquals("3.0 MB", formatBytes(context, 3_000_000L))
+        assertEquals("1.5 GB", formatBytes(context, 1_500_000_000L))
     }
 
     @Test
@@ -43,10 +44,12 @@ class OnlyFilesFormattingTest {
             nodes = listOf(video),
             vaultId = VaultId.of("vault"),
             selectedNode = video,
+            screenshotProtectionEnabled = true,
             openReader = { Result.failure(IllegalStateException("Not opened by this test")) }
         )
 
         assertEquals(session.files?.single()?.absolutePath, session.items.single().mediaItem.mediaId)
+        assertTrue(session.screenshotProtectionEnabled)
     }
 
     private fun node(name: String, mimeType: String?) = VaultNodeMetadata(

@@ -105,7 +105,7 @@ fun OnboardingRoute(
                     viewModel.handleNotificationPermissionResult()
                 }
             },
-            showOlderAndroidWarning = Build.VERSION.SDK_INT < Build.VERSION_CODES.R,
+            showOlderAndroidWarning = false,
             restoreState = state.backupState.toRestoreState(context),
             onChooseRestoreBackup = {
                 restoreLauncher.launch(arrayOf("application/json", "text/*", "*/*"))

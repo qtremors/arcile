@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.videoplayer
 
-import android.view.View
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -31,20 +30,9 @@ internal fun VideoViewerWindowEffects(
         val window = activity?.window
         val systemUiView = window?.decorView ?: view
         val controller = window?.let { WindowInsetsControllerCompat(it, systemUiView) }
-        val previousSystemUiVisibility = systemUiView.systemUiVisibility
         val previousSystemBarsBehavior = controller?.systemBarsBehavior
         fun enterImmersiveMode() {
             if (!immersive) return
-            @Suppress("DEPRECATION")
-            run {
-                systemUiView.systemUiVisibility =
-                    View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY or
-                        View.SYSTEM_UI_FLAG_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                        View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN or
-                        View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION or
-                        View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            }
             controller?.systemBarsBehavior =
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller?.hide(WindowInsetsCompat.Type.systemBars())
@@ -62,9 +50,7 @@ internal fun VideoViewerWindowEffects(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
             if (immersive) {
-                @Suppress("DEPRECATION")
-                run { systemUiView.systemUiVisibility = previousSystemUiVisibility }
-                previousSystemBarsBehavior?.let { controller?.systemBarsBehavior = it }
+                previousSystemBarsBehavior?.let { controller.systemBarsBehavior = it }
                 controller?.show(WindowInsetsCompat.Type.systemBars())
             }
         }

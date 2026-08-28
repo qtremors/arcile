@@ -13,7 +13,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
@@ -91,8 +92,10 @@ fun Modifier.arcileAdaptiveDialogCard(
     horizontalMargin: Dp = 16.dp,
     verticalMargin: Dp = 24.dp
 ): Modifier = composed {
-    val configuration = LocalConfiguration.current
-    val maxHeight = (configuration.screenHeightDp.dp * maxHeightFraction)
+    val windowHeight = with(LocalDensity.current) {
+        LocalWindowInfo.current.containerSize.height.toDp()
+    }
+    val maxHeight = (windowHeight * maxHeightFraction)
         .coerceAtLeast(240.dp)
     this
         .padding(horizontal = horizontalMargin, vertical = verticalMargin)

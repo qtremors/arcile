@@ -20,6 +20,8 @@ import io.mockk.mockk
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentSet
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.ExperimentalForInheritanceCoroutinesApi
+import kotlinx.coroutines.InternalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.TestScope
@@ -36,7 +38,11 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(
+    ExperimentalCoroutinesApi::class,
+    ExperimentalForInheritanceCoroutinesApi::class,
+    InternalCoroutinesApi::class
+)
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class BrowserClipboardControllerTest {

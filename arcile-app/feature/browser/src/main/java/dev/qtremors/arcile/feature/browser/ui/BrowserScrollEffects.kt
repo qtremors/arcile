@@ -33,6 +33,11 @@ internal fun BrowserScrollEffects(
             ?.let { revealPath -> displayedFiles.indexOfFirst { it.absolutePath == revealPath } }
             ?.takeIf { it >= 0 }
     }
+    val requestedFocusIndex = remember(scroll.requestedFocusPath, displayedFiles) {
+        scroll.requestedFocusPath
+            ?.let { focusPath -> displayedFiles.indexOfFirst { it.absolutePath == focusPath } }
+            ?.takeIf { it >= 0 }
+    }
     if (scroll.pendingRevealReady && pendingRevealIndex != null) {
         if (state.browserViewMode == FileViewMode.GRID) {
             scroll.gridState.requestScrollToItem(pendingRevealIndex)
@@ -51,7 +56,7 @@ internal fun BrowserScrollEffects(
         state.displayState.visibleListRows.size,
         state.displayState.visibleGridRows.size
     ) {
-        if (!state.isLoading) {
+        if (!state.isLoading && scroll.requestedFocusPath == null) {
             val shouldRestore = restoredScrollKey != scroll.positionKey ||
                 restoredResumeTick != resumeRestoreTick
             if (shouldRestore) {
@@ -65,6 +70,29 @@ internal fun BrowserScrollEffects(
             }
             restoredScrollKey = scroll.positionKey
             restoredResumeTick = resumeRestoreTick
+        }
+    }
+    LaunchedEffect(
+        scroll.requestedFocusPath,
+        requestedFocusIndex,
+        state.browserViewMode,
+        state.isLoading
+    ) {
+        val focusPath = scroll.requestedFocusPath
+        val index = requestedFocusIndex
+        if (!state.isLoading && focusPath != null && index != null) {
+            if (state.browserViewMode == FileViewMode.GRID) {
+                scroll.gridState.scrollToItem(index)
+            } else {
+                scroll.listState.scrollToItem(index)
+            }
+            scroll.onSavePosition(
+                scroll.positionKey,
+                BrowserScrollPosition(index, 0, index, 0)
+            )
+            restoredScrollKey = scroll.positionKey
+            restoredResumeTick = resumeRestoreTick
+            scroll.onFocusRevealed(focusPath)
         }
     }
     LaunchedEffect(

@@ -3,13 +3,15 @@ package dev.qtremors.arcile.core.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
@@ -30,12 +32,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.theme.spacing
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 enum class ArcileFeedbackSeverity {
@@ -64,74 +66,111 @@ fun ArcileSnackbarHost(
         hostState = hostState,
         modifier = modifier
             .wrapContentWidth(Alignment.CenterHorizontally)
-            .padding(MaterialTheme.spacing.space12)
+            .padding(8.dp)
     ) { data ->
         val severity = severityFor(data)
         var swipeOffset by remember(data.visuals.message) { mutableFloatStateOf(0f) }
+        val hasAction = data.visuals.actionLabel != null
+        val messageShape = if (hasAction) {
+            RoundedCornerShape(50, 15, 15, 50)
+        } else {
+            CircleShape
+        }
+        val actionShape = RoundedCornerShape(15, 50, 50, 15)
+
         Box(
             modifier = Modifier
                 .wrapContentWidth(Alignment.CenterHorizontally)
                 .offset { IntOffset(swipeOffset.roundToInt(), 0) }
                 .pointerInput(data) {
+                    var velocityTracker = VelocityTracker()
                     detectHorizontalDragGestures(
+                        onDragStart = {
+                            velocityTracker = VelocityTracker()
+                        },
                         onHorizontalDrag = { change, dragAmount ->
                             change.consume()
+                            velocityTracker.addPosition(change.uptimeMillis, change.position)
                             swipeOffset += dragAmount
                         },
                         onDragEnd = {
-                            if (abs(swipeOffset) >= 96.dp.toPx()) data.dismiss()
-                            else swipeOffset = 0f
+                            val velocity = velocityTracker.calculateVelocity()
+                            val direction = arcileSwipeDirection(
+                                axis = ArcileGestureAxis.Horizontal,
+                                deltaX = swipeOffset,
+                                deltaY = 0f,
+                                velocityX = velocity.x,
+                                velocityY = velocity.y,
+                                minimumDistance = 96.dp.toPx(),
+                                minimumVelocity = ArcileGestureDefaults.MinimumSwipeVelocity.toPx()
+                            )
+                            if (direction != null) data.dismiss() else swipeOffset = 0f
                         },
                         onDragCancel = { swipeOffset = 0f }
                     )
                 },
             contentAlignment = Alignment.Center
         ) {
-            Surface(
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 6.dp,
-                shadowElevation = 3.dp,
+            Row(
                 modifier = Modifier
                     .widthIn(max = 520.dp)
-                    .wrapContentWidth()
+                    .wrapContentWidth(),
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Surface(
+                    shape = messageShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = 6.dp,
+                    shadowElevation = 3.dp,
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = severity.containerColor(),
-                        contentColor = severity.tint(),
-                        modifier = Modifier.size(36.dp)
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = severity.icon(),
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = data.visuals.message,
-                        overflow = TextOverflow.Ellipsis,
-                        maxLines = 3,
-                        modifier = Modifier.widthIn(max = 360.dp)
-                    )
-                    data.visuals.actionLabel?.let { label ->
                         Surface(
-                            onClick = data::performAction,
-                            shape = MaterialTheme.shapes.large,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            shape = CircleShape,
+                            color = severity.containerColor(),
+                            contentColor = severity.tint(),
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = severity.icon(),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                        Text(
+                            text = data.visuals.message,
+                            overflow = TextOverflow.Ellipsis,
+                            maxLines = 3,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+
+                data.visuals.actionLabel?.let { label ->
+                    Surface(
+                        onClick = data::performAction,
+                        shape = actionShape,
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                        tonalElevation = 6.dp,
+                        shadowElevation = 3.dp,
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
                         ) {
                             Text(
                                 text = label,
-                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                                style = MaterialTheme.typography.labelLarge
                             )
                         }
                     }

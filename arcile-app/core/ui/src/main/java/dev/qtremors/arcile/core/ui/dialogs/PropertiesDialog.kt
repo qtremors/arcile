@@ -106,9 +106,9 @@ fun PropertiesDialog(
                     val model = properties ?: return@Column
                     val isPartialTotal = model.accessStatus != PropertiesAccessStatus.Full
                     val formattedSize = if (isPartialTotal) {
-                        stringResource(R.string.properties_size_partial, formatFileSize(model.totalBytes))
+                        stringResource(R.string.properties_size_partial, formatFileSize(context, model.totalBytes))
                     } else {
-                        formatFileSize(model.totalBytes)
+                        formatFileSize(context, model.totalBytes)
                     }
                     val modifiedText = model.newestModifiedAt?.let { DateFormat.getDateTimeInstance().format(Date(it)) }
 
@@ -150,9 +150,9 @@ fun PropertiesDialog(
                                         folderCount
                                     ),
                                     if (isPartialTotal) {
-                                        stringResource(R.string.properties_size_partial, formatFileSize(folderTotalBytes))
+                                        stringResource(R.string.properties_size_partial, formatFileSize(context, folderTotalBytes))
                                     } else {
-                                        formatFileSize(folderTotalBytes)
+                                        formatFileSize(context, folderTotalBytes)
                                     }
                                 )
                             )
@@ -171,7 +171,7 @@ fun PropertiesDialog(
                             PropertiesRow("Archive entries", archive.entryCount.toString())
                             PropertiesRow("Archive files", archive.fileCount.toString())
                             PropertiesRow("Archive folders", archive.folderCount.toString())
-                            PropertiesRow("Uncompressed size", formatFileSize(archive.totalUncompressedSize))
+                            PropertiesRow("Uncompressed size", formatFileSize(context, archive.totalUncompressedSize))
                             archive.compressionRatio?.let {
                                 PropertiesRow("Compression ratio", "${(it * 100).toInt()}%")
                             }

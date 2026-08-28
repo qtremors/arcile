@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.ui.lists
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -41,25 +42,28 @@ fun FileGrid(
     minCellSize: Dp = 100.dp,
     presentation: FileItemPresentation = FileItemPresentation(),
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
-    folderStatsLoadingPaths: Set<String> = emptySet(),
-    contentPadding: PaddingValues = PaddingValues(16.dp)
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    highlightedPath: String? = null
 ) {
     val formatter = rememberDateTimeFormatter()
     val thumbnailSizePx = with(LocalDensity.current) {
         ThumbnailTargetSize.fromBounds(minCellSize.roundToPx())
     }
-    val rows = remember(files, folderStatsByPath, formatter, thumbnailSizePx) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val rows = remember(files, folderStatsByPath, formatter, thumbnailSizePx, context) {
         files.map { file ->
             file.toFileRowUiModel(
                 formatter = formatter,
                 folderStats = folderStatsByPath[file.absolutePath],
-                thumbnailSizePx = thumbnailSizePx
+                thumbnailSizePx = thumbnailSizePx,
+                context = context
             )
         }
     }
     FileGridRows(
         rows = rows,
         selectedFiles = selectedFiles,
+        highlightedPath = highlightedPath,
         onNavigateTo = { onNavigateTo(it.absolutePath) },
         onOpenFile = onOpenFile,
         onToggleSelection = onToggleSelection,
@@ -68,7 +72,6 @@ fun FileGrid(
         gridState = gridState,
         minCellSize = minCellSize,
         presentation = presentation,
-        folderStatsLoadingPaths = folderStatsLoadingPaths,
         contentPadding = contentPadding
     )
 }
@@ -86,8 +89,8 @@ fun FileGridRows(
     gridState: LazyGridState = rememberLazyGridState(),
     minCellSize: Dp = 100.dp,
     presentation: FileItemPresentation = FileItemPresentation(),
-    folderStatsLoadingPaths: Set<String> = emptySet(),
-    contentPadding: PaddingValues = PaddingValues(16.dp)
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    highlightedPath: String? = null
 ) {
     val haptics = rememberArcileHaptics()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
@@ -107,66 +110,85 @@ fun FileGridRows(
     }
     var lastInteractedIndex by remember { mutableStateOf<Int?>(null) }
 
-    LaunchedEffect(displayRows) { lastInteractedIndex = null }
+    LaunchedEffect(displayRows) {
+        lastInteractedIndex = null
+    }
 
-    LazyVerticalGrid(
-        columns = GridCells.Adaptive(minSize = minCellSize),
-        contentPadding = contentPadding,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        state = gridState,
-        modifier = modifier.fillMaxWidth()
-    ) {
-        itemsIndexed(
-            items = displayRows,
-            key = { _, row -> row.absolutePath },
-            contentType = { _, row -> if (row.isDirectory) "directory" else "file" }
-        ) { index, row ->
-            val file = row.file
-            FileGridItem(
-                modifier = Modifier.animateItem(),
-                row = row,
-                isSelected = file.absolutePath in selectedFiles,
-                isInSelectionMode = selectedFiles.isNotEmpty(),
-                isFolderStatsLoading = file.absolutePath in folderStatsLoadingPaths,
-                presentation = presentation,
-                itemIndex = index,
-                visibleRange = visibleRange,
-                thumbnailPolicy = thumbnailPolicy,
-                onClick = {
-                    if (selectedFiles.isNotEmpty()) {
+    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+        val density = LocalDensity.current
+        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
+        val horizontalPaddingDp = with(density) {
+            (contentPadding.calculateLeftPadding(layoutDirection) +
+                contentPadding.calculateRightPadding(layoutDirection)).toPx() / density.density
+        }
+        val columnCount = remember(minCellSize, maxWidth, horizontalPaddingDp) {
+            dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
+                cellSizeDp = minCellSize.value,
+                contentWidthDp = maxWidth.value,
+                horizontalPaddingDp = horizontalPaddingDp,
+                itemSpacingDp = 16f
+            )
+        }
+
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(columnCount),
+            contentPadding = contentPadding,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            state = gridState,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            itemsIndexed(
+                items = displayRows,
+                key = { _, row -> row.absolutePath },
+                contentType = { _, row -> if (row.isDirectory) "directory" else "file" }
+            ) { index, row ->
+                val file = row.file
+                FileGridItem(
+                    modifier = Modifier.animateItem(),
+                    row = row,
+                    isSelected = file.absolutePath in selectedFiles,
+                    isHighlighted = file.absolutePath == highlightedPath,
+                    isInSelectionMode = selectedFiles.isNotEmpty(),
+                    presentation = presentation,
+                    itemIndex = index,
+                    visibleRange = visibleRange,
+                    thumbnailPolicy = thumbnailPolicy,
+                    onClick = {
+                        if (selectedFiles.isNotEmpty()) {
+                            lastInteractedIndex = index
+                            onToggleSelection(file.absolutePath)
+                            haptics.selectionChanged()
+                        } else if (file.isDirectory) {
+                            onNavigateTo(file)
+                        } else {
+                            onOpenFile(file.absolutePath)
+                        }
+                    },
+                    onLongClick = {
+                        val previousIndex = lastInteractedIndex?.takeIf { it in displayRows.indices }
+                        if (selectedFiles.isNotEmpty() && previousIndex != null && previousIndex != index) {
+                            val start = minOf(previousIndex, index)
+                            val end = maxOf(previousIndex, index)
+                            onSelectMultiple(displayRows.subList(start, end + 1).map { it.absolutePath })
+                            haptics.selectionChanged()
+                        } else {
+                            val wasEmpty = selectedFiles.isEmpty()
+                            onToggleSelection(file.absolutePath)
+                            if (wasEmpty) haptics.selectionStart() else haptics.selectionChanged()
+                        }
                         lastInteractedIndex = index
-                        onToggleSelection(file.absolutePath)
-                        haptics.selectionChanged()
-                    } else if (file.isDirectory) {
-                        onNavigateTo(file)
-                    } else {
-                        onOpenFile(file.absolutePath)
-                    }
-                },
-                onLongClick = {
-                    val previousIndex = lastInteractedIndex
-                    if (selectedFiles.isNotEmpty() && previousIndex != null && previousIndex != index) {
-                        val start = minOf(previousIndex, index)
-                        val end = maxOf(previousIndex, index)
-                        onSelectMultiple(displayRows.subList(start, end + 1).map { it.absolutePath })
-                        haptics.selectionChanged()
-                    } else {
+                    },
+                    onOpenDirectly = {
+                        if (file.isDirectory) onNavigateTo(file) else onOpenFile(file.absolutePath)
+                    },
+                    onToggleSelectionDirectly = {
                         val wasEmpty = selectedFiles.isEmpty()
                         onToggleSelection(file.absolutePath)
                         if (wasEmpty) haptics.selectionStart() else haptics.selectionChanged()
                     }
-                    lastInteractedIndex = index
-                },
-                onOpenDirectly = {
-                    if (file.isDirectory) onNavigateTo(file) else onOpenFile(file.absolutePath)
-                },
-                onToggleSelectionDirectly = {
-                    val wasEmpty = selectedFiles.isEmpty()
-                    onToggleSelection(file.absolutePath)
-                    if (wasEmpty) haptics.selectionStart() else haptics.selectionChanged()
-                }
-            )
+                )
+            }
         }
     }
 }

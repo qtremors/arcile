@@ -12,6 +12,7 @@ internal data class BrowserScrollPosition(
 
 internal fun BrowserUiState.scrollPositionKey(): String = browserScrollPositionKey(
     browserSortOption.name,
+    browserFoldersFirst.toString(),
     currentPath,
     activeCategoryName,
     selectedFolderTabPath.orEmpty(),

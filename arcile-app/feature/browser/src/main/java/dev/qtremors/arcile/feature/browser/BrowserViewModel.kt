@@ -224,7 +224,7 @@ internal class BrowserViewModel @Inject constructor(
     ) {
         if (navigationController.state.value.isVolumeRootScreen) return
         val normalized = presentation.normalized()
-        navigationController.updatePresentation(normalized)
+        navigationController.updatePresentation(normalized, applyToSubfolders)
         viewModelScope.launch {
             if (navigationController.state.value.isCategoryScreen) {
                 browserPreferencesRepository.updatePathPresentation(
@@ -353,7 +353,6 @@ internal class BrowserViewModel @Inject constructor(
     override fun onCleared() {
         operationController.stopObserving()
         archiveController.stopObserving()
-        super.onCleared()
     }
 
     private companion object {

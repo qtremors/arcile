@@ -63,6 +63,30 @@ import dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes
 import dev.qtremors.arcile.core.ui.theme.spacing
 import kotlinx.coroutines.launch
 
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.font.FontWeight
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import androidx.compose.foundation.layout.Row
+import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.operation.android.apk.ApkUpdateCandidate
+import dev.qtremors.arcile.core.operation.android.apk.OnDeviceApkDiscovery
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface AboutScreenEntryPoint {
+    fun onDeviceApkDiscovery(): OnDeviceApkDiscovery
+}
+
 @Composable
 fun AboutSection(
     title: String,
@@ -75,7 +99,9 @@ fun AboutSection(
 @Composable
 fun AboutScreen(
     onNavigateBack: () -> Unit,
-    onNavigateToLicenses: () -> Unit
+    onNavigateToLicenses: () -> Unit,
+    onInstallUpdate: (String) -> Unit,
+    onFeedback: (dev.qtremors.arcile.core.ui.ArcileFeedbackEvent) -> Unit = {}
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -83,6 +109,18 @@ fun AboutScreen(
     val coroutineScope = rememberCoroutineScope()
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    val discovery = remember(context) {
+        runCatching {
+            EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                AboutScreenEntryPoint::class.java
+            ).onDeviceApkDiscovery()
+        }.getOrNull()
+    }
+
+    val arcileUpdate by produceState<ApkUpdateCandidate?>(initialValue = null, discovery) {
+        value = discovery?.discoverArcileUpdate()
+    }
 
     val copyToClipboard = { text: String ->
         coroutineScope.launch {
@@ -91,7 +129,12 @@ fun AboutScreen(
                     ClipData.newPlainText(context.getString(R.string.app_name), text)
                 )
             )
-            context.showArcileToast(context.getString(R.string.copied_to_clipboard))
+            onFeedback(
+                dev.qtremors.arcile.core.ui.ArcileFeedbackEvent(
+                    message = dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.copied_to_clipboard),
+                    severity = dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity.Success
+                )
+            )
         }
     }
 
@@ -136,6 +179,74 @@ fun AboutScreen(
                         contentDescription = stringResource(R.string.app_name),
                         modifier = Modifier.size(96.dp)
                     )
+                }
+            }
+
+            arcileUpdate?.let { update ->
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer
+                        ),
+                        shape = ExpressiveShapes.large
+                    ) {
+                        androidx.compose.foundation.layout.Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Text(
+                                    text = stringResource(R.string.arcile_update_available_title),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
+                            Text(
+                                text = stringResource(
+                                    R.string.arcile_update_available_message,
+                                    update.metadata.versionName
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        val freshCandidate = discovery?.revalidateCandidate(update)
+                                        if (freshCandidate?.isValid == true) {
+                                            onInstallUpdate(freshCandidate.metadata.filePath)
+                                        } else {
+                                            onFeedback(
+                                                dev.qtremors.arcile.core.ui.ArcileFeedbackEvent(
+                                                    message = dev.qtremors.arcile.core.presentation.UiText.StringResource(
+                                                        R.string.error_file_operation_failed
+                                                    ),
+                                                    severity = dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity.Error
+                                                )
+                                            )
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.End),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) {
+                                Text(stringResource(R.string.arcile_update_action))
+                            }
+                        }
+                    }
                 }
             }
 

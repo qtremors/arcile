@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 
 @Composable
 fun ExpressiveSwitch(
@@ -108,7 +109,7 @@ fun ExpressiveSwitch(
     ) {
         Box(
             modifier = Modifier
-                .offset(x = thumbOffset)
+                .offset { IntOffset(thumbOffset.roundToPx(), 0) }
                 .size(24.dp),
             contentAlignment = Alignment.Center
         ) {

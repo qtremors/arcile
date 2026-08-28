@@ -27,7 +27,8 @@ data class FileListingPreferences(
     val viewMode: FileViewMode = DEFAULT_VIEW_MODE,
     val listZoom: Float = DEFAULT_LIST_ZOOM,
     val gridMinCellSize: Float = DEFAULT_GRID_MIN_CELL_SIZE,
-    val showThumbnails: Boolean = DEFAULT_SHOW_THUMBNAILS
+    val showThumbnails: Boolean = DEFAULT_SHOW_THUMBNAILS,
+    val foldersFirst: Boolean = DEFAULT_FOLDERS_FIRST
 ) {
     companion object {
         val DEFAULT_SORT_OPTION: FileSortOption = FileSortOption.NAME_ASC
@@ -36,6 +37,7 @@ data class FileListingPreferences(
         const val DEFAULT_LIST_ZOOM: Float = 1f
         const val DEFAULT_GRID_MIN_CELL_SIZE: Float = 132f
         const val DEFAULT_SHOW_THUMBNAILS: Boolean = true
+        const val DEFAULT_FOLDERS_FIRST: Boolean = true
         const val MIN_LIST_ZOOM: Float = 0.85f
         const val MAX_LIST_ZOOM: Float = 1.25f
         const val MIN_GRID_MIN_CELL_SIZE: Float = 96f
@@ -52,7 +54,8 @@ data class BrowserPreferences(
     val appStartPage: AppStartPage = AppStartPage.HOME,
     val globalPresentation: FileListingPreferences = FileListingPreferences(),
     val recentPresentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION
+        sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION,
+        foldersFirst = false
     ),
     val pathPresentationOptions: Map<String, FileListingPreferences> = emptyMap(),
     val exactPathPresentationOptions: Map<String, FileListingPreferences> = emptyMap(),

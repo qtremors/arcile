@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.browser.ui
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,10 +16,9 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
@@ -30,11 +28,11 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
@@ -44,17 +42,21 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.presentation.filterAndSortFiles
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator
+import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
 import dev.qtremors.arcile.core.ui.Breadcrumbs
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.FolderTabsRow
+import dev.qtremors.arcile.core.ui.arcileHorizontalSwipe
 import dev.qtremors.arcile.core.ui.lists.FileGridRows
-import dev.qtremors.arcile.core.ui.lists.FileItemRow
+import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileListRows
+import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.ui.lists.VolumeRootList
 import dev.qtremors.arcile.core.ui.rememberDateOnlyFormatter
 import dev.qtremors.arcile.core.ui.scrollbar.ArcileFastScrollbar
@@ -64,7 +66,6 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
 import java.util.Date
-import kotlin.math.abs
 
 private data class BrowserContentKey(
     val isSearch: Boolean,
@@ -87,6 +88,7 @@ internal fun BrowserContent(
     layoutDirection: LayoutDirection,
     listState: LazyListState,
     gridState: LazyGridState,
+    highlightedPath: String?,
     navigationIntents: BrowserNavigationIntents,
     selectionIntents: BrowserSelectionIntents,
     searchIntents: BrowserSearchIntents,
@@ -179,21 +181,13 @@ internal fun BrowserContent(
                 .weight(1f)
                 .then(
                     if (categoryFolderSwipeEnabled) {
-                        Modifier.pointerInput(categoryFolderTabs, selectedCategoryFolderTabIndex) {
-                            var horizontalDrag = 0f
-                            detectHorizontalDragGestures(
-                                onDragStart = { horizontalDrag = 0f },
-                                onHorizontalDrag = { change, dragAmount ->
-                                    horizontalDrag += dragAmount
-                                    if (abs(horizontalDrag) > 96.dp.toPx()) {
-                                        change.consume()
-                                        onSwitchCategoryFolderTab(if (horizontalDrag < 0f) 1 else -1)
-                                        horizontalDrag = 0f
-                                    }
-                                },
-                                onDragEnd = { horizontalDrag = 0f },
-                                onDragCancel = { horizontalDrag = 0f }
-                            )
+                        Modifier.arcileHorizontalSwipe(minimumDistance = 96.dp) { direction ->
+                            when (direction) {
+                                ArcileSwipeDirection.Left -> onSwitchCategoryFolderTab(1)
+                                ArcileSwipeDirection.Right -> onSwitchCategoryFolderTab(-1)
+                                ArcileSwipeDirection.Up,
+                                ArcileSwipeDirection.Down -> Unit
+                            }
                         }
                     } else {
                         Modifier.browserWorkspaceSwipe(onWorkspaceSwipe)
@@ -212,6 +206,7 @@ internal fun BrowserContent(
                         state = state,
                         currentPresentation = currentPresentation,
                         navigationIntents = navigationIntents,
+                        selectionIntents = selectionIntents,
                         searchIntents = searchIntents,
                         onShowSearchBarChange = onShowSearchBarChange
                     )
@@ -236,6 +231,7 @@ internal fun BrowserContent(
                         layoutDirection = layoutDirection,
                         listState = listState,
                         gridState = gridState,
+                        highlightedPath = highlightedPath,
                         navigationIntents = navigationIntents,
                         selectionIntents = selectionIntents,
                         onGridSizeChange = onGridSizeChange,
@@ -298,10 +294,23 @@ private fun BrowserSearchResults(
     state: BrowserUiState,
     currentPresentation: FileListingPreferences,
     navigationIntents: BrowserNavigationIntents,
+    selectionIntents: BrowserSelectionIntents,
     searchIntents: BrowserSearchIntents,
     onShowSearchBarChange: (Boolean) -> Unit
 ) {
-    if (state.searchResults.isEmpty()) {
+    val sortedSearchResults = remember(
+        state.searchResults,
+        currentPresentation.sortOption,
+        currentPresentation.foldersFirst
+    ) {
+        filterAndSortFiles(
+            files = state.searchResults,
+            query = "",
+            sortOption = currentPresentation.sortOption,
+            foldersFirst = currentPresentation.foldersFirst
+        )
+    }
+    if (sortedSearchResults.isEmpty()) {
         EmptyState(
             variant = EmptyStateVariant.Search,
             title = stringResource(R.string.no_results_found),
@@ -315,44 +324,72 @@ private fun BrowserSearchResults(
     } else {
         val formatter = rememberDateOnlyFormatter()
         val searchListState = rememberLazyListState()
+        val searchGridState = rememberLazyGridState()
+        val bottomPadding = WindowInsets.navigationBars
+            .asPaddingValues()
+            .calculateBottomPadding() + if (state.selectedFiles.isNotEmpty()) {
+            MaterialTheme.spacing.toolbarBottomGap
+        } else {
+            MaterialTheme.spacing.screenGutter
+        }
+        val openSearchResult: (String) -> Unit = { path ->
+            onShowSearchBarChange(false)
+            searchIntents.onClearSearch()
+            navigationIntents.onOpenFile(path)
+        }
+        val navigateToSearchResult: (String) -> Unit = { path ->
+            onShowSearchBarChange(false)
+            searchIntents.onClearSearch()
+            navigationIntents.onNavigateTo(path)
+        }
         Box(modifier = Modifier.fillMaxSize()) {
-            LazyColumn(
-                state = searchListState,
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(
-                    bottom = WindowInsets.navigationBars
-                        .asPaddingValues()
-                        .calculateBottomPadding() + MaterialTheme.spacing.screenGutter
-                )
-            ) {
-                items(
-                    items = state.searchResults,
-                    key = { it.absolutePath },
-                    contentType = { if (it.isDirectory) "directory" else "file" }
-                ) { file ->
-                    FileItemRow(
-                        file = file,
-                        formattedDate = formatter.format(Date(file.lastModified)),
-                        isSelected = false,
-                        presentation = FileItemPresentation(
-                            showThumbnails = currentPresentation.showThumbnails
-                        ),
-                        onClick = {
-                            onShowSearchBarChange(false)
-                            searchIntents.onClearSearch()
-                            if (file.isDirectory) {
-                                navigationIntents.onNavigateTo(file.absolutePath)
-                            } else if (state.archiveContext == null) {
-                                navigationIntents.onOpenFile(file.absolutePath)
-                            }
-                        },
-                        onLongClick = {}
+            if (currentPresentation.viewMode == FileViewMode.GRID) {
+                FileGrid(
+                    files = sortedSearchResults,
+                    selectedFiles = state.selectedFiles,
+                    onNavigateTo = navigateToSearchResult,
+                    onOpenFile = if (state.archiveContext == null) openSearchResult else { _ -> },
+                    onToggleSelection = selectionIntents.onToggleSelection,
+                    onSelectMultiple = selectionIntents.onSelectMultiple,
+                    gridState = searchGridState,
+                    minCellSize = currentPresentation.gridMinCellSize.dp,
+                    presentation = FileItemPresentation(
+                        showThumbnails = currentPresentation.showThumbnails,
+                        openFileFromThumbnailInSelectionMode = state.archiveContext == null
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(
+                        start = 8.dp,
+                        top = 8.dp,
+                        end = 8.dp,
+                        bottom = bottomPadding
                     )
-                }
+                )
+            } else {
+                FileList(
+                    files = sortedSearchResults,
+                    selectedFiles = state.selectedFiles,
+                    onNavigateTo = navigateToSearchResult,
+                    onOpenFile = if (state.archiveContext == null) openSearchResult else { _ -> },
+                    onToggleSelection = selectionIntents.onToggleSelection,
+                    onSelectMultiple = selectionIntents.onSelectMultiple,
+                    listState = searchListState,
+                    presentation = FileItemPresentation(
+                        zoom = currentPresentation.listZoom,
+                        showThumbnails = currentPresentation.showThumbnails,
+                        openFileFromThumbnailInSelectionMode = state.archiveContext == null
+                    ),
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = bottomPadding)
+                )
             }
             ArcileFastScrollbar(
-                scrollbarState = LazyListScrollbarState(searchListState),
-                labelForIndex = { index -> state.searchResults.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
+                scrollbarState = if (currentPresentation.viewMode == FileViewMode.GRID) {
+                    LazyGridScrollbarState(searchGridState)
+                } else {
+                    LazyListScrollbarState(searchListState)
+                },
+                labelForIndex = { index -> sortedSearchResults.getOrNull(index)?.let { formatter.format(Date(it.lastModified)) }.orEmpty() },
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .fillMaxHeight(),
@@ -375,6 +412,7 @@ private fun BrowserListingContent(
     layoutDirection: LayoutDirection,
     listState: LazyListState,
     gridState: LazyGridState,
+    highlightedPath: String?,
     navigationIntents: BrowserNavigationIntents,
     selectionIntents: BrowserSelectionIntents,
     onGridSizeChange: (Float) -> Unit,
@@ -418,6 +456,7 @@ private fun BrowserListingContent(
             FileGridRows(
                 rows = state.displayState.visibleGridRows,
                 selectedFiles = state.selectedFiles,
+                highlightedPath = highlightedPath,
                 onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
@@ -437,7 +476,6 @@ private fun BrowserListingContent(
                     ),
                 gridState = gridState,
                 minCellSize = currentPresentation.gridMinCellSize.dp,
-                folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding,
@@ -461,6 +499,7 @@ private fun BrowserListingContent(
             FileListRows(
                 rows = state.displayState.visibleListRows,
                 selectedFiles = state.selectedFiles,
+                highlightedPath = highlightedPath,
                 onNavigateTo = { file -> navigationIntents.onNavigateTo(file.absolutePath) },
                 onOpenFile = if (state.archiveContext == null) navigationIntents.onOpenFile else { _ -> },
                 onToggleSelection = selectionIntents.onToggleSelection,
@@ -474,7 +513,6 @@ private fun BrowserListingContent(
                 ),
                 modifier = Modifier.fillMaxSize(),
                 listState = listState,
-                folderStatsLoadingPaths = state.folderStatsLoadingPaths,
                 contentPadding = PaddingValues(
                     top = 8.dp,
                     bottom = bottomContentPadding
@@ -495,42 +533,14 @@ private fun BrowserListingContent(
 }
 
 internal fun Modifier.browserWorkspaceSwipe(onSwipe: (Int) -> Unit): Modifier =
-    pointerInput(onSwipe) {
-        awaitEachGesture {
-            val down = awaitFirstDown(
-                requireUnconsumed = false,
-                pass = PointerEventPass.Initial
-            )
-            var lastPosition = down.position
-            var released = false
-            while (!released) {
-                val change = awaitPointerEvent(PointerEventPass.Final)
-                    .changes
-                    .firstOrNull { it.id == down.id }
-                    ?: break
-                lastPosition = change.position
-                released = !change.pressed
-            }
-            if (released) {
-                browserWorkspaceSwipeDirection(
-                    deltaX = lastPosition.x - down.position.x,
-                    deltaY = lastPosition.y - down.position.y,
-                    thresholdPx = 72.dp.toPx()
-                )?.let(onSwipe)
-            }
+    arcileHorizontalSwipe { direction ->
+        when (direction) {
+            ArcileSwipeDirection.Left -> onSwipe(1)
+            ArcileSwipeDirection.Right -> onSwipe(-1)
+            ArcileSwipeDirection.Up,
+            ArcileSwipeDirection.Down -> Unit
         }
     }
-
-internal fun browserWorkspaceSwipeDirection(
-    deltaX: Float,
-    deltaY: Float,
-    thresholdPx: Float
-): Int? {
-    if (thresholdPx <= 0f || abs(deltaX) < thresholdPx || abs(deltaX) <= abs(deltaY)) {
-        return null
-    }
-    return if (deltaX < 0f) 1 else -1
-}
 
 private fun Modifier.pinchToResizeGrid(
     currentCellSize: State<Float>,
@@ -542,27 +552,29 @@ private fun Modifier.pinchToResizeGrid(
         var accumulatedScale = 1f
         val startCellSize = currentCellSize.value
         var isPinching = false
+        var lastRawSize = startCellSize
         do {
             val event = awaitPointerEvent()
             if (event.changes.size >= 2) {
                 isPinching = true
                 accumulatedScale *= event.calculateZoom()
-                onSizeChanged.value(
-                    (startCellSize * accumulatedScale).coerceIn(
-                        FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
-                        FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
-                    )
+                lastRawSize = (startCellSize * accumulatedScale).coerceIn(
+                    FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
+                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
                 )
+                onSizeChanged.value(lastRawSize)
                 event.changes.forEach { it.consume() }
             }
         } while (event.changes.any { it.pressed })
         if (isPinching) {
-            onSizeFinalized.value(
-                (startCellSize * accumulatedScale).coerceIn(
-                    FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
-                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
-                )
+            val widthDp = if (density > 0f) size.width.toFloat() / density else size.width.toFloat()
+            val snapped = dev.qtremors.arcile.core.ui.GridColumnModel.snapCellSize(
+                currentCellSize = lastRawSize,
+                contentWidthDp = widthDp,
+                horizontalPaddingDp = 16f,
+                itemSpacingDp = 16f
             )
+            onSizeFinalized.value(snapped)
         }
     }
 }

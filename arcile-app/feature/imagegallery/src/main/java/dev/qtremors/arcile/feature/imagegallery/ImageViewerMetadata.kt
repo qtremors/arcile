@@ -63,13 +63,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,7 +84,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.KeyboardType
@@ -125,7 +124,9 @@ internal fun buildMetadataDetailRows(
     file: FileModel,
     metadata: GalleryFileMetadata?,
     labels: MetadataDetailLabels,
-    dateText: String? = formatViewerDateTime(file.lastModified)
+    context: android.content.Context,
+    dateText: String? = formatViewerDateTime(file.lastModified),
+    fileSizeFormatter: ((Long) -> String)? = null
 ): List<MetadataDetailRow> = buildImageMetadataDetailRows(
     title = file.name,
     reference = file.absolutePath,
@@ -135,7 +136,9 @@ internal fun buildMetadataDetailRows(
     extension = file.extension,
     metadata = metadata,
     labels = labels,
-    isUriReference = false
+    isUriReference = false,
+    context = context,
+    fileSizeFormatter = fileSizeFormatter
 ).let { rows ->
     val uri = file.nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: return@let rows
     val pathIndex = rows.indexOfFirst { it.label == labels.path }.takeIf { it >= 0 } ?: rows.size
@@ -155,7 +158,7 @@ internal fun MetadataSheet(
     onDismiss: () -> Unit
 ) {
     var isEditing by rememberSaveable(file.absolutePath) { mutableStateOf(false) }
-    var revisionAtEditStart by rememberSaveable(file.absolutePath) { mutableStateOf(metadataRevision) }
+    var revisionAtEditStart by rememberSaveable(file.absolutePath) { mutableLongStateOf(metadataRevision) }
     val canEdit = metadata?.isEditable == true
 
     LaunchedEffect(metadataRevision) {
@@ -278,8 +281,9 @@ internal fun MetadataSheet(
                             }
                         }
                         val displayMetadata = metadata?.copy(dateTaken = formattedDateTaken)
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         ImageMetadataSections(
-                            fileRows = buildMetadataDetailRows(file, displayMetadata, labels),
+                            fileRows = buildMetadataDetailRows(file, displayMetadata, labels, context = context),
                             metadata = displayMetadata,
                             sectionTitle = stringResource(R.string.image_gallery_metadata_file_information),
                             cameraTitle = stringResource(R.string.image_gallery_metadata_camera_exif),

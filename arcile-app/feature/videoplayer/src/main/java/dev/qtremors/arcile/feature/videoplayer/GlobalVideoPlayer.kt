@@ -62,6 +62,7 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.security.SecureWindowEffect
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import kotlin.math.max
 import kotlin.math.min
@@ -268,6 +269,7 @@ internal fun GlobalVideoViewer(
     session: VideoPlaybackSession,
     onNavigateBack: () -> Unit,
 ) {
+    SecureWindowEffect(session.screenshotProtectionEnabled)
     val context = LocalContext.current
     val backgroundPlaybackAllowed = videoBackgroundPlaybackAllowed(session.securityScopeId)
     val exitViewer = remember(context, backgroundPlaybackAllowed, onNavigateBack) {

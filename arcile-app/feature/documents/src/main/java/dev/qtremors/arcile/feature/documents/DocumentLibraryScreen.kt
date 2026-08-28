@@ -34,7 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,7 +50,9 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.category.CategoryFolderSummary
 import dev.qtremors.arcile.core.ui.category.CategoryFolderGridItem
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryActions
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryLabels
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryState
 import dev.qtremors.arcile.core.ui.category.FileCategoryLibrary
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryFileActionCallbacks
 import dev.qtremors.arcile.core.ui.category.CategoryGridItem
@@ -100,7 +105,7 @@ internal fun DocumentLibraryScreen(
             onClearError()
         }
     }
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val labels = CategoryLibraryLabels(
         searchPlaceholder = stringResource(R.string.documents_search),
         filesTab = stringResource(R.string.documents_all),
@@ -115,42 +120,46 @@ internal fun DocumentLibraryScreen(
         selectedCount = { count -> resources.getQuantityString(R.plurals.documents_selected, count, count) }
     )
     FileCategoryLibrary(
-        files = state.files,
-        folders = state.folders,
-        selectedPaths = state.selectedPaths,
-        query = state.query,
-        searchFilters = state.searchFilters,
-        tab = state.tab,
-        itemPresentation = state.presentation,
-        folderPresentation = state.folderPresentation,
-        defaultPage = state.defaultPage,
-        grouping = state.grouping,
-        showFileDetails = state.showFileDetails,
-        scrollbarEnabled = state.scrollbarEnabled,
-        isLoading = state.isLoading,
-        folderFilterLabel = state.folderFilter?.label,
-        folderFilterPath = state.folderFilter?.path,
-        labels = labels,
-        onNavigateBack = onNavigateBack,
-        onQueryChange = onQueryChange,
-        onSearchFiltersChange = onSearchFiltersChange,
-        onTabChange = onTabChange,
-        onPresentationChange = onPresentationChange,
-        onDefaultPageChange = onDefaultPageChange,
-        onGroupingChange = onGroupingChange,
-        onShowFileDetailsChange = onShowFileDetailsChange,
-        onRefresh = onRefresh,
-        onClearFolderFilter = onClearFolderFilter,
-        onToggleSelection = onToggleSelection,
-        onSelectPaths = onSelectPaths,
-        onClearSelection = onClearSelection,
-        onSelectAll = onSelectAll,
-        onInvertSelection = onInvertSelection,
-        onShareSelection = onShareSelection,
-        onOpenSelectionWith = onOpenSelectionWith,
-        fileActions = fileActions,
-        onOpenFile = onOpenFile,
-        onOpenFolder = onOpenFolder,
+        state = CategoryLibraryState(
+            files = state.files,
+            folders = state.folders,
+            selectedPaths = state.selectedPaths,
+            query = state.query,
+            searchFilters = state.searchFilters,
+            tab = state.tab,
+            itemPresentation = state.presentation,
+            folderPresentation = state.folderPresentation,
+            defaultPage = state.defaultPage,
+            grouping = state.grouping,
+            showFileDetails = state.showFileDetails,
+            scrollbarEnabled = state.scrollbarEnabled,
+            isLoading = state.isLoading,
+            folderFilterLabel = state.folderFilter?.label,
+            folderFilterPath = state.folderFilter?.path,
+            labels = labels
+        ),
+        actions = CategoryLibraryActions(
+            onNavigateBack = onNavigateBack,
+            onQueryChange = onQueryChange,
+            onSearchFiltersChange = onSearchFiltersChange,
+            onTabChange = onTabChange,
+            onPresentationChange = onPresentationChange,
+            onDefaultPageChange = onDefaultPageChange,
+            onGroupingChange = onGroupingChange,
+            onShowFileDetailsChange = onShowFileDetailsChange,
+            onRefresh = onRefresh,
+            onClearFolderFilter = onClearFolderFilter,
+            onToggleSelection = onToggleSelection,
+            onSelectPaths = onSelectPaths,
+            onClearSelection = onClearSelection,
+            onSelectAll = onSelectAll,
+            onInvertSelection = onInvertSelection,
+            onShareSelection = onShareSelection,
+            onOpenSelectionWith = onOpenSelectionWith,
+            fileActions = fileActions,
+            onOpenFile = onOpenFile,
+            onOpenFolder = onOpenFolder
+        ),
         fileItem = { file, selected, selectionMode, onClick, onLongClick, modifier ->
             DocumentItem(
                 file = file,
@@ -176,6 +185,25 @@ internal fun DocumentLibraryScreen(
     )
 }
 
+internal fun documentItemDetailLines(
+    context: android.content.Context,
+    extension: String,
+    sizeBytes: Long,
+    lastModified: Long,
+    isGrid: Boolean,
+    dateFormatter: (Long) -> String,
+    fileSizeFormatter: ((android.content.Context, Long) -> String)? = null
+): List<String> {
+    val sizeText = fileSizeFormatter?.invoke(context, sizeBytes) ?: formatFileSize(context, sizeBytes)
+    val sizeAndDate = "$sizeText • ${dateFormatter(lastModified)}"
+    return if (isGrid) {
+        listOf(sizeAndDate)
+    } else {
+        val typeLabel = extension.uppercase().ifBlank { "FILE" }
+        listOf(typeLabel, sizeAndDate)
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun DocumentItem(
@@ -190,12 +218,17 @@ private fun DocumentItem(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val formatter = rememberDateTimeFormatter()
     val info = CategoryItemInfo(
         title = file.name,
-        detailLines = listOf(
-            file.extension.uppercase().ifBlank { "FILE" },
-            "${formatFileSize(file.size)} • ${formatter.format(file.lastModified)}"
+        detailLines = documentItemDetailLines(
+            context = context,
+            extension = file.extension,
+            sizeBytes = file.size,
+            lastModified = file.lastModified,
+            isGrid = grid,
+            dateFormatter = { formatter.format(it) }
         )
     )
     if (grid) {
@@ -229,11 +262,14 @@ private fun DocumentPreview(
     file: FileModel,
     showThumbnail: Boolean,
     modifier: Modifier = Modifier,
-    contentScale: ContentScale = ContentScale.Fit
+    contentScale: ContentScale = ContentScale.Crop
 ) {
     Box(modifier, contentAlignment = Alignment.Center) {
         Icon(
-            imageVector = getFileIconVector(file),
+            imageVector = getFileIconVector(
+                file,
+                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+            ),
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(38.dp)
@@ -243,7 +279,9 @@ private fun DocumentPreview(
                 model = ThumbnailKey.from(file),
                 contentDescription = null,
                 contentScale = contentScale,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
             )
         }
     }
@@ -251,14 +289,17 @@ private fun DocumentPreview(
 
 @Composable
 private fun DocumentTypeBadge(extension: String, modifier: Modifier = Modifier) {
+    val typeLabel = extension.uppercase().ifBlank { "FILE" }
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.tertiaryContainer,
         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-        modifier = modifier
+        modifier = modifier.clearAndSetSemantics {
+            contentDescription = typeLabel
+        }
     ) {
         Text(
-            extension.uppercase().ifBlank { "FILE" },
+            text = typeLabel,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)

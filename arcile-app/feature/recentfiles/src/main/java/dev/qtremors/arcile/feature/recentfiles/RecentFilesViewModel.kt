@@ -106,12 +106,16 @@ internal class RecentFilesViewModel @Inject constructor(
         viewModelScope.launch {
             browserPreferencesRepository.recentFilesPreferencesFlow.collectLatest { prefs ->
                 _state.update {
-                    val presentation = prefs.presentation
+                    val presentation = prefs.presentation.normalizedRecentPresentation()
                     it.copy(
                         presentation = presentation,
                         displayedRecentFiles = it.copy(presentation = presentation).displayRecentFiles(),
                         searchResults = it.copy(presentation = presentation).displaySearchResults()
                     )
+                }
+                val normalized = prefs.presentation.normalizedRecentPresentation()
+                if (normalized != prefs.presentation) {
+                    browserPreferencesRepository.updateRecentPresentation(normalized)
                 }
             }
         }
@@ -312,7 +316,7 @@ internal class RecentFilesViewModel @Inject constructor(
     }
 
     fun updatePresentation(preferences: FileListingPreferences) {
-        val normalized = preferences.normalized()
+        val normalized = preferences.normalizedRecentPresentation()
         _state.update {
             it.copy(
                 presentation = normalized,

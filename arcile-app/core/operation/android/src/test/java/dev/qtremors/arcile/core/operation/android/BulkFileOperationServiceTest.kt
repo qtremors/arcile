@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.app.Notification
 import android.app.NotificationManager
+import android.content.pm.ServiceInfo
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
@@ -26,6 +27,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -50,6 +52,7 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
+@Suppress("DEPRECATION")
 class BulkFileOperationServiceTest {
 
     private lateinit var context: Context
@@ -86,6 +89,9 @@ class BulkFileOperationServiceTest {
         service.archiveRepository = archiveRepository
         service.storageWorkCoordinator = storageWorkCoordinator
         service.requestStore = requestStore
+        service.importSpaceAllocatorFactory = {
+            ImportSpaceAllocator { _, _, _ -> ImportSpaceReservation {} }
+        }
     }
 
     @Test
@@ -156,6 +162,43 @@ class BulkFileOperationServiceTest {
             Thread.sleep(10)
         }
         assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
+    }
+
+    @Test
+    @Config(sdk = [35])
+    fun `foreground timeout fails operation and removes notification`() {
+        val request = BulkFileOperationRequest(
+            operationId = "op-timeout",
+            type = BulkFileOperationType.COPY,
+            sourcePaths = listOf("/source/a.txt"),
+            destinationPath = "/dest"
+        )
+        every { coordinator.activeRequest } returns MutableStateFlow(request)
+        val started = CountDownLatch(1)
+        clipboardRepository.copyFilesResultProvider = { _, _, _, _ ->
+            started.countDown()
+            awaitCancellation()
+        }
+
+        serviceController.withIntent(startIntent(request)).startCommand(0, 1)
+        assertTrue(started.await(2, TimeUnit.SECONDS))
+
+        service.onTimeout(1, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+
+        verify(timeout = 2_000) {
+            coordinator.onOperationFailed(
+                request,
+                match { message -> message.contains("background time limit") }
+            )
+        }
+        verify(exactly = 0) { coordinator.onOperationCompleted(request) }
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        val deadline = System.currentTimeMillis() + 2_000
+        while (shadowOf(notificationManager).allNotifications.isNotEmpty() && System.currentTimeMillis() < deadline) {
+            Thread.sleep(10)
+        }
+        assertTrue(shadowOf(notificationManager).allNotifications.isEmpty())
+        awaitInactiveMutation()
     }
 
     @Test

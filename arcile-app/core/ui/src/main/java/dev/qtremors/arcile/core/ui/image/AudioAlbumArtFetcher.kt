@@ -7,6 +7,8 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.util.Size
+import androidx.core.graphics.drawable.toDrawable
+import androidx.core.net.toUri
 import coil.ImageLoader
 import coil.decode.DataSource
 import coil.fetch.DrawableResult
@@ -30,28 +32,24 @@ class AudioAlbumArtFetcher(
         val context = options.context
         val targetSize = ThumbnailTargetSize.fromOptions(options)
 
-        // Use native loadThumbnail on API 29+
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            try {
-                contentUri?.let { uri ->
-                    val bitmap = context.contentResolver.loadThumbnail(Uri.parse(uri), Size(targetSize, targetSize), null)
-                    return@withContext DrawableResult(
-                        drawable = BitmapDrawable(context.resources, bitmap),
-                        isSampled = true,
-                        dataSource = DataSource.DISK
-                    )
-                }
-
-            } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-                // Fallback to MediaMetadataRetriever below
+        try {
+            contentUri?.let { uri ->
+                val bitmap = context.contentResolver.loadThumbnail(uri.toUri(), Size(targetSize, targetSize), null)
+                return@withContext DrawableResult(
+                    drawable = bitmap.toDrawable(context.resources),
+                    isSampled = true,
+                    dataSource = DataSource.DISK
+                )
             }
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            // Fallback to MediaMetadataRetriever below.
         }
 
         val retriever = MediaMetadataRetriever()
         try {
             if (contentUri != null) {
-                retriever.setDataSource(context, Uri.parse(contentUri))
+                retriever.setDataSource(context, contentUri.toUri())
             } else {
                 if (!file.exists() || !file.isFile) return@withContext null
                 retriever.setDataSource(file.absolutePath)
@@ -80,7 +78,7 @@ class AudioAlbumArtFetcher(
                 val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size, decodeOptions)
                     ?: return@withContext null 
                 DrawableResult(
-                    drawable = BitmapDrawable(context.resources, bitmap),
+                    drawable = bitmap.toDrawable(context.resources),
                     isSampled = true,
                     dataSource = DataSource.DISK
                 )

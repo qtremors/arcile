@@ -14,7 +14,8 @@ fun NavGraphBuilder.registerPluginsRoute(
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onInstallUpdate: (String) -> Unit
 ) {
     composable<AppRoutes.Plugins>(
         enterTransition = enterTransition,
@@ -22,6 +23,9 @@ fun NavGraphBuilder.registerPluginsRoute(
         popEnterTransition = popEnterTransition,
         popExitTransition = popExitTransition
     ) {
-        PluginsScreen(onNavigateBack = onNavigateBack)
+        PluginsScreen(
+            onNavigateBack = onNavigateBack,
+            onInstallUpdate = onInstallUpdate
+        )
     }
 }

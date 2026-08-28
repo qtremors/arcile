@@ -51,7 +51,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -66,14 +65,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -82,7 +82,13 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.ArcileGestureAxis
+import dev.qtremors.arcile.core.ui.ArcileGestureDefaults
+import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.arcileGestureAxis
+import dev.qtremors.arcile.core.ui.arcileSwipeDirection
+import dev.qtremors.arcile.core.ui.arcileTapEligible
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.launch
@@ -91,6 +97,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 
@@ -103,17 +110,12 @@ internal fun ZoomableImageViewer(
     onScaleChanged: (Float) -> Unit,
     onSwipeUp: () -> Unit,
     onOpenWith: () -> Unit,
-    imageModifier: Modifier = Modifier,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val configuration = LocalConfiguration.current
-    val density = LocalDensity.current
-
-    val screenHeightPx = remember(configuration, density) {
-        with(density) { configuration.screenHeightDp.dp.toPx() }
-    }
+    val screenHeightPx = LocalWindowInfo.current.containerSize.height.toFloat()
 
     // Animation states for scale & offsets
     val scale = remember { Animatable(1f) }
@@ -161,7 +163,8 @@ internal fun ZoomableImageViewer(
             .fillMaxSize()
             .pointerInput(file, imageSize, rotation) {
                 val touchSlop = viewConfiguration.touchSlop
-                val doubleTapTimeout = 300L
+                val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                val tapTimeout = viewConfiguration.longPressTimeoutMillis
                 var lastTapTime = 0L
                 var lastTapPosition = Offset.Zero
                 fun fittedContentSize() = viewerFittedContentSize(
@@ -174,23 +177,37 @@ internal fun ZoomableImageViewer(
                 
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
-                    val downTime = System.currentTimeMillis()
+                    val downTime = down.uptimeMillis
                     val downPos = down.position
+                    var lastPosition = downPos
+                    var releaseTime = downTime
+                    val velocityTracker = VelocityTracker().apply {
+                        addPosition(down.uptimeMillis, down.position)
+                    }
                     var gestureScale = scale.value
                     var gestureOffset = Offset(offsetX.value, offsetY.value)
                     
                     var isMultiTouch = false
                     var dragStarted = false
-                    var dragDirection: DragDirection? = null
+                    var dragDirection: ArcileGestureAxis? = null
+                    var movementConsumedByAnotherOwner = false
                     
                     while (true) {
                         val event = awaitPointerEvent()
                         val pointers = event.changes
+                        pointers.firstOrNull { it.id == down.id }?.let { primary ->
+                            lastPosition = primary.position
+                            releaseTime = primary.uptimeMillis
+                            velocityTracker.addPosition(primary.uptimeMillis, primary.position)
+                        }
                         if (pointers.isEmpty() || pointers.all { !it.pressed }) {
                             break
                         }
                         
-                        if (pointers.size >= 2) {
+                        if (pointers.any { pointer ->
+                                pointer.id != down.id && (pointer.pressed || pointer.previousPressed)
+                            }
+                        ) {
                             isMultiTouch = true
                             pointers.forEach { it.consume() }
                             
@@ -220,15 +237,18 @@ internal fun ZoomableImageViewer(
                                 val currentPos = change.position
                                 val delta = currentPos - change.previousPosition
                                 val totalDelta = currentPos - downPos
+                                if (!dragStarted && change.isConsumed && delta != Offset.Zero) {
+                                    movementConsumedByAnotherOwner = true
+                                }
                                 
                                 if (!dragStarted) {
-                                    if (totalDelta.getDistance() > touchSlop) {
+                                    arcileGestureAxis(
+                                        deltaX = totalDelta.x,
+                                        deltaY = totalDelta.y,
+                                        touchSlop = touchSlop
+                                    )?.let { lockedAxis ->
                                         dragStarted = true
-                                        dragDirection = if (abs(totalDelta.y) > abs(totalDelta.x)) {
-                                            DragDirection.VERTICAL
-                                        } else {
-                                            DragDirection.HORIZONTAL
-                                        }
+                                        dragDirection = lockedAxis
                                     }
                                 }
                                 
@@ -261,7 +281,7 @@ internal fun ZoomableImageViewer(
                                         gestureOffset = Offset(newX, newY)
                                         pointerTransform.value = ViewerPointerTransform(gestureScale, gestureOffset)
                                     } else {
-                                        if (dragDirection == DragDirection.VERTICAL) {
+                                        if (dragDirection == ArcileGestureAxis.Vertical) {
                                             change.consume()
                                             gestureOffset += Offset(delta.x * 0.3f, delta.y)
                                             pointerTransform.value = ViewerPointerTransform(gestureScale, gestureOffset)
@@ -272,10 +292,20 @@ internal fun ZoomableImageViewer(
                         }
                     }
                     
-                    val releaseTime = System.currentTimeMillis()
                     val dragY = gestureOffset.y
+                    val totalMovement = lastPosition - downPos
                     
-                    if (!isMultiTouch && !dragStarted && (releaseTime - downTime) < 300L) {
+                    if (
+                        !dragStarted && arcileTapEligible(
+                            deltaX = totalMovement.x,
+                            deltaY = totalMovement.y,
+                            durationMillis = releaseTime - downTime,
+                            touchSlop = touchSlop,
+                            tapTimeoutMillis = tapTimeout,
+                            hadMultiplePointers = isMultiTouch,
+                            movementConsumedByAnotherOwner = movementConsumedByAnotherOwner
+                        )
+                    ) {
                         val timeDiff = releaseTime - lastTapTime
                         val distDiff = (downPos - lastTapPosition).getDistance()
                         if (timeDiff < doubleTapTimeout && distDiff < touchSlop * 2) {
@@ -348,20 +378,38 @@ internal fun ZoomableImageViewer(
                                 launch { offsetY.animateTo(targetY, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
                             }
                         }
-                    } else if (dragStarted && dragDirection == DragDirection.VERTICAL) {
-                        if (dragY > screenHeightPx * 0.15f) {
-                            coroutineScope.launch {
+                    } else if (dragStarted && dragDirection == ArcileGestureAxis.Vertical) {
+                        val velocity = velocityTracker.calculateVelocity()
+                        val minimumDistance = if (totalMovement.y >= 0f) {
+                            screenHeightPx * 0.15f
+                        } else {
+                            screenHeightPx * 0.08f
+                        }
+                        when (
+                            arcileSwipeDirection(
+                                axis = ArcileGestureAxis.Vertical,
+                                deltaX = totalMovement.x,
+                                deltaY = totalMovement.y,
+                                velocityX = velocity.x,
+                                velocityY = velocity.y,
+                                minimumDistance = minimumDistance,
+                                minimumVelocity = ArcileGestureDefaults.MinimumSwipeVelocity.toPx()
+                            )
+                        ) {
+                            ArcileSwipeDirection.Down -> coroutineScope.launch {
                                 offsetY.animateTo(screenHeightPx, spring(stiffness = Spring.StiffnessMedium))
                                 onDismiss()
                             }
-                        } else if (dragY < -screenHeightPx * 0.08f) {
-                            coroutineScope.launch {
-                                launch { offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
-                                launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                            ArcileSwipeDirection.Up -> {
+                                coroutineScope.launch {
+                                    launch { offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                                    launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
+                                }
+                                onSwipeUp()
                             }
-                            onSwipeUp()
-                        } else {
-                            coroutineScope.launch {
+                            ArcileSwipeDirection.Left,
+                            ArcileSwipeDirection.Right,
+                            null -> coroutineScope.launch {
                                 launch { offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
                                 launch { offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)) }
                             }
@@ -371,15 +419,15 @@ internal fun ZoomableImageViewer(
             },
         contentAlignment = Alignment.Center
     ) {
-        val dragFraction = (abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
-        val backdropAlpha = (1f - dragFraction * 0.8f).coerceIn(0.1f, 1f)
-        val viewScale = viewerRenderScale(scale.value, dragFraction)
-
         // Backdrop fade overlay on vertical drag
         Box(
             modifier = imageModifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = backdropAlpha))
+                .drawBehind {
+                    val dragFraction = (kotlin.math.abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
+                    val backdropAlpha = (1f - dragFraction * 0.8f).coerceIn(0.1f, 1f)
+                    drawRect(Color.Black.copy(alpha = backdropAlpha))
+                }
         )
 
         AsyncImage(
@@ -402,6 +450,8 @@ internal fun ZoomableImageViewer(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer {
+                    val dragFraction = (kotlin.math.abs(offsetY.value) / screenHeightPx).coerceIn(0f, 1f)
+                    val viewScale = viewerRenderScale(scale.value, dragFraction)
                     scaleX = viewScale
                     scaleY = viewScale
                     translationX = offsetX.value
@@ -437,21 +487,7 @@ internal fun ZoomableImageViewer(
     }
 }
 
-// Reusable utility method for format size
-internal fun formatFileSize(size: Long): String {
-    if (size <= 0) return "0 B"
-    val units = arrayOf("B", "KB", "MB", "GB", "TB")
-    val digitGroups = (Math.log10(size.toDouble()) / Math.log10(1024.0)).toInt()
-    return String.format("%.2f %s", size / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-internal enum class DragDirection {
-    VERTICAL, HORIZONTAL
-}
-
 private data class ViewerPointerTransform(
     val scale: Float = 1f,
     val offset: Offset = Offset.Zero
 )
-

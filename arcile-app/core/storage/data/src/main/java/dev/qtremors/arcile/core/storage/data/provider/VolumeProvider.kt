@@ -124,15 +124,8 @@ class DefaultVolumeProvider(
             }
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            storageManager.storageVolumes.forEach { volume ->
-                val directory = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                    volume.directory
-                } else {
-                    null
-                }
-                directory?.let { addVolume(it.absolutePath, volume) }
-            }
+        storageManager.storageVolumes.forEach { volume ->
+            volume.directory?.let { addVolume(it.absolutePath, volume) }
         }
 
         addVolume(primaryPath, storageManager.getStorageVolume(File(primaryPath)))
@@ -182,15 +175,11 @@ class DefaultVolumeProvider(
                     emitVolumes()
                 }
             }
-            val volumeCallback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                object : StorageManager.StorageVolumeCallback() {
-                    override fun onStateChanged(volume: android.os.storage.StorageVolume) {
-                        invalidateCache()
-                        emitVolumes()
-                    }
+            val volumeCallback = object : StorageManager.StorageVolumeCallback() {
+                override fun onStateChanged(volume: android.os.storage.StorageVolume) {
+                    invalidateCache()
+                    emitVolumes()
                 }
-            } else {
-                null
             }
 
             val filter = IntentFilter().apply {
@@ -205,18 +194,14 @@ class DefaultVolumeProvider(
             }
 
             ContextCompat.registerReceiver(appContext, receiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && volumeCallback != null) {
-                storageManager.registerStorageVolumeCallback(
-                    ContextCompat.getMainExecutor(appContext),
-                    volumeCallback
-                )
-            }
+            storageManager.registerStorageVolumeCallback(
+                ContextCompat.getMainExecutor(appContext),
+                volumeCallback
+            )
             emitVolumes()
             awaitClose {
                 appContext.unregisterReceiver(receiver)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && volumeCallback != null) {
-                    storageManager.unregisterStorageVolumeCallback(volumeCallback)
-                }
+                storageManager.unregisterStorageVolumeCallback(volumeCallback)
             }
         }.distinctUntilChanged()
 

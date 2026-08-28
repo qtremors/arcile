@@ -82,7 +82,6 @@ internal fun StorageCleanerGroupScreen(
                 )
             )
             onClearMessages()
-            onNavigateBack()
         }
     }
     LaunchedEffect(state.errorMessage) {

@@ -1,10 +1,49 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.0.5
-> **Last Updated:** 2026-08-21
+> **Version:** 2.1.0
+> **Last Updated:** 2026-08-28
 
 ---
+
+## [2.1.0] - 2026-08-28
+
+- **Adaptive Primary Workspace**: Added persistent navigation and automatic dual-pane browsing for larger displays and foldables, adapting smoothly to live resizing and fold postures.
+- **Refined Conflict Resolution**: Compacted file conflict dialogs with circular thumbnails, single-row metadata, full-width path labels, and side-by-side action buttons.
+- **Consistent Viewer Actions**: Added capability-aware file actions (rename, copy, move, delete, share, open-with, archive, properties) across all media viewers, PDFs, and OnlyFiles vaults.
+- **Predictable Storage Cleaner**: Replaced candidate checkboxes with long-press selection, added filename-version grouping, expanded duplicate comparisons, and excluded OnlyFiles vaults and ignored folders from cleanup scans.
+- **App-Aware Folder Icons & Ordering**: Added an opt-in toggle for app-matched folder icons and a persisted setting to group folders above files across all sort modes.
+- **Improved Browsing & Presentation**: Aligned grid sizing to discrete density steps, preserved cached folder statistics during background refreshes, and standardized locale-aware file size formatting.
+- **Signed Update Discovery**: Added on-device update checks for Arcile in About and compatible plugin updates in Plugins with rate-limited notifications.
+- **Smoother Startup Performance**: Deferred disk reads and preference storage initialization during composition and dependency injection to eliminate main-thread StrictMode violations and startup frame drops.
+
+## [2.0.9] - 2026-08-26
+
+- **Predictable App Gestures**: Added shared touch-slop, direction-lock, velocity, cancellation, and system-edge rules so Browser swipes, Gallery viewer gestures, audio-player gestures, and feedback dismissal distinguish taps from intentional swipes and settle once at release.
+
+## [2.0.8] - 2026-08-25
+
+- **Precision Audio Editing**: Added zoomable waveforms, millisecond boundary controls, scrubbing, looped selection previews, section extraction, middle removal, and ordered combining for compatible M4A/AAC, WAV, Opus/Ogg, and WebM audio. Exports prefer stream-copy, fall back to re-encoding with a visible warning, copy readable tags and artwork, inherit the first item’s metadata when combining, and keep completed audio when some metadata cannot be copied.
+- **Reliable Audio Selection**: Kept waveform handles attached throughout a drag, centered high zoom levels on the playhead, and added a Classic slider option without the waveform.
+- **Smarter Audio Editor**: Added a compact theme-aware layout with artwork and file details, side-by-side boundary controls, default-on Loop and Waveform switches, export notes behind an info button, multiple trim ranges, and in-editor audio adding, ordering, and removal.
+
+## [2.0.7] - 2026-08-24
+
+- **Protected Vault Viewing**: Kept screenshot protection active while moving from OnlyFiles into vault video viewers, including overlapping screen transitions.
+- **Accurate Vault Unlock State**: Prevented stale unlock prompts after returning from an already unlocked vault file or completing biometric unlock.
+- **Reliable Background Operations**: Stopped timed-out file operations and vault imports cleanly with visible failure feedback, and removed their notifications after completion, failure, cancellation, rejected starts, or stale-process recovery.
+- **Safe Settings Restore**: Bounded settings backup imports, verified their contents before changing live preferences, and rolled back every applied store when a restore could not finish.
+- **Reliable Shared Imports**: Reserved reclaimable storage before shared-file imports, staged each batch before exposing files, and removed staged data when space changed or an import could not finish.
+- **Predictable Thumbnail Scrubbing**: Made held thumbnail strips follow the finger directly without disappearing or jumping outside the available queue.
+- **Complete Gallery Batch Rename**: Added Rename to Gallery multi-selection and connected it to the transactional batch-rename flow.
+- **Reliable Recents**: Repaired grouped list and grid selection, kept range selection anchored to stable files, enforced newest-first ordering, and removed Recents sort controls while preserving view options.
+- **Dependable File Renames and Browser Preferences**: Fixed case-only file and folder renames and kept the selected apply-to-subfolders sort scope when reopening Browser options.
+- **Non-Blocking Mini-Player**: Let back gestures, text fields, and the keyboard work outside the collapsed player, and made swipe-down dismissal settle consistently from distance or velocity.
+- **Selectable Search Results**: Restored long-press and range selection in Browser search results and replaced search-header back arrows with clear close icons.
+
+## [2.0.6] - 2026-08-22
+
+- **Clean Modern Android Build**: Updated Android and Compose integrations, removed obsolete packaged resources, and cleared compiler and static-analysis warnings across the app and tests.
 
 ## [2.0.5] - 2026-08-21
 

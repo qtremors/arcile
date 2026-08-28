@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,7 +49,9 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.ui.category.CategoryFolderSummary
 import dev.qtremors.arcile.core.ui.category.CategoryFolderGridItem
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryActions
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryLabels
+import dev.qtremors.arcile.core.ui.category.CategoryLibraryState
 import dev.qtremors.arcile.core.ui.category.FileCategoryLibrary
 import dev.qtremors.arcile.core.ui.category.CategoryLibraryFileActionCallbacks
 import dev.qtremors.arcile.core.ui.category.CategoryGridItem
@@ -99,7 +102,7 @@ internal fun ApkLibraryScreen(
             onClearError()
         }
     }
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val labels = CategoryLibraryLabels(
         searchPlaceholder = stringResource(R.string.apk_search),
         filesTab = stringResource(R.string.apk_all),
@@ -114,42 +117,46 @@ internal fun ApkLibraryScreen(
         selectedCount = { count -> resources.getQuantityString(R.plurals.apk_selected, count, count) }
     )
     FileCategoryLibrary(
-        files = state.files,
-        folders = state.folders,
-        selectedPaths = state.selectedPaths,
-        query = state.query,
-        searchFilters = state.searchFilters,
-        tab = state.tab,
-        itemPresentation = state.presentation,
-        folderPresentation = state.folderPresentation,
-        defaultPage = state.defaultPage,
-        grouping = state.grouping,
-        showFileDetails = state.showFileDetails,
-        scrollbarEnabled = state.scrollbarEnabled,
-        isLoading = state.isLoading,
-        folderFilterLabel = state.folderFilter?.label,
-        folderFilterPath = state.folderFilter?.path,
-        labels = labels,
-        onNavigateBack = onNavigateBack,
-        onQueryChange = onQueryChange,
-        onSearchFiltersChange = onSearchFiltersChange,
-        onTabChange = onTabChange,
-        onPresentationChange = onPresentationChange,
-        onDefaultPageChange = onDefaultPageChange,
-        onGroupingChange = onGroupingChange,
-        onShowFileDetailsChange = onShowFileDetailsChange,
-        onRefresh = onRefresh,
-        onClearFolderFilter = onClearFolderFilter,
-        onToggleSelection = onToggleSelection,
-        onSelectPaths = onSelectPaths,
-        onClearSelection = onClearSelection,
-        onSelectAll = onSelectAll,
-        onInvertSelection = onInvertSelection,
-        onShareSelection = onShareSelection,
-        onOpenSelectionWith = onOpenSelectionWith,
-        fileActions = fileActions,
-        onOpenFile = onInstall,
-        onOpenFolder = onOpenFolder,
+        state = CategoryLibraryState(
+            files = state.files,
+            folders = state.folders,
+            selectedPaths = state.selectedPaths,
+            query = state.query,
+            searchFilters = state.searchFilters,
+            tab = state.tab,
+            itemPresentation = state.presentation,
+            folderPresentation = state.folderPresentation,
+            defaultPage = state.defaultPage,
+            grouping = state.grouping,
+            showFileDetails = state.showFileDetails,
+            scrollbarEnabled = state.scrollbarEnabled,
+            isLoading = state.isLoading,
+            folderFilterLabel = state.folderFilter?.label,
+            folderFilterPath = state.folderFilter?.path,
+            labels = labels
+        ),
+        actions = CategoryLibraryActions(
+            onNavigateBack = onNavigateBack,
+            onQueryChange = onQueryChange,
+            onSearchFiltersChange = onSearchFiltersChange,
+            onTabChange = onTabChange,
+            onPresentationChange = onPresentationChange,
+            onDefaultPageChange = onDefaultPageChange,
+            onGroupingChange = onGroupingChange,
+            onShowFileDetailsChange = onShowFileDetailsChange,
+            onRefresh = onRefresh,
+            onClearFolderFilter = onClearFolderFilter,
+            onToggleSelection = onToggleSelection,
+            onSelectPaths = onSelectPaths,
+            onClearSelection = onClearSelection,
+            onSelectAll = onSelectAll,
+            onInvertSelection = onInvertSelection,
+            onShareSelection = onShareSelection,
+            onOpenSelectionWith = onOpenSelectionWith,
+            fileActions = fileActions,
+            onOpenFile = onInstall,
+            onOpenFolder = onOpenFolder
+        ),
         fileItem = { file, selected, selectionMode, onClick, onLongClick, modifier ->
             ApkItem(
                 file = file,
@@ -196,7 +203,7 @@ private fun ApkItem(
             metadata?.label ?: packageKind(file),
             metadata?.let { "${it.versionName} • ${it.packageName}" }
                 ?: file.extension.uppercase(),
-            formatFileSize(file.size)
+            formatFileSize(androidx.compose.ui.platform.LocalContext.current, file.size)
         )
     )
     if (grid) {

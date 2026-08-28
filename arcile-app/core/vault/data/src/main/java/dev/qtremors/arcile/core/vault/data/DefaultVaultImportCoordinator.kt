@@ -117,22 +117,26 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         token: String,
         onNotificationProgress: (VaultImportProgress) -> Unit
     ) {
-        val result = repository.importUris(token, destination, sourceUris) {
+        val result = try {
+            repository.importUris(token, destination, sourceUris) {
                 completedItems, totalItems, copiedBytes, totalBytes, currentName ->
-            val progress = VaultImportProgress(
-                completedItems = completedItems,
-                totalItems = totalItems,
-                bytesCopied = copiedBytes,
-                totalBytes = totalBytes,
-                currentName = currentName
-            )
-            _activeImports.update { current ->
-                current + (vaultId to VaultImportState(vaultId, progress))
+                val progress = VaultImportProgress(
+                    completedItems = completedItems,
+                    totalItems = totalItems,
+                    bytesCopied = copiedBytes,
+                    totalBytes = totalBytes,
+                    currentName = currentName
+                )
+                _activeImports.update { current ->
+                    current + (vaultId to VaultImportState(vaultId, progress))
+                }
+                _events.tryEmit(VaultImportEvent.Progress(vaultId, progress))
+                onNotificationProgress(progress)
             }
-            _events.tryEmit(VaultImportEvent.Progress(vaultId, progress))
-            onNotificationProgress(progress)
+        } catch (error: CancellationException) {
+            Result.failure(error)
         }
-        tokens.remove(vaultId.value)
+        if (!tokens.remove(vaultId.value, token)) return
         _activeImports.update { it - vaultId }
         result.fold(
             onSuccess = { batch ->
@@ -150,5 +154,13 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
                 }
             }
         )
+    }
+
+    internal fun onServiceTimeout(vaultIds: List<VaultId>, message: String) {
+        vaultIds.forEach { vaultId ->
+            tokens.remove(vaultId.value)?.let(repository::releaseImportReservation)
+            _activeImports.update { it - vaultId }
+            _events.tryEmit(VaultImportEvent.Failed(vaultId, message))
+        }
     }
 }

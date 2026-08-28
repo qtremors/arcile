@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import androidx.core.net.toUri
 import android.os.Bundle
 import android.view.Gravity
 import android.view.WindowManager
@@ -34,6 +35,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -83,7 +85,7 @@ class AudioPlayerActivity : ComponentActivity() {
 
     private var queue by mutableStateOf<List<AudioTrack>>(emptyList())
     private var initialPath by mutableStateOf<String?>(null)
-    private var playerLaunchId by mutableStateOf(0)
+    private var playerLaunchId by mutableIntStateOf(0)
     private var miniPlayerBottomClearanceDp = 0
     private var queueLoadJob: Job? = null
     private var loadError by mutableStateOf<String?>(null)
@@ -125,7 +127,21 @@ class AudioPlayerActivity : ComponentActivity() {
                         onWindowModeChange = ::setPlayerWindowExpanded,
                         onFinish = ::finish,
                         onShare = { share(it.file) },
-                        onOpenWith = { openWith(it.file) }
+                        onEdit = { openEditor(it.file) },
+                        onOpenWith = { openWith(it.file) },
+                        onFileRenamed = { oldPath, newFile ->
+                            val oldTrack = queue.firstOrNull { it.file.absolutePath == oldPath }
+                            if (oldTrack != null) {
+                                val renamedTrack = oldTrack.copy(file = newFile)
+                                queue = queue.map { if (it.file.absolutePath == oldPath) renamedTrack else it }
+                                playback.replaceQueueItem(oldPath, renamedTrack)
+                            }
+                        },
+                        onFileDeleted = { deletedPath ->
+                            queue = queue.filterNot { it.file.absolutePath == deletedPath }
+                            playback.removeQueueItems(listOf(deletedPath))
+                            if (queue.isEmpty()) finish()
+                        }
                     )
                 }
             }
@@ -159,13 +175,9 @@ class AudioPlayerActivity : ComponentActivity() {
             } else {
                 (miniPlayerBottomClearanceDp * resources.displayMetrics.density).toInt()
             }
+            flags = audioPlayerWindowFlags(flags, expanded)
         }
         window.attributes = layoutParams
-        if (expanded) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-        } else {
-            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-        }
     }
 
     private fun openIntent(intent: Intent) {
@@ -263,6 +275,14 @@ class AudioPlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun openEditor(file: FileModel) {
+        if (!File(file.absolutePath).isFile) {
+            showFailure()
+            return
+        }
+        startActivity(createAudioEditorIntent(this, listOf(file.absolutePath)))
+    }
+
     private fun FileModel.toHandoffReference() =
         ExternalFileAccessHelper.ExternalFileReference(
             path = absolutePath,
@@ -298,7 +318,10 @@ private fun StandaloneAudioPlayer(
     onWindowModeChange: (Boolean) -> Unit,
     onFinish: () -> Unit,
     onShare: (AudioTrack) -> Unit,
-    onOpenWith: (AudioTrack) -> Unit
+    onEdit: (AudioTrack) -> Unit,
+    onOpenWith: (AudioTrack) -> Unit,
+    onFileRenamed: (String, FileModel) -> Unit,
+    onFileDeleted: (String) -> Unit
 ) {
     var presentation by remember(launchId) {
         mutableStateOf(AudioPlayerPresentation.MINI)
@@ -427,7 +450,10 @@ private fun StandaloneAudioPlayer(
                         onToggleShuffle = playbackController::toggleShuffle,
                         onSeek = playbackController::seekTo,
                         onShare = { onShare(track) },
-                        onOpenWith = { onOpenWith(track) }
+                        onEdit = { onEdit(track) },
+                        onOpenWith = { onOpenWith(track) },
+                        onFileRenamed = onFileRenamed,
+                        onFileDeleted = onFileDeleted
                     )
                 }
             }
@@ -450,7 +476,14 @@ internal fun shouldStartAudioPlayerExpansion(
     presentation == AudioPlayerPresentation.PREPARING_EXPANSION &&
         parentHeightPx > miniPlayerHeightPx
 
-data class StandaloneAudioTarget(
+internal fun audioPlayerWindowFlags(currentFlags: Int, expanded: Boolean): Int {
+    val miniFlags = WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+    return if (expanded) currentFlags and miniFlags.inv() else currentFlags or miniFlags
+}
+
+internal data class StandaloneAudioTarget(
     val reference: String,
     val uri: Uri,
     val displayName: String,
@@ -460,7 +493,7 @@ data class StandaloneAudioTarget(
     val nodeRef: StorageNodeRef? = null
 )
 
-fun createAudioPlayerIntent(
+internal fun createAudioPlayerIntent(
     context: Context,
     path: String,
     contextPaths: List<String> = emptyList(),
@@ -475,7 +508,7 @@ fun createAudioPlayerIntent(
         putExtra(EXTRA_INTERNAL_PATH, path)
     }
     if (!contentUri.isNullOrBlank()) {
-        setDataAndType(Uri.parse(contentUri), mimeType ?: "audio/*")
+        setDataAndType(contentUri.toUri(), mimeType ?: "audio/*")
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         putExtra(EXTRA_DISPLAY_NAME, displayName)
     }
@@ -485,7 +518,7 @@ fun createAudioPlayerIntent(
     putExtra(EXTRA_BOTTOM_CLEARANCE_DP, IN_APP_PLAYER_BOTTOM_CLEARANCE_DP)
 }
 
-fun canResolveStandaloneAudio(context: Context, intent: Intent): Boolean =
+internal fun canResolveStandaloneAudio(context: Context, intent: Intent): Boolean =
     intent.action == Intent.ACTION_VIEW && intent.data != null && (
         intent.type?.startsWith("audio/") == true ||
             intent.data?.lastPathSegment?.substringAfterLast('.', "")?.lowercase() in FileCategories.Audio.extensions

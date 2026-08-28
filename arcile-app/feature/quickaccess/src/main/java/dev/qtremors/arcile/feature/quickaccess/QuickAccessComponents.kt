@@ -69,7 +69,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
@@ -128,11 +127,11 @@ internal fun QuickAccessListItem(
     onNavigate: () -> Unit,
     onTogglePin: () -> Unit,
     onRemove: () -> Unit,
+    modifier: Modifier = Modifier,
     reorderPosition: Int? = null,
     reorderCount: Int = 0,
     onMoveUp: () -> Unit = {},
-    onMoveDown: () -> Unit = {},
-    modifier: Modifier = Modifier
+    onMoveDown: () -> Unit = {}
 ) {
     val haptics = rememberArcileHaptics()
     var showRemoveDialog by remember { mutableStateOf(false) }

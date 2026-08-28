@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -57,8 +58,11 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import dev.qtremors.arcile.core.ui.ArcileGestureAxis
+import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
+import dev.qtremors.arcile.core.ui.arcileSwipeDirection
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -77,7 +81,9 @@ internal fun AudioMiniPlayer(
 ) {
     val dragOffset = remember { Animatable(0f) }
     val gestureThresholdPx = with(LocalDensity.current) { 48.dp.toPx() }
+    val flingThresholdPxPerSecond = with(LocalDensity.current) { 800.dp.toPx() }
     val gestureScope = rememberCoroutineScope()
+    var dismissCommitted by remember(track.file.absolutePath) { mutableStateOf(false) }
     val containerModifier = with(sharedTransitionScope) {
         Modifier
             .fillMaxWidth()
@@ -92,13 +98,18 @@ internal fun AudioMiniPlayer(
                 alpha = 1f -
                     (dragOffset.value / (gestureThresholdPx * 2f)).coerceIn(0f, 0.5f)
             }
-            .pointerInput(gestureThresholdPx) {
+            .pointerInput(gestureThresholdPx, flingThresholdPxPerSecond) {
                 var totalDrag = 0f
-                var hasTriggeredExpand = false
                 var gestureJob: Job? = null
+                var velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
+                    onDragStart = {
+                        totalDrag = 0f
+                        velocityTracker = VelocityTracker()
+                    },
                     onVerticalDrag = { change, dragAmount ->
                         change.consume()
+                        velocityTracker.addPosition(change.uptimeMillis, change.position)
                         totalDrag += dragAmount
                         val dragTarget = totalDrag.coerceIn(
                             -gestureThresholdPx * 10f,
@@ -106,47 +117,48 @@ internal fun AudioMiniPlayer(
                         )
                         gestureJob?.cancel()
                         gestureJob = gestureScope.launch { dragOffset.snapTo(dragTarget) }
-                        if (totalDrag <= -gestureThresholdPx && !hasTriggeredExpand) {
-                            hasTriggeredExpand = true
-                            onExpand()
-                        }
                     },
                     onDragCancel = {
                         gestureJob?.cancel()
                         gestureJob = gestureScope.launch { dragOffset.settleMiniDrag() }
                         totalDrag = 0f
-                        hasTriggeredExpand = false
                     },
                     onDragEnd = {
-                        if (!hasTriggeredExpand) {
-                            val gesture = resolveAudioMiniPlayerGesture(
-                                dragOffsetPx = totalDrag,
-                                thresholdPx = gestureThresholdPx
-                            )
-                            gestureJob?.cancel()
-                            gestureJob = gestureScope.launch {
-                                when (gesture) {
-                                    AudioMiniPlayerGesture.EXPAND -> {
-                                        onExpand()
-                                    }
-                                    AudioMiniPlayerGesture.DISMISS -> {
-                                        dragOffset.animateTo(
-                                            targetValue = gestureThresholdPx * 2.5f,
-                                            animationSpec = spring(
-                                                stiffness = Spring.StiffnessMedium,
-                                                dampingRatio = Spring.DampingRatioNoBouncy
+                        val gesture = resolveAudioMiniPlayerGesture(
+                            dragOffsetPx = totalDrag,
+                            thresholdPx = gestureThresholdPx,
+                            velocityPxPerSecond = velocityTracker.calculateVelocity().y,
+                            velocityThresholdPxPerSecond = flingThresholdPxPerSecond
+                        )
+                        gestureJob?.cancel()
+                        gestureJob = gestureScope.launch {
+                            when (gesture) {
+                                AudioMiniPlayerGesture.EXPAND -> {
+                                    dragOffset.settleMiniDrag()
+                                    onExpand()
+                                }
+                                AudioMiniPlayerGesture.DISMISS -> {
+                                    if (!dismissCommitted) {
+                                        dismissCommitted = true
+                                        try {
+                                            dragOffset.animateTo(
+                                                targetValue = gestureThresholdPx * 2.5f,
+                                                animationSpec = spring(
+                                                    stiffness = Spring.StiffnessMedium,
+                                                    dampingRatio = Spring.DampingRatioNoBouncy
+                                                )
                                             )
-                                        )
-                                        onDismiss()
+                                        } finally {
+                                            onDismiss()
+                                        }
                                     }
-                                    AudioMiniPlayerGesture.NONE -> {
-                                        dragOffset.settleMiniDrag()
-                                    }
+                                }
+                                AudioMiniPlayerGesture.NONE -> {
+                                    dragOffset.settleMiniDrag()
                                 }
                             }
                         }
                         totalDrag = 0f
-                        hasTriggeredExpand = false
                     }
                 )
             }
@@ -245,12 +257,26 @@ internal enum class AudioMiniPlayerGesture {
 
 internal fun resolveAudioMiniPlayerGesture(
     dragOffsetPx: Float,
-    thresholdPx: Float
-): AudioMiniPlayerGesture = when {
-    thresholdPx <= 0f -> AudioMiniPlayerGesture.NONE
-    dragOffsetPx <= -thresholdPx -> AudioMiniPlayerGesture.EXPAND
-    dragOffsetPx >= thresholdPx -> AudioMiniPlayerGesture.DISMISS
-    else -> AudioMiniPlayerGesture.NONE
+    thresholdPx: Float,
+    velocityPxPerSecond: Float = 0f,
+    velocityThresholdPxPerSecond: Float = Float.POSITIVE_INFINITY
+): AudioMiniPlayerGesture {
+    val direction = arcileSwipeDirection(
+        axis = ArcileGestureAxis.Vertical,
+        deltaX = 0f,
+        deltaY = dragOffsetPx,
+        velocityX = 0f,
+        velocityY = velocityPxPerSecond,
+        minimumDistance = thresholdPx,
+        minimumVelocity = velocityThresholdPxPerSecond
+    )
+    return when (direction) {
+        ArcileSwipeDirection.Up -> AudioMiniPlayerGesture.EXPAND
+        ArcileSwipeDirection.Down -> AudioMiniPlayerGesture.DISMISS
+        ArcileSwipeDirection.Left,
+        ArcileSwipeDirection.Right,
+        null -> AudioMiniPlayerGesture.NONE
+    }
 }
 
 private suspend fun Animatable<Float, *>.settleMiniDrag() {
@@ -279,7 +305,8 @@ internal fun AudioSelectionActionsBar(
     onProperties: () -> Unit,
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
-    onToggleFavorite: () -> Unit
+    onToggleFavorite: () -> Unit,
+    onEditAudio: () -> Unit
 ) {
     var showMenu by rememberSaveable { mutableStateOf(false) }
     Row(
@@ -350,6 +377,16 @@ internal fun AudioSelectionActionsBar(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
                 items = buildList {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.audio_edit),
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onEditAudio()
+                            }
+                        )
+                    }
                     add {
                         ArcileDropdownMenuItem(
                             text = stringResource(

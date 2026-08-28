@@ -7,7 +7,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.hasStateDescription
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -44,7 +44,7 @@ class StorageUsageMapTest {
         setStorageUsageContent()
 
         composeRule
-            .onNode(hasStateDescription("Internal selected, 1.0 KB, 2 items"))
+            .onNode(hasStateDescription("Internal selected, 1.0 kB, 2 items"))
             .assertExists()
     }
 
@@ -54,7 +54,7 @@ class StorageUsageMapTest {
         setStorageUsageContent(onSelectedNode = { selectedPath = it.path })
 
         composeRule
-            .onNodeWithContentDescription("Downloads, 768.0 B, 1 item")
+            .onNodeWithContentDescription("Downloads, 768 B, 1 item")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
@@ -67,7 +67,7 @@ class StorageUsageMapTest {
         setStorageUsageContent(onDrilledNode = { drilledPath = it.path })
 
         composeRule
-            .onNodeWithContentDescription("Downloads, 768.0 B, 1 item")
+            .onNodeWithContentDescription("Downloads, 768 B, 1 item")
             .performTouchInput { doubleClick() }
         composeRule.waitForIdle()
 
@@ -79,10 +79,10 @@ class StorageUsageMapTest {
         var openedPath: String? = null
         setStorageUsageContent(onOpenedPath = { openedPath = it })
 
-        composeRule.onNodeWithText("768.0 B").assertExists()
+        composeRule.onNodeWithText("768 B").assertExists()
         composeRule.onNodeWithText("75.0%").assertExists()
         composeRule
-            .onNodeWithContentDescription("Downloads, 768.0 B, 1 item")
+            .onNodeWithContentDescription("Downloads, 768 B, 1 item")
             .performTouchInput { longClick() }
         composeRule.waitForIdle()
 
@@ -131,7 +131,7 @@ class StorageUsageMapTest {
             actions.first { it.label == "Select Documents" }.action()
         }
 
-        composeRule.onNode(hasStateDescription("Documents selected, 256.0 B, 1 item")).assertExists()
+        composeRule.onNode(hasStateDescription("Documents selected, 256 B, 1 item")).assertExists()
     }
 
     @Test
@@ -162,7 +162,7 @@ class StorageUsageMapTest {
             .performKeyInput { pressKey(Key.DirectionRight) }
         composeRule.waitForIdle()
 
-        composeRule.onNode(hasStateDescription("Downloads selected, 768.0 B, 1 item")).assertExists()
+        composeRule.onNode(hasStateDescription("Downloads selected, 768 B, 1 item")).assertExists()
     }
 
     @Test

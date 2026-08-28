@@ -31,7 +31,7 @@ import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.feature.audio.createAudioPlayerIntent
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -137,7 +137,7 @@ internal class AppNavigationActions(
     ) {
         onRecordFileOpened(track.file.absolutePath)
         context.startActivity(
-            createAudioPlayerIntent(
+            AudioFeatureEntryPoint.createPlayerIntent(
                 context = context,
                 path = track.file.absolutePath,
                 contextPaths = queue.map { it.file.absolutePath },
@@ -148,6 +148,12 @@ internal class AppNavigationActions(
                 nodeRef = track.file.nodeRef
             )
         )
+    }
+
+    fun openAudioEditor(paths: List<String>) {
+        if (paths.isNotEmpty()) {
+            context.startActivity(AudioFeatureEntryPoint.createEditorIntent(context, paths))
+        }
     }
 
     fun openExternalFolder(uri: String) {
@@ -295,7 +301,7 @@ internal class AppNavigationActions(
                 )
                 is AppFileOpenResolution.ViewAudio -> {
                     val selected = preparedFiles.firstOrNull { it.absolutePath == resolution.path }
-                    context.startActivity(createAudioPlayerIntent(
+                    context.startActivity(AudioFeatureEntryPoint.createPlayerIntent(
                         context = context,
                         path = resolution.path,
                         contextPaths = preparedFiles

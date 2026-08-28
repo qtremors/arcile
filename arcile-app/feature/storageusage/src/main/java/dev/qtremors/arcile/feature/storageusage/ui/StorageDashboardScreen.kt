@@ -43,6 +43,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -134,7 +135,7 @@ internal fun StorageDashboardScreen(
 
     var showLoading by remember { mutableStateOf(false) }
     var selectedTabIndex by remember(explicitScope) {
-        mutableStateOf(if (explicitScope) 1 else 0)
+        mutableIntStateOf(if (explicitScope) 1 else 0)
     }
 
     LaunchedEffect(state.isLoading, state.isCalculatingStorage) {
@@ -351,8 +352,9 @@ private fun StorageSummaryTab(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Text(
-                        text = stringResource(R.string.used_of, formatFileSize(used), formatFileSize(volume.totalBytes)),
+                        text = stringResource(R.string.used_of, formatFileSize(context, used), formatFileSize(context, volume.totalBytes)),
                         style = MaterialTheme.typography.titleLargeBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -496,11 +498,12 @@ private fun RootStorageSummary(
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
+        val context = androidx.compose.ui.platform.LocalContext.current
         Text(
             text = stringResource(
                 R.string.used_of,
-                formatFileSize(usage.usedBytes),
-                formatFileSize(usage.totalBytes)
+                formatFileSize(context, usage.usedBytes),
+                formatFileSize(context, usage.totalBytes)
             ),
             style = MaterialTheme.typography.titleLargeBold,
             color = MaterialTheme.colorScheme.onSurface

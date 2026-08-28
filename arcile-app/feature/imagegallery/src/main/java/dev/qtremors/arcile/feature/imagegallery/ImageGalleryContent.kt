@@ -109,7 +109,6 @@ internal fun ImageGalleryContent(
                         cal.set(java.util.Calendar.SECOND, 0)
                         cal.set(java.util.Calendar.MILLISECOND, 0)
                     }
-                    else -> {}
                 }
                 GroupKey(label, cal.timeInMillis)
             }.toSortedMap()

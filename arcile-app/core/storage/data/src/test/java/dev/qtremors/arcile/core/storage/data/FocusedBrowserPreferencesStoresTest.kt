@@ -70,9 +70,13 @@ class FocusedBrowserPreferencesStoresTest {
         val global = FileListingPreferences(
             sortOption = FileSortOption.SIZE_LARGEST,
             viewMode = FileViewMode.GRID,
-            showThumbnails = false
+            showThumbnails = false,
+            foldersFirst = false
         )
-        val folder = FileListingPreferences(sortOption = FileSortOption.DATE_NEWEST)
+        val folder = FileListingPreferences(
+            sortOption = FileSortOption.DATE_NEWEST,
+            foldersFirst = false
+        )
 
         locationStore.updateGlobalPresentation(global)
         locationStore.updateAppStartPage(AppStartPage.BROWSER)

@@ -39,12 +39,17 @@
     <string name="action_close">Close</string>
     <string name="action_paste_here">Paste here</string>
     <string name="action_sort">Sort</string>
+    <string name="view_options">View options</string>
     <string name="action_settings">Settings</string>
     <string name="action_more_options">More options</string>
     <string name="action_copy">Copy</string>
     <string name="action_cut">Cut</string>
     <string name="action_rename">Rename</string>
     <string name="action_delete_selected">Delete selected</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_share">Share</string>
+    <string name="action_open_with">Open with</string>
+    <string name="action_create_archive">Compress</string>
     <string name="action_shred">Shred</string>
     <string name="action_properties">Properties</string>
     <string name="action_navigate_to">Navigate to</string>
@@ -64,8 +69,6 @@
     <string name="image_gallery_metadata_location">Location</string>
     <string name="video_player_hide_thumbnails">Hide thumbnails</string>
     <string name="video_player_show_thumbnails">Show thumbnails</string>
-    
-    <!-- Dialogs -->
     <string name="action_create">Create</string>
     <string name="title_create_folder">Create Folder</string>
     <plurals name="title_batch_rename">
@@ -164,7 +167,7 @@
     <string name="settings_backup_store_reset_failed">Unable to reset preference store</string>
     <string name="settings_backup_store_restore_failed">Unable to restore preference store</string>
     <string name="settings_backup_theme_restore_failed">Unable to restore theme preferences</string>
-    <string name="settings_backup_loading">Reading backup...</string>
+    <string name="settings_backup_loading">Reading backup…</string>
     <string name="settings_backup_restore_preview_title">Restore this backup?</string>
     <string name="settings_backup_restore_preview_description">Review what will be restored. Preference groups missing from the backup will be reset to defaults.</string>
     <string name="settings_backup_status_exported">Exported</string>
@@ -177,6 +180,8 @@
     <string name="later">Later</string>
     <string name="settings_show_thumbnails">Show Thumbnails</string>
     <string name="settings_show_thumbnails_description">Display image and video thumbnails instead of file icons.</string>
+    <string name="settings_folder_icons">Recognized folder icons</string>
+    <string name="settings_folder_icons_description">Use app and category icons for recognized folders.</string>
     <string name="settings_show_hidden_files">Show hidden files</string>
     <string name="settings_show_hidden_files_description">Include dotfiles and hidden folders in browser listings.</string>
     <string name="settings_browser_scrollbar">Browser scrollbar</string>
@@ -402,8 +407,8 @@
     <string name="browse_title">Browse</string>
     <string name="home_title">Home</string>
     <string name="search_placeholder">Search all files…</string>
-    <string name="search_files_placeholder">Search files...</string>
-    <string name="search_category_placeholder">Search %1$s...</string>
+    <string name="search_files_placeholder">Search files…</string>
+    <string name="search_category_placeholder">Search %1$s…</string>
     <string name="no_results_found">No results found</string>
     <string name="no_results_description">We couldn\'t find anything matching \&quot;%1$s\&quot;. Try a different keyword or filters.</string>
     <string name="no_results_for_filters">No files match the selected filters. Try clearing or changing a filter.</string>
@@ -434,6 +439,8 @@
     <string name="sort_size_smallest">Smallest First</string>
     <string name="sort_file_count_highest">Most Files First</string>
     <string name="sort_file_count_lowest">Fewest Files First</string>
+    <string name="sort_folders_first">Folders first</string>
+    <string name="sort_folders_first_description">Keep folders above files in every sort mode.</string>
     <string name="open_as">Open as…</string>
     <string name="open_as_title">Open file as</string>
     <string name="open_as_image">Image</string>
@@ -473,7 +480,6 @@
     <string name="properties_location">Location</string>
     <string name="properties_items">Items</string>
     <string name="properties_files">Files</string>
-    <string name="folder_stats_loading">Calculating folder details…</string>
     <string name="properties_folders">Folders</string>
     <string name="properties_size">Size</string>
     <string name="properties_size_partial">%1$s read so far</string>
@@ -651,4 +657,5 @@
     <string name="text_editor_words">Words</string>
     <string name="text_editor_characters">Characters</string>
     <string name="text_editor_file_size">File size</string>
+    <string name="file_operation_background_time_limit">Android stopped this operation after its background time limit. Try it again to continue.</string>
 </resources>

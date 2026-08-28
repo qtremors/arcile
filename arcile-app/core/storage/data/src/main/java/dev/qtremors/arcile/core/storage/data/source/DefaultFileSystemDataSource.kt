@@ -75,13 +75,13 @@ class DefaultFileSystemDataSource(
         dispatchers = dispatchers,
         conflictDetector = conflictDetector,
         transferEngine = transferEngine,
-        validateDestination = { file -> validatedDestructiveRef(file).map { Unit } },
+        validateDestination = { file -> validatedDestructiveRef(file).map { } },
         finalizeMutation = { paths -> finalizeMutation(*paths.toTypedArray()) }
     )
     private val syntheticFileCreator = SyntheticFileCreator(
         dispatchers = dispatchers,
         validateName = ::validateFileName,
-        validatePath = { file -> validatedDestructiveRef(file).map { Unit } },
+        validatePath = { file -> validatedDestructiveRef(file).map { } },
         finalizeMutation = { path -> finalizeMutation(path) },
         fileModelMapper = fileModelMapper
     )
@@ -443,22 +443,32 @@ class DefaultFileSystemDataSource(
                  return@withContext Result.success(fileModelMapper.toFileModel(file))
              }
 
-             if (file.renameTo(newFile)) {
-                 finalizeMutation(file.absolutePath, newFile.absolutePath)
-                 Result.success(fileModelMapper.toFileModel(newFile))
-             } else if (isCaseOnlyRename) {
-                 val tempFile = temporaryCaseRenameTarget(file.parentFile ?: return@withContext Result.failure(Exception("Failed to rename file")), file.name)
+             if (isCaseOnlyRename) {
+                 val parent = file.parentFile
+                     ?: return@withContext Result.failure(Exception("Failed to rename file"))
+                 val tempFile = temporaryCaseRenameTarget(parent, file.name)
                  validatedDestructiveRef(tempFile).onFailure { return@withContext Result.failure(it) }
                  if (!file.renameTo(tempFile)) {
-                     return@withContext Result.failure(Exception("Failed to rename file"))
+                     return@withContext Result.failure(Exception("Failed to stage case-only rename"))
                  }
-                 if (tempFile.renameTo(newFile)) {
+                 if (tempFile.renameTo(newFile) && parent.hasExactChildName(newName)) {
                      finalizeMutation(file.absolutePath, tempFile.absolutePath, newFile.absolutePath)
                      Result.success(fileModelMapper.toFileModel(newFile))
                  } else {
-                     tempFile.renameTo(file)
-                     Result.failure(Exception("Failed to rename file"))
+                     val restored = tempFile.exists() && tempFile.renameTo(file)
+                     Result.failure(
+                         Exception(
+                             if (restored || file.exists()) {
+                                 "Failed to rename file"
+                             } else {
+                                 "Failed to rename file and restore its original name"
+                             }
+                         )
+                     )
                  }
+             } else if (file.renameTo(newFile)) {
+                 finalizeMutation(file.absolutePath, newFile.absolutePath)
+                 Result.success(fileModelMapper.toFileModel(newFile))
              } else {
                  Result.failure(Exception("Failed to rename file"))
              }
@@ -471,6 +481,9 @@ class DefaultFileSystemDataSource(
             Result.failure(FileOperationException.Unknown(cause = e))
         }
     }
+
+    private fun File.hasExactChildName(name: String): Boolean =
+        listFiles().orEmpty().any { child -> child.name == name }
 
     override suspend fun detectCopyConflicts(
         sourcePaths: List<String>,

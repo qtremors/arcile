@@ -22,6 +22,7 @@ class ThemePreferences(private val context: Context) {
         val DOUBLE_LINE_FILENAMES_KEY = booleanPreferencesKey("double_line_filenames")
         val MARQUEE_FILENAMES_KEY = booleanPreferencesKey("marquee_filenames")
         val LANDSCAPE_DUAL_PANE_KEY = booleanPreferencesKey("landscape_dual_pane")
+        val FOLDER_ICONS_ENABLED_KEY = booleanPreferencesKey("folder_icons_enabled")
         val THEME_PRESET_KEY = stringPreferencesKey("theme_preset")
         val CUSTOM_PRIMARY_KEY = stringPreferencesKey("custom_primary_hex")
         val CUSTOM_BACKGROUND_KEY = stringPreferencesKey("custom_bg_hex")
@@ -35,6 +36,7 @@ class ThemePreferences(private val context: Context) {
         val doubleLine = preferences[DOUBLE_LINE_FILENAMES_KEY] ?: false
         val marquee = preferences[MARQUEE_FILENAMES_KEY] ?: false
         val landscapeDualPane = preferences[LANDSCAPE_DUAL_PANE_KEY] ?: false
+        val folderIconsEnabled = preferences[FOLDER_ICONS_ENABLED_KEY] ?: false
         val themePresetStr = preferences[THEME_PRESET_KEY] ?: ThemePreset.NONE.name
         val customPrimary = preferences[CUSTOM_PRIMARY_KEY] ?: "#BD93F9"
         val customBackground = preferences[CUSTOM_BACKGROUND_KEY] ?: "#282A36"
@@ -47,6 +49,7 @@ class ThemePreferences(private val context: Context) {
             doubleLineFilenames = doubleLine,
             marqueeFilenames = marquee,
             landscapeDualPaneEnabled = landscapeDualPane,
+            folderIconsEnabled = folderIconsEnabled,
             themePreset = ThemePreset.values().find { it.name == themePresetStr } ?: ThemePreset.NONE,
             customPrimaryColorHex = customPrimary,
             customBackgroundColorHex = customBackground
@@ -62,6 +65,7 @@ class ThemePreferences(private val context: Context) {
             preferences[DOUBLE_LINE_FILENAMES_KEY] = state.doubleLineFilenames
             preferences[MARQUEE_FILENAMES_KEY] = state.marqueeFilenames
             preferences[LANDSCAPE_DUAL_PANE_KEY] = state.landscapeDualPaneEnabled
+            preferences[FOLDER_ICONS_ENABLED_KEY] = state.folderIconsEnabled
             preferences[THEME_PRESET_KEY] = state.themePreset.name
             preferences[CUSTOM_PRIMARY_KEY] = state.customPrimaryColorHex
             preferences[CUSTOM_BACKGROUND_KEY] = state.customBackgroundColorHex

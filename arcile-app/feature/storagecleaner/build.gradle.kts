@@ -39,6 +39,7 @@ dependencies {
     implementation(project(":core:operation:api"))
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
+    implementation(project(":core:vault:domain"))
     implementation(project(":core:ui"))
 
     implementation(platform(libs.androidx.compose.bom))

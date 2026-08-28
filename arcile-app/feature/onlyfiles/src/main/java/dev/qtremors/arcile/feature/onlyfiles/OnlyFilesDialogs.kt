@@ -32,7 +32,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -134,7 +135,10 @@ internal fun SortDialog(
     var field by remember { mutableStateOf(state.sortField) }
     var direction by remember { mutableStateOf(state.sortDirection) }
     var layout by remember { mutableStateOf(state.layout) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -283,7 +287,7 @@ internal fun PropertiesDialog(nodes: List<VaultNodeMetadata>, onDismiss: () -> U
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_properties)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(stringResource(R.string.onlyfiles_property_items, nodes.size))
-            Text(stringResource(R.string.onlyfiles_property_size, formatBytes(nodes.sumOf(VaultNodeMetadata::sizeBytes))))
+            Text(stringResource(R.string.onlyfiles_property_size, formatBytes(androidx.compose.ui.platform.LocalContext.current, nodes.sumOf(VaultNodeMetadata::sizeBytes))))
             if (nodes.size == 1) {
                 Text(nodes.single().name)
                 Text(nodes.single().mimeType ?: stringResource(R.string.onlyfiles_unknown_type))
@@ -501,7 +505,10 @@ internal fun OnlyFilesSettingsSheet(
     onRevokeExternalAccess: () -> Unit,
     onShowDisclosure: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = rememberBottomSheetState(
+        initialValue = SheetValue.Hidden,
+        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
+    )
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -546,7 +553,7 @@ internal fun OnlyFilesSettingsSheet(
                     shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 4),
                     content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache)) },
                     supportingContent = {
-                        Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, state.encryptedThumbnailFiles, formatBytes(state.encryptedThumbnailBytes)))
+                        Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, state.encryptedThumbnailFiles, formatBytes(androidx.compose.ui.platform.LocalContext.current, state.encryptedThumbnailBytes)))
                     },
                     trailingContent = {
                         Box(

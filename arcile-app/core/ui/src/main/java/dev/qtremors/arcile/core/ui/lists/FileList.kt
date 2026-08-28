@@ -36,25 +36,28 @@ fun FileList(
         androidx.compose.foundation.lazy.rememberLazyListState(),
     presentation: FileItemPresentation = FileItemPresentation(),
     folderStatsByPath: Map<String, FolderStats> = emptyMap(),
-    folderStatsLoadingPaths: Set<String> = emptySet(),
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    highlightedPath: String? = null
 ) {
     val formatter = rememberDateTimeFormatter()
     val thumbnailSizePx = with(LocalDensity.current) {
         ThumbnailTargetSize.fromBounds((64.dp * presentation.zoom).roundToPx())
     }
-    val rows = remember(files, folderStatsByPath, formatter, thumbnailSizePx) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val rows = remember(files, folderStatsByPath, formatter, thumbnailSizePx, context) {
         files.map { file ->
             file.toFileRowUiModel(
                 formatter = formatter,
                 folderStats = folderStatsByPath[file.absolutePath],
-                thumbnailSizePx = thumbnailSizePx
+                thumbnailSizePx = thumbnailSizePx,
+                context = context
             )
         }
     }
     FileListRows(
         rows = rows,
         selectedFiles = selectedFiles,
+        highlightedPath = highlightedPath,
         onNavigateTo = { onNavigateTo(it.absolutePath) },
         onOpenFile = onOpenFile,
         onToggleSelection = onToggleSelection,
@@ -62,7 +65,6 @@ fun FileList(
         modifier = modifier,
         listState = listState,
         presentation = presentation,
-        folderStatsLoadingPaths = folderStatsLoadingPaths,
         contentPadding = contentPadding
     )
 }
@@ -80,8 +82,8 @@ fun FileListRows(
     listState: androidx.compose.foundation.lazy.LazyListState =
         androidx.compose.foundation.lazy.rememberLazyListState(),
     presentation: FileItemPresentation = FileItemPresentation(),
-    folderStatsLoadingPaths: Set<String> = emptySet(),
-    contentPadding: PaddingValues = PaddingValues(0.dp)
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    highlightedPath: String? = null
 ) {
     val haptics = rememberArcileHaptics()
     val thumbnailPolicy = remember { ThumbnailPolicy() }
@@ -123,12 +125,12 @@ fun FileListRows(
                 modifier = Modifier.animateItem(),
                 row = row,
                 isSelected = isSelected,
+                isHighlighted = file.absolutePath == highlightedPath,
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 presentation = presentation,
                 itemIndex = index,
                 visibleRange = visibleRange,
                 thumbnailPolicy = thumbnailPolicy,
-                isFolderStatsLoading = folderStatsLoadingPaths.contains(file.absolutePath),
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index

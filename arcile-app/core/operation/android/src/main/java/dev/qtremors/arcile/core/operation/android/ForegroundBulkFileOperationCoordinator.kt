@@ -326,7 +326,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         )
     }
 
-    private fun flushProgress(request: BulkFileOperationRequest) = synchronized(progressLock) {
+    private fun flushProgress(request: BulkFileOperationRequest): Unit = synchronized(progressLock) {
         val state = progressState?.takeIf { it.operationId == request.operationId } ?: return
         val latest = state.latest ?: return
         if (latest != state.lastPublished) {
