@@ -25,6 +25,11 @@ class DefaultMediaRepository(
     private val dispatchers: ArcileDispatchers,
     private val rootStorageUsageProvider: RootStorageUsageProvider
 ) : SearchRepository, StorageAnalyticsRepository {
+    override suspend fun getCachedRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long): List<FileModel>? =
+        recentFilesSnapshotStore.get(scope, limit, minTimestamp, allowPreviousWindow = true)
+
+    override suspend fun getCachedCategoryStorageSizes(scope: StorageScope): List<CategoryStorage>? =
+        mediaStoreClient.getCachedCategoryStorageSizes(scope)
     override suspend fun getRecentFiles(
         scope: StorageScope,
         limit: Int,
@@ -88,6 +93,5 @@ class DefaultMediaRepository(
 
     override suspend fun invalidateAnalyticsCache() {
         mediaStoreClient.invalidateCache()
-        recentFilesSnapshotStore.clear()
     }
 }

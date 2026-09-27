@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.settings.ui
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,7 +21,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
@@ -40,12 +40,11 @@ internal fun SettingsScreen(
 ) {
     val scrollBehavior = androidx.compose.material3.TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     ArcileScreenScaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.settings_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                scrollBehavior = scrollBehavior,
-                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
+                scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior),
                 navigationIcon = {
                     IconButton(
                         onClick = navigationActions.navigateBack,

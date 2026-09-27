@@ -26,7 +26,6 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.presentation.UiText
-import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.Job
@@ -57,10 +56,14 @@ internal class HomeViewModel @Inject constructor(
 
     private val recentsPreviewLimit = 50
     private var refreshJob: Job? = null
+    private var startupJob: Job? = null
     private var rootStorageUsageJob: Job? = null
     private var pendingSilentRefresh = false
     private var pendingSilentForceAnalytics = false
+    private var pendingSilentCacheInvalidation = false
+    private var cacheInvalidationFailed = false
     private var lastAnalyticsRefreshTime = 0L
+    private var lastRefreshCompletedAt = 0L
     private val searchController = DebouncedSearchController(
         scope = viewModelScope,
         initialFilters = SearchFilters(),
@@ -137,36 +140,72 @@ internal class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
+            var hasObservedVolumes = false
             volumeRepository.observeStorageVolumes()
                 .collectLatest { volumes ->
+                    val isInitialEmission = !hasObservedVolumes
+                    hasObservedVolumes = true
                     val currentState = _state.value
                     if (currentState.allStorageVolumes != volumes) {
+                        val cachedByVolume = volumes.mapNotNull { volume ->
+                            if (currentState.categoryStoragesByVolume[volume.id] != null) return@mapNotNull null
+                            storageAnalyticsRepository.getCachedCategoryStorageSizes(
+                                StorageScope.Volume(volume.id)
+                            )?.let { volume.id to it.toPersistentList() }
+                        }.toMap()
                         _state.update {
                             it.copy(
                                 allStorageVolumes = volumes.toPersistentList(),
                                 storageInfo = StorageInfo(
                                     volumes = volumes,
                                     rootStorageUsage = it.storageInfo?.rootStorageUsage
-                                )
+                                ),
+                                categoryStoragesByVolume =
+                                    (it.categoryStoragesByVolume + cachedByVolume.filterKeys { volumeId ->
+                                        volumeId !in it.categoryStoragesByVolume
+                                    }).toPersistentMap()
                             ).withUpdatedDisplayState()
                         }
-                        loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
+                        if (!isInitialEmission) loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
                     }
                 }
         }
 
-        loadHomeData(HomeRefreshMode.INITIAL)
+        startupJob = viewModelScope.launch {
+            val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+            restoreCachedHomeData(oneWeekAgo)
+            // Saved totals stay visible while the cold-start refresh checks changes made while closed.
+            loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true, invalidateCache = true)
+        }
     }
 
-    fun loadHomeData(refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL, forceAnalytics: Boolean = false) {
+    fun resumeHomeData() {
+        // Cache restoration and mutation events already own refreshes.
+        if (startupJob?.isActive == true || refreshJob?.isActive == true) return
+        val hadError = _state.value.error != null
+        if (!hadError && !cacheInvalidationFailed && lastRefreshCompletedAt > 0L &&
+            System.currentTimeMillis() - lastRefreshCompletedAt < 5 * 60 * 1000L
+        ) return
+        loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = hadError || cacheInvalidationFailed,
+            invalidateCache = cacheInvalidationFailed)
+    }
+
+    fun loadHomeData(
+        refreshMode: HomeRefreshMode = HomeRefreshMode.INITIAL,
+        forceAnalytics: Boolean = false,
+        invalidateCache: Boolean = false
+    ) {
         if (refreshMode == HomeRefreshMode.SILENT && refreshJob?.isActive == true) {
             pendingSilentRefresh = true
             pendingSilentForceAnalytics = pendingSilentForceAnalytics || forceAnalytics
+            pendingSilentCacheInvalidation = pendingSilentCacheInvalidation || invalidateCache
             return
         }
         val effectiveForceAnalytics = forceAnalytics || pendingSilentForceAnalytics
+        val effectiveCacheInvalidation = invalidateCache || pendingSilentCacheInvalidation
         pendingSilentRefresh = false
         pendingSilentForceAnalytics = false
+        pendingSilentCacheInvalidation = false
         if (refreshMode != HomeRefreshMode.SILENT) {
             refreshJob?.cancel()
         }
@@ -183,19 +222,25 @@ internal class HomeViewModel @Inject constructor(
 
         _state.update {
             it.copy(
-                isLoading = refreshMode == HomeRefreshMode.INITIAL && !hasVisibleContent,
+                isLoading = !hasVisibleContent && (
+                    refreshMode == HomeRefreshMode.INITIAL ||
+                        (refreshMode == HomeRefreshMode.SILENT && it.isLoading)
+                ),
                 isPullToRefreshing = refreshMode == HomeRefreshMode.MANUAL,
-                isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT,
+                isCalculatingStorage = refreshMode != HomeRefreshMode.SILENT ||
+                    (it.categoryStorages.isEmpty() && it.categoryStoragesByVolume.isEmpty()),
                 error = null,
                 todayStart = newTodayStart
             ).withUpdatedDisplayState()
         }
         val launchedRefresh = viewModelScope.launch {
             val oneWeekAgo = System.currentTimeMillis() - (7L * 24 * 60 * 60 * 1000)
+            if (refreshMode == HomeRefreshMode.INITIAL) restoreCachedHomeData(oneWeekAgo)
             val shouldRefreshAnalytics = refreshMode != HomeRefreshMode.SILENT ||
                 effectiveForceAnalytics ||
+                effectiveCacheInvalidation ||
                 (System.currentTimeMillis() - lastAnalyticsRefreshTime > 5 * 60 * 1000)
-            val forceFreshAnalytics = refreshMode == HomeRefreshMode.MANUAL
+            val forceFreshAnalytics = refreshMode == HomeRefreshMode.MANUAL || effectiveCacheInvalidation
 
             if (shouldRefreshAnalytics) {
                 lastAnalyticsRefreshTime = System.currentTimeMillis()
@@ -206,13 +251,11 @@ internal class HomeViewModel @Inject constructor(
                 if (forceFreshAnalytics) {
                     try {
                         storageAnalyticsRepository.invalidateAnalyticsCache()
+                        cacheInvalidationFailed = false
                     } catch (e: Exception) {
                         if (e is kotlinx.coroutines.CancellationException) throw e
+                        cacheInvalidationFailed = true
                         cacheInvalidationError = e
-                    }
-                    _state.update {
-                        it.copy(categoryStoragesByVolume = persistentMapOf())
-                            .withUpdatedDisplayState()
                     }
                 }
                 val recentResultDef = async {
@@ -241,11 +284,23 @@ internal class HomeViewModel @Inject constructor(
                 val allVolumesResultDef = async {
                     volumeRepository.getStorageVolumes().also { result ->
                         result.onSuccess { volumes ->
+                            val cachedByVolume = volumes.mapNotNull { volume ->
+                                if (_state.value.categoryStoragesByVolume[volume.id] != null) {
+                                    return@mapNotNull null
+                                }
+                                storageAnalyticsRepository.getCachedCategoryStorageSizes(
+                                    StorageScope.Volume(volume.id)
+                                )?.let { volume.id to it.toPersistentList() }
+                            }.toMap()
                             _state.update {
                                 it.copy(
                                     isLoading = false,
                                     allStorageVolumes = volumes.toPersistentList(),
-                                    storageInfo = it.storageInfo ?: StorageInfo(volumes)
+                                    storageInfo = it.storageInfo ?: StorageInfo(volumes),
+                                    categoryStoragesByVolume =
+                                        (it.categoryStoragesByVolume + cachedByVolume.filterKeys { volumeId ->
+                                            volumeId !in it.categoryStoragesByVolume
+                                        }).toPersistentMap()
                                 ).withUpdatedDisplayState()
                             }
                         }
@@ -298,26 +353,59 @@ internal class HomeViewModel @Inject constructor(
                 _state.update { it.afterRefresh(results, unclassified) }
 
                 if (!results.timedOut && allStorageVolumes.size > 1) {
-                    loadDashboardCategoryBreakdown()
+                    dashboardController.load(forceRefresh = shouldRefreshAnalytics)
                 }
             }
         }
         refreshJob = launchedRefresh
-        launchedRefresh.invokeOnCompletion {
+        launchedRefresh.invokeOnCompletion { cause ->
             viewModelScope.launch {
                 if (refreshJob !== launchedRefresh) return@launch
                 refreshJob = null
+                if (cause == null) lastRefreshCompletedAt = System.currentTimeMillis()
                 if (pendingSilentRefresh) {
                     val forcePendingAnalytics = pendingSilentForceAnalytics
+                    val invalidatePendingCache = pendingSilentCacheInvalidation
                     pendingSilentRefresh = false
                     pendingSilentForceAnalytics = false
+                    pendingSilentCacheInvalidation = false
                     loadHomeData(
                         refreshMode = HomeRefreshMode.SILENT,
-                        forceAnalytics = forcePendingAnalytics
+                        forceAnalytics = forcePendingAnalytics,
+                        invalidateCache = invalidatePendingCache
                     )
                 }
             }
         }
+    }
+
+    private suspend fun restoreCachedHomeData(minTimestamp: Long) {
+        try {
+            val categories = storageAnalyticsRepository.getCachedCategoryStorageSizes(StorageScope.AllStorage)
+            // Publish the breakdown first; recent-file decoding must not delay the storage segments.
+            if (categories != null) {
+                _state.update {
+                    it.copy(
+                        categoryStorages = categories.toPersistentList(),
+                        hasRestoredCachedHomeData = true
+                    ).withUpdatedDisplayState()
+                }
+            }
+            val recent = storageAnalyticsRepository.getCachedRecentFiles(
+                StorageScope.AllStorage, recentsPreviewLimit, minTimestamp
+            )
+            _state.update {
+                it.copy(
+                    recentFiles = recent?.toPersistentList() ?: it.recentFiles,
+                    categoryStorages = categories?.toPersistentList() ?: it.categoryStorages,
+                    isLoading = it.isLoading && recent == null && categories == null
+                ).withUpdatedDisplayState()
+            }
+        } catch (error: Exception) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
+            // A damaged cache must not prevent the live query from repairing it.
+        }
+        _state.update { it.copy(hasRestoredCachedHomeData = true) }
     }
 
     fun loadRootStorageUsage() {

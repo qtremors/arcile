@@ -11,7 +11,7 @@ import dev.qtremors.arcile.core.presentation.formatFileSize
 @Composable
 internal fun folderSubtitleText(folderStats: FolderStats?): String {
     if (folderStats == null) {
-        return stringResource(R.string.folder_label)
+        return stringResource(R.string.folder_stats_pending)
     }
 
     val filesLabel = pluralStringResource(
@@ -24,6 +24,6 @@ internal fun folderSubtitleText(folderStats: FolderStats?): String {
     return when (folderStats.status) {
         FolderStatsStatus.Ready -> "$filesLabel • $sizeLabel"
         FolderStatsStatus.Partial -> "$filesLabel • $sizeLabel"
-        FolderStatsStatus.Unavailable -> stringResource(R.string.folder_label)
+        FolderStatsStatus.Unavailable -> stringResource(R.string.folder_stats_unavailable)
     }
 }

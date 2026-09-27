@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.0
-> **Last Updated:** 2026-08-28
+> **Version:** 2.1.1
+> **Last Updated:** 2026-09-27
 
 ---
+
+## [2.1.1] - 2026-09-26
+
+- **Stable Home Dashboard**: Show saved recent files and category totals immediately, then quietly check live storage on a cold launch. Avoid duplicate resume refreshes and keep the multicolor storage animation visible when the category breakdown is unavailable.
+- **Recent File Cache**: Remove obsolete saved preview lists after successful refreshes while keeping the latest fallback for the next launch.
+- **Persistent Folder Details**: Keep saved folder sizes visible while recalculating folders shown after a new launch. Retain counts through failed scans and show explicit pending or unavailable sizes when no saved value exists.
+- **Consistent Collapsed App Bars**: Keep locked app bars in their natural collapsed position with the compact title visible, and prevent dragging them open until expansion is enabled.
+- **Home Cache and Scrolling Corrections**: Show saved category totals before quiet background updates, restore the multicolor loading bar with a smoother segment reveal, keep categories ranked by size, and allow scrolling with collapsed app bars.
 
 ## [2.1.0] - 2026-08-28
 

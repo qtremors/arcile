@@ -33,20 +33,33 @@ class RecentFilesSnapshotStore @Inject constructor(
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun get(scope: StorageScope, limit: Int, minTimestamp: Long): List<FileModel>? = withContext(dispatchers.io) {
-        val entity = dao.get(key(scope, limit, minTimestamp)) ?: return@withContext null
+    suspend fun get(
+        scope: StorageScope,
+        limit: Int,
+        minTimestamp: Long,
+        allowPreviousWindow: Boolean = false
+    ): List<FileModel>? = withContext(dispatchers.io) {
+        val entity = dao.get(key(scope, limit, minTimestamp))
+            ?: (if (allowPreviousWindow) dao.latest(prefix(scope, limit)) else null)
+            ?: return@withContext null
         runCatchingPreservingCancellation {
             json.decodeFromString<List<CachedFileModel>>(entity.payloadJson).map { it.toDomain() }
+                .let { files ->
+                    if (allowPreviousWindow) files.filter { it.lastModified >= minTimestamp }.take(limit) else files
+                }
         }.getOrNull()
     }
 
     suspend fun put(scope: StorageScope, limit: Int, minTimestamp: Long, files: List<FileModel>) = withContext(dispatchers.io) {
-        dao.upsert(
+        val cachedAt = System.currentTimeMillis()
+        dao.upsertAndPrune(
             RecentFilesSnapshotEntity(
                 key = key(scope, limit, minTimestamp),
                 payloadJson = json.encodeToString(files.map { CachedFileModel.from(it) }),
-                cachedAt = System.currentTimeMillis()
-            )
+                cachedAt = cachedAt
+            ),
+            prefix(scope, limit),
+            cachedAt - RECENT_SNAPSHOT_RETENTION_MS
         )
     }
 
@@ -55,13 +68,17 @@ class RecentFilesSnapshotStore @Inject constructor(
     }
 
     private fun key(scope: StorageScope, limit: Int, minTimestamp: Long): String =
-        "recent:${scope.cacheKey()}:$limit:${minTimestamp.normalizedRecentWindow()}"
+        "${prefix(scope, limit)}${minTimestamp.normalizedRecentWindow()}"
+
+    private fun prefix(scope: StorageScope, limit: Int): String =
+        "recent:${scope.cacheKey()}:$limit:"
 }
 
 private fun Long.normalizedRecentWindow(): Long =
     if (this <= 0L) 0L else this / RECENT_WINDOW_BUCKET_MS
 
 private const val RECENT_WINDOW_BUCKET_MS = 24L * 60L * 60L * 1000L
+private const val RECENT_SNAPSHOT_RETENTION_MS = 8L * RECENT_WINDOW_BUCKET_MS
 
 @Singleton
 class StorageUsageSnapshotStore @Inject constructor(

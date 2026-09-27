@@ -33,12 +33,12 @@ internal class MediaStoreCategoryCache(
         }
     }
 
-    suspend fun get(scope: StorageScope): List<CategoryStorage>? {
+    suspend fun get(scope: StorageScope, allowStale: Boolean = false): List<CategoryStorage>? {
         try {
             val cacheKey = key(scope) ?: return null
             val entities = dao.get(cacheKey)
             if (entities.isEmpty()) return null
-            if (entities.any { nowMillis() - it.cachedAt > CACHE_TTL_MS }) return null
+            if (!allowStale && entities.any { it.cachedAt == 0L || nowMillis() - it.cachedAt > CACHE_TTL_MS }) return null
 
             val byName = entities.associateBy { it.categoryName }
             return FileCategories.all.map { category ->
@@ -57,11 +57,11 @@ internal class MediaStoreCategoryCache(
     }
 
     suspend fun clear() {
-        dao.clear()
+        dao.markAllStale()
     }
 
     suspend fun invalidateVolumes(volumeIds: Set<String>) {
-        dao.delete(listOf(GLOBAL_KEY) + volumeIds.map(::volumeKey))
+        dao.markStale(listOf(GLOBAL_KEY) + volumeIds.map(::volumeKey))
     }
 
     private fun key(scope: StorageScope): String? =

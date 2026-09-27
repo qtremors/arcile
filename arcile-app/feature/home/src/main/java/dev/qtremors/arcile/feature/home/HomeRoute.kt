@@ -66,7 +66,7 @@ fun HomeRoute(
         ),
         contentIntents = HomeContentIntents(
             refresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
-            resumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
+            resumeRefresh = viewModel::resumeHomeData,
             shareRecentFile = { path ->
                 onDestination(HomeDestination.ShareRecentFile(path, state.displayState.todayRecentFiles))
             },

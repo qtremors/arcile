@@ -12,6 +12,12 @@ interface FolderStatsDao {
     @Upsert
     suspend fun upsert(entity: FolderStatsEntity)
 
+    @Query("UPDATE folder_stats SET cached_at = 0 WHERE path IN (:paths)")
+    suspend fun markStale(paths: List<String>)
+
+    @Query("UPDATE folder_stats SET cached_at = 0")
+    suspend fun markAllStale()
+
     @Query("DELETE FROM folder_stats WHERE path IN (:paths)")
     suspend fun delete(paths: List<String>)
 

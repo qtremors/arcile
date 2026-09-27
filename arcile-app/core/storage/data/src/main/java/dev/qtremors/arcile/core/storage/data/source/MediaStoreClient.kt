@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 interface MediaStoreClient {
+    suspend fun getCachedCategoryStorageSizes(scope: StorageScope): List<CategoryStorage>? = null
     suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>>
     suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>>
     suspend fun getFilesByCategory(scope: StorageScope, categoryName: String): Result<List<FileModel>>
@@ -67,6 +68,9 @@ class DefaultMediaStoreClient(
         const val RECENT_FILES_QUERY_MULTIPLIER = 4
     }
     private val categoryCache = MediaStoreCategoryCache(categorySummaryDao)
+
+    override suspend fun getCachedCategoryStorageSizes(scope: StorageScope): List<CategoryStorage>? =
+        withContext(dispatchers.io) { categoryCache.get(scope, allowStale = true) }
 
     private fun File.toFileModel(mime: String? = null): FileModel {
         val ext = extension

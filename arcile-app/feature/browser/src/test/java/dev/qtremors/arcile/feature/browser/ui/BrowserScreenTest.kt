@@ -481,7 +481,7 @@ class BrowserScreenTest {
     }
 
     @Test
-    fun `folder rows show neutral subtitle immediately without calculating placeholder`() {
+    fun `folder rows without saved stats show calculating size`() {
         composeRule.setContent {
             ArcileTestTheme {
                 BrowserScreen(
@@ -517,8 +517,7 @@ class BrowserScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Folder").assertExists()
-        composeRule.onAllNodesWithText("Calculating…").assertCountEquals(0)
+        composeRule.onNodeWithText("Calculating size…").assertExists()
     }
 
     @Test

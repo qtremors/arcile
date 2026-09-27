@@ -23,7 +23,7 @@ internal class HomeDashboardController(
 ) {
     private var loadJob: Job? = null
 
-    fun load(selectedVolumeId: String? = null) {
+    fun load(selectedVolumeId: String? = null, forceRefresh: Boolean = false) {
         val state = currentState()
         val indexedVolumes = state.storageInfo?.volumes
             ?.filter { it.kind.isIndexed }
@@ -34,7 +34,7 @@ internal class HomeDashboardController(
                     ?.let { selected -> volumes.filter { it.id == selected } }
                     ?: volumes
             }
-            .filter { state.categoryStoragesByVolume[it.id] == null }
+            .filter { forceRefresh || state.categoryStoragesByVolume[it.id] == null }
 
         if (targetVolumes.isEmpty()) return
         if (indexedVolumes.size == 1 && state.categoryStorages.isNotEmpty()) {
@@ -51,6 +51,11 @@ internal class HomeDashboardController(
 
         loadJob?.cancel()
         loadJob = scope.launch {
+            targetVolumes.filter { state.categoryStoragesByVolume[it.id] == null }.forEach { volume ->
+                repository.getCachedCategoryStorageSizes(StorageScope.Volume(volume.id))?.let { cached ->
+                    onUpdate(HomeDashboardUpdate(categoriesByVolume = mapOf(volume.id to cached)))
+                }
+            }
             onUpdate(HomeDashboardUpdate(isCalculating = true))
             val results = supervisorScope {
                 targetVolumes.map { volume ->
@@ -58,16 +63,15 @@ internal class HomeDashboardController(
                         volume.id to repository
                             .getCategoryStorageSizes(StorageScope.Volume(volume.id))
                             .getOrNull()
-                            .orEmpty()
                     }
                 }.map { it.await() }
             }
             onUpdate(
                 HomeDashboardUpdate(
                     isCalculating = false,
-                    categoriesByVolume = results.associate { (volumeId, categories) ->
-                        volumeId to categories.sortedByDescending(CategoryStorage::sizeBytes)
-                    }
+                    categoriesByVolume = results.mapNotNull { (volumeId, categories) ->
+                        categories?.let { volumeId to it.sortedByDescending(CategoryStorage::sizeBytes) }
+                    }.toMap()
                 )
             )
         }

@@ -2,6 +2,7 @@
 
 package dev.qtremors.arcile.feature.browser.ui
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -32,7 +33,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -365,7 +365,7 @@ internal fun BrowserScreen(
             .onSizeChanged { size ->
                 gridContentWidth = with(density) { size.width.toDp() }
             }
-            .nestedScroll(scrollBehavior.nestedScrollConnection)
+            .arcileTopAppBarNestedScroll(scrollBehavior)
             .graphicsLayer {
                 if (isBackPredicting && backActionAtStart == BrowserBackAction.PopRoute) {
                     val scale = 1f - (backProgress * 0.08f)

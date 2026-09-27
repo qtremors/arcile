@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.importing
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +51,6 @@ import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 
@@ -76,11 +76,10 @@ internal fun SaveToArcileScreen(
     }
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.save_to_arcile_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
                         onClick = actions.navigateBack,
@@ -89,7 +88,7 @@ internal fun SaveToArcileScreen(
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                scrollBehavior = scrollBehavior
+                scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior)
             )
         },
         bottomBar = {

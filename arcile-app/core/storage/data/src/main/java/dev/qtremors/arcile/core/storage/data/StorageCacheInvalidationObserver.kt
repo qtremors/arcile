@@ -29,7 +29,6 @@ class StorageCacheInvalidationObserver @Inject constructor(
     private val volumeProvider: VolumeProvider,
     private val storageNodeDao: StorageNodeDao,
     private val folderStatsStore: FolderStatsStore,
-    private val recentFilesSnapshotStore: RecentFilesSnapshotStore,
     private val storageUsageSnapshotStore: StorageUsageSnapshotStore,
     private val storageCleanerSnapshotStore: StorageCleanerSnapshotStore,
     private val storageMutationNotifier: StorageMutationNotifier
@@ -66,7 +65,8 @@ class StorageCacheInvalidationObserver @Inject constructor(
             true,
             observer
         )
-        scheduleInvalidation(null, invalidateCleaner = false, notifyMutation = false)
+        // Registration is not a file change. Keep persisted values across process starts;
+        // actual notifications and cache freshness policies decide what needs refreshing.
     }
 
     private fun scheduleInvalidation(
@@ -103,8 +103,7 @@ class StorageCacheInvalidationObserver @Inject constructor(
             if (broadInvalidation) {
                 mediaStoreClient.invalidateCache()
                 storageNodeDao.clear()
-                folderStatsStore.clear()
-                recentFilesSnapshotStore.clear()
+                folderStatsStore.invalidateAll()
                 storageUsageSnapshotStore.invalidate(emptyList())
                 if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(emptyList())
                 if (notifyMutation) storageMutationNotifier.notify(emptyList())
@@ -136,7 +135,7 @@ class StorageCacheInvalidationObserver @Inject constructor(
                 if (notifyMutation) storageMutationNotifier.notify((paths + parentPaths).distinct())
             } else {
                 mediaStoreClient.invalidateCache()
-                folderStatsStore.clear()
+                folderStatsStore.invalidateAll()
                 storageUsageSnapshotStore.invalidate(emptyList())
                 if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(emptyList())
                 if (notifyMutation) storageMutationNotifier.notify(emptyList())
@@ -147,7 +146,7 @@ class StorageCacheInvalidationObserver @Inject constructor(
             if (mediaStoreIds.isNotEmpty()) {
                 storageNodeDao.deleteByMediaStoreIds(mediaStoreIds)
             }
-            recentFilesSnapshotStore.clear()
+            // Recent snapshots are presentation fallbacks; getRecentFiles still queries live data.
         }
     }
 

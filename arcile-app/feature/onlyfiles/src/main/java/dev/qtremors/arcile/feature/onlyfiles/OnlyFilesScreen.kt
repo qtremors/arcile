@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
@@ -83,7 +84,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -237,7 +237,7 @@ private fun OnlyFilesScreen(
     }
 
     ArcileScreenScaffold(
-        modifier = predictiveBackModifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = predictiveBackModifier.arcileTopAppBarNestedScroll(scrollBehavior),
         snackbarHost = { ArcileSnackbarHost(snackbarHost) },
         topBar = {
             if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
@@ -267,7 +267,6 @@ private fun OnlyFilesScreen(
                     )
                 } else {
                     LargeTopAppBar(
-                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                         title = {
                             val vaultTitle = state.selectedVault?.name
                                 ?: stringResource(R.string.onlyfiles_title)
@@ -278,7 +277,7 @@ private fun OnlyFilesScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
-                        scrollBehavior = scrollBehavior,
+                        scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior),
                         navigationIcon = {
                             Box(
                                 modifier = Modifier

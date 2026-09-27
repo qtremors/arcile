@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -12,7 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
@@ -49,12 +49,11 @@ fun ToolsScreen(
     }
 
     ArcileScreenScaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.tools_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                scrollBehavior = scrollBehavior,
-                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
+                scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior),
                 navigationIcon = {
                     Box(
                         Modifier.size(48.dp).clip(CircleShape).bounceClickable(onClick = onNavigateBack),

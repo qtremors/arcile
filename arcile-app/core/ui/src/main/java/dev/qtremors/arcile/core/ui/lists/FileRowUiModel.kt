@@ -113,9 +113,8 @@ fun FileRowUiModel.displaySubtitle(): String {
         return subtitle.ifBlank { formatFileSize(LocalContext.current, file.size) }
     }
     val stats = folderStats
-    if (stats == null || stats.status == FolderStatsStatus.Unavailable) {
-        return stringResource(R.string.folder_label)
-    }
+    if (stats == null) return stringResource(R.string.folder_stats_pending)
+    if (stats.status == FolderStatsStatus.Unavailable) return stringResource(R.string.folder_stats_unavailable)
     val filesLabel = pluralStringResource(
         R.plurals.folder_stats_files,
         stats.fileCount.toInt(),

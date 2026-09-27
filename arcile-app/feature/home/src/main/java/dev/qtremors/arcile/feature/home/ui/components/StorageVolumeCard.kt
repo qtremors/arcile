@@ -45,12 +45,12 @@ internal fun StorageVolumeCard(
     volume: StorageVolume,
     categoryStorages: List<CategoryStorage>,
     trashBytes: Long,
-    isLoading: Boolean = false,
+    isRefreshing: Boolean = false,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
     val used = volume.totalBytes - volume.freeBytes
-    val showPlaceholder = isLoading || volume.totalBytes <= 0L
+    val showPlaceholder = volume.totalBytes <= 0L
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -129,11 +129,11 @@ internal fun StorageVolumeCard(
             }
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.space12))
             MultiColorStorageBar(
-                totalBytes = volume.totalBytes.takeIf { it > 0L } ?: 1L,
-                freeBytes = volume.freeBytes.takeIf { volume.totalBytes > 0L } ?: 1L,
+                totalBytes = volume.totalBytes,
+                freeBytes = volume.freeBytes,
                 categoryStorages = categoryStorages,
                 trashBytes = trashBytes,
-                isCalculating = showPlaceholder
+                isRefreshing = isRefreshing
             )
             Spacer(modifier = Modifier.height(MaterialTheme.spacing.small))
             Row(

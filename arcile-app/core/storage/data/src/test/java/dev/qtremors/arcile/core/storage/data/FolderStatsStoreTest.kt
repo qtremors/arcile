@@ -242,6 +242,62 @@ class FolderStatsStoreTest {
         assertEquals(FolderStatsStatus.Unavailable, store.getCached(listOf(folder.absolutePath))[folder.absolutePath]?.status)
     }
 
+    @Test
+    fun `invalidating folder stats retains counts across store recreation`() = runBlocking {
+        val path = File(root, "Persisted").apply { mkdirs() }.absolutePath
+        val original = FolderStats(17L, 4096L, System.currentTimeMillis(), FolderStatsStatus.Ready)
+        val dao = dev.qtremors.arcile.core.storage.data.db.ArcileDatabase.getInstance(context).folderStatsDao()
+        dao.upsert(dev.qtremors.arcile.core.storage.data.db.FolderStatsEntity.from(path, original))
+        val store = trackedStore(context)
+        assertEquals(original.copy(cachedAt = 0L), store.getCached(listOf(path))[path])
+
+        store.invalidate(listOf(path))
+
+        assertEquals(original.copy(cachedAt = 0L), store.getCached(listOf(path))[path])
+        val reopened = trackedStore(context)
+        assertEquals(original.copy(cachedAt = 0L), reopened.getCached(listOf(path))[path])
+        reopened.invalidateAll()
+        assertEquals(original.copy(cachedAt = 0L), trackedStore(context).getCached(listOf(path))[path])
+    }
+
+    @Test
+    fun `saved folder stats stay visible while a new session recalculates them`() = runBlocking {
+        val folder = File(root, "ChangedWhileClosed").apply { mkdirs() }
+        File(folder, "new.txt").writeText("new")
+        val saved = FolderStats(7L, 700L, System.currentTimeMillis(), FolderStatsStatus.Ready)
+        val dao = dev.qtremors.arcile.core.storage.data.db.ArcileDatabase.getInstance(context).folderStatsDao()
+        dao.upsert(dev.qtremors.arcile.core.storage.data.db.FolderStatsEntity.from(folder.absolutePath, saved))
+        val store = trackedStore(context)
+
+        assertEquals(saved.copy(cachedAt = 0L), store.getCached(listOf(folder.absolutePath))[folder.absolutePath])
+        val update = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().first { it.path == folder.absolutePath }
+        }
+        store.queue(listOf(folder.absolutePath))
+
+        val refreshed = withTimeout(5_000) { update.await() }.stats
+        assertEquals(1L, refreshed.fileCount)
+        assertEquals(3L, refreshed.totalBytes)
+        assertEquals(refreshed, store.getCached(listOf(folder.absolutePath))[folder.absolutePath])
+    }
+
+    @Test
+    fun `failed refresh preserves persisted usable counts`() = runBlocking {
+        val path = File(root, "TemporarilyUnavailable").apply { mkdirs() }.absolutePath
+        val original = FolderStats(9L, 1024L, System.currentTimeMillis(), FolderStatsStatus.Ready)
+        val dao = dev.qtremors.arcile.core.storage.data.db.ArcileDatabase.getInstance(context).folderStatsDao()
+        dao.upsert(dev.qtremors.arcile.core.storage.data.db.FolderStatsEntity.from(path, original))
+        val store = trackedStore(context, calculator = { throw java.io.IOException("temporarily unavailable") })
+        val update = async(start = CoroutineStart.UNDISPATCHED) {
+            store.observeUpdates().first { it.path == path }
+        }
+
+        store.queue(listOf(path))
+
+        assertEquals(original.copy(cachedAt = 0L), withTimeout(5_000) { update.await() }.stats)
+        assertEquals(original.copy(cachedAt = 0L), trackedStore(context).getCached(listOf(path))[path])
+    }
+
     private fun trackedStore(
         context: Context,
         calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,

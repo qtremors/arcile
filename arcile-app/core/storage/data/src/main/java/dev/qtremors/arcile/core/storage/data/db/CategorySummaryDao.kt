@@ -12,6 +12,12 @@ interface CategorySummaryDao {
     @Upsert
     suspend fun upsert(summaries: List<CategorySummaryEntity>)
 
+    @Query("UPDATE category_summaries SET cached_at = 0 WHERE scope_key IN (:scopeKeys)")
+    suspend fun markStale(scopeKeys: List<String>)
+
+    @Query("UPDATE category_summaries SET cached_at = 0")
+    suspend fun markAllStale()
+
     @Query("DELETE FROM category_summaries WHERE scope_key IN (:scopeKeys)")
     suspend fun delete(scopeKeys: List<String>)
 

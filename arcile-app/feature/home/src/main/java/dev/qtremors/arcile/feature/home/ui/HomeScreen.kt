@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.home.ui
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import dev.qtremors.arcile.core.ui.theme.spacing
 import android.os.Environment
 import androidx.compose.animation.AnimatedVisibility
@@ -89,7 +90,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import dev.qtremors.arcile.core.ui.TopBarAction
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.core.animateFloatAsState
@@ -204,6 +204,11 @@ internal fun HomeScreen(
     val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.BrowserPreferences
         .normalizeHomeRecentCarouselLimit(homeRecentCarouselLimit)
     val displayedRecentFiles = state.displayState.todayRecentFiles.take(normalizedRecentLimit)
+    val displayedCategoryStorages = state.categoryStorages.ifEmpty {
+        state.allStorageVolumes.ifEmpty { state.storageInfo?.volumes.orEmpty() }
+            .singleOrNull()?.let { state.categoryStoragesByVolume[it.id] }
+            ?: emptyList()
+    }
     LaunchedEffect(displayedRecentFiles, homeRecentRenderedThumbnailSizePx) {
         if (normalizedRecentLimit == 0) return@LaunchedEffect
         displayedRecentFiles
@@ -253,7 +258,7 @@ internal fun HomeScreen(
     }
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             ArcileTopBar(
@@ -382,13 +387,17 @@ internal fun HomeScreen(
                                         onOpenStorageDashboard = navigationIntents.openStorageDashboard,
                                         onOpenFileBrowser = navigationIntents.openFileBrowser
                                     )
-                                    HomeSectionIds.CATEGORIES -> CategoryGrid(
-                                        categoryStorages = state.categoryStorages,
-                                        reserveSizeLine = state.isLoading ||
-                                            state.isCalculatingStorage ||
-                                            state.categoryStorages.isEmpty(),
-                                        onCategoryClick = navigationIntents.categoryClick
-                                    )
+                                    HomeSectionIds.CATEGORIES -> if (state.hasRestoredCachedHomeData) {
+                                        CategoryGrid(
+                                            categoryStorages = displayedCategoryStorages,
+                                            reserveSizeLine = state.isLoading ||
+                                                state.isCalculatingStorage ||
+                                                displayedCategoryStorages.isEmpty(),
+                                            onCategoryClick = navigationIntents.categoryClick
+                                        )
+                                    } else {
+                                        Spacer(Modifier.fillMaxWidth().height(230.dp))
+                                    }
                                     HomeSectionIds.QUICK_ACCESS -> QuickAccessGrid(
                                         quickAccessItems = state.quickAccessItems,
                                         onOpenFileBrowser = navigationIntents.openFileBrowser,

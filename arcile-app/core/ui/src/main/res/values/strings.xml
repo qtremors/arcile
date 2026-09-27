@@ -473,7 +473,8 @@
     <string name="folder_stats_summary">%1$s • %2$s</string>
     <string name="directory_label">Directory</string>
     <string name="folder_stats_limited_access">Limited access</string>
-    <string name="folder_stats_unavailable">Folder • Limited access</string>
+    <string name="folder_stats_pending">Calculating size…</string>
+    <string name="folder_stats_unavailable">Size unavailable • Limited access</string>
     <string name="properties_title">Properties</string>
     <string name="properties_loading">Loading properties…</string>
     <string name="properties_name">Name</string>

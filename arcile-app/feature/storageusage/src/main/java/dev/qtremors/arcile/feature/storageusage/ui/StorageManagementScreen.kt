@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.storageusage.ui
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import dev.qtremors.arcile.core.ui.R
 import androidx.compose.ui.res.stringResource
 
@@ -50,7 +51,6 @@ import androidx.compose.ui.draw.clip
 import kotlinx.coroutines.delay
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -82,11 +82,10 @@ internal fun StorageManagementScreen(
     }
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.storage_management_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,
@@ -97,7 +96,7 @@ internal fun StorageManagementScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
-                scrollBehavior = scrollBehavior
+                scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior)
             )
         }
     ) { padding ->

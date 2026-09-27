@@ -76,7 +76,6 @@ internal fun CategoryGrid(
         CategoryDisplay("Archives", stringResource(R.string.category_archives), Icons.Outlined.FolderZip, catColors.archives, categoryStorages.find { it.name == "Archives" }?.sizeBytes ?: 0),
         CategoryDisplay("APKs", stringResource(R.string.category_apks), Icons.Outlined.Android, catColors.apks, categoryStorages.find { it.name == "APKs" }?.sizeBytes ?: 0),
     )
-
     val sortedCategories = categories.sortedByDescending { it.sizeBytes }
 
     BoxWithConstraints(
@@ -89,13 +88,12 @@ internal fun CategoryGrid(
         val rowHeight = 115.dp
 
         categories.forEach { cat ->
-            val indexInSorted = sortedCategories.indexOf(cat)
-            val column = indexInSorted % 3
-            val row = indexInSorted / 3
+            val index = sortedCategories.indexOf(cat)
+            val column = index % 3
+            val row = index / 3
 
             val targetX = columnWidth * column
             val targetY = rowHeight * row
-
             val xOffset by animateDpAsState(
                 targetValue = targetX,
                 animationSpec = ArcileMotion.rememberSpring(
@@ -104,7 +102,6 @@ internal fun CategoryGrid(
                 ),
                 label = "${cat.id}_xOffset"
             )
-
             val yOffset by animateDpAsState(
                 targetValue = targetY,
                 animationSpec = ArcileMotion.rememberSpring(
@@ -125,6 +122,7 @@ internal fun CategoryGrid(
                     icon = cat.icon,
                     color = cat.color,
                     sizeBytes = cat.sizeBytes,
+                    sizeKnown = categoryStorages.any { it.name == cat.id },
                     reserveSizeLine = reserveSizeLine,
                     modifier = Modifier.fillMaxSize(),
                     onClick = { onCategoryClick(cat.id) }
@@ -142,6 +140,7 @@ internal fun CategoryItem(
     sizeBytes: Long,
     modifier: Modifier = Modifier,
     reserveSizeLine: Boolean = false,
+    sizeKnown: Boolean = sizeBytes > 0L,
     onClick: () -> Unit = {}
 ) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -192,12 +191,7 @@ internal fun CategoryItem(
         )
         Spacer(modifier = Modifier.height(2.dp))
         
-        val hasSize = sizeBytes > 0
-        val sizeAlpha by animateFloatAsState(
-            targetValue = if (hasSize) 1f else 0f,
-            animationSpec = ArcileMotion.rememberTween(durationMillis = ArcileMotion.Medium3),
-            label = "${name}_sizeAlpha"
-        )
+        val hasSize = sizeKnown
         
         Box(
             modifier = Modifier
@@ -209,7 +203,7 @@ internal fun CategoryItem(
                 Text(
                     text = if (hasSize) formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes) else "",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = sizeAlpha)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 
                 if (!hasSize) {
@@ -219,7 +213,6 @@ internal fun CategoryItem(
                             .height(10.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.08f))
-                            .shimmer(visible = true, highlightColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.12f))
                     )
                 }
             }
