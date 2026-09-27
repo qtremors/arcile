@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.1
+> **Version:** 2.1.2
 > **Last Updated:** 2026-09-27
 
 ---
+
+## [2.1.2] - Unreleased
+
+- **Settings Pages**: Organize controls into focused pages with clearer section names and descriptions.
+- **Compact Choices**: Keep the theme mode tiles and show start page, theme preset, filename, and extension choices in compact rows that scroll when needed. Put the Custom theme preset on its own row.
+- **File Opening**: Choose which supported or installed plugin extensions open in Arcile, and add or remove custom extension exclusions.
+- **Settings Stability**: Fix the Appearance crash when choices overflow on narrow screens.
 
 ## [2.1.1] - 2026-09-26
 

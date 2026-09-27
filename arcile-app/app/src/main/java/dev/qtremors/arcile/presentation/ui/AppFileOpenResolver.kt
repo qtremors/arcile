@@ -2,9 +2,11 @@ package dev.qtremors.arcile.presentation.ui
 
 import android.webkit.MimeTypeMap
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArcileOpenExtensions
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 
 internal class AppFileOpenResolver(
@@ -28,8 +30,11 @@ internal class AppFileOpenResolver(
             ?: mimeTypeForExtension(extension)
         val category = FileCategories.getCategoryForFile(extension, mimeType)
         if (
-            category != null &&
-            fileOpenBehaviors[category.id.value] == FileOpenBehavior.EXTERNAL
+            FileOpenPreferences.effectiveBehavior(
+                behaviors = fileOpenBehaviors,
+                extension = FileOpenPreferences.extensionForPath(path, extension),
+                category = category
+            ) == FileOpenBehavior.EXTERNAL
         ) {
             return AppFileOpenResolution.External(path, forceChooser = true)
         }
@@ -82,15 +87,8 @@ internal class AppFileOpenResolver(
             )
             extension in FileCategories.Audio.extensions -> AppFileOpenResolution.ViewAudio(path)
             extension == "pdf" -> AppFileOpenResolution.ViewPdf(path)
-            extension in TEXT_EXTENSIONS -> AppFileOpenResolution.EditText(path)
+            extension in ArcileOpenExtensions.text -> AppFileOpenResolution.EditText(path)
             else -> AppFileOpenResolution.External(path, forceChooser = true)
         }
-    }
-
-    private companion object {
-        val TEXT_EXTENSIONS = setOf(
-            "txt", "md", "markdown", "log", "json", "xml", "yaml", "yml",
-            "csv", "ini", "conf", "properties", "kt", "java", "py", "js", "html", "css"
-        )
     }
 }

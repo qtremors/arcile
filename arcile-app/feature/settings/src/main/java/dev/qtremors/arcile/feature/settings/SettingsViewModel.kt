@@ -152,6 +152,12 @@ internal class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun removeFileOpenBehavior(key: String) {
+        viewModelScope.launch {
+            browserPreferencesStore.removeFileOpenBehavior(key)
+        }
+    }
+
     fun exportPreferences(uri: Uri) {
         viewModelScope.launch {
             _backupState.value = PreferencesBackupUiState.Busy

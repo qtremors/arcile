@@ -16,5 +16,6 @@ internal data class SettingsPreferenceActions(
     val activityRecordingChange: (Boolean) -> Unit,
     val browserScrollbarEnabledChange: (Boolean) -> Unit,
     val galleryScrollbarEnabledChange: (Boolean) -> Unit,
-    val fileOpenBehaviorChange: (String, FileOpenBehavior) -> Unit
+    val fileOpenBehaviorChange: (String, FileOpenBehavior) -> Unit,
+    val fileOpenBehaviorRemove: (String) -> Unit
 )

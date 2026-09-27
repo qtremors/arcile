@@ -13,6 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.ActivityLogEntry
 import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
@@ -279,15 +280,26 @@ class BrowserPreferencesDataSourceTest {
     }
 
     @Test
-    fun `file opening behavior is persisted independently by category`() = runBlocking {
+    fun `file opening behavior is persisted independently by category and extension`() = runBlocking {
         val repository = BrowserPreferencesDataSource(context, dataStore)
 
         repository.updateFileOpenBehavior("Images", FileOpenBehavior.EXTERNAL)
         repository.updateFileOpenBehavior("Videos", FileOpenBehavior.ARCILE)
+        repository.updateFileOpenBehavior(FileOpenPreferences.extensionKey("MD"), FileOpenBehavior.EXTERNAL)
 
         val preferences = repository.preferencesFlow.first()
         assertEquals(FileOpenBehavior.EXTERNAL, preferences.fileOpenBehaviors["Images"])
         assertEquals(FileOpenBehavior.ARCILE, preferences.fileOpenBehaviors["Videos"])
+        assertEquals(
+            FileOpenBehavior.EXTERNAL,
+            preferences.fileOpenBehaviors[FileOpenPreferences.extensionKey("md")]
+        )
+
+        repository.removeFileOpenBehavior(FileOpenPreferences.extensionKey("md"))
+        val afterRemoval = repository.preferencesFlow.first()
+        assertEquals(null, afterRemoval.fileOpenBehaviors[FileOpenPreferences.extensionKey("md")])
+        assertEquals(FileOpenBehavior.EXTERNAL, afterRemoval.fileOpenBehaviors["Images"])
+        assertEquals(FileOpenBehavior.ARCILE, afterRemoval.fileOpenBehaviors["Videos"])
     }
 
 }

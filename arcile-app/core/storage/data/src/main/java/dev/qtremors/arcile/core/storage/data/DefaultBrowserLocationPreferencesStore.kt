@@ -45,6 +45,8 @@ class DefaultBrowserLocationPreferencesStore(
     override suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) =
         dataSource.updateFileOpenBehavior(categoryName, behavior)
 
+    override suspend fun removeFileOpenBehavior(key: String) = dataSource.removeFileOpenBehavior(key)
+
     override suspend fun updateCategoryGrouping(
         categoryName: String,
         grouping: CategoryGrouping

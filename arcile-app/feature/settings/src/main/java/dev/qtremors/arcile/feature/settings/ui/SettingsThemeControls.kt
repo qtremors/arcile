@@ -3,21 +3,19 @@ package dev.qtremors.arcile.feature.settings.ui
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -35,61 +33,57 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.keyboardInputField
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.settings.SettingsChoiceHeader
+import dev.qtremors.arcile.core.ui.settings.SettingsConnectedChoices
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
 import dev.qtremors.arcile.core.ui.theme.ThemeState
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.titleMediumBold
 
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun ThemePresetSelector(
     currentPreset: ThemePreset,
     onPresetSelected: (ThemePreset) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp)) {
-        Text(
-            text = "Theme Preset",
-            style = MaterialTheme.typography.titleMediumBold,
-            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)
+    val haptics = rememberArcileHaptics()
+    val labels = mapOf(
+        ThemePreset.NONE to stringResource(R.string.theme_preset_none),
+        ThemePreset.DRACULA to stringResource(R.string.theme_preset_dracula),
+        ThemePreset.TOKYO_NIGHT to stringResource(R.string.theme_preset_tokyo_night),
+        ThemePreset.CUSTOM to stringResource(R.string.theme_preset_custom)
+    )
+    val presets = listOf(ThemePreset.NONE, ThemePreset.DRACULA, ThemePreset.TOKYO_NIGHT)
+    val selectPreset: (ThemePreset) -> Unit = { preset ->
+        haptics.toggleMenu()
+        onPresetSelected(preset)
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+        SettingsChoiceHeader(
+            title = stringResource(R.string.settings_theme_preset),
+            description = stringResource(R.string.settings_theme_preset_description),
+            icon = Icons.Default.Palette
         )
-
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            ThemePreset.values().forEach { preset ->
-                val isSelected = currentPreset == preset
-                val label = when (preset) {
-                    ThemePreset.NONE -> stringResource(R.string.theme_preset_none)
-                    ThemePreset.DRACULA -> stringResource(R.string.theme_preset_dracula)
-                    ThemePreset.TOKYO_NIGHT -> stringResource(R.string.theme_preset_tokyo_night)
-                    ThemePreset.CUSTOM -> stringResource(R.string.theme_preset_custom)
-                }
-                val colors = if (isSelected) {
-                    ButtonDefaults.filledTonalButtonColors()
-                } else {
-                    ButtonDefaults.outlinedButtonColors()
-                }
-                val border = if (isSelected) {
-                    null
-                } else {
-                    BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                }
-                val onPresetClick = { onPresetSelected(preset) }
-                OutlinedButton(
-                    onClick = onPresetClick,
-                    colors = colors,
-                    border = border,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier
-                        .weight(1f)
-                        .bounceClickable(onClick = onPresetClick),
-                    contentPadding = PaddingValues(horizontal = 4.dp)
-                ) {
-                    Text(text = label, style = MaterialTheme.typography.labelMedium)
-                }
-            }
-        }
+        SettingsConnectedChoices(
+            options = presets.map(labels::getValue),
+            isSelected = { presets[it] == currentPreset },
+            onSelectionChanged = { index, checked ->
+                if (checked) selectPreset(presets[index])
+            },
+            rowTag = "theme_preset_choices",
+            dynamicExpand = true,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        )
+        SettingsConnectedChoices(
+            options = listOf(labels.getValue(ThemePreset.CUSTOM)),
+            isSelected = { currentPreset == ThemePreset.CUSTOM },
+            onSelectionChanged = { _, checked ->
+                if (checked) selectPreset(ThemePreset.CUSTOM)
+            },
+            dynamicExpand = true,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)
+        )
     }
 }
 
@@ -132,7 +126,7 @@ internal fun CustomThemeCreatorPanel(
 
     Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
         Text(
-            text = "Custom Theme Settings",
+            text = stringResource(R.string.settings_custom_colors),
             style = MaterialTheme.typography.titleMediumBold,
             modifier = Modifier.padding(bottom = 16.dp)
         )

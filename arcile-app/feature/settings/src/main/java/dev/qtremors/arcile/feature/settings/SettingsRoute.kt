@@ -4,9 +4,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
+import dev.qtremors.arcile.core.plugin.android.PluginManager
+import dev.qtremors.arcile.plugin.api.PluginCompatibility
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import dev.qtremors.arcile.core.ui.theme.ThemeState
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupDialogs
@@ -29,6 +40,17 @@ internal fun SettingsRoute(
     val backupState by viewModel.backupState.collectAsStateWithLifecycle()
     val externalCache by viewModel.externalCache.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pluginExtensions by remember { mutableStateOf(emptySet<String>()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch {
+            pluginExtensions = withContext(Dispatchers.IO) {
+                PluginManager(context).getInstalledPlugins()
+                    .filter { it.compatibility == PluginCompatibility.COMPATIBLE }
+                    .flatMapTo(linkedSetOf()) { it.supportedExtensions }
+            }
+        }
+    }
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -49,6 +71,7 @@ internal fun SettingsRoute(
     )
 
     SettingsScreen(
+        pluginExtensions = pluginExtensions,
         state = SettingsScreenState(
             theme = currentThemeState,
             preferences = preferences,
@@ -73,7 +96,8 @@ internal fun SettingsRoute(
             activityRecordingChange = viewModel::updateActivityRecording,
             browserScrollbarEnabledChange = viewModel::updateBrowserScrollbarEnabled,
             galleryScrollbarEnabledChange = viewModel::updateGalleryScrollbarEnabled,
-            fileOpenBehaviorChange = viewModel::updateFileOpenBehavior
+            fileOpenBehaviorChange = viewModel::updateFileOpenBehavior,
+            fileOpenBehaviorRemove = viewModel::removeFileOpenBehavior
         ),
         backupActions = SettingsBackupActions(
             requestExport = { exportBackupLauncher.launch("arcile-settings-backup.json") },

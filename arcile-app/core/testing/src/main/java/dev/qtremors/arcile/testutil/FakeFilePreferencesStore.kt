@@ -214,6 +214,12 @@ class FakeFilePreferencesStore(
         )
     }
 
+    override suspend fun removeFileOpenBehavior(key: String) {
+        preferences.value = preferences.value.copy(
+            fileOpenBehaviors = preferences.value.fileOpenBehaviors - key
+        )
+    }
+
     override suspend fun updateCategoryGrouping(
         categoryName: String,
         grouping: dev.qtremors.arcile.core.storage.domain.CategoryGrouping

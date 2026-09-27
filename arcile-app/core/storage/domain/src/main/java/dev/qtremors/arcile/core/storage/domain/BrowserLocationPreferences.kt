@@ -102,6 +102,7 @@ interface BrowserLocationPreferencesStore {
     )
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
     suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior)
+    suspend fun removeFileOpenBehavior(key: String)
     suspend fun updateCategoryGrouping(
         categoryName: String,
         grouping: CategoryGrouping

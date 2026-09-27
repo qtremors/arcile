@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.feature.settings.ui
 
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -22,6 +24,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
 import dev.qtremors.arcile.core.ui.settings.SettingsSection
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -29,75 +32,85 @@ import dev.qtremors.arcile.core.ui.settings.SettingsSection
 internal fun SettingsStorageSection(
     cache: SettingsExternalCacheState,
     onOpenStorageManagement: () -> Unit,
-    onClearExternalCache: () -> Unit
+    onClearExternalCache: () -> Unit,
+    showHeading: Boolean = true
 ) {
-    SettingsSection(title = stringResource(R.string.section_storage)) {
-        SegmentedListItem(
-            onClick = onOpenStorageManagement,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 2),
-            content = { Text(stringResource(R.string.manage_classification)) },
-            supportingContent = { Text(stringResource(R.string.manage_classification_description)) },
-            leadingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Storage,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-        SegmentedListItem(
-            onClick = { if (!cache.isBusy) onClearExternalCache() },
-            enabled = !cache.isBusy,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 2),
-            content = { Text(stringResource(R.string.clear_external_access_cache)) },
-            supportingContent = {
-                Text(
-                    androidx.compose.ui.res.pluralStringResource(
-                        R.plurals.clear_external_access_cache_description,
-                        cache.fileCount,
-                        cache.fileCount
-                    )
-                )
-            },
-            leadingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.DeleteSweep,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            trailingContent = {
-                if (cache.isBusy) {
+    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
+        if (showHeading) ArcileSectionHeader(text = stringResource(R.string.section_storage))
+        SettingsSection(title = stringResource(R.string.settings_storage_external_section)) {
+            SegmentedListItem(
+                onClick = onOpenStorageManagement,
+                shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 1),
+                content = { Text(stringResource(R.string.manage_classification)) },
+                supportingContent = { Text(stringResource(R.string.manage_classification_description)) },
+                leadingContent = {
                     Box(
                         modifier = Modifier.fillMaxHeight(),
                         contentAlignment = Alignment.Center
                     ) {
-                        LoadingIndicator(
-                            modifier = Modifier.size(24.dp)
+                        Icon(
+                            Icons.Default.Storage,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
                         )
                     }
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier
-                .testTag("external_cache_setting_row")
-                .height(IntrinsicSize.Min)
-        )
+                },
+                colors = ListItemDefaults.segmentedColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                modifier = Modifier.height(IntrinsicSize.Min)
+            )
+        }
+        SettingsSection(title = stringResource(R.string.settings_storage_temporary_section)) {
+            SegmentedListItem(
+                onClick = { if (!cache.isBusy && cache.fileCount > 0) onClearExternalCache() },
+                enabled = !cache.isBusy && cache.fileCount > 0,
+                shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 1),
+                content = { Text(stringResource(R.string.clear_external_access_cache)) },
+                supportingContent = {
+                    Text(
+                        if (cache.fileCount == 0) {
+                            stringResource(R.string.clear_external_access_cache_empty)
+                        } else {
+                            androidx.compose.ui.res.pluralStringResource(
+                                R.plurals.clear_external_access_cache_description,
+                                cache.fileCount,
+                                cache.fileCount
+                            )
+                        }
+                    )
+                },
+                leadingContent = {
+                    Box(
+                        modifier = Modifier.fillMaxHeight(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Default.DeleteSweep,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
+                trailingContent = {
+                    if (cache.isBusy) {
+                        Box(
+                            modifier = Modifier.fillMaxHeight(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            LoadingIndicator(
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    }
+                },
+                colors = ListItemDefaults.segmentedColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
+                modifier = Modifier
+                    .testTag("external_cache_setting_row")
+                    .height(IntrinsicSize.Min)
+            )
+        }
     }
 }

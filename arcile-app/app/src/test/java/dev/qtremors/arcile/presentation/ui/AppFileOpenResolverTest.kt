@@ -2,6 +2,7 @@ package dev.qtremors.arcile.presentation.ui
 
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
 import dev.qtremors.arcile.core.plugin.android.PluginCatalogEntry
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
 import kotlinx.coroutines.test.runTest
@@ -148,6 +149,50 @@ class AppFileOpenResolverTest {
         assertEquals(
             AppFileOpenResolution.External("/storage/report.pdf", forceChooser = true),
             result
+        )
+    }
+
+    @Test
+    fun `extension choice overrides a category choice`() = runTest {
+        val resolver = AppFileOpenResolver(
+            pluginGateway = PluginFileResolutionGateway { _, _, _ -> PluginFileResolution.NotApplicable },
+            fileOpenBehaviors = mapOf(
+                "Images" to FileOpenBehavior.EXTERNAL,
+                FileOpenPreferences.extensionKey("png") to FileOpenBehavior.ARCILE
+            ),
+            mimeTypeForExtension = { "image/${if (it == "jpg") "jpeg" else it}" }
+        )
+
+        assertEquals(
+            AppFileOpenResolution.ViewImage("/storage/photo.png", emptyList()),
+            resolver.resolve("/storage/photo.png", emptyList())
+        )
+        assertEquals(
+            AppFileOpenResolution.External("/storage/photo.jpg", forceChooser = true),
+            resolver.resolve("/storage/photo.jpg", emptyList())
+        )
+    }
+
+    @Test
+    fun `text and compound archive extension choices bypass Arcile`() = runTest {
+        val resolver = AppFileOpenResolver(
+            pluginGateway = PluginFileResolutionGateway { _, _, _ ->
+                error("External extension choice should bypass plugin resolution")
+            },
+            fileOpenBehaviors = mapOf(
+                FileOpenPreferences.extensionKey("md") to FileOpenBehavior.EXTERNAL,
+                FileOpenPreferences.extensionKey("tar.gz") to FileOpenBehavior.EXTERNAL
+            ),
+            mimeTypeForExtension = { null }
+        )
+
+        assertEquals(
+            AppFileOpenResolution.External("/storage/notes.md", forceChooser = true),
+            resolver.resolve("/storage/notes.md", emptyList())
+        )
+        assertEquals(
+            AppFileOpenResolution.External("/storage/files.tar.gz", forceChooser = true),
+            resolver.resolve("/storage/files.tar.gz", emptyList())
         )
     }
 

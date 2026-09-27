@@ -711,6 +711,24 @@ class BrowserPreferencesDataSource(
         }
     }
 
+    suspend fun removeFileOpenBehavior(key: String) {
+        dataStore.edit { prefs ->
+            val current = prefs[FILE_OPEN_BEHAVIORS_KEY]
+                ?.let { encoded ->
+                    runCatchingPreservingCancellation {
+                        Json.decodeFromString<Map<String, String>>(encoded)
+                    }.getOrDefault(emptyMap())
+                }
+                .orEmpty()
+            val updated = current - key
+            if (updated.isEmpty()) {
+                prefs.remove(FILE_OPEN_BEHAVIORS_KEY)
+            } else {
+                prefs[FILE_OPEN_BEHAVIORS_KEY] = Json.encodeToString(updated)
+            }
+        }
+    }
+
     suspend fun updateDefaultSaveToArcilePath(path: String?) =
         writer.updateDefaultSaveToArcilePath(path)
 

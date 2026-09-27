@@ -13,10 +13,11 @@ import dev.qtremors.arcile.core.ui.ArcileSectionHeader
 @Composable
 fun SettingsSection(
     title: String,
+    showTitle: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ArcileSectionHeader(text = title)
+        if (showTitle) ArcileSectionHeader(text = title)
         Column(
             verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap),
             content = content
