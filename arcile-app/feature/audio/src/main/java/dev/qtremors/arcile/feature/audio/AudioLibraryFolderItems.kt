@@ -58,6 +58,9 @@ internal fun AudioFolderListItem(
     onTogglePin: () -> Unit,
     onChooseCover: () -> Unit,
     onResetCover: () -> Unit,
+    onRenamePlaylist: () -> Unit = {},
+    onDeletePlaylist: () -> Unit = {},
+    onEditPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showMenu by rememberSaveable { mutableStateOf(false) }
@@ -77,7 +80,9 @@ internal fun AudioFolderListItem(
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AudioArtwork(folder.coverTrack, Modifier.size((48f * zoom).dp))
+        folder.coverTrack?.let { AudioArtwork(it, Modifier.size((48f * zoom).dp)) }
+            ?: Icon(Icons.Default.Image, contentDescription = null,
+                modifier = Modifier.size((48f * zoom).dp))
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -122,7 +127,7 @@ internal fun AudioFolderListItem(
                     .size(22.dp)
             )
         }
-        if (!folder.isFavorites && !isSelected) {
+        if (folder.isDirectory && !isSelected) {
             Box {
                 IconButton(onClick = { showMenu = true }) {
                     Icon(
@@ -137,6 +142,21 @@ internal fun AudioFolderListItem(
                     onTogglePin = onTogglePin,
                     onChooseCover = onChooseCover,
                     onResetCover = onResetCover
+                )
+            }
+        }
+        if (folder.kind == AudioFolderKind.Playlist && !isSelected) {
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.audio_playlist_options))
+                }
+                AudioPlaylistOptionsMenu(
+                    expanded = showMenu,
+                    onDismiss = { showMenu = false },
+                    onEdit = onEditPlaylist,
+                    onRename = onRenamePlaylist,
+                    onDelete = onDeletePlaylist
                 )
             }
         }
@@ -155,8 +175,12 @@ internal fun AudioFolderGridItem(
     onTogglePin: () -> Unit,
     onChooseCover: () -> Unit,
     onResetCover: () -> Unit,
+    onRenamePlaylist: () -> Unit = {},
+    onDeletePlaylist: () -> Unit = {},
+    onEditPlaylist: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    var showPlaylistMenu by rememberSaveable { mutableStateOf(false) }
     Box(modifier = modifier) {
         CategoryFolderGridItem(
             info = CategoryItemInfo(
@@ -169,11 +193,10 @@ internal fun AudioFolderGridItem(
             onClick = onClick,
             onLongClick = onLongClick
         ) {
-            AudioArtwork(
-                folder.coverTrack,
-                Modifier.fillMaxSize(),
-                shape = RectangleShape
-            )
+            folder.coverTrack?.let { cover ->
+                AudioArtwork(cover, Modifier.fillMaxSize(), shape = RectangleShape)
+            } ?: Icon(Icons.Default.Image, contentDescription = null,
+                modifier = Modifier.size(48.dp))
         }
         if (canPaste && !isSelected) {
             Surface(
@@ -205,7 +228,44 @@ internal fun AudioFolderGridItem(
                     .align(Alignment.TopEnd)
             )
         }
+        if (folder.kind == AudioFolderKind.Playlist && !isSelected) {
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                IconButton(onClick = { showPlaylistMenu = true }) {
+                    Icon(Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.audio_playlist_options))
+                }
+                AudioPlaylistOptionsMenu(
+                    expanded = showPlaylistMenu,
+                    onDismiss = { showPlaylistMenu = false },
+                    onEdit = onEditPlaylist,
+                    onRename = onRenamePlaylist,
+                    onDelete = onDeletePlaylist
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun AudioPlaylistOptionsMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onRename: () -> Unit,
+    onDelete: () -> Unit
+) {
+    ArcileDropdownMenu(
+        expanded = expanded,
+        onDismissRequest = onDismiss,
+        items = listOf(
+            { ArcileDropdownMenuItem(text = stringResource(R.string.audio_edit_playlist_songs),
+                onClick = { onDismiss(); onEdit() }) },
+            { ArcileDropdownMenuItem(text = stringResource(R.string.audio_rename_playlist),
+                onClick = { onDismiss(); onRename() }) },
+            { ArcileDropdownMenuItem(text = stringResource(R.string.audio_delete_playlist),
+                onClick = { onDismiss(); onDelete() }) }
+        )
+    )
 }
 
 @Composable

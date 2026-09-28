@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.3
+> **Version:** 2.1.4
 > **Last Updated:** 2026-09-28
 
 ---
+
+## [2.1.4] - 2026-09-28
+
+- **Music Library Pages**: Browse Songs, Folders, Albums, Artists, Genres, and Playlists inside Audio. Choose an opening page and keep separate list or grid views and sorting for each page.
+- **Playlists and Collections**: Create, rename, delete, and reorder playlists; add selected songs and open collection details with artwork, song counts, and playback controls.
+- **Music Details and Lyrics**: Edit song tags and artwork in supported audio files, with verification and a recovery copy during writes. View plain or timed lyrics during playback and save timed lyrics beside the audio file.
 
 ## [2.1.3] - 2026-09-28
 

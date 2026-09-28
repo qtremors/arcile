@@ -14,9 +14,15 @@ import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
+internal enum class AudioCollectionKind { SONGS, FOLDERS, ALBUMS, ARTISTS, GENRES, PLAYLISTS }
+
 internal enum class AudioFolderKind {
     Directory,
-    Favorites
+    Favorites,
+    Artist,
+    Album,
+    Genre,
+    Playlist
 }
 
 internal data class AudioFolder(
@@ -29,11 +35,12 @@ internal data class AudioFolder(
     val kind: AudioFolderKind = AudioFolderKind.Directory
 ) {
     val isFavorites: Boolean get() = kind == AudioFolderKind.Favorites
-    val coverTrack: AudioTrack
+    val isDirectory: Boolean get() = kind == AudioFolderKind.Directory
+    val coverTrack: AudioTrack?
         get() = tracks.firstOrNull { it.file.absolutePath == customCoverPath }
             ?: tracks.maxByOrNull { it.file.lastModified }
-            ?: tracks.first()
-    val newestModified: Long get() = tracks.maxOf { it.file.lastModified }
+            ?: tracks.firstOrNull()
+    val newestModified: Long get() = tracks.maxOfOrNull { it.file.lastModified } ?: 0L
     val totalSize: Long get() = tracks.sumOf { it.file.size }
 }
 
@@ -41,8 +48,12 @@ internal data class AudioLibraryState(
     val tracks: List<AudioTrack> = emptyList(),
     val visibleTracks: List<AudioTrack> = emptyList(),
     val folders: List<AudioFolder> = emptyList(),
+    val collectionKind: AudioCollectionKind = AudioCollectionKind.SONGS,
+    val playlists: List<AudioPlaylist> = emptyList(),
+    val sectionPresentations: Map<AudioCollectionKind, FileListingPreferences> = emptyMap(),
     val tab: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val defaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
+    val defaultSection: AudioCollectionKind = AudioCollectionKind.SONGS,
     val query: String = "",
     val searchFilters: SearchFilters = SearchFilters(),
     val audioPresentation: FileListingPreferences = FileListingPreferences(
@@ -85,3 +96,10 @@ internal data class AudioLibraryState(
     val isRefreshing: Boolean = false,
     val error: UiText? = null
 )
+
+internal fun AudioLibraryState.presentationFor(section: AudioCollectionKind): FileListingPreferences =
+    when (section) {
+        AudioCollectionKind.SONGS -> audioPresentation
+        AudioCollectionKind.FOLDERS -> folderPresentation
+        else -> sectionPresentations[section] ?: folderPresentation
+    }

@@ -50,6 +50,7 @@ internal class AudioLibraryFileActions(
     private val operationOwnerId: String? = null,
     private val playback: AudioPlaybackController,
     private val reload: () -> Unit,
+    private val onFileRenamed: suspend (String, String) -> Unit = { _, _ -> },
     private val onOperationFeedback: (ArcileFeedbackEvent) -> Unit = {},
     private val rebuildPresentation: ((AudioLibraryState) -> AudioLibraryState) -> Unit
 ) {
@@ -295,6 +296,7 @@ internal class AudioLibraryFileActions(
             fileMutationRepository.renameFile(path, newName)
                 .onSuccess { renamedFile ->
                     playback.replaceQueueItem(path, track.copy(file = renamedFile))
+                    runCatching { onFileRenamed(path, renamedFile.absolutePath) }
                     clearSelection()
                     reload()
                 }

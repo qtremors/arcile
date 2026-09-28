@@ -418,6 +418,8 @@ internal fun AudioSelectionActionsBar(
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onEditTags: () -> Unit,
     onEditAudio: () -> Unit
 ) {
     var showMenu by rememberSaveable { mutableStateOf(false) }
@@ -489,6 +491,26 @@ internal fun AudioSelectionActionsBar(
                 expanded = showMenu,
                 onDismissRequest = { showMenu = false },
                 items = buildList {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.audio_add_to_playlist),
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.QueueMusic, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onAddToPlaylist()
+                            }
+                        )
+                    }
+                    if (canUseSingleTrackActions) add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.audio_edit_tags),
+                            leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                            onClick = {
+                                showMenu = false
+                                onEditTags()
+                            }
+                        )
+                    }
                     add {
                         ArcileDropdownMenuItem(
                             text = stringResource(R.string.audio_edit),

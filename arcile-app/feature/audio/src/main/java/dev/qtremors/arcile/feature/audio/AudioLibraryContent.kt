@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -39,6 +41,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -86,6 +95,11 @@ internal fun AudioLibraryPage(
     onRefresh: () -> Unit,
     onPlay: (String) -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
+    onCreatePlaylist: (String) -> Unit,
+    onAddSelectionToPlaylist: (String) -> Unit,
+    onRenamePlaylist: (String, String) -> Unit,
+    onDeletePlaylist: (String) -> Unit,
+    onSetPlaylistTracks: (String, List<String>) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit,
     onTogglePaths: (Collection<String>) -> Unit,
@@ -121,7 +135,7 @@ internal fun AudioLibraryPage(
                     LoadingIndicator()
                 }
             }
-            isEmpty && !state.isLoading -> AudioEmptyState(
+            isEmpty && !state.isLoading && showingTracks && state.folderFilter == null -> AudioEmptyState(
                 hasFilter = state.query.isNotBlank() ||
                     state.searchFilters.hasActiveFilters ||
                     state.folderFilter != null
@@ -144,6 +158,11 @@ internal fun AudioLibraryPage(
                 onGridSizeChange = onGridSizeChange,
                 onGridSizeFinalized = onGridSizeFinalized,
                 onSelectFolder = onSelectFolder,
+                onCreatePlaylist = onCreatePlaylist,
+                onAddSelectionToPlaylist = onAddSelectionToPlaylist,
+                onRenamePlaylist = onRenamePlaylist,
+                onDeletePlaylist = onDeletePlaylist,
+                onSetPlaylistTracks = onSetPlaylistTracks,
                 onSelectPaths = onSelectPaths,
                 onTogglePaths = onTogglePaths,
                 onPasteToFolder = onPasteToFolder,
@@ -185,11 +204,14 @@ private fun AudioTracksContent(
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit
 ) {
-    val groups = remember(state.visibleTracks, state.grouping) {
-        groupAudioTracks(state.visibleTracks, state.grouping)
+    val effectiveGrouping = if (state.folderFilter?.kind == AudioFolderKind.Playlist ||
+        state.folderFilter?.kind == AudioFolderKind.Album
+    ) CategoryGrouping.NONE else state.grouping
+    val groups = remember(state.visibleTracks, effectiveGrouping) {
+        groupAudioTracks(state.visibleTracks, effectiveGrouping)
     }
-    val flatTracks = remember(groups, state.visibleTracks, state.grouping) {
-        if (state.grouping == CategoryGrouping.NONE) {
+    val flatTracks = remember(groups, state.visibleTracks, effectiveGrouping) {
+        if (effectiveGrouping == CategoryGrouping.NONE) {
             state.visibleTracks
         } else {
             groups.values.flatten()
@@ -259,7 +281,20 @@ private fun AudioTracksContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            if (state.grouping == CategoryGrouping.NONE) {
+            state.folderFilter?.let { folder ->
+                item(span = { GridItemSpan(maxLineSpan) }, key = "collection-header") {
+                    AudioCollectionDetailHeader(
+                        folder = folder,
+                        onPlayAll = { state.visibleTracks.firstOrNull()?.let {
+                            onPlay(it.file.absolutePath)
+                        } },
+                        onSelectAll = {
+                            onSelectPaths(state.visibleTracks.map { it.file.absolutePath })
+                        }
+                    )
+                }
+            }
+            if (effectiveGrouping == CategoryGrouping.NONE) {
                 items(state.visibleTracks, key = { it.file.absolutePath }) { track ->
                     AudioTrackGridItem(
                         track = track,
@@ -296,7 +331,20 @@ private fun AudioTracksContent(
             state = listState,
             contentPadding = listContentPadding
         ) {
-            if (state.grouping == CategoryGrouping.NONE) {
+            state.folderFilter?.let { folder ->
+                item(key = "collection-header") {
+                    AudioCollectionDetailHeader(
+                        folder = folder,
+                        onPlayAll = { state.visibleTracks.firstOrNull()?.let {
+                            onPlay(it.file.absolutePath)
+                        } },
+                        onSelectAll = {
+                            onSelectPaths(state.visibleTracks.map { it.file.absolutePath })
+                        }
+                    )
+                }
+            }
+            if (effectiveGrouping == CategoryGrouping.NONE) {
                 items(state.visibleTracks, key = { it.file.absolutePath }) { track ->
                     AudioTrackListItem(
                         track = track,
@@ -329,7 +377,12 @@ private fun AudioTracksContent(
         ArcileFastScrollbar(
             scrollbarState = scrollbarState,
             labelForIndex = { index ->
-                audioTrackForLazyIndex(index, state.visibleTracks, state.grouping, groups)
+                if (state.folderFilter != null && index == 0) {
+                    state.folderFilter.title
+                } else audioTrackForLazyIndex(
+                    index - if (state.folderFilter != null) 1 else 0,
+                    state.visibleTracks, effectiveGrouping, groups
+                )
                     ?.displayTitle
                     .orEmpty()
             },
@@ -398,7 +451,7 @@ private fun AudioTrackGridItem(
 
 private fun AudioTrack.categoryItemInfo(context: android.content.Context, showDetails: Boolean): CategoryItemInfo =
     CategoryItemInfo(
-        title = file.name,
+        title = displayTitle,
         detailLines = buildList {
             add(buildTrackSubtitle(this@categoryItemInfo))
             if (showDetails) {
@@ -415,6 +468,11 @@ private fun AudioFoldersContent(
     onGridSizeChange: (Float) -> Unit,
     onGridSizeFinalized: (Float) -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
+    onCreatePlaylist: (String) -> Unit,
+    onAddSelectionToPlaylist: (String) -> Unit,
+    onRenamePlaylist: (String, String) -> Unit,
+    onDeletePlaylist: (String) -> Unit,
+    onSetPlaylistTracks: (String, List<String>) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit,
     onTogglePaths: (Collection<String>) -> Unit,
     onPasteToFolder: (String) -> Unit,
@@ -423,8 +481,15 @@ private fun AudioFoldersContent(
     onResetFolderCover: (AudioFolder) -> Unit
 ) {
     val haptics = rememberArcileHaptics()
+    var showCreatePlaylist by rememberSaveable { mutableStateOf(false) }
+    var playlistName by rememberSaveable { mutableStateOf("") }
+    var showPlaylistPicker by rememberSaveable { mutableStateOf(false) }
+    var renamePlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var deletePlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    var editPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val scrollbarState: ScrollbarState = LazyGridScrollbarState(gridState)
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
     val folderContentPadding = PaddingValues(
         start = 16.dp,
         top = contentPadding.calculateTopPadding() + 8.dp,
@@ -435,7 +500,91 @@ private fun AudioFoldersContent(
     val folderLabels = remember(state.folders, favoritesTitle) {
         state.folders.map { it.displayTitle(favoritesTitle) }
     }
-    Box(modifier = Modifier.fillMaxSize()) {
+    if (state.presentationFor(state.collectionKind).viewMode == FileViewMode.LIST) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = folderContentPadding,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (state.collectionKind == AudioCollectionKind.PLAYLISTS) {
+                    item {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = { showCreatePlaylist = true }) {
+                                Text(stringResource(R.string.audio_new_playlist))
+                            }
+                            if (state.selectedPaths.isNotEmpty() && state.playlists.isNotEmpty()) {
+                                Box {
+                                    TextButton(onClick = { showPlaylistPicker = true }) {
+                                        Text(stringResource(R.string.audio_add_selected))
+                                    }
+                                    DropdownMenu(
+                                        expanded = showPlaylistPicker,
+                                        onDismissRequest = { showPlaylistPicker = false }
+                                    ) {
+                                        state.playlists.forEach { playlist ->
+                                            DropdownMenuItem(
+                                                text = { Text(playlist.name) },
+                                                onClick = {
+                                                    showPlaylistPicker = false
+                                                    onAddSelectionToPlaylist(playlist.id)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if (state.folders.isEmpty()) {
+                    item {
+                        Text(
+                            if (state.collectionKind == AudioCollectionKind.PLAYLISTS) {
+                                stringResource(R.string.audio_playlist_empty)
+                            } else stringResource(R.string.audio_collection_empty),
+                            modifier = Modifier.padding(24.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(state.folders, key = AudioFolder::key) { folder ->
+                    val paths = folder.tracks.map { it.file.absolutePath }
+                    val selected = paths.isNotEmpty() && paths.all(state.selectedPaths::contains)
+                    AudioFolderListItem(
+                        folder = folder,
+                        zoom = state.presentationFor(state.collectionKind).listZoom,
+                        isSelected = selected,
+                        showDetails = state.showFileDetails,
+                        canPaste = state.clipboardState != null && folder.isDirectory,
+                        onClick = {
+                            if (state.selectedPaths.isEmpty()) onSelectFolder(folder)
+                            else onTogglePaths(paths)
+                        },
+                        onLongClick = { onSelectPaths(paths) },
+                        onPaste = { onPasteToFolder(folder.key) },
+                        onTogglePin = { onTogglePinnedFolder(folder) },
+                        onChooseCover = { onChooseFolderCover(folder) },
+                        onResetCover = { onResetFolderCover(folder) },
+                        onRenamePlaylist = {
+                            playlistName = folder.title
+                            renamePlaylistId = folder.key
+                        },
+                        onDeletePlaylist = { deletePlaylistId = folder.key },
+                        onEditPlaylist = { editPlaylistId = folder.key }
+                    )
+                }
+            }
+            ArcileFastScrollbar(
+                scrollbarState = LazyListScrollbarState(listState),
+                labelForIndex = { index -> folderLabels.getOrNull(index).orEmpty() },
+                modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
+                contentPadding = folderContentPadding,
+                enabled = state.scrollbarEnabled
+            )
+        }
+    } else Box(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(gridSize.dp),
             state = gridState,
@@ -450,13 +599,62 @@ private fun AudioFoldersContent(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (state.collectionKind == AudioCollectionKind.PLAYLISTS) {
+                        Button(onClick = { showCreatePlaylist = true }) {
+                            Text(stringResource(R.string.audio_new_playlist))
+                        }
+                        if (state.selectedPaths.isNotEmpty() && state.playlists.isNotEmpty()) {
+                            Box {
+                                TextButton(onClick = { showPlaylistPicker = true }) {
+                                    Text(stringResource(R.string.audio_add_selected))
+                                }
+                                DropdownMenu(
+                                    expanded = showPlaylistPicker,
+                                    onDismissRequest = { showPlaylistPicker = false }
+                                ) {
+                                    state.playlists.forEach { playlist ->
+                                        DropdownMenuItem(
+                                            text = { Text(playlist.name) },
+                                            onClick = {
+                                                showPlaylistPicker = false
+                                                onAddSelectionToPlaylist(playlist.id)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (state.folders.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        if (state.collectionKind == AudioCollectionKind.PLAYLISTS) {
+                            stringResource(R.string.audio_playlist_empty)
+                        } else {
+                            stringResource(R.string.audio_collection_empty)
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(24.dp)
+                    )
+                }
+            }
             items(state.folders, key = AudioFolder::key) { folder ->
                 val folderPaths = folder.tracks.map { it.file.absolutePath }
-                val isSelected = folderPaths.all(state.selectedPaths::contains)
+                val isSelected = folderPaths.isNotEmpty() &&
+                    folderPaths.all(state.selectedPaths::contains)
                 AudioFolderGridItem(
                     folder = folder,
                     isSelected = isSelected,
-                    canPaste = state.clipboardState != null && !folder.isFavorites,
+                    canPaste = state.clipboardState != null && folder.isDirectory,
                     onClick = {
                         if (state.selectedPaths.isEmpty()) {
                             onSelectFolder(folder)
@@ -477,6 +675,12 @@ private fun AudioFoldersContent(
                     onTogglePin = { onTogglePinnedFolder(folder) },
                     onChooseCover = { onChooseFolderCover(folder) },
                     onResetCover = { onResetFolderCover(folder) },
+                    onRenamePlaylist = {
+                        playlistName = folder.title
+                        renamePlaylistId = folder.key
+                    },
+                    onDeletePlaylist = { deletePlaylistId = folder.key },
+                    onEditPlaylist = { editPlaylistId = folder.key },
                     modifier = Modifier.animateItem()
                 )
             }
@@ -490,6 +694,95 @@ private fun AudioFoldersContent(
             contentPadding = folderContentPadding,
             enabled = state.scrollbarEnabled
         )
+    }
+    if (showCreatePlaylist) {
+        AlertDialog(
+            onDismissRequest = { showCreatePlaylist = false },
+            title = { Text(stringResource(R.string.audio_new_playlist)) },
+            text = {
+                OutlinedTextField(
+                    value = playlistName,
+                    onValueChange = { playlistName = it },
+                    label = { Text(stringResource(R.string.audio_playlist_name)) },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onCreatePlaylist(playlistName)
+                        playlistName = ""
+                        showCreatePlaylist = false
+                    },
+                    enabled = playlistName.isNotBlank()
+                ) { Text(stringResource(R.string.audio_create)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCreatePlaylist = false }) {
+                    Text(stringResource(dev.qtremors.arcile.core.ui.R.string.cancel))
+                }
+            }
+        )
+    }
+    renamePlaylistId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { renamePlaylistId = null },
+            title = { Text(stringResource(R.string.audio_rename_playlist)) },
+            text = {
+                OutlinedTextField(
+                    value = playlistName,
+                    onValueChange = { playlistName = it },
+                    label = { Text(stringResource(R.string.audio_playlist_name)) },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onRenamePlaylist(id, playlistName)
+                        renamePlaylistId = null
+                        playlistName = ""
+                    },
+                    enabled = playlistName.isNotBlank()
+                ) { Text(stringResource(R.string.audio_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { renamePlaylistId = null }) {
+                    Text(stringResource(dev.qtremors.arcile.core.ui.R.string.cancel))
+                }
+            }
+        )
+    }
+    deletePlaylistId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { deletePlaylistId = null },
+            title = { Text(stringResource(R.string.audio_delete_playlist_question)) },
+            text = { Text(stringResource(R.string.audio_delete_playlist_note)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeletePlaylist(id)
+                    deletePlaylistId = null
+                }) { Text(stringResource(R.string.audio_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { deletePlaylistId = null }) {
+                    Text(stringResource(dev.qtremors.arcile.core.ui.R.string.cancel))
+                }
+            }
+        )
+    }
+    editPlaylistId?.let { id ->
+        state.playlists.firstOrNull { it.id == id }?.let { playlist ->
+            AudioPlaylistEditorDialog(
+                playlist = playlist,
+                tracks = state.tracks,
+                onSave = { trackIds ->
+                    onSetPlaylistTracks(id, trackIds)
+                    editPlaylistId = null
+                },
+                onDismiss = { editPlaylistId = null }
+            )
+        }
     }
 }
 

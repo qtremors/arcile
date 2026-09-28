@@ -142,6 +142,8 @@ internal fun AudioNowPlayingScreen(
     onSeek: (Long) -> Unit,
     onShare: () -> Unit,
     onEdit: () -> Unit,
+    tagEditor: AudioTagEditor,
+    onTagSaved: (AudioTrack) -> Unit,
     onOpenWith: () -> Unit,
     onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
     onFileDeleted: (String) -> Unit = {}
@@ -149,6 +151,8 @@ internal fun AudioNowPlayingScreen(
     var showMenu by remember { mutableStateOf(false) }
     var showMetadata by remember { mutableStateOf(false) }
     var showQueue by remember { mutableStateOf(false) }
+    var showTags by remember { mutableStateOf(false) }
+    var showLyrics by remember { mutableStateOf(false) }
     var sliderPosition by remember(playback.currentMediaId) {
         mutableFloatStateOf(playback.positionMs.toFloat())
     }
@@ -561,6 +565,8 @@ internal fun AudioNowPlayingScreen(
                         visualizerEnabled = visualizerEnabled,
                         onToggleVisualizer = onToggleVisualizer,
                         onEdit = onEdit,
+                        onEditTags = { showTags = true },
+                        onShowLyrics = { showLyrics = true },
                         onOpenWith = onOpenWith,
                         onShare = onShare.takeIf { ViewerFileAction.Share in viewerActionController.state.allowedActions },
                         onCopy = {
@@ -603,6 +609,25 @@ internal fun AudioNowPlayingScreen(
             currentIndex = playback.currentMediaIndex,
             onTrackClick = onQueueTrack,
             onDismiss = { showQueue = false }
+        )
+    }
+    if (showTags) {
+        AudioMetadataEditorSheet(
+            track = track,
+            editor = tagEditor,
+            onSaved = { updated ->
+                onTagSaved(updated)
+                showTags = false
+            },
+            onDismiss = { showTags = false }
+        )
+    }
+    if (showLyrics) {
+        AudioLyricsSheet(
+            track = track,
+            positionMs = playback.positionMs,
+            editor = tagEditor,
+            onDismiss = { showLyrics = false }
         )
     }
 }

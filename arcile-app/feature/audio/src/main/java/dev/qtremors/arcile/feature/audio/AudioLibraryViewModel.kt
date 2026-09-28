@@ -43,6 +43,8 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 @HiltViewModel
 internal class AudioLibraryViewModel @Inject constructor(
     private val repository: AudioLibraryRepository,
+    private val musicStore: AudioMusicStore,
+    internal val tagEditor: AudioTagEditor,
     private val preferencesStore: AudioLibraryPreferencesStore,
     private val clipboardRepository: ClipboardRepository,
     private val fileBrowserRepository: FileBrowserRepository,
@@ -76,11 +78,20 @@ internal class AudioLibraryViewModel @Inject constructor(
         operationOwnerId = operationOwnerId,
         playback = playback,
         reload = { load(refresh = true) },
+        onFileRenamed = musicStore::replaceTrackPath,
         onOperationFeedback = _feedbackEvents::tryEmit,
         rebuildPresentation = ::rebuildPresentation
     )
 
     init {
+        viewModelScope.launch {
+            musicStore.playlists.collectLatest { playlists ->
+                rebuildPresentation { it.copy(playlists = playlists) }
+            }
+        }
+        viewModelScope.launch {
+            musicStore.mediaChanges.collectLatest { load(refresh = true) }
+        }
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
             operationCoordinator.activeRequest.collectLatest(fileActions::syncActiveRequest)
         }
@@ -103,14 +114,24 @@ internal class AudioLibraryViewModel @Inject constructor(
     private fun applyPreferences(preferences: AudioLibraryPreferences) {
         rebuildPresentation { current ->
             val defaultPage = preferences.defaultPage
+            val defaultSection = musicStore.defaultSection(
+                if (defaultPage == CategoryLibraryPage.ITEMS) AudioCollectionKind.SONGS
+                else AudioCollectionKind.FOLDERS
+            )
             current.copy(
                 audioPresentation = preferences.audioPresentation,
-                folderPresentation = preferences.folderPresentation.copy(
-                    viewMode = FileViewMode.GRID
-                ),
+                folderPresentation = preferences.folderPresentation,
+                sectionPresentations = AudioCollectionKind.entries
+                    .filterNot { it == AudioCollectionKind.SONGS || it == AudioCollectionKind.FOLDERS }
+                    .associateWith(musicStore::presentation),
                 grouping = preferences.grouping,
                 defaultPage = defaultPage,
-                tab = if (preferencesApplied) current.tab else defaultPage,
+                defaultSection = defaultSection,
+                tab = if (preferencesApplied) current.tab else {
+                    if (defaultSection == AudioCollectionKind.SONGS) CategoryLibraryPage.ITEMS
+                    else CategoryLibraryPage.FOLDERS
+                },
+                collectionKind = if (preferencesApplied) current.collectionKind else defaultSection,
                 showFileDetails = preferences.showFileDetails,
                 scrollbarEnabled = preferences.scrollbarEnabled,
                 favoritePaths = preferences.favoriteFiles,
@@ -182,8 +203,24 @@ internal class AudioLibraryViewModel @Inject constructor(
 
     fun selectTab(tab: CategoryLibraryPage) {
         rebuildPresentation {
-            it.copy(tab = tab, folderFilter = null)
+            it.copy(tab = tab, folderFilter = null,
+                collectionKind = if (tab == CategoryLibraryPage.ITEMS) {
+                    AudioCollectionKind.SONGS
+                } else AudioCollectionKind.FOLDERS)
                 .withPresentedVisibleTracks()
+        }
+    }
+
+    fun selectCollection(section: AudioCollectionKind) {
+        rebuildPresentation {
+            it.copy(
+                collectionKind = section,
+                tab = if (section == AudioCollectionKind.SONGS) {
+                    CategoryLibraryPage.ITEMS
+                } else CategoryLibraryPage.FOLDERS,
+                folderFilter = null,
+                selectedPaths = emptySet()
+            )
         }
     }
 
@@ -210,9 +247,7 @@ internal class AudioLibraryViewModel @Inject constructor(
                 CategoryLibraryPage.ITEMS ->
                     preferencesStore.updateAudioPresentation(presentation.normalized())
                 CategoryLibraryPage.FOLDERS ->
-                    preferencesStore.updateAudioFolderPresentation(
-                        presentation.normalized().copy(viewMode = FileViewMode.GRID)
-                    )
+                    preferencesStore.updateAudioFolderPresentation(presentation.normalized())
             }
         }
         rebuildPresentation { current ->
@@ -221,12 +256,86 @@ internal class AudioLibraryViewModel @Inject constructor(
                     audioPresentation = presentation.normalized()
                 )
                 CategoryLibraryPage.FOLDERS -> current.copy(
-                    folderPresentation = presentation.normalized().copy(
-                        viewMode = FileViewMode.GRID
-                    )
+                    folderPresentation = presentation.normalized()
                 )
             }
         }
+    }
+
+    fun updateSectionPresentation(
+        section: AudioCollectionKind,
+        presentation: FileListingPreferences
+    ) {
+        when (section) {
+            AudioCollectionKind.SONGS -> updatePresentation(CategoryLibraryPage.ITEMS, presentation)
+            AudioCollectionKind.FOLDERS -> updatePresentation(CategoryLibraryPage.FOLDERS, presentation)
+            else -> {
+                viewModelScope.launch {
+                    runCatching { musicStore.savePresentation(section, presentation) }
+                        .onFailure(::showMusicError)
+                }
+                rebuildPresentation {
+                    it.copy(sectionPresentations = it.sectionPresentations +
+                        (section to presentation.normalized()))
+                }
+            }
+        }
+    }
+
+    fun createPlaylist(name: String) {
+        viewModelScope.launch {
+            runCatching { musicStore.createPlaylist(name) }.onFailure(::showMusicError)
+        }
+    }
+
+    fun createPlaylistFromSelection(name: String) {
+        val paths = _state.value.selectedPaths.toList()
+        if (paths.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { musicStore.createPlaylist(name, paths) }
+                .onSuccess { clearSelection() }
+                .onFailure(::showMusicError)
+        }
+    }
+
+    fun addSelectionToPlaylist(id: String) {
+        val paths = _state.value.selectedPaths.toList()
+        if (paths.isEmpty()) return
+        viewModelScope.launch {
+            runCatching { musicStore.appendPlaylistTracks(id, paths) }
+                .onSuccess { clearSelection() }
+                .onFailure(::showMusicError)
+        }
+    }
+
+    fun renamePlaylist(id: String, name: String) {
+        viewModelScope.launch {
+            runCatching { musicStore.renamePlaylist(id, name) }.onFailure(::showMusicError)
+        }
+    }
+
+    fun deletePlaylist(id: String) {
+        viewModelScope.launch {
+            runCatching { musicStore.deletePlaylist(id) }.onFailure(::showMusicError)
+        }
+    }
+
+    fun setPlaylistTracks(id: String, paths: List<String>) {
+        viewModelScope.launch {
+            runCatching { musicStore.setPlaylistTracks(id, paths) }.onFailure(::showMusicError)
+        }
+    }
+
+    fun applyTagEdit(updated: dev.qtremors.arcile.core.storage.domain.AudioTrack) {
+        rebuildPresentation { current ->
+            current.copy(tracks = current.tracks.map { track ->
+                if (track.file.absolutePath == updated.file.absolutePath) updated else track
+            })
+        }
+    }
+
+    private fun showMusicError(error: Throwable) {
+        _state.update { it.copy(error = UiText.Dynamic(error.message.orEmpty())) }
     }
 
     fun updateGrouping(grouping: CategoryGrouping) {
@@ -242,6 +351,13 @@ internal class AudioLibraryViewModel @Inject constructor(
     fun updateDefaultPage(tab: CategoryLibraryPage) {
         viewModelScope.launch { preferencesStore.updateAudioDefaultPage(tab) }
         _state.update { it.copy(defaultPage = tab) }
+    }
+
+    fun updateDefaultSection(section: AudioCollectionKind) {
+        viewModelScope.launch {
+            runCatching { musicStore.saveDefaultSection(section) }.onFailure(::showMusicError)
+        }
+        _state.update { it.copy(defaultSection = section) }
     }
 
     fun toggleFavoriteSelection() {

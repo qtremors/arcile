@@ -89,6 +89,12 @@ class AudioPlayerActivity : ComponentActivity() {
     @Inject
     internal lateinit var dispatchers: ArcileDispatchers
 
+    @Inject
+    internal lateinit var tagEditor: AudioTagEditor
+
+    @Inject
+    internal lateinit var musicStore: AudioMusicStore
+
     private var queue by mutableStateOf<List<AudioTrack>>(emptyList())
     private var initialPath by mutableStateOf<String?>(null)
     private var playerLaunchId by mutableIntStateOf(0)
@@ -137,12 +143,19 @@ class AudioPlayerActivity : ComponentActivity() {
                             lifecycleScope.launch { audioPreferences.updateFavorite(path, nextFavorite) }
                         },
                         playbackController = playback,
+                        tagEditor = tagEditor,
                         launchId = playerLaunchId,
                         miniPlayerBottomClearanceDp = miniPlayerBottomClearanceDp,
                         onWindowModeChange = ::setPlayerWindowExpanded,
                         onFinish = ::finish,
                         onShare = { share(it.file) },
                         onEdit = { openEditor(it.file) },
+                        onTagSaved = { updated ->
+                            val path = updated.file.absolutePath
+                            queue = queue.map { if (it.file.absolutePath == path) updated else it }
+                            playback.replaceQueueItem(path, updated)
+                            musicStore.notifyMediaChanged()
+                        },
                         onOpenWith = { openWith(it.file) },
                         onFileRenamed = { oldPath, newFile ->
                             val oldTrack = queue.firstOrNull { it.file.absolutePath == oldPath }
@@ -150,6 +163,12 @@ class AudioPlayerActivity : ComponentActivity() {
                                 val renamedTrack = oldTrack.copy(file = newFile)
                                 queue = queue.map { if (it.file.absolutePath == oldPath) renamedTrack else it }
                                 playback.replaceQueueItem(oldPath, renamedTrack)
+                                musicStore.notifyMediaChanged()
+                                lifecycleScope.launch {
+                                    runCatching {
+                                        musicStore.replaceTrackPath(oldPath, newFile.absolutePath)
+                                    }
+                                }
                             }
                         },
                         onFileDeleted = { deletedPath ->
@@ -330,12 +349,14 @@ private fun StandaloneAudioPlayer(
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     playbackController: AudioPlaybackController,
+    tagEditor: AudioTagEditor,
     launchId: Int,
     miniPlayerBottomClearanceDp: Int,
     onWindowModeChange: (Boolean) -> Unit,
     onFinish: () -> Unit,
     onShare: (AudioTrack) -> Unit,
     onEdit: (AudioTrack) -> Unit,
+    onTagSaved: (AudioTrack) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
     onFileRenamed: (String, FileModel) -> Unit,
     onFileDeleted: (String) -> Unit
@@ -474,6 +495,8 @@ private fun StandaloneAudioPlayer(
                         onSeek = playbackController::seekTo,
                         onShare = { onShare(track) },
                         onEdit = { onEdit(track) },
+                        tagEditor = tagEditor,
+                        onTagSaved = onTagSaved,
                         onOpenWith = { onOpenWith(track) },
                         onFileRenamed = onFileRenamed,
                         onFileDeleted = onFileDeleted

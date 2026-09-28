@@ -34,7 +34,11 @@ internal class DefaultAudioLibraryRepository(
                     MediaStore.Audio.Media.TITLE,
                     MediaStore.Audio.Media.ARTIST,
                     MediaStore.Audio.Media.ALBUM,
-                    MediaStore.Audio.Media.DURATION
+                    MediaStore.Audio.Media.DURATION,
+                    MediaStore.Audio.Media.ALBUM_ARTIST,
+                    MediaStore.Audio.Media.GENRE,
+                    MediaStore.Audio.Media.TRACK,
+                    MediaStore.Audio.Media.YEAR
                 )
                 val tracks = buildList {
                     context.contentResolver.query(
@@ -48,17 +52,28 @@ internal class DefaultAudioLibraryRepository(
                         val artistIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ARTIST)
                         val albumIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM)
                         val durationIndex = cursor.getColumnIndex(MediaStore.Audio.Media.DURATION)
+                        val albumArtistIndex = cursor.getColumnIndex(MediaStore.Audio.Media.ALBUM_ARTIST)
+                        val genreIndex = cursor.getColumnIndex(MediaStore.Audio.Media.GENRE)
+                        val trackIndex = cursor.getColumnIndex(MediaStore.Audio.Media.TRACK)
+                        val yearIndex = cursor.getColumnIndex(MediaStore.Audio.Media.YEAR)
                         while (cursor.moveToNext()) {
                             currentCoroutineContext().ensureActive()
                             val row = cursor.readMediaStoreFileRow()
                             if (!rowMatchesScope(row, scope, volumes)) continue
+                            val encodedTrack = cursor.optionalAudioLong(trackIndex).toInt()
                             add(
                                 row.toAudioTrack(
                                     volumes = volumes,
                                     title = cursor.optionalAudioString(titleIndex),
                                     artist = cursor.optionalAudioString(artistIndex),
                                     album = cursor.optionalAudioString(albumIndex),
-                                    durationMs = cursor.optionalAudioLong(durationIndex)
+                                    durationMs = cursor.optionalAudioLong(durationIndex),
+                                    albumArtist = cursor.optionalAudioString(albumArtistIndex),
+                                    genre = cursor.optionalAudioString(genreIndex),
+                                    trackNumber = (encodedTrack % 1000).takeIf { it > 0 },
+                                    discNumber = (encodedTrack / 1000).takeIf { it > 0 },
+                                    year = cursor.optionalAudioLong(yearIndex).toInt()
+                                        .takeIf { it > 0 }
                                 )
                             )
                         }
@@ -81,7 +96,12 @@ private fun MediaStoreFileRow.toAudioTrack(
     title: String?,
     artist: String?,
     album: String?,
-    durationMs: Long
+    durationMs: Long,
+    albumArtist: String?,
+    genre: String?,
+    trackNumber: Int?,
+    discNumber: Int?,
+    year: Int?
 ): AudioTrack {
     val file = toFileModel(volumes)
     return AudioTrack(
@@ -89,7 +109,12 @@ private fun MediaStoreFileRow.toAudioTrack(
         title = title.orEmpty(),
         artist = artist.cleanMediaStoreLabel(),
         album = album.cleanMediaStoreLabel(),
-        durationMs = durationMs.coerceAtLeast(0L)
+        durationMs = durationMs.coerceAtLeast(0L),
+        albumArtist = albumArtist.cleanMediaStoreLabel(),
+        genre = genre.cleanMediaStoreLabel(),
+        trackNumber = trackNumber,
+        discNumber = discNumber,
+        year = year
     )
 }
 

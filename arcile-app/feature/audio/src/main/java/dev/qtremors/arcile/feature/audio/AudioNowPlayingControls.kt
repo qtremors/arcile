@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -143,6 +144,8 @@ internal fun AudioPlayerMoreMenu(
     visualizerEnabled: Boolean,
     onToggleVisualizer: () -> Unit,
     onEdit: () -> Unit,
+    onEditTags: () -> Unit,
+    onShowLyrics: () -> Unit,
     onOpenWith: () -> Unit,
     onShare: (() -> Unit)? = null,
     onCopy: (() -> Unit)? = null,
@@ -176,6 +179,20 @@ internal fun AudioPlayerMoreMenu(
                             onDismissMenu()
                             onEdit()
                         }
+                    )
+                }
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.audio_edit_tags),
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = { onDismissMenu(); onEditTags() }
+                    )
+                }
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.audio_lyrics),
+                        leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null) },
+                        onClick = { onDismissMenu(); onShowLyrics() }
                     )
                 }
                 add {
