@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.4
+> **Version:** 2.1.5
 > **Last Updated:** 2026-09-28
 
 ---
+
+## [2.1.5] - 2026-09-28
+
+- **Integrated Audio Player**: Keep the mini player inside Arcile's layout so navigation, text fields, and Android gestures remain available. Expand and collapse the full player within the app, and open externally launched audio in a full screen player.
+- **Playback and Queue Controls**: Restore the paused queue and position after relaunch, return to the player from its notification, show the real shuffle order, and add queue editing, playlist saving, playback speed, pitch, and a sleep timer.
+- **Audio Library Updates**: Refresh on MediaStore changes, offer a saved Music only filter, smooth search updates, and move playlists to a dedicated file with migration from existing saved playlists.
 
 ## [2.1.4] - 2026-09-28
 

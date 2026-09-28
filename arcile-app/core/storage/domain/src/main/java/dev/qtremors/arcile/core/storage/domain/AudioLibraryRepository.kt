@@ -21,4 +21,7 @@ data class AudioTrack(
 
 interface AudioLibraryRepository {
     suspend fun getTracks(scope: StorageScope = StorageScope.AllStorage): Result<List<AudioTrack>>
+
+    suspend fun getMusicTracks(scope: StorageScope = StorageScope.AllStorage): Result<List<AudioTrack>> =
+        getTracks(scope)
 }

@@ -2,6 +2,8 @@
 <resources>
     <string name="audio_title">Audio</string>
     <string name="audio_search">Search audio, artists, albums, or folders</string>
+    <string name="audio_music_only">Music only</string>
+    <string name="audio_music_only_description">Hide recordings and other audio that Android does not mark as music.</string>
     <string name="audio_tracks">Songs</string>
     <string name="audio_albums">Albums</string>
     <string name="audio_artists">Artists</string>
@@ -14,6 +16,18 @@
     <string name="audio_add_selected">Add selected</string>
     <string name="audio_create_and_add">Create and add</string>
     <string name="audio_playlist_name">Playlist name</string>
+    <string name="audio_save_queue">Save queue</string>
+    <string name="audio_clear_queue">Clear</string>
+    <string name="audio_queue_item_options">Queue item options</string>
+    <string name="audio_remove_from_queue">Remove from queue</string>
+    <string name="audio_playback_settings">Playback speed and pitch</string>
+    <string name="audio_playback_speed_value">Speed %1$s×</string>
+    <string name="audio_playback_pitch_value">Pitch %1$s×</string>
+    <string name="audio_reset_playback">Reset</string>
+    <string name="audio_sleep_timer">Sleep timer</string>
+    <string name="audio_sleep_minutes">%1$d minutes</string>
+    <string name="audio_set_timer">Set timer</string>
+    <string name="audio_cancel_timer">Cancel timer</string>
     <string name="audio_playlist_options">Playlist options</string>
     <string name="audio_edit_playlist_songs">Edit songs</string>
     <string name="audio_rename_playlist">Rename playlist</string>

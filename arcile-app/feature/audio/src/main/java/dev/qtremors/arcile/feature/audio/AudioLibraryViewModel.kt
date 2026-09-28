@@ -1,9 +1,15 @@
 package dev.qtremors.arcile.feature.audio
 
+import android.content.Context
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.MediaStore
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
@@ -34,6 +40,10 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.merge
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -41,7 +51,9 @@ import java.util.UUID
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 
 @HiltViewModel
+@OptIn(FlowPreview::class)
 internal class AudioLibraryViewModel @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val repository: AudioLibraryRepository,
     private val musicStore: AudioMusicStore,
     internal val tagEditor: AudioTagEditor,
@@ -58,9 +70,16 @@ internal class AudioLibraryViewModel @Inject constructor(
     private val volumeId = savedStateHandle.get<String>("volumeId")?.takeIf(String::isNotBlank)
     private var loadJob: Job? = null
     private var presentationJob: Job? = null
+    private var searchJob: Job? = null
     private var presentationGeneration = 0L
     private var preferencesApplied = false
-    private val _state = MutableStateFlow(AudioLibraryState())
+    private val mediaStoreChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    private val mediaStoreObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            mediaStoreChanges.tryEmit(Unit)
+        }
+    }
+    private val _state = MutableStateFlow(AudioLibraryState(musicOnly = musicStore.musicOnly()))
     val state: StateFlow<AudioLibraryState> = _state.asStateFlow()
     private val _feedbackEvents = MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 8)
     val feedbackEvents = _feedbackEvents.asSharedFlow()
@@ -84,13 +103,20 @@ internal class AudioLibraryViewModel @Inject constructor(
     )
 
     init {
+        context.contentResolver.registerContentObserver(
+            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
+            true,
+            mediaStoreObserver
+        )
         viewModelScope.launch {
             musicStore.playlists.collectLatest { playlists ->
                 rebuildPresentation { it.copy(playlists = playlists) }
             }
         }
         viewModelScope.launch {
-            musicStore.mediaChanges.collectLatest { load(refresh = true) }
+            merge(musicStore.mediaChanges, mediaStoreChanges)
+                .debounce(500L)
+                .collectLatest { load(refresh = true) }
         }
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) {
             operationCoordinator.activeRequest.collectLatest(fileActions::syncActiveRequest)
@@ -153,7 +179,8 @@ internal class AudioLibraryViewModel @Inject constructor(
         }
         loadJob = viewModelScope.launch {
             val scope = volumeId?.let(StorageScope::Volume) ?: StorageScope.AllStorage
-            repository.getTracks(scope)
+            (if (_state.value.musicOnly) repository.getMusicTracks(scope)
+                else repository.getTracks(scope))
                 .onSuccess { tracks ->
                     presentationGeneration += 1L
                     presentationJob?.cancel()
@@ -186,7 +213,12 @@ internal class AudioLibraryViewModel @Inject constructor(
     }
 
     fun updateQuery(query: String) {
-        rebuildPresentation { it.copy(query = query) }
+        _state.update { it.copy(query = query) }
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(180L)
+            rebuildPresentation { it }
+        }
     }
 
     fun updateFavoriteSearchAliases(aliases: Set<String>) {
@@ -348,6 +380,15 @@ internal class AudioLibraryViewModel @Inject constructor(
         _state.update { it.copy(showFileDetails = show) }
     }
 
+    fun updateMusicOnly(enabled: Boolean) {
+        if (_state.value.musicOnly == enabled) return
+        _state.update { it.copy(musicOnly = enabled) }
+        viewModelScope.launch {
+            runCatching { musicStore.saveMusicOnly(enabled) }.onFailure(::showMusicError)
+        }
+        load(refresh = true)
+    }
+
     fun updateDefaultPage(tab: CategoryLibraryPage) {
         viewModelScope.launch { preferencesStore.updateAudioDefaultPage(tab) }
         _state.update { it.copy(defaultPage = tab) }
@@ -465,6 +506,11 @@ internal class AudioLibraryViewModel @Inject constructor(
 
     private companion object {
         const val OPERATION_OWNER_ID_KEY = "audioOperationOwnerId"
+    }
+
+    override fun onCleared() {
+        context.contentResolver.unregisterContentObserver(mediaStoreObserver)
+        super.onCleared()
     }
 
 }

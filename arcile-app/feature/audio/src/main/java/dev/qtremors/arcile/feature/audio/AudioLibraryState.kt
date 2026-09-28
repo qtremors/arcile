@@ -70,6 +70,7 @@ internal data class AudioLibraryState(
     ),
     val grouping: CategoryGrouping = CategoryGrouping.MONTH,
     val showFileDetails: Boolean = true,
+    val musicOnly: Boolean = false,
     val scrollbarEnabled: Boolean = true,
     val favoritePaths: Set<String> = emptySet(),
     val pinnedFolderPaths: Set<String> = emptySet(),

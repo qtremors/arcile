@@ -18,13 +18,46 @@ import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(UnstableApi::class)
 internal class AudioPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    private lateinit var queueStore: AudioPlaybackQueueStore
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var positionJob: Job? = null
     private val visualizerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             AudioPlaybackSpectrum.setPlaying(isPlaying)
+            positionJob?.cancel()
+            mediaSession?.player?.let(queueStore::savePosition)
+            if (isPlaying) {
+                positionJob = serviceScope.launch {
+                    while (isActive) {
+                        delay(5_000L)
+                        mediaSession?.player?.let(queueStore::savePosition)
+                    }
+                }
+            }
+        }
+
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (events.contains(Player.EVENT_TIMELINE_CHANGED)) {
+                queueStore.saveQueue(player)
+            } else if (
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+                events.contains(Player.EVENT_POSITION_DISCONTINUITY) ||
+                events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
+                events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)
+            ) {
+                queueStore.savePosition(player)
+            }
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -62,6 +95,7 @@ internal class AudioPlaybackService : MediaSessionService() {
             if (customCommand == closePlayerCommand) {
                 session.player.stop()
                 session.player.clearMediaItems()
+                queueStore.saveQueue(session.player)
                 sendBroadcast(
                     Intent(ACTION_CLOSE_AUDIO_PLAYER).setPackage(packageName)
                 )
@@ -74,6 +108,7 @@ internal class AudioPlaybackService : MediaSessionService() {
     @UnstableApi
     override fun onCreate() {
         super.onCreate()
+        queueStore = AudioPlaybackQueueStore(this)
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this)
             .build()
             .apply { setSmallIcon(R.drawable.ic_arcile_notification) }
@@ -88,12 +123,19 @@ internal class AudioPlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
-            .apply { addListener(visualizerListener) }
+        queueStore.read()?.let { saved ->
+            player.setMediaItems(saved.items, saved.index, saved.positionMs)
+            player.repeatMode = saved.repeatMode
+            player.shuffleModeEnabled = saved.shuffleEnabled
+            player.prepare()
+        }
+        player.addListener(visualizerListener)
         val sessionActivity = packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
             PendingIntent.getActivity(
                 this,
                 0,
-                intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    .putExtra(AudioFeatureEntryPoint.EXTRA_OPEN_PLAYER, true),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
@@ -120,9 +162,11 @@ internal class AudioPlaybackService : MediaSessionService() {
     ): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        positionJob?.cancel()
         AudioPlaybackSpectrum.setPlaying(false)
         AudioPlaybackSpectrum.clear()
         mediaSession?.run {
+            queueStore.savePosition(player)
             player.release()
             release()
         }

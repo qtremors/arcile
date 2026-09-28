@@ -22,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.feature.onboarding.OnboardingRoute
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
@@ -134,6 +135,17 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+        if (intent.getBooleanExtra(AudioFeatureEntryPoint.EXTRA_OPEN_PLAYER, false)) {
+            AudioFeatureEntryPoint.expandPlayer(this)
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(AudioFeatureEntryPoint.EXTRA_OPEN_PLAYER, false)) {
+            AudioFeatureEntryPoint.expandPlayer(this)
         }
     }
 

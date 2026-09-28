@@ -136,18 +136,7 @@ internal class AppNavigationActions(
         startPlayback: Boolean
     ) {
         onRecordFileOpened(track.file.absolutePath)
-        context.startActivity(
-            AudioFeatureEntryPoint.createPlayerIntent(
-                context = context,
-                path = track.file.absolutePath,
-                contextPaths = queue.map { it.file.absolutePath },
-                startPlayback = startPlayback,
-                contentUri = track.file.nodeRef.contentUri,
-                mimeType = track.file.mimeType,
-                displayName = track.file.name,
-                nodeRef = track.file.nodeRef
-            )
-        )
+        AudioFeatureEntryPoint.playInApp(context, track, queue, startPlayback)
     }
 
     fun openAudioEditor(paths: List<String>) {
@@ -300,21 +289,14 @@ internal class AppNavigationActions(
                     selectedPaths = selectedPaths
                 )
                 is AppFileOpenResolution.ViewAudio -> {
-                    val selected = preparedFiles.firstOrNull { it.absolutePath == resolution.path }
-                    context.startActivity(AudioFeatureEntryPoint.createPlayerIntent(
-                        context = context,
-                        path = resolution.path,
-                        contextPaths = preparedFiles
-                            .filter {
-                                FileCategories.getCategoryForFile(it.extension, it.mimeType) ==
-                                    FileCategories.Audio
-                            }
-                            .map(FileModel::absolutePath),
-                        contentUri = selected?.nodeRef?.contentUri,
-                        mimeType = selected?.mimeType,
-                        displayName = selected?.name,
-                        nodeRef = selected?.nodeRef
-                    ))
+                    AudioFeatureEntryPoint.playFilesInApp(
+                        context,
+                        resolution.path,
+                        preparedFiles.filter {
+                            FileCategories.getCategoryForFile(it.extension, it.mimeType) ==
+                                FileCategories.Audio
+                        }
+                    )
                 }
                 is AppFileOpenResolution.ViewPdf -> {
                     val intent = ExternalFileAccessHelper.createOpenIntent(

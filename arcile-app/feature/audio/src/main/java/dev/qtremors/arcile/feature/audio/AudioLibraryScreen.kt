@@ -68,6 +68,7 @@ internal fun AudioLibraryScreen(
     onTagEdited: (AudioTrack) -> Unit,
     onGroupingChange: (CategoryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
+    onMusicOnlyChange: (Boolean) -> Unit,
     onDefaultSectionChange: (AudioCollectionKind) -> Unit,
     onToggleFavoriteSelection: () -> Unit,
     onTogglePinnedFolder: (AudioFolder) -> Unit,
@@ -364,10 +365,12 @@ internal fun AudioLibraryScreen(
             presentation = state.presentationFor(presentationSection),
             grouping = state.grouping,
             showFileDetails = state.showFileDetails,
-            onApply = { presentation, grouping, showDetails ->
+            musicOnly = state.musicOnly,
+            onApply = { presentation, grouping, showDetails, musicOnly ->
                 onPresentationChange(presentationSection, presentation)
                 onGroupingChange(grouping)
                 onShowFileDetailsChange(showDetails)
+                onMusicOnlyChange(musicOnly)
             },
             onDismiss = { showPresentationSheet = false }
         )

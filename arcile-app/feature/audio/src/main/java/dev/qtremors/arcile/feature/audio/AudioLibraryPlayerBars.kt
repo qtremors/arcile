@@ -105,6 +105,7 @@ internal fun AudioMiniPlayer(
     val swipeOffset = remember { Animatable(0f) }
     val gestureThresholdPx = with(LocalDensity.current) { 48.dp.toPx() }
     val horizontalThresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
+    val systemEdgePx = with(LocalDensity.current) { 24.dp.toPx() }
     val flingThresholdPxPerSecond = with(LocalDensity.current) { 800.dp.toPx() }
     val gestureScope = rememberCoroutineScope()
     var dismissCommitted by remember(track.file.absolutePath) { mutableStateOf(false) }
@@ -195,10 +196,16 @@ internal fun AudioMiniPlayer(
             }
             .pointerInput(track.file.absolutePath, horizontalThresholdPx) {
                 var totalDrag = 0f
+                var startedAtSystemEdge = false
                 var swipeJob: Job? = null
                 detectHorizontalDragGestures(
-                    onDragStart = { totalDrag = 0f },
+                    onDragStart = { change ->
+                        totalDrag = 0f
+                        startedAtSystemEdge = change.x < systemEdgePx ||
+                            change.x > size.width - systemEdgePx
+                    },
                     onHorizontalDrag = { change, amount ->
+                        if (startedAtSystemEdge) return@detectHorizontalDragGestures
                         change.consume()
                         totalDrag += amount
                         swipeJob?.cancel()
@@ -213,6 +220,7 @@ internal fun AudioMiniPlayer(
                         swipeJob = gestureScope.launch { swipeOffset.settleMiniDrag() }
                     },
                     onDragEnd = {
+                        if (startedAtSystemEdge) return@detectHorizontalDragGestures
                         val direction = when {
                             totalDrag > horizontalThresholdPx -> 1
                             totalDrag < -horizontalThresholdPx -> -1

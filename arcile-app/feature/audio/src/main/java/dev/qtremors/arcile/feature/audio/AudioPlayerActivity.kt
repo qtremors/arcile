@@ -116,7 +116,7 @@ class AudioPlayerActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        setPlayerWindowExpanded(false)
+        setPlayerWindowExpanded(true)
         setContent {
             val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
                 initialValue = ThemeState()
@@ -145,6 +145,7 @@ class AudioPlayerActivity : ComponentActivity() {
                         playbackController = playback,
                         tagEditor = tagEditor,
                         launchId = playerLaunchId,
+                        allowMini = false,
                         miniPlayerBottomClearanceDp = miniPlayerBottomClearanceDp,
                         onWindowModeChange = ::setPlayerWindowExpanded,
                         onFinish = ::finish,
@@ -175,6 +176,14 @@ class AudioPlayerActivity : ComponentActivity() {
                             queue = queue.filterNot { it.file.absolutePath == deletedPath }
                             playback.removeQueueItems(listOf(deletedPath))
                             if (queue.isEmpty()) finish()
+                        },
+                        onRemoveQueueTrack = { path ->
+                            queue = queue.filterNot { it.file.absolutePath == path }
+                            playback.removeQueueItems(listOf(path))
+                            if (queue.isEmpty()) finish()
+                        },
+                        onSaveQueue = { name, paths ->
+                            lifecycleScope.launch { runCatching { musicStore.createPlaylist(name, paths) } }
                         }
                     )
                 }
@@ -192,7 +201,7 @@ class AudioPlayerActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openIntent(intent)
-        setPlayerWindowExpanded(false)
+        setPlayerWindowExpanded(true)
     }
 
     private fun setPlayerWindowExpanded(expanded: Boolean) {
@@ -234,9 +243,8 @@ class AudioPlayerActivity : ComponentActivity() {
             val immediateTrack = target.toBasicAudioTrack()
             queue = listOf(immediateTrack)
             initialPath = target.reference
-            if (intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)) {
-                playback.playQueue(queue, target.reference)
-            }
+            val startPlayback = intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)
+            playback.playQueue(queue, target.reference, startPlayback)
             val tracks = buildQueue(
                 target,
                 intent.getStringArrayListExtra(EXTRA_QUEUE_PATHS).orEmpty()
@@ -245,9 +253,7 @@ class AudioPlayerActivity : ComponentActivity() {
                 return@launch
             }
             queue = tracks
-            if (intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)) {
-                playback.expandQueue(tracks, target.reference)
-            }
+            playback.expandQueue(tracks, target.reference)
         }
     }
 
@@ -351,6 +357,7 @@ private fun StandaloneAudioPlayer(
     playbackController: AudioPlaybackController,
     tagEditor: AudioTagEditor,
     launchId: Int,
+    allowMini: Boolean,
     miniPlayerBottomClearanceDp: Int,
     onWindowModeChange: (Boolean) -> Unit,
     onFinish: () -> Unit,
@@ -359,10 +366,12 @@ private fun StandaloneAudioPlayer(
     onTagSaved: (AudioTrack) -> Unit,
     onOpenWith: (AudioTrack) -> Unit,
     onFileRenamed: (String, FileModel) -> Unit,
-    onFileDeleted: (String) -> Unit
+    onFileDeleted: (String) -> Unit,
+    onRemoveQueueTrack: (String) -> Unit,
+    onSaveQueue: (String, List<String>) -> Unit
 ) {
     var presentation by remember(launchId) {
-        mutableStateOf(AudioPlayerPresentation.MINI)
+        mutableStateOf(if (allowMini) AudioPlayerPresentation.MINI else AudioPlayerPresentation.EXPANDED)
     }
     var visualizerEnabled by rememberSaveable { mutableStateOf(true) }
     val expanded = presentation == AudioPlayerPresentation.EXPANDED
@@ -393,7 +402,9 @@ private fun StandaloneAudioPlayer(
         }
     }
     BackHandler {
-        if (presentation != AudioPlayerPresentation.MINI) {
+        if (!allowMini) {
+            onFinish()
+        } else if (presentation != AudioPlayerPresentation.MINI) {
             presentation = AudioPlayerPresentation.COLLAPSING
         }
     }
@@ -484,14 +495,24 @@ private fun StandaloneAudioPlayer(
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = visibilityScope,
                         onCollapse = {
-                            presentation = AudioPlayerPresentation.COLLAPSING
+                            if (allowMini) presentation = AudioPlayerPresentation.COLLAPSING
+                            else onFinish()
                         },
                         onTogglePlayback = playbackController::togglePlayback,
                         onPrevious = playbackController::seekToPrevious,
                         onNext = playbackController::seekToNext,
-                        onQueueTrack = playbackController::seekToQueueIndex,
+                        onQueueTrack = playbackController::seekToQueueMediaId,
+                        onMoveQueueTrack = playbackController::moveQueueItem,
+                        onRemoveQueueTrack = onRemoveQueueTrack,
+                        onClearQueue = {
+                            playbackController.closePlayer()
+                            onFinish()
+                        },
+                        onSaveQueue = onSaveQueue,
                         onToggleRepeat = playbackController::toggleRepeatMode,
                         onToggleShuffle = playbackController::toggleShuffle,
+                        onPlaybackParametersChange = playbackController::setPlaybackParameters,
+                        onSleepTimerChange = playbackController::setSleepTimerMinutes,
                         onSeek = playbackController::seekTo,
                         onShare = { onShare(track) },
                         onEdit = { onEdit(track) },

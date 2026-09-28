@@ -136,9 +136,15 @@ internal fun AudioNowPlayingScreen(
     onTogglePlayback: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onQueueTrack: (Int) -> Unit,
+    onQueueTrack: (String) -> Unit,
+    onMoveQueueTrack: (String, Int) -> Unit,
+    onRemoveQueueTrack: (String) -> Unit,
+    onClearQueue: () -> Unit,
+    onSaveQueue: (String, List<String>) -> Unit,
     onToggleRepeat: () -> Unit,
     onToggleShuffle: () -> Unit,
+    onPlaybackParametersChange: (Float, Float) -> Unit,
+    onSleepTimerChange: (Int?) -> Unit,
     onSeek: (Long) -> Unit,
     onShare: () -> Unit,
     onEdit: () -> Unit,
@@ -153,6 +159,8 @@ internal fun AudioNowPlayingScreen(
     var showQueue by remember { mutableStateOf(false) }
     var showTags by remember { mutableStateOf(false) }
     var showLyrics by remember { mutableStateOf(false) }
+    var showPlaybackSettings by remember { mutableStateOf(false) }
+    var showSleepTimer by remember { mutableStateOf(false) }
     var sliderPosition by remember(playback.currentMediaId) {
         mutableFloatStateOf(playback.positionMs.toFloat())
     }
@@ -564,6 +572,8 @@ internal fun AudioNowPlayingScreen(
                         onDismissMenu = { showMenu = false },
                         visualizerEnabled = visualizerEnabled,
                         onToggleVisualizer = onToggleVisualizer,
+                        onShowPlaybackSettings = { showPlaybackSettings = true },
+                        onShowSleepTimer = { showSleepTimer = true },
                         onEdit = onEdit,
                         onEditTags = { showTags = true },
                         onShowLyrics = { showLyrics = true },
@@ -604,10 +614,18 @@ internal fun AudioNowPlayingScreen(
         AudioMetadataSheet(track = track, onDismiss = { showMetadata = false })
     }
     if (showQueue) {
+        val queueById = queue.associateBy { it.file.absolutePath }
+        val orderedIds = playback.shuffleMediaIds.takeIf { playback.shuffleEnabled && it.isNotEmpty() }
+            ?: playback.queueMediaIds
         AudioQueueSheet(
-            queue = queue,
-            currentIndex = playback.currentMediaIndex,
+            queue = orderedIds.mapNotNull(queueById::get),
+            currentMediaId = playback.currentMediaId,
+            shuffleEnabled = playback.shuffleEnabled,
             onTrackClick = onQueueTrack,
+            onMoveTrack = onMoveQueueTrack,
+            onRemoveTrack = onRemoveQueueTrack,
+            onClearQueue = onClearQueue,
+            onSaveQueue = onSaveQueue,
             onDismiss = { showQueue = false }
         )
     }
@@ -628,6 +646,21 @@ internal fun AudioNowPlayingScreen(
             positionMs = playback.positionMs,
             editor = tagEditor,
             onDismiss = { showLyrics = false }
+        )
+    }
+    if (showPlaybackSettings) {
+        AudioPlaybackSettingsDialog(
+            speed = playback.playbackSpeed,
+            pitch = playback.playbackPitch,
+            onSave = onPlaybackParametersChange,
+            onDismiss = { showPlaybackSettings = false }
+        )
+    }
+    if (showSleepTimer) {
+        AudioSleepTimerDialog(
+            active = playback.sleepTimerEndElapsedMs != null,
+            onSet = onSleepTimerChange,
+            onDismiss = { showSleepTimer = false }
         )
     }
 }

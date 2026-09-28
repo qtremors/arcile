@@ -58,7 +58,8 @@ internal fun AudioViewOptionsDialog(
     presentation: FileListingPreferences,
     grouping: CategoryGrouping,
     showFileDetails: Boolean,
-    onApply: (FileListingPreferences, CategoryGrouping, Boolean) -> Unit,
+    musicOnly: Boolean,
+    onApply: (FileListingPreferences, CategoryGrouping, Boolean, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val haptics = rememberArcileHaptics()
@@ -67,6 +68,7 @@ internal fun AudioViewOptionsDialog(
     }
     var draftGrouping by remember(grouping) { mutableStateOf(grouping) }
     var draftDetails by remember(showFileDetails) { mutableStateOf(showFileDetails) }
+    var draftMusicOnly by remember(musicOnly) { mutableStateOf(musicOnly) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -118,6 +120,7 @@ internal fun AudioViewOptionsDialog(
                 if (section == AudioCollectionKind.SONGS) {
                     AudioDetailsSection(draftDetails) { draftDetails = it }
                 }
+                AudioMusicOnlySection(draftMusicOnly) { draftMusicOnly = it }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -133,7 +136,10 @@ internal fun AudioViewOptionsDialog(
                     FilledTonalButton(
                         onClick = {
                             haptics.selectionChanged()
-                            onApply(draftPresentation.normalized(), draftGrouping, draftDetails)
+                            onApply(
+                                draftPresentation.normalized(), draftGrouping,
+                                draftDetails, draftMusicOnly
+                            )
                             onDismiss()
                         },
                         shape = ExpressiveShapes.medium
@@ -383,6 +389,25 @@ private fun AudioDetailsSection(
             )
         }
         Switch(checked = showDetails, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun AudioMusicOnlySection(musicOnly: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.audio_music_only))
+            Text(
+                stringResource(R.string.audio_music_only_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = musicOnly, onCheckedChange = onChange)
     }
 }
 

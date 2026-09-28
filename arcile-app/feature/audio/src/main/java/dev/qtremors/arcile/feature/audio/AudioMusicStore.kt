@@ -6,6 +6,11 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import java.util.UUID
+import java.io.File
+import java.io.FileOutputStream
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +35,7 @@ internal class AudioMusicStore @Inject constructor(
     @ApplicationContext context: Context
 ) {
     private val preferences = context.getSharedPreferences("audio_music", Context.MODE_PRIVATE)
+    private val playlistsFile = File(context.filesDir, "audio_playlists.json")
     private val lock = Any()
     private val mutablePlaylists = MutableStateFlow(readPlaylists())
     val playlists: StateFlow<List<AudioPlaylist>> = mutablePlaylists
@@ -37,6 +43,14 @@ internal class AudioMusicStore @Inject constructor(
     val mediaChanges = mutableMediaChanges.asSharedFlow()
 
     fun notifyMediaChanged() { mutableMediaChanges.tryEmit(Unit) }
+
+    fun musicOnly(): Boolean = preferences.getBoolean(MUSIC_ONLY_KEY, false)
+
+    suspend fun saveMusicOnly(enabled: Boolean) = withContext(Dispatchers.IO) {
+        if (!preferences.edit().putBoolean(MUSIC_ONLY_KEY, enabled).commit()) {
+            throw IllegalStateException("Could not save music filter")
+        }
+    }
 
     fun defaultSection(fallback: AudioCollectionKind): AudioCollectionKind =
         preferences.getString(DEFAULT_SECTION_KEY, null)?.let { saved ->
@@ -150,14 +164,31 @@ internal class AudioMusicStore @Inject constructor(
                 .put("updatedAt", item.updatedAt)
                 .put("paths", JSONArray(item.trackPaths)))
         }
-        if (!preferences.edit().putString(PLAYLIST_KEY, json.toString()).commit()) {
-            throw IllegalStateException("Could not save playlists")
+        val stagingFile = File(playlistsFile.parentFile, "audio_playlists.json.tmp")
+        try {
+            FileOutputStream(stagingFile).use { stream ->
+                stream.write(json.toString().toByteArray(Charsets.UTF_8))
+                stream.fd.sync()
+            }
+            try {
+                Files.move(stagingFile.toPath(), playlistsFile.toPath(),
+                    StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (_: AtomicMoveNotSupportedException) {
+                Files.move(stagingFile.toPath(), playlistsFile.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING)
+            }
+        } catch (error: Exception) {
+            stagingFile.delete()
+            throw error
         }
+        preferences.edit().remove(PLAYLIST_KEY).apply()
         mutablePlaylists.value = value
     }
 
     private fun readPlaylists(): List<AudioPlaylist> = runCatching {
-        val array = JSONArray(preferences.getString(PLAYLIST_KEY, "[]"))
+        val raw = runCatching { playlistsFile.readText(Charsets.UTF_8) }.getOrNull()
+            ?: preferences.getString(PLAYLIST_KEY, "[]") ?: "[]"
+        val array = JSONArray(raw)
         buildList {
             for (index in 0 until array.length()) {
                 val item = array.getJSONObject(index)
@@ -181,5 +212,6 @@ internal class AudioMusicStore @Inject constructor(
     private companion object {
         const val PLAYLIST_KEY = "playlists_v1"
         const val DEFAULT_SECTION_KEY = "default_section_v1"
+        const val MUSIC_ONLY_KEY = "music_only_v1"
     }
 }

@@ -67,6 +67,7 @@ import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.ui.LocalKeepAppBarsCollapsed
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 
 private val FeedbackAboveActionsPadding = 88.dp
 
@@ -159,46 +160,50 @@ fun ArcileAppShell(
 
     CompositionLocalProvider(LocalKeepAppBarsCollapsed provides keepAppBarsCollapsed) {
         androidx.compose.animation.SharedTransitionLayout {
-            Scaffold(
-                snackbarHost = {
-                    ArcileSnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
-                        severityFor = { currentFeedbackSeverity }
-                    )
-                },
-                containerColor = Color.Transparent,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0)
-            ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    AppNavigationGraph(
-                        navController = navController,
-                        currentThemeState = currentThemeState,
-                        onThemeChange = onThemeChange,
-                        onOpenFile = onOpenFile,
-                        onOpenFileWith = onOpenFileWith,
-                        onRecordFileOpened = onRecordFileOpened,
-                        onRecordPageVisited = onRecordPageVisited,
-                        fileOpenBehaviors = fileOpenBehaviors,
-                        appStartPage = appStartPage ?: AppStartPage.HOME,
-                        onAppStartPageChange = onAppStartPageChange,
-                        onRestartApp = onRestartApp,
-                        enableStartupUpdateCheck = appLaunchContext.mode == AppLaunchMode.ColdLauncher &&
-                            !isColdLaunchResetting,
-                        onFeedback = emitOwnedFeedback
-                    )
-                    if (isColdLaunchResetting) {
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color = MaterialTheme.colorScheme.background,
-                            content = {}
+            Box(modifier = Modifier.fillMaxSize()) {
+                Scaffold(
+                    bottomBar = { AudioFeatureEntryPoint.MiniPlayer(this@SharedTransitionLayout) },
+                    snackbarHost = {
+                        ArcileSnackbarHost(
+                            hostState = snackbarHostState,
+                            modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
+                            severityFor = { currentFeedbackSeverity }
                         )
+                    },
+                    containerColor = Color.Transparent,
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0)
+                ) { padding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        AppNavigationGraph(
+                            navController = navController,
+                            currentThemeState = currentThemeState,
+                            onThemeChange = onThemeChange,
+                            onOpenFile = onOpenFile,
+                            onOpenFileWith = onOpenFileWith,
+                            onRecordFileOpened = onRecordFileOpened,
+                            onRecordPageVisited = onRecordPageVisited,
+                            fileOpenBehaviors = fileOpenBehaviors,
+                            appStartPage = appStartPage ?: AppStartPage.HOME,
+                            onAppStartPageChange = onAppStartPageChange,
+                            onRestartApp = onRestartApp,
+                            enableStartupUpdateCheck = appLaunchContext.mode == AppLaunchMode.ColdLauncher &&
+                                !isColdLaunchResetting,
+                            onFeedback = emitOwnedFeedback
+                        )
+                        if (isColdLaunchResetting) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.background,
+                                content = {}
+                            )
+                        }
                     }
                 }
+                AudioFeatureEntryPoint.ExpandedPlayer(this@SharedTransitionLayout)
             }
         }
     }

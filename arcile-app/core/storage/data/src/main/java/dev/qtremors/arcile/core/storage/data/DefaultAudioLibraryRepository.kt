@@ -24,6 +24,12 @@ internal class DefaultAudioLibraryRepository(
 ) : AudioLibraryRepository {
 
     override suspend fun getTracks(scope: StorageScope): Result<List<AudioTrack>> =
+        queryTracks(scope, musicOnly = false)
+
+    override suspend fun getMusicTracks(scope: StorageScope): Result<List<AudioTrack>> =
+        queryTracks(scope, musicOnly = true)
+
+    private suspend fun queryTracks(scope: StorageScope, musicOnly: Boolean): Result<List<AudioTrack>> =
         withContext(dispatchers.io) {
             try {
                 val volumes = indexedVolumesForScope(scope, volumeProvider.currentVolumes())
@@ -44,7 +50,7 @@ internal class DefaultAudioLibraryRepository(
                     context.contentResolver.query(
                         MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
                         projection,
-                        null,
+                        if (musicOnly) "${MediaStore.Audio.Media.IS_MUSIC} = 1" else null,
                         null,
                         "${MediaStore.Audio.Media.DATE_MODIFIED} DESC"
                     )?.use { cursor ->

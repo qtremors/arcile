@@ -74,6 +74,8 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Bedtime
 
 @Composable
 internal fun AudioPlayerSongActions(
@@ -143,6 +145,8 @@ internal fun AudioPlayerMoreMenu(
     onDismissMenu: () -> Unit,
     visualizerEnabled: Boolean,
     onToggleVisualizer: () -> Unit,
+    onShowPlaybackSettings: () -> Unit,
+    onShowSleepTimer: () -> Unit,
     onEdit: () -> Unit,
     onEditTags: () -> Unit,
     onShowLyrics: () -> Unit,
@@ -156,6 +160,20 @@ internal fun AudioPlayerMoreMenu(
     onArchive: (() -> Unit)? = null
 ) {
             val menuItems = buildList<@Composable () -> Unit> {
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.audio_playback_settings),
+                        leadingIcon = { Icon(Icons.Default.Speed, contentDescription = null) },
+                        onClick = { onDismissMenu(); onShowPlaybackSettings() }
+                    )
+                }
+                add {
+                    ArcileDropdownMenuItem(
+                        text = stringResource(R.string.audio_sleep_timer),
+                        leadingIcon = { Icon(Icons.Default.Bedtime, contentDescription = null) },
+                        onClick = { onDismissMenu(); onShowSleepTimer() }
+                    )
+                }
                 add {
                     ArcileDropdownMenuItem(
                         text = stringResource(
