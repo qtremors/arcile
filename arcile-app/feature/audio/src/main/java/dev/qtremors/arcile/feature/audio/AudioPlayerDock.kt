@@ -61,6 +61,7 @@ internal class AudioPlayerCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
     private val playback: AudioPlaybackController,
     private val musicStore: AudioMusicStore,
+    private val listeningStore: AudioListeningStore,
     private val repository: AudioLibraryRepository
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -167,7 +168,12 @@ internal class AudioPlayerCoordinator @Inject constructor(
         playback.replaceQueueItem(oldPath, track)
         musicStore.notifyMediaChanged()
         if (oldPath != track.file.absolutePath) {
-            scope.launch { runCatching { musicStore.replaceTrackPath(oldPath, track.file.absolutePath) } }
+            scope.launch {
+                runCatching {
+                    musicStore.replaceTrackPath(oldPath, track.file.absolutePath)
+                    listeningStore.replacePath(oldPath, track.file.absolutePath)
+                }
+            }
         }
     }
 
@@ -196,7 +202,8 @@ internal class AudioPlayerCoordinator @Inject constructor(
 internal fun AudioPlayerDock(
     sharedTransitionScope: SharedTransitionScope,
     coordinator: AudioPlayerCoordinator,
-    playbackController: AudioPlaybackController
+    playbackController: AudioPlaybackController,
+    aboveNavigation: Boolean = false
 ) {
     val panel by coordinator.state.collectAsStateWithLifecycle()
     val playback by playbackController.state.collectAsStateWithLifecycle()
@@ -207,7 +214,8 @@ internal fun AudioPlayerDock(
         if (track != null) {
             val visibilityScope = this
             Box(
-                modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+                modifier = Modifier.fillMaxWidth()
+                    .then(if (aboveNavigation) Modifier else Modifier.navigationBarsPadding())
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) { AudioMiniPlayer(
                 track = track,
@@ -230,16 +238,14 @@ internal fun AudioPlayerExpanded(
     sharedTransitionScope: SharedTransitionScope,
     coordinator: AudioPlayerCoordinator,
     playbackController: AudioPlaybackController,
-    preferences: dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferencesStore,
+    listeningStore: AudioListeningStore,
     tagEditor: AudioTagEditor
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val panel by coordinator.state.collectAsStateWithLifecycle()
     val playback by playbackController.state.collectAsStateWithLifecycle()
-    val libraryPreferences by preferences.audioLibraryPreferencesFlow.collectAsStateWithLifecycle(
-        initialValue = dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences()
-    )
+    val favorites by listeningStore.favoritePaths.collectAsStateWithLifecycle(initialValue = emptySet())
     var visualizerEnabled by rememberSaveable { mutableStateOf(true) }
     val track = panel.queue.firstOrNull { it.file.absolutePath == playback.currentMediaId }
         ?: panel.queue.firstOrNull { it.file.absolutePath == panel.initialPath }
@@ -256,11 +262,11 @@ internal fun AudioPlayerExpanded(
                 playback = playback,
                 visualizerEnabled = visualizerEnabled,
                 onToggleVisualizer = { visualizerEnabled = !visualizerEnabled },
-                isFavorite = track.file.absolutePath in libraryPreferences.favoriteFiles,
+                isFavorite = track.file.absolutePath in favorites,
                 onToggleFavorite = {
                     val path = track.file.absolutePath
                     scope.launch {
-                        preferences.updateFavorite(path, path !in libraryPreferences.favoriteFiles)
+                        runCatching { listeningStore.setFavorite(path, path !in favorites) }
                     }
                 },
                 sharedTransitionScope = sharedTransitionScope,

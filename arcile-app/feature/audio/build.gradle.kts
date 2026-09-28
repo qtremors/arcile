@@ -64,10 +64,15 @@ dependencies {
     implementation(libs.androidx.media3.transformer)
     implementation(libs.jaudiotagger)
     implementation(libs.coil.compose)
+    implementation(libs.androidx.room.runtime)
+    implementation(libs.androidx.room.ktx)
+    ksp(libs.androidx.room.compiler)
 
     testImplementation(project(":core:testing"))
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
     testImplementation(libs.org.robolectric.robolectric)
+    testImplementation(libs.androidx.junit)
+    testImplementation(libs.androidx.room.testing)
 }

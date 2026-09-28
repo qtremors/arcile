@@ -88,6 +88,7 @@ internal fun buildAudioLibraryState(
         current.copy(folderFilter = currentFolder), categoryTracks
     )
     return current.copy(
+        presentedCollectionKind = current.collectionKind,
         tracks = tracks,
         visibleTracks = sorted,
         folders = folders,
@@ -154,7 +155,21 @@ private fun presentVisibleAudioTracks(
             it.displayTitle.lowercase(Locale.getDefault())
         }
     }
-    return sorted
+    if (current.collectionKind != AudioCollectionKind.SONGS || current.folderFilter != null) {
+        return sorted
+    }
+    return when (current.songFilter) {
+        AudioSongFilter.ALL -> sorted
+        AudioSongFilter.FAVORITES -> sorted.filter { it.file.absolutePath in current.favoritePaths }
+        AudioSongFilter.RECENTLY_PLAYED -> sorted
+            .filter { (current.lastPlayedAt[it.file.absolutePath] ?: 0L) > 0L }
+            .sortedByDescending { current.lastPlayedAt[it.file.absolutePath] ?: 0L }
+        AudioSongFilter.MOST_PLAYED -> sorted
+            .filter { (current.playCounts[it.file.absolutePath] ?: 0) > 0 }
+            .sortedWith(compareByDescending<AudioTrack> {
+                current.playCounts[it.file.absolutePath] ?: 0
+            }.thenBy { it.displayTitle.lowercase(Locale.getDefault()) })
+    }
 }
 
 private fun buildCollections(

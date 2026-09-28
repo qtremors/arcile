@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
@@ -66,7 +67,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
@@ -75,7 +75,6 @@ import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.category.CategoryGridItem
 import dev.qtremors.arcile.core.ui.category.CategoryItemInfo
-import dev.qtremors.arcile.core.ui.category.CategoryListItem
 import dev.qtremors.arcile.core.ui.category.CategorySectionHeader
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.scrollbar.ArcileFastScrollbar
@@ -94,6 +93,9 @@ internal fun AudioLibraryPage(
     onGridSizeFinalized: (Float) -> Unit,
     onRefresh: () -> Unit,
     onPlay: (String) -> Unit,
+    onTrackOptions: (AudioTrack) -> Unit,
+    onSelectSongFilter: (AudioSongFilter) -> Unit,
+    onClearListeningHistory: () -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
     onCreatePlaylist: (String) -> Unit,
     onAddSelectionToPlaylist: (String) -> Unit,
@@ -135,7 +137,8 @@ internal fun AudioLibraryPage(
                     LoadingIndicator()
                 }
             }
-            isEmpty && !state.isLoading && showingTracks && state.folderFilter == null -> AudioEmptyState(
+            isEmpty && !state.isLoading && showingTracks && state.folderFilter == null &&
+                (state.collectionKind != AudioCollectionKind.SONGS || state.songFilter == AudioSongFilter.ALL) -> AudioEmptyState(
                 hasFilter = state.query.isNotBlank() ||
                     state.searchFilters.hasActiveFilters ||
                     state.folderFilter != null
@@ -148,6 +151,9 @@ internal fun AudioLibraryPage(
                 onGridSizeChange = onGridSizeChange,
                 onGridSizeFinalized = onGridSizeFinalized,
                 onPlay = onPlay,
+                onTrackOptions = onTrackOptions,
+                onSelectSongFilter = onSelectSongFilter,
+                onClearListeningHistory = onClearListeningHistory,
                 onToggleSelection = onToggleSelection,
                 onSelectPaths = onSelectPaths
             )
@@ -201,11 +207,17 @@ private fun AudioTracksContent(
     onGridSizeChange: (Float) -> Unit,
     onGridSizeFinalized: (Float) -> Unit,
     onPlay: (String) -> Unit,
+    onTrackOptions: (AudioTrack) -> Unit,
+    onSelectSongFilter: (AudioSongFilter) -> Unit,
+    onClearListeningHistory: () -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit
 ) {
+    val showSongFilters = state.collectionKind == AudioCollectionKind.SONGS &&
+        state.folderFilter == null
     val effectiveGrouping = if (state.folderFilter?.kind == AudioFolderKind.Playlist ||
-        state.folderFilter?.kind == AudioFolderKind.Album
+        state.folderFilter?.kind == AudioFolderKind.Album ||
+        (showSongFilters && state.songFilter != AudioSongFilter.ALL)
     ) CategoryGrouping.NONE else state.grouping
     val groups = remember(state.visibleTracks, effectiveGrouping) {
         groupAudioTracks(state.visibleTracks, effectiveGrouping)
@@ -249,6 +261,10 @@ private fun AudioTracksContent(
 
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+    LaunchedEffect(state.collectionKind, state.songFilter, state.folderFilter?.key, state.query) {
+        gridState.scrollToItem(0)
+        listState.scrollToItem(0)
+    }
     val gridContentPadding = PaddingValues(
         start = 12.dp,
         top = contentPadding.calculateTopPadding() + 8.dp,
@@ -265,6 +281,9 @@ private fun AudioTracksContent(
         } else {
             LazyListScrollbarState(listState)
         }
+    val leadingItems = (if (showSongFilters) 1 else 0) +
+        (if (state.visibleTracks.isEmpty()) 1 else 0) +
+        (if (state.folderFilter != null) 1 else 0)
     Box(modifier = Modifier.fillMaxSize()) {
     if (state.audioPresentation.viewMode == FileViewMode.GRID) {
         LazyVerticalGrid(
@@ -281,6 +300,16 @@ private fun AudioTracksContent(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (showSongFilters) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "song-filters") {
+                    AudioSongFilterBar(state.songFilter, onSelectSongFilter, onClearListeningHistory)
+                }
+            }
+            if (state.visibleTracks.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }, key = "empty-songs") {
+                    AudioEmptyState(hasFilter = true)
+                }
+            }
             state.folderFilter?.let { folder ->
                 item(span = { GridItemSpan(maxLineSpan) }, key = "collection-header") {
                     AudioCollectionDetailHeader(
@@ -302,13 +331,14 @@ private fun AudioTracksContent(
                         isSelected = track.file.absolutePath in state.selectedPaths,
                         showDetails = state.showFileDetails,
                         onClick = { click(track) },
+                        onOptions = { onTrackOptions(track) },
                         onLongClick = { longClick(track) },
-                        modifier = Modifier.animateItem()
+                        modifier = Modifier
                     )
                 }
             } else {
                 groups.forEach { (group, tracks) ->
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(key = "group-${group.label}", span = { GridItemSpan(maxLineSpan) }) {
                         AudioSectionHeader(group.label)
                     }
                     items(tracks, key = { it.file.absolutePath }) { track ->
@@ -318,8 +348,9 @@ private fun AudioTracksContent(
                             isSelected = track.file.absolutePath in state.selectedPaths,
                             showDetails = state.showFileDetails,
                             onClick = { click(track) },
+                            onOptions = { onTrackOptions(track) },
                             onLongClick = { longClick(track) },
-                            modifier = Modifier.animateItem()
+                            modifier = Modifier
                         )
                     }
                 }
@@ -331,6 +362,14 @@ private fun AudioTracksContent(
             state = listState,
             contentPadding = listContentPadding
         ) {
+            if (showSongFilters) {
+                item(key = "song-filters") {
+                    AudioSongFilterBar(state.songFilter, onSelectSongFilter, onClearListeningHistory)
+                }
+            }
+            if (state.visibleTracks.isEmpty()) {
+                item(key = "empty-songs") { AudioEmptyState(hasFilter = true) }
+            }
             state.folderFilter?.let { folder ->
                 item(key = "collection-header") {
                     AudioCollectionDetailHeader(
@@ -352,13 +391,14 @@ private fun AudioTracksContent(
                         isCurrent = currentMediaId == track.file.absolutePath,
                         isSelected = track.file.absolutePath in state.selectedPaths,
                         onClick = { click(track) },
+                        onOptions = { onTrackOptions(track) },
                         onLongClick = { longClick(track) },
-                        modifier = Modifier.animateItem()
+                        modifier = Modifier
                     )
                 }
             } else {
                 groups.forEach { (group, tracks) ->
-                    item { AudioSectionHeader(group.label) }
+                    item(key = "group-${group.label}") { AudioSectionHeader(group.label) }
                     items(tracks, key = { it.file.absolutePath }) { track ->
                         AudioTrackListItem(
                             track = track,
@@ -366,8 +406,9 @@ private fun AudioTracksContent(
                             isCurrent = currentMediaId == track.file.absolutePath,
                             isSelected = track.file.absolutePath in state.selectedPaths,
                             onClick = { click(track) },
+                            onOptions = { onTrackOptions(track) },
                             onLongClick = { longClick(track) },
-                            modifier = Modifier.animateItem()
+                            modifier = Modifier
                         )
                     }
                 }
@@ -377,10 +418,10 @@ private fun AudioTracksContent(
         ArcileFastScrollbar(
             scrollbarState = scrollbarState,
             labelForIndex = { index ->
-                if (state.folderFilter != null && index == 0) {
+                if (state.folderFilter != null && index == leadingItems - 1) {
                     state.folderFilter.title
                 } else audioTrackForLazyIndex(
-                    index - if (state.folderFilter != null) 1 else 0,
+                    index - leadingItems,
                     state.visibleTracks, effectiveGrouping, groups
                 )
                     ?.displayTitle
@@ -407,20 +448,123 @@ private fun AudioTrackListItem(
     isCurrent: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit,
+    onOptions: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    CategoryListItem(
-        info = track.categoryItemInfo(context, showDetails = true),
-        selected = isSelected,
-        highlighted = isCurrent,
-        zoom = zoom,
-        onClick = onClick,
-        onLongClick = onLongClick,
+    val shape = MaterialTheme.shapes.large
+    val artworkSize = (54f * zoom).coerceIn(44f, 72f).dp
+    Row(
         modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 3.dp)
+            .clip(shape)
+            .background(
+                when {
+                    isSelected -> MaterialTheme.colorScheme.primaryContainer
+                    isCurrent -> MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
+                    else -> MaterialTheme.colorScheme.surfaceContainerLow
+                }
+            )
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        AudioArtwork(track, Modifier.fillMaxSize())
+        Box(modifier = Modifier.size(artworkSize), contentAlignment = Alignment.Center) {
+            AudioArtwork(track, Modifier.fillMaxSize(), shape = MaterialTheme.shapes.medium)
+            if (isSelected) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.align(Alignment.BottomEnd).size(21.dp)
+                )
+            }
+        }
+        Spacer(Modifier.width(13.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = track.displayTitle,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = if (isCurrent || isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (isCurrent) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = buildTrackSubtitle(track).ifBlank {
+                    stringResource(R.string.audio_unknown_artist)
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = formatAudioDuration(track.durationMs),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        IconButton(onClick = onOptions, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.audio_more))
+        }
+    }
+}
+
+@Composable
+private fun AudioSongFilterBar(
+    selected: AudioSongFilter,
+    onSelect: (AudioSongFilter) -> Unit,
+    onClearListeningHistory: () -> Unit
+) {
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AudioSongFilter.entries.forEach { filter ->
+            FilterChip(
+                selected = selected == filter,
+                onClick = { onSelect(filter) },
+                label = {
+                    Text(stringResource(when (filter) {
+                        AudioSongFilter.ALL -> R.string.audio_all_songs
+                        AudioSongFilter.FAVORITES -> R.string.audio_favorites
+                        AudioSongFilter.RECENTLY_PLAYED -> R.string.audio_recently_played
+                        AudioSongFilter.MOST_PLAYED -> R.string.audio_most_played
+                    }))
+                }
+            )
+        }
+        if (selected == AudioSongFilter.RECENTLY_PLAYED ||
+            selected == AudioSongFilter.MOST_PLAYED
+        ) {
+            TextButton(onClick = { confirmClear = true }) {
+                Text(stringResource(R.string.audio_clear_listening_history))
+            }
+        }
+    }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringResource(R.string.audio_clear_listening_history)) },
+            text = { Text(stringResource(R.string.audio_clear_listening_history_note)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    onClearListeningHistory()
+                    confirmClear = false
+                }) { Text(stringResource(R.string.audio_clear)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) {
+                    Text(stringResource(R.string.audio_cancel))
+                }
+            }
+        )
     }
 }
 
@@ -432,30 +576,39 @@ private fun AudioTrackGridItem(
     isSelected: Boolean,
     showDetails: Boolean,
     onClick: () -> Unit,
+    onOptions: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    CategoryGridItem(
-        info = track.categoryItemInfo(context, showDetails = true),
-        selected = isSelected,
-        highlighted = isCurrent,
-        showInfo = showDetails,
-        onClick = onClick,
-        onLongClick = onLongClick,
-        modifier = modifier
-    ) {
-        AudioArtwork(track = track, modifier = Modifier.fillMaxSize())
+    Box(modifier = modifier) {
+        CategoryGridItem(
+            info = track.categoryItemInfo(showDetails = showDetails),
+            selected = isSelected,
+            highlighted = isCurrent,
+            showInfo = showDetails,
+            onClick = onClick,
+            onLongClick = onLongClick,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            AudioArtwork(track = track, modifier = Modifier.fillMaxSize())
+        }
+        IconButton(
+            onClick = onOptions,
+            modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh, MaterialTheme.shapes.extraLarge)
+        ) {
+            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.audio_more))
+        }
     }
 }
 
-private fun AudioTrack.categoryItemInfo(context: android.content.Context, showDetails: Boolean): CategoryItemInfo =
+private fun AudioTrack.categoryItemInfo(showDetails: Boolean): CategoryItemInfo =
     CategoryItemInfo(
         title = displayTitle,
         detailLines = buildList {
             add(buildTrackSubtitle(this@categoryItemInfo))
             if (showDetails) {
-                add("${formatAudioDuration(durationMs)} • ${formatFileSize(context, file.size)}")
+                add(formatAudioDuration(durationMs))
             }
         }
     )

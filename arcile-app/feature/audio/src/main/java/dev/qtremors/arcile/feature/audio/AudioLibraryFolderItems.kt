@@ -33,16 +33,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
-import dev.qtremors.arcile.core.ui.category.CategoryFolderGridItem
-import dev.qtremors.arcile.core.ui.category.CategoryItemInfo
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -80,28 +76,41 @@ internal fun AudioFolderListItem(
             .padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        folder.coverTrack?.let { AudioArtwork(it, Modifier.size((48f * zoom).dp)) }
-            ?: Icon(Icons.Default.Image, contentDescription = null,
-                modifier = Modifier.size((48f * zoom).dp))
+        Box(
+            modifier = Modifier.size((58f * zoom).coerceIn(48f, 76f).dp)
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            folder.coverTrack?.let {
+                AudioArtwork(it, Modifier.fillMaxSize(), shape = MaterialTheme.shapes.medium)
+            } ?: Icon(Icons.Default.Image, contentDescription = null)
+        }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 folder.displayTitle(stringResource(R.string.audio_favorites)),
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                androidx.compose.ui.res.pluralStringResource(R.plurals.audio_track_count, folder.tracks.size, folder.tracks.size),
+                folder.subtitle?.takeUnless { folder.isDirectory }.orEmpty().ifBlank {
+                    androidx.compose.ui.res.pluralStringResource(
+                        R.plurals.audio_song_count, folder.tracks.size, folder.tracks.size
+                    )
+                },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (showDetails) {
+            if (showDetails && folder.subtitle != null && !folder.isDirectory) {
                 Text(
-                    "${folder.subtitle.orEmpty()} • ${formatFileSize(androidx.compose.ui.platform.LocalContext.current, folder.totalSize)}",
+                    androidx.compose.ui.res.pluralStringResource(
+                        R.plurals.audio_song_count, folder.tracks.size, folder.tracks.size
+                    ),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -181,23 +190,23 @@ internal fun AudioFolderGridItem(
     modifier: Modifier = Modifier
 ) {
     var showPlaylistMenu by rememberSaveable { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        CategoryFolderGridItem(
-            info = CategoryItemInfo(
-                title = folder.displayTitle(stringResource(R.string.audio_favorites)),
-                detailLines = listOf(
-                    androidx.compose.ui.res.pluralStringResource(R.plurals.audio_track_count, folder.tracks.size, folder.tracks.size),
-                    formatFileSize(androidx.compose.ui.platform.LocalContext.current, folder.totalSize)
-                )
-            ),
-            onClick = onClick,
-            onLongClick = onLongClick
+    var showFolderMenu by rememberSaveable { mutableStateOf(false) }
+    Column(
+        modifier = modifier.clip(MaterialTheme.shapes.large)
+            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerLow)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(8.dp)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxWidth().aspectRatio(1f)
+                .clip(MaterialTheme.shapes.medium)
+                .background(MaterialTheme.colorScheme.secondaryContainer),
+            contentAlignment = Alignment.Center
         ) {
             folder.coverTrack?.let { cover ->
-                AudioArtwork(cover, Modifier.fillMaxSize(), shape = RectangleShape)
-            } ?: Icon(Icons.Default.Image, contentDescription = null,
-                modifier = Modifier.size(48.dp))
-        }
+                AudioArtwork(cover, Modifier.fillMaxSize(), shape = MaterialTheme.shapes.medium)
+            } ?: Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(48.dp))
         if (canPaste && !isSelected) {
             Surface(
                 onClick = onPaste,
@@ -243,6 +252,43 @@ internal fun AudioFolderGridItem(
                 )
             }
         }
+        if (folder.isDirectory && !isSelected && !canPaste) {
+            Box(modifier = Modifier.align(Alignment.TopEnd)) {
+                IconButton(onClick = { showFolderMenu = true }) {
+                    Icon(Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.audio_folder_options))
+                }
+                AudioFolderOptionsMenu(
+                    folder = folder,
+                    expanded = showFolderMenu,
+                    onDismiss = { showFolderMenu = false },
+                    onTogglePin = onTogglePin,
+                    onChooseCover = onChooseCover,
+                    onResetCover = onResetCover
+                )
+            }
+        }
+        }
+        Text(
+            folder.displayTitle(stringResource(R.string.audio_favorites)),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp, start = 4.dp, end = 4.dp)
+        )
+        Text(
+            folder.subtitle?.takeUnless { folder.isDirectory }.orEmpty().ifBlank {
+                androidx.compose.ui.res.pluralStringResource(
+                    R.plurals.audio_song_count, folder.tracks.size, folder.tracks.size
+                )
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp)
+        )
     }
 }
 

@@ -617,6 +617,10 @@ class BrowserPreferencesDataSource(
         }
     }
 
+    suspend fun clearMigratedAudioFavorites() {
+        dataStore.edit { prefs -> prefs.remove(AUDIO_FAVORITE_FILES_KEY) }
+    }
+
     suspend fun updateAudioPinnedFolder(path: String, isPinned: Boolean) {
         dataStore.edit { prefs ->
             val current = prefs[AUDIO_PINNED_FOLDERS_KEY]

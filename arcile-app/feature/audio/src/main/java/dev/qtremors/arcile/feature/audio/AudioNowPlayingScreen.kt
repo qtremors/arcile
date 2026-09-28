@@ -348,7 +348,7 @@ internal fun AudioNowPlayingScreen(
                 if (!needsScroll) Spacer(Modifier.weight(1f))
                 AudioArtwork(
                     track = track,
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(24.dp),
                     modifier = with(sharedTransitionScope) {
                         Modifier
                             .width(artworkSize)
@@ -644,7 +644,14 @@ internal fun AudioNowPlayingScreen(
         AudioLyricsSheet(
             track = track,
             positionMs = playback.positionMs,
+            isPlaying = playback.isPlaying,
             editor = tagEditor,
+            onSeek = onSeek,
+            onTogglePlayback = onTogglePlayback,
+            onEdit = {
+                showLyrics = false
+                showTags = true
+            },
             onDismiss = { showLyrics = false }
         )
     }

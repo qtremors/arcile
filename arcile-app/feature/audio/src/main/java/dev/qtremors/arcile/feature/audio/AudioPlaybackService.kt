@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.audio
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -18,6 +19,8 @@ import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -27,13 +30,43 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(UnstableApi::class)
+@AndroidEntryPoint
 internal class AudioPlaybackService : MediaSessionService() {
+    @Inject lateinit var listeningStore: AudioListeningStore
     private var mediaSession: MediaSession? = null
     private lateinit var queueStore: AudioPlaybackQueueStore
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var positionJob: Job? = null
+    private var listeningPath: String? = null
+    private var listenedMs = 0L
+    private var listeningDurationMs = C.TIME_UNSET
+    private var lastListeningSampleMs = 0L
+    private var wasPlaying = false
+    private var qualified = false
+
+    private fun sampleListening() {
+        val now = SystemClock.elapsedRealtime()
+        if (wasPlaying && lastListeningSampleMs > 0L) {
+            listenedMs += (now - lastListeningSampleMs).coerceAtLeast(0L)
+        }
+        lastListeningSampleMs = now
+        val path = listeningPath ?: return
+        val duration = listeningDurationMs.takeIf { it > 0L && it != C.TIME_UNSET }
+        val threshold = duration?.div(2)?.coerceAtMost(30_000L) ?: 30_000L
+        if (!qualified && listenedMs >= threshold) {
+            qualified = true
+            serviceScope.launch(Dispatchers.IO) {
+                runCatching { listeningStore.recordQualifiedPlay(path) }
+            }
+        }
+    }
+
     private val visualizerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
+            sampleListening()
+            if (listeningPath == null) listeningPath = mediaSession?.player?.currentMediaItem?.mediaId
+            wasPlaying = isPlaying
+            lastListeningSampleMs = SystemClock.elapsedRealtime()
             AudioPlaybackSpectrum.setPlaying(isPlaying)
             positionJob?.cancel()
             mediaSession?.player?.let(queueStore::savePosition)
@@ -42,12 +75,18 @@ internal class AudioPlaybackService : MediaSessionService() {
                     while (isActive) {
                         delay(5_000L)
                         mediaSession?.player?.let(queueStore::savePosition)
+                        sampleListening()
                     }
                 }
             }
         }
 
         override fun onEvents(player: Player, events: Player.Events) {
+            if (player.currentMediaItem?.mediaId == listeningPath &&
+                player.duration > 0L && player.duration != C.TIME_UNSET
+            ) {
+                listeningDurationMs = player.duration
+            }
             if (events.contains(Player.EVENT_TIMELINE_CHANGED)) {
                 queueStore.saveQueue(player)
             } else if (
@@ -61,11 +100,19 @@ internal class AudioPlaybackService : MediaSessionService() {
         }
 
         override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            sampleListening()
+            listeningPath = mediaItem?.mediaId
+            listenedMs = 0L
+            listeningDurationMs = C.TIME_UNSET
+            qualified = false
+            lastListeningSampleMs = SystemClock.elapsedRealtime()
             AudioPlaybackSpectrum.clear()
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
             if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                sampleListening()
+                wasPlaying = false
                 AudioPlaybackSpectrum.clear()
             }
         }

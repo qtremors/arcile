@@ -2,8 +2,11 @@ package dev.qtremors.arcile.feature.audio
 
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -56,6 +59,8 @@ internal fun AudioLibraryScreen(
     onSearchFiltersChange: (SearchFilters) -> Unit,
     onSelectTab: (CategoryLibraryPage) -> Unit,
     onSelectCollection: (AudioCollectionKind) -> Unit,
+    onSelectSongFilter: (AudioSongFilter) -> Unit,
+    onClearListeningHistory: () -> Unit,
     onSelectFolder: (AudioFolder) -> Unit,
     onClearFolderFilter: () -> Unit,
     onPresentationChange: (AudioCollectionKind, FileListingPreferences) -> Unit,
@@ -71,6 +76,7 @@ internal fun AudioLibraryScreen(
     onMusicOnlyChange: (Boolean) -> Unit,
     onDefaultSectionChange: (AudioCollectionKind) -> Unit,
     onToggleFavoriteSelection: () -> Unit,
+    onToggleFavoriteTrack: (String) -> Unit,
     onTogglePinnedFolder: (AudioFolder) -> Unit,
     onUpdateFolderCover: (AudioFolder, String?) -> Unit,
     onToggleSelection: (String) -> Unit,
@@ -105,6 +111,12 @@ internal fun AudioLibraryScreen(
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val haptics = rememberArcileHaptics()
+    val miniPlayerVisible = AudioFeatureEntryPoint.categoryMiniPlayerVisible()
+    val miniPlayerClearance by animateDpAsState(
+        targetValue = if (miniPlayerVisible) 88.dp else 8.dp,
+        animationSpec = spring(),
+        label = "audio mini player clearance"
+    )
     val selectedTracks = remember(state.tracks, state.selectedPaths) {
         state.tracks.filter { it.file.absolutePath in state.selectedPaths }
     }
@@ -117,6 +129,7 @@ internal fun AudioLibraryScreen(
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
     var showPlaylistPicker by rememberSaveable { mutableStateOf(false) }
     var tagEditTrack by remember { mutableStateOf<AudioTrack?>(null) }
+    var optionsTrack by remember { mutableStateOf<AudioTrack?>(null) }
     var coverFolder by remember { mutableStateOf<AudioFolder?>(null) }
     val shellState = rememberCategoryLibraryShellState()
     var backProgress by remember { mutableFloatStateOf(0f) }
@@ -191,7 +204,7 @@ internal fun AudioLibraryScreen(
             } else {
                 0f
             },
-            extraBottomContentPadding = 8.dp,
+            extraBottomContentPadding = miniPlayerClearance,
             topChrome = {
                 if (isSelectionMode) {
                     AudioSelectionTopBar(
@@ -236,7 +249,9 @@ internal fun AudioLibraryScreen(
                 }
             },
             bottomChrome = { isChromeVisible ->
-                AudioLibraryBottomBar(
+                Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+                    AudioFeatureEntryPoint.CategoryMiniPlayer()
+                    AudioLibraryBottomBar(
                     state = state,
                     currentSection = AudioCollectionKind.entries[pagerState.currentPage],
                     selectedTracks = selectedTracks,
@@ -285,8 +300,9 @@ internal fun AudioLibraryScreen(
                     onPaste = onPaste,
                     onCancelClipboard = onCancelClipboard,
                     onShowClipboardContents = { showClipboardContents = true },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
+                    modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         ) { contentPadding ->
             HorizontalPager(
@@ -295,7 +311,9 @@ internal fun AudioLibraryScreen(
                 userScrollEnabled = !isSelectionMode
             ) { page ->
                 val section = AudioCollectionKind.entries[page]
-                val pageState = if (section == state.collectionKind) state else remember(state, section) {
+                val pageState = if (section == state.collectionKind &&
+                    state.presentedCollectionKind == section
+                ) state else remember(state, section) {
                     buildAudioLibraryState(state.copy(
                         collectionKind = section,
                         folderFilter = null,
@@ -329,6 +347,9 @@ internal fun AudioLibraryScreen(
                     },
                     onRefresh = onRefresh,
                     onPlay = onPlay,
+                    onTrackOptions = { optionsTrack = it },
+                    onSelectSongFilter = onSelectSongFilter,
+                    onClearListeningHistory = onClearListeningHistory,
                     onSelectFolder = onSelectFolder,
                     onCreatePlaylist = onCreatePlaylist,
                     onAddSelectionToPlaylist = onAddSelectionToPlaylist,
@@ -399,6 +420,30 @@ internal fun AudioLibraryScreen(
                 tagEditTrack = null
             },
             onDismiss = { tagEditTrack = null }
+        )
+    }
+    optionsTrack?.let { selected ->
+        AudioTrackActionsSheet(
+            track = selected,
+            isFavorite = selected.file.absolutePath in state.favoritePaths,
+            onDismiss = { optionsTrack = null },
+            onToggleFavorite = {
+                onToggleFavoriteTrack(selected.file.absolutePath)
+                optionsTrack = null
+            },
+            onEditTags = {
+                optionsTrack = null
+                tagEditTrack = selected
+            },
+            onEditAudio = {
+                optionsTrack = null
+                onEditSelected(listOf(selected))
+            },
+            onAddToPlaylist = {
+                optionsTrack = null
+                onSelectPaths(listOf(selected.file.absolutePath))
+                showPlaylistPicker = true
+            }
         )
     }
     coverFolder?.let { folder ->

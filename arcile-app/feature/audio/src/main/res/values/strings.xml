@@ -5,6 +5,11 @@
     <string name="audio_music_only">Music only</string>
     <string name="audio_music_only_description">Hide recordings and other audio that Android does not mark as music.</string>
     <string name="audio_tracks">Songs</string>
+    <string name="audio_all_songs">All songs</string>
+    <string name="audio_recently_played">Recently played</string>
+    <string name="audio_most_played">Most played</string>
+    <string name="audio_clear_listening_history">Clear listening history</string>
+    <string name="audio_clear_listening_history_note">This clears recent plays and play counts. Favorites stay saved.</string>
     <string name="audio_albums">Albums</string>
     <string name="audio_artists">Artists</string>
     <string name="audio_genres">Genres</string>
@@ -13,6 +18,12 @@
     <string name="audio_page_view_sort">%1$s view and sort</string>
     <string name="audio_new_playlist">New playlist</string>
     <string name="audio_add_to_playlist">Add to playlist</string>
+    <string name="audio_add_favorite">Add to favorites</string>
+    <string name="audio_remove_favorite">Remove from favorites</string>
+    <string name="audio_edit_audio">Edit audio</string>
+    <string name="audio_close">Close</string>
+    <string name="audio_clear">Clear</string>
+    <string name="audio_cancel">Cancel</string>
     <string name="audio_add_selected">Add selected</string>
     <string name="audio_create_and_add">Create and add</string>
     <string name="audio_playlist_name">Playlist name</string>

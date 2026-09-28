@@ -94,6 +94,9 @@ fun ArcileAppShell(
         mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
     }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val audioLibraryIsCurrent = AppRoutes.AudioLibrary::class.qualifiedName?.let { route ->
+        navBackStackEntry?.destination?.route?.startsWith(route)
+    } == true
     val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
 
@@ -160,9 +163,16 @@ fun ArcileAppShell(
 
     CompositionLocalProvider(LocalKeepAppBarsCollapsed provides keepAppBarsCollapsed) {
         androidx.compose.animation.SharedTransitionLayout {
+            CompositionLocalProvider(
+                AudioFeatureEntryPoint.LocalSharedTransitionScope provides this@SharedTransitionLayout
+            ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Scaffold(
-                    bottomBar = { AudioFeatureEntryPoint.MiniPlayer(this@SharedTransitionLayout) },
+                    bottomBar = {
+                        if (!audioLibraryIsCurrent) {
+                            AudioFeatureEntryPoint.MiniPlayer(this@SharedTransitionLayout)
+                        }
+                    },
                     snackbarHost = {
                         ArcileSnackbarHost(
                             hostState = snackbarHostState,
@@ -204,6 +214,7 @@ fun ArcileAppShell(
                     }
                 }
                 AudioFeatureEntryPoint.ExpandedPlayer(this@SharedTransitionLayout)
+            }
             }
         }
     }

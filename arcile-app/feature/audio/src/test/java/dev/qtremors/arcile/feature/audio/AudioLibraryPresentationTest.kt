@@ -67,7 +67,7 @@ class AudioLibraryPresentationTest {
     }
 
     @Test
-    fun `audio defaults to list view with newest files first`() {
+    fun `audio defaults to an alphabetical song list`() {
         val tracks = listOf(
             track("/Music/old.mp3", "Old", "Artist", "Album", modified = 10L),
             track("/Music/new.mp3", "New", "Artist", "Album", modified = 30L),
@@ -78,7 +78,7 @@ class AudioLibraryPresentationTest {
 
         assertEquals(FileViewMode.LIST, state.audioPresentation.viewMode)
         assertEquals(
-            listOf("New", "Middle", "Old"),
+            listOf("Middle", "New", "Old"),
             state.visibleTracks.map { it.displayTitle }
         )
     }
@@ -368,6 +368,30 @@ class AudioLibraryPresentationTest {
         assertEquals(listOf("B", "A"), contents.visibleTracks.map(AudioTrack::displayTitle))
         assertEquals(2, state.folders.size)
         assertEquals(null, state.folders.first { it.key == "p2" }.coverTrack)
+    }
+
+    @Test
+    fun `song shortcuts use Audio favorites and listening records`() {
+        val tracks = listOf(
+            track("/Music/a.mp3", "A", "Artist", "Album"),
+            track("/Music/b.mp3", "B", "Artist", "Album"),
+            track("/Music/c.mp3", "C", "Artist", "Album")
+        )
+        val base = AudioLibraryState(
+            favoritePaths = setOf("/Music/b.mp3"),
+            playCounts = mapOf("/Music/a.mp3" to 3, "/Music/c.mp3" to 8),
+            lastPlayedAt = mapOf("/Music/a.mp3" to 20L, "/Music/c.mp3" to 10L)
+        )
+
+        assertEquals(listOf("B"), buildAudioLibraryState(
+            base.copy(songFilter = AudioSongFilter.FAVORITES), tracks
+        ).visibleTracks.map(AudioTrack::displayTitle))
+        assertEquals(listOf("A", "C"), buildAudioLibraryState(
+            base.copy(songFilter = AudioSongFilter.RECENTLY_PLAYED), tracks
+        ).visibleTracks.map(AudioTrack::displayTitle))
+        assertEquals(listOf("C", "A"), buildAudioLibraryState(
+            base.copy(songFilter = AudioSongFilter.MOST_PLAYED), tracks
+        ).visibleTracks.map(AudioTrack::displayTitle))
     }
 
     private fun track(

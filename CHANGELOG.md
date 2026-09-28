@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.5
+> **Version:** 2.1.6
 > **Last Updated:** 2026-09-28
 
 ---
+
+## [2.1.6] - 2026-09-28
+
+- **Music Library Layouts**: Show artwork, artist, album, duration, and song counts across Audio pages, with alphabetical songs by default and direct actions for favorites, playlists, music details, and audio editing.
+- **Listening Library**: Save favorites, recent plays, and play counts in a dedicated Audio database. Import existing favorites and offer Recently played and Most played views with a history reset.
+- **Player and Lyrics**: Place the mini player above Audio navigation, keep its expand and collapse motion, and give timed lyrics a full screen view with seek and playback controls.
+- **Library Stability**: Update visible page content together with its filters and keep artwork tied to the correct song while lists change.
 
 ## [2.1.5] - 2026-09-28
 

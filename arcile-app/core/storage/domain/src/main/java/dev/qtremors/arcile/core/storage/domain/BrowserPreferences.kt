@@ -67,16 +67,16 @@ data class BrowserPreferences(
     val imageGalleryGrouping: CategoryGrouping = CategoryGrouping.MONTH,
     val imageGalleryDefaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val audioPresentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileSortOption.DATE_NEWEST,
+        sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.LIST,
         gridMinCellSize = 136f
     ),
     val audioFolderPresentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileSortOption.DATE_NEWEST,
+        sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.LIST,
         gridMinCellSize = 160f
     ),
-    val audioGrouping: CategoryGrouping = CategoryGrouping.MONTH,
+    val audioGrouping: CategoryGrouping = CategoryGrouping.NONE,
     val audioDefaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
     val audioShowFileDetails: Boolean = true,
     val audioFavoriteFiles: Set<String> = emptySet(),

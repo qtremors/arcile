@@ -50,8 +50,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
-import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences
-import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -81,7 +79,7 @@ class AudioPlayerActivity : ComponentActivity() {
     internal lateinit var repository: AudioLibraryRepository
 
     @Inject
-    internal lateinit var audioPreferences: AudioLibraryPreferencesStore
+    internal lateinit var listeningStore: AudioListeningStore
 
     @Inject
     internal lateinit var themePreferences: ThemePreferences
@@ -123,8 +121,8 @@ class AudioPlayerActivity : ComponentActivity() {
             )
             ArcileTheme(themeState = themeState) {
                 val playbackState by playback.state.collectAsStateWithLifecycle()
-                val libraryPreferences by audioPreferences.audioLibraryPreferencesFlow.collectAsStateWithLifecycle(
-                    initialValue = AudioLibraryPreferences()
+                val favorites by listeningStore.favoritePaths.collectAsStateWithLifecycle(
+                    initialValue = emptySet()
                 )
                 val current = queue.firstOrNull {
                     it.file.absolutePath == playbackState.currentMediaId
@@ -136,11 +134,13 @@ class AudioPlayerActivity : ComponentActivity() {
                         track = current,
                         queue = queue,
                         playbackState = playbackState,
-                        isFavorite = current.file.absolutePath in libraryPreferences.favoriteFiles,
+                        isFavorite = current.file.absolutePath in favorites,
                         onToggleFavorite = {
                             val path = current.file.absolutePath
-                            val nextFavorite = path !in libraryPreferences.favoriteFiles
-                            lifecycleScope.launch { audioPreferences.updateFavorite(path, nextFavorite) }
+                            val nextFavorite = path !in favorites
+                            lifecycleScope.launch {
+                                runCatching { listeningStore.setFavorite(path, nextFavorite) }
+                            }
                         },
                         playbackController = playback,
                         tagEditor = tagEditor,
@@ -168,6 +168,7 @@ class AudioPlayerActivity : ComponentActivity() {
                                 lifecycleScope.launch {
                                     runCatching {
                                         musicStore.replaceTrackPath(oldPath, newFile.absolutePath)
+                                        listeningStore.replacePath(oldPath, newFile.absolutePath)
                                     }
                                 }
                             }

@@ -16,6 +16,8 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
 internal enum class AudioCollectionKind { SONGS, FOLDERS, ALBUMS, ARTISTS, GENRES, PLAYLISTS }
 
+internal enum class AudioSongFilter { ALL, FAVORITES, RECENTLY_PLAYED, MOST_PLAYED }
+
 internal enum class AudioFolderKind {
     Directory,
     Favorites,
@@ -49,6 +51,10 @@ internal data class AudioLibraryState(
     val visibleTracks: List<AudioTrack> = emptyList(),
     val folders: List<AudioFolder> = emptyList(),
     val collectionKind: AudioCollectionKind = AudioCollectionKind.SONGS,
+    val presentedCollectionKind: AudioCollectionKind = AudioCollectionKind.SONGS,
+    val songFilter: AudioSongFilter = AudioSongFilter.ALL,
+    val playCounts: Map<String, Int> = emptyMap(),
+    val lastPlayedAt: Map<String, Long> = emptyMap(),
     val playlists: List<AudioPlaylist> = emptyList(),
     val sectionPresentations: Map<AudioCollectionKind, FileListingPreferences> = emptyMap(),
     val tab: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
@@ -57,18 +63,18 @@ internal data class AudioLibraryState(
     val query: String = "",
     val searchFilters: SearchFilters = SearchFilters(),
     val audioPresentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileSortOption.DATE_NEWEST,
+        sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.LIST,
         gridMinCellSize = 136f,
         showThumbnails = true
     ),
     val folderPresentation: FileListingPreferences = FileListingPreferences(
-        sortOption = FileSortOption.DATE_NEWEST,
+        sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.GRID,
         gridMinCellSize = 160f,
         showThumbnails = true
     ),
-    val grouping: CategoryGrouping = CategoryGrouping.MONTH,
+    val grouping: CategoryGrouping = CategoryGrouping.NONE,
     val showFileDetails: Boolean = true,
     val musicOnly: Boolean = false,
     val scrollbarEnabled: Boolean = true,

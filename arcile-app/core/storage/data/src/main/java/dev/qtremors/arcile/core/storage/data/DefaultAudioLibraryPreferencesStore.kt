@@ -28,6 +28,8 @@ class DefaultAudioLibraryPreferencesStore(
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) =
         dataSource.updateAudioFavorite(path, isFavorite)
 
+    override suspend fun clearMigratedFavorites() = dataSource.clearMigratedAudioFavorites()
+
     override suspend fun updatePinnedFolder(path: String, isPinned: Boolean) =
         dataSource.updateAudioPinnedFolder(path, isPinned)
 
