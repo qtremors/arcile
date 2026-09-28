@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +50,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferences
+import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -76,6 +79,9 @@ class AudioPlayerActivity : ComponentActivity() {
 
     @Inject
     internal lateinit var repository: AudioLibraryRepository
+
+    @Inject
+    internal lateinit var audioPreferences: AudioLibraryPreferencesStore
 
     @Inject
     internal lateinit var themePreferences: ThemePreferences
@@ -111,6 +117,9 @@ class AudioPlayerActivity : ComponentActivity() {
             )
             ArcileTheme(themeState = themeState) {
                 val playbackState by playback.state.collectAsStateWithLifecycle()
+                val libraryPreferences by audioPreferences.audioLibraryPreferencesFlow.collectAsStateWithLifecycle(
+                    initialValue = AudioLibraryPreferences()
+                )
                 val current = queue.firstOrNull {
                     it.file.absolutePath == playbackState.currentMediaId
                 } ?: queue.firstOrNull { it.file.absolutePath == initialPath }
@@ -121,6 +130,12 @@ class AudioPlayerActivity : ComponentActivity() {
                         track = current,
                         queue = queue,
                         playbackState = playbackState,
+                        isFavorite = current.file.absolutePath in libraryPreferences.favoriteFiles,
+                        onToggleFavorite = {
+                            val path = current.file.absolutePath
+                            val nextFavorite = path !in libraryPreferences.favoriteFiles
+                            lifecycleScope.launch { audioPreferences.updateFavorite(path, nextFavorite) }
+                        },
                         playbackController = playback,
                         launchId = playerLaunchId,
                         miniPlayerBottomClearanceDp = miniPlayerBottomClearanceDp,
@@ -312,6 +327,8 @@ private fun StandaloneAudioPlayer(
     track: AudioTrack,
     queue: List<AudioTrack>,
     playbackState: AudioPlaybackState,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     playbackController: AudioPlaybackController,
     launchId: Int,
     miniPlayerBottomClearanceDp: Int,
@@ -326,6 +343,7 @@ private fun StandaloneAudioPlayer(
     var presentation by remember(launchId) {
         mutableStateOf(AudioPlayerPresentation.MINI)
     }
+    var visualizerEnabled by rememberSaveable { mutableStateOf(true) }
     val expanded = presentation == AudioPlayerPresentation.EXPANDED
     val playerTransition = updateTransition(
         targetState = expanded,
@@ -364,7 +382,7 @@ private fun StandaloneAudioPlayer(
                 Modifier
                     .fillMaxSize()
                     .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = backdropAlpha)
+                        MaterialTheme.colorScheme.background.copy(alpha = backdropAlpha)
                     )
             } else {
                 Modifier
@@ -429,6 +447,7 @@ private fun StandaloneAudioPlayer(
                             },
                             onDismiss = onFinish,
                             onTogglePlayback = playbackController::togglePlayback,
+                            onPrevious = playbackController::seekToPrevious,
                             onNext = playbackController::seekToNext
                         )
                     }
@@ -437,6 +456,10 @@ private fun StandaloneAudioPlayer(
                         track = track,
                         queue = queue,
                         playback = playbackState,
+                        visualizerEnabled = visualizerEnabled,
+                        onToggleVisualizer = { visualizerEnabled = !visualizerEnabled },
+                        isFavorite = isFavorite,
+                        onToggleFavorite = onToggleFavorite,
                         sharedTransitionScope = this@SharedTransitionLayout,
                         animatedVisibilityScope = visibilityScope,
                         onCollapse = {

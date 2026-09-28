@@ -27,6 +27,8 @@ import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.feature.settings.PreferencesBackupUiState
 import dev.qtremors.arcile.feature.settings.SettingsPreferences
 import dev.qtremors.arcile.core.ui.settings.AppStartPageSelector
@@ -193,7 +195,6 @@ class SettingsSectionsTest {
             ArcileTestTheme {
                 SettingsStorageSection(
                     cache = SettingsExternalCacheState(fileCount = 3, isBusy = true),
-                    onOpenStorageManagement = {},
                     onClearExternalCache = { clearCount += 1 }
                 )
             }
@@ -213,7 +214,6 @@ class SettingsSectionsTest {
             ArcileTestTheme {
                 SettingsStorageSection(
                     cache = SettingsExternalCacheState(fileCount = 3, isBusy = false),
-                    onOpenStorageManagement = {},
                     onClearExternalCache = { clearCount += 1 }
                 )
             }
@@ -231,7 +231,6 @@ class SettingsSectionsTest {
             ArcileTestTheme {
                 SettingsStorageSection(
                     cache = SettingsExternalCacheState(fileCount = 0, isBusy = false),
-                    onOpenStorageManagement = {},
                     onClearExternalCache = { clearCount += 1 }
                 )
             }
@@ -240,6 +239,58 @@ class SettingsSectionsTest {
         composeRule.onNodeWithText("No temporary files to clear").assertExists()
         composeRule.onNodeWithTag("external_cache_setting_row").assertIsNotEnabled()
         assertEquals(0, clearCount)
+    }
+
+    @Test
+    fun `storage section waits for volume discovery`() {
+        composeRule.setContent {
+            ArcileTestTheme {
+                SettingsStorageSection(
+                    cache = SettingsExternalCacheState(),
+                    onClearExternalCache = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("storage_volumes_loading").assertExists()
+    }
+
+    @Test
+    fun `storage section displays volumes and handles classification`() {
+        val volume = StorageVolume(
+            id = "sd-card-1",
+            storageKey = "sd-card-1",
+            path = "/storage/0000-0000",
+            name = "SD Card",
+            totalBytes = 1000L,
+            freeBytes = 500L,
+            isPrimary = false,
+            isRemovable = true,
+            kind = StorageKind.EXTERNAL_UNCLASSIFIED
+        )
+        var classifiedKey: String? = null
+        var classifiedKind: StorageKind? = null
+        var classificationCount = 0
+        composeRule.setContent {
+            ArcileTestTheme {
+                SettingsStorageSection(
+                    volumes = listOf(volume),
+                    cache = SettingsExternalCacheState(fileCount = 0, isBusy = false),
+                    onSetVolumeClassification = { key, kind ->
+                        classifiedKey = key
+                        classifiedKind = kind
+                        classificationCount++
+                    },
+                    onClearExternalCache = {}
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("SD Card").assertExists()
+        composeRule.onNodeWithText("Classify as SD").performClick()
+        assertEquals("sd-card-1", classifiedKey)
+        assertEquals(StorageKind.SD_CARD, classifiedKind)
+        assertEquals(1, classificationCount)
     }
 
     @Test
@@ -506,7 +557,7 @@ class SettingsSectionsTest {
                         preferences = SettingsPreferences(),
                         backup = PreferencesBackupUiState.Idle
                     ),
-                    navigationActions = SettingsNavigationActions({}, {}, {}, {}),
+                    navigationActions = SettingsNavigationActions({}, {}, {}),
                     preferenceActions = SettingsPreferenceActions(
                         themeChange = {},
                         showThumbnailsChange = {},

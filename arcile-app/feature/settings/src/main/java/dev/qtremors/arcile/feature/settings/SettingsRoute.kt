@@ -39,6 +39,7 @@ internal fun SettingsRoute(
     val preferences by viewModel.browserPreferences.collectAsStateWithLifecycle()
     val backupState by viewModel.backupState.collectAsStateWithLifecycle()
     val externalCache by viewModel.externalCache.collectAsStateWithLifecycle()
+    val storageVolumes by viewModel.storageVolumes.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var pluginExtensions by remember { mutableStateOf(emptySet<String>()) }
@@ -76,11 +77,11 @@ internal fun SettingsRoute(
             theme = currentThemeState,
             preferences = preferences,
             backup = backupState,
-            externalCache = externalCache
+            externalCache = externalCache,
+            storageVolumes = storageVolumes
         ),
         navigationActions = SettingsNavigationActions(
             navigateBack = onNavigateBack,
-            openStorageManagement = { onDestination(SettingsDestination.StorageManagement) },
             navigateToPlugins = { onDestination(SettingsDestination.Plugins) },
             navigateToAbout = { onDestination(SettingsDestination.About) }
         ),
@@ -106,7 +107,9 @@ internal fun SettingsRoute(
             }
         ),
         storageActions = SettingsStorageActions(
-            clearExternalCache = viewModel::clearExternalCache
+            clearExternalCache = viewModel::clearExternalCache,
+            setVolumeClassification = viewModel::setVolumeClassification,
+            resetVolumeClassification = viewModel::resetVolumeClassification
         )
     )
 }

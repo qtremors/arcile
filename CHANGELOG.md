@@ -1,12 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.2
-> **Last Updated:** 2026-09-27
+> **Version:** 2.1.3
+> **Last Updated:** 2026-09-28
 
 ---
 
-## [2.1.2] - Unreleased
+## [2.1.3] - 2026-09-28
+
+- **New Audio Player Layouts**: Give the mini player circular artwork, a progress ring, and grouped previous and next buttons. Add a favorite button, straight seek slider, pill shaped transport controls, paired lower actions sized to match file actions, and a More menu anchored to its button in the full player.
+- **Player Motion and Themes**: Animate track changes, playback controls, and mini player expansion on tap or swipe. Open the queue with an upward swipe, and use the selected theme's background and accent colors throughout the full player.
+- **Playback Visualizer and Layout**: Show audio-responsive bars in the play/pause button with an on/off switch. Distribute player content across available height, resize artwork to fit, and scroll on short screens.
+- **Storage Settings**: Show connected storage volumes and classification controls directly in Settings alongside temporary file cleanup.
+
+## [2.1.2] - 2026-09-27
 
 - **Settings Pages**: Organize controls into focused pages with clearer section names and descriptions.
 - **Compact Choices**: Keep the theme mode tiles and show start page, theme preset, filename, and extension choices in compact rows that scroll when needed. Put the Custom theme preset on its own row.

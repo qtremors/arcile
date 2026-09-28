@@ -26,6 +26,8 @@
     <string name="audio_open_with">Open with</string>
     <string name="audio_share">Share</string>
     <string name="audio_more">More options</string>
+    <string name="audio_visualizer_on">Turn visualizer on</string>
+    <string name="audio_visualizer_off">Turn visualizer off</string>
     <plurals name="audio_track_count"><item quantity="one">%1$d track</item><item quantity="other">%1$d tracks</item></plurals>
     <plurals name="audio_folder_count"><item quantity="one">%1$d folder</item><item quantity="other">%1$d folders</item></plurals>
     <string name="audio_clear_filter">Show all audio</string>

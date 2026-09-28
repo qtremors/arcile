@@ -1,12 +1,21 @@
 package dev.qtremors.arcile.feature.audio
 
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,8 +27,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
@@ -34,6 +47,7 @@ import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -48,6 +62,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
@@ -55,6 +75,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
@@ -67,7 +88,7 @@ import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalSharedTransitionApi::class)
+@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalFoundationApi::class)
 @Composable
 internal fun AudioMiniPlayer(
     track: AudioTrack,
@@ -77,10 +98,13 @@ internal fun AudioMiniPlayer(
     onExpand: () -> Unit,
     onDismiss: () -> Unit,
     onTogglePlayback: () -> Unit,
+    onPrevious: () -> Unit,
     onNext: () -> Unit
 ) {
     val dragOffset = remember { Animatable(0f) }
+    val swipeOffset = remember { Animatable(0f) }
     val gestureThresholdPx = with(LocalDensity.current) { 48.dp.toPx() }
+    val horizontalThresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
     val flingThresholdPxPerSecond = with(LocalDensity.current) { 800.dp.toPx() }
     val gestureScope = rememberCoroutineScope()
     var dismissCommitted by remember(track.file.absolutePath) { mutableStateOf(false) }
@@ -91,9 +115,16 @@ internal fun AudioMiniPlayer(
                 sharedContentState = rememberSharedContentState(
                     AUDIO_PLAYER_CONTAINER_TRANSITION_KEY
                 ),
-                animatedVisibilityScope = animatedVisibilityScope
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ ->
+                    spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                }
             )
             .graphicsLayer {
+                translationX = swipeOffset.value
                 translationY = dragOffset.value
                 alpha = 1f -
                     (dragOffset.value / (gestureThresholdPx * 2f)).coerceIn(0f, 0.5f)
@@ -112,7 +143,7 @@ internal fun AudioMiniPlayer(
                         velocityTracker.addPosition(change.uptimeMillis, change.position)
                         totalDrag += dragAmount
                         val dragTarget = totalDrag.coerceIn(
-                            -gestureThresholdPx * 10f,
+                            -gestureThresholdPx * 1.5f,
                             gestureThresholdPx * 2.5f
                         )
                         gestureJob?.cancel()
@@ -134,8 +165,8 @@ internal fun AudioMiniPlayer(
                         gestureJob = gestureScope.launch {
                             when (gesture) {
                                 AudioMiniPlayerGesture.EXPAND -> {
-                                    dragOffset.settleMiniDrag()
                                     onExpand()
+                                    dragOffset.settleMiniDrag()
                                 }
                                 AudioMiniPlayerGesture.DISMISS -> {
                                     if (!dismissCommitted) {
@@ -162,88 +193,169 @@ internal fun AudioMiniPlayer(
                     }
                 )
             }
+            .pointerInput(track.file.absolutePath, horizontalThresholdPx) {
+                var totalDrag = 0f
+                var swipeJob: Job? = null
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDrag = 0f },
+                    onHorizontalDrag = { change, amount ->
+                        change.consume()
+                        totalDrag += amount
+                        swipeJob?.cancel()
+                        swipeJob = gestureScope.launch {
+                            swipeOffset.snapTo(
+                                totalDrag.coerceIn(-horizontalThresholdPx * 2f, horizontalThresholdPx * 2f)
+                            )
+                        }
+                    },
+                    onDragCancel = {
+                        swipeJob?.cancel()
+                        swipeJob = gestureScope.launch { swipeOffset.settleMiniDrag() }
+                    },
+                    onDragEnd = {
+                        val direction = when {
+                            totalDrag > horizontalThresholdPx -> 1
+                            totalDrag < -horizontalThresholdPx -> -1
+                            else -> 0
+                        }
+                        swipeJob?.cancel()
+                        swipeJob = gestureScope.launch {
+                            if (direction != 0) {
+                                swipeOffset.animateTo(
+                                    direction * horizontalThresholdPx * 2f,
+                                    spring(stiffness = Spring.StiffnessMediumLow)
+                                )
+                                if (direction > 0) onPrevious() else onNext()
+                                swipeOffset.snapTo(-direction * horizontalThresholdPx)
+                            }
+                            swipeOffset.settleMiniDrag()
+                        }
+                        totalDrag = 0f
+                    }
+                )
+            }
     }
     Surface(
-        shape = MaterialTheme.shapes.extraLarge,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(32.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
         contentColor = MaterialTheme.colorScheme.onSurface,
-        tonalElevation = 4.dp,
-        shadowElevation = 4.dp,
-        modifier = containerModifier
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)),
+        modifier = containerModifier.clickable(onClick = onExpand)
     ) {
-        Column {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .height(72.dp)
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val progress = audioProgressFraction(
+                playback.positionMs.toFloat(),
+                playback.durationMs.takeIf { it > 0L } ?: track.durationMs
+            )
+            val progressColor = MaterialTheme.colorScheme.primary
+            val progressTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f)
+            Box(
+                modifier = Modifier.size(48.dp),
+                contentAlignment = Alignment.Center
             ) {
                 AudioArtwork(
-                    track,
-                    with(sharedTransitionScope) {
+                    track = track,
+                    shape = CircleShape,
+                    modifier = with(sharedTransitionScope) {
                         Modifier
-                            .size(56.dp)
+                            .size(40.dp)
                             .sharedBounds(
                                 sharedContentState = rememberSharedContentState(
                                     AUDIO_PLAYER_ARTWORK_TRANSITION_KEY
                                 ),
-                                animatedVisibilityScope = animatedVisibilityScope
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                boundsTransform = { _, _ ->
+                                    spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                }
                             )
-                            .bounceClickable(onClick = onExpand)
+                            .clickable(onClick = onTogglePlayback)
                     }
                 )
-                Spacer(Modifier.width(12.dp))
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .bounceClickable(onClick = onExpand)
-                ) {
+                AnimatedContent(
+                    targetState = !playback.isPlaying,
+                    transitionSpec = {
+                        fadeIn(tween(180)) togetherWith fadeOut(tween(180))
+                    },
+                    label = "mini player play overlay"
+                ) { showPlay ->
+                    if (showPlay) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(Color.Black.copy(alpha = 0.36f))
+                                .clickable(onClick = onTogglePlayback),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.PlayArrow,
+                                contentDescription = stringResource(R.string.audio_play),
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                }
+                Canvas(Modifier.size(48.dp)) {
+                    val stroke = Stroke(3.dp.toPx(), cap = StrokeCap.Round)
+                    val arcSize = Size(size.width - stroke.width, size.height - stroke.width)
+                    val topLeft = Offset(stroke.width / 2f, stroke.width / 2f)
+                    drawArc(progressTrackColor, 0f, 360f, false, topLeft, arcSize, style = stroke)
+                    drawArc(progressColor, -90f, 360f * progress, false, topLeft, arcSize, style = stroke)
+                }
+            }
+            Spacer(Modifier.width(16.dp))
+            AnimatedContent(
+                targetState = track,
+                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                label = "mini player track",
+                modifier = Modifier.weight(1f)
+            ) { displayedTrack ->
+                Column(Modifier.fillMaxWidth().clickable(onClick = onExpand)) {
                     Text(
-                        track.displayTitle,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
+                        displayedTrack.displayTitle,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 3000)
                     )
                     Text(
-                        track.artist ?: stringResource(R.string.audio_unknown_artist),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        displayedTrack.artist ?: stringResource(R.string.audio_unknown_artist),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Clip,
+                        modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 3000)
                     )
                 }
-                SplitButtonGroup(
-                    actions = listOf(
-                        ToolbarAction(
-                            icon = if (playback.isPlaying) {
-                                Icons.Default.Pause
-                            } else {
-                                Icons.Default.PlayArrow
-                            },
-                            contentDescription = stringResource(
-                                if (playback.isPlaying) R.string.audio_pause else R.string.audio_play
-                            ),
-                            onClick = onTogglePlayback
-                        ),
-                        ToolbarAction(
-                            icon = Icons.Default.SkipNext,
-                            contentDescription = stringResource(R.string.audio_next),
-                            onClick = onNext
-                        )
-                    ),
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    height = 48.dp,
-                    minWidth = 48.dp,
-                    iconSize = 24.dp
-                )
             }
-            AudioMiniPlaybackProgress(
-                positionMs = playback.positionMs,
-                durationMs = playback.durationMs.takeIf { it > 0L } ?: track.durationMs,
-                modifier = Modifier.fillMaxWidth()
+            Spacer(Modifier.width(12.dp))
+            SplitButtonGroup(
+                actions = listOf(
+                    ToolbarAction(
+                        icon = Icons.Default.SkipPrevious,
+                        contentDescription = stringResource(R.string.audio_previous),
+                        onClick = onPrevious
+                    ),
+                    ToolbarAction(
+                        icon = Icons.Default.SkipNext,
+                        contentDescription = stringResource(R.string.audio_next),
+                        onClick = onNext
+                    )
+                ),
+                height = 40.dp,
+                minWidth = 40.dp,
+                iconSize = 20.dp
             )
         }
     }

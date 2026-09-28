@@ -201,8 +201,10 @@ internal fun SettingsScreen(
                                 showHeading = false
                             )
                             SettingsPage.STORAGE -> SettingsStorageSection(
+                                volumes = state.storageVolumes,
                                 cache = state.externalCache,
-                                onOpenStorageManagement = navigationActions.openStorageManagement,
+                                onSetVolumeClassification = storageActions.setVolumeClassification,
+                                onResetVolumeClassification = storageActions.resetVolumeClassification,
                                 onClearExternalCache = storageActions.clearExternalCache,
                                 showHeading = false
                             )

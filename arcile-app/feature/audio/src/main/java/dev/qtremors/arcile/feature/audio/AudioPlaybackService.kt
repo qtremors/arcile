@@ -5,6 +5,8 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
@@ -20,6 +22,21 @@ import com.google.common.util.concurrent.ListenableFuture
 @androidx.annotation.OptIn(UnstableApi::class)
 internal class AudioPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    private val visualizerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            AudioPlaybackSpectrum.setPlaying(isPlaying)
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            AudioPlaybackSpectrum.clear()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                AudioPlaybackSpectrum.clear()
+            }
+        }
+    }
     private val closePlayerCommand = SessionCommand(ACTION_CLOSE_AUDIO_PLAYER, Bundle.EMPTY)
     private val sessionCallback = object : MediaSession.Callback {
         override fun onConnect(
@@ -61,7 +78,7 @@ internal class AudioPlaybackService : MediaSessionService() {
             .build()
             .apply { setSmallIcon(R.drawable.ic_arcile_notification) }
         setMediaNotificationProvider(notificationProvider)
-        val player = ExoPlayer.Builder(this)
+        val player = ExoPlayer.Builder(this, AudioVisualizerRenderersFactory(this))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -71,6 +88,7 @@ internal class AudioPlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
+            .apply { addListener(visualizerListener) }
         val sessionActivity = packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
             PendingIntent.getActivity(
                 this,
@@ -102,6 +120,8 @@ internal class AudioPlaybackService : MediaSessionService() {
     ): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        AudioPlaybackSpectrum.setPlaying(false)
+        AudioPlaybackSpectrum.clear()
         mediaSession?.run {
             player.release()
             release()

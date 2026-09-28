@@ -2,6 +2,11 @@ package dev.qtremors.arcile.feature.audio
 
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.ExperimentalSharedTransitionApi
 import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.core.Animatable
@@ -10,23 +15,31 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
@@ -55,6 +68,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -66,6 +80,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -110,6 +125,10 @@ internal fun AudioNowPlayingScreen(
     track: AudioTrack,
     queue: List<AudioTrack>,
     playback: AudioPlaybackState,
+    visualizerEnabled: Boolean,
+    onToggleVisualizer: () -> Unit,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
     predictiveBackEnabled: Boolean = true,
@@ -152,6 +171,11 @@ internal fun AudioNowPlayingScreen(
         onFileDeleted = onFileDeleted
     )
     val effectiveDuration = playback.durationMs.takeIf { it > 0L } ?: track.durationMs
+    DisposableEffect(visualizerEnabled) {
+        AudioPlaybackSpectrum.setSpectrumVisible(visualizerEnabled)
+        onDispose { AudioPlaybackSpectrum.setSpectrumVisible(false) }
+    }
+
     val collapseThreshold = screenHeightPx * 0.14f
     val collapseProgress = max(
         (dragOffset.value / collapseThreshold).coerceIn(0f, 1f),
@@ -164,7 +188,13 @@ internal fun AudioNowPlayingScreen(
                 sharedContentState = rememberSharedContentState(
                     AUDIO_PLAYER_CONTAINER_TRANSITION_KEY
                 ),
-                animatedVisibilityScope = animatedVisibilityScope
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ ->
+                    spring(
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                }
             )
             .graphicsLayer {
                 translationX = backProgress * 72.dp.toPx()
@@ -192,19 +222,46 @@ internal fun AudioNowPlayingScreen(
 
     Surface(
         modifier = containerModifier,
-        color = MaterialTheme.colorScheme.surface,
+        color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val dismissThreshold = with(density) { maxHeight.toPx() * 0.14f }
         val queueThreshold = with(density) { maxHeight.toPx() * 0.08f }
         val horizontalThreshold = with(density) { maxWidth.toPx() * 0.16f }
-        val compactHeight = maxHeight < 720.dp
-        val artworkMaxSize = if (compactHeight) 320.dp else 440.dp
+        val topInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+        val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+        val playerContentHeight = maxHeight - topInset - bottomInset - 68.dp - 66.dp
+        val artworkSize = minOf(
+            (minOf(maxWidth, 600.dp) - 64.dp).coerceAtLeast(1.dp),
+            440.dp,
+            (playerContentHeight - 246.dp).coerceAtLeast(160.dp)
+        )
+        val needsScroll = playerContentHeight < artworkSize + 246.dp
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .pointerInput(queueThreshold) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(
+                            requireUnconsumed = false,
+                            pass = PointerEventPass.Initial
+                        )
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) {
+                                val delta = change.position - down.position
+                                if (delta.y < -queueThreshold && abs(delta.y) > abs(delta.x) * 1.2f) {
+                                    haptics.selectionStart()
+                                    showQueue = true
+                                }
+                                break
+                            }
+                        }
+                    }
+                }
                 .pointerInput(dismissThreshold) {
                     var totalY = 0f
                     var gestureJob: Job? = null
@@ -261,32 +318,40 @@ internal fun AudioNowPlayingScreen(
         ) {
             Column(
                 modifier = Modifier
-                    .fillMaxWidth()
                     .widthIn(max = 600.dp)
-                    .align(Alignment.Center)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
+                    .fillMaxHeight()
+                    .align(Alignment.TopCenter)
                     .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(
-                        start = 24.dp,
-                        top = if (compactHeight) 72.dp else 84.dp,
-                        end = 24.dp,
-                        bottom = if (compactHeight) 88.dp else 104.dp
-                    ),
+                        start = 32.dp,
+                        top = 68.dp,
+                        end = 32.dp,
+                        bottom = 66.dp
+                    )
+                    .then(if (needsScroll) Modifier.verticalScroll(rememberScrollState()) else Modifier),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                if (!needsScroll) Spacer(Modifier.weight(1f))
                 AudioArtwork(
                     track = track,
+                    shape = RoundedCornerShape(6.dp),
                     modifier = with(sharedTransitionScope) {
                         Modifier
-                            .fillMaxWidth()
-                            .widthIn(max = artworkMaxSize)
+                            .width(artworkSize)
                             .aspectRatio(1f)
                             .sharedBounds(
                                 sharedContentState = rememberSharedContentState(
                                     AUDIO_PLAYER_ARTWORK_TRANSITION_KEY
                                 ),
-                                animatedVisibilityScope = animatedVisibilityScope
+                                animatedVisibilityScope = animatedVisibilityScope,
+                                boundsTransform = { _, _ ->
+                                    spring(
+                                        dampingRatio = Spring.DampingRatioNoBouncy,
+                                        stiffness = Spring.StiffnessMediumLow
+                                    )
+                                }
                             )
                             .graphicsLayer {
                                 translationX = artworkOffset.value
@@ -390,11 +455,7 @@ internal fun AudioNowPlayingScreen(
                                             }
                                             AudioNowPlayingGesture.Collapse -> onCollapse()
                                             AudioNowPlayingGesture.Queue -> {
-                                                haptics.selectionStart()
-                                                showQueue = true
-                                                gestureJob = gestureScope.launch {
-                                                    dragOffset.snapTo(0f)
-                                                }
+                                                gestureJob = gestureScope.launch { dragOffset.snapTo(0f) }
                                             }
                                             AudioNowPlayingGesture.None -> {
                                                 gestureJob = gestureScope.launch {
@@ -411,40 +472,50 @@ internal fun AudioNowPlayingScreen(
                             }
                     }
                 )
-                Spacer(Modifier.height(if (compactHeight) 18.dp else 24.dp))
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(if (compactHeight) 84.dp else 96.dp),
-                    verticalArrangement = Arrangement.Center
+                Spacer(Modifier.height(12.dp))
+                if (!needsScroll) Spacer(Modifier.weight(1f))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        track.displayTitle,
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        track.artist ?: stringResource(R.string.audio_unknown_artist),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        track.album?.takeIf(String::isNotBlank) ?: " ",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                    AnimatedContent(
+                        targetState = track,
+                        transitionSpec = {
+                            fadeIn(tween(220)) togetherWith fadeOut(tween(140))
+                        },
+                        label = "now playing track",
+                        modifier = Modifier.weight(1f)
+                    ) { displayedTrack ->
+                        Column {
+                            Text(
+                                displayedTrack.displayTitle,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 3000)
+                            )
+                            Text(
+                                displayedTrack.artist ?: stringResource(R.string.audio_unknown_artist),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.basicMarquee(iterations = 1, initialDelayMillis = 3000)
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    AudioPlayerSongActions(
+                        isFavorite = isFavorite,
+                        onToggleFavorite = onToggleFavorite
                     )
                 }
-                Spacer(Modifier.height(if (compactHeight) 16.dp else 24.dp))
+                Spacer(Modifier.height(12.dp))
+                if (!needsScroll) Spacer(Modifier.weight(1f))
                 AudioPlaybackProgress(
                     positionMs = sliderPosition,
                     durationMs = effectiveDuration,
-                    isPlaying = playback.isPlaying,
                     onPositionChange = {
                         isSeeking = true
                         sliderPosition = it
@@ -455,59 +526,67 @@ internal fun AudioNowPlayingScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 )
-                Spacer(Modifier.height(if (compactHeight) 12.dp else 20.dp))
+                Spacer(Modifier.height(12.dp))
+                if (!needsScroll) Spacer(Modifier.weight(1f))
                 AudioPlaybackControls(
                     playback = playback,
+                    visualizerEnabled = visualizerEnabled,
                     onTogglePlayback = onTogglePlayback,
                     onPrevious = onPrevious,
-                    onNext = onNext,
-                    onToggleRepeat = onToggleRepeat,
-                    onToggleShuffle = onToggleShuffle
+                    onNext = onNext
                 )
+                if (!needsScroll) Spacer(Modifier.weight(1f))
             }
 
             AudioPlayerBottomActions(
+                playback = playback,
                 onShowMetadata = {
                     haptics.selectionStart()
                     showMetadata = true
                 },
-                onShare = onShare,
+                onToggleRepeat = onToggleRepeat,
+                onToggleShuffle = onToggleShuffle,
+                onShowMore = {
+                    haptics.selectionStart()
+                    showMenu = true
+                },
                 onShowQueue = {
                     haptics.selectionStart()
                     showQueue = true
+                },
+                moreMenu = {
+                    AudioPlayerMoreMenu(
+                        showMenu = showMenu,
+                        onDismissMenu = { showMenu = false },
+                        visualizerEnabled = visualizerEnabled,
+                        onToggleVisualizer = onToggleVisualizer,
+                        onEdit = onEdit,
+                        onOpenWith = onOpenWith,
+                        onShare = onShare.takeIf { ViewerFileAction.Share in viewerActionController.state.allowedActions },
+                        onCopy = {
+                            viewerActionController.onAction(ViewerFileAction.Copy)
+                        }.takeIf { ViewerFileAction.Copy in viewerActionController.state.allowedActions },
+                        onCut = {
+                            viewerActionController.onAction(ViewerFileAction.Cut)
+                        }.takeIf { ViewerFileAction.Cut in viewerActionController.state.allowedActions },
+                        onRename = {
+                            viewerActionController.onAction(ViewerFileAction.Rename)
+                        }.takeIf { ViewerFileAction.Rename in viewerActionController.state.allowedActions },
+                        onDelete = {
+                            viewerActionController.onAction(ViewerFileAction.Delete)
+                        }.takeIf { ViewerFileAction.Delete in viewerActionController.state.allowedActions },
+                        onProperties = {
+                            viewerActionController.onAction(ViewerFileAction.Properties)
+                        }.takeIf { ViewerFileAction.Properties in viewerActionController.state.allowedActions },
+                        onArchive = {
+                            viewerActionController.onAction(ViewerFileAction.CreateArchive)
+                        }.takeIf { ViewerFileAction.CreateArchive in viewerActionController.state.allowedActions }
+                    )
                 },
                 modifier = Modifier.align(Alignment.BottomCenter)
             )
             AudioPlayerTopBar(
                 track = track,
-                showMenu = showMenu,
-                onCollapse = onCollapse,
-                onShowMenu = {
-                    haptics.selectionStart()
-                    showMenu = true
-                },
-                onDismissMenu = { showMenu = false },
-                onEdit = onEdit,
-                onOpenWith = onOpenWith,
-                onShare = onShare.takeIf { ViewerFileAction.Share in viewerActionController.state.allowedActions },
-                onCopy = {
-                    viewerActionController.onAction(ViewerFileAction.Copy)
-                }.takeIf { ViewerFileAction.Copy in viewerActionController.state.allowedActions },
-                onCut = {
-                    viewerActionController.onAction(ViewerFileAction.Cut)
-                }.takeIf { ViewerFileAction.Cut in viewerActionController.state.allowedActions },
-                onRename = {
-                    viewerActionController.onAction(ViewerFileAction.Rename)
-                }.takeIf { ViewerFileAction.Rename in viewerActionController.state.allowedActions },
-                onDelete = {
-                    viewerActionController.onAction(ViewerFileAction.Delete)
-                }.takeIf { ViewerFileAction.Delete in viewerActionController.state.allowedActions },
-                onProperties = {
-                    viewerActionController.onAction(ViewerFileAction.Properties)
-                }.takeIf { ViewerFileAction.Properties in viewerActionController.state.allowedActions },
-                onArchive = {
-                    viewerActionController.onAction(ViewerFileAction.CreateArchive)
-                }.takeIf { ViewerFileAction.CreateArchive in viewerActionController.state.allowedActions },
                 modifier = Modifier.align(Alignment.TopCenter)
             )
             ViewerActionHost(viewerActionController)
