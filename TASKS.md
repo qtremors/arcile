@@ -2,41 +2,41 @@
 
 > **Project:** Arcile
 >
-> **Version:** 2.1.0
+> **Version:** 2.1.7
 >
-> **Last Updated:** 2026-09-27
+> **Last Updated:** 2026-10-03
 
 ---
 
 ## Storage and Recovery
 
-- [ ] **STORAGE-0001 - Preserve Verified Trash Copies After Partial Source Cleanup** `[Critical]`
+- [x] **STORAGE-0001 - Preserve Verified Trash Copies After Partial Source Cleanup** `[Critical]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/DefaultTrashManager.kt` -> `moveToTrashTargets`, `restoreFromTrash`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/MutationJournal.kt` -> `cleanupTrashFallback`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileTransferEngine.kt` -> `moveToTarget`.
   - **Problem:** If rename fails, the transfer engine copies and verifies a directory before deleting its source children. It deliberately retains the complete destination when a later child deletion fails or cancellation interrupts cleanup. Both trash callers then delete that retained destination on failure. Startup recovery likewise deletes a trash payload whenever the original source directory still exists, including a partially deleted source. For a folder containing `a.txt` and `b.txt`, successful deletion of `a.txt` followed by failed deletion of `b.txt` can therefore destroy the only remaining copy of `a.txt`.
   - **Impact:** Irreversible file loss during fallback trash or restore operations and their recovery.
-  - **Fix:** Distinguish pre-publication rollback from post-publication source cleanup. Keep the verified payload and its metadata after cleanup starts; retain a durable recovery phase. Make trash recovery respect the source-cleanup record instead of treating source existence as proof that rollback is safe.
-  - **Verification:** Add manager-level tests that fail rename, delete one source child, then fail or cancel the next deletion. Repeat with a persisted journal and restart. Every original byte must remain recoverable, and trash metadata must still identify the preserved payload. Existing engine-only partial-cleanup tests passed but do not protect these callers.
+  - **Resolution (2.1.7):** Let the transfer engine own rollback, preserving retained trash/restore outputs after source cleanup fails or is cancelled. Keep trash metadata and the fallback record with retained payloads. Persist the trash cleanup phase alongside the source-cleanup record; recovery also recognizes older source-cleanup entries independently of processing order.
+  - **Verification:** All 42 focused trash-manager, mutation-journal, and transfer-engine tests pass. New manager tests fail rename, delete one child, then fail or cancel cleanup for both trash and restore; recreated journals and repeated recovery preserve every original byte and identifiable trash metadata. Additional tests cover pre-publication rollback, legacy record ordering, and durable phase retention. Physical-device interruption testing remains outstanding.
 
-- [ ] **STORAGE-0002 - Keep Existing Destinations When a Move Fails Before Publication** `[High]`
+- [x] **STORAGE-0002 - Keep Existing Destinations When a Move Fails Before Publication** `[High]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileTransferEngine.kt` -> `moveFiles`, `moveToTarget`, `copyAtomically`, `promoteStagedTarget`.
   - **Problem:** The move catch blocks call `deleteTarget(target)` whenever source cleanup has not started. When replacing an existing file, a staging read/write failure leaves the original destination untouched inside `copyAtomically`, but the outer catch deletes it. The same happens after failed promotion successfully restores the old destination. `moveToTarget` also deletes an existing target after rejecting the conflict.
   - **Impact:** A failed move can erase a previously existing destination even though no replacement was published.
-  - **Fix:** Track ownership and publication explicitly. Remove only staging or newly published output owned by this attempt; never remove a pre-existing or restored destination. Preserve replacement backups until the move has reached a safe terminal phase.
-  - **Verification:** Extend `FileTransferEngineTest` with failed replacement moves before publication and during promotion, plus an occupied `moveToTarget` destination. Assert both original source and original destination bytes survive. The existing replacement test covers copy, not move.
+  - **Resolution (2.1.7):** Return an owned publication from staging instead of deleting destination paths unconditionally. Roll back only that output and restore its original backup before source cleanup starts. Keep backups through incomplete source cleanup, and require full checksum verification before replacement publication.
+  - **Verification:** All 17 focused transfer-engine tests pass, including staging failure/cancellation, failed promotion, occupied direct targets, verification failure after publication, retained backups after partial source cleanup, and same-sized replacement corruption. Original source and destination bytes survive pre-cleanup failures. Physical-device testing remains outstanding.
 
-- [ ] **STORAGE-0003 - Journal Replacement Backups as Recoverable Originals** `[High]`
+- [x] **STORAGE-0003 - Journal Replacement Backups as Recoverable Originals** `[High]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/FileTransferEngine.kt` -> `promoteStagedTarget`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/MutationJournal.kt` -> `recordTemporaryPath`, `cleanupTemporaryPath`, `isKnownTemporaryName`.
   - **Problem:** Replacement renames the old target to `.arcile-replace-*.bak`, recorded as an ordinary temporary path. If the process dies after that rename and before staged promotion, startup cleanup deletes both the staging file and the backup. The destination remains absent and its previous contents are lost. The backup record contains no original destination or publication phase.
   - **Impact:** Interrupted copy/replace can permanently lose the previous destination, independently of the in-process move failure in STORAGE-0002.
-  - **Fix:** Add a replacement journal entry with target, staging, backup, and durable phase. Restore the backup when publication is incomplete, and delete it only after verified publication. Preserve and migrate existing journal entries conservatively.
-  - **Verification:** Simulate restart at each rename/journal boundary. An interrupted replacement must expose either the complete old target or the verified new target, never neither. Include failed rollback and removable-storage unavailability.
+  - **Resolution (2.1.7):** Journal the destination, staging path, original backup, verified contents, and publication/source-cleanup phases. Restore verified originals into absent destinations; retain ambiguous backups and unavailable-storage records. Migrate legacy backup entries conservatively, and preserve full or unreadable journals instead of discarding recovery information.
+  - **Verification:** Focused journal tests cover interruption at five publication boundaries, failed rollback, unavailable storage, move rollback before source cleanup, partial-cleanup restart, legacy backups, and restoration without stable file IDs. Complete original or verified new destination bytes remain available, with ambiguous originals retained. Windows tests inject file IDs for automatic-recovery scenarios; physical-device testing remains outstanding.
 
-- [ ] **STORAGE-0004 - Revalidate Pending Source Cleanup Before Deleting Files** `[High]`
+- [x] **STORAGE-0004 - Revalidate Pending Source Cleanup Before Deleting Files** `[High]`
   - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/MutationJournal.kt` -> `recordSourceCleanup`, `cleanupSourceCleanup`; sibling `SourceTreeCleanup.kt` -> `deleteSourceTree`.
   - **Problem:** Recovery records only source and destination paths. On a later launch it deletes the current source tree if the destination merely exists. After an interrupted move, a user can modify the destination or add a new source child while Arcile is closed; recovery then deletes data never verified in the destination.
   - **Impact:** Automatic recovery can remove newly created or changed files without a valid surviving copy.
-  - **Fix:** Persist the identities and verified contents eligible for deletion, or conservatively require explicit recovery when they cannot be established. Revalidate each remaining source against the destination and preserve new or changed entries. Do not recursively delete a newly enumerated tree solely from a path pair.
-  - **Verification:** Extend `MutationJournalTest` with changed destination bytes, a replaced destination file, and a new source child between interruption and recovery. All unmatched data must survive and remain actionable in recovery state.
+  - **Resolution (2.1.7):** Persist bounded snapshots of verified source/destination nodes, including identities, file metadata, and checksums. Recovery revalidates each recorded node and its ancestors, deletes only matched files and empty recorded folders, and retains new/changed files and pending records. Legacy records and unavailable file identities never authorize automatic source deletion.
+  - **Verification:** Focused journal tests cover changed destination bytes with matching size/timestamp, identical-byte destination replacement, added source children, changed source contents, replaced source folders, missing destinations, legacy records, and unavailable IDs. Unmatched data and recovery records survive repeated recovery. Windows identity-dependent tests use an injected provider; physical-device testing remains outstanding.
 
 - [ ] **STORAGE-0005 - Undo Restore Using Actual Published Paths** `[High]`
   - **Location:** `arcile-app/feature/trash/src/main/java/dev/qtremors/arcile/feature/trash/TrashViewModel.kt` -> `restoreTrashItems`, `restoreToDestination`, `undoLastRestore`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/manager/DefaultTrashManager.kt` -> `restoreFromTrash`.
@@ -54,17 +54,18 @@
 
 ## Vaults
 
-- [ ] **VAULT-0001 - Preserve Skipped Source Children During Directory Moves** `[Critical]`
+- [x] **VAULT-0001 - Preserve Skipped Source Children During Directory Moves** `[Critical]`
   - **Location:** `arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/VaultTransferEngine.kt` -> `cloneMergedDirectory`, `moveOneWithinVault`; sibling `VaultTransferLayer.kt` -> `transferAcrossVaults`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesTransferController.kt` -> `paste`.
   - **Problem:** Move a folder into a destination containing a same-named folder, select Merge, then Skip for a conflicting child with different contents. The merged clone keeps only the destination child. Within-vault move removes the entire source folder and marks all source objects obsolete; cross-vault move receives `COMPLETED` from `copyOne` and deletes the entire source folder. Neither path retains skipped source children.
   - **Impact:** Choosing Skip can permanently destroy the source version of an encrypted file.
-  - **Fix:** Propagate per-child merge outcomes and remove only source nodes successfully transferred. Keep skipped nodes and their parent structure at the source, and report partial completion accurately for both move variants.
-  - **Verification:** Add within-vault and cross-vault merge-move tests with distinct source/destination bytes and nested Skip choices. Skipped source bytes must remain readable, transferred children must move once, and the destination's skipped version must remain unchanged. Existing merge coverage exercises copy with nonconflicting children.
+  - **Resolution (2.1.7):** Track skipped source nodes and their ancestor folders during merges. Publish source manifests removing only transferred nodes, in the destination transaction for within-vault moves and after destination publication for cross-vault moves. Preserve skipped objects, return partial outcomes, and retain the move clipboard when skipped files remain.
+  - **Verification:** All 9 focused vault merge-move, transfer-coordinator, and transaction tests pass, plus the transfer-controller UI test. New tests use distinct encrypted source/destination contents, nested skipped files and entire skipped folders, fresh sessions, complete merges, interrupted commit recovery, and safe rejection of an oversized partial merge. Skipped bytes remain readable, transferred children leave the source, and existing destination bytes remain unchanged. Physical-device testing remains outstanding.
 
 - [ ] **VAULT-0002 - Validate Transaction Limits Before Writing a Durable Commit Marker** `[High]`
   - **Location:** `arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/VaultTransactionManager.kt` -> `commit`, `writeMarker`, `readMarker`, `validate`; sibling `VaultImportEngine.kt` -> `importOne` and `VaultTransferEngine.kt` -> `CloneContext.commit`.
   - **Problem:** `validate` accepts at most 32 publications, but `commit` writes the durable marker before calling `readMarker`, which performs that validation. Importing a directory tree with 32 directories prepares those 32 manifests plus the destination manifest. The marker is written, rejected on reread, and deliberately retained as committed. Subsequent recovery rejects the same marker, including on unlock. Object-count and encoded-root limits have the same write/read asymmetry.
   - **Impact:** An ordinary folder import or copy can leave a vault unable to recover or unlock through the normal flow. This is an availability defect; underlying encrypted data is not proven destroyed.
+  - **Progress (2.1.7):** Writer-side validation now applies the reader's limits before committing, protecting partial merge moves that require extra source manifests. Recovery for already-written oversized markers remains unresolved, so this task stays open.
   - **Fix:** Validate all writer/reader limits before the durable commit point. Support larger trees with a bounded transaction representation or reject them safely before publication. Provide a data-preserving recovery path for already-written oversized markers; do not simply delete a possibly committed marker.
   - **Verification:** Exercise 31, 32, and 33 imported directories, copying an equivalent tree, and boundary object/root sizes. Failure must leave no unrecoverable marker and must allow relock/unlock. Include recovery of a marker produced by the current implementation. Existing transaction tests do not cover these limits.
 
@@ -99,14 +100,14 @@
   - **Verification:** Use a large local text file and an unknown-length test provider. Reads must stop at the documented budget with recoverable UI feedback; repeated edits must keep history memory bounded while preserving ordinary undo/redo behavior.
 
 - [ ] **PERF-0003 - Show Browser Files Before Persistence and Indexing Finish** `[High]`
-  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserDirectoryNavigation.kt` -> `loadDirectory`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt` -> `updateLastOpenedLocation`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/DefaultFileSystemDataSource.kt` -> `list`.
+  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/navigation/BrowserDirectoryNavigation.kt` -> `loadDirectory`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/FilePreferencesDataSource.kt` -> `updateLastOpenedLocation`; `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/source/DefaultFileSystemDataSource.kt` -> `list`.
   - **Problem:** Every folder opening awaits a DataStore location write and activity-log append before listing. The data source then reads and sorts the whole directory, validates each child path, and deletes/upserts its database index before emitting the first 256-item page. Cached folder-stat lookup also precedes publishing that page. These operations run off Main where appropriate, but the user still waits for all of them before files appear.
   - **Impact:** Folder opening can feel delayed, especially for large directories, slow storage, or a growing activity log. No tap-to-first-file timing has been measured.
   - **Fix:** Keep the location change immediate, publish usable files without waiting for activity logging or index maintenance, and load saved folder stats without holding back the first page. Preserve ordered last-location writes and eventual search-index consistency. Measure whether full sorting and per-child safety checks need further reduction without weakening path validation.
   - **Verification:** Measure tap-to-first-file and completed-list times for empty, small, and large folders on internal and removable storage. Check rapid folder switching, cancellation, restart restoration, activity history, search-index updates, inaccessible paths, and correct list ordering.
 
 - [ ] **PERF-0004 - Avoid Rebuilding the Full Browser Display for Each Folder-Stat Update** `[High]`
-  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserDisplayState.kt` -> `buildBrowserDisplayState`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserNavigationController.kt` -> `updateFolderStat`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserNavigationPreferences.kt` -> `applyNavigationPreferences`.
+  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserDisplayState.kt` -> `buildBrowserDisplayState`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/navigation/BrowserNavigationController.kt` -> `updateFolderStat`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/BrowserNavigationPreferences.kt` -> `applyNavigationPreferences`.
   - **Problem:** Display-state construction sorts the file list twice and builds both list and grid rows on Main. Each completed subfolder-size calculation triggers another full rebuild; preference emissions can also rebuild the display even when only the remembered location changes. Saved sizes are refreshed after a cold launch, so this can repeat while a folder remains visible.
   - **Impact:** Main-thread work can stutter scrolling, taps, and navigation after the listing appears. The updated debug log reports 53 skipped startup frames and another 34 later, but contains no folder-tap markers that attribute either stall to this path.
   - **Fix:** Skip display rebuilds for unchanged presentation settings, batch or update folder-stat rows incrementally, and prepare only the active view mode. Preserve deliberate reordering for file-count sort modes and cancel obsolete work when changing folders.
@@ -128,7 +129,7 @@
   - **Verification:** Exercise forward, backward, and collapsed selections through Bold, Italic, and Link actions. The same text must be formatted for either selection direction, and undo must restore the previous text.
 
 - [ ] **A11Y-0001 - Resource the Shared File-Item Accessibility Labels** `[Low]`
-  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/lists/FileItemSemantics.kt` -> `fileItemSemantics`; `arcile-app/build-logic/src/main/kotlin/dev/qtremors/arcile/buildlogic/ArcileAndroidApplicationConventionsPlugin.kt` -> `checkProductionStrings`.
+  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/lists/FileItemSemantics.kt` -> `fileItemSemantics`; `arcile-app/build-logic/src/main/kotlin/dev/qtremors/arcile/buildlogic/ArcileBuildVerificationPlugin.kt` -> `checkProductionStrings`.
   - **Problem:** Shared rows build spoken descriptions and actions from hardcoded English strings including Hidden, Folder, Modified, Toggle selection, and Open folder. These bypass resources. The production-string check passes because these labels use conditional expressions and `label` assignments outside its matching rules.
   - **Impact:** These core TalkBack announcements cannot follow localized resources, and the existing string gate does not detect regressions in this path. Actual screen-reader behavior was not tested.
   - **Fix:** Pass resource-resolved labels into the semantics helper or resolve them in its composable callers. Cover these specific semantics patterns in the existing string check without flagging non-user-facing animation labels.
@@ -148,7 +149,7 @@
 These additions come from the user's idea list and were checked against the current source on 2026-09-26. They describe requested capabilities or extensions, not confirmed defects. Existing partial support is noted; verification steps below are future acceptance checks.
 
 - [ ] **FEAT-0001 - Edit the Browser Path Bar** `[Requested feature]`
-  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/Breadcrumbs.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserDirectoryNavigation.kt`.
+  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/Breadcrumbs.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/navigation/BrowserDirectoryNavigation.kt`.
   - **Verified current behavior:** Breadcrumbs renders clickable segments without text entry; directory navigation accepts paths.
   - **Requested change:** Allow typing/pasting accessible directory paths with validation, clear errors, and cancellation.
   - **Verification:** Test spaces, denied/missing directories, removable storage, and retaining the original location on cancel/error.
@@ -166,13 +167,13 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Tag files/folders, combine tag and filename search, restart, and move targets without changing file contents.
 
 - [ ] **FEAT-0004 - Add Virtual Albums and Groups of Folders** `[Requested feature]`
-  - **Location:** `arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryAlbumPresentation.kt`; `arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageGalleryAlbumsGrid.kt`.
+  - **Location:** `arcile-app/feature/gallery/src/main/java/dev/qtremors/arcile/feature/gallery/MediaGalleryFolderPresentation.kt`; `arcile-app/feature/gallery/src/main/java/dev/qtremors/arcile/feature/gallery/MediaGalleryFoldersGrid.kt`.
   - **Verified current behavior:** Albums derive physical parent folders and a special Favorites album; arbitrary named memberships/groups are absent from the inspected presentation.
   - **Requested change:** Persist virtual albums and separately named folder groups. Membership changes must not move/delete physical files.
   - **Verification:** Create cross-folder albums/groups, restart, and update memberships while preserving originals.
 
 - [ ] **FEAT-0005 - Add Triggered File-Operation Rules** `[Requested feature]`
-  - **Location:** `arcile-app/core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageCleanerRules.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserArchiveController.kt`.
+  - **Location:** `arcile-app/core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageCleanerRules.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserArchiveController.kt`.
   - **Verified current behavior:** Cleaner rules describe sections/exclusions; Browser operations are interactive. No automation-rule/scheduler implementation was found.
   - **Requested change:** Add opt-in folder rules with new-file/scheduled/manual triggers, extension/size/age/name filters, and move/rename/compress/clean/notify actions. Include preview, exclusions, cancellation, collisions, and loop prevention. Resolve STORAGE-0001 through STORAGE-0004 before automating destructive operations.
   - **Verification:** Use disposable camera videos; repeated events/restart must not duplicate work, process incomplete writes, or delete unmatched files.
@@ -184,13 +185,13 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Check size/age boundaries, nested paths, exclusions, and migration of saved rules.
 
 - [ ] **FEAT-0007 - Save Folder-Specific Action Presets** `[Requested feature]`
-  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/Breadcrumbs.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserArchiveController.kt`; `arcile-app/core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageCleanerRules.kt`.
+  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/Breadcrumbs.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserArchiveController.kt`; `arcile-app/core/storage/domain/src/main/java/dev/qtremors/arcile/core/storage/domain/StorageCleanerRules.kt`.
   - **Verified current behavior:** Navigation and archive/cleaner actions exist; no saved per-folder action-preset model was found.
   - **Requested change:** Save actions such as send to SD, compress here, clean old files, or share recent files. Reuse operation/rule infrastructure with affected-file previews.
   - **Verification:** Persist different presets for two folders; verify scope, denied destinations, and cancellation.
 
 - [ ] **FEAT-0008 - Share Images with Metadata Removed from a Copy** `[Requested feature]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ShareHelper.kt`; `arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerViewModel.kt`.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/utils/ShareHelper.kt`; `arcile-app/feature/gallery/src/main/java/dev/qtremors/arcile/feature/gallery/ImageViewerViewModel.kt`.
   - **Verified current behavior:** ShareHelper prepares URI targets without a metadata-removal option; eraseMetadata is a separate editing action.
   - **Requested change:** Offer sanitized-copy sharing that preserves displayed orientation and original bytes, with managed temporary output. Do not fabricate EXIF.
   - **Verification:** Inspect received metadata, original bytes, multiple images, unsupported formats, cancellation, and cleanup.
@@ -214,8 +215,8 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Distinguish same-name/different-content, different-name/equal-content, and equal-size/different-content pairs without automatic deletion.
 
 - [ ] **FEAT-0012 - Add an Appearance Shape Preference** `[Requested feature]`
-  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/theme/ThemeState.kt`; `arcile-app/feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsAppearanceSection.kt`.
-  - **Verified current behavior:** ThemeState and Appearance settings expose no user-selectable shape preference.
+  - **Location:** `arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/theme/UiPreferences.kt`; `arcile-app/feature/settings/src/main/java/dev/qtremors/arcile/feature/settings/ui/SettingsAppearanceSection.kt`.
+  - **Verified current behavior:** UiPreferences and Appearance settings expose no user-selectable shape preference.
   - **Requested change:** Persist a shape option and apply it through shared shapes, including selected states, while preserving touch targets.
   - **Verification:** Inspect buttons, rows, menus, and dialogs after restart in both themes and large text.
 
@@ -238,7 +239,7 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Exercise lifecycle transitions and manual lock; chosen policy must hold and manual lock must revoke access.
 
 - [ ] **FEAT-0016 - Send Browser Selections Directly into OnlyFiles** `[Requested feature]`
-  - **Location:** `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesTransferController.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserClipboardController.kt`.
+  - **Location:** `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesTransferController.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserClipboardController.kt`.
   - **Verified current behavior:** OnlyFiles already imports local files/folders and has its own clipboard; inspected Browser sources lack a vault-selection action.
   - **Requested change:** Choose/unlock a vault from Browser and reuse boundary transfers. Distinguish copy/move and use typed clipboard references. Resolve VAULT-0001 and VAULT-0002 before extending destructive paths.
   - **Verification:** Import selected files/folders with conflicts/cancellation; remove originals only for verified moves and preserve existing vault paste.
@@ -250,7 +251,7 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Verify scheduled export, revoked access, discovery, malformed backups, and previewed restoration.
 
 - [ ] **FEAT-0018 - Save Image Rotation, Mirroring, and Freeform Crops** `[Requested feature]`
-  - **Location:** `arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerViewModel.kt`; `arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerZoomable.kt`.
+  - **Location:** `arcile-app/feature/gallery/src/main/java/dev/qtremors/arcile/feature/gallery/ImageViewerViewModel.kt`; `arcile-app/feature/gallery/src/main/java/dev/qtremors/arcile/feature/gallery/ImageViewerZoomable.kt`.
   - **Verified current behavior:** rotateViewerImage changes viewerRotationDegrees/saved state rather than image bytes. No mirror/freeform-crop operation was found in the inspected gallery flow.
   - **Requested change:** Add transform preview and explicit save-copy/replace. Distinguish persisted edits from viewer rotation and support crop transparency in suitable formats. Use safe publication as in STORAGE-0006.
   - **Verification:** Reopen saved pixels elsewhere; verify orientation, edges, originals, cancellation, and large images.
@@ -292,7 +293,7 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Open supported books/comics, restore position, and handle malformed/large archives and unsupported formats.
 
 - [ ] **FEAT-0025 - Create a PDF from Selected Images** `[Requested feature]`
-  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserArchiveController.kt`; `arcile-app/feature/documents/src/main/java/dev/qtremors/arcile/feature/documents/DocumentLibraryScreen.kt`.
+  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserArchiveController.kt`; `arcile-app/feature/documents/src/main/java/dev/qtremors/arcile/feature/documents/DocumentLibraryScreen.kt`.
   - **Verified current behavior:** No PDF-creation implementation was found in the inspected Browser/Documents sources.
   - **Requested change:** Add selection-based export with image ordering, page size/orientation, destination, and cancellation.
   - **Verification:** Reopen output and verify order, dimensions, quality, cancellation, and no partial published file.
@@ -316,7 +317,7 @@ These additions come from the user's idea list and were checked against the curr
   - **Verification:** Enable/disable, cold-launch, deny permissions, and navigate Back without duplicate/stale state.
 
 - [ ] **FEAT-0029 - Add Play Folder to Browser** `[Requested feature]`
-  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserClipboardController.kt`; `arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioPlaybackController.kt`.
+  - **Location:** `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserClipboardController.kt`; `arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioPlaybackController.kt`.
   - **Verified current behavior:** AudioPlaybackController.playQueue exists; no Browser play-folder entry point was found.
   - **Requested change:** Build a deterministic supported-media queue from a folder action; define subfolder inclusion and ordering and reuse playback.
   - **Verification:** Test mixed files, starting item, queue order, empty folders, and renamed/deleted entries.
@@ -344,7 +345,7 @@ These additions come from the user's idea list and were checked against the curr
 The reports below have relevant source paths and bounded reproduction plans. They have not been reproduced on a device in this follow-up; the investigation must establish the cause before a fix is claimed.
 
 - [x] **REPORT-0001 - Preserve Folder Subtitles Across Launches and Refreshes** `[Medium]`
-  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/FolderStatsStore.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserDirectoryNavigation.kt`.
+  - **Location:** `arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/FolderStatsStore.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/navigation/BrowserDirectoryNavigation.kt`.
   - **Root cause:** Observer registration scheduled cache invalidation on every process launch. Invalidation deleted saved stats, failed scans replaced known values with unavailable results, and the row renderer used generic folder labels when stats were missing.
   - **Resolution:** Remove registration-time invalidation; mark saved stats stale on actual changes while retaining their values; preserve usable counts after scan failures; render explicit pending/unavailable subtitles. Home also restores saved recents/category totals and avoids duplicate resume refreshes and recurring storage loading animations.
   - **Verification:** Focused folder-store, observer, category-cache, recent-snapshot, Home ViewModel, Compose presentation, and browser folder-stat tests pass. Coverage includes persisted values after store recreation, stale values during refresh, failed scans, real notification invalidation, and non-generic subtitles. Physical-device startup timing and large-folder scan counts remain unmeasured.
@@ -374,13 +375,13 @@ The reports below have relevant source paths and bounded reproduction plans. The
   - **Verification:** Each enabled slider position produces the advertised column count; test resize/rotation, restart, narrow screens, and independent item/folder presentation.
 
 - [ ] **REPORT-0006 - Investigate Browser Location Restoration by Entry Route** `[Medium]`
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/MainShellCoordinator.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/delegate/BrowserNavigationController.kt`; `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessDestinationMapper.kt`.
+  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/MainShellCoordinator.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/navigation/BrowserNavigationController.kt`; `arcile-app/app/src/main/java/dev/qtremors/arcile/presentation/ui/QuickAccessDestinationMapper.kt`.
   - **Evidence:** The user reports swipe and storage-bar entry behavior is reversed. Navigation has restorePersistentLocation, seedInitialPathHistory, explicit paths, and remembered folder preferences.
   - **Investigation:** Trace gestures versus explicit storage-root navigation. Require swipe entry to resume the last browser folder and storage-bar entry to open its selected root; keep explicit shortcut/deep-link paths authoritative.
   - **Verification:** Exercise both entries after visiting a nested folder, switching volumes, and restarting; check Back history and inaccessible remembered folders.
 
 - [ ] **REPORT-0007 - Investigate Playback Queue and Viewer Deletion Consistency** `[Medium]`
-  - **Location:** `arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioPlaybackController.kt`; `arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioQueueSheet.kt`; `arcile-app/feature/imagegallery/src/main/java/dev/qtremors/arcile/feature/imagegallery/ImageViewerViewModel.kt`.
+  - **Location:** `arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioPlaybackController.kt`; `arcile-app/feature/audio/src/main/java/dev/qtremors/arcile/feature/audio/AudioQueueSheet.kt`; `arcile-app/feature/gallery/src/main/java/dev/qtremors/arcile/feature/gallery/ImageViewerViewModel.kt`.
   - **Evidence:** The user reports mismatched queue/file lists and failure to advance after deletion. Audio derives queue IDs from the player timeline. Image applyViewerDelete removes the item but falls back to the first remaining displayed item, so existing deletion handling must be examined rather than assumed absent.
   - **Investigation:** Reproduce sorted/filtered/shuffled playback and deletion of the current item in each affected viewer. Compare actual queue IDs, displayed order, and completion callbacks; define next-item behavior at the last item and on failed deletion.
   - **Verification:** Delete first/middle/last items and test failed deletion, shuffle, filtered lists, and externally removed files. UI and playback must agree, advance only on success, and close gracefully when empty.

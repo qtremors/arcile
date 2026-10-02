@@ -9,15 +9,14 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.NoOpBulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.DebouncedSearchController
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
-import dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.NoOpHomeAndUtilityPreferencesStore
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
 import dev.qtremors.arcile.core.storage.domain.SearchRepository
-import dev.qtremors.arcile.core.storage.domain.QuickAccessItem
-import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeAndUtilityPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.storage.domain.StorageInfo
 import dev.qtremors.arcile.core.storage.domain.StorageKind
@@ -46,7 +45,7 @@ internal class HomeViewModel @Inject constructor(
     private val searchRepository: SearchRepository,
     private val classificationRepo: StorageClassificationStore,
     private val quickAccessRepo: QuickAccessPreferencesStore,
-    private val utilityPreferencesStore: UtilityPreferencesStore = NoOpUtilityPreferencesStore,
+    private val homeAndUtilityPreferencesStore: HomeAndUtilityPreferencesStore = NoOpHomeAndUtilityPreferencesStore,
     private val bulkFileOperationCoordinator: BulkFileOperationCoordinator = NoOpBulkFileOperationCoordinator,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier
 ) : ViewModel() {
@@ -55,9 +54,11 @@ internal class HomeViewModel @Inject constructor(
     val state: StateFlow<HomeState> = _state.asStateFlow()
 
     private val recentsPreviewLimit = 50
+    private val storageRestoration = HomeStorageRestoration(
+        viewModelScope, storageAnalyticsRepository, _state, recentsPreviewLimit
+    )
     private var refreshJob: Job? = null
     private var startupJob: Job? = null
-    private var rootStorageUsageJob: Job? = null
     private var pendingSilentRefresh = false
     private var pendingSilentForceAnalytics = false
     private var pendingSilentCacheInvalidation = false
@@ -113,13 +114,13 @@ internal class HomeViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            utilityPreferencesStore.homeUtilityIds.collectLatest { ids ->
+            homeAndUtilityPreferencesStore.homeUtilityIds.collectLatest { ids ->
                 _state.update { it.copy(homeUtilityIds = ids.toPersistentList()) }
             }
         }
 
         viewModelScope.launch {
-            utilityPreferencesStore.homeLayoutPreferences.collectLatest { preferences ->
+            homeAndUtilityPreferencesStore.homeLayoutPreferences.collectLatest { preferences ->
                 _state.update { it.copy(homeLayoutPreferences = preferences) }
             }
         }
@@ -379,64 +380,10 @@ internal class HomeViewModel @Inject constructor(
         }
     }
 
-    private suspend fun restoreCachedHomeData(minTimestamp: Long) {
-        try {
-            val categories = storageAnalyticsRepository.getCachedCategoryStorageSizes(StorageScope.AllStorage)
-            // Publish the breakdown first; recent-file decoding must not delay the storage segments.
-            if (categories != null) {
-                _state.update {
-                    it.copy(
-                        categoryStorages = categories.toPersistentList(),
-                        hasRestoredCachedHomeData = true
-                    ).withUpdatedDisplayState()
-                }
-            }
-            val recent = storageAnalyticsRepository.getCachedRecentFiles(
-                StorageScope.AllStorage, recentsPreviewLimit, minTimestamp
-            )
-            _state.update {
-                it.copy(
-                    recentFiles = recent?.toPersistentList() ?: it.recentFiles,
-                    categoryStorages = categories?.toPersistentList() ?: it.categoryStorages,
-                    isLoading = it.isLoading && recent == null && categories == null
-                ).withUpdatedDisplayState()
-            }
-        } catch (error: Exception) {
-            if (error is kotlinx.coroutines.CancellationException) throw error
-            // A damaged cache must not prevent the live query from repairing it.
-        }
-        _state.update { it.copy(hasRestoredCachedHomeData = true) }
-    }
+    private suspend fun restoreCachedHomeData(minTimestamp: Long) =
+        storageRestoration.restoreCachedHomeData(minTimestamp)
 
-    fun loadRootStorageUsage() {
-        val currentState = _state.value
-        if (
-            currentState.hasLoadedRootStorageUsage ||
-            currentState.storageInfo?.rootStorageUsage != null ||
-            rootStorageUsageJob?.isActive == true
-        ) {
-            return
-        }
-
-        _state.update { it.copy(isRootStorageUsageLoading = true) }
-        rootStorageUsageJob = viewModelScope.launch {
-            val result = storageAnalyticsRepository.getStorageInfo(StorageScope.AllStorage)
-            _state.update { state ->
-                val rootUsage = result.getOrNull()?.rootStorageUsage
-                val storageInfo = (state.storageInfo ?: StorageInfo(state.allStorageVolumes))
-                    .copy(rootStorageUsage = rootUsage)
-                state.copy(
-                    storageInfo = storageInfo,
-                    isRootStorageUsageLoading = false,
-                    hasLoadedRootStorageUsage = true
-                ).withUpdatedDisplayState()
-            }
-        }.also { job ->
-            job.invokeOnCompletion {
-                if (rootStorageUsageJob === job) rootStorageUsageJob = null
-            }
-        }
-    }
+    fun loadRootStorageUsage() = storageRestoration.loadRootStorageUsage()
 
     fun loadDashboardCategoryBreakdown(selectedVolumeId: String? = null) {
         dashboardController.load(selectedVolumeId)
@@ -460,7 +407,7 @@ internal class HomeViewModel @Inject constructor(
 
     fun updateHomeLayoutPreferences(preferences: HomeLayoutPreferences) {
         viewModelScope.launch {
-            utilityPreferencesStore.setHomeLayoutPreferences(preferences)
+            homeAndUtilityPreferencesStore.setHomeLayoutPreferences(preferences)
         }
     }
 
@@ -527,7 +474,7 @@ private fun BulkFileOperationType.refreshesHomeAnalytics(): Boolean =
         BulkFileOperationType.TRASH,
         BulkFileOperationType.DELETE,
         BulkFileOperationType.SHRED,
-        BulkFileOperationType.CREATE_FAKE,
+        BulkFileOperationType.CREATE_SYNTHETIC,
         BulkFileOperationType.EXTRACT_ARCHIVE,
         BulkFileOperationType.CREATE_ARCHIVE,
         BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> true

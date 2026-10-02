@@ -56,7 +56,7 @@ internal data class OnlyFilesUiState(
     val encryptedThumbnailBytes: Long = 0L,
     val activeExternalGrants: Int = 0,
     val isSettingsBusy: Boolean = false,
-    val showSettingsDialog: Boolean = false,
+    val showSettingsSheet: Boolean = false,
     val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
     val batchProgress: OnlyFilesBatchProgress? = null,

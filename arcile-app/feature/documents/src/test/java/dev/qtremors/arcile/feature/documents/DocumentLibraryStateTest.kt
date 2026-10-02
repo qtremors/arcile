@@ -33,7 +33,7 @@ class DocumentLibraryStateTest {
 
         assertEquals(
             setOf("/storage/Documents/report.pdf", "/storage/Documents/notes.txt"),
-            filtered.files.mapTo(mutableSetOf(), FileModel::absolutePath)
+            filtered.files.mapTo(mutableSetOf(), FileModel::reference)
         )
     }
 
@@ -56,7 +56,7 @@ class DocumentLibraryStateTest {
 
     private fun file(path: String) = FileModel(
         name = path.substringAfterLast('/'),
-        absolutePath = path,
+        reference = path,
         size = 1L,
         lastModified = 1L,
         extension = path.substringAfterLast('.')

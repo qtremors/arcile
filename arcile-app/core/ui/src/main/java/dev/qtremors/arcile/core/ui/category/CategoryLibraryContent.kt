@@ -191,7 +191,7 @@ internal fun CategoryFilesContent(
     fun click(file: FileModel) {
         if (selectionMode) {
             lastInteractedIndex = flatFiles.indexOf(file)
-            onToggleSelection(file.absolutePath)
+            onToggleSelection(file.reference)
             haptics.selectionChanged()
         } else {
             onOpenFile(file)
@@ -203,10 +203,10 @@ internal fun CategoryFilesContent(
         if (selectionMode && previous != null && previous != index) {
             val start = minOf(previous, index)
             val end = maxOf(previous, index)
-            onSelectPaths(flatFiles.subList(start, end + 1).map(FileModel::absolutePath))
+            onSelectPaths(flatFiles.subList(start, end + 1).map(FileModel::reference))
             haptics.selectionChanged()
         } else {
-            onToggleSelection(file.absolutePath)
+            onToggleSelection(file.reference)
             if (selectedPaths.isEmpty()) haptics.selectionStart() else haptics.selectionChanged()
         }
         lastInteractedIndex = index
@@ -251,10 +251,10 @@ internal fun CategoryFilesContent(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (grouping == CategoryGrouping.NONE) {
-                    items(files, key = FileModel::absolutePath) { file ->
+                    items(files, key = FileModel::reference) { file ->
                         fileItem(
                             file,
-                            file.absolutePath in selectedPaths,
+                            file.reference in selectedPaths,
                             selectionMode,
                             { click(file) },
                             { longClick(file) },
@@ -266,10 +266,10 @@ internal fun CategoryFilesContent(
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             CategorySectionHeader(group.label)
                         }
-                        items(groupFiles, key = FileModel::absolutePath) { file ->
+                        items(groupFiles, key = FileModel::reference) { file ->
                             fileItem(
                                 file,
-                                file.absolutePath in selectedPaths,
+                                file.reference in selectedPaths,
                                 selectionMode,
                                 { click(file) },
                                 { longClick(file) },
@@ -286,10 +286,10 @@ internal fun CategoryFilesContent(
                 contentPadding = listContentPadding
             ) {
                 if (grouping == CategoryGrouping.NONE) {
-                    items(files, key = FileModel::absolutePath) { file ->
+                    items(files, key = FileModel::reference) { file ->
                         fileItem(
                             file,
-                            file.absolutePath in selectedPaths,
+                            file.reference in selectedPaths,
                             selectionMode,
                             { click(file) },
                             { longClick(file) },
@@ -299,10 +299,10 @@ internal fun CategoryFilesContent(
                 } else {
                     groups.forEach { (group, groupFiles) ->
                         item { CategorySectionHeader(group.label) }
-                        items(groupFiles, key = FileModel::absolutePath) { file ->
+                        items(groupFiles, key = FileModel::reference) { file ->
                             fileItem(
                                 file,
-                                file.absolutePath in selectedPaths,
+                                file.reference in selectedPaths,
                                 selectionMode,
                                 { click(file) },
                                 { longClick(file) },
@@ -447,7 +447,7 @@ internal fun CategoryClipboardToolbar(
             active.totalBytes
                 ?.takeIf { it > 0L }
                 ?.let { total ->
-                    ((active.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                    ((active.bytesProcessed ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f)
                 }
                 ?: active.totalItems.takeIf { it > 0 }?.let { total ->
                     (active.completedItems.toFloat() / total.toFloat()).coerceIn(0f, 1f)
@@ -532,7 +532,7 @@ internal fun CategoryClipboardToolbar(
                             ?.let { total ->
                                 formatFileSize(
                                     context,
-                                    (total - (operation.bytesCopied ?: 0L)).coerceAtLeast(0L)
+                                    (total - (operation.bytesProcessed ?: 0L)).coerceAtLeast(0L)
                                 )
                             }
                             ?: if (operation != null) {

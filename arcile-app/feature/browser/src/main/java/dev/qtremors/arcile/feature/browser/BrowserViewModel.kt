@@ -21,11 +21,11 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.NoOpStorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
-import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
+import dev.qtremors.arcile.core.storage.domain.usecase.ObserveStorageVolumesUseCase
 import dev.qtremors.arcile.core.presentation.UiText
-import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictOwner
-import dev.qtremors.arcile.feature.browser.delegate.openArchive
-import dev.qtremors.arcile.feature.browser.delegate.submitArchivePassword
+import dev.qtremors.arcile.feature.browser.controller.BrowserConflictOwner
+import dev.qtremors.arcile.feature.browser.navigation.openArchive
+import dev.qtremors.arcile.feature.browser.navigation.submitArchivePassword
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,30 +47,30 @@ internal class BrowserViewModel @Inject constructor(
     private val volumeRepository: VolumeRepository,
     private val browserPreferencesRepository: BrowserLocationPreferencesStore,
     private val savedStateHandle: SavedStateHandle,
-    private val getStorageVolumesUseCase: GetStorageVolumesUseCase,
+    private val observeStorageVolumesUseCase: ObserveStorageVolumesUseCase,
     private val bulkFileCoordinator: BulkFileOperationCoordinator,
     private val activityLogStore: ActivityLogStore,
     private val storageMutationNotifier: StorageMutationNotifier = NoOpStorageMutationNotifier,
-    private val utilityPreferencesStore: dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore = dev.qtremors.arcile.core.storage.domain.NoOpUtilityPreferencesStore
+    private val homeAndUtilityPreferencesStore: dev.qtremors.arcile.core.storage.domain.HomeAndUtilityPreferencesStore = dev.qtremors.arcile.core.storage.domain.NoOpHomeAndUtilityPreferencesStore
 ) : ViewModel() {
-    val batchRenameHistory: StateFlow<List<String>> = utilityPreferencesStore.batchRenameHistory
+    val batchRenameHistory: StateFlow<List<String>> = homeAndUtilityPreferencesStore.batchRenameHistory
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun saveBatchRenameFindQuery(query: String) {
         viewModelScope.launch {
-            utilityPreferencesStore.addBatchRenameHistory(query)
+            homeAndUtilityPreferencesStore.addBatchRenameHistory(query)
         }
     }
 
     fun clearBatchRenameHistory() {
         viewModelScope.launch {
-            utilityPreferencesStore.clearBatchRenameHistory()
+            homeAndUtilityPreferencesStore.clearBatchRenameHistory()
         }
     }
 
     fun removeBatchRenameHistoryItem(query: String) {
         viewModelScope.launch {
-            utilityPreferencesStore.removeBatchRenameHistory(query)
+            homeAndUtilityPreferencesStore.removeBatchRenameHistory(query)
         }
     }
     private val scrollPositionStore = BrowserScrollPositionStore(savedStateHandle)
@@ -117,7 +117,7 @@ internal class BrowserViewModel @Inject constructor(
     )
     private val initializer = BrowserInitializer(
         scope = viewModelScope,
-        getStorageVolumes = getStorageVolumesUseCase,
+        observeStorageVolumesUseCase = observeStorageVolumesUseCase,
         navigation = navigationController
     )
     val initializationState: StateFlow<BrowserInitializationState> = initializer.state
@@ -244,7 +244,7 @@ internal class BrowserViewModel @Inject constructor(
     }
     fun createFolder(name: String) = mutationController.createFolder(name)
     fun createFile(name: String) = mutationController.createFile(name)
-    fun createFakeFile(name: String, size: Long) = mutationController.createFakeFile(name, size)
+    fun createSyntheticFile(name: String, size: Long) = mutationController.createSyntheticFile(name, size)
     fun extractArchive(target: ArchiveExtractionTarget, customDestination: String?) =
         archiveController.extractArchive(target, customDestination)
     fun extractSelectedArchiveEntries(target: ArchiveExtractionTarget, customDestination: String?) =

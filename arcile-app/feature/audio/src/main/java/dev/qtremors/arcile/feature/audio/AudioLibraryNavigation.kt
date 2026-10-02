@@ -60,8 +60,8 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onSelectCollection = viewModel::selectCollection,
             onSelectSongFilter = viewModel::selectSongFilter,
             onClearListeningHistory = viewModel::clearListeningHistory,
-            onSelectFolder = viewModel::selectFolder,
-            onClearFolderFilter = viewModel::clearFolderFilter,
+            onOpenCollection = viewModel::openCollection,
+            onClearCollectionFilter = viewModel::clearCollectionFilter,
             onPresentationChange = viewModel::updateSectionPresentation,
             onCreatePlaylist = viewModel::createPlaylist,
             onCreatePlaylistFromSelection = viewModel::createPlaylistFromSelection,
@@ -111,13 +111,13 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
             onPlay = { path ->
                 val queue = state.visibleTracks.takeIf(List<AudioTrack>::isNotEmpty) ?: state.tracks
-                queue.firstOrNull { it.file.absolutePath == path }?.let {
+                queue.firstOrNull { it.file.reference == path }?.let {
                     onOpenPlayer(it, queue, true)
                 }
             },
             onPlaySelection = { paths ->
                 val selected = paths.toSet()
-                val queue = state.tracks.filter { it.file.absolutePath in selected }
+                val queue = state.tracks.filter { it.file.reference in selected }
                 queue.firstOrNull()?.let { onOpenPlayer(it, queue, true) }
             },
             onShareSelected = { tracks, onShared ->

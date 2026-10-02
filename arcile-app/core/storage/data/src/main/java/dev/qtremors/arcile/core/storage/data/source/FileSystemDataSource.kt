@@ -16,7 +16,7 @@ interface FileSystemDataSource : DirectoryListingDataSource {
     suspend fun shred(paths: List<String>): Result<Unit>
     suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult>
     suspend fun renameFile(path: String, newName: String): Result<FileModel>
-    suspend fun detectCopyConflicts(
+    suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>>
@@ -32,7 +32,7 @@ interface FileSystemDataSource : DirectoryListingDataSource {
         resolutions: Map<String, ConflictResolution>,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit>
-    suspend fun createFakeFile(
+    suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,

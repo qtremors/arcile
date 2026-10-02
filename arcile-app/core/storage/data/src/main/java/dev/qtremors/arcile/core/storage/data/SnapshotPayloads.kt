@@ -46,7 +46,7 @@ internal data class CachedFileModel(
         }
         return FileModel(
             name = name,
-            absolutePath = absolutePath,
+            reference = absolutePath,
             size = size,
             lastModified = lastModified,
             isDirectory = isDirectory,
@@ -61,7 +61,7 @@ internal data class CachedFileModel(
         fun from(file: FileModel): CachedFileModel =
             CachedFileModel(
                 name = file.name,
-                absolutePath = file.absolutePath,
+                absolutePath = file.reference,
                 size = file.size,
                 lastModified = file.lastModified,
                 isDirectory = file.isDirectory,

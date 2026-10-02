@@ -40,7 +40,7 @@ fun testFile(
     mimeType: String? = null
 ) = FileModel(
     name = name,
-    absolutePath = path,
+    reference = path,
     size = size,
     lastModified = lastModified,
     isDirectory = isDirectory,

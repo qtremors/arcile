@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -96,4 +98,8 @@ internal class AudioPlaybackQueueStore(context: Context) {
         const val KEY_REPEAT = "repeat_v1"
         const val KEY_SHUFFLE = "shuffle_v1"
     }
+}
+
+internal suspend fun hasSavedAudioQueue(context: Context): Boolean = withContext(Dispatchers.IO) {
+    AudioPlaybackQueueStore(context).hasSavedQueue()
 }

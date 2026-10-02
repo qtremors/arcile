@@ -66,7 +66,7 @@ internal class AudioEditorViewModel @Inject constructor(
     application: Application,
     private val workspace: AudioEditorWorkspace
 ) : AndroidViewModel(application) {
-    private val exporter = AudioLosslessExporter(application)
+    private val exporter = AudioEditExporter(application)
     private val previewPlayer = ExoPlayer.Builder(application)
         .setAudioAttributes(
             AudioAttributes.Builder()

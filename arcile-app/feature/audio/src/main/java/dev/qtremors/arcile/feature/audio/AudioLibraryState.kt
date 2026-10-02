@@ -18,7 +18,7 @@ internal enum class AudioCollectionKind { SONGS, FOLDERS, ALBUMS, ARTISTS, GENRE
 
 internal enum class AudioSongFilter { ALL, FAVORITES, RECENTLY_PLAYED, MOST_PLAYED }
 
-internal enum class AudioFolderKind {
+internal enum class AudioCollectionType {
     Directory,
     Favorites,
     Artist,
@@ -27,19 +27,19 @@ internal enum class AudioFolderKind {
     Playlist
 }
 
-internal data class AudioFolder(
+internal data class AudioCollection(
     val key: String,
     val title: String,
     val subtitle: String?,
     val tracks: List<AudioTrack>,
     val customCoverPath: String? = null,
     val isPinned: Boolean = false,
-    val kind: AudioFolderKind = AudioFolderKind.Directory
+    val kind: AudioCollectionType = AudioCollectionType.Directory
 ) {
-    val isFavorites: Boolean get() = kind == AudioFolderKind.Favorites
-    val isDirectory: Boolean get() = kind == AudioFolderKind.Directory
+    val isFavorites: Boolean get() = kind == AudioCollectionType.Favorites
+    val isDirectory: Boolean get() = kind == AudioCollectionType.Directory
     val coverTrack: AudioTrack?
-        get() = tracks.firstOrNull { it.file.absolutePath == customCoverPath }
+        get() = tracks.firstOrNull { it.file.reference == customCoverPath }
             ?: tracks.maxByOrNull { it.file.lastModified }
             ?: tracks.firstOrNull()
     val newestModified: Long get() = tracks.maxOfOrNull { it.file.lastModified } ?: 0L
@@ -49,7 +49,7 @@ internal data class AudioFolder(
 internal data class AudioLibraryState(
     val tracks: List<AudioTrack> = emptyList(),
     val visibleTracks: List<AudioTrack> = emptyList(),
-    val folders: List<AudioFolder> = emptyList(),
+    val collections: List<AudioCollection> = emptyList(),
     val collectionKind: AudioCollectionKind = AudioCollectionKind.SONGS,
     val presentedCollectionKind: AudioCollectionKind = AudioCollectionKind.SONGS,
     val songFilter: AudioSongFilter = AudioSongFilter.ALL,
@@ -68,7 +68,7 @@ internal data class AudioLibraryState(
         gridMinCellSize = 136f,
         showThumbnails = true
     ),
-    val folderPresentation: FileListingPreferences = FileListingPreferences(
+    val collectionPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.GRID,
         gridMinCellSize = 160f,
@@ -82,7 +82,7 @@ internal data class AudioLibraryState(
     val pinnedFolderPaths: Set<String> = emptySet(),
     val folderCoverPaths: Map<String, String> = emptyMap(),
     val favoriteSearchAliases: Set<String> = emptySet(),
-    val folderFilter: AudioFolder? = null,
+    val collectionFilter: AudioCollection? = null,
     val selectedPaths: Set<String> = emptySet(),
     val showTrashConfirmation: Boolean = false,
     val showPermanentDeleteConfirmation: Boolean = false,
@@ -107,6 +107,6 @@ internal data class AudioLibraryState(
 internal fun AudioLibraryState.presentationFor(section: AudioCollectionKind): FileListingPreferences =
     when (section) {
         AudioCollectionKind.SONGS -> audioPresentation
-        AudioCollectionKind.FOLDERS -> folderPresentation
-        else -> sectionPresentations[section] ?: folderPresentation
+        AudioCollectionKind.FOLDERS -> collectionPresentation
+        else -> sectionPresentations[section] ?: collectionPresentation
     }

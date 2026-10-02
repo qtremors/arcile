@@ -99,12 +99,17 @@ internal class OnlyFilesTransferController(
 
     private fun complete(result: VaultBatchResult, move: Boolean) {
         val completed = result.items.count { it.outcome == VaultItemOutcome.COMPLETED }
+        val partial = result.items.count { it.outcome == VaultItemOutcome.PARTIAL }
         val skipped = result.items.count { it.outcome == VaultItemOutcome.SKIPPED }
         val failed = result.items.count { it.outcome == VaultItemOutcome.FAILED || it.outcome == VaultItemOutcome.ROLLED_BACK }
         state.update {
             it.copy(
-                clipboard = it.clipboard.takeUnless { move && failed == 0 && skipped == 0 },
-                message = "$completed completed, $skipped skipped, $failed failed"
+                clipboard = it.clipboard.takeUnless { move && failed == 0 && skipped == 0 && partial == 0 },
+                message = if (partial > 0) {
+                    "$completed completed, $partial partially completed, $skipped skipped, $failed failed. Skipped files remain at the source."
+                } else {
+                    "$completed completed, $skipped skipped, $failed failed"
+                }
             )
         }
         reload()

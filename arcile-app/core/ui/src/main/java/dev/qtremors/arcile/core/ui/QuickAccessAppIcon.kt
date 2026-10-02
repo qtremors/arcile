@@ -29,7 +29,7 @@ fun QuickAccessAppIcon(
     fallbackTint: Color = MaterialTheme.colorScheme.primary
 ) {
     val context = LocalContext.current
-    val resolvedPackageName = remember(context, item.id, item.type, item.path) {
+    val resolvedPackageName = remember(context, item.id, item.type, item.targetReference) {
         packageNameForQuickAccessItem(item, context) ?: item.takeIf { it.opensInFilesApp() }
             ?.let { context.resolveFilesAppPackageName() }
     }
@@ -59,7 +59,7 @@ private fun QuickAccessItem.opensInFilesApp(): Boolean {
 fun packageNameForQuickAccessItem(item: QuickAccessItem, context: Context? = null): String? {
     return when (item.id) {
         WHATSAPP_MEDIA_QUICK_ACCESS_ID -> when {
-            item.path.contains(WHATSAPP_BUSINESS_PACKAGE_NAME) -> WHATSAPP_BUSINESS_PACKAGE_NAME
+            item.targetReference.contains(WHATSAPP_BUSINESS_PACKAGE_NAME) -> WHATSAPP_BUSINESS_PACKAGE_NAME
             else -> WHATSAPP_PACKAGE_NAME
         }
         "internal_all_files" -> context?.packageName ?: "dev.qtremors.arcile"

@@ -24,7 +24,7 @@ class VaultPortableLocationResolver @Inject constructor(
         return resolve(volume, relativePath(volume, target))
     }
 
-    internal suspend fun resolve(pointer: ExternalVaultPointer): ResolvedPortableVault {
+    internal suspend fun resolve(pointer: PortableVaultPointer): ResolvedPortableVault {
         if (pointer.volumeId.isBlank() || pointer.relativePath.isBlank()) {
             val legacy = pointer.path?.takeIf(String::isNotBlank)
                 ?: throw VaultFailure.StaleRegistration()

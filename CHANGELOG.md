@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.6
-> **Last Updated:** 2026-09-28
+> **Version:** 2.1.7
+> **Last Updated:** 2026-10-03
 
 ---
+
+## [2.1.7] - 2026-10-03
+
+- **Safe Trash And Restore**: Preserve complete verified copies and trash recovery information when source cleanup fails or is cancelled, including recovery after restarting Arcile.
+- **Safe Vault Folder Moves**: Keep skipped files and their folders at the source during merged moves within or between vaults. Report partial completion and reject oversized transactions safely before committing.
+- **Safe File Replacement**: Keep existing destinations safe when moves fail, verify replacement contents with checksums, and preserve or restore original backups after interrupted replacements.
+- **Verified Move Recovery**: Recheck recorded file identities and contents before retrying source cleanup. Preserve new or changed files and recovery information when a safe match cannot be established.
+- **Clearer Labels**: Call gallery groups Folders and generated random files Synthetic Files, while preserving saved settings and pending operations.
+- **Maintenance**: Update internal naming and organization while preserving existing features and saved preferences.
 
 ## [2.1.6] - 2026-09-28
 

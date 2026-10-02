@@ -63,7 +63,7 @@ class QuickAccessPreferencesRepositoryTest {
         val custom = QuickAccessItem(
             id = "custom_test",
             label = "Custom",
-            path = "/storage/emulated/0/Custom",
+            targetReference = "/storage/emulated/0/Custom",
             type = QuickAccessType.CUSTOM
         )
 
@@ -96,16 +96,16 @@ class QuickAccessPreferencesRepositoryTest {
         val files = items.single { it.id == "handoff_files_app" }
 
         assertEquals("Root Storage", rootStorage.label)
-        assertEquals("/", rootStorage.path)
+        assertEquals("/", rootStorage.targetReference)
         assertEquals(QuickAccessType.STANDARD, rootStorage.type)
         assertFalse(rootStorage.isPinned)
         assertEquals("WhatsApp", whatsApp.label)
-        assertEquals("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media", whatsApp.path)
+        assertEquals("/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media", whatsApp.targetReference)
         assertEquals(QuickAccessType.STANDARD, whatsApp.type)
         assertFalse(whatsApp.isPinned)
         assertEquals("Files", files.label)
         assertEquals(QuickAccessType.FILES_APP, files.type)
-        assertTrue(files.path.startsWith("content://com.android.externalstorage.documents/tree/primary"))
+        assertTrue(files.targetReference.startsWith("content://com.android.externalstorage.documents/tree/primary"))
     }
 
     @Test
@@ -117,7 +117,7 @@ class QuickAccessPreferencesRepositoryTest {
                 QuickAccessItem(
                     id = "handoff_files_app",
                     label = "Files",
-                    path = QuickAccessItem.FILES_APP_PATH,
+                    targetReference = QuickAccessItem.FILES_APP_PATH,
                     type = QuickAccessType.EXTERNAL_HANDOFF
                 )
             )
@@ -127,7 +127,7 @@ class QuickAccessPreferencesRepositoryTest {
 
         assertEquals(QuickAccessType.FILES_APP, files.type)
         assertEquals("Files", files.label)
-        assertTrue(files.path.startsWith("content://com.android.externalstorage.documents/tree/primary"))
+        assertTrue(files.targetReference.startsWith("content://com.android.externalstorage.documents/tree/primary"))
     }
 
     @Test
@@ -138,7 +138,7 @@ class QuickAccessPreferencesRepositoryTest {
                 QuickAccessItem(
                     id = "standard_downloads",
                     label = "Downloads",
-                    path = "/storage/emulated/0/Download",
+                    targetReference = "/storage/emulated/0/Download",
                     type = QuickAccessType.STANDARD
                 )
             )
@@ -146,7 +146,7 @@ class QuickAccessPreferencesRepositoryTest {
 
         val items = repository.quickAccessItems.first()
 
-        assertTrue(items.any { it.id == "standard_root_storage" && it.path == "/" })
+        assertTrue(items.any { it.id == "standard_root_storage" && it.targetReference == "/" })
     }
 
     @Test
@@ -157,7 +157,7 @@ class QuickAccessPreferencesRepositoryTest {
                     QuickAccessItem(
                         id = "standard_root_storage",
                         label = "Root Storage",
-                        path = "/",
+                        targetReference = "/",
                         type = QuickAccessType.STANDARD,
                         isPinned = true
                     )

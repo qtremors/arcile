@@ -7,7 +7,7 @@ import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.preferenceSuffix
 
 class DefaultGalleryPreferencesStore(
-    private val dataSource: BrowserPreferencesDataSource
+    private val dataSource: FilePreferencesDataSource
 ) : GalleryPreferencesStore {
     override val galleryPreferencesFlow = dataSource.galleryPreferencesFlow
 
@@ -50,15 +50,15 @@ class DefaultGalleryPreferencesStore(
         applyToSubfolders = false
     )
 
-    override suspend fun updateAlbumAspectRatio(enabled: Boolean) =
-        dataSource.updateAlbumAspectRatio(enabled)
+    override suspend fun updateFolderAspectRatio(enabled: Boolean) =
+        dataSource.updateFolderAspectRatio(enabled)
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) =
         dataSource.updateFavorite(path, isFavorite)
 
-    override suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) =
-        dataSource.updatePinnedAlbum(albumPath, isPinned)
+    override suspend fun updatePinnedFolder(folderPath: String, isPinned: Boolean) =
+        dataSource.updatePinnedFolder(folderPath, isPinned)
 
-    override suspend fun updateAlbumCover(albumPath: String, coverPath: String) =
-        dataSource.updateAlbumCover(albumPath, coverPath)
+    override suspend fun updateFolderCover(folderPath: String, coverPath: String) =
+        dataSource.updateFolderCover(folderPath, coverPath)
 }

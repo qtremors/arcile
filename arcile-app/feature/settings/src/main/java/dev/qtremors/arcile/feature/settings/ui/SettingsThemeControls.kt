@@ -38,7 +38,7 @@ import dev.qtremors.arcile.core.ui.settings.SettingsChoiceHeader
 import dev.qtremors.arcile.core.ui.settings.SettingsConnectedChoices
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.titleMediumBold
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -89,14 +89,14 @@ internal fun ThemePresetSelector(
 
 @Composable
 internal fun CustomThemeCreatorPanel(
-    themeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit
+    uiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit
 ) {
-    var primaryInput by remember(themeState.customPrimaryColorHex) {
-        mutableStateOf(themeState.customPrimaryColorHex)
+    var primaryInput by remember(uiPreferences.customPrimaryColorHex) {
+        mutableStateOf(uiPreferences.customPrimaryColorHex)
     }
-    var backgroundInput by remember(themeState.customBackgroundColorHex) {
-        mutableStateOf(themeState.customBackgroundColorHex)
+    var backgroundInput by remember(uiPreferences.customBackgroundColorHex) {
+        mutableStateOf(uiPreferences.customBackgroundColorHex)
     }
     var isPrimaryFocused by remember { mutableStateOf(false) }
     var isBackgroundFocused by remember { mutableStateOf(false) }
@@ -135,7 +135,7 @@ internal fun CustomThemeCreatorPanel(
             onValueChange = { input ->
                 primaryInput = input
                 if (input.isValidThemeColor()) {
-                    onThemeChange(themeState.copy(customPrimaryColorHex = input))
+                    onThemeChange(uiPreferences.copy(customPrimaryColorHex = input))
                 }
             },
             label = stringResource(R.string.custom_theme_primary_label),
@@ -149,7 +149,7 @@ internal fun CustomThemeCreatorPanel(
             onValueChange = { input ->
                 backgroundInput = input
                 if (input.isValidThemeColor()) {
-                    onThemeChange(themeState.copy(customBackgroundColorHex = input))
+                    onThemeChange(uiPreferences.copy(customBackgroundColorHex = input))
                 }
             },
             label = stringResource(R.string.custom_theme_bg_label),

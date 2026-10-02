@@ -77,7 +77,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> },
+                    onCreateSyntheticFile = { _, _ -> },
                     workspaceTabsEnabled = false,
                     onWorkspaceTabsEnabledChange = { requestedState = it }
                 )
@@ -142,7 +142,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -187,7 +187,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -234,7 +234,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -297,7 +297,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -338,7 +338,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -379,7 +379,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -422,7 +422,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -472,7 +472,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -512,7 +512,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -560,7 +560,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -620,7 +620,7 @@ class BrowserScreenTest {
                     onCancelClipboard = {},
                     onShareSelected = {},
                     onOpenProperties = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -668,7 +668,7 @@ class BrowserScreenTest {
                     onCancelClipboard = { cancelCalls += 1 },
                     onClearActiveFileOperation = { },
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -720,7 +720,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -772,7 +772,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -824,7 +824,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> },
+                    onCreateSyntheticFile = { _, _ -> },
                     listState = listState,
                     focusPath = targetPath,
                     onFocusRevealed = { revealedPath = it }
@@ -870,7 +870,7 @@ class BrowserScreenTest {
                     onPasteFromClipboard = {},
                     onCancelClipboard = {},
                     onShareSelected = {},
-                    onCreateFakeFile = { _, _ -> }
+                    onCreateSyntheticFile = { _, _ -> }
                 )
             }
         }
@@ -888,7 +888,7 @@ private fun BrowserScreen(
     onClearSelection: () -> Unit,
     onCreateFolder: (String) -> Unit,
     onCreateFile: (String) -> Unit,
-    onCreateFakeFile: (String, Long) -> Unit,
+    onCreateSyntheticFile: (String, Long) -> Unit,
     onRequestDeleteSelected: () -> Unit,
     onConfirmDelete: () -> Unit,
     onTogglePermanentDelete: () -> Unit,
@@ -936,7 +936,7 @@ private fun BrowserScreen(
             mutation = BrowserMutationIntents(
                 onCreateFolder,
                 onCreateFile,
-                onCreateFakeFile,
+                onCreateSyntheticFile,
                 onRequestDeleteSelected,
                 onConfirmDelete,
                 onTogglePermanentDelete,
@@ -1057,7 +1057,7 @@ private fun browserUiState(
 
 private fun browserFile(name: String, path: String) = FileModel(
     name = name,
-    absolutePath = path,
+    reference = path,
     size = 20L,
     lastModified = 50L,
     isDirectory = false,
@@ -1067,7 +1067,7 @@ private fun browserFile(name: String, path: String) = FileModel(
 
 private fun browserFolder(name: String, path: String) = FileModel(
     name = name,
-    absolutePath = path,
+    reference = path,
     size = 0L,
     lastModified = 50L,
     isDirectory = true,

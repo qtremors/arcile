@@ -55,7 +55,7 @@ internal fun AudioClipboardToolbar(
             active.totalBytes
                 ?.takeIf { it > 0L }
                 ?.let { total ->
-                    ((active.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f)
+                    ((active.bytesProcessed ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f)
                 }
                 ?: active.totalItems
                     .takeIf { it > 0 }
@@ -142,7 +142,7 @@ internal fun AudioClipboardToolbar(
                                     context,
                                     (
                                         total -
-                                            (operation.bytesCopied ?: 0L)
+                                            (operation.bytesProcessed ?: 0L)
                                         ).coerceAtLeast(0L)
                                 )
                             }

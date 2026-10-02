@@ -56,7 +56,7 @@ internal fun buildBrowserDisplayState(
     val baseFiles = if (showHiddenFiles) files else files.filterNot { it.isHidden }
     val tabFilteredFiles = filterFilesByFolderTab(baseFiles, selectedFolderTabPath)
     val fileCountFor: (FileModel) -> Long? = { file ->
-        if (file.isDirectory) folderStatsByPath[file.absolutePath]?.fileCount else 1L
+        if (file.isDirectory) folderStatsByPath[file.reference]?.fileCount else 1L
     }
     val visibleFiles = filterAndSortFiles(tabFilteredFiles, "", sortOption, fileCountFor, foldersFirst)
     val sortedCategoryFiles = filterAndSortFiles(baseFiles, "", sortOption, fileCountFor, foldersFirst)
@@ -99,7 +99,7 @@ internal fun buildBrowserDisplayState(
         categoryFolderTabs = categoryFolderTabs.toPersistentList(),
         selectedCategoryFolderTabIndex = selectedCategoryFolderTabIndex,
         currentVolume = storageVolumes.firstOrNull { it.id == currentVolumeId },
-        visiblePaths = visibleFiles.map { it.absolutePath }.toPersistentList(),
+        visiblePaths = visibleFiles.map { it.reference }.toPersistentList(),
         existingNames = files.map { it.name }.toPersistentSet()
     )
 }
@@ -115,8 +115,8 @@ private fun buildRows(
 ): List<FileRowUiModel> {
     val previousByPath = previousRows.associateBy { it.absolutePath }
     return files.map { file ->
-        val stats = folderStatsByPath[file.absolutePath]
-        val previous = previousByPath[file.absolutePath]
+        val stats = folderStatsByPath[file.reference]
+        val previous = previousByPath[file.reference]
         if (previous != null &&
             previous.file == file &&
             previous.folderStats == stats &&

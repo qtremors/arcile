@@ -28,8 +28,7 @@ internal data class VideoViewerState(
     val viewerCurrentPath: String? = null,
     val viewerMetadataPath: String? = null,
     val viewerUiVisible: Boolean = true,
-    val showThumbnails: Boolean = true,
-    val viewerEraseDialogPath: String? = null
+    val showThumbnails: Boolean = true
 ) {
     fun withDeleteDialogsHidden(selected: PersistentSet<String> = selectedFiles): VideoViewerState =
         copy(

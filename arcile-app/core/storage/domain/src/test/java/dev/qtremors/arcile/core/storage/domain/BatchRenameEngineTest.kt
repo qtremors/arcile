@@ -9,9 +9,9 @@ import org.junit.Test
 class BatchRenameEngineTest {
 
     private val sampleFiles = listOf(
-        FileModel(name = "IMG_001.jpg", absolutePath = "/storage/emulated/0/DCIM/IMG_001.jpg"),
-        FileModel(name = "IMG_002.jpg", absolutePath = "/storage/emulated/0/DCIM/IMG_002.jpg"),
-        FileModel(name = "photo_test.png", absolutePath = "/storage/emulated/0/DCIM/photo_test.png")
+        FileModel(name = "IMG_001.jpg", reference = "/storage/emulated/0/DCIM/IMG_001.jpg"),
+        FileModel(name = "IMG_002.jpg", reference = "/storage/emulated/0/DCIM/IMG_002.jpg"),
+        FileModel(name = "photo_test.png", reference = "/storage/emulated/0/DCIM/photo_test.png")
     )
 
     @Test
@@ -62,7 +62,7 @@ class BatchRenameEngineTest {
             targetScope = RenameTargetScope.NAME_ONLY
         )
         val titleResults = BatchRenameEngine.evaluate(
-            listOf(FileModel(name = "hello world.txt", absolutePath = "/test/hello world.txt")),
+            listOf(FileModel(name = "hello world.txt", reference = "/test/hello world.txt")),
             titleCaseRule
         )
 
@@ -87,8 +87,8 @@ class BatchRenameEngineTest {
     @Test
     fun testDuplicateInBatchError() {
         val files = listOf(
-            FileModel(name = "fileA.txt", absolutePath = "/test/fileA.txt"),
-            FileModel(name = "fileB.txt", absolutePath = "/test/fileB.txt")
+            FileModel(name = "fileA.txt", reference = "/test/fileA.txt"),
+            FileModel(name = "fileB.txt", reference = "/test/fileB.txt")
         )
         val rule = BatchRenameRule(
             findQuery = "fileB",
@@ -106,7 +106,7 @@ class BatchRenameEngineTest {
     @Test
     fun testExistsOnDiskError() {
         val files = listOf(
-            FileModel(name = "fileA.txt", absolutePath = "/test/fileA.txt")
+            FileModel(name = "fileA.txt", reference = "/test/fileA.txt")
         )
         val existingOnDisk = setOf("fileA.txt", "fileB.txt")
 
@@ -125,7 +125,7 @@ class BatchRenameEngineTest {
     @Test
     fun testForbiddenCharactersError() {
         val files = listOf(
-            FileModel(name = "fileA.txt", absolutePath = "/test/fileA.txt")
+            FileModel(name = "fileA.txt", reference = "/test/fileA.txt")
         )
         val rule = BatchRenameRule(
             findQuery = "fileA",

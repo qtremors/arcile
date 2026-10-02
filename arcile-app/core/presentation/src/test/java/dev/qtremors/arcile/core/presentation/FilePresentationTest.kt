@@ -144,7 +144,7 @@ class FilePresentationTest {
         val path = "C:/tmp/$name"
         return FileModel(
             name = name,
-            absolutePath = path,
+            reference = path,
             size = size,
             lastModified = lastModified,
             isDirectory = isDirectory,

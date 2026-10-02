@@ -73,8 +73,8 @@ import androidx.media3.ui.PlayerView
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataSections
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
@@ -164,8 +164,8 @@ internal fun VideoPlayerItemView(
     }
 
     if (isPageFocused) {
-        var attachedView by remember(file.absolutePath) { mutableStateOf<PlayerView?>(null) }
-        DisposableEffect(player, file.absolutePath) {
+        var attachedView by remember(file.reference) { mutableStateOf<PlayerView?>(null) }
+        DisposableEffect(player, file.reference) {
             onDispose {
                 attachedView?.player = null
                 attachedView = null
@@ -176,19 +176,19 @@ internal fun VideoPlayerItemView(
         var centerDragAccumulator by remember { mutableFloatStateOf(0f) }
         var currentVolumeFraction by remember { mutableFloatStateOf(0f) }
         var currentBrightnessFraction by remember { mutableFloatStateOf(0f) }
-        var zoomScale by remember(file.absolutePath) { mutableFloatStateOf(1f) }
-        var zoomOffsetX by remember(file.absolutePath) { mutableFloatStateOf(0f) }
-        var zoomOffsetY by remember(file.absolutePath) { mutableFloatStateOf(0f) }
-        var showDelayedLoading by remember(file.absolutePath) { mutableStateOf(false) }
+        var zoomScale by remember(file.reference) { mutableFloatStateOf(1f) }
+        var zoomOffsetX by remember(file.reference) { mutableFloatStateOf(0f) }
+        var zoomOffsetY by remember(file.reference) { mutableFloatStateOf(0f) }
+        var showDelayedLoading by remember(file.reference) { mutableStateOf(false) }
 
-        LaunchedEffect(isBuffering, showPlaceholder, file.absolutePath) {
+        LaunchedEffect(isBuffering, showPlaceholder, file.reference) {
             showDelayedLoading = false
             if (isBuffering && showPlaceholder) {
                 kotlinx.coroutines.delay(VIDEO_LOADING_INDICATOR_DELAY_MILLIS)
                 showDelayedLoading = true
             }
         }
-        DisposableEffect(file.absolutePath) {
+        DisposableEffect(file.reference) {
             onDispose { onZoomStateChanged(false) }
         }
 
@@ -196,7 +196,7 @@ internal fun VideoPlayerItemView(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .pointerInput(player, file.absolutePath, seekForwardFeedback, seekBackwardFeedback) {
+                .pointerInput(player, file.reference, seekForwardFeedback, seekBackwardFeedback) {
                     detectTapGestures(
                         onTap = { onTap() },
                         onDoubleTap = { offset ->
@@ -221,7 +221,7 @@ internal fun VideoPlayerItemView(
                         }
                     )
                 }
-                .pointerInput(file.absolutePath) {
+                .pointerInput(file.reference) {
                     awaitEachGesture {
                         do {
                             val event = awaitPointerEvent()
@@ -462,7 +462,7 @@ internal class VideoPlaybackItemResolver(session: VideoPlaybackSession) {
     private val itemsByContextPath: Map<String, VideoPlaybackItem> =
         if (contextFiles?.size == session.items.size) {
             contextFiles.zip(session.items).associate { (file, item) ->
-                normalizedVideoReference(file.absolutePath) to item
+                normalizedVideoReference(file.reference) to item
             }
         } else {
             emptyMap()
@@ -476,14 +476,14 @@ internal class VideoPlaybackItemResolver(session: VideoPlaybackSession) {
         .toMap()
 
     fun resolve(file: FileModel, fallbackIndex: Int): VideoPlaybackItem {
-        val normalizedPath = normalizedVideoReference(file.absolutePath)
+        val normalizedPath = normalizedVideoReference(file.reference)
         return itemsByContextPath[normalizedPath]
             ?: itemsByMediaPath[normalizedPath]
             ?: VideoPlaybackItem(
                 mediaItem = MediaItem.Builder()
                     .setUri(videoPlaybackUri(file.openableReference()))
                     .setMimeType(file.mimeType)
-                    .setMediaId(file.absolutePath)
+                    .setMediaId(file.reference)
                     .build(),
                 title = file.name
             )
@@ -500,15 +500,15 @@ internal fun videoPlaybackInitialPath(session: VideoPlaybackSession): String {
     val initialItem = session.items[session.startIndex]
     val contextFiles = session.files
     if (contextFiles?.size == session.items.size) {
-        return contextFiles[session.startIndex].absolutePath
+        return contextFiles[session.startIndex].reference
     }
 
     val itemReferences = videoPlaybackReferenceKeys(initialItem)
         .map(::normalizedVideoReference)
         .toSet()
     return contextFiles
-        ?.firstOrNull { normalizedVideoReference(it.absolutePath) in itemReferences }
-        ?.absolutePath
+        ?.firstOrNull { normalizedVideoReference(it.reference) in itemReferences }
+        ?.reference
         ?: videoPlaybackReference(initialItem)
 }
 
@@ -564,12 +564,12 @@ internal fun videoViewerFileContextForInitialPath(
     displayedFiles: List<FileModel>,
     allFiles: List<FileModel>
 ): VideoViewerFileContext {
-    val displayedIndex = displayedFiles.indexOfFirst { it.absolutePath == initialPath }
+    val displayedIndex = displayedFiles.indexOfFirst { it.reference == initialPath }
     if (displayedIndex >= 0) {
         return VideoViewerFileContext(displayedFiles, displayedIndex)
     }
 
-    val allIndex = allFiles.indexOfFirst { it.absolutePath == initialPath }
+    val allIndex = allFiles.indexOfFirst { it.reference == initialPath }
     if (allIndex >= 0) {
         return VideoViewerFileContext(allFiles, allIndex)
     }
@@ -584,7 +584,7 @@ internal fun videoViewerFileContextAfterInitialization(
 ): VideoViewerFileContext {
     val files = displayedFiles.ifEmpty { allFiles }
     if (files.isEmpty()) return VideoViewerFileContext(emptyList(), 0)
-    val initialPage = files.indexOfFirst { it.absolutePath == initialPath }
+    val initialPage = files.indexOfFirst { it.reference == initialPath }
         .takeIf { it >= 0 }
         ?: 0
     return VideoViewerFileContext(files, initialPage)
@@ -598,7 +598,7 @@ internal fun videoViewerInitialPageForSession(
 ): Int {
     val restoredPath = viewerCurrentPath.takeIf { viewerSessionInitialPath == initialPath }
     return restoredPath
-        ?.let { path -> viewerContext.files.indexOfFirst { it.absolutePath == path } }
+        ?.let { path -> viewerContext.files.indexOfFirst { it.reference == path } }
         ?.takeIf { it >= 0 }
         ?: viewerContext.initialPage
 }
@@ -609,6 +609,6 @@ internal fun videoViewerPageAfterDatasetChange(
     files: List<FileModel>
 ): Int {
     if (files.isEmpty()) return 0
-    val currentPathIndex = files.indexOfFirst { it.absolutePath == currentPath }
+    val currentPathIndex = files.indexOfFirst { it.reference == currentPath }
     return currentPathIndex.takeIf { it >= 0 } ?: currentPage.coerceIn(files.indices)
 }

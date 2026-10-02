@@ -131,7 +131,7 @@ internal class AudioPlaybackController @Inject constructor(
             return
         }
         val items = tracks.map { it.toMediaItem() }
-        val initialIndex = tracks.indexOfFirst { it.file.absolutePath == initialPath }
+        val initialIndex = tracks.indexOfFirst { it.file.reference == initialPath }
             .takeIf { it >= 0 } ?: 0
         if (!startPlayback) player.pause()
         player.setMediaItems(items, initialIndex, C.TIME_UNSET)
@@ -141,7 +141,7 @@ internal class AudioPlaybackController @Inject constructor(
     }
 
     fun expandQueue(tracks: List<AudioTrack>, currentPath: String) {
-        if (tracks.none { it.file.absolutePath == currentPath }) return
+        if (tracks.none { it.file.reference == currentPath }) return
         val player = controller
         if (player == null) {
             if (pendingQueue?.second == currentPath) {
@@ -151,7 +151,7 @@ internal class AudioPlaybackController @Inject constructor(
         }
         if (player.currentMediaItem?.mediaId != currentPath || player.mediaItemCount != 1) return
 
-        val currentIndex = tracks.indexOfFirst { it.file.absolutePath == currentPath }
+        val currentIndex = tracks.indexOfFirst { it.file.reference == currentPath }
         val before = tracks.take(currentIndex).map { it.toMediaItem() }
         val after = tracks.drop(currentIndex + 1).map { it.toMediaItem() }
         if (before.isNotEmpty()) player.addMediaItems(0, before)
@@ -248,12 +248,12 @@ internal class AudioPlaybackController @Inject constructor(
         if (paths.isEmpty()) return
         val removed = paths.toSet()
         pendingQueue = pendingQueue?.let { (tracks, initialPath, startPlayback) ->
-            val remaining = tracks.filterNot { it.file.absolutePath in removed }
+            val remaining = tracks.filterNot { it.file.reference in removed }
             if (remaining.isEmpty()) {
                 null
             } else {
                 Triple(remaining, if (initialPath in removed) {
-                    remaining.first().file.absolutePath
+                    remaining.first().file.reference
                 } else {
                     initialPath
                 }, startPlayback)
@@ -272,8 +272,8 @@ internal class AudioPlaybackController @Inject constructor(
     fun replaceQueueItem(oldPath: String, track: AudioTrack) {
         pendingQueue = pendingQueue?.let { (tracks, initialPath, startPlayback) ->
             Triple(tracks.map {
-                if (it.file.absolutePath == oldPath) track else it
-            }, if (initialPath == oldPath) track.file.absolutePath else initialPath, startPlayback)
+                if (it.file.reference == oldPath) track else it
+            }, if (initialPath == oldPath) track.file.reference else initialPath, startPlayback)
         }
         controller?.let { player ->
             val index = (0 until player.mediaItemCount).firstOrNull {
@@ -366,9 +366,9 @@ internal class AudioPlaybackController @Inject constructor(
 
     private fun AudioTrack.toMediaItem(): MediaItem {
         val contentUri = file.nodeRef.contentUri?.takeIf(String::isNotBlank)?.let(Uri::parse)
-            ?: Uri.fromFile(File(file.absolutePath))
+            ?: Uri.fromFile(File(file.reference))
         return MediaItem.Builder()
-            .setMediaId(file.absolutePath)
+            .setMediaId(file.reference)
             .setUri(contentUri)
             .setMimeType(file.mimeType)
             .setMediaMetadata(

@@ -108,7 +108,7 @@ internal fun AudioMiniPlayer(
     val systemEdgePx = with(LocalDensity.current) { 24.dp.toPx() }
     val flingThresholdPxPerSecond = with(LocalDensity.current) { 800.dp.toPx() }
     val gestureScope = rememberCoroutineScope()
-    var dismissCommitted by remember(track.file.absolutePath) { mutableStateOf(false) }
+    var dismissCommitted by remember(track.file.reference) { mutableStateOf(false) }
     val containerModifier = with(sharedTransitionScope) {
         Modifier
             .fillMaxWidth()
@@ -194,7 +194,7 @@ internal fun AudioMiniPlayer(
                     }
                 )
             }
-            .pointerInput(track.file.absolutePath, horizontalThresholdPx) {
+            .pointerInput(track.file.reference, horizontalThresholdPx) {
                 var totalDrag = 0f
                 var startedAtSystemEdge = false
                 var swipeJob: Job? = null
@@ -557,7 +557,7 @@ internal fun AudioSelectionActionsBar(
                     add {
                         ArcileDropdownMenuItem(
                             text = stringResource(
-                                dev.qtremors.arcile.core.ui.R.string.archive_compress_zip
+                                dev.qtremors.arcile.core.ui.R.string.archive_create_menu_action
                             ),
                             leadingIcon = {
                                 Icon(Icons.Default.FolderZip, contentDescription = null)

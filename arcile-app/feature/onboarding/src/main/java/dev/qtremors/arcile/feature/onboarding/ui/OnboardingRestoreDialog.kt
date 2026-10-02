@@ -75,7 +75,7 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing

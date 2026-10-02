@@ -19,7 +19,7 @@ import dev.qtremors.arcile.core.storage.data.DefaultArchiveRepository
 import dev.qtremors.arcile.core.storage.data.DefaultClipboardRepository
 import dev.qtremors.arcile.core.storage.data.DefaultFileBrowserRepository
 import dev.qtremors.arcile.core.storage.data.DefaultFileMutationRepository
-import dev.qtremors.arcile.core.storage.data.DefaultMediaRepository
+import dev.qtremors.arcile.core.storage.data.DefaultStorageQueryRepository
 import dev.qtremors.arcile.core.storage.data.DefaultAudioLibraryRepository
 import dev.qtremors.arcile.core.storage.data.DefaultTrashRepository
 import dev.qtremors.arcile.core.storage.data.DefaultVolumeRepository
@@ -48,9 +48,9 @@ import dev.qtremors.arcile.core.storage.data.provider.DefaultRootStorageUsagePro
 import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.source.DefaultFileSystemDataSource
-import dev.qtremors.arcile.core.storage.data.source.DefaultMediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.DefaultStorageQueryClient
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
-import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.StorageQueryClient
 import dev.qtremors.arcile.core.storage.domain.ArchiveManager
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
@@ -193,13 +193,13 @@ object StorageDataModule {
 
     @Provides
     @Singleton
-    fun provideMediaStoreClient(
+    fun provideStorageQueryClient(
         @ApplicationContext context: Context,
         volumeProvider: VolumeProvider,
         categorySummaryDao: CategorySummaryDao,
         dispatchers: ArcileDispatchers
-    ): MediaStoreClient {
-        return DefaultMediaStoreClient(context, volumeProvider, categorySummaryDao, dispatchers)
+    ): StorageQueryClient {
+        return DefaultStorageQueryClient(context, volumeProvider, categorySummaryDao, dispatchers)
     }
 
     @Provides
@@ -260,14 +260,14 @@ object StorageDataModule {
     @Singleton
     fun provideMutationFinalizer(
         @ApplicationContext context: Context,
-        mediaStoreClient: MediaStoreClient,
+        storageQueryClient: StorageQueryClient,
         volumeProvider: VolumeProvider,
         folderStatsStore: FolderStatsStore,
         thumbnailCacheStore: ThumbnailCacheStore,
         storageNodeDao: StorageNodeDao,
         storageMutationNotifier: StorageMutationNotifier
     ): MutationFinalizer {
-        return MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore, thumbnailCacheStore, storageNodeDao, storageMutationNotifier)
+        return MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore, thumbnailCacheStore, storageNodeDao, storageMutationNotifier)
     }
 
     @Provides
@@ -335,16 +335,16 @@ object StorageDataModule {
 
     @Provides
     @Singleton
-    fun provideMediaRepository(
+    fun provideStorageQueryRepository(
         volumeProvider: VolumeProvider,
-        mediaStoreClient: MediaStoreClient,
+        storageQueryClient: StorageQueryClient,
         trashManager: TrashManager,
         recentFilesSnapshotStore: RecentFilesSnapshotStore,
         dispatchers: ArcileDispatchers,
         rootStorageUsageProvider: RootStorageUsageProvider
-    ): DefaultMediaRepository = DefaultMediaRepository(
+    ): DefaultStorageQueryRepository = DefaultStorageQueryRepository(
         volumeProvider,
-        mediaStoreClient,
+        storageQueryClient,
         trashManager,
         recentFilesSnapshotStore,
         dispatchers,
@@ -353,7 +353,7 @@ object StorageDataModule {
 
     @Provides
     @Singleton
-    fun provideSearchRepository(repository: DefaultMediaRepository): SearchRepository = repository
+    fun provideSearchRepository(repository: DefaultStorageQueryRepository): SearchRepository = repository
 
     @Provides
     @Singleton
@@ -370,7 +370,7 @@ object StorageDataModule {
     @Provides
     @Singleton
     fun provideStorageAnalyticsRepository(
-        repository: DefaultMediaRepository
+        repository: DefaultStorageQueryRepository
     ): StorageAnalyticsRepository = repository
 
     @Provides

@@ -33,7 +33,7 @@ class ConflictCardTest {
 
     private val sourceFile = FileModel(
         name = "report_incoming.pdf",
-        absolutePath = "/storage/emulated/0/Download/report_incoming.pdf",
+        reference = "/storage/emulated/0/Download/report_incoming.pdf",
         size = 2048,
         lastModified = 2000L,
         isDirectory = false,
@@ -42,7 +42,7 @@ class ConflictCardTest {
 
     private val existingFile = FileModel(
         name = "report_existing.pdf",
-        absolutePath = "/storage/emulated/0/Documents/report_existing.pdf",
+        reference = "/storage/emulated/0/Documents/report_existing.pdf",
         size = 1024,
         lastModified = 1000L,
         isDirectory = false,
@@ -52,7 +52,7 @@ class ConflictCardTest {
     @Test
     fun `conflict card renders incoming and existing panels and thumbnails`() {
         val conflict = FileConflict(
-            sourcePath = sourceFile.absolutePath,
+            sourcePath = sourceFile.reference,
             sourceFile = sourceFile,
             existingFile = existingFile
         )
@@ -79,9 +79,9 @@ class ConflictCardTest {
 
     @Test
     fun `conflict card renders identical banner when files match size and timestamp`() {
-        val matchingExisting = sourceFile.copy(absolutePath = "/target/report_incoming.pdf")
+        val matchingExisting = sourceFile.copy(reference = "/target/report_incoming.pdf")
         val conflict = FileConflict(
-            sourcePath = sourceFile.absolutePath,
+            sourcePath = sourceFile.reference,
             sourceFile = sourceFile,
             existingFile = matchingExisting
         )
@@ -105,7 +105,7 @@ class ConflictCardTest {
     @Test
     fun `conflict card responsive orientation changes with width`() {
         val conflict = FileConflict(
-            sourcePath = sourceFile.absolutePath,
+            sourcePath = sourceFile.reference,
             sourceFile = sourceFile,
             existingFile = existingFile
         )
@@ -131,7 +131,7 @@ class ConflictCardTest {
     @Test
     fun `conflict card uses side by side orientation at wide breakpoint`() {
         val conflict = FileConflict(
-            sourcePath = sourceFile.absolutePath,
+            sourcePath = sourceFile.reference,
             sourceFile = sourceFile,
             existingFile = existingFile
         )
@@ -157,7 +157,7 @@ class ConflictCardTest {
     @Test
     fun `conflict card displays resolution label when resolution is selected`() {
         val conflict = FileConflict(
-            sourcePath = sourceFile.absolutePath,
+            sourcePath = sourceFile.reference,
             sourceFile = sourceFile,
             existingFile = existingFile
         )

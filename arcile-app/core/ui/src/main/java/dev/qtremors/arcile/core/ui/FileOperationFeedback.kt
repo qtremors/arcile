@@ -49,7 +49,7 @@ fun completedFileOperationMessage(request: BulkFileOperationRequest): UiText {
         BulkFileOperationType.TRASH -> R.plurals.file_operation_trashed_items
         BulkFileOperationType.DELETE -> R.plurals.file_operation_deleted_items
         BulkFileOperationType.SHRED -> R.plurals.file_operation_shredded_items
-        BulkFileOperationType.CREATE_FAKE -> R.plurals.file_operation_created_items
+        BulkFileOperationType.CREATE_SYNTHETIC -> R.plurals.file_operation_created_items
         BulkFileOperationType.EXTRACT_ARCHIVE -> R.plurals.file_operation_extracted_items
         BulkFileOperationType.CREATE_ARCHIVE -> R.plurals.file_operation_archived_items
         BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> R.plurals.file_operation_copied_items

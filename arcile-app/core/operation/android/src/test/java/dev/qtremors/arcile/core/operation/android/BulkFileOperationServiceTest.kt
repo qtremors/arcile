@@ -102,7 +102,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/test.txt"),
             destinationPath = null,
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         val activeRequestFlow = MutableStateFlow<BulkFileOperationRequest?>(request)
         every { coordinator.activeRequest } returns activeRequestFlow
@@ -142,7 +142,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/source/a.txt"),
             destinationPath = null,
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         fileMutationRepository.deletePermanentlyDetailedResultProvider = { paths ->
@@ -209,7 +209,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/test.txt"),
             destinationPath = null,
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         val activeRequestFlow = MutableStateFlow<BulkFileOperationRequest?>(request)
         every { coordinator.activeRequest } returns activeRequestFlow
@@ -236,7 +236,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
             destinationPath = "/dest",
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         val progressSent = CountDownLatch(1)
@@ -247,7 +247,7 @@ class BulkFileOperationServiceTest {
                     completedItems = 1,
                     totalItems = 2,
                     currentPath = "/source/a.txt",
-                    bytesCopied = 50L,
+                    bytesProcessed = 50L,
                     totalBytes = 100L
                 )
             )
@@ -291,7 +291,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/source/a.txt"),
             destinationPath = "/dest",
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         val operationStarted = CountDownLatch(1)
@@ -327,7 +327,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
             destinationPath = "/dest",
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         val progressSent = CountDownLatch(1)
@@ -338,7 +338,7 @@ class BulkFileOperationServiceTest {
                     completedItems = 1,
                     totalItems = 2,
                     currentPath = "/source/b.txt",
-                    bytesCopied = null,
+                    bytesProcessed = null,
                     totalBytes = null
                 )
             )
@@ -372,7 +372,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/source/a.txt"),
             destinationPath = "/dest",
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
         clipboardRepository.copyFilesResultProvider = { _, _, _, _ ->
@@ -394,7 +394,7 @@ class BulkFileOperationServiceTest {
             sourcePaths = listOf("/source/a.txt", "/source/b.txt"),
             destinationPath = null,
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
         val recordingCoordinator = RecordingBulkFileOperationCoordinator(request)
         service.coordinator = recordingCoordinator
@@ -564,7 +564,7 @@ class BulkFileOperationServiceTest {
             sourcePaths: List<String>,
             destinationPath: String?,
             resolutions: Map<String, ConflictResolution>,
-            fakeFileSize: Long?,
+            syntheticFileSize: Long?,
             archiveFormat: ArchiveFormat?,
             archiveEntryPrefix: String?,
             archivePassword: String?,

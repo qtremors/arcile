@@ -179,11 +179,11 @@ internal fun BrowserTopBars(
                             TopBarAction.Share -> selectionIntents.onShareSelected()
                             TopBarAction.SelectAll -> {
                                 onSelectionChanged()
-                                selectionIntents.onSelectAll(displayedFiles.map { it.absolutePath })
+                                selectionIntents.onSelectAll(displayedFiles.map { it.reference })
                             }
                             TopBarAction.InvertSelection -> {
                                 onSelectionChanged()
-                                selectionIntents.onInvertSelection(displayedFiles.map { it.absolutePath })
+                                selectionIntents.onInvertSelection(displayedFiles.map { it.reference })
                             }
                             TopBarAction.Properties -> selectionIntents.onOpenProperties()
                             TopBarAction.ToggleHiddenFiles -> onToggleHiddenFiles()

@@ -46,7 +46,7 @@ class DefaultArchiveManager(
 ) : ArchiveManager {
     private val zipHandler by lazy { ZipArchiveHandler(safetyPolicy, ::validateMutationPath) }
     private val sevenZipHandler by lazy { SevenZipHandler(safetyPolicy, ::validateMutationPath) }
-    private val tarHandler by lazy { TarArchiveHandler(safetyPolicy, ::validateMutationPath) }
+    private val tarHandler by lazy { TarAndCompressedStreamHandler(safetyPolicy, ::validateMutationPath) }
 
     override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
         listArchiveEntries(archivePath, null, ArchiveNameEncoding.UTF_8)
@@ -171,7 +171,7 @@ class DefaultArchiveManager(
                     sourcePath = entry.path,
                     sourceFile = FileModel(
                         name = entry.name,
-                        absolutePath = entry.path,
+                        reference = entry.path,
                         size = entry.size,
                         lastModified = entry.lastModified ?: 0L,
                         isDirectory = false,
@@ -290,7 +290,7 @@ class DefaultArchiveManager(
     private fun File.toFileModel(): FileModel =
         FileModel(
             name = name,
-            absolutePath = absolutePath,
+            reference = absolutePath,
             size = if (isFile) length() else 0L,
             lastModified = lastModified(),
             isDirectory = isDirectory,

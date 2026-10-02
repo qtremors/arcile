@@ -216,7 +216,7 @@ internal fun AudioMetadataSheet(
             )
             AudioMetadataRow(
                 stringResource(R.string.audio_metadata_path),
-                track.file.absolutePath
+                track.file.reference
             )
             Spacer(Modifier.height(8.dp))
         }

@@ -30,11 +30,11 @@ class DefaultClipboardRepository(
         true
     }
 
-    override suspend fun detectCopyConflicts(
+    override suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>> =
-        fileSystemDataSource.detectCopyConflicts(sourcePaths, destinationPath)
+        fileSystemDataSource.detectTransferConflicts(sourcePaths, destinationPath)
 
     override suspend fun copyFiles(
         sourcePaths: List<String>,

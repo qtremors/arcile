@@ -18,7 +18,7 @@ class SearchFiltersTest {
 
     private val file = FileModel(
         name = "photo.JPG",
-        absolutePath = "/storage/emulated/0/DCIM/photo.JPG",
+        reference = "/storage/emulated/0/DCIM/photo.JPG",
         size = 2048,
         lastModified = 2_000,
         extension = "jpg",
@@ -43,7 +43,7 @@ class SearchFiltersTest {
 
     @Test
     fun `hidden files are excluded until include hidden is enabled`() {
-        val hidden = file.copy(name = ".secret.jpg", absolutePath = "/storage/emulated/0/.secret.jpg", isHidden = true)
+        val hidden = file.copy(name = ".secret.jpg", reference = "/storage/emulated/0/.secret.jpg", isHidden = true)
 
         assertFalse(hidden.matchesSearchFilters(SearchFilters(), listOf(volume)))
         assertTrue(hidden.matchesSearchFilters(SearchFilters(includeHidden = true), listOf(volume)))

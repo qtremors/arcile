@@ -78,7 +78,7 @@ internal class AppNavigationActions(
         openPathWithContext(path, emptyList(), returnToBrowserPage = false)
     }
 
-    fun openPathWithSurroundingImages(path: String, files: List<FileModel>) {
+    fun openPathWithContext(path: String, files: List<FileModel>) {
         openPathWithContext(path, files, returnToBrowserPage = false)
     }
 
@@ -135,7 +135,7 @@ internal class AppNavigationActions(
         queue: List<AudioTrack>,
         startPlayback: Boolean
     ) {
-        onRecordFileOpened(track.file.absolutePath)
+        onRecordFileOpened(track.file.reference)
         AudioFeatureEntryPoint.playInApp(context, track, queue, startPlayback)
     }
 
@@ -152,7 +152,7 @@ internal class AppNavigationActions(
     }
 
     suspend fun shareKnownFiles(paths: List<String>, files: List<FileModel>): Boolean {
-        val byPath = files.associateBy(FileModel::absolutePath)
+        val byPath = files.associateBy(FileModel::reference)
         val references = paths.map { path ->
             byPath[path]?.toInternalReference()
                 ?: ExternalFileAccessHelper.ExternalFileReference(path = path)
@@ -177,23 +177,23 @@ internal class AppNavigationActions(
     }
 
     fun openViewerFileWith(file: FileModel, managedTrash: Boolean) {
-        onRecordFileOpened(file.absolutePath)
+        onRecordFileOpened(file.reference)
         if (managedTrash) openManagedTrashFileExternally(file, forceChooser = true)
-        else onOpenFileWith(file.absolutePath)
+        else onOpenFileWith(file.reference)
     }
 
     fun openManagedTrashFile(file: FileModel, surroundingFiles: List<FileModel>) {
-        onRecordFileOpened(file.absolutePath)
+        onRecordFileOpened(file.reference)
         val category = FileCategories.getCategoryForFile(file.extension, file.mimeType)
         if (category == FileCategories.Images) {
-            val images = (surroundingFiles + file).distinctBy(FileModel::absolutePath).filter {
+            val images = (surroundingFiles + file).distinctBy(FileModel::reference).filter {
                 !it.isDirectory &&
                     FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images
             }
             openImageViewer(
                 resolution = AppFileOpenResolution.ViewImage(
-                    path = file.absolutePath,
-                    contextPaths = images.map(FileModel::absolutePath)
+                    path = file.reference,
+                    contextPaths = images.map(FileModel::reference)
                 ),
                 returnToBrowserPage = false,
                 selectedPaths = emptySet(),
@@ -201,14 +201,14 @@ internal class AppNavigationActions(
                 managedTrash = true
             )
         } else if (category == FileCategories.Videos) {
-            openVideoViewer(file.absolutePath, managedTrash = true, surroundingFiles = surroundingFiles)
+            openVideoViewer(file.reference, managedTrash = true, surroundingFiles = surroundingFiles)
         } else {
             openManagedTrashFileExternally(file, forceChooser = false)
         }
     }
 
     fun openManagedTrashFileWith(file: FileModel) {
-        onRecordFileOpened(file.absolutePath)
+        onRecordFileOpened(file.reference)
         openManagedTrashFileExternally(file, forceChooser = true)
     }
 
@@ -256,7 +256,7 @@ internal class AppNavigationActions(
     ) {
         onRecordFileOpened(path)
         coroutineScope.launch {
-            val knownFile = surroundingFiles.firstOrNull { it.absolutePath == path }
+            val knownFile = surroundingFiles.firstOrNull { it.reference == path }
             val preparedFiles = surroundingFiles
             when (val resolution = fileOpenResolver.resolve(path, preparedFiles)) {
                 AppFileOpenResolution.Handled -> Unit
@@ -346,27 +346,27 @@ internal class AppNavigationActions(
             .asSequence()
             .filterNot(FileModel::isDirectory)
             .filter { FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Videos }
-            .distinctBy(FileModel::absolutePath)
+            .distinctBy(FileModel::reference)
             .toList()
-            .takeIf { candidates -> candidates.any { it.absolutePath == path } }
+            .takeIf { candidates -> candidates.any { it.reference == path } }
             ?: listOf(
                 FileModel(
-                    absolutePath = path,
+                    reference = path,
                     name = File(path).name,
                     isDirectory = false,
                     size = File(path).length(),
                     lastModified = File(path).lastModified()
                 )
             )
-        val selectedFile = queue.first { it.absolutePath == path }
+        val selectedFile = queue.first { it.reference == path }
         val playbackUri = selectedFile.nodeRef.contentUri?.takeIf(String::isNotBlank)
             ?.let(Uri::parse)
-            ?: Uri.fromFile(File(selectedFile.absolutePath))
+            ?: Uri.fromFile(File(selectedFile.reference))
         val selectedItem = VideoPlaybackItem(
             mediaItem = MediaItem.Builder()
                 .setUri(playbackUri)
                 .setMimeType(selectedFile.mimeType)
-                .setMediaId(selectedFile.absolutePath)
+                .setMediaId(selectedFile.reference)
                 .build(),
             title = selectedFile.name,
             onShare = { shareVideo(selectedFile, managedTrash) },
@@ -396,7 +396,7 @@ internal class AppNavigationActions(
 
     fun openVideoWith(file: FileModel, managedTrash: Boolean) {
         if (!managedTrash) {
-            onOpenFileWith(file.absolutePath)
+            onOpenFileWith(file.reference)
             return
         }
         coroutineScope.launch {
@@ -404,7 +404,7 @@ internal class AppNavigationActions(
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
-                        path = file.absolutePath,
+                        path = file.reference,
                         allowManagedTrashPayload = true
                     )
                 )
@@ -431,7 +431,7 @@ internal class AppNavigationActions(
                 AppRoutes.IMAGE_VIEWER_CONTEXT_PATHS_KEY,
                 ArrayList(resolution.contextPaths)
             )
-            val filesByPath = contextFiles.associateBy(FileModel::absolutePath)
+            val filesByPath = contextFiles.associateBy(FileModel::reference)
             val orderedFiles = resolution.contextPaths.mapNotNull(filesByPath::get)
             if (orderedFiles.size == resolution.contextPaths.size) {
                 savedStateHandle?.set(
@@ -506,7 +506,7 @@ internal class AppNavigationActions(
 
     private fun FileModel.toInternalReference() =
         ExternalFileAccessHelper.ExternalFileReference(
-            path = absolutePath,
+            path = reference,
             displayName = name,
             sizeBytes = size,
             mimeType = mimeType,
@@ -541,7 +541,7 @@ internal class AppNavigationActions(
 
     private fun FileModel.toManagedTrashReference() =
         ExternalFileAccessHelper.ExternalFileReference(
-            path = absolutePath,
+            path = reference,
             displayName = name,
             sizeBytes = size,
             mimeType = mimeType,

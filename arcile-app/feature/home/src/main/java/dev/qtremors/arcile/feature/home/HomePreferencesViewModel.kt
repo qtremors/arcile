@@ -3,7 +3,7 @@ package dev.qtremors.arcile.feature.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
@@ -19,6 +19,6 @@ internal class HomePreferencesViewModel @Inject constructor(
         .stateIn(
             viewModelScope,
             SharingStarted.WhileSubscribed(5_000),
-            BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
+            SharedFilePreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
         )
 }

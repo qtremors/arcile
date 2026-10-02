@@ -3,7 +3,7 @@
     <string name="file_operation_moving_files">Moving files</string>
     <string name="file_operation_moving_files_to_trash">Moving files to Trash</string>
     <string name="file_operation_deleting_files">Deleting files</string>
-    <string name="file_operation_creating_fake_file">Creating fake file</string>
+    <string name="file_operation_creating_synthetic_file">Creating synthetic file</string>
     <string name="notification_action_cancel">Cancel</string>
     <string name="notification_channel_file_operations">File operations</string>
     <string name="notification_channel_file_operations_description">Background copy and move operations</string>

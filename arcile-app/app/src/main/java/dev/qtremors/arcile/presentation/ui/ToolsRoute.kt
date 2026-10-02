@@ -13,7 +13,7 @@ internal fun ToolsRoute(
     onNavigateToActivity: () -> Unit,
     onNavigateToOnlyFiles: () -> Unit
 ) {
-    val viewModel = hiltViewModel<UtilityPreferencesViewModel>()
+    val viewModel = hiltViewModel<HomeAndUtilityPreferencesViewModel>()
     val homeUtilityIds by viewModel.homeUtilityIds.collectAsStateWithLifecycle()
 
     ToolsScreen(

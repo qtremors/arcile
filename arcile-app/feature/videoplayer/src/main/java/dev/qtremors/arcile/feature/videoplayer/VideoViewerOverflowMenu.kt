@@ -146,13 +146,13 @@ internal fun VideoViewerOverflowMenu(
                     leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                     onClick = {
                         expanded = false
-                        currentFile?.let { actions.onShowMetadata(it.absolutePath) }
+                        currentFile?.let { actions.onShowMetadata(it.reference) }
                     }
                 )
             }
             if (canOpenWith) add {
                 ArcileDropdownMenuItem(
-                    text = stringResource(R.string.image_gallery_open_with),
+                    text = stringResource(R.string.viewer_open_with),
                     leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                     onClick = {
                         expanded = false

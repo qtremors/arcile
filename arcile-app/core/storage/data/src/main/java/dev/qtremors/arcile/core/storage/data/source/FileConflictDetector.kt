@@ -5,7 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import java.io.File
 
 class FileConflictDetector {
-    fun detectCopyConflicts(sourcePaths: List<String>, destination: File): List<FileConflict> {
+    fun detectTransferConflicts(sourcePaths: List<String>, destination: File): List<FileConflict> {
         return sourcePaths.mapNotNull { path ->
             val sourceFile = File(path)
             if (!sourceFile.exists()) return@mapNotNull null
@@ -29,7 +29,7 @@ class FileConflictDetector {
 
         return FileModel(
             name = name,
-            absolutePath = absolutePath,
+            reference = absolutePath,
             size = if (isFile) length() else 0L,
             lastModified = lastModified(),
             isDirectory = isDirectory,

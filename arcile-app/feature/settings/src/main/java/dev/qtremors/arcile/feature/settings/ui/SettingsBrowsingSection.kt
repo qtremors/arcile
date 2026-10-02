@@ -22,12 +22,12 @@ import dev.qtremors.arcile.core.ui.ArcileSectionHeader
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.settings.AppStartPageSelector
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.feature.settings.SettingsPreferences
 
 @Composable
 internal fun SettingsBrowsingSection(
-    theme: ThemeState,
+    theme: UiPreferences,
     preferences: SettingsPreferences,
     actions: SettingsPreferenceActions,
     showHeading: Boolean = true

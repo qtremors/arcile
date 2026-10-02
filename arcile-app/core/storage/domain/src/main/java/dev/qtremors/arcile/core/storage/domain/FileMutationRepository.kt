@@ -3,7 +3,7 @@ package dev.qtremors.arcile.core.storage.domain
 interface FileMutationRepository {
     suspend fun createDirectory(parentPath: String, name: String): Result<FileModel>
     suspend fun createFile(parentPath: String, name: String): Result<FileModel>
-    suspend fun createFakeFile(
+    suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,

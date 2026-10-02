@@ -425,12 +425,12 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun openSettings() {
-        _state.update { it.copy(showSettingsDialog = true) }
+        _state.update { it.copy(showSettingsSheet = true) }
         refreshSettings()
     }
 
     fun closeSettings() {
-        _state.update { it.copy(showSettingsDialog = false) }
+        _state.update { it.copy(showSettingsSheet = false) }
     }
 
     fun openSecurityDisclosure() {

@@ -368,7 +368,7 @@ class DefaultFileSystemDataSource(
                 }
 
                 val shredFailures = runCatchingPreservingCancellation {
-                    secureFileEraser.shredRecursively(file)
+                    secureFileEraser.overwriteTreeWithZeros(file)
                 }.getOrElse { error ->
                     listOf(error.toBatchFailure(file, cleanupRequired = true))
                 }
@@ -485,11 +485,11 @@ class DefaultFileSystemDataSource(
     private fun File.hasExactChildName(name: String): Boolean =
         listFiles().orEmpty().any { child -> child.name == name }
 
-    override suspend fun detectCopyConflicts(
+    override suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>> =
-        transferCoordinator.detectCopyConflicts(sourcePaths, destinationPath)
+        transferCoordinator.detectTransferConflicts(sourcePaths, destinationPath)
 
     override suspend fun copyFiles(
         sourcePaths: List<String>,
@@ -509,7 +509,7 @@ class DefaultFileSystemDataSource(
         sourcePaths, destinationPath, resolutions, onProgress
     )
 
-    override suspend fun createFakeFile(
+    override suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,

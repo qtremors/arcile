@@ -55,7 +55,8 @@ internal class VaultTransferEngine(
         destination: VaultSessionRecord,
         destinationId: DirectoryId,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        moveSource: Boolean = false
     ): VaultItemResult {
         val resolved = resolve(source, ref)
         try {
@@ -104,7 +105,25 @@ internal class VaultTransferEngine(
                     next.forEach { it.protectedKey.fill(0) }
                 }
                 context.commit(obsolete)
-                return result(ref, resolved.entry, VaultItemOutcome.COMPLETED)
+                if (moveSource) {
+                    cancellation.throwIfCancelled()
+                    val sourcePrepared = mutableListOf<VaultPreparedDirectory>()
+                    try {
+                        val sourceObsolete = prepareMovedSource(
+                            source, resolved, context.skippedSourceNodes,
+                            context.retainedSourceDirectories, sourcePrepared
+                        )
+                        if (sourcePrepared.isNotEmpty()) {
+                            transactions.commit(
+                                source.directory, source.id, source.masterSecret,
+                                sourcePrepared, emptySet(), sourceObsolete
+                            )
+                        }
+                    } finally {
+                        sourcePrepared.forEach { it.directoryKey.fill(0) }
+                    }
+                }
+                return result(ref, resolved.entry, context.outcome())
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
                 throw error
@@ -159,9 +178,6 @@ internal class VaultTransferEngine(
                 val destinationEntries = destinationSnapshot.entries
                     .filterNot { existing != null && it.nodeId == existing.nodeId && decision != VaultConflictDecision.KEEP_BOTH }
                     .map(VaultManifestEntry::copyDefensively) + moved
-                val sourceEntries = resolved.snapshot.entries
-                    .filterNot { it.nodeId == resolved.entry.nodeId }
-                    .map(VaultManifestEntry::copyDefensively)
                 try {
                     context.prepared += VaultPreparedDirectory(
                         directoryCodec.prepare(
@@ -170,23 +186,19 @@ internal class VaultTransferEngine(
                         ),
                         destination.key.copyOf()
                     )
-                    context.prepared += VaultPreparedDirectory(
-                        directoryCodec.prepare(
-                            session.id, resolved.parent.id, resolved.parent.key,
-                            resolved.snapshot.generation + 1L, sourceEntries
-                        ),
-                        resolved.parent.key.copyOf()
-                    )
                 } finally {
                     destinationEntries.forEach { it.protectedKey.fill(0) }
-                    sourceEntries.forEach { it.protectedKey.fill(0) }
                 }
                 val obsolete = buildSet {
                     if (existing != null && decision != VaultConflictDecision.KEEP_BOTH) addAll(collectObsolete(session, existing))
-                    if (useClone) addAll(collectObsolete(session, resolved.entry))
+                    addAll(prepareMovedSource(
+                        session, resolved, context.skippedSourceNodes,
+                        context.retainedSourceDirectories, context.prepared,
+                        deleteObjects = useClone
+                    ))
                 }
                 context.commit(obsolete)
-                return result(ref, resolved.entry, VaultItemOutcome.COMPLETED)
+                return result(ref, resolved.entry, context.outcome())
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
                 throw error
@@ -207,7 +219,11 @@ internal class VaultTransferEngine(
     ) : AutoCloseable {
         val prepared = mutableListOf<VaultPreparedDirectory>()
         val newObjects = linkedSetOf<String>()
+        val skippedSourceNodes = mutableSetOf<NodeId>()
+        val retainedSourceDirectories = mutableSetOf<NodeId>()
         private var committed = false
+
+        fun outcome() = if (skippedSourceNodes.isEmpty()) VaultItemOutcome.COMPLETED else VaultItemOutcome.PARTIAL
 
         suspend fun cloneEntry(
             entry: VaultManifestEntry,
@@ -297,6 +313,7 @@ internal class VaultTransferEngine(
             name: String
         ): VaultManifestEntry {
             cancellation.throwIfCancelled()
+            val skippedBefore = skippedSourceNodes.size
             val existingSnapshot = existingSession.readDirectory(
                 requireNotNull(existing.childDirectoryId), existing.protectedKey
             )
@@ -316,7 +333,10 @@ internal class VaultTransferEngine(
                     }
                     consumedSource += sourceEntry.nodeId
                     when (val decision = conflicts.decide(destinationEntry.conflictWith(sourceEntry))) {
-                        VaultConflictDecision.SKIP -> output += cloneEntry(destinationEntry, existingSession)
+                        VaultConflictDecision.SKIP -> {
+                            skippedSourceNodes += sourceEntry.nodeId
+                            output += cloneEntry(destinationEntry, existingSession)
+                        }
                         VaultConflictDecision.REPLACE -> output += cloneEntry(sourceEntry, sourceSession)
                         VaultConflictDecision.KEEP_BOTH -> {
                             output += cloneEntry(destinationEntry, existingSession)
@@ -349,6 +369,7 @@ internal class VaultTransferEngine(
                 } finally {
                     output.forEach { it.protectedKey.fill(0) }
                 }
+                if (skippedSourceNodes.size > skippedBefore) retainedSourceDirectories += source.nodeId
                 return VaultManifestEntry(
                     NodeId.random(), name, VaultNodeKind.DIRECTORY, 1L,
                     maxOf(existing.modifiedAtMillis, source.modifiedAtMillis),
@@ -382,6 +403,54 @@ internal class VaultTransferEngine(
         override fun close() {
             prepared.forEach { it.directoryKey.fill(0) }
         }
+    }
+
+    // Publish source manifests containing only skipped nodes and their ancestors.
+    // Within a vault these share the destination transaction. Across vaults they
+    // are committed only after the destination is completely published.
+    private fun prepareMovedSource(
+        session: VaultSessionRecord,
+        resolved: ResolvedTransferEntry,
+        skippedNodes: Set<NodeId>,
+        retainedDirectories: Set<NodeId>,
+        prepared: MutableList<VaultPreparedDirectory>,
+        deleteObjects: Boolean = true
+    ): Set<String> {
+        val obsolete = mutableSetOf<String>()
+        fun retain(entry: VaultManifestEntry): Boolean {
+            if (entry.nodeId in skippedNodes) return true
+            if (entry.nodeId !in retainedDirectories) {
+                if (deleteObjects) obsolete += collectObsolete(session, entry)
+                return false
+            }
+            val id = requireNotNull(entry.childDirectoryId)
+            val snapshot = session.readDirectory(id, entry.protectedKey)
+            try {
+                val remaining = snapshot.entries.filter { retain(it) }
+                if (remaining.size != snapshot.entries.size) {
+                    prepared += VaultPreparedDirectory(
+                        directoryCodec.prepare(
+                            session.id, id, entry.protectedKey, snapshot.generation + 1L, remaining
+                        ),
+                        entry.protectedKey.copyOf()
+                    )
+                }
+                return true
+            } finally {
+                snapshot.clearProtectedKeys()
+            }
+        }
+        if (!retain(resolved.entry)) {
+            prepared += VaultPreparedDirectory(
+                directoryCodec.prepare(
+                    session.id, resolved.parent.id, resolved.parent.key,
+                    resolved.snapshot.generation + 1L,
+                    resolved.snapshot.entries.filterNot { it.nodeId == resolved.entry.nodeId }
+                ),
+                resolved.parent.key.copyOf()
+            )
+        }
+        return obsolete
     }
 
     private fun resolve(session: VaultSessionRecord, ref: VaultNodeRef): ResolvedTransferEntry {

@@ -107,7 +107,7 @@ class RecentFilesScreenTest {
         val file = recentScreenFile("photo.jpg", "/storage/emulated/0/DCIM/photo.jpg")
         setScreen(
             recentScreenState().copy(
-                selectedFiles = setOf(file.absolutePath),
+                selectedFiles = setOf(file.reference),
                 selectedFilesTotalSize = file.size
             )
         )
@@ -164,7 +164,7 @@ private fun recentScreenState(): RecentFilesState {
 
 private fun recentScreenFile(name: String, path: String) = FileModel(
     name = name,
-    absolutePath = path,
+    reference = path,
     size = 128L,
     lastModified = 1_700_000_000_000L,
     isDirectory = false,

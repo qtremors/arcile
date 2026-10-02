@@ -109,7 +109,7 @@ internal fun AudioQueueSheet(
                 )
             } else {
                 val currentIndex = queue.indexOfFirst {
-                    it.file.absolutePath == currentMediaId
+                    it.file.reference == currentMediaId
                 }
                 val listState = androidx.compose.foundation.lazy.rememberLazyListState(
                     initialFirstVisibleItemIndex = (currentIndex - 1).coerceAtLeast(0)
@@ -122,9 +122,9 @@ internal fun AudioQueueSheet(
                 LazyColumn(state = listState) {
                     itemsIndexed(
                         items = queue,
-                        key = { _, track -> track.file.absolutePath }
+                        key = { _, track -> track.file.reference }
                     ) { index, track ->
-                        var menuExpanded by remember(track.file.absolutePath) { mutableStateOf(false) }
+                        var menuExpanded by remember(track.file.reference) { mutableStateOf(false) }
                         Surface(
                             shape = RoundedCornerShape(16.dp),
                             color = if (index == currentIndex) {
@@ -134,7 +134,7 @@ internal fun AudioQueueSheet(
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .bounceClickable { onTrackClick(track.file.absolutePath) }
+                                .bounceClickable { onTrackClick(track.file.reference) }
                         ) {
                             Row(
                                 modifier = Modifier.padding(8.dp),
@@ -194,7 +194,7 @@ internal fun AudioQueueSheet(
                                             enabled = !shuffleEnabled && index > 0,
                                             onClick = {
                                                 menuExpanded = false
-                                                onMoveTrack(track.file.absolutePath, -1)
+                                                onMoveTrack(track.file.reference, -1)
                                             }
                                         )
                                         DropdownMenuItem(
@@ -202,14 +202,14 @@ internal fun AudioQueueSheet(
                                             enabled = !shuffleEnabled && index < queue.lastIndex,
                                             onClick = {
                                                 menuExpanded = false
-                                                onMoveTrack(track.file.absolutePath, 1)
+                                                onMoveTrack(track.file.reference, 1)
                                             }
                                         )
                                         DropdownMenuItem(
                                             text = { Text(stringResource(R.string.audio_remove_from_queue)) },
                                             onClick = {
                                                 menuExpanded = false
-                                                onRemoveTrack(track.file.absolutePath)
+                                                onRemoveTrack(track.file.reference)
                                             }
                                         )
                                     }
@@ -237,7 +237,7 @@ internal fun AudioQueueSheet(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        onSaveQueue(name.trim(), queue.map { it.file.absolutePath })
+                        onSaveQueue(name.trim(), queue.map { it.file.reference })
                         showSaveDialog = false
                     },
                     enabled = name.isNotBlank()

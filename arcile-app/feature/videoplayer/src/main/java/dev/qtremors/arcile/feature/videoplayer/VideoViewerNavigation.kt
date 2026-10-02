@@ -44,7 +44,7 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                     val path = videoPlaybackReference(item)
                     FileModel(
                         name = item.title,
-                        absolutePath = path,
+                        reference = path,
                         size = 0L,
                         lastModified = 0L,
                         isDirectory = false,
@@ -80,7 +80,7 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set(
-                                AppRoutes.IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY,
+                                AppRoutes.MEDIA_VIEWER_RETURN_SELECTION_PATHS_KEY,
                                 ArrayList(viewModel.state.value.selectedFiles)
                             )
                     }

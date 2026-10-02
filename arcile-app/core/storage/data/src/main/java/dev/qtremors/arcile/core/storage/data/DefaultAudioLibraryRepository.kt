@@ -85,7 +85,7 @@ internal class DefaultAudioLibraryRepository(
                         }
                     }
                 }
-                Result.success(tracks.distinctBy { it.file.absolutePath })
+                Result.success(tracks.distinctBy { it.file.reference })
             } catch (error: SecurityException) {
                 Result.failure(FileOperationException.AccessDenied(cause = error))
             } catch (error: java.io.IOException) {

@@ -56,7 +56,7 @@ import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.navigation.AppRoutes
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
@@ -75,8 +75,8 @@ private val FeedbackAboveActionsPadding = 88.dp
 @Composable
 fun ArcileAppShell(
     appLaunchContext: AppLaunchContext,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRecordFileOpened: (String) -> Unit,
@@ -190,7 +190,7 @@ fun ArcileAppShell(
                     ) {
                         AppNavigationGraph(
                             navController = navController,
-                            currentThemeState = currentThemeState,
+                            currentUiPreferences = currentUiPreferences,
                             onThemeChange = onThemeChange,
                             onOpenFile = onOpenFile,
                             onOpenFileWith = onOpenFileWith,

@@ -57,7 +57,7 @@ private fun handleHomeDestination(
     actions: AppNavigationActions
 ) {
     when (destination) {
-        is HomeDestination.OpenFile -> actions.openPathWithSurroundingImages(
+        is HomeDestination.OpenFile -> actions.openPathWithContext(
             destination.path,
             destination.context
         )
@@ -65,7 +65,7 @@ private fun handleHomeDestination(
             when {
                 isGalleryCategory(destination.name) -> {
                     navController.navigate(
-                        AppRoutes.ImageGallery(
+                        AppRoutes.MediaGallery(
                             categoryId = FileCategories.find(destination.name)?.id?.value
                                 ?: FileCategories.Images.id.value
                         )

@@ -110,7 +110,7 @@ internal fun List<TrashMetadata>.toPropertiesModel(): TrashPropertiesUiModel {
     val totalBytes = sumOf { it.fileModel.size }
     if (single != null) {
         rows += "Original path" to single.originalPath.ifBlank { "Unavailable" }
-        rows += "Trash payload" to single.fileModel.absolutePath
+        rows += "Trash payload" to single.fileModel.reference
         rows += "Restore status" to single.restoreStatus.name
             .replace('_', ' ')
             .lowercase()

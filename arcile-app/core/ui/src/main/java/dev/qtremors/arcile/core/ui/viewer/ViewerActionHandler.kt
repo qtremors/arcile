@@ -112,7 +112,7 @@ class ViewerActionHandler(
                 createZip(currentFile)
             }
             ViewerFileAction.Properties -> {
-                propertiesLoader.open(listOf(currentFile.absolutePath))
+                propertiesLoader.open(listOf(currentFile.reference))
             }
         }
     }
@@ -122,8 +122,7 @@ class ViewerActionHandler(
             it.copy(
                 showRenameDialog = false,
                 showDeleteDialog = false,
-                showPropertiesDialog = false,
-                showCreateArchiveDialog = false
+                showPropertiesDialog = false
             )
         }
     }
@@ -138,9 +137,9 @@ class ViewerActionHandler(
     fun renameFile(currentFile: FileModel, newName: String) {
         dismissDialogs()
         scope.launch {
-            val result = fileMutationRepository.renameFile(currentFile.absolutePath, newName)
+            val result = fileMutationRepository.renameFile(currentFile.reference, newName)
             result.onSuccess { newFile ->
-                onFileRenamed?.invoke(currentFile.absolutePath, newFile)
+                onFileRenamed?.invoke(currentFile.reference, newFile)
             }.onFailure { error ->
                 state.update {
                     it.copy(
@@ -156,12 +155,12 @@ class ViewerActionHandler(
         dismissDialogs()
         scope.launch {
             val result = if (!permanent && currentFile.nodeRef.capabilities.canTrash && trashRepository != null) {
-                trashRepository.moveToTrash(listOf(currentFile.absolutePath))
+                trashRepository.moveToTrash(listOf(currentFile.reference))
             } else {
-                fileMutationRepository.deletePermanently(listOf(currentFile.absolutePath))
+                fileMutationRepository.deletePermanently(listOf(currentFile.reference))
             }
             result.onSuccess {
-                onFileDeleted?.invoke(currentFile.absolutePath)
+                onFileDeleted?.invoke(currentFile.reference)
             }.onFailure { error ->
                 state.update {
                     it.copy(
@@ -180,7 +179,7 @@ class ViewerActionHandler(
                     context,
                     listOf(
                         ExternalFileAccessHelper.ExternalFileReference(
-                            path = file.absolutePath,
+                            path = file.reference,
                             displayName = file.name,
                             sizeBytes = file.size,
                             mimeType = file.mimeType
@@ -212,7 +211,7 @@ class ViewerActionHandler(
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
-                        path = file.absolutePath,
+                        path = file.reference,
                         displayName = file.name,
                         sizeBytes = file.size,
                         mimeType = file.mimeType
@@ -231,11 +230,11 @@ class ViewerActionHandler(
     private fun createZip(file: FileModel) {
         val resolver = archivePathResolver ?: return
         val coordinator = operationCoordinator ?: return
-        val parentPath = storageParentPath(file.absolutePath) ?: return
+        val parentPath = storageParentPath(file.reference) ?: return
         scope.launch {
             val destination = resolver.resolve(
                 ArchivePathRequest(
-                    sourcePaths = listOf(file.absolutePath),
+                    sourcePaths = listOf(file.reference),
                     parentPath = parentPath,
                     format = ArchiveFormat.ZIP,
                     collisionStyle = ArchiveCollisionStyle.UNDERSCORE
@@ -251,7 +250,7 @@ class ViewerActionHandler(
             }
             coordinator.startOperation(
                 type = BulkFileOperationType.CREATE_ARCHIVE,
-                sourcePaths = listOf(file.absolutePath),
+                sourcePaths = listOf(file.reference),
                 destinationPath = destination,
                 resolutions = emptyMap(),
                 archiveFormat = ArchiveFormat.ZIP,

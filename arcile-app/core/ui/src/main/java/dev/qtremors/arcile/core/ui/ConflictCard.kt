@@ -243,8 +243,8 @@ private fun ConflictFileInfoPanel(
         if (file.isDirectory) null else formatFileSize(context, file.size)
     }
 
-    val parentDisplay = remember(file.absolutePath) {
-        file.absolutePath.substringBeforeLast('/', "").ifBlank { "/" }
+    val parentDisplay = remember(file.reference) {
+        file.reference.substringBeforeLast('/', "").ifBlank { "/" }
     }
 
     Column(

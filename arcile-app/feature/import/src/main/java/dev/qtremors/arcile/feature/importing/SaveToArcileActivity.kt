@@ -16,7 +16,7 @@ import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import javax.inject.Inject
 import kotlinx.coroutines.flow.first
 
@@ -29,7 +29,7 @@ class SaveToArcileActivity : ComponentActivity() {
     lateinit var bulkFileOperationCoordinator: BulkFileOperationCoordinator
 
     @Inject
-    lateinit var browserPreferencesStore: SaveDestinationPreferencesStore
+    lateinit var saveDestinationPreferencesStore: SaveDestinationPreferencesStore
 
     @Inject
     lateinit var saveDestinationBrowser: SaveDestinationBrowser
@@ -47,7 +47,7 @@ class SaveToArcileActivity : ComponentActivity() {
         }
 
         setContent {
-            ArcileTheme(themeState = ThemeState()) {
+            ArcileTheme(uiPreferences = UiPreferences()) {
                 Surface(color = MaterialTheme.colorScheme.background) {
                     SaveToArcileRoute(
                         incoming = preflight.accepted,
@@ -55,13 +55,13 @@ class SaveToArcileActivity : ComponentActivity() {
                             volumeRepository.getStorageVolumes().getOrElse { emptyList() }
                         },
                         loadDefaultPath = {
-                            browserPreferencesStore.saveDestinationPreferencesFlow
+                            saveDestinationPreferencesStore.saveDestinationPreferencesFlow
                                 .first()
                                 .defaultPath
                         },
                         destinationBrowser = saveDestinationBrowser,
                         saveDefaultPath = {
-                            browserPreferencesStore.updateDefaultSaveToArcilePath(it)
+                            saveDestinationPreferencesStore.updateDefaultSaveToArcilePath(it)
                         },
                         copyTo = { destination ->
                             enqueueIncomingImport(destination, preflight.accepted)

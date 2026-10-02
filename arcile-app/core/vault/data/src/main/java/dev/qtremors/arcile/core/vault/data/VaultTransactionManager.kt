@@ -85,6 +85,9 @@ internal class VaultTransactionManager(
             )
 
             // 4: writing this marker commits the replacement generation.
+            // Apply the reader's limits before committing, including extra source
+            // manifests needed to preserve skipped children in a partial move.
+            validate(marker, vaultId)
             writeMarker(directory, vaultId, masterSecret, marker)
             commitMarkerWritten = true
             stageObserver(VaultTransactionStage.COMMIT_MARKER_SYNCED)

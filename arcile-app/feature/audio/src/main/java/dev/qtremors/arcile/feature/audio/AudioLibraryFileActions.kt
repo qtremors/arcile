@@ -177,13 +177,13 @@ internal class AudioLibraryFileActions(
         val selected = state.value.selectedPaths
         val files = state.value.tracks
             .map { it.file }
-            .filter { it.absolutePath in selected }
+            .filter { it.reference in selected }
         return if (clipboardController.store(operation, files)) {
             rebuildPresentation {
                 it.copy(
                     selectedPaths = emptySet(),
                     tab = CategoryLibraryPage.FOLDERS,
-                    folderFilter = null
+                    collectionFilter = null
                 )
             }
             files.size
@@ -207,18 +207,18 @@ internal class AudioLibraryFileActions(
     fun dismissProperties() = propertiesLoader.dismiss()
 
     fun pasteToCurrentFolder() {
-        val destination = state.value.folderFilter?.key ?: return
+        val destination = state.value.collectionFilter?.key ?: return
         pasteToFolder(destination)
     }
 
     fun pasteToFolder(destination: String) {
         if (destination.isBlank()) return
         val clipboard = state.value.clipboardState ?: return
-        val sources = clipboard.files.map(FileModel::absolutePath)
+        val sources = clipboard.files.map(FileModel::reference)
         if (sources.isEmpty()) return
         scope.launch {
             state.update { it.copy(pasteDestinationPath = destination, error = null) }
-            clipboardRepository.detectCopyConflicts(sources, destination)
+            clipboardRepository.detectTransferConflicts(sources, destination)
                 .onSuccess { conflicts ->
                     if (conflicts.isEmpty()) {
                         executePaste(clipboard, destination, emptyMap())
@@ -287,7 +287,7 @@ internal class AudioLibraryFileActions(
 
     fun renameSelected(newName: String) {
         val path = state.value.selectedPaths.singleOrNull() ?: return
-        val track = state.value.tracks.firstOrNull { it.file.absolutePath == path } ?: return
+        val track = state.value.tracks.firstOrNull { it.file.reference == path } ?: return
         if (newName.isBlank() || listOf('/', '\\', '\u0000').any(newName::contains) || ".." in newName) {
             state.update { it.copy(error = UiText.StringResource(R.string.error_invalid_name)) }
             return
@@ -296,7 +296,7 @@ internal class AudioLibraryFileActions(
             fileMutationRepository.renameFile(path, newName)
                 .onSuccess { renamedFile ->
                     playback.replaceQueueItem(path, track.copy(file = renamedFile))
-                    runCatching { onFileRenamed(path, renamedFile.absolutePath) }
+                    runCatching { onFileRenamed(path, renamedFile.reference) }
                     clearSelection()
                     reload()
                 }
@@ -366,7 +366,7 @@ internal class AudioLibraryFileActions(
         }
         val started = operationCoordinator.startOperation(
             type = type,
-            sourcePaths = clipboard.files.map(FileModel::absolutePath),
+            sourcePaths = clipboard.files.map(FileModel::reference),
             destinationPath = destination,
             resolutions = resolutions,
             presentationOwnerId = operationOwnerId,
@@ -510,7 +510,7 @@ internal class AudioLibraryFileActions(
         rebuildPresentation { current ->
             current.copy(
                 tracks = current.tracks.filterNot {
-                    normalizeStoragePath(it.file.absolutePath) in removed
+                    normalizeStoragePath(it.file.reference) in removed
                 },
                 selectedPaths = current.selectedPaths.filterNot {
                     normalizeStoragePath(it) in removed

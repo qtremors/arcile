@@ -27,7 +27,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
-import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
+import dev.qtremors.arcile.core.storage.domain.usecase.ObserveStorageVolumesUseCase
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.testutil.FakeFilePreferencesStore
 import dev.qtremors.arcile.testutil.FakeActivityLogStore
@@ -54,7 +54,7 @@ internal fun createViewModel(
     volumeRepository = repository.volumeRepository,
     browserPreferencesRepository = browserPreferencesRepository,
     savedStateHandle = savedStateHandle,
-    getStorageVolumesUseCase = GetStorageVolumesUseCase(repository.volumeRepository),
+    observeStorageVolumesUseCase = ObserveStorageVolumesUseCase(repository.volumeRepository),
     bulkFileCoordinator = bulkFileOperationCoordinator,
     storageMutationNotifier = storageMutationNotifier,
     activityLogStore = FakeActivityLogStore()
@@ -117,7 +117,7 @@ class BrowserFakeFileRepository(
     ).apply {
         this.cachedFolderStats = cachedFolderStats
         searchFilesResultProvider = { _, _, _ -> searchResult }
-        detectCopyConflictsResultProvider = { _, _ -> conflictsResult }
+        detectTransferConflictsResultProvider = { _, _ -> conflictsResult }
         moveToTrashResultProvider = { _, _ -> moveToTrashResult }
         renameFileResultProvider = { _, _ -> renameResult }
         selectionPropertiesResultProvider = { selectionPropertiesResult }
@@ -187,8 +187,8 @@ class BrowserFakeFileRepository(
         delegate.searchRepository.getFilesByCategory(scope, categoryName)
     suspend fun searchFiles(query: String, scope: StorageScope, filters: SearchFilters?) =
         delegate.searchRepository.searchFiles(query, scope, filters)
-    suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String) =
-        delegate.clipboardRepository.detectCopyConflicts(sourcePaths, destinationPath)
+    suspend fun detectTransferConflicts(sourcePaths: List<String>, destinationPath: String) =
+        delegate.clipboardRepository.detectTransferConflicts(sourcePaths, destinationPath)
     suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,
@@ -209,12 +209,12 @@ class BrowserFakeFileRepository(
     suspend fun getTrashFiles() = delegate.trashRepository.getTrashFiles()
     suspend fun deletePermanentlyFromTrash(trashIds: List<String>) =
         delegate.trashRepository.deletePermanentlyFromTrash(trashIds)
-    suspend fun createFakeFile(
+    suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ): Result<FileModel> = delegate.fileMutationRepository.createFakeFile(parentPath, name, size, onProgress)
+    ): Result<FileModel> = delegate.fileMutationRepository.createSyntheticFile(parentPath, name, size, onProgress)
 
     fun emitFolderStatUpdate(update: FolderStatUpdate) {
         delegate.emitFolderStatUpdate(update)
@@ -241,7 +241,7 @@ fun browserVolume(
 )
 fun browserFile(name: String, path: String, isDirectory: Boolean = false) = FileModel(
     name = name,
-    absolutePath = path,
+    reference = path,
     size = 10L,
     lastModified = 20L,
     isDirectory = isDirectory,

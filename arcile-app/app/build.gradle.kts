@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.serialization)
-    id("arcile.android.application.conventions")
+    id("arcile.build.verification")
 }
 
 android {
@@ -17,8 +17,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 216
-        versionName = "2.1.6"
+        versionCode = 217
+        versionName = "2.1.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -131,7 +131,7 @@ dependencies {
     implementation(project(":feature:trash"))
     implementation(project(":feature:archive"))
     implementation(project(":feature:recentfiles"))
-    implementation(project(":feature:imagegallery"))
+    implementation(project(":feature:gallery"))
     implementation(project(":feature:videoplayer"))
     implementation(project(":feature:audio"))
     implementation(project(":feature:documents"))

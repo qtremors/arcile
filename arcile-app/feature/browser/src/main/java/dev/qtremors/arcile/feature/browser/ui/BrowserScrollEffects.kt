@@ -30,12 +30,12 @@ internal fun BrowserScrollEffects(
     ) {
         scroll.pendingRevealFilePath
             ?.takeIf { scroll.pendingRevealReady }
-            ?.let { revealPath -> displayedFiles.indexOfFirst { it.absolutePath == revealPath } }
+            ?.let { revealPath -> displayedFiles.indexOfFirst { it.reference == revealPath } }
             ?.takeIf { it >= 0 }
     }
     val requestedFocusIndex = remember(scroll.requestedFocusPath, displayedFiles) {
         scroll.requestedFocusPath
-            ?.let { focusPath -> displayedFiles.indexOfFirst { it.absolutePath == focusPath } }
+            ?.let { focusPath -> displayedFiles.indexOfFirst { it.reference == focusPath } }
             ?.takeIf { it >= 0 }
     }
     if (scroll.pendingRevealReady && pendingRevealIndex != null) {

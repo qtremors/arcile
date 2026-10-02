@@ -71,7 +71,7 @@ import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.SearchFiltersSheet
 import dev.qtremors.arcile.core.ui.SearchTopBar
-import dev.qtremors.arcile.core.ui.SortOptionDialog
+import dev.qtremors.arcile.core.ui.FileViewOptionsSheet
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
@@ -386,14 +386,14 @@ internal fun RecentFilesScreen(
     }
 
     if (showPresentationSheet) {
-        SortOptionDialog(
+        FileViewOptionsSheet(
             title = stringResource(R.string.view_options),
             selectedPreferences = state.presentation,
             showApplyToSubfolders = false,
             showSortControls = false,
             onDismiss = { showPresentationSheet = false },
             onApply = { preferences, _ -> onPresentationChange(preferences) },
-            filterOptions = dev.qtremors.arcile.core.ui.SortDialogFilterOptions(
+            filterOptions = dev.qtremors.arcile.core.ui.FileViewFilterOptions(
                 minDateMillis = state.activeSearchFilters.minDateMillis,
                 maxDateMillis = state.activeSearchFilters.maxDateMillis,
                 onDateRangeChange = { minDate, maxDate ->

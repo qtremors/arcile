@@ -48,7 +48,7 @@ fun FileList(
         files.map { file ->
             file.toFileRowUiModel(
                 formatter = formatter,
-                folderStats = folderStatsByPath[file.absolutePath],
+                folderStats = folderStatsByPath[file.reference],
                 thumbnailSizePx = thumbnailSizePx,
                 context = context
             )
@@ -58,7 +58,7 @@ fun FileList(
         rows = rows,
         selectedFiles = selectedFiles,
         highlightedPath = highlightedPath,
-        onNavigateTo = { onNavigateTo(it.absolutePath) },
+        onNavigateTo = { onNavigateTo(it.reference) },
         onOpenFile = onOpenFile,
         onToggleSelection = onToggleSelection,
         onSelectMultiple = onSelectMultiple,
@@ -120,12 +120,12 @@ fun FileListRows(
             contentType = { _, row -> if (row.isDirectory) "directory" else "file" }
         ) { index, row ->
             val file = row.file
-            val isSelected = selectedFiles.contains(file.absolutePath)
+            val isSelected = selectedFiles.contains(file.reference)
             FileItemRow(
                 modifier = Modifier.animateItem(),
                 row = row,
                 isSelected = isSelected,
-                isHighlighted = file.absolutePath == highlightedPath,
+                isHighlighted = file.reference == highlightedPath,
                 isInSelectionMode = selectedFiles.isNotEmpty(),
                 presentation = presentation,
                 itemIndex = index,
@@ -134,12 +134,12 @@ fun FileListRows(
                 onClick = {
                     if (selectedFiles.isNotEmpty()) {
                         lastInteractedIndex = index
-                        onToggleSelection(file.absolutePath)
+                        onToggleSelection(file.reference)
                         haptics.selectionChanged()
                     } else if (file.isDirectory) {
                         onNavigateTo(file)
                     } else {
-                        onOpenFile(file.absolutePath)
+                        onOpenFile(file.reference)
                     }
                 },
                 onLongClick = {
@@ -153,7 +153,7 @@ fun FileListRows(
                         haptics.selectionChanged()
                     } else {
                         val wasEmpty = selectedFiles.isEmpty()
-                        onToggleSelection(file.absolutePath)
+                        onToggleSelection(file.reference)
                         if (wasEmpty) haptics.selectionStart() else haptics.selectionChanged()
                     }
                     lastInteractedIndex = index
@@ -162,12 +162,12 @@ fun FileListRows(
                     if (file.isDirectory) {
                         onNavigateTo(file)
                     } else {
-                        onOpenFile(file.absolutePath)
+                        onOpenFile(file.reference)
                     }
                 },
                 onToggleSelectionDirectly = {
                     val wasEmpty = selectedFiles.isEmpty()
-                    onToggleSelection(file.absolutePath)
+                    onToggleSelection(file.reference)
                     if (wasEmpty) haptics.selectionStart() else haptics.selectionChanged()
                 }
             )

@@ -48,7 +48,7 @@ class OperationJournalTest {
             completedItems = 1,
             totalItems = 2,
             currentPath = "/a.txt",
-            bytesCopied = 10L,
+            bytesProcessed = 10L,
             totalBytes = 20L
         )
 

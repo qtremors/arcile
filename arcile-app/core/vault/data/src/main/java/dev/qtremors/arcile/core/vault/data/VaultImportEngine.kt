@@ -33,7 +33,7 @@ internal class VaultImportEngine(
         sourceUris: List<String>,
         onProgress: (Int, Int, Long, Long?, String?) -> Unit
     ): VaultBatchResult = session.mutationMutex.withLock {
-        val reader = VaultUriTreeReader(context.contentResolver)
+        val reader = VaultImportSourceReader(context.contentResolver)
         val batches = sourceUris.map { sourceUri -> sourceUri to reader.collect(listOf(sourceUri)) }
         val totalBytes = batches.flatMap { it.second }.filterNot(VaultImportSource::isDirectory)
             .map(VaultImportSource::sizeBytes).let { sizes ->

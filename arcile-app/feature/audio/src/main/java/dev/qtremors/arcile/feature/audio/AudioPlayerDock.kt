@@ -60,7 +60,7 @@ internal data class AudioPanelState(
 internal class AudioPlayerCoordinator @Inject constructor(
     @ApplicationContext private val context: Context,
     private val playback: AudioPlaybackController,
-    private val musicStore: AudioMusicStore,
+    private val musicStore: AudioCollectionStore,
     private val listeningStore: AudioListeningStore,
     private val repository: AudioLibraryRepository
 ) {
@@ -85,20 +85,20 @@ internal class AudioPlayerCoordinator @Inject constructor(
                 .collectLatest { (entries, currentId) ->
                     if (currentId == null || entries.isEmpty()) return@collectLatest
                     val panel = mutableState.value
-                    if (panel.visible && panel.queue.map { it.file.absolutePath } ==
+                    if (panel.visible && panel.queue.map { it.file.reference } ==
                         entries.map { it.id }
                     ) return@collectLatest
-                    val existing = panel.queue.associateBy { it.file.absolutePath }
+                    val existing = panel.queue.associateBy { it.file.reference }
                     val indexed = if (entries.any { it.id !in existing }) {
                         repository.getTracks().getOrNull().orEmpty()
-                            .associateBy { it.file.absolutePath }
+                            .associateBy { it.file.reference }
                     } else emptyMap()
                     val queue = entries.map { entry ->
                         existing[entry.id] ?: indexed[entry.id] ?: entry.toFallbackTrack(
                             playback.state.value.durationMs.takeIf { entry.id == currentId } ?: 0L
                         )
                     }
-                    if (queue.none { it.file.absolutePath == currentId }) return@collectLatest
+                    if (queue.none { it.file.reference == currentId }) return@collectLatest
                     mutableState.value = panel.copy(
                         queue = queue,
                         initialPath = currentId,
@@ -123,7 +123,7 @@ internal class AudioPlayerCoordinator @Inject constructor(
         return AudioTrack(
             file = FileModel(
                 name = name,
-                absolutePath = id,
+                reference = id,
                 extension = name.substringAfterLast('.', "").lowercase(),
                 nodeRef = nodeRef
             ),
@@ -135,16 +135,16 @@ internal class AudioPlayerCoordinator @Inject constructor(
     }
 
     fun open(track: AudioTrack, queue: List<AudioTrack>, startPlayback: Boolean) {
-        val ordered = queue.distinctBy { it.file.absolutePath }
-            .takeIf { tracks -> tracks.any { it.file.absolutePath == track.file.absolutePath } }
+        val ordered = queue.distinctBy { it.file.reference }
+            .takeIf { tracks -> tracks.any { it.file.reference == track.file.reference } }
             ?: listOf(track)
-        mutableState.value = AudioPanelState(ordered, track.file.absolutePath, visible = true)
-        playback.playQueue(ordered, track.file.absolutePath, startPlayback)
+        mutableState.value = AudioPanelState(ordered, track.file.reference, visible = true)
+        playback.playQueue(ordered, track.file.reference, startPlayback)
     }
 
     fun expandQueue(queue: List<AudioTrack>, currentPath: String) {
-        val ordered = queue.distinctBy { it.file.absolutePath }
-        if (ordered.none { it.file.absolutePath == currentPath }) return
+        val ordered = queue.distinctBy { it.file.reference }
+        if (ordered.none { it.file.reference == currentPath }) return
         mutableState.value = mutableState.value.copy(queue = ordered)
         playback.expandQueue(ordered, currentPath)
     }
@@ -160,25 +160,25 @@ internal class AudioPlayerCoordinator @Inject constructor(
     fun replace(oldPath: String, track: AudioTrack) {
         mutableState.value = mutableState.value.let { current ->
             current.copy(
-                queue = current.queue.map { if (it.file.absolutePath == oldPath) track else it },
-                initialPath = if (current.initialPath == oldPath) track.file.absolutePath
+                queue = current.queue.map { if (it.file.reference == oldPath) track else it },
+                initialPath = if (current.initialPath == oldPath) track.file.reference
                     else current.initialPath
             )
         }
         playback.replaceQueueItem(oldPath, track)
         musicStore.notifyMediaChanged()
-        if (oldPath != track.file.absolutePath) {
+        if (oldPath != track.file.reference) {
             scope.launch {
                 runCatching {
-                    musicStore.replaceTrackPath(oldPath, track.file.absolutePath)
-                    listeningStore.replacePath(oldPath, track.file.absolutePath)
+                    musicStore.replaceTrackPath(oldPath, track.file.reference)
+                    listeningStore.replacePath(oldPath, track.file.reference)
                 }
             }
         }
     }
 
     fun remove(path: String) {
-        val queue = mutableState.value.queue.filterNot { it.file.absolutePath == path }
+        val queue = mutableState.value.queue.filterNot { it.file.reference == path }
         playback.removeQueueItems(listOf(path))
         if (queue.isEmpty()) close()
         else mutableState.value = mutableState.value.copy(queue = queue)
@@ -186,7 +186,7 @@ internal class AudioPlayerCoordinator @Inject constructor(
     }
 
     fun removeFromQueue(path: String) {
-        val queue = mutableState.value.queue.filterNot { it.file.absolutePath == path }
+        val queue = mutableState.value.queue.filterNot { it.file.reference == path }
         playback.removeQueueItems(listOf(path))
         if (queue.isEmpty()) close()
         else mutableState.value = mutableState.value.copy(queue = queue)
@@ -208,8 +208,8 @@ internal fun AudioPlayerDock(
     val panel by coordinator.state.collectAsStateWithLifecycle()
     val playback by playbackController.state.collectAsStateWithLifecycle()
     val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-    val track = panel.queue.firstOrNull { it.file.absolutePath == playback.currentMediaId }
-        ?: panel.queue.firstOrNull { it.file.absolutePath == panel.initialPath }
+    val track = panel.queue.firstOrNull { it.file.reference == playback.currentMediaId }
+        ?: panel.queue.firstOrNull { it.file.reference == panel.initialPath }
     AnimatedVisibility(visible = panel.visible && !panel.expanded && track != null && !imeVisible) {
         if (track != null) {
             val visibilityScope = this
@@ -247,8 +247,8 @@ internal fun AudioPlayerExpanded(
     val playback by playbackController.state.collectAsStateWithLifecycle()
     val favorites by listeningStore.favoritePaths.collectAsStateWithLifecycle(initialValue = emptySet())
     var visualizerEnabled by rememberSaveable { mutableStateOf(true) }
-    val track = panel.queue.firstOrNull { it.file.absolutePath == playback.currentMediaId }
-        ?: panel.queue.firstOrNull { it.file.absolutePath == panel.initialPath }
+    val track = panel.queue.firstOrNull { it.file.reference == playback.currentMediaId }
+        ?: panel.queue.firstOrNull { it.file.reference == panel.initialPath }
     AnimatedVisibility(
         visible = panel.visible && panel.expanded && track != null,
         modifier = Modifier.fillMaxSize(),
@@ -262,9 +262,9 @@ internal fun AudioPlayerExpanded(
                 playback = playback,
                 visualizerEnabled = visualizerEnabled,
                 onToggleVisualizer = { visualizerEnabled = !visualizerEnabled },
-                isFavorite = track.file.absolutePath in favorites,
+                isFavorite = track.file.reference in favorites,
                 onToggleFavorite = {
-                    val path = track.file.absolutePath
+                    val path = track.file.reference
                     scope.launch {
                         runCatching { listeningStore.setFavorite(path, path !in favorites) }
                     }
@@ -287,15 +287,15 @@ internal fun AudioPlayerExpanded(
                 onSeek = playbackController::seekTo,
                 onShare = { scope.launch { shareAudioFile(context, track.file) } },
                 onEdit = {
-                    if (File(track.file.absolutePath).isFile) {
-                        context.startActivity(createAudioEditorIntent(context, listOf(track.file.absolutePath)))
+                    if (File(track.file.reference).isFile) {
+                        context.startActivity(createAudioEditorIntent(context, listOf(track.file.reference)))
                     }
                 },
                 tagEditor = tagEditor,
-                onTagSaved = { coordinator.replace(it.file.absolutePath, it) },
+                onTagSaved = { coordinator.replace(it.file.reference, it) },
                 onOpenWith = { scope.launch { openAudioWith(context, track.file) } },
                 onFileRenamed = { oldPath, file ->
-                    coordinator.state.value.queue.firstOrNull { it.file.absolutePath == oldPath }
+                    coordinator.state.value.queue.firstOrNull { it.file.reference == oldPath }
                         ?.let { coordinator.replace(oldPath, it.copy(file = file)) }
                 },
                 onFileDeleted = coordinator::remove
@@ -324,7 +324,7 @@ private suspend fun openAudioWith(context: Context, file: FileModel) {
 }
 
 private fun FileModel.audioHandoffReference() = ExternalFileAccessHelper.ExternalFileReference(
-    path = absolutePath,
+    path = reference,
     displayName = name,
     sizeBytes = size,
     mimeType = mimeType,

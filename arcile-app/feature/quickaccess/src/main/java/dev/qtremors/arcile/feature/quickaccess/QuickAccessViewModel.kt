@@ -69,7 +69,7 @@ internal class QuickAccessViewModel @Inject constructor(
             val newItem = QuickAccessItem(
                 id = "custom_${UUID.randomUUID()}",
                 label = label,
-                path = path,
+                targetReference = path,
                 type = QuickAccessType.CUSTOM,
                 isPinned = true,
                 isEnabled = true
@@ -83,7 +83,7 @@ internal class QuickAccessViewModel @Inject constructor(
             val newItem = QuickAccessItem(
                 id = "saf_${UUID.randomUUID()}",
                 label = label,
-                path = uriString,
+                targetReference = uriString,
                 type = QuickAccessType.SAF_TREE,
                 isPinned = true,
                 isEnabled = true
@@ -97,7 +97,7 @@ internal class QuickAccessViewModel @Inject constructor(
             val newItem = QuickAccessItem(
                 id = "handoff_${UUID.randomUUID()}",
                 label = label,
-                path = uriString,
+                targetReference = uriString,
                 type = QuickAccessType.EXTERNAL_HANDOFF,
                 handoffDescription = "Opens in the Android Files app due to platform restrictions.",
                 isPinned = true,
@@ -113,7 +113,7 @@ internal class QuickAccessViewModel @Inject constructor(
                 QuickAccessItem(
                     id = "handoff_files_app",
                     label = "Files",
-                    path = uriString,
+                    targetReference = uriString,
                     type = QuickAccessType.FILES_APP,
                     handoffDescription = "Open the Android Files app.",
                     isPinned = true,

@@ -1,11 +1,11 @@
 package dev.qtremors.arcile.feature.browser
 
-import dev.qtremors.arcile.feature.browser.delegate.BrowserArchiveController
-import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictController
-import dev.qtremors.arcile.feature.browser.delegate.BrowserNavigationController
-import dev.qtremors.arcile.feature.browser.delegate.BrowserOperationController
-import dev.qtremors.arcile.feature.browser.delegate.SearchController
-import dev.qtremors.arcile.feature.browser.delegate.SelectionController
+import dev.qtremors.arcile.feature.browser.controller.BrowserArchiveController
+import dev.qtremors.arcile.feature.browser.controller.BrowserConflictController
+import dev.qtremors.arcile.feature.browser.navigation.BrowserNavigationController
+import dev.qtremors.arcile.feature.browser.controller.BrowserOperationController
+import dev.qtremors.arcile.feature.browser.controller.SearchController
+import dev.qtremors.arcile.feature.browser.controller.SelectionController
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify

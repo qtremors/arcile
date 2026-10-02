@@ -233,7 +233,7 @@ private fun BulkFileOperationType.refreshesStorageUsage(): Boolean =
         BulkFileOperationType.TRASH,
         BulkFileOperationType.DELETE,
         BulkFileOperationType.SHRED,
-        BulkFileOperationType.CREATE_FAKE,
+        BulkFileOperationType.CREATE_SYNTHETIC,
         BulkFileOperationType.EXTRACT_ARCHIVE,
         BulkFileOperationType.CREATE_ARCHIVE,
         BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> true

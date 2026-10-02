@@ -56,7 +56,7 @@ internal class MediaStoreCategoryCache(
         }
     }
 
-    suspend fun clear() {
+    suspend fun invalidateAll() {
         dao.markAllStale()
     }
 

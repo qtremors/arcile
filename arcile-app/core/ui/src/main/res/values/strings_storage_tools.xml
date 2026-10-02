@@ -261,16 +261,15 @@
     <string name="file_operation_undo_failed">Could not undo operation</string>
     <string name="invert_selection">Invert Selection</string>
 
-    <string name="new_fake_file">Random Fake File</string>
-    <string name="title_create_fake_file">Create Random Fake File</string>
-    <string name="label_fake_file_name">File Name</string>
-    <string name="label_fake_file_extension">Extension (e.g. bin, dat)</string>
-    <string name="label_fake_file_size">Size</string>
-    <string name="label_fake_file_unit">Unit</string>
+    <string name="new_synthetic_file">Random Synthetic File</string>
+    <string name="title_create_synthetic_file">Create Random Synthetic File</string>
+    <string name="label_synthetic_file_name">File Name</string>
+    <string name="label_synthetic_file_extension">Extension (e.g. bin, dat)</string>
+    <string name="label_synthetic_file_size">Size</string>
+    <string name="label_synthetic_file_unit">Unit</string>
     <string name="unit_kb">KB</string>
     <string name="unit_mb">MB</string>
     <string name="unit_gb">GB</string>
-    <string name="file_operation_creating_fake">Creating fake file</string>
     <string name="transfer_details_title">Transfer details</string>
     <string name="transfer_speed">Speed</string>
     <string name="transfer_estimated_time">Estimated time</string>

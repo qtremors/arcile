@@ -13,7 +13,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.combinedClickable
@@ -21,7 +20,6 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -37,34 +35,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.QueueMusic
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
 import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -87,26 +67,15 @@ import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
-import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
-import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.ArcileGestureAxis
 import dev.qtremors.arcile.core.ui.ArcileGestureDefaults
-import dev.qtremors.arcile.core.ui.ArcileSwipeDirection
-import dev.qtremors.arcile.core.ui.SplitButtonGroup
-import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.arcileGestureAxis
-import dev.qtremors.arcile.core.ui.arcileSwipeDirection
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.text.DateFormat
-import java.util.Date
 import kotlin.math.abs
 import kotlin.math.max
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -382,7 +351,7 @@ internal fun AudioNowPlayingScreen(
                                 }
                             )
                             .pointerInput(
-                                track.file.absolutePath,
+                                track.file.reference,
                                 dismissThreshold,
                                 queueThreshold,
                                 horizontalThreshold
@@ -614,7 +583,7 @@ internal fun AudioNowPlayingScreen(
         AudioMetadataSheet(track = track, onDismiss = { showMetadata = false })
     }
     if (showQueue) {
-        val queueById = queue.associateBy { it.file.absolutePath }
+        val queueById = queue.associateBy { it.file.reference }
         val orderedIds = playback.shuffleMediaIds.takeIf { playback.shuffleEnabled && it.isNotEmpty() }
             ?: playback.queueMediaIds
         AudioQueueSheet(
@@ -641,7 +610,7 @@ internal fun AudioNowPlayingScreen(
         )
     }
     if (showLyrics) {
-        AudioLyricsSheet(
+        AudioLyricsDialog(
             track = track,
             positionMs = playback.positionMs,
             isPlaying = playback.isPlaying,
@@ -680,47 +649,4 @@ private suspend fun Animatable<Float, *>.springBack() {
             stiffness = Spring.StiffnessMedium
         )
     )
-}
-
-internal enum class AudioNowPlayingGesture {
-    Previous,
-    Next,
-    Collapse,
-    Queue,
-    None
-}
-
-internal fun resolveAudioNowPlayingGesture(
-    lockedAxis: ArcileGestureAxis?,
-    deltaX: Float,
-    deltaY: Float,
-    velocityX: Float,
-    velocityY: Float,
-    horizontalThreshold: Float,
-    collapseThreshold: Float,
-    queueThreshold: Float,
-    minimumVelocity: Float
-): AudioNowPlayingGesture {
-    val axis = lockedAxis ?: return AudioNowPlayingGesture.None
-    val minimumDistance = when (axis) {
-        ArcileGestureAxis.Horizontal -> horizontalThreshold
-        ArcileGestureAxis.Vertical -> if (deltaY >= 0f) collapseThreshold else queueThreshold
-    }
-    return when (
-        arcileSwipeDirection(
-            axis = axis,
-            deltaX = deltaX,
-            deltaY = deltaY,
-            velocityX = velocityX,
-            velocityY = velocityY,
-            minimumDistance = minimumDistance,
-            minimumVelocity = minimumVelocity
-        )
-    ) {
-        ArcileSwipeDirection.Left -> AudioNowPlayingGesture.Next
-        ArcileSwipeDirection.Right -> AudioNowPlayingGesture.Previous
-        ArcileSwipeDirection.Down -> AudioNowPlayingGesture.Collapse
-        ArcileSwipeDirection.Up -> AudioNowPlayingGesture.Queue
-        null -> AudioNowPlayingGesture.None
-    }
 }

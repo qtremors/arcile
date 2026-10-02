@@ -220,7 +220,7 @@ internal fun CategoryLibrarySelectionActions(
                     }
                     add {
                         ArcileDropdownMenuItem(
-                            text = { Text(stringResource(R.string.archive_compress_zip)) },
+                            text = { Text(stringResource(R.string.archive_create_menu_action)) },
                             leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
                             onClick = {
                                 showMore = false
@@ -231,7 +231,7 @@ internal fun CategoryLibrarySelectionActions(
                     if (canOpenWith) {
                         add {
                             ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                text = { Text(stringResource(R.string.viewer_open_with)) },
                                 leadingIcon = {
                                     Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                                 },

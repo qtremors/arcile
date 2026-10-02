@@ -125,11 +125,11 @@ internal fun BrowserCreateFab(
                             }
                         ),
                         FabMenuItem(
-                            label = stringResource(R.string.new_fake_file),
+                            label = stringResource(R.string.new_synthetic_file),
                             icon = Icons.Default.Extension,
                             onClick = {
                                 onFabExpandedChange(false)
-                                dialogVisibility.showCreateFakeFileDialog = true
+                                dialogVisibility.showCreateSyntheticFileDialog = true
                             }
                         )
                     )
@@ -258,7 +258,7 @@ private fun BrowserClipboardOperationToolbar(
     val rawProgress = activeOp?.let { operation ->
         val byteProgress = operation.totalBytes
             ?.takeIf { it > 0L }
-            ?.let { total -> ((operation.bytesCopied ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
+            ?.let { total -> ((operation.bytesProcessed ?: 0L).toFloat() / total.toFloat()).coerceIn(0f, 1f) }
         val itemProgress = operation.totalItems
             .takeIf { it > 0 }
             ?.let { operation.completedItems.toFloat() / it.toFloat() }
@@ -356,7 +356,7 @@ private fun BrowserClipboardOperationToolbar(
                             activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
                             activeOp?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
                             activeOp?.type == BulkFileOperationType.EXTRACT_ARCHIVE -> Icons.Default.Unarchive
-                            activeOp?.type == BulkFileOperationType.CREATE_FAKE -> Icons.Default.Extension
+                            activeOp?.type == BulkFileOperationType.CREATE_SYNTHETIC -> Icons.Default.Extension
                             activeOp?.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> Icons.Default.ContentPaste
                             else -> Icons.Default.ContentCopy
                         }
@@ -403,7 +403,7 @@ private fun BrowserClipboardOperationToolbar(
                             val context = androidx.compose.ui.platform.LocalContext.current
                             val subtitle = if (activeOp != null) {
                                 if (activeOp.totalBytes != null && activeOp.totalBytes!! > 0L) {
-                                    val remaining = activeOp.totalBytes!! - (activeOp.bytesCopied ?: 0L)
+                                    val remaining = activeOp.totalBytes!! - (activeOp.bytesProcessed ?: 0L)
                                     formatFileSize(context, remaining.coerceAtLeast(0L))
                                 } else {
                                     androidx.compose.ui.res.pluralStringResource(

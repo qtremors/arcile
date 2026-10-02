@@ -1,17 +1,4 @@
 <resources>
-    <string name="model_viewer_title">Model Viewer</string>
-    <string name="model_viewer_loading">Loading model…</string>
-    <string name="model_viewer_error">Arcile could not render this model.</string>
-    <string name="model_viewer_empty">No model loaded</string>
-    <string name="model_viewer_hint">Drag to rotate, pinch to zoom.</string>
-    <string name="model_viewer_zoom">Zoom</string>
-    <string name="model_viewer_zoom_value">%1$d%%</string>
-    <string name="model_viewer_brightness">Brightness</string>
-    <string name="model_viewer_brightness_value">%1$d%%</string>
-    <string name="model_viewer_background">Background</string>
-    <string name="model_viewer_background_theme">Theme</string>
-    <string name="model_viewer_background_white">White</string>
-    <string name="model_viewer_background_black">Black</string>
     <string name="section_plugins">Plugins</string>
     <string name="plugins_title">Plugins</string>
     <string name="plugins_settings_description">Manage installed Arcile plugins.</string>

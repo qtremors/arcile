@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.1.6 | **Last Updated:** 2026-09-28
+**Version:** 2.1.7 | **Last Updated:** 2026-10-03
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -48,7 +48,7 @@ graph TD
     B -->|use cases / repository calls| C["Focused Domain Contracts"]
     C -->|implemented by| D["Focused Storage Repositories"]
     D --> E["VolumeProvider"]
-    D --> F["MediaStoreClient"]
+    D --> F["StorageQueryClient"]
     D --> G["DefaultFileSystemDataSource"]
     D --> H["TrashManager"]
     D --> I["ArchiveManager"]
@@ -138,7 +138,7 @@ arcile/
 │   │   ├── browser/                             # Browser route, state slices, controllers, file UI
 │   │   ├── documents/                           # Documents library, text/Markdown editor, and PDF viewing
 │   │   ├── home/                                # Home dashboard and shortcuts
-│   │   ├── imagegallery/                        # Independent Gallery and Viewer routes
+│   │   ├── gallery/                        # Independent Gallery and Viewer routes
 │   │   ├── import/                              # Save-to-Arcile share target
 │   │   ├── onboarding/                          # First-run setup and permission guidance
 │   │   ├── onlyfiles/                           # Encrypted-vault presentation and media adapters
@@ -216,7 +216,7 @@ The navigation endpoints are modeled as serializable classes/objects under the `
 - `AppRoutes.Plugins`
 - `AppRoutes.Trash`
 - `AppRoutes.RecentFiles(volumeId)`
-- `AppRoutes.ImageGallery(volumeId)`
+- `AppRoutes.MediaGallery(volumeId)`
 - `AppRoutes.ImageViewer(initialPath, albumPath, searchQuery, volumeId, returnToBrowserPage)`
 - `AppRoutes.VideoViewer(sessionToken)`
 - `AppRoutes.StorageDashboard(volumeId)`
@@ -244,7 +244,7 @@ To maintain premium design aesthetics, Arcile implements customized bouncy sprin
 Storage is split into independently bound implementations for file browsing, mutation, media search and analytics, trash, archives, volumes, and clipboard state. Each implementation delegates only to the lower-level services required by its contract:
 
 - `VolumeProvider`: Discovers mounted storage volumes, resolves pathways, and parses volume details.
-- `MediaStoreClient`: Queries MediaStore for files, recent assets, categories, and folder statistics.
+- `StorageQueryClient`: Queries MediaStore for files, recent assets, categories, and folder statistics, and searches filesystem paths.
 - `DefaultFileSystemDataSource`: Conducts direct JVM `java.io.File` listing and mutations behind storage contracts.
 - `FolderStatsStore`: Manages async aggregate size calculations.
 - `TrashManager`: Handles custom volume-scoped trash.
@@ -256,7 +256,7 @@ Feature composables and ViewModels must not inspect filesystem existence, writab
 
 ### Conflict Detection & Resolution Preflight
 To prevent accidental data loss, file conflict resolution runs *before* operations execute:
-1. `detectCopyConflicts` performs a high-speed top-level name comparison in the destination directory to identify collisions before starting heavy recursive jobs.
+1. `detectTransferConflicts` performs a high-speed top-level name comparison in the destination directory to identify collisions before starting heavy recursive jobs.
 2. The user resolves conflicts in the `PasteConflictDialog` with options to **Replace**, **Keep Both**, or **Skip** (supports batch application).
 3. `FileConflictNameGenerator` resolves Keep Both options into stable name modifications (e.g. `image (1).png`).
 
@@ -563,7 +563,7 @@ Plugin implementations are distributed separately from this repository. Before p
 
 Arcile implements a high-end, premium design system built on **Material 3 Expressive** design tokens, custom spring physics, responsive gesture mechanics, and wallpaper-reactive accents.
 
-### 1. Theme & Customization Engine (`Theme.kt`, `ThemeState`)
+### 1. Theme & Customization Engine (`Theme.kt`, `UiPreferences`)
 - **Theme Modes:**
   - `LIGHT`, `DARK`, `SYSTEM`: Dynamically updates layouts and system status/navigation bars via `WindowCompat`.
   - `OLED`: Pure-black overrides that set the background, surface, and container variants to `Color.Black` for maximum battery savings and deep-contrast aesthetics.
@@ -575,7 +575,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
   - *Monochrome / Monochrome OLED Scheme:* Clean greyscale layouts.
   - *Predefined Colors:* Blue, green, purple, orange, etc., dynamically built into a Material 3 palette via a helper seed builder.
 - **Color Harmonization:**
-  - When `harmonizeColors` is enabled in `ThemeState`, category-specific colors (e.g., folder item types) and semantic colors are blended with the primary color scheme using color harmonization to prevent visual clashes.
+  - When `harmonizeColors` is enabled in `UiPreferences`, category-specific colors (e.g., folder item types) and semantic colors are blended with the primary color scheme using color harmonization to prevent visual clashes.
 - **Composition Locals:**
   - `LocalCategoryColors` / `LocalSemanticColors`: Resolved color lists.
   - `LocalSpacing`: Access spacing coordinates.
@@ -619,7 +619,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 
 - `ArcileUtilityCatalog` in `core:ui` is the single source of truth for Utilities and Home shortcuts. A catalog entry is allowed only when its route and primary workflow are implemented; placeholders, disabled cards, and "Soon" actions do not belong in the production catalog.
 - The current implemented utilities are Trash, Storage Cleaner, Activity Log, and OnlyFiles. The Tools screen navigates to those same destinations and contains no duplicate feature definitions.
-- `UtilityPreferencesStore` persists an **ordered list** of utility IDs. The repository filters unknown IDs, removes duplicates, preserves user order, and migrates the former unordered `home_utility_ids` set into deterministic catalog order.
+- `HomeAndUtilityPreferencesStore` persists an **ordered list** of utility IDs. The repository filters unknown IDs, removes duplicates, preserves user order, and migrates the former unordered `home_utility_ids` set into deterministic catalog order.
 - The Tools screen lets users show or hide each implemented utility on Home. Move-up and move-down actions reorder only the visible group; Home projects the catalog through that saved list, so rendered order exactly matches the preference.
 - The same store persists Home section order and enablement independently. Unknown section IDs are discarded and newly introduced sections are appended safely without changing the user's existing order.
 - Home's overflow editor uses a configuration-safe draft, reset control, switches for visibility, and drag handles with haptics and edge auto-scrolling. The first visible section omits its title unless it retains a trailing header action; later sections use one shared header and spacing contract.
@@ -653,12 +653,12 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - **Controllers:** Navigation, selection, search, clipboard, conflicts, mutations, operations, reveal, archive, properties, and transient feedback have focused owners. Cross-domain transitions remain coordinated through the Browser owner rather than controllers mutating one another.
 
 ### 2. Home (`feature/home`)
-- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, saved section layout, and neutral navigation destinations. It consumes utility IDs and Home layout preferences from `UtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
+- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, saved section layout, and neutral navigation destinations. It consumes utility IDs and Home layout preferences from `HomeAndUtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
 
-### 3. Gallery and Viewer (`feature/imagegallery`)
-- `ImageGalleryViewModel` owns albums, timelines, filters, selection, and gallery presentation.
+### 3. Gallery and Viewer (`feature/gallery`)
+- `MediaGalleryViewModel` owns folders, timelines, filters, selection, and gallery presentation.
 - `ImageViewerViewModel` independently owns the current viewer session, metadata panel, rotations, and chrome.
-- `ImageGalleryFileActionController` owns reusable file actions. EXIF reads/writes and editability decisions stay behind the shared metadata adapter rather than feature composables.
+- `MediaGalleryFileActionController` owns reusable file actions. EXIF reads/writes and editability decisions stay behind the shared metadata adapter rather than feature composables.
 
 ### 4. Archive (`feature/archive`)
 - Owns archive viewing, selection, password prompts, extraction presentation, and typed return-to-Browser destinations. Archive path creation and extraction destinations are resolved by storage-domain services.
@@ -747,8 +747,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 215 |
-| **Version Name** | `2.1.6` |
+| **Version Code** | 217 |
+| **Version Name** | `2.1.7` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.6.0 |
 | **Gradle JVM** | JDK 21 |
@@ -862,7 +862,7 @@ Use module-scoped tasks when iterating on a focused area:
 # Feature modules
 ./gradlew :feature:audio:testDebugUnitTest
 ./gradlew :feature:browser:testDebugUnitTest
-./gradlew :feature:imagegallery:testDebugUnitTest
+./gradlew :feature:gallery:testDebugUnitTest
 ./gradlew :feature:storagecleaner:testDebugUnitTest
 ./gradlew :feature:storageusage:testDebugUnitTest
 ./gradlew :feature:recentfiles:testDebugUnitTest
@@ -902,7 +902,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.1.6-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.1.7-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -924,8 +924,8 @@ signing.keyPassword=your_key_password
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.1.6-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.1.6.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.1.7-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.1.7.apk`
 
 ---
 

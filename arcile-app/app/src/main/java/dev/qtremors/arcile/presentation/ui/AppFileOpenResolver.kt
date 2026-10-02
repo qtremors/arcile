@@ -21,7 +21,7 @@ internal class AppFileOpenResolver(
         path: String,
         surroundingFiles: List<FileModel>
     ): AppFileOpenResolution {
-        val knownFile = surroundingFiles.firstOrNull { it.absolutePath == path }
+        val knownFile = surroundingFiles.firstOrNull { it.reference == path }
         val extension = knownFile?.extension
             ?.takeIf(String::isNotBlank)
             ?.lowercase()
@@ -70,7 +70,7 @@ internal class AppFileOpenResolver(
                     .filter {
                         FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Images
                     }
-                    .map(FileModel::absolutePath)
+                    .map(FileModel::reference)
                     .distinct()
                     .toList()
             )
@@ -81,7 +81,7 @@ internal class AppFileOpenResolver(
                     .filter {
                         FileCategories.getCategoryForFile(it.extension, it.mimeType) == FileCategories.Videos
                     }
-                    .map(FileModel::absolutePath)
+                    .map(FileModel::reference)
                     .distinct()
                     .toList()
             )

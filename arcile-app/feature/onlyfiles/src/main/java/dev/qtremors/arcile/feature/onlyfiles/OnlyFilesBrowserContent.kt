@@ -68,11 +68,11 @@ internal fun VaultBrowser(
 ) {
     val models = remember(state.displayedNodes) { state.displayedNodes.map(VaultNodeMetadata::toSharedFileModel) }
     val byOpaquePath = remember(state.displayedNodes, models) {
-        models.zip(state.displayedNodes).associate { it.first.absolutePath to it.second }
+        models.zip(state.displayedNodes).associate { it.first.reference to it.second }
     }
     val selectedPaths = models.filter { model ->
-        byOpaquePath[model.absolutePath]?.ref?.nodeId?.value in state.selectedNodeIds
-    }.map(FileModel::absolutePath).toSet()
+        byOpaquePath[model.reference]?.ref?.nodeId?.value in state.selectedNodeIds
+    }.map(FileModel::reference).toSet()
     if (models.isEmpty()) {
         if (state.isSearching) {
             Box(
@@ -115,7 +115,7 @@ internal fun VaultBrowser(
             showDetails = true,
             openFileFromThumbnailInSelectionMode = true,
             thumbnailData = { file, size ->
-                byOpaquePath[file.absolutePath]?.takeIf { it.isViewableImage() || it.isViewableVideo() }?.let { node ->
+                byOpaquePath[file.reference]?.takeIf { it.isViewableImage() || it.isViewableVideo() }?.let { node ->
                     VaultThumbnailRequest(
                         node.ref.vaultId.value, node.ref.nodeId.value, node.ref.parentId.value, node.revision, size
                     )
@@ -242,7 +242,7 @@ internal fun VaultList(
                         val progress = import.progress
                         val total = progress?.totalBytes
                         if (total != null && total > 0L) {
-                            LinearProgressIndicator({ progress.bytesCopied.toFloat() / total }, Modifier.fillMaxWidth().clip(CircleShape))
+                            LinearProgressIndicator({ progress.bytesProcessed.toFloat() / total }, Modifier.fillMaxWidth().clip(CircleShape))
                         } else LinearProgressIndicator(Modifier.fillMaxWidth().clip(CircleShape))
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(

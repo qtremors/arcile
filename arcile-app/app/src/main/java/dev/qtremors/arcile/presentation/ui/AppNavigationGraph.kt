@@ -5,7 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
@@ -14,8 +14,8 @@ import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 @Composable
 fun AppNavigationGraph(
     navController: NavHostController,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRecordFileOpened: (String) -> Unit,
@@ -66,7 +66,7 @@ fun AppNavigationGraph(
             actions,
             appStartPage,
             onAppStartPageChange,
-            currentThemeState.landscapeDualPaneEnabled,
+            currentUiPreferences.landscapeDualPaneEnabled,
             onRecordPageVisited,
             onFeedback
         )
@@ -75,7 +75,7 @@ fun AppNavigationGraph(
             navController = navController,
             actions = actions,
             transitions = transitions,
-            currentThemeState = currentThemeState,
+            currentUiPreferences = currentUiPreferences,
             onThemeChange = onThemeChange,
             onRestartApp = onRestartApp,
             onFeedback = onFeedback

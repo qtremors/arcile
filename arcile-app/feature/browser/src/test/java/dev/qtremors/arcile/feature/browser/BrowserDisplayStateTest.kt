@@ -33,7 +33,7 @@ class BrowserDisplayStateTest {
         )
 
         assertEquals(listOf("alpha", "beta.txt", "zeta.txt"), display.visibleFiles.map { it.name })
-        assertEquals(display.visibleFiles.map { it.absolutePath }, display.visiblePaths)
+        assertEquals(display.visibleFiles.map { it.reference }, display.visiblePaths)
         assertEquals(setOf("alpha", "beta.txt", "zeta.txt"), display.existingNames)
         assertEquals("primary", display.currentVolume?.id)
     }
@@ -111,7 +111,7 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(files.first().absolutePath to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
+            folderStatsByPath = mapOf(files.first().reference to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
         )
 
         val updated = buildBrowserDisplayState(
@@ -123,7 +123,7 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(files.first().absolutePath to FolderStats(1, 10, 1, FolderStatsStatus.Ready)),
+            folderStatsByPath = mapOf(files.first().reference to FolderStats(1, 10, 1, FolderStatsStatus.Ready)),
             previousDisplayState = initial
         )
 
@@ -146,7 +146,7 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(folder.absolutePath to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
+            folderStatsByPath = mapOf(folder.reference to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
         )
 
         val updated = buildBrowserDisplayState(
@@ -158,11 +158,11 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(folder.absolutePath to FolderStats(2, 20, 2, FolderStatsStatus.Ready)),
+            folderStatsByPath = mapOf(folder.reference to FolderStats(2, 20, 2, FolderStatsStatus.Ready)),
             previousDisplayState = initial
         )
 
-        assertEquals(folder.absolutePath, updated.visibleListRows[0].absolutePath)
+        assertEquals(folder.reference, updated.visibleListRows[0].absolutePath)
         assertSame(initial.visibleListRows[1], updated.visibleListRows[1])
         assertSame(initial.visibleGridRows[1], updated.visibleGridRows[1])
         org.junit.Assert.assertNotSame(initial.visibleListRows[0], updated.visibleListRows[0])
@@ -209,7 +209,7 @@ class BrowserDisplayStateTest {
         isHidden: Boolean = false
     ) = FileModel(
         name = name,
-        absolutePath = path,
+        reference = path,
         size = size,
         lastModified = size,
         isDirectory = isDirectory,

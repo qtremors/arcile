@@ -8,7 +8,7 @@ import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 
 class DefaultBrowserLocationPreferencesStore(
-    private val dataSource: BrowserPreferencesDataSource
+    private val dataSource: FilePreferencesDataSource
 ) : BrowserLocationPreferencesStore {
     override val locationPreferencesFlow = dataSource.locationPreferencesFlow
 

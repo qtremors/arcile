@@ -13,7 +13,7 @@ interface ClipboardRepository {
         setClipboardState(null)
         return true
     }
-    suspend fun detectCopyConflicts(
+    suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>>
@@ -37,7 +37,7 @@ object NoOpClipboardRepository : ClipboardRepository {
 
     override fun setClipboardState(state: ClipboardState?) = Unit
 
-    override suspend fun detectCopyConflicts(
+    override suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>> = Result.success(emptyList())

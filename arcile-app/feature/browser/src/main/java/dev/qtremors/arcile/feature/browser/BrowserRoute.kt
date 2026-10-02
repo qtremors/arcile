@@ -299,7 +299,7 @@ fun BrowserRoute(
         mutation = BrowserMutationIntents(
             onCreateFolder = viewModel::createFolder,
             onCreateFile = viewModel::createFile,
-            onCreateFakeFile = viewModel::createFakeFile,
+            onCreateSyntheticFile = viewModel::createSyntheticFile,
             onRequestDeleteSelected = viewModel::requestDeleteSelected,
             onConfirmDelete = viewModel::confirmDeleteSelected,
             onTogglePermanentDelete = viewModel::togglePermanentDelete,

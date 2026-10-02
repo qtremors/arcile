@@ -42,7 +42,7 @@ internal fun AudioMetadataEditorSheet(
     onSaved: (AudioTrack) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val trackKey = track.file.absolutePath
+    val trackKey = track.file.reference
     var title by rememberSaveable(trackKey) { mutableStateOf(track.title) }
     var artist by rememberSaveable(trackKey) { mutableStateOf(track.artist.orEmpty()) }
     var album by rememberSaveable(trackKey) { mutableStateOf(track.album.orEmpty()) }

@@ -70,8 +70,8 @@ import androidx.media3.ui.PlayerView
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataSections
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
@@ -90,17 +90,17 @@ internal fun VideoMetadataSheet(
     durationMs: Long,
     onDismiss: () -> Unit
 ) {
-    val labels = ImageMetadataDetailLabels(
-        title = stringResource(R.string.image_gallery_metadata_label_title),
-        date = stringResource(R.string.image_gallery_metadata_label_date),
-        dateTaken = stringResource(R.string.image_gallery_metadata_label_date_taken),
-        resolution = stringResource(R.string.image_gallery_metadata_label_resolution),
-        size = stringResource(R.string.image_gallery_metadata_label_size),
-        uri = stringResource(R.string.image_gallery_metadata_label_uri),
-        path = stringResource(R.string.image_gallery_metadata_label_path),
-        mimeType = stringResource(R.string.image_gallery_metadata_label_mime_type),
-        extension = stringResource(R.string.image_gallery_metadata_label_extension),
-        aspectRatio = stringResource(R.string.image_gallery_metadata_label_aspect_ratio)
+    val labels = MediaMetadataDetailLabels(
+        title = stringResource(R.string.viewer_metadata_label_title),
+        date = stringResource(R.string.viewer_metadata_label_date),
+        dateTaken = stringResource(R.string.viewer_metadata_label_date_taken),
+        resolution = stringResource(R.string.viewer_metadata_label_resolution),
+        size = stringResource(R.string.viewer_metadata_label_size),
+        uri = stringResource(R.string.viewer_metadata_label_uri),
+        path = stringResource(R.string.viewer_metadata_label_path),
+        mimeType = stringResource(R.string.viewer_metadata_label_mime_type),
+        extension = stringResource(R.string.viewer_metadata_label_extension),
+        aspectRatio = stringResource(R.string.viewer_metadata_label_aspect_ratio)
     )
     val durationLabel = stringResource(R.string.video_gallery_metadata_duration)
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -142,7 +142,7 @@ internal fun VideoMetadataSheet(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.image_gallery_metadata_title),
+                    text = stringResource(R.string.viewer_metadata_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
@@ -159,12 +159,12 @@ internal fun VideoMetadataSheet(
                     .padding(horizontal = 24.dp)
             ) {
                 item {
-                    ImageMetadataSections(
+                    MediaMetadataSections(
                         fileRows = rows,
                         metadata = metadata,
-                        sectionTitle = stringResource(R.string.image_gallery_metadata_file_information),
+                        sectionTitle = stringResource(R.string.viewer_metadata_file_information),
                         cameraTitle = stringResource(R.string.image_gallery_metadata_camera_exif),
-                        locationTitle = stringResource(R.string.image_gallery_metadata_location)
+                        locationTitle = stringResource(R.string.viewer_metadata_location)
                     )
                 }
                 item {

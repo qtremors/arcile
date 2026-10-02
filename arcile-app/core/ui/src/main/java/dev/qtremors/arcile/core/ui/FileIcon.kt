@@ -107,7 +107,7 @@ private val ARCHIVE_FOLDER_NAMES = setOf("archive", "archives", "compressed", "z
 
 fun getFileIconVector(file: FileModel, folderIconsEnabled: Boolean = true): ImageVector {
     if (file.isDirectory) {
-        return getFolderIconVector(file.name, file.absolutePath, folderIconsEnabled)
+        return getFolderIconVector(file.name, file.reference, folderIconsEnabled)
     }
 
     val ext = file.extension.lowercase()

@@ -49,13 +49,13 @@ fun NavGraphBuilder.registerDocumentLibraryRoute(
             onOpenFile = { onOpenFile(it, state.files) },
             onOpenFolder = viewModel::openFolder,
             onShareSelection = {
-                val selected = state.allFiles.filter { it.absolutePath in state.selectedPaths }
+                val selected = state.allFiles.filter { it.reference in state.selectedPaths }
                 scope.launch {
                     if (onShare(selected)) viewModel.clearSelection()
                 }
             },
             onOpenSelectionWith = {
-                state.allFiles.singleOrNull { it.absolutePath in state.selectedPaths }?.let(onOpenWith)
+                state.allFiles.singleOrNull { it.reference in state.selectedPaths }?.let(onOpenWith)
             },
             onClearError = viewModel::clearError,
             onFeedback = onFeedback,

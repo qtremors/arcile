@@ -45,7 +45,7 @@ internal class AudioTagEditor @Inject constructor(
     private val writeMutex = Mutex()
 
     suspend fun lyrics(track: AudioTrack): AudioLyrics = withContext(Dispatchers.IO) {
-        val file = File(track.file.absolutePath)
+        val file = File(track.file.reference)
         val sidecar = lrcFile(file)
         if (sidecar.isFile && sidecar.length() > MAX_LRC_BYTES) {
             throw IOException("Timed lyrics are too large to edit")
@@ -72,7 +72,7 @@ internal class AudioTagEditor @Inject constructor(
         }
 
     private fun writeAndVerify(track: AudioTrack, edit: AudioMetadataEdit): AudioTrack {
-        val file = File(track.file.absolutePath)
+        val file = File(track.file.reference)
         if (!file.isFile || !file.canRead() || !file.canWrite()) {
             throw IOException("This audio file cannot be written. Check storage access and try again.")
         }

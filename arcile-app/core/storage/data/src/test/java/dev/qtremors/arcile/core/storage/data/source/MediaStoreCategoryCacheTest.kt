@@ -34,7 +34,7 @@ class MediaStoreCategoryCacheTest {
             cache.invalidateVolumes(setOf("primary"))
             assertNull(cache.get(StorageScope.AllStorage))
             assertEquals(values, MediaStoreCategoryCache(db.categorySummaryDao()).get(StorageScope.AllStorage, true))
-            cache.clear()
+            cache.invalidateAll()
             assertEquals(values, cache.get(StorageScope.AllStorage, true))
         } finally {
             db.close()

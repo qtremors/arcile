@@ -15,18 +15,18 @@ internal fun buildAudioLibraryState(
     }
     val query = current.query.trim()
     val playlistDates = current.playlists.associate { it.id to it.updatedAt }
-    fun AudioFolder.sortDate(): Long = when (current.collectionKind) {
+    fun AudioCollection.sortDate(): Long = when (current.collectionKind) {
         AudioCollectionKind.ALBUMS -> this.tracks.mapNotNull(AudioTrack::year)
             .maxOrNull()?.toLong() ?: 0L
         AudioCollectionKind.PLAYLISTS -> playlistDates[key] ?: 0L
         else -> newestModified
     }
-    val folders = buildCollections(current, categoryTracks)
-        .filter { folder ->
+    val collections = buildCollections(current, categoryTracks)
+        .filter { collection ->
             query.isBlank() ||
-                folder.title.contains(query, ignoreCase = true) ||
-                folder.key.contains(query, ignoreCase = true) ||
-                folder.tracks.any { track ->
+                collection.title.contains(query, ignoreCase = true) ||
+                collection.key.contains(query, ignoreCase = true) ||
+                collection.tracks.any { track ->
                     track.displayTitle.contains(query, ignoreCase = true) ||
                         track.artist.orEmpty().contains(query, ignoreCase = true) ||
                         track.album.orEmpty().contains(query, ignoreCase = true) ||
@@ -34,26 +34,26 @@ internal fun buildAudioLibraryState(
                         track.genre.orEmpty().contains(query, ignoreCase = true)
                 }
         }
-        .let { visibleFolders ->
-            val sortedFolders = when (current.presentationFor(current.collectionKind).sortOption) {
-                FileSortOption.NAME_ASC -> visibleFolders.sortedBy {
+        .let { visibleCollections ->
+            val sortedCollections = when (current.presentationFor(current.collectionKind).sortOption) {
+                FileSortOption.NAME_ASC -> visibleCollections.sortedBy {
                     it.title.lowercase(Locale.getDefault())
                 }
-                FileSortOption.NAME_DESC -> visibleFolders.sortedByDescending {
+                FileSortOption.NAME_DESC -> visibleCollections.sortedByDescending {
                     it.title.lowercase(Locale.getDefault())
                 }
-                FileSortOption.DATE_NEWEST -> visibleFolders.sortedByDescending { it.sortDate() }
-                FileSortOption.DATE_OLDEST -> visibleFolders.sortedBy { it.sortDate() }
-                FileSortOption.SIZE_LARGEST -> visibleFolders.sortedByDescending(AudioFolder::totalSize)
-                FileSortOption.SIZE_SMALLEST -> visibleFolders.sortedBy(AudioFolder::totalSize)
-                FileSortOption.FILE_COUNT_HIGHEST -> visibleFolders.sortedByDescending { it.tracks.size }
-                FileSortOption.FILE_COUNT_LOWEST -> visibleFolders.sortedBy { it.tracks.size }
+                FileSortOption.DATE_NEWEST -> visibleCollections.sortedByDescending { it.sortDate() }
+                FileSortOption.DATE_OLDEST -> visibleCollections.sortedBy { it.sortDate() }
+                FileSortOption.SIZE_LARGEST -> visibleCollections.sortedByDescending(AudioCollection::totalSize)
+                FileSortOption.SIZE_SMALLEST -> visibleCollections.sortedBy(AudioCollection::totalSize)
+                FileSortOption.FILE_COUNT_HIGHEST -> visibleCollections.sortedByDescending { it.tracks.size }
+                FileSortOption.FILE_COUNT_LOWEST -> visibleCollections.sortedBy { it.tracks.size }
             }
-            sortedFolders.sortedByDescending(AudioFolder::isPinned)
+            sortedCollections.sortedByDescending(AudioCollection::isPinned)
         }
-        .let { visibleFolders ->
+        .let { visibleCollections ->
             val favoriteTracks = categoryTracks.filter {
-                it.file.absolutePath in current.favoritePaths
+                it.file.reference in current.favoritePaths
             }
             val favoritesMatch = query.isBlank() ||
                 current.favoriteSearchAliases.any { alias ->
@@ -67,32 +67,32 @@ internal fun buildAudioLibraryState(
                 favoriteTracks.isNotEmpty() && favoritesMatch
             ) {
                 listOf(
-                    AudioFolder(
+                    AudioCollection(
                         key = AUDIO_FAVORITES_FOLDER_KEY,
                         title = "",
                         subtitle = null,
                         tracks = favoriteTracks.sortedBy {
                             it.displayTitle.lowercase(Locale.getDefault())
                         },
-                        kind = AudioFolderKind.Favorites
+                        kind = AudioCollectionType.Favorites
                     )
-                ) + visibleFolders
+                ) + visibleCollections
             } else {
-                visibleFolders
+                visibleCollections
             }
         }
-    val currentFolder = current.folderFilter?.let { selected ->
-        folders.firstOrNull { it.key == selected.key }
+    val currentCollection = current.collectionFilter?.let { selected ->
+        collections.firstOrNull { it.key == selected.key }
     }
     val sorted = presentVisibleAudioTracks(
-        current.copy(folderFilter = currentFolder), categoryTracks
+        current.copy(collectionFilter = currentCollection), categoryTracks
     )
     return current.copy(
         presentedCollectionKind = current.collectionKind,
         tracks = tracks,
         visibleTracks = sorted,
-        folders = folders,
-        folderFilter = currentFolder
+        collections = collections,
+        collectionFilter = currentCollection
     )
 }
 
@@ -107,19 +107,19 @@ private fun presentVisibleAudioTracks(
     current: AudioLibraryState,
     categoryTracks: List<AudioTrack>
 ): List<AudioTrack> {
-    val filteredByFolder = current.folderFilter?.let { folder ->
-        if (folder.isFavorites) {
-            categoryTracks.filter { it.file.absolutePath in current.favoritePaths }
+    val filteredByCollection = current.collectionFilter?.let { collection ->
+        if (collection.isFavorites) {
+            categoryTracks.filter { it.file.reference in current.favoritePaths }
         } else {
-            val paths = folder.tracks.mapTo(hashSetOf()) { it.file.absolutePath }
-            categoryTracks.filter { it.file.absolutePath in paths }
+            val paths = collection.tracks.mapTo(hashSetOf()) { it.file.reference }
+            categoryTracks.filter { it.file.reference in paths }
         }
     } ?: categoryTracks
     val query = current.query.trim()
     val filtered = if (query.isBlank()) {
-        filteredByFolder
+        filteredByCollection
     } else {
-        filteredByFolder.filter { track ->
+        filteredByCollection.filter { track ->
             track.displayTitle.contains(query, ignoreCase = true) ||
                 track.artist.orEmpty().contains(query, ignoreCase = true) ||
                 track.album.orEmpty().contains(query, ignoreCase = true) ||
@@ -129,13 +129,13 @@ private fun presentVisibleAudioTracks(
                 track.file.parentPath().contains(query, ignoreCase = true)
         }
     }
-    val sorted = if (current.folderFilter?.kind == AudioFolderKind.Playlist) {
-        val position = current.folderFilter?.tracks.orEmpty().mapIndexed { index, track ->
-            track.file.absolutePath to index
+    val sorted = if (current.collectionFilter?.kind == AudioCollectionType.Playlist) {
+        val position = current.collectionFilter?.tracks.orEmpty().mapIndexed { index, track ->
+            track.file.reference to index
         }
             .toMap()
-        filtered.sortedBy { position[it.file.absolutePath] ?: Int.MAX_VALUE }
-    } else if (current.folderFilter?.kind == AudioFolderKind.Album) {
+        filtered.sortedBy { position[it.file.reference] ?: Int.MAX_VALUE }
+    } else if (current.collectionFilter?.kind == AudioCollectionType.Album) {
         filtered.sortedWith(compareBy<AudioTrack> { it.discNumber ?: 0 }
             .thenBy { it.trackNumber ?: Int.MAX_VALUE }
             .thenBy { it.displayTitle.lowercase(Locale.getDefault()) })
@@ -155,19 +155,19 @@ private fun presentVisibleAudioTracks(
             it.displayTitle.lowercase(Locale.getDefault())
         }
     }
-    if (current.collectionKind != AudioCollectionKind.SONGS || current.folderFilter != null) {
+    if (current.collectionKind != AudioCollectionKind.SONGS || current.collectionFilter != null) {
         return sorted
     }
     return when (current.songFilter) {
         AudioSongFilter.ALL -> sorted
-        AudioSongFilter.FAVORITES -> sorted.filter { it.file.absolutePath in current.favoritePaths }
+        AudioSongFilter.FAVORITES -> sorted.filter { it.file.reference in current.favoritePaths }
         AudioSongFilter.RECENTLY_PLAYED -> sorted
-            .filter { (current.lastPlayedAt[it.file.absolutePath] ?: 0L) > 0L }
-            .sortedByDescending { current.lastPlayedAt[it.file.absolutePath] ?: 0L }
+            .filter { (current.lastPlayedAt[it.file.reference] ?: 0L) > 0L }
+            .sortedByDescending { current.lastPlayedAt[it.file.reference] ?: 0L }
         AudioSongFilter.MOST_PLAYED -> sorted
-            .filter { (current.playCounts[it.file.absolutePath] ?: 0) > 0 }
+            .filter { (current.playCounts[it.file.reference] ?: 0) > 0 }
             .sortedWith(compareByDescending<AudioTrack> {
-                current.playCounts[it.file.absolutePath] ?: 0
+                current.playCounts[it.file.reference] ?: 0
             }.thenBy { it.displayTitle.lowercase(Locale.getDefault()) })
     }
 }
@@ -175,13 +175,13 @@ private fun presentVisibleAudioTracks(
 private fun buildCollections(
     state: AudioLibraryState,
     tracks: List<AudioTrack>
-): List<AudioFolder> {
+): List<AudioCollection> {
     fun grouped(
-        kind: AudioFolderKind,
+        kind: AudioCollectionType,
         key: (AudioTrack) -> String?
-    ): List<AudioFolder> = tracks.groupBy { key(it)?.trim().orEmpty().ifBlank { "Unknown" } }
+    ): List<AudioCollection> = tracks.groupBy { key(it)?.trim().orEmpty().ifBlank { "Unknown" } }
         .map { (label, members) ->
-            AudioFolder(
+            AudioCollection(
                 key = "${kind.name}:$label",
                 title = label,
                 subtitle = null,
@@ -193,7 +193,7 @@ private fun buildCollections(
         AudioCollectionKind.SONGS -> emptyList()
         AudioCollectionKind.FOLDERS -> tracks.groupBy { it.file.parentPath() }
             .map { (path, members) ->
-                AudioFolder(
+                AudioCollection(
                     key = path,
                     title = File(path).name.ifBlank { path },
                     subtitle = path,
@@ -202,30 +202,30 @@ private fun buildCollections(
                     isPinned = path in state.pinnedFolderPaths
                 )
             }
-        AudioCollectionKind.ARTISTS -> grouped(AudioFolderKind.Artist, AudioTrack::artist)
+        AudioCollectionKind.ARTISTS -> grouped(AudioCollectionType.Artist, AudioTrack::artist)
         AudioCollectionKind.ALBUMS -> tracks.groupBy { track ->
             (track.albumArtist ?: track.artist).orEmpty().trim() to
                 track.album.orEmpty().trim().ifBlank { "Unknown album" }
         }.map { (identity, members) ->
-            AudioFolder(
+            AudioCollection(
                 key = "Album:${identity.first}:${identity.second}",
                 title = identity.second,
                 subtitle = identity.first.takeIf(String::isNotBlank),
                 tracks = members.sortedWith(compareBy<AudioTrack> { it.discNumber ?: 0 }
                     .thenBy { it.trackNumber ?: 0 }.thenBy { it.displayTitle }),
-                kind = AudioFolderKind.Album
+                kind = AudioCollectionType.Album
             )
         }
-        AudioCollectionKind.GENRES -> grouped(AudioFolderKind.Genre, AudioTrack::genre)
+        AudioCollectionKind.GENRES -> grouped(AudioCollectionType.Genre, AudioTrack::genre)
         AudioCollectionKind.PLAYLISTS -> {
-            val byPath = tracks.associateBy { it.file.absolutePath }
+            val byPath = tracks.associateBy { it.file.reference }
             state.playlists.map { playlist ->
-                AudioFolder(
+                AudioCollection(
                     key = playlist.id,
                     title = playlist.name,
                     subtitle = null,
                     tracks = playlist.trackPaths.mapNotNull(byPath::get),
-                    kind = AudioFolderKind.Playlist
+                    kind = AudioCollectionType.Playlist
                 )
             }
         }
@@ -245,6 +245,6 @@ internal fun formatAudioDuration(durationMs: Long): String {
 }
 
 private fun dev.qtremors.arcile.core.storage.domain.FileModel.parentPath(): String =
-    absolutePath.replace('\\', '/').substringBeforeLast('/', "")
+    reference.replace('\\', '/').substringBeforeLast('/', "")
 
 internal const val AUDIO_FAVORITES_FOLDER_KEY = "__arcile_audio_favorites__"

@@ -20,7 +20,7 @@ import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.core.ui.pdf.StandalonePdfViewer
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import java.io.File
 import kotlinx.coroutines.launch
@@ -36,7 +36,7 @@ open class PdfViewerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ArcileTheme(themeState = ThemeState()) {
+            ArcileTheme(uiPreferences = UiPreferences()) {
                 val resolved = target
                 if (resolved == null) ExternalViewerLoadScreen(loadError, ::loadTarget) else {
                     StandalonePdfViewer(
@@ -48,7 +48,7 @@ open class PdfViewerActivity : ComponentActivity() {
                         onOpenWith = { openTargetWithChooser(resolved) },
                         onFileRenamed = { _, newFile ->
                             target = resolved.copy(
-                                reference = newFile.absolutePath,
+                                reference = newFile.reference,
                                 displayName = newFile.name,
                                 sizeBytes = newFile.size
                             )

@@ -183,7 +183,7 @@ internal fun HomeScreen(
     contentIntents: HomeContentIntents,
     appStartPage: AppStartPage = AppStartPage.HOME,
     onAppStartPageChange: (AppStartPage) -> Unit = {},
-    homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
+    homeRecentCarouselLimit: Int = dev.qtremors.arcile.core.storage.domain.SharedFilePreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT,
     onHomeLayoutPreferencesChange: (HomeLayoutPreferences) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -201,7 +201,7 @@ internal fun HomeScreen(
         onPauseOrDispose { }
     }
 
-    val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+    val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
         .normalizeHomeRecentCarouselLimit(homeRecentCarouselLimit)
     val displayedRecentFiles = state.displayState.todayRecentFiles.take(normalizedRecentLimit)
     val displayedCategoryStorages = state.categoryStorages.ifEmpty {

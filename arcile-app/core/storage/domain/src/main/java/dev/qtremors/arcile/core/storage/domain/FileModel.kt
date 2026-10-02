@@ -7,7 +7,8 @@ package dev.qtremors.arcile.core.storage.domain
  * layer free of `java.io.File` references and avoids implicit I/O during construction.
  *
  * @property name Display name of the file or directory.
- * @property absolutePath Absolute filesystem path (e.g. `/storage/emulated/0/DCIM`).
+ * @property reference Entry reference: a local path, content URI, archive entry or managed media ID.
+ *   Use nodeRef for typed backend identity and capabilities.
  * @property size File size in bytes. Always `0` for directories.
  * @property lastModified Last-modified timestamp as a Unix epoch millisecond value.
  * @property isDirectory `true` when this entry represents a directory.
@@ -18,7 +19,7 @@ package dev.qtremors.arcile.core.storage.domain
 @Immutable
 data class FileModel(
     val name: String,
-    val absolutePath: String,
+    val reference: String,
     val size: Long = 0L,
     val lastModified: Long = 0L,
     val isDirectory: Boolean = false,
@@ -26,7 +27,7 @@ data class FileModel(
     val isHidden: Boolean = false,
     val mimeType: String? = null,
     val nodeRef: StorageNodeRef = StorageNodeRef.local(
-        path = absolutePath,
+        path = reference,
         capabilities = StorageNodeCapabilities(
             canRead = true,
             canWrite = true,
@@ -36,6 +37,10 @@ data class FileModel(
         )
     )
 ) {
+    /** Compatibility access to the mixed entry reference, not necessarily a filesystem path. */
+    @Deprecated("Use reference for the entry reference, or nodeRef for typed identity", ReplaceWith("reference"))
+    val absolutePath: String get() = reference
+
     val byteCount: ByteCount get() = ByteCount.of(size)
     val modifiedAt: EpochMillis get() = EpochMillis.of(lastModified)
 }

@@ -38,10 +38,10 @@ import androidx.compose.ui.window.DialogProperties
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
 import dev.qtremors.arcile.core.presentation.PropertiesUiModel
-import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSectionHeader
+import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataSectionHeader
 import dev.qtremors.arcile.core.ui.metadata.SharedImageMetadataReader
-import dev.qtremors.arcile.core.ui.metadata.formatImageResolution
+import dev.qtremors.arcile.core.ui.metadata.formatMediaResolution
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -56,7 +56,7 @@ fun PropertiesDialog(
 ) {
     val context = LocalContext.current
     var imageMetadata by remember(properties?.pathSummary, properties?.isSingleItem) {
-        mutableStateOf<ImageFileMetadata?>(null)
+        mutableStateOf<VisualMediaMetadata?>(null)
     }
     val shouldLoadImageMetadata = remember(properties) { properties?.isSingleImageProperty() == true }
 
@@ -120,14 +120,14 @@ fun PropertiesDialog(
                             .padding(top = 12.dp),
                         verticalArrangement = Arrangement.spacedBy(5.dp)
                     ) {
-                        ImageMetadataSectionHeader(title = stringResource(R.string.image_gallery_metadata_file_information))
+                        MediaMetadataSectionHeader(title = stringResource(R.string.viewer_metadata_file_information))
                         PropertiesRow(stringResource(R.string.properties_name), model.title)
                         PropertiesRow(stringResource(R.string.properties_location), model.pathSummary)
                         modifiedText?.let { PropertiesRow(stringResource(R.string.properties_modified), it) }
-                        imageMetadata?.dateTaken?.let { PropertiesRow(stringResource(R.string.image_gallery_metadata_label_date_taken), it) }
+                        imageMetadata?.dateTaken?.let { PropertiesRow(stringResource(R.string.viewer_metadata_label_date_taken), it) }
                         imageMetadata?.let { metadata ->
-                            formatImageResolution(metadata.width, metadata.height)?.let {
-                                PropertiesRow(stringResource(R.string.image_gallery_metadata_label_resolution), it)
+                            formatMediaResolution(metadata.width, metadata.height)?.let {
+                                PropertiesRow(stringResource(R.string.viewer_metadata_label_resolution), it)
                             }
                         }
                         val folderFileCount = model.folderFileCount
@@ -198,7 +198,7 @@ fun PropertiesDialog(
                         ImageExifSections(
                             metadata = imageMetadata,
                             cameraTitle = stringResource(R.string.image_gallery_metadata_camera_exif),
-                            locationTitle = stringResource(R.string.image_gallery_metadata_location)
+                            locationTitle = stringResource(R.string.viewer_metadata_location)
                         )
                     }
                 }
@@ -230,7 +230,7 @@ fun PropertiesDialog(
 
 @Composable
 private fun ImageExifSections(
-    metadata: ImageFileMetadata?,
+    metadata: VisualMediaMetadata?,
     cameraTitle: String,
     locationTitle: String
 ) {
@@ -246,7 +246,7 @@ private fun ImageExifSections(
         metadata.flash != null
     if (hasCamera) {
         Spacer(modifier = Modifier.height(10.dp))
-        ImageMetadataSectionHeader(title = cameraTitle)
+        MediaMetadataSectionHeader(title = cameraTitle)
         if (metadata.cameraMaker != null || metadata.cameraModel != null) {
             PropertiesRow("Device", listOfNotNull(metadata.cameraMaker, metadata.cameraModel).joinToString(" "))
         }
@@ -261,7 +261,7 @@ private fun ImageExifSections(
 
     if (metadata.latitude != null && metadata.longitude != null) {
         Spacer(modifier = Modifier.height(10.dp))
-        ImageMetadataSectionHeader(title = locationTitle)
+        MediaMetadataSectionHeader(title = locationTitle)
         PropertiesRow("Coordinates", "${metadata.latitude}, ${metadata.longitude}")
         metadata.altitude?.let { PropertiesRow("Altitude", "$it m") }
     }

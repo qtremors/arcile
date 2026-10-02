@@ -53,7 +53,7 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AudioViewOptionsDialog(
+internal fun AudioViewOptionsSheet(
     section: AudioCollectionKind,
     presentation: FileListingPreferences,
     grouping: CategoryGrouping,

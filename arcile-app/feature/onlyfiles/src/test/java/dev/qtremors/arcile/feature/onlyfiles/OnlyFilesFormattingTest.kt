@@ -48,7 +48,7 @@ class OnlyFilesFormattingTest {
             openReader = { Result.failure(IllegalStateException("Not opened by this test")) }
         )
 
-        assertEquals(session.files?.single()?.absolutePath, session.items.single().mediaItem.mediaId)
+        assertEquals(session.files?.single()?.reference, session.items.single().mediaItem.mediaId)
         assertTrue(session.screenshotProtectionEnabled)
     }
 

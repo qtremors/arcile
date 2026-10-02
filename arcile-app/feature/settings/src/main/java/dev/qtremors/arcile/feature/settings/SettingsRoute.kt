@@ -13,12 +13,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.core.plugin.android.PluginManager
-import dev.qtremors.arcile.plugin.api.PluginCompatibility
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupDialogs
 import dev.qtremors.arcile.feature.settings.ui.SettingsNavigationActions
@@ -29,8 +25,8 @@ import dev.qtremors.arcile.feature.settings.ui.SettingsStorageActions
 
 @Composable
 internal fun SettingsRoute(
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onNavigateBack: () -> Unit,
     onDestination: (SettingsDestination) -> Unit,
     onRestartApp: () -> Unit
@@ -45,11 +41,7 @@ internal fun SettingsRoute(
     var pluginExtensions by remember { mutableStateOf(emptySet<String>()) }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
         scope.launch {
-            pluginExtensions = withContext(Dispatchers.IO) {
-                PluginManager(context).getInstalledPlugins()
-                    .filter { it.compatibility == PluginCompatibility.COMPATIBLE }
-                    .flatMapTo(linkedSetOf()) { it.supportedExtensions }
-            }
+            pluginExtensions = queryCompatiblePluginExtensions(context)
         }
     }
 
@@ -74,7 +66,7 @@ internal fun SettingsRoute(
     SettingsScreen(
         pluginExtensions = pluginExtensions,
         state = SettingsScreenState(
-            theme = currentThemeState,
+            theme = currentUiPreferences,
             preferences = preferences,
             backup = backupState,
             externalCache = externalCache,

@@ -2,7 +2,7 @@ package dev.qtremors.arcile.presentation.ui
 
 import dev.qtremors.arcile.feature.archive.ArchiveDestination
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.feature.imagegallery.GalleryDestination
+import dev.qtremors.arcile.feature.gallery.GalleryDestination
 import dev.qtremors.arcile.feature.quickaccess.QuickAccessDestination
 import dev.qtremors.arcile.feature.recentfiles.RecentFilesDestination
 import dev.qtremors.arcile.feature.storagecleaner.StorageCleanerDestination
@@ -20,7 +20,7 @@ class AppDestinationMappersTest {
         openPath = openedPaths::add,
         openGalleryPath = { path, files, selectedPaths ->
             openedPaths += path
-            galleryContexts += files.map(FileModel::absolutePath) to selectedPaths
+            galleryContexts += files.map(FileModel::reference) to selectedPaths
         },
         openExternalFolder = externalFolders::add
     )
@@ -124,7 +124,7 @@ class AppDestinationMappersTest {
     @Test
     fun `gallery destination remains a file action`() {
         mappers.gallery.map(
-            GalleryDestination.ViewImage(
+            GalleryDestination.ViewMedia(
                 path = "/images/photo.jpg",
                 surroundingFiles = listOf(
                     FileModel("photo.jpg", "/images/photo.jpg", extension = "jpg")

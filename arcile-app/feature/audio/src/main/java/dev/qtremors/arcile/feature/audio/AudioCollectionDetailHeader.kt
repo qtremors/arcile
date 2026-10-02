@@ -33,29 +33,29 @@ import dev.qtremors.arcile.core.storage.domain.AudioTrack
 
 @Composable
 internal fun AudioCollectionDetailHeader(
-    folder: AudioFolder,
+    collection: AudioCollection,
     onPlayAll: () -> Unit,
     onSelectAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val tracks = folder.tracks
-    val type = when (folder.kind) {
-        AudioFolderKind.Directory -> stringResource(R.string.audio_folder_type)
-        AudioFolderKind.Favorites -> stringResource(R.string.audio_favorites_type)
-        AudioFolderKind.Artist -> stringResource(R.string.audio_artist_type)
-        AudioFolderKind.Album -> stringResource(R.string.audio_album_type)
-        AudioFolderKind.Genre -> stringResource(R.string.audio_genre_type)
-        AudioFolderKind.Playlist -> stringResource(R.string.audio_playlist_type)
+    val tracks = collection.tracks
+    val type = when (collection.kind) {
+        AudioCollectionType.Directory -> stringResource(R.string.audio_folder_type)
+        AudioCollectionType.Favorites -> stringResource(R.string.audio_favorites_type)
+        AudioCollectionType.Artist -> stringResource(R.string.audio_artist_type)
+        AudioCollectionType.Album -> stringResource(R.string.audio_album_type)
+        AudioCollectionType.Genre -> stringResource(R.string.audio_genre_type)
+        AudioCollectionType.Playlist -> stringResource(R.string.audio_playlist_type)
     }
     val details = buildList {
         add(pluralStringResource(R.plurals.audio_song_count, tracks.size, tracks.size))
         tracks.sumOf(AudioTrack::durationMs).takeIf { it > 0L }?.let {
             add(formatAudioDuration(it))
         }
-        if (folder.kind == AudioFolderKind.Album) {
+        if (collection.kind == AudioCollectionType.Album) {
             tracks.mapNotNull(AudioTrack::year).maxOrNull()?.let { add(it.toString()) }
         }
-        if (folder.kind == AudioFolderKind.Artist) {
+        if (collection.kind == AudioCollectionType.Artist) {
             tracks.mapNotNull(AudioTrack::album).distinct().size.takeIf { it > 0 }?.let {
                 add(pluralStringResource(R.plurals.audio_album_count, it, it))
             }
@@ -70,7 +70,7 @@ internal fun AudioCollectionDetailHeader(
             verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                folder.coverTrack?.let { AudioArtwork(it, Modifier.size(104.dp)) }
+                collection.coverTrack?.let { AudioArtwork(it, Modifier.size(104.dp)) }
                     ?: Surface(
                         color = MaterialTheme.colorScheme.primaryContainer,
                         shape = MaterialTheme.shapes.large,
@@ -78,11 +78,11 @@ internal fun AudioCollectionDetailHeader(
                     ) {
                         androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                when (folder.kind) {
-                                    AudioFolderKind.Directory -> Icons.Default.Folder
-                                    AudioFolderKind.Artist -> Icons.Default.Person
-                                    AudioFolderKind.Album -> Icons.Default.Album
-                                    AudioFolderKind.Playlist -> Icons.Default.LibraryMusic
+                                when (collection.kind) {
+                                    AudioCollectionType.Directory -> Icons.Default.Folder
+                                    AudioCollectionType.Artist -> Icons.Default.Person
+                                    AudioCollectionType.Album -> Icons.Default.Album
+                                    AudioCollectionType.Playlist -> Icons.Default.LibraryMusic
                                     else -> Icons.Default.MusicNote
                                 },
                                 contentDescription = null,
@@ -95,10 +95,10 @@ internal fun AudioCollectionDetailHeader(
                     Text(type.uppercase(), style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold)
-                    Text(folder.title.ifBlank { stringResource(R.string.audio_favorites_type) },
+                    Text(collection.title.ifBlank { stringResource(R.string.audio_favorites_type) },
                         style = MaterialTheme.typography.headlineSmall,
                         maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    folder.subtitle?.takeIf(String::isNotBlank)?.let {
+                    collection.subtitle?.takeIf(String::isNotBlank)?.let {
                         Text(it, style = MaterialTheme.typography.bodyMedium,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }

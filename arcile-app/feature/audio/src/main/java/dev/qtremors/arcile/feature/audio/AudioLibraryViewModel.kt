@@ -1,15 +1,9 @@
 package dev.qtremors.arcile.feature.audio
 
-import android.content.Context
-import android.database.ContentObserver
-import android.os.Handler
-import android.os.Looper
-import android.provider.MediaStore
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
@@ -22,7 +16,6 @@ import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileMutationRepository
-import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
@@ -53,9 +46,9 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 @HiltViewModel
 @OptIn(FlowPreview::class)
 internal class AudioLibraryViewModel @Inject constructor(
-    @param:ApplicationContext private val context: Context,
+    private val mediaObserver: AudioMediaObserver,
     private val repository: AudioLibraryRepository,
-    private val musicStore: AudioMusicStore,
+    private val musicStore: AudioCollectionStore,
     private val listeningStore: AudioListeningStore,
     internal val tagEditor: AudioTagEditor,
     private val preferencesStore: AudioLibraryPreferencesStore,
@@ -75,12 +68,6 @@ internal class AudioLibraryViewModel @Inject constructor(
     private var searchJob: Job? = null
     private var presentationGeneration = 0L
     private var preferencesApplied = false
-    private val mediaStoreChanges = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    private val mediaStoreObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
-        override fun onChange(selfChange: Boolean) {
-            mediaStoreChanges.tryEmit(Unit)
-        }
-    }
     private val _state = MutableStateFlow(AudioLibraryState(musicOnly = musicStore.musicOnly()))
     val state: StateFlow<AudioLibraryState> = _state.asStateFlow()
     private val _feedbackEvents = MutableSharedFlow<ArcileFeedbackEvent>(extraBufferCapacity = 8)
@@ -107,12 +94,18 @@ internal class AudioLibraryViewModel @Inject constructor(
         rebuildPresentation = ::rebuildPresentation
     )
 
+    private val collectionActions = AudioLibraryCollectionActions(
+        scope = viewModelScope,
+        state = _state,
+        musicStore = musicStore,
+        listeningStore = listeningStore,
+        preferencesStore = preferencesStore,
+        clearSelection = fileActions::clearSelection,
+        rebuildPresentation = ::rebuildPresentation,
+        onError = ::showMusicError
+    )
+
     init {
-        context.contentResolver.registerContentObserver(
-            MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL),
-            true,
-            mediaStoreObserver
-        )
         viewModelScope.launch {
             musicStore.playlists.collectLatest { playlists ->
                 rebuildPresentation { it.copy(playlists = playlists) }
@@ -136,7 +129,7 @@ internal class AudioLibraryViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            merge(musicStore.mediaChanges, mediaStoreChanges)
+            merge(musicStore.mediaChanges, mediaObserver.changes)
                 .debounce(500L)
                 .collectLatest { load(refresh = true) }
         }
@@ -168,7 +161,7 @@ internal class AudioLibraryViewModel @Inject constructor(
             )
             current.copy(
                 audioPresentation = preferences.audioPresentation,
-                folderPresentation = preferences.folderPresentation,
+                collectionPresentation = preferences.collectionPresentation,
                 sectionPresentations = AudioCollectionKind.entries
                     .filterNot { it == AudioCollectionKind.SONGS || it == AudioCollectionKind.FOLDERS }
                     .associateWith(musicStore::presentation),
@@ -210,7 +203,7 @@ internal class AudioLibraryViewModel @Inject constructor(
                         isRefreshing = false,
                         error = null,
                         selectedPaths = _state.value.selectedPaths.intersect(
-                            tracks.mapTo(mutableSetOf()) { it.file.absolutePath }
+                            tracks.mapTo(mutableSetOf()) { it.file.reference }
                         )
                     )
                     pendingPresentationState = current.copy(tracks = tracks)
@@ -222,7 +215,7 @@ internal class AudioLibraryViewModel @Inject constructor(
                         _state.update { live ->
                             presented.copy(
                                 selectedPaths = live.selectedPaths.intersect(
-                                    tracks.mapTo(mutableSetOf()) { it.file.absolutePath }
+                                    tracks.mapTo(mutableSetOf()) { it.file.reference }
                                 ),
                                 clipboardState = live.clipboardState,
                                 activeFileOperation = live.activeFileOperation,
@@ -271,7 +264,7 @@ internal class AudioLibraryViewModel @Inject constructor(
 
     fun selectTab(tab: CategoryLibraryPage) {
         rebuildPresentation {
-            it.copy(tab = tab, folderFilter = null,
+            it.copy(tab = tab, collectionFilter = null,
                 collectionKind = if (tab == CategoryLibraryPage.ITEMS) {
                     AudioCollectionKind.SONGS
                 } else AudioCollectionKind.FOLDERS)
@@ -286,7 +279,7 @@ internal class AudioLibraryViewModel @Inject constructor(
                 tab = if (section == AudioCollectionKind.SONGS) {
                     CategoryLibraryPage.ITEMS
                 } else CategoryLibraryPage.FOLDERS,
-                folderFilter = null,
+                collectionFilter = null,
                 selectedPaths = emptySet()
             )
         }
@@ -297,20 +290,20 @@ internal class AudioLibraryViewModel @Inject constructor(
         rebuildPresentation { it.copy(songFilter = filter) }
     }
 
-    fun selectFolder(folder: AudioFolder) {
+    fun openCollection(collection: AudioCollection) {
         _state.update { it.copy(query = "") }
         rebuildPresentation {
             it.copy(
                 tab = CategoryLibraryPage.FOLDERS,
-                folderFilter = folder,
+                collectionFilter = collection,
                 query = ""
             ).withPresentedVisibleTracks()
         }
     }
 
-    fun clearFolderFilter() {
+    fun clearCollectionFilter() {
         rebuildPresentation {
-            it.copy(folderFilter = null)
+            it.copy(collectionFilter = null)
                 .withPresentedVisibleTracks()
         }
     }
@@ -321,7 +314,7 @@ internal class AudioLibraryViewModel @Inject constructor(
                 CategoryLibraryPage.ITEMS ->
                     preferencesStore.updateAudioPresentation(presentation.normalized())
                 CategoryLibraryPage.FOLDERS ->
-                    preferencesStore.updateAudioFolderPresentation(presentation.normalized())
+                    preferencesStore.updateAudioCollectionPresentation(presentation.normalized())
             }
         }
         rebuildPresentation { current ->
@@ -330,7 +323,7 @@ internal class AudioLibraryViewModel @Inject constructor(
                     audioPresentation = presentation.normalized()
                 )
                 CategoryLibraryPage.FOLDERS -> current.copy(
-                    folderPresentation = presentation.normalized()
+                    collectionPresentation = presentation.normalized()
                 )
             }
         }
@@ -356,54 +349,22 @@ internal class AudioLibraryViewModel @Inject constructor(
         }
     }
 
-    fun createPlaylist(name: String) {
-        viewModelScope.launch {
-            runCatching { musicStore.createPlaylist(name) }.onFailure(::showMusicError)
-        }
-    }
+    fun createPlaylist(name: String) = collectionActions.createPlaylist(name)
 
-    fun createPlaylistFromSelection(name: String) {
-        val paths = _state.value.selectedPaths.toList()
-        if (paths.isEmpty()) return
-        viewModelScope.launch {
-            runCatching { musicStore.createPlaylist(name, paths) }
-                .onSuccess { clearSelection() }
-                .onFailure(::showMusicError)
-        }
-    }
+    fun createPlaylistFromSelection(name: String) = collectionActions.createPlaylistFromSelection(name)
 
-    fun addSelectionToPlaylist(id: String) {
-        val paths = _state.value.selectedPaths.toList()
-        if (paths.isEmpty()) return
-        viewModelScope.launch {
-            runCatching { musicStore.appendPlaylistTracks(id, paths) }
-                .onSuccess { clearSelection() }
-                .onFailure(::showMusicError)
-        }
-    }
+    fun addSelectionToPlaylist(id: String) = collectionActions.addSelectionToPlaylist(id)
 
-    fun renamePlaylist(id: String, name: String) {
-        viewModelScope.launch {
-            runCatching { musicStore.renamePlaylist(id, name) }.onFailure(::showMusicError)
-        }
-    }
+    fun renamePlaylist(id: String, name: String) = collectionActions.renamePlaylist(id, name)
 
-    fun deletePlaylist(id: String) {
-        viewModelScope.launch {
-            runCatching { musicStore.deletePlaylist(id) }.onFailure(::showMusicError)
-        }
-    }
+    fun deletePlaylist(id: String) = collectionActions.deletePlaylist(id)
 
-    fun setPlaylistTracks(id: String, paths: List<String>) {
-        viewModelScope.launch {
-            runCatching { musicStore.setPlaylistTracks(id, paths) }.onFailure(::showMusicError)
-        }
-    }
+    fun setPlaylistTracks(id: String, paths: List<String>) = collectionActions.setPlaylistTracks(id, paths)
 
     fun applyTagEdit(updated: dev.qtremors.arcile.core.storage.domain.AudioTrack) {
         rebuildPresentation { current ->
             current.copy(tracks = current.tracks.map { track ->
-                if (track.file.absolutePath == updated.file.absolutePath) updated else track
+                if (track.file.reference == updated.file.reference) updated else track
             })
         }
     }
@@ -443,60 +404,11 @@ internal class AudioLibraryViewModel @Inject constructor(
         _state.update { it.copy(defaultSection = section) }
     }
 
-    fun toggleFavoriteSelection() {
-        val selected = _state.value.selectedPaths
-        if (selected.isEmpty()) return
-        val makeFavorite = !selected.all(_state.value.favoritePaths::contains)
-        viewModelScope.launch {
-            runCatching { listeningStore.setFavorites(selected, makeFavorite) }
-                .onFailure(::showMusicError)
-        }
-        rebuildPresentation { current ->
-            current.copy(
-                favoritePaths = if (makeFavorite) {
-                    current.favoritePaths + selected
-                } else {
-                    current.favoritePaths - selected
-                }
-            )
-        }
-    }
+    fun toggleFavoriteSelection() = collectionActions.toggleFavoriteSelection()
 
-    fun togglePinnedFolder(folder: AudioFolder) {
-        if (folder.isFavorites) return
-        val makePinned = folder.key !in _state.value.pinnedFolderPaths
-        viewModelScope.launch {
-            preferencesStore.updatePinnedFolder(folder.key, makePinned)
-        }
-        rebuildPresentation { current ->
-            current.copy(
-                pinnedFolderPaths = if (makePinned) {
-                    current.pinnedFolderPaths + folder.key
-                } else {
-                    current.pinnedFolderPaths - folder.key
-                }
-            )
-        }
-    }
+    fun togglePinnedFolder(folder: AudioCollection) = collectionActions.togglePinnedFolder(folder)
 
-    fun updateFolderCover(folder: AudioFolder, trackPath: String?) {
-        if (folder.isFavorites) return
-        val validPath = trackPath?.takeIf { candidate ->
-            folder.tracks.any { it.file.absolutePath == candidate }
-        }
-        viewModelScope.launch {
-            preferencesStore.updateFolderCover(folder.key, validPath)
-        }
-        rebuildPresentation { current ->
-            current.copy(
-                folderCoverPaths = if (validPath == null) {
-                    current.folderCoverPaths - folder.key
-                } else {
-                    current.folderCoverPaths + (folder.key to validPath)
-                }
-            )
-        }
-    }
+    fun updateFolderCover(folder: AudioCollection, trackPath: String?) = collectionActions.updateFolderCover(folder, trackPath)
 
     fun toggleSelection(path: String) = fileActions.toggleSelection(path)
     fun selectPaths(paths: Collection<String>) = fileActions.selectPaths(paths)
@@ -528,18 +440,9 @@ internal class AudioLibraryViewModel @Inject constructor(
         _state.update { it.copy(error = null) }
     }
 
-    fun toggleFavoriteTrack(path: String) {
-        val favorite = path !in _state.value.favoritePaths
-        viewModelScope.launch {
-            runCatching { listeningStore.setFavorite(path, favorite) }.onFailure(::showMusicError)
-        }
-    }
+    fun toggleFavoriteTrack(path: String) = collectionActions.toggleFavoriteTrack(path)
 
-    fun clearListeningHistory() {
-        viewModelScope.launch {
-            runCatching { listeningStore.clearHistory() }.onFailure(::showMusicError)
-        }
-    }
+    fun clearListeningHistory() = collectionActions.clearListeningHistory()
 
     private fun rebuildPresentation(
         transform: (AudioLibraryState) -> AudioLibraryState
@@ -580,19 +483,13 @@ internal class AudioLibraryViewModel @Inject constructor(
     private companion object {
         const val OPERATION_OWNER_ID_KEY = "audioOperationOwnerId"
     }
-
-    override fun onCleared() {
-        context.contentResolver.unregisterContentObserver(mediaStoreObserver)
-        super.onCleared()
-    }
-
 }
 
 internal fun AudioLibraryState.visibleSelectionPaths(): List<String> =
-    if (tab == CategoryLibraryPage.ITEMS || folderFilter != null) {
-        visibleTracks.map { it.file.absolutePath }
+    if (tab == CategoryLibraryPage.ITEMS || collectionFilter != null) {
+        visibleTracks.map { it.file.reference }
     } else {
-        folders.flatMap { folder ->
-            folder.tracks.map { it.file.absolutePath }
+        collections.flatMap { collection ->
+            collection.tracks.map { it.file.reference }
         }
     }

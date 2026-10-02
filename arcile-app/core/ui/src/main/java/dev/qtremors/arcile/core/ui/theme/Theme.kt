@@ -34,39 +34,39 @@ val LocalFolderIconsEnabled = staticCompositionLocalOf { false }
 
 @Composable
 fun ArcileTheme(
-    themeState: ThemeState,
+    uiPreferences: UiPreferences,
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
     val context = LocalContext.current
     val isSystemDark = darkTheme
     
-    val effectivelyDark = when (themeState.themeMode) {
+    val effectivelyDark = when (uiPreferences.themeMode) {
         ThemeMode.SYSTEM -> isSystemDark
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
         ThemeMode.OLED -> true
     }
 
-    val colorScheme = when (themeState.themePreset) {
+    val colorScheme = when (uiPreferences.themePreset) {
         ThemePreset.DRACULA -> {
             if (effectivelyDark) {
-                if (themeState.themeMode == ThemeMode.OLED) DraculaOledColorScheme else DraculaDarkColorScheme
+                if (uiPreferences.themeMode == ThemeMode.OLED) DraculaOledColorScheme else DraculaDarkColorScheme
             } else {
                 DraculaLightColorScheme
             }
         }
         ThemePreset.TOKYO_NIGHT -> {
             if (effectivelyDark) {
-                if (themeState.themeMode == ThemeMode.OLED) TokyoNightOledColorScheme else TokyoNightDarkColorScheme
+                if (uiPreferences.themeMode == ThemeMode.OLED) TokyoNightOledColorScheme else TokyoNightDarkColorScheme
             } else {
                 TokyoNightLightColorScheme
             }
         }
         ThemePreset.CUSTOM -> {
-            val primaryColor = parseColor(themeState.customPrimaryColorHex, Color(0xFFBD93F9))
-            val rawBg = parseColor(themeState.customBackgroundColorHex, Color(0xFF282A36))
-            val bg = if (themeState.themeMode == ThemeMode.OLED) Color.Black else rawBg
+            val primaryColor = parseColor(uiPreferences.customPrimaryColorHex, Color(0xFFBD93F9))
+            val rawBg = parseColor(uiPreferences.customBackgroundColorHex, Color(0xFF282A36))
+            val bg = if (uiPreferences.themeMode == ThemeMode.OLED) Color.Black else rawBg
             val fg = getContrastColor(bg)
             val scheme = buildScheme(primaryColor, effectivelyDark)
             val surfaceVar = if (fg == Color.White) {
@@ -85,17 +85,17 @@ fun ArcileTheme(
             )
         }
         ThemePreset.NONE -> when {
-            themeState.accentColor == AccentColor.MONOCHROME -> {
+            uiPreferences.accentColor == AccentColor.MONOCHROME -> {
                 buildMonochromeScheme(
                     isDark = effectivelyDark,
-                    isOled = themeState.themeMode == ThemeMode.OLED
+                    isOled = uiPreferences.themeMode == ThemeMode.OLED
                 )
             }
 
             // 1. Dynamic Wallpaper Colors (Android 12+)
-            themeState.accentColor == AccentColor.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            uiPreferences.accentColor == AccentColor.DYNAMIC && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
                 if (effectivelyDark) {
-                    if (themeState.themeMode == ThemeMode.OLED) {
+                    if (uiPreferences.themeMode == ThemeMode.OLED) {
                          dynamicDarkColorScheme(context).copy(
                              background = Color.Black,
                              surface = Color.Black,
@@ -110,11 +110,11 @@ fun ArcileTheme(
             }
             
             // 2. Custom Seed Color chosen
-            themeState.accentColor != AccentColor.DYNAMIC -> {
-                val primaryColor = themeState.accentColor.color ?: AccentBlue
+            uiPreferences.accentColor != AccentColor.DYNAMIC -> {
+                val primaryColor = uiPreferences.accentColor.color ?: AccentBlue
                 val scheme = buildScheme(primaryColor, effectivelyDark)
 
-                 if (themeState.themeMode == ThemeMode.OLED) {
+                 if (uiPreferences.themeMode == ThemeMode.OLED) {
                       scheme.copy(
                           background = Color.Black,
                           surface = Color.Black,
@@ -128,7 +128,7 @@ fun ArcileTheme(
             }
             
             // 3. Fallback standard themes
-            themeState.themeMode == ThemeMode.OLED -> OledColorScheme
+            uiPreferences.themeMode == ThemeMode.OLED -> OledColorScheme
             effectivelyDark -> DarkColorScheme
             else -> LightColorScheme
         }
@@ -137,13 +137,13 @@ fun ArcileTheme(
     val baseCategoryColors = if (effectivelyDark) DarkCategoryColors else LightCategoryColors
     val baseSemanticColors = if (effectivelyDark) DarkSemanticColors else LightSemanticColors
 
-    val categoryColors = if (themeState.harmonizeColors) {
+    val categoryColors = if (uiPreferences.harmonizeColors) {
         baseCategoryColors.harmonizeWith(colorScheme.primary)
     } else {
         baseCategoryColors
     }
 
-    val semanticColors = if (themeState.harmonizeColors) {
+    val semanticColors = if (uiPreferences.harmonizeColors) {
         baseSemanticColors.harmonizeWith(colorScheme.primary)
     } else {
         baseSemanticColors
@@ -159,10 +159,10 @@ fun ArcileTheme(
     }
 
     val currentHapticFeedback = LocalHapticFeedback.current
-    val customHapticFeedback = remember(currentHapticFeedback, themeState.vibrationsEnabled) {
+    val customHapticFeedback = remember(currentHapticFeedback, uiPreferences.vibrationsEnabled) {
         object : HapticFeedback {
             override fun performHapticFeedback(hapticFeedbackType: HapticFeedbackType) {
-                if (themeState.vibrationsEnabled) {
+                if (uiPreferences.vibrationsEnabled) {
                     currentHapticFeedback.performHapticFeedback(hapticFeedbackType)
                 }
             }
@@ -185,10 +185,10 @@ fun ArcileTheme(
         LocalCategoryColors provides categoryColors,
         LocalSemanticColors provides semanticColors,
         LocalSpacing provides Spacing(),
-        LocalHapticsEnabled provides themeState.vibrationsEnabled,
-        LocalDoubleLineFilenames provides themeState.doubleLineFilenames,
-        LocalMarqueeFilenames provides themeState.marqueeFilenames,
-        LocalFolderIconsEnabled provides themeState.folderIconsEnabled,
+        LocalHapticsEnabled provides uiPreferences.vibrationsEnabled,
+        LocalDoubleLineFilenames provides uiPreferences.doubleLineFilenames,
+        LocalMarqueeFilenames provides uiPreferences.marqueeFilenames,
+        LocalFolderIconsEnabled provides uiPreferences.folderIconsEnabled,
         LocalHapticFeedback provides customHapticFeedback,
         LocalReducedMotionEnabled provides reducedMotionEnabled
     ) {

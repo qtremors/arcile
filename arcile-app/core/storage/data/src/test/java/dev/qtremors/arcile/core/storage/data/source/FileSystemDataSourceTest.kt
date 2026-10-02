@@ -40,7 +40,7 @@ class FileSystemDataSourceTest {
 
     private lateinit var context: Context
     private lateinit var volumeProvider: VolumeProvider
-    private lateinit var mediaStoreClient: MediaStoreClient
+    private lateinit var storageQueryClient: StorageQueryClient
     private lateinit var folderStatsStore: FolderStatsStore
     private lateinit var database: ArcileDatabase
     private lateinit var storageNodeDao: StorageNodeDao
@@ -57,7 +57,7 @@ class FileSystemDataSourceTest {
         coEvery { volumeProvider.currentVolumes() } returns listOf(testVolume("test-vol", root.absolutePath))
         every { volumeProvider.observeStorageVolumes() } returns flowOf(listOf(testVolume("test-vol", root.absolutePath)))
 
-        mediaStoreClient = mockk(relaxed = true)
+        storageQueryClient = mockk(relaxed = true)
         database = Room.inMemoryDatabaseBuilder(context, ArcileDatabase::class.java)
             .allowMainThreadQueries()
             .build()
@@ -75,7 +75,7 @@ class FileSystemDataSourceTest {
             volumeProvider,
             MutationFinalizer(
                 context = context,
-                mediaStoreClient = mediaStoreClient,
+                storageQueryClient = storageQueryClient,
                 volumeProvider = volumeProvider,
                 folderStatsStore = folderStatsStore,
                 storageNodeDao = storageNodeDao

@@ -66,7 +66,7 @@ data class BrowserLocationPreferences(
         categoryShowFileDetails[categoryName] ?: true
 
     companion object {
-        fun from(preferences: BrowserPreferences) = BrowserLocationPreferences(
+        fun from(preferences: SharedFilePreferences) = BrowserLocationPreferences(
             appStartPage = preferences.appStartPage,
             globalPresentation = preferences.globalPresentation,
             pathPresentationOptions = preferences.pathPresentationOptions,

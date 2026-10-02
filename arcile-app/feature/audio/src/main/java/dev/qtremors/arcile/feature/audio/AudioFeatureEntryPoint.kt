@@ -23,8 +23,6 @@ import dev.qtremors.arcile.core.storage.domain.AudioLibraryRepository
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 object AudioFeatureEntryPoint {
     @OptIn(ExperimentalSharedTransitionApi::class)
@@ -38,10 +36,10 @@ object AudioFeatureEntryPoint {
     }
 
     suspend fun playFilesInApp(context: Context, path: String, contextFiles: List<FileModel>) {
-        val selected = contextFiles.firstOrNull { it.absolutePath == path }
+        val selected = contextFiles.firstOrNull { it.reference == path }
             ?: FileModel(
                 name = path.substringAfterLast('/'),
-                absolutePath = path,
+                reference = path,
                 extension = path.substringAfterLast('.', "").lowercase()
             )
         val immediate = AudioTrack(
@@ -51,12 +49,12 @@ object AudioFeatureEntryPoint {
         playInApp(context, immediate, listOf(immediate), startPlayback = true)
         val dependencies = dependencies(context)
         val indexed = dependencies.repository().getTracks().getOrNull().orEmpty()
-            .associateBy { it.file.absolutePath }
-        val ordered = contextFiles.map { indexed[it.absolutePath] ?: AudioTrack(
+            .associateBy { it.file.reference }
+        val ordered = contextFiles.map { indexed[it.reference] ?: AudioTrack(
             file = it,
             title = it.name.substringBeforeLast('.', it.name)
         ) }.let { tracks ->
-            if (tracks.any { it.file.absolutePath == path }) tracks else tracks + immediate
+            if (tracks.any { it.file.reference == path }) tracks else tracks + immediate
         }
         dependencies.coordinator().expandQueue(ordered, path)
     }
@@ -72,9 +70,7 @@ object AudioFeatureEntryPoint {
         val context = LocalContext.current
         val requested = hostRequested.collectAsStateWithLifecycle().value
         LaunchedEffect(context.applicationContext) {
-            if (!hostRequested.value && withContext(Dispatchers.IO) {
-                AudioPlaybackQueueStore(context).hasSavedQueue()
-            }) hostRequested.value = true
+            if (!hostRequested.value && hasSavedAudioQueue(context)) hostRequested.value = true
         }
         if (!requested) return
         val dependencies = remember(context.applicationContext) { dependencies(context) }

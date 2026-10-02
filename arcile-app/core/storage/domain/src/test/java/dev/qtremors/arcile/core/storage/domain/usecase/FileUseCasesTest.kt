@@ -13,10 +13,10 @@ import org.junit.Test
 class FileUseCasesTest {
 
     @Test
-    fun `GetStorageVolumesUseCase exposes repository volume stream`() = runTest {
+    fun `ObserveStorageVolumesUseCase exposes repository volume stream`() = runTest {
         val initialVolume = testVolume("primary", "/storage/emulated/0")
         val repository = FakeStorageRepositoryBundle(volumes = listOf(initialVolume))
-        val useCase = GetStorageVolumesUseCase(repository.volumeRepository)
+        val useCase = ObserveStorageVolumesUseCase(repository.volumeRepository)
 
         assertEquals(listOf(initialVolume), useCase().first())
     }

@@ -4,7 +4,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.feature.activitylog.registerActivityLogRoute
 import dev.qtremors.arcile.feature.plugins.registerPluginsRoute
 import dev.qtremors.arcile.feature.onlyfiles.registerOnlyFilesRoute
@@ -20,8 +20,8 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
     navController: NavHostController,
     actions: AppNavigationActions,
     transitions: AppNavigationTransitions,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onRestartApp: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
@@ -76,7 +76,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
-        currentThemeState = currentThemeState,
+        currentUiPreferences = currentUiPreferences,
         onThemeChange = onThemeChange,
         onNavigateBack = { navController.popBackStack() },
         onDestination = { destination ->

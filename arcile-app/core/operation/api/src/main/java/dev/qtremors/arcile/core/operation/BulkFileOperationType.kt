@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.operation
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -9,7 +10,8 @@ enum class BulkFileOperationType {
     TRASH,
     DELETE,
     SHRED,
-    CREATE_FAKE,
+    @SerialName("CREATE_FAKE")
+    CREATE_SYNTHETIC,
     EXTRACT_ARCHIVE,
     CREATE_ARCHIVE,
     SAVE_TO_ARCILE_IMPORT

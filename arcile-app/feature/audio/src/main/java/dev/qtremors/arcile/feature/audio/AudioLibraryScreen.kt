@@ -44,7 +44,7 @@ import kotlinx.coroutines.launch
 private enum class AudioBackAction {
     CLEAR_SELECTION,
     CLOSE_SEARCH,
-    CLOSE_FOLDER,
+    CLOSE_COLLECTION,
     NAVIGATE_BACK
 }
 
@@ -61,8 +61,8 @@ internal fun AudioLibraryScreen(
     onSelectCollection: (AudioCollectionKind) -> Unit,
     onSelectSongFilter: (AudioSongFilter) -> Unit,
     onClearListeningHistory: () -> Unit,
-    onSelectFolder: (AudioFolder) -> Unit,
-    onClearFolderFilter: () -> Unit,
+    onOpenCollection: (AudioCollection) -> Unit,
+    onClearCollectionFilter: () -> Unit,
     onPresentationChange: (AudioCollectionKind, FileListingPreferences) -> Unit,
     onCreatePlaylist: (String) -> Unit,
     onCreatePlaylistFromSelection: (String) -> Unit,
@@ -77,8 +77,8 @@ internal fun AudioLibraryScreen(
     onDefaultSectionChange: (AudioCollectionKind) -> Unit,
     onToggleFavoriteSelection: () -> Unit,
     onToggleFavoriteTrack: (String) -> Unit,
-    onTogglePinnedFolder: (AudioFolder) -> Unit,
-    onUpdateFolderCover: (AudioFolder, String?) -> Unit,
+    onTogglePinnedFolder: (AudioCollection) -> Unit,
+    onUpdateFolderCover: (AudioCollection, String?) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit,
     onTogglePaths: (Collection<String>) -> Unit,
@@ -118,7 +118,7 @@ internal fun AudioLibraryScreen(
         label = "audio mini player clearance"
     )
     val selectedTracks = remember(state.tracks, state.selectedPaths) {
-        state.tracks.filter { it.file.absolutePath in state.selectedPaths }
+        state.tracks.filter { it.file.reference in state.selectedPaths }
     }
     val isSelectionMode = selectedTracks.isNotEmpty()
     var showSearchBar by rememberSaveable {
@@ -130,7 +130,7 @@ internal fun AudioLibraryScreen(
     var showPlaylistPicker by rememberSaveable { mutableStateOf(false) }
     var tagEditTrack by remember { mutableStateOf<AudioTrack?>(null) }
     var optionsTrack by remember { mutableStateOf<AudioTrack?>(null) }
-    var coverFolder by remember { mutableStateOf<AudioFolder?>(null) }
+    var coverFolder by remember { mutableStateOf<AudioCollection?>(null) }
     val shellState = rememberCategoryLibraryShellState()
     var backProgress by remember { mutableFloatStateOf(0f) }
     var backAction by remember { mutableStateOf<AudioBackAction?>(null) }
@@ -165,7 +165,7 @@ internal fun AudioLibraryScreen(
         backAction = when {
             isSelectionMode -> AudioBackAction.CLEAR_SELECTION
             showSearchBar -> AudioBackAction.CLOSE_SEARCH
-            state.folderFilter != null -> AudioBackAction.CLOSE_FOLDER
+            state.collectionFilter != null -> AudioBackAction.CLOSE_COLLECTION
             else -> AudioBackAction.NAVIGATE_BACK
         }
         try {
@@ -176,7 +176,7 @@ internal fun AudioLibraryScreen(
                     showSearchBar = false
                     onQueryChange("")
                 }
-                AudioBackAction.CLOSE_FOLDER -> onClearFolderFilter()
+                AudioBackAction.CLOSE_COLLECTION -> onClearCollectionFilter()
                 AudioBackAction.NAVIGATE_BACK -> onNavigateBack()
             }
         } catch (_: CancellationException) {
@@ -238,8 +238,8 @@ internal fun AudioLibraryScreen(
                         onDefaultSectionChange = onDefaultSectionChange,
                         onSelectAll = onSelectAll,
                         onNavigateBack = {
-                            if (state.folderFilter != null) {
-                                onClearFolderFilter()
+                            if (state.collectionFilter != null) {
+                                onClearCollectionFilter()
                             } else {
                                 onNavigateBack()
                             }
@@ -271,7 +271,7 @@ internal fun AudioLibraryScreen(
                         }
                     },
                     onPlaySelected = {
-                        onPlaySelection(selectedTracks.map { it.file.absolutePath })
+                        onPlaySelection(selectedTracks.map { it.file.reference })
                         onClearSelection()
                     },
                     onCopySelected = onCopySelection,
@@ -316,7 +316,7 @@ internal fun AudioLibraryScreen(
                 ) state else remember(state, section) {
                     buildAudioLibraryState(state.copy(
                         collectionKind = section,
-                        folderFilter = null,
+                        collectionFilter = null,
                         selectedPaths = emptySet()
                     ))
                 }
@@ -324,7 +324,7 @@ internal fun AudioLibraryScreen(
                     CategoryLibraryPage.ITEMS
                 } else CategoryLibraryPage.FOLDERS
                 val showingFolderContents =
-                    section == state.collectionKind && state.folderFilter != null
+                    section == state.collectionKind && state.collectionFilter != null
                 val presentationSection = if (showingFolderContents) {
                     AudioCollectionKind.SONGS
                 } else section
@@ -350,7 +350,7 @@ internal fun AudioLibraryScreen(
                     onTrackOptions = { optionsTrack = it },
                     onSelectSongFilter = onSelectSongFilter,
                     onClearListeningHistory = onClearListeningHistory,
-                    onSelectFolder = onSelectFolder,
+                    onOpenCollection = onOpenCollection,
                     onCreatePlaylist = onCreatePlaylist,
                     onAddSelectionToPlaylist = onAddSelectionToPlaylist,
                     onRenamePlaylist = onRenamePlaylist,
@@ -365,7 +365,7 @@ internal fun AudioLibraryScreen(
                     onResetFolderCover = { onUpdateFolderCover(it, null) },
                     modifier = Modifier.graphicsLayer {
                         if (
-                            backAction == AudioBackAction.CLOSE_FOLDER &&
+                            backAction == AudioBackAction.CLOSE_COLLECTION &&
                             showingFolderContents
                         ) {
                             translationX = backProgress * 120.dp.toPx()
@@ -378,10 +378,10 @@ internal fun AudioLibraryScreen(
 
     if (showPresentationSheet) {
         val selectedSection = AudioCollectionKind.entries[pagerState.currentPage]
-        val presentationSection = if (state.folderFilter != null) {
+        val presentationSection = if (state.collectionFilter != null) {
             AudioCollectionKind.SONGS
         } else selectedSection
-        AudioViewOptionsDialog(
+        AudioViewOptionsSheet(
             section = presentationSection,
             presentation = state.presentationFor(presentationSection),
             grouping = state.grouping,
@@ -425,10 +425,10 @@ internal fun AudioLibraryScreen(
     optionsTrack?.let { selected ->
         AudioTrackActionsSheet(
             track = selected,
-            isFavorite = selected.file.absolutePath in state.favoritePaths,
+            isFavorite = selected.file.reference in state.favoritePaths,
             onDismiss = { optionsTrack = null },
             onToggleFavorite = {
-                onToggleFavoriteTrack(selected.file.absolutePath)
+                onToggleFavoriteTrack(selected.file.reference)
                 optionsTrack = null
             },
             onEditTags = {
@@ -441,7 +441,7 @@ internal fun AudioLibraryScreen(
             },
             onAddToPlaylist = {
                 optionsTrack = null
-                onSelectPaths(listOf(selected.file.absolutePath))
+                onSelectPaths(listOf(selected.file.reference))
                 showPlaylistPicker = true
             }
         )

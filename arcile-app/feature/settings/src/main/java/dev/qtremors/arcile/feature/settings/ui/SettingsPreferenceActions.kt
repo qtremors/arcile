@@ -1,11 +1,11 @@
 package dev.qtremors.arcile.feature.settings.ui
 
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 
 internal data class SettingsPreferenceActions(
-    val themeChange: (ThemeState) -> Unit,
+    val themeChange: (UiPreferences) -> Unit,
     val showThumbnailsChange: (Boolean) -> Unit,
     val homeRecentCarouselLimitChange: (Int) -> Unit,
     val showHiddenFilesChange: (Boolean) -> Unit,

@@ -40,7 +40,7 @@ class VideoViewerViewModelTest {
 
             assertEquals(
                 listOf("/movies/one.mp4", "/movies/two.mp4"),
-                viewModel.state.value.displayedFiles.map { it.absolutePath }
+                viewModel.state.value.displayedFiles.map { it.reference }
             )
             assertEquals("/movies/two.mp4", viewModel.state.value.viewerCurrentPath)
         }
@@ -64,7 +64,7 @@ class VideoViewerViewModelTest {
 
             assertEquals(
                 listOf("/movies/one.mp4", "/movies/two.mkv"),
-                viewModel.state.value.displayedFiles.map(FileModel::absolutePath)
+                viewModel.state.value.displayedFiles.map(FileModel::reference)
             )
         }
 
@@ -94,7 +94,6 @@ class VideoViewerViewModelTest {
             viewModel.setViewerCurrentPath(currentPath)
             viewModel.setViewerMetadataVisible(currentPath, visible = true)
             viewModel.toggleViewerUi()
-            viewModel.setViewerEraseDialogPath(currentPath)
 
             val restored = createViewModel(savedStateHandle).state.value
 
@@ -103,7 +102,6 @@ class VideoViewerViewModelTest {
             assertEquals(currentPath, restored.viewerCurrentPath)
             assertEquals(currentPath, restored.viewerMetadataPath)
             assertFalse(restored.viewerUiVisible)
-            assertEquals(currentPath, restored.viewerEraseDialogPath)
         }
 
     @Test
@@ -129,7 +127,7 @@ class VideoViewerViewModelTest {
             coordinator.onOperationCompleted(coordinator.startedRequests.single())
             advanceUntilIdle()
 
-            assertEquals(listOf(first), viewModel.state.value.displayedFiles.map(FileModel::absolutePath))
+            assertEquals(listOf(first), viewModel.state.value.displayedFiles.map(FileModel::reference))
             assertTrue(viewModel.state.value.selectedFiles.isEmpty())
         }
 
@@ -152,7 +150,7 @@ class VideoViewerViewModelTest {
         coEvery { volumeRepository.getVolumeForPath(any()) } returns Result.success(volume)
 
         return VideoViewerViewModel(
-            browserPreferencesStore = FakeFilePreferencesStore(),
+            galleryPreferencesStore = FakeFilePreferencesStore(),
             fileBrowserRepository = fileBrowserRepository,
             volumeRepository = volumeRepository,
             operationCoordinator = operationCoordinator,
@@ -164,7 +162,7 @@ class VideoViewerViewModelTest {
     private fun videoFiles(vararg paths: String) = paths.map { path ->
         FileModel(
             name = path.substringAfterLast('/'),
-            absolutePath = path,
+            reference = path,
             size = 1L,
             lastModified = 0L,
             isDirectory = false,

@@ -268,7 +268,7 @@ class AppFileOpenResolverTest {
         isDirectory: Boolean = false
     ) = FileModel(
         name = path.substringAfterLast('/'),
-        absolutePath = path,
+        reference = path,
         size = 1L,
         lastModified = 0L,
         isDirectory = isDirectory,

@@ -146,11 +146,11 @@ class CategoryFileActionController<S>(
     fun pasteToFolder(destination: String) {
         if (destination.isBlank()) return
         val clipboard = actionState(state.value).clipboardState ?: return
-        val sources = clipboard.files.map(FileModel::absolutePath)
+        val sources = clipboard.files.map(FileModel::reference)
         if (sources.isEmpty()) return
         scope.launch {
             updateActions { it.copy(pasteDestinationPath = destination, error = null) }
-            clipboardRepository.detectCopyConflicts(sources, destination)
+            clipboardRepository.detectTransferConflicts(sources, destination)
                 .onSuccess { conflicts ->
                     if (conflicts.isEmpty()) {
                         executePaste(clipboard, destination, emptyMap())
@@ -359,7 +359,7 @@ class CategoryFileActionController<S>(
     private fun storeSelection(operation: ClipboardOperation): Int {
         val current = state.value
         val selection = selectedPaths(current)
-        val selectedFiles = files(current).filter { it.absolutePath in selection }
+        val selectedFiles = files(current).filter { it.reference in selection }
         return if (clipboardController.store(operation, selectedFiles)) {
             clearSelection()
             selectedFiles.size
@@ -380,7 +380,7 @@ class CategoryFileActionController<S>(
         }
         val started = operationCoordinator.startOperation(
             type = type,
-            sourcePaths = clipboard.files.map(FileModel::absolutePath),
+            sourcePaths = clipboard.files.map(FileModel::reference),
             destinationPath = destination,
             resolutions = resolutions,
             presentationOwnerId = operationOwnerId,

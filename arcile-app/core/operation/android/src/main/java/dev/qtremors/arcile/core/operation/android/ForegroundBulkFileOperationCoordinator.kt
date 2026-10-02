@@ -112,7 +112,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
         sourcePaths: List<String>,
         destinationPath: String?,
         resolutions: Map<String, ConflictResolution>,
-        fakeFileSize: Long?,
+        syntheticFileSize: Long?,
         archiveFormat: ArchiveFormat?,
         archiveEntryPrefix: String?,
         archivePassword: String?,
@@ -132,7 +132,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             sourcePaths = sourcePaths,
             destinationPath = destinationPath,
             resolutions = resolutions,
-            fakeFileSize = fakeFileSize,
+            syntheticFileSize = syntheticFileSize,
             archiveFormat = archiveFormat,
             archiveEntryPrefix = archiveEntryPrefix,
             archivePassword = archivePassword?.takeIf { it.isNotEmpty() },
@@ -347,7 +347,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
             id = "operation:${request.operationId}",
             timestampMillis = System.currentTimeMillis(),
             operationId = request.operationId,
-            operationType = request.type.name,
+            operationType = if (request.type == BulkFileOperationType.CREATE_SYNTHETIC) "CREATE_FAKE" else request.type.name,
             status = status,
             sourceCount = if (request.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT) {
                 request.importItems.size
@@ -420,8 +420,8 @@ private data class ProgressState(
         if (elapsed < PROGRESS_MIN_INTERVAL_MS) return false
         val itemChanged = progress.completedItems != previous.completedItems ||
             progress.currentPath != previous.currentPath
-        val currentBytes = progress.bytesCopied
-        val previousBytes = previous.bytesCopied
+        val currentBytes = progress.bytesProcessed
+        val previousBytes = previous.bytesProcessed
         val byteStepReached = currentBytes != null && previousBytes != null &&
             currentBytes - previousBytes >= PROGRESS_BYTE_STEP
         return itemChanged || byteStepReached || elapsed >= PROGRESS_HEARTBEAT_INTERVAL_MS
@@ -434,7 +434,7 @@ private val BulkFileOperationProgress.isFinished: Boolean
 private fun BulkFileOperationProgress.isMonotonicAfter(previous: BulkFileOperationProgress?): Boolean {
     if (previous == null) return true
     if (completedItems < previous.completedItems) return false
-    val previousBytes = previous.bytesCopied
-    val currentBytes = bytesCopied
+    val previousBytes = previous.bytesProcessed
+    val currentBytes = bytesProcessed
     return previousBytes == null || currentBytes == null || currentBytes >= previousBytes
 }

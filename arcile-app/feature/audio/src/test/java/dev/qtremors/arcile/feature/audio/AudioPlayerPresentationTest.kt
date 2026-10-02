@@ -168,7 +168,7 @@ class AudioPlayerPresentationTest {
     private fun audioTrack(name: String) = AudioTrack(
         file = FileModel(
             name = name,
-            absolutePath = "/music/$name",
+            reference = "/music/$name",
             size = 1L,
             lastModified = 1L,
             isDirectory = false,

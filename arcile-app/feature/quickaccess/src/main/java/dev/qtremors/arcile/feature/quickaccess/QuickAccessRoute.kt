@@ -62,7 +62,7 @@ internal fun QuickAccessRoute(
                 onDestination(QuickAccessDestination.ExternalFolder(uri))
             },
             navigateToRestrictedFolder = { item ->
-                onDestination(QuickAccessDestination.ExternalFolder(item.path))
+                onDestination(QuickAccessDestination.ExternalFolder(item.targetReference))
             },
             togglePin = viewModel::togglePin,
             removeItem = viewModel::removeCustomItem,

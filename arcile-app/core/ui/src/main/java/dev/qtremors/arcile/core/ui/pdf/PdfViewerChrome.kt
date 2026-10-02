@@ -368,7 +368,7 @@ private fun PdfOverflowMenu(
                 add(
                 {
                     ArcileDropdownMenuItem(
-                        text = stringResource(R.string.image_gallery_open_with),
+                        text = stringResource(R.string.viewer_open_with),
                         leadingIcon = {
                             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                         },
@@ -439,9 +439,9 @@ internal fun PdfInfoSheet(
         PdfInfoRow(
             stringResource(
                 if (reference.startsWith("content://")) {
-                    R.string.image_gallery_metadata_label_uri
+                    R.string.viewer_metadata_label_uri
                 } else {
-                    R.string.image_gallery_metadata_label_path
+                    R.string.viewer_metadata_label_path
                 }
             ),
             reference
@@ -496,7 +496,7 @@ internal fun PdfLoadFailure(
         Button(onClick = onOpenWith) {
             Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.image_gallery_open_with))
+            Text(stringResource(R.string.viewer_open_with))
         }
     }
 }

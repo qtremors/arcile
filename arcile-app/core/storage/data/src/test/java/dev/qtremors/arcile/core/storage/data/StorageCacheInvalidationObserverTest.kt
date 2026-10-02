@@ -5,7 +5,7 @@ import android.content.Context
 import android.database.ContentObserver
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
-import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.StorageQueryClient
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import io.mockk.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -27,7 +27,7 @@ class StorageCacheInvalidationObserverTest {
         every { context.contentResolver } returns resolver
         val callback = slot<ContentObserver>()
         every { resolver.registerContentObserver(any(), any(), capture(callback)) } just Runs
-        val media = mockk<MediaStoreClient>(relaxed = true)
+        val media = mockk<StorageQueryClient>(relaxed = true)
         val folders = mockk<FolderStatsStore>(relaxed = true)
         val nodes = mockk<StorageNodeDao>(relaxed = true)
         val observer = StorageCacheInvalidationObserver(

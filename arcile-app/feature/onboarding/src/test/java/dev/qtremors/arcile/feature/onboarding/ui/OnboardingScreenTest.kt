@@ -13,7 +13,7 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreItem
 import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -33,7 +33,7 @@ class OnboardingScreenTest {
             ArcileTestTheme {
                 OnboardingScreen(
                     state = OnboardingUiState(),
-                    currentThemeState = ThemeState(),
+                    currentUiPreferences = UiPreferences(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
@@ -58,7 +58,7 @@ class OnboardingScreenTest {
             ArcileTestTheme {
                 OnboardingScreen(
                     state = OnboardingUiState(step = OnboardingStep.SetupPermissions),
-                    currentThemeState = ThemeState(),
+                    currentUiPreferences = UiPreferences(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
@@ -91,7 +91,7 @@ class OnboardingScreenTest {
                         step = OnboardingStep.SetupPermissions,
                         notificationPermissionRequired = true
                     ),
-                    currentThemeState = ThemeState(),
+                    currentUiPreferences = UiPreferences(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},
@@ -125,7 +125,7 @@ class OnboardingScreenTest {
                         hasStoragePermission = true,
                         notificationPermissionRequired = true
                     ),
-                    currentThemeState = ThemeState(),
+                    currentUiPreferences = UiPreferences(),
                     onThemeChange = {},
                     onNext = {},
                     onBack = {},

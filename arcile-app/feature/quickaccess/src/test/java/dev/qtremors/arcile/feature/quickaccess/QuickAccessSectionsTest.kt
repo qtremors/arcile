@@ -57,7 +57,7 @@ class QuickAccessSectionsTest {
     private fun item(id: String, path: String, type: QuickAccessType) = QuickAccessItem(
         id = id,
         label = id,
-        path = path,
+        targetReference = path,
         type = type
     )
 }

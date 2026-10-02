@@ -84,10 +84,10 @@ fun rememberViewerActionController(
             )
         }.getOrNull()
     }
-    val actionState = remember(currentFile?.absolutePath, sourceScope) {
+    val actionState = remember(currentFile?.reference, sourceScope) {
         MutableStateFlow(ViewerActionState())
     }
-    val handler = remember(currentFile?.absolutePath, sourceScope, dependencies) {
+    val handler = remember(currentFile?.reference, sourceScope, dependencies) {
         dependencies?.let { entryPoint ->
             ViewerActionHandler(
                 context = applicationContext,

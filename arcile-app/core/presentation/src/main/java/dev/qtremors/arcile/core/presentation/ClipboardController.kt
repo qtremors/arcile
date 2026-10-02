@@ -22,7 +22,7 @@ class ClipboardController(
 
     fun remove(path: String) {
         val clipboard = repository.clipboardState.value ?: return
-        val remaining = clipboard.files.filterNot { it.absolutePath == path }
+        val remaining = clipboard.files.filterNot { it.reference == path }
         if (remaining.isEmpty()) {
             clear()
         } else {

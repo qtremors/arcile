@@ -4,7 +4,7 @@ import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryManifestCodec
 import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
-import dev.qtremors.arcile.core.vault.crypto.VaultManifestCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultHeaderCodec
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import java.io.File
 import java.util.UUID
@@ -16,7 +16,7 @@ internal data class OpenAppPrivateVault(
 )
 
 internal class VaultAppPrivateManager(private val root: File) {
-    private val headerCodec = VaultManifestCodec()
+    private val headerCodec = VaultHeaderCodec()
     private val directoryCodec = VaultDirectoryManifestCodec()
 
     fun create(name: String, password: CharArray): OpenAppPrivateVault = try {

@@ -14,7 +14,7 @@ import org.junit.Test
 class AudioLibraryPresentationTest {
 
     @Test
-    fun `library groups tracks into folders`() {
+    fun `library groups tracks into collections`() {
         val tracks = listOf(
             track("/Music/One/first.mp3", "First", "Artist", "Album"),
             track("/Music/One/second.mp3", "Second", "Artist", "Album"),
@@ -24,8 +24,8 @@ class AudioLibraryPresentationTest {
         val state = buildAudioLibraryState(
             AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS), tracks)
 
-        assertEquals(listOf("One", "Two"), state.folders.map(AudioFolder::title))
-        assertEquals(2, state.folders.first().tracks.size)
+        assertEquals(listOf("One", "Two"), state.collections.map(AudioCollection::title))
+        assertEquals(2, state.collections.first().tracks.size)
     }
 
     @Test
@@ -46,7 +46,7 @@ class AudioLibraryPresentationTest {
 
         assertEquals(listOf("Opening"), byArtist.visibleTracks.map { it.displayTitle })
         assertEquals(listOf("Episode"), byFolder.visibleTracks.map { it.displayTitle })
-        assertEquals(listOf("Tech"), byFolder.folders.map(AudioFolder::title))
+        assertEquals(listOf("Tech"), byFolder.collections.map(AudioCollection::title))
     }
 
     @Test
@@ -58,11 +58,11 @@ class AudioLibraryPresentationTest {
         val initial = buildAudioLibraryState(
             AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS), tracks)
 
-        val folder = initial.folders.first { it.title == "folder" }
+        val folder = initial.collections.first { it.title == "folder" }
 
         assertEquals(
             listOf("One"),
-            buildAudioLibraryState(initial.copy(folderFilter = folder)).visibleTracks.map { it.displayTitle }
+            buildAudioLibraryState(initial.copy(collectionFilter = folder)).visibleTracks.map { it.displayTitle }
         )
     }
 
@@ -93,14 +93,14 @@ class AudioLibraryPresentationTest {
         val state = buildAudioLibraryState(
             AudioLibraryState(
                 collectionKind = AudioCollectionKind.FOLDERS,
-                folderPresentation = FileListingPreferences(
+                collectionPresentation = FileListingPreferences(
                     sortOption = FileSortOption.SIZE_LARGEST
                 )
             ),
             tracks
         )
 
-        assertEquals(listOf("Large", "Small"), state.folders.map { it.title })
+        assertEquals(listOf("Large", "Small"), state.collections.map { it.title })
     }
 
     @Test
@@ -114,7 +114,7 @@ class AudioLibraryPresentationTest {
             )
         )
 
-        assertEquals("latest.mp3", state.folders.single().coverTrack?.file?.name)
+        assertEquals("latest.mp3", state.collections.single().coverTrack?.file?.name)
     }
 
     @Test
@@ -132,16 +132,16 @@ class AudioLibraryPresentationTest {
             )
         )
 
-        assertEquals("selected.mp3", state.folders.single().coverTrack?.file?.name)
+        assertEquals("selected.mp3", state.collections.single().coverTrack?.file?.name)
     }
 
     @Test
-    fun `pinned audio folders stay ahead of the selected sort order`() {
+    fun `pinned audio collections stay ahead of the selected sort order`() {
         val state = buildAudioLibraryState(
             AudioLibraryState(
                 collectionKind = AudioCollectionKind.FOLDERS,
                 pinnedFolderPaths = setOf("/Music/Zed"),
-                folderPresentation = FileListingPreferences(
+                collectionPresentation = FileListingPreferences(
                     sortOption = FileSortOption.NAME_ASC
                 )
             ),
@@ -151,8 +151,8 @@ class AudioLibraryPresentationTest {
             )
         )
 
-        assertEquals(listOf("Zed", "Alpha"), state.folders.map(AudioFolder::title))
-        assertEquals(true, state.folders.first().isPinned)
+        assertEquals(listOf("Zed", "Alpha"), state.collections.map(AudioCollection::title))
+        assertEquals(true, state.collections.first().isPinned)
     }
 
     @Test
@@ -166,11 +166,11 @@ class AudioLibraryPresentationTest {
                 favoritePaths = setOf("/Music/One/favorite.mp3")),
             tracks
         )
-        val favorites = state.folders.first()
-        val filtered = buildAudioLibraryState(state.copy(folderFilter = favorites), tracks)
+        val favorites = state.collections.first()
+        val filtered = buildAudioLibraryState(state.copy(collectionFilter = favorites), tracks)
 
         assertEquals(true, favorites.isFavorites)
-        assertEquals(AudioFolderKind.Favorites, favorites.kind)
+        assertEquals(AudioCollectionType.Favorites, favorites.kind)
         assertEquals("", favorites.title)
         assertEquals("Favoris", favorites.displayTitle("Favoris"))
         assertEquals(listOf("Favorite"), favorites.tracks.map { it.displayTitle })
@@ -199,12 +199,12 @@ class AudioLibraryPresentationTest {
             tracks
         )
 
-        assertEquals(AudioFolderKind.Favorites, english.folders.single().kind)
-        assertEquals(AudioFolderKind.Favorites, french.folders.single().kind)
+        assertEquals(AudioCollectionType.Favorites, english.collections.single().kind)
+        assertEquals(AudioCollectionType.Favorites, french.collections.single().kind)
     }
 
     @Test
-    fun `folder tab selection scope includes every track in visible folders`() {
+    fun `folder tab selection scope includes every track in visible collections`() {
         val presented = buildAudioLibraryState(
             AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS,
                 query = "Scores", tab = CategoryLibraryPage.FOLDERS),
@@ -222,7 +222,7 @@ class AudioLibraryPresentationTest {
     }
 
     @Test
-    fun `opening a folder atomically presents only that folders tracks`() {
+    fun `opening a folder atomically presents only that collections tracks`() {
         val presented = buildAudioLibraryState(
             AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS,
                 tab = CategoryLibraryPage.FOLDERS),
@@ -232,9 +232,9 @@ class AudioLibraryPresentationTest {
                 track("/Music/Other/three.mp3", "Three", "Artist", "Album")
             )
         )
-        val scoresFolder = presented.folders.first { it.title == "Scores" }
+        val scoresFolder = presented.collections.first { it.title == "Scores" }
         val folderContents = presented
-            .copy(folderFilter = scoresFolder)
+            .copy(collectionFilter = scoresFolder)
             .withPresentedVisibleTracks()
 
         assertEquals(CategoryLibraryPage.FOLDERS, folderContents.tab)
@@ -281,7 +281,7 @@ class AudioLibraryPresentationTest {
         )
 
         assertEquals(listOf("Large"), state.visibleTracks.map { it.displayTitle })
-        assertEquals(listOf("Large"), state.folders.map(AudioFolder::title))
+        assertEquals(listOf("Large"), state.collections.map(AudioCollection::title))
     }
 
     @Test
@@ -307,8 +307,8 @@ class AudioLibraryPresentationTest {
             ))
         ), tracks)
 
-        assertEquals(listOf("Newer", "Older"), state.folders.map(AudioFolder::title))
-        assertEquals(2, state.folders.first().tracks.size)
+        assertEquals(listOf("Newer", "Older"), state.collections.map(AudioCollection::title))
+        assertEquals(2, state.collections.first().tracks.size)
     }
 
     @Test
@@ -323,7 +323,7 @@ class AudioLibraryPresentationTest {
         )
         val state = buildAudioLibraryState(
             AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
-        val details = buildAudioLibraryState(state.copy(folderFilter = state.folders.single()))
+        val details = buildAudioLibraryState(state.copy(collectionFilter = state.collections.single()))
 
         assertEquals(listOf("One", "Two", "Three"),
             details.visibleTracks.map(AudioTrack::displayTitle))
@@ -346,8 +346,8 @@ class AudioLibraryPresentationTest {
             sectionPresentations = mapOf(AudioCollectionKind.GENRES to settings)
         ), tracks)
 
-        assertEquals("One", artists.folders.first().title)
-        assertEquals("Rock", genres.folders.first().title)
+        assertEquals("One", artists.collections.first().title)
+        assertEquals("Rock", genres.collections.first().title)
     }
 
     @Test
@@ -362,12 +362,12 @@ class AudioLibraryPresentationTest {
             collectionKind = AudioCollectionKind.PLAYLISTS,
             playlists = listOf(playlist, AudioPlaylist("p2", "Empty", emptyList(), 2L))
         ), tracks)
-        val mix = state.folders.first { it.key == "p1" }
-        val contents = buildAudioLibraryState(state.copy(folderFilter = mix), tracks)
+        val mix = state.collections.first { it.key == "p1" }
+        val contents = buildAudioLibraryState(state.copy(collectionFilter = mix), tracks)
 
         assertEquals(listOf("B", "A"), contents.visibleTracks.map(AudioTrack::displayTitle))
-        assertEquals(2, state.folders.size)
-        assertEquals(null, state.folders.first { it.key == "p2" }.coverTrack)
+        assertEquals(2, state.collections.size)
+        assertEquals(null, state.collections.first { it.key == "p2" }.coverTrack)
     }
 
     @Test
@@ -407,7 +407,7 @@ class AudioLibraryPresentationTest {
     ) = AudioTrack(
         file = FileModel(
             name = path.substringAfterLast('/'),
-            absolutePath = path,
+            reference = path,
             size = size,
             lastModified = modified,
             extension = "mp3",

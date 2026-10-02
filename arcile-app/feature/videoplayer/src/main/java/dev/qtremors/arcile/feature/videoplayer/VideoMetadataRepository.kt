@@ -6,17 +6,17 @@ import android.net.Uri
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.FileModel
-import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailRow
-import dev.qtremors.arcile.core.ui.metadata.buildImageMetadataDetailRows
+import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailRow
+import dev.qtremors.arcile.core.ui.metadata.buildMediaMetadataDetailRows
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.util.Locale
 import javax.inject.Inject
 import kotlinx.coroutines.withContext
 
-internal typealias VideoFileMetadata = ImageFileMetadata
+internal typealias VideoFileMetadata = VisualMediaMetadata
 
 internal interface VideoMetadataRepository {
     suspend fun read(filePath: String, mimeType: String? = null): VideoFileMetadata
@@ -70,7 +70,7 @@ internal class DefaultVideoMetadataRepository @Inject constructor(
             }
         }
 
-        ImageFileMetadata(
+        VisualMediaMetadata(
             path = filePath,
             size = if (filePath.startsWith("content://")) 0L else file.takeIf { it.exists() }?.length() ?: 0L,
             mimeType = mimeType,
@@ -100,14 +100,14 @@ internal fun buildVideoMetadataRows(
     context: Context,
     file: FileModel,
     metadata: VideoFileMetadata?,
-    labels: ImageMetadataDetailLabels,
+    labels: MediaMetadataDetailLabels,
     durationMs: Long?,
     dateText: String?,
     durationLabel: String
-): List<ImageMetadataDetailRow> {
-    val baseRows = buildImageMetadataDetailRows(
+): List<MediaMetadataDetailRow> {
+    val baseRows = buildMediaMetadataDetailRows(
         title = file.name,
-        reference = file.absolutePath,
+        reference = file.reference,
         size = file.size,
         lastModifiedText = dateText ?: formatViewerDateTime(file.lastModified),
         mimeType = file.mimeType,
@@ -115,7 +115,7 @@ internal fun buildVideoMetadataRows(
         metadata = metadata,
         labels = labels,
         context = context,
-        isUriReference = file.absolutePath.startsWith("content://")
+        isUriReference = file.reference.startsWith("content://")
     )
 
     val finalRows = baseRows.toMutableList()
@@ -126,9 +126,9 @@ internal fun buildVideoMetadataRows(
         // Insert it right after resolution if resolution row exists, otherwise at end of general section
         val resIndex = finalRows.indexOfFirst { it.label == labels.resolution }
         if (resIndex >= 0) {
-            finalRows.add(resIndex + 1, ImageMetadataDetailRow(durationLabel, formattedDuration))
+            finalRows.add(resIndex + 1, MediaMetadataDetailRow(durationLabel, formattedDuration))
         } else {
-            finalRows.add(ImageMetadataDetailRow(durationLabel, formattedDuration))
+            finalRows.add(MediaMetadataDetailRow(durationLabel, formattedDuration))
         }
     }
 
@@ -136,7 +136,7 @@ internal fun buildVideoMetadataRows(
     val uri = file.nodeRef.contentUri?.takeIf { it.isNotBlank() }
     if (uri != null) {
         val pathIndex = finalRows.indexOfFirst { it.label == labels.path }.takeIf { it >= 0 } ?: finalRows.size
-        finalRows.add(pathIndex, ImageMetadataDetailRow(labels.uri, uri))
+        finalRows.add(pathIndex, MediaMetadataDetailRow(labels.uri, uri))
     }
 
     return finalRows

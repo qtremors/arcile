@@ -57,7 +57,7 @@ object ApkPresentationMetadataReader {
     suspend fun read(context: Context, file: FileModel): ApkPresentationMetadata? =
         withContext(Dispatchers.IO) {
             if (file.size > ThumbnailPolicy.MAX_APK_BYTES) return@withContext null
-            val key = "${file.nodeRef.contentUri ?: file.absolutePath}:${file.size}:${file.lastModified}"
+            val key = "${file.nodeRef.contentUri ?: file.reference}:${file.size}:${file.lastModified}"
             synchronized(cacheLock) {
                 if (cache.containsKey(key)) return@withContext cache[key]
             }
@@ -65,7 +65,7 @@ object ApkPresentationMetadataReader {
                 ThumbnailWorkCoordinator.withExpensivePermit {
                     withApkCapabilityFile(
                         context = context,
-                        source = File(file.absolutePath),
+                        source = File(file.reference),
                         contentUri = file.nodeRef.contentUri,
                         extension = file.extension
                     ) { capabilityFile ->

@@ -141,11 +141,12 @@ class DefaultTrashManager(
                         mutationJournal.forgetTrashFallback(targetTrashFile.absolutePath, destFile.absolutePath)
                         fallbackSuccess = true
                     } catch (e: Exception) {
-                        File(trashMetadataDir, "$trashId.json").delete()
-                        if (targetTrashFile.exists()) {
-                            if (targetTrashFile.isDirectory) targetTrashFile.deleteRecursively() else targetTrashFile.delete()
+                        // The engine owns rollback. A retained output may now be the only
+                        // complete copy, so keep its metadata and recovery record too.
+                        if (!targetTrashFile.exists()) {
+                            destFile.delete()
+                            mutationJournal.forgetTrashFallback(targetTrashFile.absolutePath, destFile.absolutePath)
                         }
-                        mutationJournal.forgetTrashFallback(targetTrashFile.absolutePath, destFile.absolutePath)
                         if (scannedPaths.isNotEmpty()) {
                             finalizeMutation(*scannedPaths.toTypedArray())
                         }
@@ -246,9 +247,6 @@ class DefaultTrashManager(
                         target = targetFile,
                         attemptRename = false
                     ).getOrElse {
-                        if (targetFile.exists()) {
-                            if (targetFile.isDirectory) targetFile.deleteRecursively() else targetFile.delete()
-                        }
                         return@withContext Result.failure(IOException("Failed to restore ${targetFile.name}: ${it.message}", it))
                     }
                 }
@@ -330,7 +328,7 @@ class DefaultTrashManager(
                                     val originalFileContext = File(originalPath)
                                     val spoofedModel = FileModel(
                                         name = originalFileContext.name,
-                                        absolutePath = trashedFile.absolutePath,
+                                        reference = trashedFile.absolutePath,
                                         size = if (trashedFile.isFile) trashedFile.length() else 0L,
                                         lastModified = trashedFile.lastModified(),
                                         isDirectory = trashedFile.isDirectory,
@@ -355,7 +353,7 @@ class DefaultTrashManager(
                                     val trashedFile = File(trashDir, id)
                                     val spoofedModel = FileModel(
                                         name = "Recovered Item ($id)",
-                                        absolutePath = trashedFile.absolutePath,
+                                        reference = trashedFile.absolutePath,
                                         size = if (trashedFile.isFile) trashedFile.length() else 0L,
                                         lastModified = trashedFile.lastModified(),
                                         isDirectory = trashedFile.isDirectory,

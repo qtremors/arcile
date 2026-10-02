@@ -259,7 +259,7 @@ internal fun BrowserScreen(
             BrowserBackAction.CloseModal -> when {
                 dialogVisibility.showCreateFolderDialog -> dialogVisibility.showCreateFolderDialog = false
                 dialogVisibility.showCreateFileDialog -> dialogVisibility.showCreateFileDialog = false
-                dialogVisibility.showCreateFakeFileDialog -> dialogVisibility.showCreateFakeFileDialog = false
+                dialogVisibility.showCreateSyntheticFileDialog -> dialogVisibility.showCreateSyntheticFileDialog = false
                 dialogVisibility.showCreateArchiveDialog -> dialogVisibility.showCreateArchiveDialog = false
                 dialogVisibility.showExtractArchiveDialog -> dialogVisibility.showExtractArchiveDialog = false
                 dialogVisibility.showRenameDialog -> dialogVisibility.showRenameDialog = false

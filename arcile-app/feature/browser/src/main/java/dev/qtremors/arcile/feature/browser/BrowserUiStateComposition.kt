@@ -1,11 +1,11 @@
 package dev.qtremors.arcile.feature.browser
 
-import dev.qtremors.arcile.feature.browser.delegate.BrowserArchivePasswordPrompt
-import dev.qtremors.arcile.feature.browser.delegate.BrowserArchiveWorkflowState
-import dev.qtremors.arcile.feature.browser.delegate.BrowserConflictState
-import dev.qtremors.arcile.feature.browser.delegate.BrowserDeleteWorkflowState
-import dev.qtremors.arcile.feature.browser.delegate.BrowserRevealState
-import dev.qtremors.arcile.feature.browser.delegate.BrowserTransientState
+import dev.qtremors.arcile.feature.browser.controller.BrowserArchivePasswordPrompt
+import dev.qtremors.arcile.feature.browser.controller.BrowserArchiveWorkflowState
+import dev.qtremors.arcile.feature.browser.controller.BrowserConflictState
+import dev.qtremors.arcile.feature.browser.controller.BrowserDeleteWorkflowState
+import dev.qtremors.arcile.feature.browser.controller.BrowserRevealState
+import dev.qtremors.arcile.feature.browser.controller.BrowserTransientState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector

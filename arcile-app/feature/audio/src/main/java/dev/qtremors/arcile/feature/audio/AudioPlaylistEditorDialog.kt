@@ -36,7 +36,7 @@ internal fun AudioPlaylistEditorDialog(
     val ordered = remember(playlist.id) {
         mutableStateListOf<String>().apply { addAll(playlist.trackPaths) }
     }
-    val byId = remember(tracks) { tracks.associateBy { it.file.absolutePath } }
+    val byId = remember(tracks) { tracks.associateBy { it.file.reference } }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.audio_edit_playlist, playlist.name)) },

@@ -23,7 +23,7 @@ import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import dev.qtremors.arcile.core.ui.StandaloneImageViewer
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -38,7 +38,7 @@ class ImageViewerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ArcileTheme(themeState = ThemeState()) {
+            ArcileTheme(uiPreferences = UiPreferences()) {
                 val resolved = target
                 if (resolved == null) {
                     ExternalViewerLoadScreen(loadError, ::loadTarget)
@@ -53,7 +53,7 @@ class ImageViewerActivity : ComponentActivity() {
                         onOpenWith = { openTargetWithChooser(resolved) },
                         onFileRenamed = { _, newFile ->
                             target = resolved.copy(
-                                reference = newFile.absolutePath,
+                                reference = newFile.reference,
                                 displayName = newFile.name,
                                 mimeType = newFile.mimeType,
                                 sizeBytes = newFile.size
@@ -106,7 +106,7 @@ class ImageViewerActivity : ComponentActivity() {
                         mimeType = target.mimeType
                     )
                 )
-                startActivity(Intent.createChooser(openIntent, getString(R.string.image_gallery_open_with)))
+                startActivity(Intent.createChooser(openIntent, getString(R.string.viewer_open_with)))
             }.onFailure {
                 showArcileToast(getString(R.string.cannot_open_file, it.localizedMessage ?: ""))
             }

@@ -16,7 +16,7 @@ import kotlinx.collections.immutable.PersistentSet
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
-import dev.qtremors.arcile.feature.browser.delegate.BrowserTransientState
+import dev.qtremors.arcile.feature.browser.controller.BrowserTransientState
 
 @Immutable
 internal data class BrowserSelectionState(
@@ -195,7 +195,7 @@ internal fun calculateBrowserSelectionSize(
 ): Long {
     var total = 0L
     selectedPaths.forEach { path ->
-        val file = currentFiles.find { it.absolutePath == path }
+        val file = currentFiles.find { it.reference == path }
         if (file != null) {
             total += if (file.isDirectory) {
                 folderStats[path]?.totalBytes ?: 0L

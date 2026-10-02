@@ -66,7 +66,7 @@ class QuickAccessViewModelTest {
     @Test
     fun `initial state loads items from store`() = runTest(dispatcher) {
         val initialItems = listOf(
-            QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+            QuickAccessItem(id = "1", label = "Downloads", targetReference = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
         )
         fakeStore.itemsFlow.value = initialItems
 
@@ -79,7 +79,7 @@ class QuickAccessViewModelTest {
 
     @Test
     fun `togglePin updates item pinning status`() = runTest(dispatcher) {
-        val item = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item = QuickAccessItem(id = "1", label = "Downloads", targetReference = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(item)
 
         val viewModel = createViewModel()
@@ -94,11 +94,11 @@ class QuickAccessViewModelTest {
 
     @Test
     fun `removeCustomItem removes non standard items but ignores standard items`() = runTest(dispatcher) {
-        val standardItem = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
-        val customItem = QuickAccessItem(id = "2", label = "Custom", path = "/custom", type = QuickAccessType.CUSTOM, isPinned = true, isEnabled = true)
-        val safItem = QuickAccessItem(id = "3", label = "SAF", path = "content://tree", type = QuickAccessType.SAF_TREE, isPinned = true, isEnabled = true)
-        val handoffItem = QuickAccessItem(id = "4", label = "Android/data", path = "content://data", type = QuickAccessType.EXTERNAL_HANDOFF, isPinned = true, isEnabled = true)
-        val filesItem = QuickAccessItem(id = "5", label = "Files", path = "content://files", type = QuickAccessType.FILES_APP, isPinned = true, isEnabled = true)
+        val standardItem = QuickAccessItem(id = "1", label = "Downloads", targetReference = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val customItem = QuickAccessItem(id = "2", label = "Custom", targetReference = "/custom", type = QuickAccessType.CUSTOM, isPinned = true, isEnabled = true)
+        val safItem = QuickAccessItem(id = "3", label = "SAF", targetReference = "content://tree", type = QuickAccessType.SAF_TREE, isPinned = true, isEnabled = true)
+        val handoffItem = QuickAccessItem(id = "4", label = "Android/data", targetReference = "content://data", type = QuickAccessType.EXTERNAL_HANDOFF, isPinned = true, isEnabled = true)
+        val filesItem = QuickAccessItem(id = "5", label = "Files", targetReference = "content://files", type = QuickAccessType.FILES_APP, isPinned = true, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(standardItem, customItem, safItem, handoffItem, filesItem)
 
         val viewModel = createViewModel()
@@ -127,7 +127,7 @@ class QuickAccessViewModelTest {
         assertEquals(1, fakeStore.addedItems.size)
         val added = fakeStore.addedItems[0]
         assertEquals("My Custom", added.label)
-        assertEquals("/custom/path", added.path)
+        assertEquals("/custom/path", added.targetReference)
         assertEquals(QuickAccessType.CUSTOM, added.type)
         assertTrue(added.id.startsWith("custom_"))
     }
@@ -143,16 +143,16 @@ class QuickAccessViewModelTest {
         val added = fakeStore.addedItems.single()
         assertEquals("Files", added.label)
         assertEquals("handoff_files_app", added.id)
-        assertEquals("content://files-root", added.path)
+        assertEquals("content://files-root", added.targetReference)
         assertEquals(QuickAccessType.FILES_APP, added.type)
         assertTrue(added.isPinned)
     }
 
     @Test
     fun `movePinnedItem persists each move and preserves unpinned items`() = runTest(dispatcher) {
-        val item1 = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
-        val item2 = QuickAccessItem(id = "2", label = "DCIM", path = "/dcim", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
-        val item3 = QuickAccessItem(id = "3", label = "Pictures", path = "/pictures", type = QuickAccessType.STANDARD, isPinned = false, isEnabled = true)
+        val item1 = QuickAccessItem(id = "1", label = "Downloads", targetReference = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item2 = QuickAccessItem(id = "2", label = "DCIM", targetReference = "/dcim", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item3 = QuickAccessItem(id = "3", label = "Pictures", targetReference = "/pictures", type = QuickAccessType.STANDARD, isPinned = false, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(item1, item2, item3)
 
         val viewModel = createViewModel()
@@ -170,9 +170,9 @@ class QuickAccessViewModelTest {
 
     @Test
     fun `rapid pinned moves are serialized against the latest stored order`() = runTest(dispatcher) {
-        val item1 = QuickAccessItem(id = "1", label = "Downloads", path = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
-        val item2 = QuickAccessItem(id = "2", label = "DCIM", path = "/dcim", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
-        val item3 = QuickAccessItem(id = "3", label = "Music", path = "/music", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item1 = QuickAccessItem(id = "1", label = "Downloads", targetReference = "/downloads", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item2 = QuickAccessItem(id = "2", label = "DCIM", targetReference = "/dcim", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
+        val item3 = QuickAccessItem(id = "3", label = "Music", targetReference = "/music", type = QuickAccessType.STANDARD, isPinned = true, isEnabled = true)
         fakeStore.itemsFlow.value = listOf(item1, item2, item3)
 
         val viewModel = createViewModel()

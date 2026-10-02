@@ -32,7 +32,7 @@ class OperationPresentationMapperTest {
             completedItems = 1,
             totalItems = 2,
             currentPath = "/b",
-            bytesCopied = 10L,
+            bytesProcessed = 10L,
             totalBytes = 20L
         )
 
@@ -44,7 +44,7 @@ class OperationPresentationMapperTest {
 
         assertEquals(1, result.completedItems)
         assertEquals("/b", result.currentPath)
-        assertEquals(10L, result.bytesCopied)
+        assertEquals(10L, result.bytesProcessed)
         assertEquals(20L, result.totalBytes)
         assertEquals(42L, result.startTimeMillis)
         assertFalse(result.isIndeterminate)

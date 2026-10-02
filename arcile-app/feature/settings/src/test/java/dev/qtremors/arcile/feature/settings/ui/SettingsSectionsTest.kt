@@ -21,7 +21,7 @@ import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
@@ -128,7 +128,7 @@ class SettingsSectionsTest {
 
     @Test
     fun `enabling double line filenames disables marquee`() {
-        val updatedTheme = ThemeState(
+        val updatedTheme = UiPreferences(
             doubleLineFilenames = false,
             marqueeFilenames = true
         ).withDoubleLineFilenames(true)
@@ -139,7 +139,7 @@ class SettingsSectionsTest {
 
     @Test
     fun `enabling marquee filenames disables double line mode`() {
-        val updatedTheme = ThemeState(
+        val updatedTheme = UiPreferences(
             doubleLineFilenames = true,
             marqueeFilenames = false
         ).withMarqueeFilenames(true)
@@ -150,7 +150,7 @@ class SettingsSectionsTest {
 
     @Test
     fun `filename display mode derives and maps accurately`() {
-        val single = ThemeState(doubleLineFilenames = false, marqueeFilenames = false)
+        val single = UiPreferences(doubleLineFilenames = false, marqueeFilenames = false)
         assertEquals(FilenameDisplayMode.SINGLE_LINE, single.filenameDisplayMode)
 
         val twoLines = single.withFilenameDisplayMode(FilenameDisplayMode.TWO_LINES)
@@ -171,7 +171,7 @@ class SettingsSectionsTest {
 
     @Test
     fun `landscape dual pane setting updates independently`() {
-        val original = ThemeState(marqueeFilenames = true)
+        val original = UiPreferences(marqueeFilenames = true)
         val updated = original.withLandscapeDualPane(true)
 
         assertTrue(updated.landscapeDualPaneEnabled)
@@ -180,7 +180,7 @@ class SettingsSectionsTest {
 
     @Test
     fun `folder icon setting updates independently`() {
-        val original = ThemeState(marqueeFilenames = true)
+        val original = UiPreferences(marqueeFilenames = true)
         val updated = original.withFolderIcons(true)
 
         assertFalse(original.folderIconsEnabled)
@@ -553,7 +553,7 @@ class SettingsSectionsTest {
                 SettingsScreen(
                     pluginExtensions = emptySet(),
                     state = SettingsScreenState(
-                        theme = ThemeState(),
+                        theme = UiPreferences(),
                         preferences = SettingsPreferences(),
                         backup = PreferencesBackupUiState.Idle
                     ),

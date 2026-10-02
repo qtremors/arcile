@@ -115,7 +115,7 @@ class VideoViewerPlaybackTest {
         val selectedItem = VideoPlaybackItem(
             mediaItem = MediaItem.Builder()
                 .setUri("content://media/external/video/media/42")
-                .setMediaId(selected.absolutePath)
+                .setMediaId(selected.reference)
                 .build(),
             title = selected.name
         )
@@ -126,11 +126,11 @@ class VideoViewerPlaybackTest {
 
         val initialPath = videoPlaybackInitialPath(session)
         val initializedFiles = (session.files.orEmpty() + fileModelFromPath(initialPath))
-            .distinctBy(FileModel::absolutePath)
+            .distinctBy(FileModel::reference)
 
-        assertEquals(selected.absolutePath, initialPath)
+        assertEquals(selected.reference, initialPath)
         assertEquals(listOf(first, selected, third), initializedFiles)
-        assertEquals(1, initializedFiles.indexOfFirst { it.absolutePath == initialPath })
+        assertEquals(1, initializedFiles.indexOfFirst { it.reference == initialPath })
         assertEquals(selectedItem, videoPlaybackItemFor(selected, fallbackIndex = 1, session))
     }
 
@@ -412,7 +412,7 @@ class VideoViewerPlaybackTest {
 
     private fun videoFile(path: String) = FileModel(
         name = path.substringAfterLast('/'),
-        absolutePath = path,
+        reference = path,
         size = 1L,
         lastModified = 1L,
         isDirectory = false,
@@ -422,7 +422,7 @@ class VideoViewerPlaybackTest {
 
     private fun playbackItem(file: FileModel) = VideoPlaybackItem(
         mediaItem = MediaItem.Builder()
-            .setUri("file://${file.absolutePath}")
+            .setUri("file://${file.reference}")
             .setMimeType(file.mimeType)
             .build(),
         title = file.name

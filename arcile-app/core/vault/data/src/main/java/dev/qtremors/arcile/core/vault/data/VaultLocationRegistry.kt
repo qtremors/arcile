@@ -17,7 +17,7 @@ internal data class VaultLocationRecord(
 )
 
 @Serializable
-internal data class ExternalVaultPointer(
+internal data class PortableVaultPointer(
     val vaultId: String,
     val volumeId: String = "",
     val relativePath: String = "",
@@ -32,19 +32,19 @@ internal class VaultLocationRegistry(private val context: Context) {
     private val preferences by lazy { context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE) }
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-    fun load(): List<ExternalVaultPointer> = preferences.getStringSet(KEY_POINTERS, emptySet())
+    fun load(): List<PortableVaultPointer> = preferences.getStringSet(KEY_POINTERS, emptySet())
         .orEmpty()
-        .mapNotNull { runCatching { json.decodeFromString<ExternalVaultPointer>(it) }.getOrNull() }
-        .distinctBy(ExternalVaultPointer::vaultId)
+        .mapNotNull { runCatching { json.decodeFromString<PortableVaultPointer>(it) }.getOrNull() }
+        .distinctBy(PortableVaultPointer::vaultId)
 
-    fun put(pointer: ExternalVaultPointer) {
+    fun put(pointer: PortableVaultPointer) {
         val next = load().filterNot { it.vaultId == pointer.vaultId } + pointer
         preferences.edit {
             putStringSet(KEY_POINTERS, next.mapTo(mutableSetOf()) { json.encodeToString(it) })
         }
     }
 
-    fun find(vaultId: VaultId): ExternalVaultPointer? = load().firstOrNull { it.vaultId == vaultId.value }
+    fun find(vaultId: VaultId): PortableVaultPointer? = load().firstOrNull { it.vaultId == vaultId.value }
 
     fun remove(vaultId: VaultId): Boolean {
         val current = load()

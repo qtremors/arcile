@@ -39,7 +39,7 @@ internal data class BrowserSelectionIntents(
 internal data class BrowserMutationIntents(
     val onCreateFolder: (String) -> Unit,
     val onCreateFile: (String) -> Unit,
-    val onCreateFakeFile: (String, Long) -> Unit,
+    val onCreateSyntheticFile: (String, Long) -> Unit,
     val onRequestDeleteSelected: () -> Unit,
     val onConfirmDelete: () -> Unit,
     val onTogglePermanentDelete: () -> Unit,

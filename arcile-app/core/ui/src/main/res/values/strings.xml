@@ -64,9 +64,9 @@
     <string name="action_apply_to_all">Do this for all remaining conflicts</string>
     <string name="title_folder_conflict">Folder Conflict (%1$d/%2$d)</string>
     <string name="title_file_conflict">File Conflict (%1$d/%2$d)</string>
-    <string name="image_gallery_metadata_file_information">File Information</string>
+    <string name="viewer_metadata_file_information">File Information</string>
     <string name="image_gallery_metadata_camera_exif">Camera &amp; EXIF</string>
-    <string name="image_gallery_metadata_location">Location</string>
+    <string name="viewer_metadata_location">Location</string>
     <string name="video_player_hide_thumbnails">Hide thumbnails</string>
     <string name="video_player_show_thumbnails">Show thumbnails</string>
     <string name="action_create">Create</string>
@@ -393,7 +393,7 @@
     <string name="activity_log_operation_trash">Move to Trash</string>
     <string name="activity_log_operation_delete">Delete</string>
     <string name="activity_log_operation_shred">Shred</string>
-    <string name="activity_log_operation_create_fake">Create fake file</string>
+    <string name="activity_log_operation_create_synthetic">Create synthetic file</string>
     <string name="activity_log_operation_extract_archive">Extract archive</string>
     <string name="activity_log_operation_create_archive">Create archive</string>
     <string name="activity_log_operation_create_folder">Create folder</string>
@@ -426,9 +426,6 @@
     <string name="activity_log_page_archive_viewer">Archive viewer</string>
     <string name="activity_log_page_about">About</string>
     <string name="activity_log_page_licenses">Open source licenses</string>
-    <string name="placeholder_onlyfiles">OnlyFiles</string>
-    <string name="placeholder_large_files">Large Files</string>
-    <string name="placeholder_ftp_server">FTP Server</string>
 
     <!-- Browser / File Manager -->
     <string name="browse_title">Browse</string>
@@ -534,7 +531,7 @@
         <item quantity="other">%1$d folders</item>
     </plurals>
     <string name="properties_folder_contents">%1$s • %2$s • %3$s</string>
-    <string name="archive_compress_zip">Create archive</string>
+    <string name="archive_create_menu_action">Create archive</string>
     <string name="archive_extract_here">Extract here</string>
     <string name="archive_extract_to_folder">Extract to folder</string>
     <string name="archive_extract_folder">Extract folder</string>

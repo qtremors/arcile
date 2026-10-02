@@ -28,7 +28,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.ui.ArcileListSurface
 import dev.qtremors.arcile.core.ui.ArcileSectionHeader
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
@@ -39,23 +39,23 @@ import dev.qtremors.arcile.core.ui.settings.SettingsChoiceHeader
 import dev.qtremors.arcile.core.ui.settings.SettingsConnectedChoices
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.titleMediumBold
 
-enum class FilenameDisplayMode {
+internal enum class FilenameDisplayMode {
     SINGLE_LINE,
     TWO_LINES,
     AUTO_SCROLL
 }
 
-internal val ThemeState.filenameDisplayMode: FilenameDisplayMode
+internal val UiPreferences.filenameDisplayMode: FilenameDisplayMode
     get() = when {
         doubleLineFilenames -> FilenameDisplayMode.TWO_LINES
         marqueeFilenames -> FilenameDisplayMode.AUTO_SCROLL
         else -> FilenameDisplayMode.SINGLE_LINE
     }
 
-internal fun ThemeState.withFilenameDisplayMode(mode: FilenameDisplayMode): ThemeState = when (mode) {
+internal fun UiPreferences.withFilenameDisplayMode(mode: FilenameDisplayMode): UiPreferences = when (mode) {
     FilenameDisplayMode.SINGLE_LINE -> copy(doubleLineFilenames = false, marqueeFilenames = false)
     FilenameDisplayMode.TWO_LINES -> copy(doubleLineFilenames = true, marqueeFilenames = false)
     FilenameDisplayMode.AUTO_SCROLL -> copy(marqueeFilenames = true, doubleLineFilenames = false)
@@ -96,7 +96,7 @@ internal fun FilenameDisplaySelector(
 
 @Composable
 internal fun SettingsAppearanceSection(
-    theme: ThemeState,
+    theme: UiPreferences,
     preferences: dev.qtremors.arcile.feature.settings.SettingsPreferences,
     actions: SettingsPreferenceActions,
     showHeading: Boolean = true
@@ -121,7 +121,7 @@ internal fun SettingsAppearanceSection(
             if (theme.themePreset == ThemePreset.CUSTOM) {
                 ArcileListSurface {
                     CustomThemeCreatorPanel(
-                        themeState = theme,
+                        uiPreferences = theme,
                         onThemeChange = actions.themeChange
                     )
                 }
@@ -231,21 +231,21 @@ internal fun SettingsSwitchRow(
     )
 }
 
-internal fun ThemeState.withDoubleLineFilenames(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withDoubleLineFilenames(enabled: Boolean): UiPreferences = copy(
     doubleLineFilenames = enabled,
     marqueeFilenames = if (enabled) false else marqueeFilenames
 )
 
-internal fun ThemeState.withMarqueeFilenames(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withMarqueeFilenames(enabled: Boolean): UiPreferences = copy(
     marqueeFilenames = enabled,
     doubleLineFilenames = if (enabled) false else doubleLineFilenames
 )
 
-internal fun ThemeState.withLandscapeDualPane(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withLandscapeDualPane(enabled: Boolean): UiPreferences = copy(
     landscapeDualPaneEnabled = enabled
 )
 
-internal fun ThemeState.withFolderIcons(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withFolderIcons(enabled: Boolean): UiPreferences = copy(
     folderIconsEnabled = enabled
 )
 
@@ -286,9 +286,9 @@ internal fun HomeRecentCarouselLimit(
                             onValueChange(rounded)
                         }
                     },
-                    valueRange = BrowserPreferences.MIN_HOME_RECENT_CAROUSEL_LIMIT.toFloat()..
-                        BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT.toFloat(),
-                    steps = BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT - 1,
+                    valueRange = SharedFilePreferences.MIN_HOME_RECENT_CAROUSEL_LIMIT.toFloat()..
+                        SharedFilePreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT.toFloat(),
+                    steps = SharedFilePreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT - 1,
                     modifier = Modifier.testTag("home_recent_carousel_limit_slider")
                 )
             }

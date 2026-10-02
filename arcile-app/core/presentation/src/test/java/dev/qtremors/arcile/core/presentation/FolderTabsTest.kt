@@ -76,7 +76,7 @@ class FolderTabsTest {
 
 private fun file(name: String, path: String, lastModified: Long = 1L) = FileModel(
     name = name,
-    absolutePath = path,
+    reference = path,
     size = 1L,
     lastModified = lastModified,
     isDirectory = false,

@@ -12,7 +12,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
-import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeAndUtilityPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
@@ -612,7 +612,7 @@ class HomeViewModelTest {
     fun `utility preference controls which utilities are visible on home`() = runTest(mainDispatcherRule.dispatcher) {
         val repository = FakeStorageRepositoryBundle()
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val utilityStore = HomeFakeUtilityPreferencesStore()
+        val utilityStore = HomeFakeHomeAndUtilityPreferencesStore()
         val viewModel = HomeViewModel(
             repository.volumeRepository,
             repository.storageAnalyticsRepository,
@@ -638,7 +638,7 @@ class HomeViewModelTest {
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
             io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
         }
-        val utilityStore = HomeFakeUtilityPreferencesStore()
+        val utilityStore = HomeFakeHomeAndUtilityPreferencesStore()
         val viewModel = HomeViewModel(
             repository.volumeRepository,
             repository.storageAnalyticsRepository,
@@ -690,7 +690,7 @@ private class HomeFakeStorageClassificationStore(
     override suspend fun resetClassification(storageKey: String) = Unit
 }
 
-private class HomeFakeUtilityPreferencesStore : UtilityPreferencesStore {
+private class HomeFakeHomeAndUtilityPreferencesStore : HomeAndUtilityPreferencesStore {
     private val ids = MutableStateFlow(listOf("trash", "cleaner"))
     private val layout = MutableStateFlow(HomeLayoutPreferences())
 

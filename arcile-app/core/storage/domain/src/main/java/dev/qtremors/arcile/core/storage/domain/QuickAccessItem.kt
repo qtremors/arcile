@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.storage.domain
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 enum class QuickAccessType {
@@ -14,7 +15,8 @@ enum class QuickAccessType {
 data class QuickAccessItem(
     val id: String,
     val label: String,
-    val path: String, // Can be an absolute path or a URI string
+    @SerialName("path")
+    val targetReference: String, // Can be an absolute path or a URI string
     val type: QuickAccessType,
     val handoffDescription: String? = null,
     val isPinned: Boolean = true,

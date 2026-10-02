@@ -62,11 +62,11 @@ internal fun AudioLibraryFloatingTopBar(
         }
         val hasItems = if (
             currentTab == CategoryLibraryPage.ITEMS ||
-            state.folderFilter != null
+            state.collectionFilter != null
         ) {
             state.visibleTracks.isNotEmpty()
         } else {
-            state.folders.isNotEmpty()
+            state.collections.isNotEmpty()
         }
         if (hasItems) {
             add(
@@ -158,7 +158,7 @@ internal fun AudioLibraryBottomBar(
             if (state.clipboardState != null || state.activeFileOperation != null) {
                 AudioClipboardToolbar(
                     state = state,
-                    canPaste = state.folderFilter != null,
+                    canPaste = state.collectionFilter != null,
                     onPaste = onPaste,
                     onCancel = onCancelClipboard,
                     onShowContents = onShowClipboardContents
@@ -189,7 +189,7 @@ internal fun AudioLibraryBottomBar(
             AudioSelectionActionsBar(
                 canUseSingleTrackActions = selectedTracks.size == 1,
                 allSelectedFavorite = selectedTracks.all {
-                    it.file.absolutePath in state.favoritePaths
+                    it.file.reference in state.favoritePaths
                 },
                 onPlay = onPlaySelected,
                 onCopy = onCopySelected,

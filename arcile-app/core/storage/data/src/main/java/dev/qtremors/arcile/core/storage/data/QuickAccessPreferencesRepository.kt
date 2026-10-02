@@ -34,7 +34,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
     private fun createExternalHandoffItem(id: String, label: String, relativeDocPath: String) = QuickAccessItem(
         id = id,
         label = label,
-        path = buildAndroidTreeUri(relativeDocPath),
+        targetReference = buildAndroidTreeUri(relativeDocPath),
         type = QuickAccessType.EXTERNAL_HANDOFF,
         handoffDescription = "Opens in the Android Files app due to platform restrictions.",
         isPinned = false,
@@ -58,7 +58,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
         }
         if (item.type == QuickAccessType.FILES_APP || item.id == "handoff_files_app") {
             return item.copy(
-                path = buildAndroidTreeUri(""),
+                targetReference = buildAndroidTreeUri(""),
                 type = QuickAccessType.FILES_APP,
                 handoffDescription = "Open the Android Files app."
             )
@@ -72,7 +72,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_downloads",
                 label = "Downloads",
-                path = File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath,
+                targetReference = File(root, Environment.DIRECTORY_DOWNLOADS).absolutePath,
                 type = QuickAccessType.STANDARD,
                 isPinned = true,
                 isEnabled = true
@@ -80,7 +80,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_dcim",
                 label = "DCIM",
-                path = File(root, Environment.DIRECTORY_DCIM).absolutePath,
+                targetReference = File(root, Environment.DIRECTORY_DCIM).absolutePath,
                 type = QuickAccessType.STANDARD,
                 isPinned = true,
                 isEnabled = true
@@ -88,7 +88,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_documents",
                 label = "Documents",
-                path = File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath,
+                targetReference = File(root, Environment.DIRECTORY_DOCUMENTS).absolutePath,
                 type = QuickAccessType.STANDARD,
                 isPinned = true,
                 isEnabled = true
@@ -96,7 +96,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "handoff_files_app",
                 label = "Files",
-                path = buildAndroidTreeUri(""),
+                targetReference = buildAndroidTreeUri(""),
                 type = QuickAccessType.FILES_APP,
                 handoffDescription = "Open the Android Files app.",
                 isPinned = true,
@@ -105,7 +105,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_whatsapp_media",
                 label = "WhatsApp",
-                path = "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media",
+                targetReference = "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media",
                 type = QuickAccessType.STANDARD,
                 isPinned = false,
                 isEnabled = true
@@ -113,7 +113,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "internal_all_files",
                 label = "Arcile",
-                path = "",
+                targetReference = "",
                 type = QuickAccessType.STANDARD,
                 isPinned = true,
                 isEnabled = true
@@ -121,7 +121,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_root_storage",
                 label = "Root Storage",
-                path = "/",
+                targetReference = "/",
                 type = QuickAccessType.STANDARD,
                 isPinned = false,
                 isEnabled = true
@@ -129,7 +129,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_pictures",
                 label = "Pictures",
-                path = File(root, Environment.DIRECTORY_PICTURES).absolutePath,
+                targetReference = File(root, Environment.DIRECTORY_PICTURES).absolutePath,
                 type = QuickAccessType.STANDARD,
                 isPinned = false,
                 isEnabled = true
@@ -137,7 +137,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_music",
                 label = "Music",
-                path = File(root, Environment.DIRECTORY_MUSIC).absolutePath,
+                targetReference = File(root, Environment.DIRECTORY_MUSIC).absolutePath,
                 type = QuickAccessType.STANDARD,
                 isPinned = false,
                 isEnabled = true
@@ -145,7 +145,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
             QuickAccessItem(
                 id = "standard_movies",
                 label = "Movies",
-                path = File(root, Environment.DIRECTORY_MOVIES).absolutePath,
+                targetReference = File(root, Environment.DIRECTORY_MOVIES).absolutePath,
                 type = QuickAccessType.STANDARD,
                 isPinned = false,
                 isEnabled = true
@@ -217,7 +217,7 @@ class QuickAccessPreferencesRepository @Inject constructor(
                 decodeStoredItems(preferences[QUICK_ACCESS_ITEMS_KEY]),
                 preferences[ROOT_DEFAULT_UNPINNED_KEY] == true
             )
-            val existing = currentList.firstOrNull { it.id == item.id || it.path == item.path }
+            val existing = currentList.firstOrNull { it.id == item.id || it.targetReference == item.targetReference }
             val updatedList = if (existing == null) {
                 currentList + item
             } else if (!existing.isEnabled) {

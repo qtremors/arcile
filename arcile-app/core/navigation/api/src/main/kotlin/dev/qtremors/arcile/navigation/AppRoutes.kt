@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.navigation
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 object AppRoutes {
@@ -13,7 +14,7 @@ object AppRoutes {
     const val IMAGE_VIEWER_CONTEXT_BACKEND_IDS_KEY = "imageViewerContextBackendIds"
     const val IMAGE_VIEWER_CONTEXT_BACKEND_IDENTITIES_KEY = "imageViewerContextBackendIdentities"
     const val IMAGE_VIEWER_SELECTION_PATHS_KEY = "imageViewerSelectionPaths"
-    const val IMAGE_VIEWER_RETURN_SELECTION_PATHS_KEY = "imageViewerReturnSelectionPaths"
+    const val MEDIA_VIEWER_RETURN_SELECTION_PATHS_KEY = "imageViewerReturnSelectionPaths"
     const val MEDIA_VIEWER_RETURN_PATH_KEY = "image_viewer.return_path"
 
     @Serializable data class Main(
@@ -44,13 +45,15 @@ object AppRoutes {
     @Serializable object Plugins
     @Serializable object Trash
     @Serializable data class RecentFiles(val volumeId: String? = null)
-    @Serializable data class ImageGallery(
+    @Serializable
+    @SerialName("dev.qtremors.arcile.navigation.AppRoutes.ImageGallery")
+    data class MediaGallery(
         val volumeId: String? = null,
         val categoryId: String = "Images"
     )
     @Serializable data class ImageViewer(
         val initialPath: String,
-        val albumPath: String? = null,
+        @SerialName("albumPath") val folderPath: String? = null,
         val searchQuery: String? = null,
         val volumeId: String? = null,
         val returnToBrowserPage: Boolean = false,

@@ -123,7 +123,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
                 val progress = VaultImportProgress(
                     completedItems = completedItems,
                     totalItems = totalItems,
-                    bytesCopied = copiedBytes,
+                    bytesProcessed = copiedBytes,
                     totalBytes = totalBytes,
                     currentName = currentName
                 )

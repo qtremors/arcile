@@ -57,7 +57,7 @@ fun HomeRoute(
             navigateToRecentFiles = { onDestination(HomeDestination.RecentFiles) },
             navigateToQuickAccess = { onDestination(HomeDestination.QuickAccess) },
             navigateToExternalFolder = { item ->
-                onDestination(HomeDestination.ExternalFolder(item.path))
+                onDestination(HomeDestination.ExternalFolder(item.targetReference))
             },
             openStorageDashboard = { onDestination(HomeDestination.StorageDashboard(it)) },
             navigateToCleaner = { onDestination(HomeDestination.Cleaner) },

@@ -30,7 +30,7 @@ internal abstract class VaultCatalogLayer(
         when (val location = request.location) {
             is VaultLocation.AppPrivate -> createAppPrivateVault(request.label, request.password)
             is VaultLocation.Portable -> {
-                val pointer = ExternalVaultPointer(
+                val pointer = PortableVaultPointer(
                     vaultId = "pending",
                     volumeId = location.volumeId,
                     relativePath = location.relativePath,
@@ -53,7 +53,7 @@ internal abstract class VaultCatalogLayer(
                 var openedSecret: ByteArray? = null
                 try {
                     val target = portableLocationResolver.resolve(
-                        ExternalVaultPointer(
+                        PortableVaultPointer(
                             vaultId = "pending",
                             volumeId = request.volumeId,
                             relativePath = request.relativePath,
@@ -61,12 +61,12 @@ internal abstract class VaultCatalogLayer(
                             cachedCreatedAtMillis = 0L
                         )
                     )
-                    val attached = externalManager.attach(target)
+                    val attached = portableManager.attach(target)
                     if (locations.containsKey(attached.id.value) || locationRegistry.find(attached.id) != null) {
                         throw VaultFailure.DuplicateVault(attached.id)
                     }
                     openedSecret = headerCodec.open(attached.access, request.password).getOrThrow().masterKey
-                    externalManager.register(attached)
+                    portableManager.register(attached)
                     locations[attached.id.value] = VaultLocationRecord(
                         attached.access,
                         VaultLocationKind.PORTABLE,
@@ -174,7 +174,7 @@ internal abstract class VaultCatalogLayer(
                     resolved.location
                 )
                 locationRegistry.put(
-                    ExternalVaultPointer(
+                    PortableVaultPointer(
                         vaultId = pointer.vaultId,
                         volumeId = resolved.location.volumeId,
                         relativePath = resolved.location.relativePath,
@@ -247,7 +247,7 @@ internal abstract class VaultCatalogLayer(
         lifecycleMutex.withLock {
             catchingCancellation {
                 val target = portableLocationResolver.identify(path)
-                val created = externalManager.create(target, name, password)
+                val created = portableManager.create(target, name, password)
                 val secret = requireNotNull(created.masterSecret)
                 locations[created.id.value] = VaultLocationRecord(
                     created.access,
@@ -265,11 +265,11 @@ internal abstract class VaultCatalogLayer(
         lifecycleMutex.withLock {
             catchingCancellation {
                 val target = portableLocationResolver.identify(path)
-                val attached = externalManager.attach(target)
+                val attached = portableManager.attach(target)
                 if (locations.containsKey(attached.id.value) || locationRegistry.find(attached.id) != null) {
                     throw VaultFailure.DuplicateVault(attached.id)
                 }
-                externalManager.register(attached)
+                portableManager.register(attached)
                 locations[attached.id.value] = VaultLocationRecord(
                     attached.access,
                     VaultLocationKind.PORTABLE,

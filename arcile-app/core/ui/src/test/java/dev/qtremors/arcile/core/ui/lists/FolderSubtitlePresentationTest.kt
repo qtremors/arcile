@@ -23,7 +23,7 @@ class FolderSubtitlePresentationTest {
     @Test
     fun `folder rows distinguish unknown and unavailable from cached empty folders`() {
         val stats = mutableStateOf<FolderStats?>(null)
-        val folder = FileModel(name = "Docs", absolutePath = "/storage/emulated/0/Docs", isDirectory = true)
+        val folder = FileModel(name = "Docs", reference = "/storage/emulated/0/Docs", isDirectory = true)
         compose.setContent {
             Text(folder.toFileRowUiModel(SimpleDateFormat("yyyy", Locale.US), folderStats = stats.value).displaySubtitle())
         }

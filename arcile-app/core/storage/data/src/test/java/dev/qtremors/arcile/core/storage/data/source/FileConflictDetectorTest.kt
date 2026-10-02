@@ -33,11 +33,11 @@ class FileConflictDetectorTest {
     }
 
     @Test
-    fun `detectCopyConflicts returns conflict models for existing destination names`() {
+    fun `detectTransferConflicts returns conflict models for existing destination names`() {
         val sourceFile = File(source, "report.txt").apply { writeText("new") }
         val existingFile = File(destination, "report.txt").apply { writeText("old") }
 
-        val conflicts = detector.detectCopyConflicts(listOf(sourceFile.absolutePath), destination)
+        val conflicts = detector.detectTransferConflicts(listOf(sourceFile.absolutePath), destination)
 
         assertEquals(1, conflicts.size)
         val conflict = conflicts.single()
@@ -45,15 +45,15 @@ class FileConflictDetectorTest {
         assertEquals(sourceFile.name, conflict.sourceFile.name)
         assertEquals(sourceFile.length(), conflict.sourceFile.size)
         assertEquals(existingFile.name, conflict.existingFile.name)
-        assertEquals(existingFile.absolutePath, conflict.existingFile.absolutePath)
+        assertEquals(existingFile.absolutePath, conflict.existingFile.reference)
     }
 
     @Test
-    fun `detectCopyConflicts ignores missing sources and non-conflicting files`() {
+    fun `detectTransferConflicts ignores missing sources and non-conflicting files`() {
         val uniqueFile = File(source, "unique.txt").apply { writeText("only here") }
         val missingFile = File(source, "missing.txt")
 
-        val conflicts = detector.detectCopyConflicts(
+        val conflicts = detector.detectTransferConflicts(
             listOf(uniqueFile.absolutePath, missingFile.absolutePath),
             destination
         )

@@ -76,7 +76,7 @@ import dev.qtremors.arcile.feature.onboarding.OnboardingRestoreState
 import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
 import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.spacing
@@ -302,8 +302,8 @@ internal fun OnboardingPrivacy() {
 
 @Composable
 internal fun OnboardingTheme(
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit
 ) {
     OnboardingPage(
         icon = Icons.Default.Palette,
@@ -319,13 +319,13 @@ internal fun OnboardingTheme(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 ThemeModeSelector(
-                    currentMode = currentThemeState.themeMode,
-                    onModeSelected = { onThemeChange(currentThemeState.copy(themeMode = it)) }
+                    currentMode = currentUiPreferences.themeMode,
+                    onModeSelected = { onThemeChange(currentUiPreferences.copy(themeMode = it)) }
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 AccentColorSelector(
-                    currentAccent = currentThemeState.accentColor,
-                    onAccentSelected = { onThemeChange(currentThemeState.copy(accentColor = it)) }
+                    currentAccent = currentUiPreferences.accentColor,
+                    onAccentSelected = { onThemeChange(currentUiPreferences.copy(accentColor = it)) }
                 )
             }
         }

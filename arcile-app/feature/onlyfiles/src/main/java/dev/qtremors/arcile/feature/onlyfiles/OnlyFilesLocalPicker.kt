@@ -63,10 +63,10 @@ internal fun OnlyFilesLocalPickerDialog(
                 if (state.isLoading) Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) {
                     LoadingIndicator()
                 } else LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
-                    items(state.entries, key = FileModel::absolutePath) { file ->
+                    items(state.entries, key = FileModel::reference) { file ->
                         val itemClick: () -> Unit = {
-                            if (file.isDirectory) onOpenDirectory(file.absolutePath)
-                            else if (selectingFiles) onToggleFile(file.absolutePath)
+                            if (file.isDirectory) onOpenDirectory(file.reference)
+                            else if (selectingFiles) onToggleFile(file.reference)
                         }
                         Row(
                             modifier = Modifier
@@ -81,8 +81,8 @@ internal fun OnlyFilesLocalPickerDialog(
                             Text(file.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                             if (selectingFiles && !file.isDirectory) {
                                 ExpressiveSwitch(
-                                    checked = file.absolutePath in state.selectedPaths,
-                                    onCheckedChange = { onToggleFile(file.absolutePath) }
+                                    checked = file.reference in state.selectedPaths,
+                                    onCheckedChange = { onToggleFile(file.reference) }
                                 )
                             }
                         }

@@ -287,7 +287,7 @@ private fun rememberApkMetadata(file: FileModel): androidx.compose.runtime.State
     val context = LocalContext.current
     return produceState<ApkPresentationMetadata?>(
         initialValue = null,
-        file.absolutePath,
+        file.reference,
         file.size,
         file.lastModified
     ) {
