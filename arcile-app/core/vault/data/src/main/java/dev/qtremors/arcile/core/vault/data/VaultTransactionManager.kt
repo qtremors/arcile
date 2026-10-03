@@ -56,12 +56,16 @@ internal class VaultTransactionManager(
 
         var commitMarkerWritten = false
         try {
+            require(preparedDirectories.size <= MAX_PUBLICATIONS)
+            require(obsoletePaths.size <= MAX_OBJECTS_PER_TRANSACTION)
+            preparedDirectories.forEach { require(it.manifest.rootBytes.size in 1..MAX_ROOT_BYTES) }
+            val allNewPaths = newObjectPaths + preparedDirectories.flatMap { prepared ->
+                prepared.manifest.pages.map { it.relativePath }
+            }
+            require(allNewPaths.size <= MAX_OBJECTS_PER_TRANSACTION)
             // 1-2: metadata is prepared by the caller; immutable pages and content are synced first.
             preparedDirectories.forEach { prepared ->
                 manifestCodec.stagePages(directory, prepared.manifest)
-            }
-            val allNewPaths = newObjectPaths + preparedDirectories.flatMap { prepared ->
-                prepared.manifest.pages.map { it.relativePath }
             }
             stageObserver(VaultTransactionStage.OBJECTS_SYNCED)
 
@@ -87,7 +91,7 @@ internal class VaultTransactionManager(
             // 4: writing this marker commits the replacement generation.
             // Apply the reader's limits before committing, including extra source
             // manifests needed to preserve skipped children in a partial move.
-            validate(marker, vaultId)
+            validate(marker, vaultId, writing = true)
             writeMarker(directory, vaultId, masterSecret, marker)
             commitMarkerWritten = true
             stageObserver(VaultTransactionStage.COMMIT_MARKER_SYNCED)
@@ -195,8 +199,12 @@ internal class VaultTransactionManager(
                     transactionKey.fill(0)
                 }
                 try {
+                    require(plaintext.size <= MAX_MARKER_PLAINTEXT_BYTES)
                     val document = json.decodeFromString<VaultCommitDocument>(plaintext.toString(StandardCharsets.UTF_8))
-                    validate(document, vaultId)
+                    // Older writers committed markers before checking collection limits.
+                    // Authentication and the total byte budget still bound recovery, so
+                    // finish those committed generations instead of stranding the vault.
+                    validate(document, vaultId, writing = false)
                     return document
                 } finally {
                     plaintext.fill(0)
@@ -208,23 +216,24 @@ internal class VaultTransactionManager(
         }
     }
 
-    private fun validate(document: VaultCommitDocument, vaultId: VaultId) {
+    private fun validate(document: VaultCommitDocument, vaultId: VaultId, writing: Boolean) {
         require(document.transactionId.isNotBlank())
         require(document.vaultId == vaultId.value)
-        require(document.publications.isNotEmpty() && document.publications.size <= MAX_PUBLICATIONS)
+        require(document.publications.isNotEmpty())
+        if (writing) require(document.publications.size <= MAX_PUBLICATIONS)
         require(document.publications.map { it.relativePath }.distinct().size == document.publications.size)
         document.publications.forEach { publication ->
             validateRelativePath(publication.relativePath)
             publication.bytes.fromBase64(MAX_ROOT_BYTES, minimumSize = 1)
         }
-        require(document.newObjects.size <= MAX_OBJECTS_PER_TRANSACTION)
+        if (writing) require(document.newObjects.size <= MAX_OBJECTS_PER_TRANSACTION)
         require(document.newObjects.map { it.relativePath }.distinct().size == document.newObjects.size)
         document.newObjects.forEach { record ->
             validateRelativePath(record.relativePath)
             require(record.length >= 0L)
             record.sha256.fromBase64(32)
         }
-        require(document.obsoletePaths.size <= MAX_OBJECTS_PER_TRANSACTION)
+        if (writing) require(document.obsoletePaths.size <= MAX_OBJECTS_PER_TRANSACTION)
         document.obsoletePaths.forEach(::validateRelativePath)
     }
 

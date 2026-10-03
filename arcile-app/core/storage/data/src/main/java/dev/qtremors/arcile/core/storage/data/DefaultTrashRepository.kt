@@ -12,6 +12,9 @@ import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toStorageMutationResult
 import java.util.UUID
 import kotlinx.coroutines.CancellationException
+import dev.qtremors.arcile.core.storage.domain.RestoredTrashItem
+import dev.qtremors.arcile.core.storage.domain.PartialTrashRestoreException
+import dev.qtremors.arcile.core.storage.domain.TrashRestoreBatch
 
 class DefaultTrashRepository(
     private val trashManager: TrashManager,
@@ -27,6 +30,17 @@ class DefaultTrashRepository(
         destinationPath: String?
     ): StorageMutationResult = trashManager.restoreFromTrash(trashIds, destinationPath)
         .toAuthorizedResult(StorageAuthorizationOperation.RESTORE_TRASH)
+
+    override suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): TrashRestoreBatch {
+        val result = trashManager.restoreWithResults(trashIds, destinationPath)
+        val error = result.exceptionOrNull()
+        val partial = error as? PartialTrashRestoreException
+        val outcome = if (error == null) StorageMutationResult.Completed else
+            Result.failure<Unit>(partial?.cause ?: error).toAuthorizedResult(StorageAuthorizationOperation.RESTORE_TRASH)
+        return TrashRestoreBatch(outcome, result.getOrNull() ?: partial?.restored.orEmpty())
+    }
+
+    override suspend fun undoRestore(items: List<RestoredTrashItem>): Result<Unit> = trashManager.undoRestore(items)
 
     override suspend fun emptyTrash(): StorageMutationResult =
         trashManager.emptyTrash().toAuthorizedResult(StorageAuthorizationOperation.EMPTY_TRASH)

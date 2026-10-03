@@ -1,10 +1,22 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.7
-> **Last Updated:** 2026-10-03
+> **Version:** 2.1.8
+> **Last Updated:** 2026-10-04
 
 ---
+
+## [2.1.8] - 2026-10-04
+
+- **Browser Responsiveness**: Show folder contents before logging, indexing, and saved folder-size lookups finish. Reuse unchanged displays, update affected rows, and batch file-count sorting updates.
+- **Responsive Biometrics**: Prepare and complete biometric vault access in the background, preserve cancellation, and reject pending challenges after locking.
+- **Bounded Text Editing**: Limit documents and recovery drafts to 4 MiB, cap combined Undo/Redo history at 8 MiB of text, and keep oversized recovery drafts with clear feedback.
+- **Markdown Selection**: Format text selected in either direction without crashing, with working Undo and Redo.
+- **Safe Viewer Startup**: Keep standalone viewers from cleaning shared operations, and preserve temporary files and compatibility copies owned by live processes.
+- **Accurate Restore Undo**: Undo the actual restored files, including renamed conflicts and partial restores. Keep items that changed after restoration.
+- **Recoverable Text Saves**: Verify staged local saves before replacing originals, preserve durable drafts before provider writes, and offer recovery when a document differs from its draft.
+- **Reliable Text Editor State**: Keep document contents and editing history out of Android saved state while retaining edits across screen recreation.
+- **Vault Transaction Recovery**: Reject oversized operations before committing and finish authenticated older transactions that exceeded collection limits.
 
 ## [2.1.7] - 2026-10-03
 

@@ -159,13 +159,13 @@ internal fun TrashScreen(
                 ArcileFeedbackEvent(
                     message = message,
                     severity = ArcileFeedbackSeverity.Success,
-                    actionLabel = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                    actionLabel = state.pendingRestoreUndoItems.takeIf { it.isNotEmpty() }?.let {
                         UiText.StringResource(R.string.undo)
                     },
-                    onAction = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                    onAction = state.pendingRestoreUndoItems.takeIf { it.isNotEmpty() }?.let {
                         { onUndoLastRestore() }
                     },
-                    onDismiss = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                    onDismiss = state.pendingRestoreUndoItems.takeIf { it.isNotEmpty() }?.let {
                         { onClearPendingRestoreUndo() }
                     }
                 )

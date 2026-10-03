@@ -16,7 +16,6 @@ import dev.qtremors.arcile.core.storage.domain.StorageAuthorizationRequirement
 import dev.qtremors.arcile.core.storage.domain.onAuthorizationRequired
 import dev.qtremors.arcile.core.storage.domain.onFailure
 import dev.qtremors.arcile.core.storage.domain.onSuccess
-import dev.qtremors.arcile.core.storage.domain.joinStoragePath
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.presentation.SelectionReducer
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -118,7 +117,6 @@ internal class TrashViewModel @Inject constructor(
         val selectedTrashIds = requestedTrashIds.distinct()
         if (selectedTrashIds.isEmpty()) return
         val selectedItems = _state.value.trashFiles.filter { it.id in requestedTrashIds }
-        val undoPaths = selectedItems.mapNotNull { it.originalPath.takeIf(String::isNotBlank) }
         val hasDestinationRequiredItems = selectedItems.any {
             it.restoreStatus == TrashRestoreStatus.DESTINATION_REQUIRED ||
                 it.restoreStatus == TrashRestoreStatus.RECOVERED_ITEM
@@ -133,19 +131,19 @@ internal class TrashViewModel @Inject constructor(
             }
             return
         }
-        val conflictCount = selectedItems.count { it.restoreStatus == TrashRestoreStatus.ORIGINAL_CONFLICT_RENAME }
 
         _state.update { it.copy(isLoading = true, error = null) }
         viewModelScope.launch {
             val operationId = UUID.randomUUID().toString()
-            trashRepository.restoreFromTrash(selectedTrashIds).onSuccess {
-                recordOperation(operationId, "RESTORE", selectedTrashIds.size)
-                val message = restoreSummaryMessage(selectedTrashIds.size, conflictCount)
+            val batch = trashRepository.restoreWithResults(selectedTrashIds)
+            _state.update { it.copy(pendingRestoreUndoItems = batch.restored.filter { output -> output.undoToken != null }) }
+            batch.outcome.onSuccess {
+                recordOperation(operationId, "RESTORE", batch.restored.size)
+                val message = restoreSummaryMessage(batch.restored.size, batch.restored.count { it.renamedForConflict })
                 _state.update {
                     it.copy(
                         selectedFiles = it.selectedFiles - selectedTrashIds.toSet(),
-                        snackbarMessage = message,
-                        pendingRestoreUndoPaths = undoPaths
+                        snackbarMessage = message
                     )
                 }
                 loadTrashFiles()
@@ -156,6 +154,9 @@ internal class TrashViewModel @Inject constructor(
                     restoreIds = selectedTrashIds
                 )
             }.onFailure { error ->
+                if (batch.restored.isNotEmpty()) _state.update {
+                    it.copy(snackbarMessage = restoreSummaryMessage(batch.restored.size, batch.restored.count { output -> output.renamedForConflict }))
+                }
                 when (error) {
                     is DestinationRequiredException -> {
                         _state.update { 
@@ -193,20 +194,18 @@ internal class TrashViewModel @Inject constructor(
         _state.update { it.copy(isLoading = true, error = null, showDestinationPicker = false) }
         viewModelScope.launch {
             val operationId = UUID.randomUUID().toString()
-            trashRepository.restoreFromTrash(trashIds, destinationPath).onSuccess {
-                recordOperation(operationId, "RESTORE", trashIds.size, destinationPath = destinationPath)
+            val batch = trashRepository.restoreWithResults(trashIds, destinationPath)
+            _state.update { it.copy(pendingRestoreUndoItems = batch.restored.filter { output -> output.undoToken != null }) }
+            batch.outcome.onSuccess {
+                recordOperation(operationId, "RESTORE", batch.restored.size, destinationPath = destinationPath)
                 val normalizedIds = trashIds.map { it.removePrefix("legacy:") }.toSet()
-                val undoPaths = _state.value.trashFiles
-                    .filter { it.id in normalizedIds }
-                    .map { joinStoragePath(destinationPath, it.fileModel.name) }
                 _state.update {
                     it.copy(
                         selectedFiles = it.selectedFiles - normalizedIds,
                         selectedTrashIdsForDestination = emptyList(),
                         pendingDestinationPath = null,
                         pendingRestoreIds = emptyList(),
-                        pendingRestoreUndoPaths = undoPaths,
-                        snackbarMessage = restoreSummaryMessage(trashIds.size, 0)
+                        snackbarMessage = restoreSummaryMessage(batch.restored.size, batch.restored.count { output -> output.renamedForConflict })
                     )
                 }
                 loadTrashFiles()
@@ -218,6 +217,9 @@ internal class TrashViewModel @Inject constructor(
                     restoreIds = trashIds
                 )
             }.onFailure { error ->
+                if (batch.restored.isNotEmpty()) _state.update {
+                    it.copy(snackbarMessage = restoreSummaryMessage(batch.restored.size, batch.restored.count { output -> output.renamedForConflict }))
+                }
                 recordOperation(
                     operationId,
                     "RESTORE",
@@ -385,19 +387,19 @@ internal class TrashViewModel @Inject constructor(
     }
 
     fun undoLastRestore() {
-        val paths = _state.value.pendingRestoreUndoPaths
-        if (paths.isEmpty()) return
-        _state.update { it.copy(pendingRestoreUndoPaths = emptyList(), isLoading = true, error = null) }
+        val items = _state.value.pendingRestoreUndoItems
+        if (items.isEmpty()) return
+        _state.update { it.copy(pendingRestoreUndoItems = emptyList(), isLoading = true, error = null) }
         viewModelScope.launch {
             val operationId = UUID.randomUUID().toString()
-            trashRepository.moveToTrash(paths).onSuccess {
-                recordOperation(operationId, "TRASH", paths.size)
+            trashRepository.undoRestore(items).onSuccess {
+                recordOperation(operationId, "TRASH", items.size)
                 loadTrashFiles()
             }.onFailure { error ->
                 recordOperation(
                     operationId,
                     "TRASH",
-                    paths.size,
+                    items.size,
                     ActivityLogOperationStatus.FAILED,
                     errorMessage = error.message
                 )
@@ -408,7 +410,7 @@ internal class TrashViewModel @Inject constructor(
     }
 
     fun clearPendingRestoreUndo() {
-        _state.update { it.copy(pendingRestoreUndoPaths = emptyList()) }
+        _state.update { it.copy(pendingRestoreUndoItems = emptyList()) }
     }
 
     fun updateSearchQuery(query: String) {

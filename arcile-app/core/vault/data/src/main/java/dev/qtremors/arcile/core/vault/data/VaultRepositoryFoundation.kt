@@ -33,6 +33,7 @@ internal abstract class VaultRepositoryFoundation(
     protected val locations = ConcurrentHashMap<String, VaultLocationRecord>()
     protected val importReservations = ConcurrentHashMap<String, VaultSessionRecord>()
     protected val lifecycleMutex = Mutex()
+    protected var lockGeneration = 0L
     protected val locationRegistry = VaultLocationRegistry(context)
     protected val importEngine = VaultImportEngine(context, directoryCodec, fileCodec, transactionManager)
     protected val portableManager = VaultPortableManager(locationRegistry)

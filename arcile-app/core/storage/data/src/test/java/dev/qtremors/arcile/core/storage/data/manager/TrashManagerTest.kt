@@ -51,6 +51,76 @@ import java.nio.file.attribute.BasicFileAttributes
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TrashManagerTest {
+    private fun undoManager() = DefaultTrashManager(context, volumeProvider,
+        MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore),
+        undoFileKey = { Files.readAttributes(it.toPath(), BasicFileAttributes::class.java).creationTime().toString() })
+
+    @Test
+    fun `conflict restore undo trashes only actual output for original and picked destinations`() = runTest {
+        for (pickDestination in listOf(false, true)) {
+            val manager = undoManager()
+            val original = File(root, "report-$pickDestination.txt").apply { writeText("restored") }
+            manager.moveToTrash(listOf(original.path)).getOrThrow()
+            val id = manager.getTrashFiles().getOrThrow().single().id
+            val destination = if (pickDestination) File(root, "picked").apply { mkdirs() } else root
+            val existing = File(destination, original.name).apply { writeText("existing") }
+            val item = manager.restoreWithResults(listOf(id), destination.path.takeIf { pickDestination }).getOrThrow().single()
+            assertNotEquals(existing.path, item.path)
+            assertEquals("restored", File(item.path).readText())
+            assertTrue(item.renamedForConflict)
+            manager.undoRestore(listOf(item)).getOrThrow()
+            assertEquals("existing", existing.readText())
+            assertFalse(File(item.path).exists())
+            manager.emptyTrash().getOrThrow()
+        }
+    }
+
+    @Test
+    fun `undo refuses changed contents and newly added folder children`() = runTest {
+        val manager = undoManager()
+        val folder = File(root, "folder").apply { mkdirs() }
+        File(folder, "original.txt").writeText("old")
+        manager.moveToTrash(listOf(folder.path)).getOrThrow()
+        val id = manager.getTrashFiles().getOrThrow().single().id
+        val item = manager.restoreWithResults(listOf(id), null).getOrThrow().single()
+        File(folder, "new.txt").writeText("new")
+        assertTrue(manager.undoRestore(listOf(item)).isFailure)
+        assertEquals("new", File(folder, "new.txt").readText())
+        File(folder, "new.txt").delete()
+        File(folder, "original.txt").writeText("changed")
+        assertTrue(manager.undoRestore(listOf(item)).isFailure)
+        assertEquals("changed", File(folder, "original.txt").readText())
+    }
+
+    @Test
+    fun `partial restore reports only completed published items`() = runTest {
+        val manager = undoManager()
+        val first = File(root, "first.txt").apply { writeText("first") }
+        val second = File(root, "second.txt").apply { writeText("second") }
+        manager.moveToTrash(listOf(first.path, second.path)).getOrThrow()
+        val items = manager.getTrashFiles().getOrThrow()
+        val firstId = items.single { it.originalPath == first.path }.id
+        val secondId = items.single { it.originalPath == second.path }.id
+        File(root, ".arcile/.metadata/$secondId.json").writeText("broken")
+        val result = manager.restoreWithResults(listOf(firstId, secondId), null)
+        val error = result.exceptionOrNull() as dev.qtremors.arcile.core.storage.domain.PartialTrashRestoreException
+        assertEquals(first.path, error.restored.single().path)
+        manager.undoRestore(error.restored).getOrThrow()
+        assertFalse(first.exists())
+        assertEquals(2, manager.getTrashFiles().getOrThrow().size)
+    }
+
+    @Test
+    fun `restore without stable identities succeeds without unsafe undo`() = runTest {
+        val manager = DefaultTrashManager(context, volumeProvider,
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore), undoFileKey = { null })
+        val file = File(root, "no-identity.txt").apply { writeText("kept") }
+        manager.moveToTrash(listOf(file.path)).getOrThrow()
+        val item = manager.restoreWithResults(listOf(manager.getTrashFiles().getOrThrow().single().id), null).getOrThrow().single()
+        assertEquals(null, item.undoToken)
+        assertTrue(manager.undoRestore(listOf(item)).isFailure)
+        assertEquals("kept", file.readText())
+    }
 
     private lateinit var context: Context
     private lateinit var volumeProvider: VolumeProvider

@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.feature.browser.BrowserNavigationState
+import dev.qtremors.arcile.feature.browser.withUpdatedDisplayState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -39,6 +40,111 @@ import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class BrowserNavigationControllerTest {
+    @Test
+    fun `failed saved stats lookup still queues fresh folder calculations`() = testScope.runTest {
+        val files = io.mockk.spyk(repository.fileBrowserRepository)
+        coEvery { files.getCachedFolderStats(any()) } throws java.io.IOException("Cache unavailable")
+        val controller = BrowserNavigationController(delegate.state.value, testScope, files,
+            repository.archiveRepository, repository.searchRepository, browserPreferencesRepository, savedStateHandle, {})
+        val path = "/storage/emulated/0/Documents"
+        val folder = "$path/folder"
+        files.filesByPath = mapOf(path to listOf(FileModel("folder", folder, 0, 0, true, "", false)))
+        controller.navigateToSpecificFolder(path)
+        advanceUntilIdle()
+        assertEquals("folder", controller.state.value.files.single().name)
+        assertFalse(controller.state.value.isLoading)
+        coVerify(exactly = 1) { files.queueFolderStats(listOf(folder)) }
+        controller.updateFolderStat(folder, dev.qtremors.arcile.core.storage.domain.FolderStats(1, 10, 1))
+        assertFalse(controller.state.value.folderStatsLoadingPaths.contains(folder))
+    }
+
+    @Test
+    fun `file count batch retains the newest result for each folder`() = testScope.runTest {
+        val folder = FileModel("folder", "/storage/emulated/0/folder", 0, 0, true, "", false)
+        delegate.state.value = delegate.state.value.withValues(files = listOf(folder).toPersistentList(),
+            browserSortOption = dev.qtremors.arcile.core.storage.domain.FileSortOption.FILE_COUNT_HIGHEST
+        ).withUpdatedDisplayState()
+        val newer = dev.qtremors.arcile.core.storage.domain.FolderStats(2, 20, 2)
+        delegate.updateFolderStat(folder.reference, newer)
+        delegate.updateFolderStat(folder.reference, dev.qtremors.arcile.core.storage.domain.FolderStats(1, 10, 1))
+        advanceUntilIdle()
+        assertEquals(newer, delegate.state.value.folderStatsByPath[folder.reference])
+    }
+
+    @Test
+    fun `file count sorting batches updates and cancels an old location batch`() = testScope.runTest {
+        val a = FileModel("a", "/storage/emulated/0/a", 0, 0, true, "", false)
+        val b = FileModel("b", "/storage/emulated/0/b", 0, 0, true, "", false)
+        delegate.state.value = delegate.state.value.withValues(files = listOf(a, b).toPersistentList(),
+            browserSortOption = dev.qtremors.arcile.core.storage.domain.FileSortOption.FILE_COUNT_HIGHEST
+        ).withUpdatedDisplayState()
+        val display = delegate.state.value.displayState
+        delegate.updateFolderStat(a.reference, dev.qtremors.arcile.core.storage.domain.FolderStats(1, 10, 1))
+        delegate.updateFolderStat(b.reference, dev.qtremors.arcile.core.storage.domain.FolderStats(2, 20, 1))
+        org.junit.Assert.assertSame(display, delegate.state.value.displayState)
+        advanceUntilIdle()
+        assertEquals(listOf("b", "a"), delegate.state.value.displayState.visibleFiles.map { it.name })
+        delegate.updateFolderStat(a.reference, dev.qtremors.arcile.core.storage.domain.FolderStats(3, 30, 2))
+        delegate.updatePresentation(dev.qtremors.arcile.core.storage.domain.FileListingPreferences(), false)
+        val newer = dev.qtremors.arcile.core.storage.domain.FolderStats(4, 40, 3)
+        delegate.updateFolderStat(a.reference, newer)
+        advanceUntilIdle()
+        assertEquals(newer, delegate.state.value.folderStatsByPath[a.reference])
+        delegate.updatePresentation(dev.qtremors.arcile.core.storage.domain.FileListingPreferences(
+            sortOption = dev.qtremors.arcile.core.storage.domain.FileSortOption.FILE_COUNT_HIGHEST), false)
+        delegate.updateFolderStat(a.reference, dev.qtremors.arcile.core.storage.domain.FolderStats(3, 30, 2))
+        delegate.navigateToSpecificFolder("/storage/emulated/0/other")
+        advanceUntilIdle()
+        assertTrue(delegate.state.value.folderStatsByPath.isEmpty())
+    }
+    @Test
+    fun `listing does not await location writes and writes remain ordered across navigation`() = testScope.runTest {
+        val gate = CompletableDeferred<Unit>()
+        val writes = mutableListOf<String>()
+        coEvery { browserPreferencesRepository.updateLastOpenedLocation(any(), any()) } coAnswers {
+            val path = firstArg<String>()
+            if (path.endsWith("/first")) gate.await()
+            writes += path
+        }
+        val first = "/storage/emulated/0/first"
+        val second = "/storage/emulated/0/second"
+        repository.fileBrowserRepository.filesByPath = mapOf(
+            first to listOf(FileModel("one.txt", "$first/one.txt", 1, 0, false, "txt", false)),
+            second to listOf(FileModel("two.txt", "$second/two.txt", 1, 0, false, "txt", false))
+        )
+        delegate.navigateToSpecificFolder(first)
+        assertEquals("one.txt", delegate.state.value.files.single().name)
+        delegate.navigateToSpecificFolder(second)
+        assertEquals("two.txt", delegate.state.value.files.single().name)
+        assertTrue(writes.isEmpty())
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(first, second), writes)
+    }
+
+    @Test
+    fun `slow saved folder stats do not block pages or leak into a new location`() = testScope.runTest {
+        val gate = CompletableDeferred<Unit>()
+        val files = io.mockk.spyk(repository.fileBrowserRepository)
+        coEvery { files.getCachedFolderStats(any()) } coAnswers { gate.await(); emptyMap() }
+        val controller = BrowserNavigationController(delegate.state.value, testScope, files,
+            repository.archiveRepository, repository.searchRepository, browserPreferencesRepository, savedStateHandle, {})
+        val first = "/storage/emulated/0/first"
+        val second = "/storage/emulated/0/second"
+        files.filesByPath = mapOf(
+            first to listOf(FileModel("folder", "$first/folder", 0, 0, true, "", false)),
+            second to listOf(FileModel("two.txt", "$second/two.txt", 1, 0, false, "txt", false))
+        )
+        controller.navigateToSpecificFolder(first)
+        assertEquals("folder", controller.state.value.files.single().name)
+        assertFalse(controller.state.value.isLoading)
+        controller.navigateToSpecificFolder(second)
+        assertEquals("two.txt", controller.state.value.files.single().name)
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(controller.state.value.folderStatsByPath.containsKey("$first/folder"))
+        assertFalse(controller.state.value.folderStatsLoadingPaths.contains("$first/folder"))
+    }
 
     private lateinit var testScope: TestScope
     private lateinit var repository: FakeStorageRepositoryBundle

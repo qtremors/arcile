@@ -12,6 +12,41 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 class BrowserDisplayStateTest {
+    @Test
+    fun `folder size updates reuse ordering and only replace the affected active row`() {
+        val folder = file("folder", "/folder", isDirectory = true)
+        val plain = file("one.txt", "/one.txt")
+        val initial = BrowserNavigationState().withValues(files = listOf(folder, plain).toPersistentList(),
+            browserViewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.LIST).withUpdatedDisplayState()
+        val updated = initial.withValues(folderStatsByPath = kotlinx.collections.immutable.persistentMapOf(
+            folder.reference to FolderStats(2, 20, 2, FolderStatsStatus.Ready)
+        )).withUpdatedDisplayState(setOf(folder.reference))
+        assertSame(initial.displayState.visibleFiles, updated.displayState.visibleFiles)
+        assertSame(initial.displayState.visiblePaths, updated.displayState.visiblePaths)
+        assertSame(initial.displayState.visibleListRows[1], updated.displayState.visibleListRows[1])
+        org.junit.Assert.assertNotSame(initial.displayState.visibleListRows[0], updated.displayState.visibleListRows[0])
+        org.junit.Assert.assertTrue(updated.displayState.visibleGridRows.isEmpty())
+        val grid = updated.withValues(browserViewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID).withUpdatedDisplayState()
+        assertEquals(2, grid.displayState.visibleGridRows.size)
+        assertEquals(0, grid.displayState.visibleListRows.size)
+    }
+
+    @Test
+    fun `file count updates deliberately reorder folder rows`() {
+        val a = file("a", "/a", isDirectory = true)
+        val b = file("b", "/b", isDirectory = true)
+        val initial = BrowserNavigationState().withValues(files = listOf(a, b).toPersistentList(),
+            browserSortOption = FileSortOption.FILE_COUNT_HIGHEST,
+            folderStatsByPath = kotlinx.collections.immutable.persistentMapOf(
+                "/a" to FolderStats(2, 20, 2, FolderStatsStatus.Ready),
+                "/b" to FolderStats(1, 10, 1, FolderStatsStatus.Ready)
+            )).withUpdatedDisplayState()
+        val updated = initial.withValues(folderStatsByPath = initial.folderStatsByPath.put(
+            "/b", FolderStats(3, 30, 3, FolderStatsStatus.Ready)
+        )).withUpdatedDisplayState(setOf("/b"))
+        assertEquals(listOf("a", "b"), initial.displayState.visibleFiles.map { it.name })
+        assertEquals(listOf("b", "a"), updated.displayState.visibleFiles.map { it.name })
+    }
 
     @Test
     fun `display state sorts visible files and exposes visible paths`() {

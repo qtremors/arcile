@@ -1,0 +1,4 @@
+<resources>
+    <string name="text_editor_too_large">The document or recovery draft exceeds the 4 MiB text limit. Use another app for larger files. Recovery drafts are kept.</string>
+    <string name="text_editor_edit_limit">The change exceeds the 4 MiB text limit and was not applied.</string>
+</resources>

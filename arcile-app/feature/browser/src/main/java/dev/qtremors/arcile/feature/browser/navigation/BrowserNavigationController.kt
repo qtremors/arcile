@@ -46,6 +46,22 @@ internal class BrowserNavigationController(
     internal val navigationPersistence = BrowserNavigationPersistence(savedStateHandle)
     internal var activeLoadJob: Job? = null
     private var activeLoadGeneration = 0L
+    private var lastLocationWriteJob: Job? = null
+    private var folderStatBatchJob: Job? = null
+    private val pendingFolderStats = mutableMapOf<String, dev.qtremors.arcile.core.storage.domain.FolderStats>()
+
+    internal fun persistLocation(path: String, volumeId: String) {
+        val previous = lastLocationWriteJob
+        lastLocationWriteJob = viewModelScope.launch {
+            previous?.join()
+            try {
+                browserPreferencesRepository.updateLastOpenedLocation(path, volumeId)
+            } catch (error: Exception) {
+                if (error is kotlinx.coroutines.CancellationException) throw error
+                dev.qtremors.arcile.core.runtime.logging.AppLogger.e("Browser", "Unable to remember folder", error)
+            }
+        }
+    }
 
     fun restoreLocationFromState(): StorageBrowserLocation? =
         navigationPersistence.restoreLocation()
@@ -80,6 +96,8 @@ internal class BrowserNavigationController(
 
     internal fun nextLoadGeneration(): Long {
         activeLoadJob?.cancel()
+        folderStatBatchJob?.cancel()
+        pendingFolderStats.clear()
         activeLoadGeneration += 1
         return activeLoadGeneration
     }
@@ -384,18 +402,42 @@ internal class BrowserNavigationController(
         path: String,
         stats: dev.qtremors.arcile.core.storage.domain.FolderStats
     ) {
+        val sort = state.value.browserSortOption
+        if (sort == dev.qtremors.arcile.core.storage.domain.FileSortOption.FILE_COUNT_HIGHEST ||
+            sort == dev.qtremors.arcile.core.storage.domain.FileSortOption.FILE_COUNT_LOWEST) {
+            if ((pendingFolderStats[path]?.cachedAt ?: Long.MIN_VALUE) <= stats.cachedAt) {
+                pendingFolderStats[path] = stats
+            }
+            if (folderStatBatchJob?.isActive != true) {
+                val generation = activeLoadGeneration
+                folderStatBatchJob = viewModelScope.launch {
+                    kotlinx.coroutines.delay(50)
+                    if (isActiveLoad(generation)) applyFolderStats(pendingFolderStats.toMap())
+                    pendingFolderStats.clear()
+                }
+            }
+        } else applyFolderStats(mapOf(path to stats))
+    }
+
+    private fun applyFolderStats(updates: Map<String, dev.qtremors.arcile.core.storage.domain.FolderStats>) {
         update { current ->
+            val paths = current.files.asSequence().filter { file ->
+                file.isDirectory && file.reference in updates &&
+                    (current.folderStatsByPath[file.reference]?.cachedAt ?: Long.MIN_VALUE) <=
+                    updates.getValue(file.reference).cachedAt
+            }
+                .map(FileModel::reference).toSet()
             if (current.isVolumeRootScreen ||
                 current.isCategoryScreen ||
                 current.archiveContext != null ||
-                current.files.none { it.isDirectory && it.reference == path }
+                paths.isEmpty()
             ) {
                 current
             } else {
                 current.withValues(
-                    folderStatsByPath = (current.folderStatsByPath + (path to stats)).toPersistentMap(),
-                    folderStatsLoadingPaths = (current.folderStatsLoadingPaths - path).toPersistentSet()
-                ).withUpdatedDisplayState()
+                    folderStatsByPath = (current.folderStatsByPath + updates.filterKeys { it in paths }).toPersistentMap(),
+                    folderStatsLoadingPaths = (current.folderStatsLoadingPaths - paths).toPersistentSet()
+                ).withUpdatedDisplayState(paths)
             }
         }
     }

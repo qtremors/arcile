@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import kotlinx.serialization.Serializable
+import dev.qtremors.arcile.core.storage.domain.RestoredTrashItem
 
 interface TrashManager {
     suspend fun moveToTrash(
@@ -18,6 +19,10 @@ interface TrashManager {
     ): Result<Unit>
 
     suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit>
+    suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): Result<List<RestoredTrashItem>> =
+        restoreFromTrash(trashIds, destinationPath).map { emptyList() }
+    suspend fun undoRestore(items: List<RestoredTrashItem>): Result<Unit> =
+        Result.failure(UnsupportedOperationException("Verified restore undo is unavailable"))
     suspend fun emptyTrash(): Result<Unit>
     suspend fun getTrashFiles(): Result<List<TrashMetadata>>
     suspend fun getTrashStorageUsage(): Result<TrashStorageUsage>

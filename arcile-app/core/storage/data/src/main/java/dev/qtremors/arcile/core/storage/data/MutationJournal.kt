@@ -6,15 +6,19 @@ import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.RandomAccessFile
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import dev.qtremors.arcile.core.runtime.ProcessOwnership
 
 interface MutationJournal {
     fun recordTemporaryPath(path: String)
@@ -42,10 +46,11 @@ class DefaultMutationJournal(
     private val volumeProvider: VolumeProvider,
     private val dispatchers: ArcileDispatchers,
     private val rename: (File, File) -> Boolean = { from, to -> from.renameTo(to) },
-    private val recoveryFileKey: ((File) -> String?)? = null
+    private val recoveryFileKey: ((File) -> String?)? = null,
+    private val ownerToken: String? = ProcessOwnership.token,
+    private val ownerIsAlive: (String) -> Boolean = ProcessOwnership::isAlive
 ) : MutationJournal {
     private val store by lazy { storeFile(context) }
-    private val lock = Any()
     private var legacyPreferencesCleaned = false
     private val json = Json {
         ignoreUnknownKeys = true
@@ -63,7 +68,7 @@ class DefaultMutationJournal(
 
     override fun recordTemporaryPath(path: String) {
         updateEntries { entries ->
-            entries.filterNot { it.path == path } + MutationJournalEntry(type = EntryType.TEMPORARY_PATH, path = path)
+            entries.filterNot { it.path == path } + MutationJournalEntry(type = EntryType.TEMPORARY_PATH, path = path, owner = ownerToken)
         }
     }
 
@@ -79,6 +84,7 @@ class DefaultMutationJournal(
                     it.metadataPath == metadataPath
             } + MutationJournalEntry(
                 type = EntryType.TRASH_FALLBACK,
+                owner = ownerToken,
                 sourcePath = sourcePath,
                 payloadPath = payloadPath,
                 metadataPath = metadataPath
@@ -110,6 +116,7 @@ class DefaultMutationJournal(
                     it.destinationPath == destinationPath
             } + MutationJournalEntry(
                 type = EntryType.SOURCE_CLEANUP,
+                owner = ownerToken,
                 sourcePath = sourcePath,
                 destinationPath = destinationPath,
                 cleanupSnapshot = snapshot
@@ -133,6 +140,7 @@ class DefaultMutationJournal(
         updateEntries { entries ->
             entries + MutationJournalEntry(
                 type = EntryType.REPLACEMENT, destinationPath = targetPath,
+                owner = ownerToken,
                 stagingPath = stagingPath, backupPath = backupPath, sourcePath = sourcePath,
                 originalSnapshot = original, publishedSnapshot = published
             )
@@ -162,18 +170,28 @@ class DefaultMutationJournal(
     }
 
     override suspend fun cleanupAbandonedMutations() = withContext(dispatchers.io) {
+        val recoveryContext = currentCoroutineContext()
+        withStoreLock { cleanupLocked { recoveryContext.ensureActive() } }
+    }
+
+    private fun cleanupLocked(checkCancellation: () -> Unit) {
         val roots = volumeProvider.activeStorageRoots.map { File(it).canonicalFile }
         val remaining = mutableListOf<MutationJournalEntry>()
         val entries = runCatchingPreservingCancellation { readEntries() }.getOrElse {
             AppLogger.w(TAG, "Recovery journal preserved for manual recovery", it)
-            return@withContext
+            return
         }
         for (entry in entries) {
+            checkCancellation()
+            if (entry.owner?.let(ownerIsAlive) == true) {
+                remaining += entry
+                continue
+            }
             try {
                 when (entry.type) {
                     EntryType.TEMPORARY_PATH -> cleanupTemporaryPath(entry, roots, remaining)
                     EntryType.TRASH_FALLBACK -> cleanupTrashFallback(entry, roots, remaining, entries)
-                    EntryType.SOURCE_CLEANUP -> cleanupSourceCleanup(entry, roots, remaining)
+                    EntryType.SOURCE_CLEANUP -> cleanupSourceCleanup(entry, roots, remaining, checkCancellation)
                     EntryType.REPLACEMENT -> cleanupReplacement(entry, roots, remaining)
                 }
             } catch (e: Exception) {
@@ -296,10 +314,11 @@ class DefaultMutationJournal(
         }
     }
 
-    private suspend fun cleanupSourceCleanup(
+    private fun cleanupSourceCleanup(
         entry: MutationJournalEntry,
         roots: List<File>,
-        remaining: MutableList<MutationJournalEntry>
+        remaining: MutableList<MutationJournalEntry>,
+        checkCancellation: () -> Unit
     ) {
         val source = entry.sourcePath?.let(::File) ?: return
         val destination = entry.destinationPath?.let(::File) ?: return
@@ -319,7 +338,7 @@ class DefaultMutationJournal(
             remaining += entry
             return
         }
-        cleanupVerifiedSource(source, destination, snapshot, recoveryFileKey)
+        cleanupVerifiedSource(source, destination, snapshot, recoveryFileKey, checkCancellation)
         if (source.exists()) remaining += entry
     }
 
@@ -341,8 +360,17 @@ class DefaultMutationJournal(
     }
 
     private fun updateEntries(transform: (List<MutationJournalEntry>) -> List<MutationJournalEntry>) {
-        synchronized(lock) {
+        withStoreLock {
             writeEntries(transform(readEntries()))
+        }
+    }
+
+    private fun <T> withStoreLock(block: () -> T): T = synchronized(processLock) {
+        check(store.parentFile?.let { it.mkdirs() || it.isDirectory } == true)
+        // The JVM lock prevents overlapping locks between instances in this
+        // process; the file lock also serializes viewer-process writers.
+        RandomAccessFile(File(store.parentFile, "${store.name}.lock"), "rw").use { file ->
+            file.channel.lock().use { block() }
         }
     }
 
@@ -396,6 +424,7 @@ class DefaultMutationJournal(
     }
 
     companion object {
+        private val processLock = Any()
         private const val TAG = "MutationJournal"
         private const val LEGACY_PREFERENCES = "mutation_journal"
         private const val STORE_FILE = "mutation_journal.json"
@@ -414,6 +443,7 @@ class DefaultMutationJournal(
 @Serializable
 private data class MutationJournalEntry(
     val type: EntryType,
+    val owner: String? = null,
     val path: String? = null,
     val sourcePath: String? = null,
     val destinationPath: String? = null,

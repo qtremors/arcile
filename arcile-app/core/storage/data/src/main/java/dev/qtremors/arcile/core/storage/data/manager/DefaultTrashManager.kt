@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import android.content.Context
 import androidx.core.net.toUri
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
@@ -24,6 +25,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.util.UUID
+import dev.qtremors.arcile.core.storage.data.MutationTreeSnapshot
+import dev.qtremors.arcile.core.storage.domain.RestoredTrashItem
+import dev.qtremors.arcile.core.storage.domain.PartialTrashRestoreException
 
 class DefaultTrashManager(
     private val context: Context,
@@ -46,9 +51,11 @@ class DefaultTrashManager(
         },
         rename = rename,
         mutationJournal = mutationJournal
-    )
+    ),
+    private val undoFileKey: ((File) -> String?)? = null
 ) : TrashManager {
     private val metadataStore = TrashMetadataStore()
+    private val restoreUndo = linkedMapOf<String, Pair<String, MutationTreeSnapshot>>()
 
     private suspend fun finalizeMutation(vararg paths: String) {
         mutationFinalizer.finalize(*paths)
@@ -169,12 +176,23 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit> =
+        restoreWithResults(trashIds, destinationPath).fold(
+            onSuccess = { Result.success(Unit) },
+            onFailure = { Result.failure((it as? PartialTrashRestoreException)?.cause ?: it) }
+        )
+
+    override suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): Result<List<RestoredTrashItem>> = withContext(dispatchers.io) {
+        val restored = mutableListOf<RestoredTrashItem>()
+        val scannedPaths = mutableListOf<String>()
+        suspend fun failure(error: Throwable): Result<List<RestoredTrashItem>> {
+            if (scannedPaths.isNotEmpty()) finalizeMutation(*scannedPaths.toTypedArray())
+            return Result.failure(if (restored.isEmpty()) error else PartialTrashRestoreException(restored.toList(), error))
+        }
         try {
             val volumes = volumeProvider.currentVolumes()
 
             val legacyIds = trashIds.filter { it.startsWith("legacy:") || !it.contains(":") }.map { it.removePrefix("legacy:") }
-            val scannedPaths = mutableListOf<String>()
             val idsRequiringDestination = mutableListOf<String>()
 
             for (id in legacyIds) {
@@ -227,41 +245,71 @@ class DefaultTrashManager(
                         continue
                     }
                 } else {
-                    validatePath(targetFile).onFailure { return@withContext Result.failure(it) }
+                    validatePath(targetFile).onFailure { return@withContext failure(it) }
                 }
 
-                if (targetFile.exists()) {
+                val renamedForConflict = targetFile.exists()
+                if (renamedForConflict) {
                     val timestamp = System.currentTimeMillis()
-                    val conflictName = "${targetFile.nameWithoutExtension}.restore-conflict-$timestamp" +
+                    val conflictName = "${targetFile.nameWithoutExtension}.restore-conflict-$timestamp-${UUID.randomUUID()}" +
                         (if (targetFile.extension.isNotEmpty()) ".${targetFile.extension}" else "")
                     targetFile = File(targetFile.parentFile, conflictName)
                 }
 
                 targetFile.parentFile?.mkdirs()
 
+                val sourceSnapshot = runCatchingPreservingCancellation { MutationTreeSnapshot.capture(trashedFile, undoFileKey) }.getOrNull()
+
                 val success = rename(trashedFile, targetFile)
                 if (!success) {
-                    validateDestructivePath(trashedFile).onFailure { return@withContext Result.failure(it) }
+                    validateDestructivePath(trashedFile).onFailure { return@withContext failure(it) }
                     transferEngine.moveToTarget(
                         source = trashedFile,
                         target = targetFile,
                         attemptRename = false
                     ).getOrElse {
-                        return@withContext Result.failure(IOException("Failed to restore ${targetFile.name}: ${it.message}", it))
+                        return@withContext failure(IOException("Failed to restore ${targetFile.name}: ${it.message}", it))
                     }
                 }
 
                 if (targetFile.exists()) {
+                    if (sourceSnapshot != null) check(sourceSnapshot.matches(targetFile, undoFileKey, requireIdentity = false)) { "Restored contents could not be verified" }
+                    val outputSnapshot = if (sourceSnapshot == null) null else
+                        runCatchingPreservingCancellation { MutationTreeSnapshot.capture(targetFile, undoFileKey) }.getOrNull()
+                    val token = if (outputSnapshot != null && outputSnapshot.entries.all { it.identity.fileKey != null }) UUID.randomUUID().toString() else null
+                    if (token != null) synchronized(restoreUndo) {
+                        while (restoreUndo.size >= 512) restoreUndo.remove(restoreUndo.keys.first())
+                        restoreUndo[token] = targetFile.absolutePath to requireNotNull(outputSnapshot)
+                    }
+                    restored += RestoredTrashItem(id, targetFile.absolutePath, token, renamedForConflict)
                     metadataFile.delete()
                     scannedPaths.add(targetFile.absolutePath)
                 }
             }
 
             if (idsRequiringDestination.isNotEmpty()) {
-                return@withContext Result.failure(dev.qtremors.arcile.core.storage.domain.DestinationRequiredException(idsRequiringDestination))
+                return@withContext failure(dev.qtremors.arcile.core.storage.domain.DestinationRequiredException(idsRequiringDestination))
             }
 
             finalizeMutation(*scannedPaths.toTypedArray())
+            Result.success(restored.toList())
+        } catch (e: Exception) {
+            e.rethrowIfCancellation()
+            failure(e)
+        }
+    }
+
+    override suspend fun undoRestore(items: List<RestoredTrashItem>): Result<Unit> = withContext(dispatchers.io) {
+        try {
+            for (item in items) {
+                val saved = synchronized(restoreUndo) { restoreUndo[item.undoToken] }
+                    ?: throw IOException("The restored item can no longer be safely undone")
+                check(saved.first == item.path && saved.second.matches(File(item.path), undoFileKey)) {
+                    "The restored item changed; it has been kept"
+                }
+                moveToTrash(listOf(item.path)).getOrThrow()
+                synchronized(restoreUndo) { restoreUndo.remove(item.undoToken) }
+            }
             Result.success(Unit)
         } catch (e: Exception) {
             e.rethrowIfCancellation()

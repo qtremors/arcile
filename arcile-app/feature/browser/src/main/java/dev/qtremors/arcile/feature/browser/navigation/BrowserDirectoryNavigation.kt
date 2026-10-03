@@ -46,10 +46,8 @@ internal fun BrowserNavigationController.loadDirectory(
         ).withUpdatedDisplayState()
     }
     saveNavStateIfActive(generation)
+    if (persistAsLastOpened && resolvedVolumeId != null) persistLocation(path, resolvedVolumeId)
     activeLoadJob = viewModelScope.launch {
-        if (persistAsLastOpened && resolvedVolumeId != null) {
-            browserPreferencesRepository.updateLastOpenedLocation(path, resolvedVolumeId)
-        }
         val preferences = browserPreferencesRepository.locationPreferencesFlow.first()
         if (!isActiveLoad(generation)) return@launch
         applyPresentation(preferences.getPresentationForPath(path), generation)
@@ -77,30 +75,49 @@ internal fun BrowserNavigationController.loadDirectory(
                 loadedFiles
             }
             val folderPaths = page.files.filter(FileModel::isDirectory).map(FileModel::reference)
-            val cachedStats = fileBrowserRepository.getCachedFolderStats(folderPaths)
-            if (!isActiveLoad(generation)) return@collect
-            val now = System.currentTimeMillis()
-            val pathsToQueue = folderPaths.filter { folderPath ->
-                val cached = cachedStats[folderPath] ?: return@filter true
-                val ttl = if (cached.status == FolderStatsStatus.Unavailable) {
-                    FolderStatsCachePolicy.FAILURE_TTL_MS
-                } else {
-                    FolderStatsCachePolicy.FRESH_TTL_MS
-                }
-                now - cached.cachedAt > ttl
-            }
-            val freshCachedPaths = cachedStats.keys.filter { it !in pathsToQueue }.toSet()
             update {
                 it.withValues(
                     isLoading = !page.isComplete,
                     isPullToRefreshing = if (page.isComplete) false else it.isPullToRefreshing,
                     files = updatedFiles.toPersistentList(),
-                    folderStatsByPath = (it.folderStatsByPath + cachedStats).toPersistentMap(),
-                    folderStatsLoadingPaths =
-                        ((it.folderStatsLoadingPaths + pathsToQueue) - freshCachedPaths).toPersistentSet()
+                    folderStatsLoadingPaths = (it.folderStatsLoadingPaths + folderPaths).toPersistentSet()
                 ).withUpdatedDisplayState()
             }
-            fileBrowserRepository.queueFolderStats(pathsToQueue)
+            if (folderPaths.isNotEmpty()) launch {
+                try {
+                    val cachedStats = try {
+                        fileBrowserRepository.getCachedFolderStats(folderPaths)
+                    } catch (error: Exception) {
+                        if (error is kotlinx.coroutines.CancellationException) throw error
+                        dev.qtremors.arcile.core.runtime.logging.AppLogger.e("Browser", "Unable to load saved folder sizes", error)
+                        emptyMap()
+                    }
+                    if (!isActiveLoad(generation)) return@launch
+                    update { current ->
+                        val merged = current.folderStatsByPath.toMutableMap()
+                        cachedStats.forEach { (folderPath, cached) ->
+                            if ((merged[folderPath]?.cachedAt ?: Long.MIN_VALUE) <= cached.cachedAt) {
+                                merged[folderPath] = cached
+                            }
+                        }
+                        val now = System.currentTimeMillis()
+                        val fresh = folderPaths.filter { folderPath ->
+                            val cached = merged[folderPath] ?: return@filter false
+                            val ttl = if (cached.status == FolderStatsStatus.Unavailable)
+                                FolderStatsCachePolicy.FAILURE_TTL_MS else FolderStatsCachePolicy.FRESH_TTL_MS
+                            now - cached.cachedAt <= ttl
+                        }.toSet()
+                        current.withValues(
+                            folderStatsByPath = merged.toPersistentMap(),
+                            folderStatsLoadingPaths = (current.folderStatsLoadingPaths - fresh).toPersistentSet()
+                        ).withUpdatedDisplayState(cachedStats.keys)
+                    }
+                    fileBrowserRepository.queueFolderStats(folderPaths.filter { it in state.value.folderStatsLoadingPaths })
+                } catch (error: Exception) {
+                    if (error is kotlinx.coroutines.CancellationException) throw error
+                    dev.qtremors.arcile.core.runtime.logging.AppLogger.e("Browser", "Unable to refresh folder sizes", error)
+                }
+            }
             if (page.isComplete) saveNavStateIfActive(generation)
         }
     }

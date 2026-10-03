@@ -671,9 +671,13 @@
     </plurals>
     <string name="text_editor_file_info">Document Info</string>
     <string name="text_editor_save_success">File saved successfully</string>
+    <string name="text_editor_provider_save_success">Saved and verified. This provider does not guarantee an atomic replacement.</string>
     <string name="text_editor_save_failed_detail">Failed to save file: %1$s</string>
     <string name="text_editor_unknown_error">Unknown error</string>
     <string name="text_editor_draft_failed">Could not preserve the unsaved draft</string>
+    <string name="text_editor_recover_draft">Recover Draft</string>
+    <string name="text_editor_recover_draft_message">A saved draft is available, but the document has changed. Recover the draft to review it before saving. Keeping the current document leaves the draft available for recovery.</string>
+    <string name="text_editor_keep_current">Keep Current Document</string>
     <string name="text_editor_load_failed">Failed to load text file</string>
     <string name="retry">Retry</string>
     <string name="external_file_opening">Opening file…</string>

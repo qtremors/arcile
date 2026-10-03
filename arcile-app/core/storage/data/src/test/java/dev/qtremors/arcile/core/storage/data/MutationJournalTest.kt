@@ -10,6 +10,10 @@ import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
@@ -36,6 +40,56 @@ import org.junit.Assert.assertThrows
 @Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class MutationJournalTest {
+    @Test
+    fun `recovery and another journal writer preserve both records`() = runTest {
+        val enteredRecovery = CountDownLatch(1)
+        val releaseRecovery = CountDownLatch(1)
+        val startedWriter = CountDownLatch(1)
+        val dispatchers = ArcileDispatchers(Dispatchers.IO, Dispatchers.IO, Dispatchers.IO, Dispatchers.IO)
+        val recovering = DefaultMutationJournal(context, volumeProvider, dispatchers,
+            ownerToken = "live-recovery", ownerIsAlive = {
+                enteredRecovery.countDown()
+                check(releaseRecovery.await(3, TimeUnit.SECONDS))
+                true
+            })
+        val writer = DefaultMutationJournal(context, volumeProvider, dispatchers, ownerToken = "live-writer")
+        val first = File(root, ".first.arcile-transfer-123.tmp").apply { writeText("first") }
+        val second = File(root, ".second.arcile-transfer-123.tmp").apply { writeText("second") }
+        recovering.recordTemporaryPath(first.path)
+        val cleanup = async(Dispatchers.IO) { recovering.cleanupAbandonedMutations() }
+        assertTrue(enteredRecovery.await(3, TimeUnit.SECONDS))
+        val update = async(Dispatchers.IO) {
+            startedWriter.countDown()
+            writer.recordTemporaryPath(second.path)
+        }
+        try {
+            assertTrue(startedWriter.await(3, TimeUnit.SECONDS))
+            assertFalse(update.isCompleted)
+        } finally { releaseRecovery.countDown() }
+        cleanup.await()
+        update.await()
+        val saved = DefaultMutationJournal.storeFile(context).readText()
+        assertTrue(saved.contains("live-recovery"))
+        assertTrue(saved.contains("live-writer"))
+        assertEquals("first", first.readText())
+        assertEquals("second", second.readText())
+    }
+    @Test
+    fun `recreated journal preserves live ownership and cleans only after owner death`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher()
+        var alive = true
+        fun owned() = DefaultMutationJournal(context, volumeProvider,
+            ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            ownerToken = "42-100", ownerIsAlive = { alive })
+        val file = File(root, ".live.arcile-transfer-123.tmp").apply { writeText("live") }
+        owned().recordTemporaryPath(file.path)
+        owned().cleanupAbandonedMutations()
+        assertEquals("live", file.readText())
+        assertTrue(DefaultMutationJournal.storeFile(context).readText().contains("42-100"))
+        alive = false
+        owned().cleanupAbandonedMutations()
+        assertFalse(file.exists())
+    }
     private lateinit var context: Context
     private lateinit var root: File
     private lateinit var volumeProvider: VolumeProvider

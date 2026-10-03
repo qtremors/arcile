@@ -31,6 +31,28 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TrashViewModelTest {
+    @Test
+    fun `restore undo uses repository outputs including partial destination restores`() = runTest(mainDispatcherRule.dispatcher) {
+        for (partial in listOf(false, true)) {
+            val bundle = FakeStorageRepositoryBundle().apply { trashFilesResult = Result.success(emptyList()) }
+            val output = dev.qtremors.arcile.core.storage.domain.RestoredTrashItem("1", "/picked/report.restore-conflict.txt", "verified-token", true)
+            bundle.trashRepository.restoreBatchProvider = { _, _ ->
+                dev.qtremors.arcile.core.storage.domain.TrashRestoreBatch(
+                    if (partial) StorageMutationResult.Failed(java.io.IOException("second item failed")) else StorageMutationResult.Completed,
+                    listOf(output)
+                )
+            }
+            val model = TrashViewModel(bundle.trashRepository, bundle.volumeRepository, FakeActivityLogStore())
+            advanceUntilIdle()
+            model.restoreToDestination(listOf("1", "2"), "/picked")
+            advanceUntilIdle()
+            assertEquals(listOf(output), model.state.value.pendingRestoreUndoItems)
+            model.undoLastRestore()
+            advanceUntilIdle()
+            assertEquals(listOf(output), bundle.trashRepository.undoRestoreRequests.single())
+            assertTrue(bundle.trashRepository.moveToTrashRequests.isEmpty())
+        }
+    }
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()

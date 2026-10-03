@@ -540,6 +540,18 @@ class ExternalFileAccessHelperTest {
     }
 
     @Test
+    fun `plaintext startup cleanup preserves an owner whose liveness cannot be disproved`() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+        val child = File(context.cacheDir, "external_access/onlyfiles_fallback/live").apply { mkdirs() }
+        File(child, ".owner").writeText("unknown-owner")
+        val content = File(child, "document.txt").apply { writeText("in use") }
+        assertFalse(ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(context))
+        assertEquals("in use", content.readText())
+        ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)
+    }
+
+    @Test
     fun `private plaintext fallback rolls back length mismatch`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         ExternalFileAccessHelper.clearPrivatePlaintextFallbacks(context)

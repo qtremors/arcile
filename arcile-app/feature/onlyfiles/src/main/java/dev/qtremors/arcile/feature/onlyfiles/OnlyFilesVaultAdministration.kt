@@ -389,9 +389,11 @@ internal fun showBiometricPrompt(activity: Activity, challenge: VaultBiometricCh
     prompt.authenticate(crypto, CancellationSignal(), activity.mainExecutor, object : BiometricPrompt.AuthenticationCallback() {
         override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult?) {
             (activity as? ComponentActivity)?.lifecycleScope?.launch {
-                val completed = challenge.completeAfterAuthentication()
-                challenge.close()
-                onComplete(completed)
+                try {
+                    onComplete(challenge.completeAfterAuthentication())
+                } finally {
+                    challenge.close()
+                }
             } ?: challenge.close()
         }
         override fun onAuthenticationError(errorCode: Int, errString: CharSequence?) {

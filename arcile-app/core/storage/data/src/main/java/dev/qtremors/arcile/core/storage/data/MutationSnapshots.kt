@@ -1,7 +1,5 @@
 package dev.qtremors.arcile.core.storage.data
 
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
 import kotlinx.serialization.Serializable
 import java.io.File
 import java.io.IOException
@@ -135,8 +133,9 @@ internal data class SourceCleanupSnapshot(
     }
 }
 
-internal suspend fun cleanupVerifiedSource(
-    source: File, destination: File, snapshot: SourceCleanupSnapshot, keyProvider: ((File) -> String?)? = null
+internal fun cleanupVerifiedSource(
+    source: File, destination: File, snapshot: SourceCleanupSnapshot, keyProvider: ((File) -> String?)? = null,
+    checkCancellation: () -> Unit
 ) {
     val sourceEntries = snapshot.source.entries.associateBy { it.relativePath }
     val destinationEntries = snapshot.destination.entries.associateBy { it.relativePath }
@@ -154,7 +153,7 @@ internal suspend fun cleanupVerifiedSource(
     // Delete only recorded nodes. An added child prevents an empty-directory
     // delete and keeps the recovery record pending, without recursive deletion.
     for (entry in snapshot.source.entries.asReversed()) {
-        currentCoroutineContext().ensureActive()
+        checkCancellation()
         val file = entry.resolve(source)
         if (!file.exists()) continue
         val target = destinationEntries[entry.relativePath] ?: continue
