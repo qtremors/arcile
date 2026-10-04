@@ -30,6 +30,7 @@ import java.util.zip.ZipOutputStream
 import kotlin.jvm.JvmName
 
 object ExternalFileAccessHelper {
+    private val plaintextFallbackLock = Any()
     private const val TAG = "ExternalFileAccessHelper"
     private const val STAGING_ROOT = "external_access"
     private const val OPEN_STAGING = "open"
@@ -152,23 +153,35 @@ object ExternalFileAccessHelper {
     }
 
     /**
-     * Removes the active fallback path with one same-directory move. The returned result only
+     * Moves abandoned fallback directories aside while keeping live owners accessible. The result
      * reports whether a directory was moved; recursive cleanup belongs on a background scope.
      */
     fun quarantinePrivatePlaintextFallbacks(context: Context): Boolean {
-        val stagingRoot = File(context.cacheDir, STAGING_ROOT)
-        val active = File(stagingRoot, VAULT_FALLBACK_STAGING)
-        val quarantined = File(stagingRoot, "$VAULT_FALLBACK_CLEANUP_PREFIX${UUID.randomUUID()}")
-        return try {
-            Files.move(active.toPath(), quarantined.toPath(), StandardCopyOption.ATOMIC_MOVE)
-            true
-        } catch (_: NoSuchFileException) {
-            false
-        } catch (_: AtomicMoveNotSupportedException) {
-            active.renameTo(quarantined)
-        } catch (error: IOException) {
-            AppLogger.w(TAG, "Unable to quarantine private compatibility storage", error)
-            false
+        return synchronized(plaintextFallbackLock) {
+            val stagingRoot = File(context.cacheDir, STAGING_ROOT)
+            val active = File(stagingRoot, VAULT_FALLBACK_STAGING)
+            var moved = false
+            active.listFiles().orEmpty().forEach { child ->
+                val ownerFile = File(child, ".owner")
+                if (ownerFile.exists()) {
+                    val owner = runCatching { ownerFile.readText() }.getOrNull()
+                    if (owner == null || dev.qtremors.arcile.core.runtime.ProcessOwnership.isAlive(owner)) return@forEach
+                }
+                val quarantined = File(stagingRoot, "$VAULT_FALLBACK_CLEANUP_PREFIX${UUID.randomUUID()}")
+                moved = try {
+                    Files.move(child.toPath(), quarantined.toPath(), StandardCopyOption.ATOMIC_MOVE)
+                    true
+                } catch (_: NoSuchFileException) {
+                    false
+                } catch (_: AtomicMoveNotSupportedException) {
+                    child.renameTo(quarantined)
+                } catch (error: IOException) {
+                    AppLogger.w(TAG, "Unable to quarantine private compatibility storage", error)
+                    false
+                } || moved
+            }
+            if (active.list()?.isEmpty() == true) active.delete()
+            moved
         }
     }
 
@@ -205,7 +218,15 @@ object ExternalFileAccessHelper {
             context.cacheDir,
             "$STAGING_ROOT${File.separator}$VAULT_FALLBACK_STAGING${File.separator}$id"
         )
-        check(directory.mkdirs()) { "Unable to create private compatibility storage" }
+        synchronized(plaintextFallbackLock) {
+            check(directory.mkdirs()) { "Unable to create private compatibility storage" }
+            dev.qtremors.arcile.core.runtime.ProcessOwnership.token?.let { owner ->
+                FileOutputStream(File(directory, ".owner")).use { output ->
+                    output.write(owner.toByteArray())
+                    output.fd.sync()
+                }
+            }
+        }
         val finalFile = File(directory, sanitizeDisplayName(displayName))
         val partial = File(directory, ".partial")
         try {

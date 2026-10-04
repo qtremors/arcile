@@ -5,6 +5,11 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTextInput
+import androidx.compose.ui.test.performTextInputSelection
+import androidx.compose.ui.test.performImeAction
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.text.TextRange
+import org.junit.Assert.assertEquals
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
 import org.junit.Rule
 import org.junit.Test
@@ -18,6 +23,43 @@ class DialogInputTest {
 
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun `rename initially selects the stem and replacement preserves the extension`() {
+        var renamed: String? = null
+        composeRule.setContent {
+            ArcileTestTheme { RenameDialog("report.txt", onDismiss = {}, onConfirm = { renamed = it }) }
+        }
+        composeRule.mainClock.advanceTimeBy(200)
+        val field = composeRule.onNodeWithText("New Name")
+        field.assertIsFocused()
+        assertEquals(TextRange(0, 6), field.fetchSemanticsNode().config[SemanticsProperties.TextSelectionRange])
+        field.performTextInput("notes")
+        field.performImeAction()
+        assertEquals("notes.txt", renamed)
+    }
+
+    @Test
+    fun `rename retains user adjusted selection while typing`() {
+        composeRule.setContent {
+            ArcileTestTheme { RenameDialog("report.txt", onDismiss = {}, onConfirm = {}) }
+        }
+        composeRule.mainClock.advanceTimeBy(200)
+        val field = composeRule.onNodeWithText("New Name")
+        field.performTextInputSelection(TextRange(7, 10))
+        field.performTextInput("md")
+        assertEquals("report.md", field.fetchSemanticsNode().config[SemanticsProperties.EditableText].text)
+        assertEquals(TextRange(9), field.fetchSemanticsNode().config[SemanticsProperties.TextSelectionRange])
+    }
+
+    @Test
+    fun `rename selects full folders dotfiles and extensionless names`() {
+        assertEquals(TextRange(0, 9), initialRenameSelection("folder.v1", true))
+        assertEquals(TextRange(0, 4), initialRenameSelection(".env", false))
+        assertEquals(TextRange(0, 6), initialRenameSelection("README", false))
+        assertEquals(TextRange(0, 7), initialRenameSelection("report.", false))
+        assertEquals(TextRange(0, 7), initialRenameSelection(".config.json", false))
+    }
 
     @Test
     fun `create file dialog shows duplicate error and disables create`() {

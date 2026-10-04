@@ -211,7 +211,7 @@ internal fun BrowserNavigationState.reduce(event: BrowserNavigationEvent): Brows
     is BrowserNavigationEvent.SelectFolderTab -> withValues(selectedFolderTabPath = event.path)
 }
 
-internal fun BrowserNavigationState.withUpdatedDisplayState(): BrowserNavigationState = copy(
+internal fun BrowserNavigationState.withUpdatedDisplayState(updatedFolderPaths: Set<String>? = null): BrowserNavigationState = copy(
     listing = listing.copy(
         displayState = buildBrowserDisplayState(
             files = files,
@@ -226,7 +226,9 @@ internal fun BrowserNavigationState.withUpdatedDisplayState(): BrowserNavigation
             folderStatsByPath = folderStatsByPath,
             browserListZoom = browserListZoom,
             browserGridMinCellSize = browserGridMinCellSize,
-            previousDisplayState = displayState
+            previousDisplayState = displayState,
+            viewMode = browserViewMode,
+            updatedFolderPaths = updatedFolderPaths
         )
     )
 )

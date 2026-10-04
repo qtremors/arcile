@@ -1,12 +1,12 @@
 # Privacy Policy for Arcile
 
-**Last Updated:** 2026-07-23
+**Last Updated:** 2026-10-04
 
 Arcile is a personal project built with a privacy-first mindset. This policy explains how the application handles your information.
 
 ## 1. No Data Collection
 
-Arcile **does not collect, store, or transmit** any personal data, usage statistics, or telemetry from your device.
+Arcile **does not collect or transmit** personal data, usage statistics, or telemetry to any service. Preferences, favorites, playlists, playback position, and listening history are stored locally to support the app's features. Listening history can be reset in Audio.
 
 ## 2. Offline by Design
 

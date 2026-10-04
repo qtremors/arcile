@@ -10,7 +10,7 @@ import dev.qtremors.arcile.core.storage.data.manager.TrashTarget
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.data.provider.RootStorageUsageProvider
 import dev.qtremors.arcile.core.storage.data.source.FileSystemDataSource
-import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.StorageQueryClient
 import dev.qtremors.arcile.core.storage.domain.BatchMutationResult
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
@@ -125,7 +125,7 @@ class FocusedStorageRepositoriesTest {
 
     @Test
     fun `category and search queries delegate to media store client`() = runTest {
-        val mediaStoreClient = RecordingMediaStoreClient().apply {
+        val storageQueryClient = RecordingStorageQueryClient().apply {
             categorySizesResult = Result.success(listOf(CategoryStorage("Images", 42L, setOf("jpg"))))
             categoryFilesResult = Result.success(listOf(testFile("photo.jpg", "/storage/emulated/0/photo.jpg")))
             searchResult = Result.success(listOf(testFile("match.txt", "/storage/emulated/0/match.txt")))
@@ -134,9 +134,9 @@ class FocusedStorageRepositoriesTest {
         val database = Room.inMemoryDatabaseBuilder(context, ArcileDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        val repository = DefaultMediaRepository(
+        val repository = DefaultStorageQueryRepository(
             RecordingVolumeProvider(listOf(testVolume("primary", "/storage/emulated/0", kind = StorageKind.INTERNAL))),
-            mediaStoreClient,
+            storageQueryClient,
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
             testDispatchers(),
@@ -148,11 +148,11 @@ class FocusedStorageRepositoriesTest {
             val filters = SearchFilters(fileType = "Docs")
 
             assertEquals(42L, repository.getCategoryStorageSizes(scope).getOrThrow().single().sizeBytes)
-            assertEquals("Images" to scope, mediaStoreClient.lastCategoryScope)
+            assertEquals("Images" to scope, storageQueryClient.lastCategoryScope)
             assertEquals("photo.jpg", repository.getFilesByCategory(scope, "Images").getOrThrow().single().name)
             repository.searchFiles("match", scope, filters)
 
-            assertEquals(Triple("match", scope, filters), mediaStoreClient.lastSearchRequest)
+            assertEquals(Triple("match", scope, filters), storageQueryClient.lastSearchRequest)
         } finally {
             database.close()
         }
@@ -166,9 +166,9 @@ class FocusedStorageRepositoriesTest {
             .build()
         val volume = testVolume("primary", "/storage/emulated/0", kind = StorageKind.INTERNAL)
         val rootUsage = RootStorageUsage(totalBytes = 500L, freeBytes = 125L)
-        val repository = DefaultMediaRepository(
+        val repository = DefaultStorageQueryRepository(
             RecordingVolumeProvider(listOf(volume)),
-            RecordingMediaStoreClient(),
+            RecordingStorageQueryClient(),
             RecordingTrashManager(),
             RecentFilesSnapshotStore(database.recentFilesSnapshotDao(), testDispatchers()),
             testDispatchers(),
@@ -216,12 +216,12 @@ class FocusedStorageRepositoriesTest {
             val fresh = testFile("fresh.jpg", "/storage/emulated/0/DCIM/fresh.jpg")
             snapshotStore.put(scope, limit = 10, minTimestamp = 0L, files = listOf(stale))
 
-            val mediaStoreClient = RecordingMediaStoreClient().apply {
+            val storageQueryClient = RecordingStorageQueryClient().apply {
                 recentFilesResult = Result.success(listOf(fresh))
             }
-            val repository = DefaultMediaRepository(
+            val repository = DefaultStorageQueryRepository(
                 RecordingVolumeProvider(listOf(testVolume("primary", "/storage/emulated/0", kind = StorageKind.INTERNAL))),
-                mediaStoreClient,
+                storageQueryClient,
                 RecordingTrashManager(),
                 snapshotStore,
                 testDispatchers(),
@@ -231,7 +231,7 @@ class FocusedStorageRepositoriesTest {
             val result = repository.getRecentFiles(scope, limit = 10, offset = 0, minTimestamp = 0L).getOrThrow()
 
             assertEquals(listOf(fresh), result)
-            assertEquals(1, mediaStoreClient.recentFilesRequests)
+            assertEquals(1, storageQueryClient.recentFilesRequests)
         } finally {
             database.close()
         }
@@ -355,7 +355,7 @@ private class RecordingVolumeProvider(
     override fun invalidateCache() = Unit
 }
 
-private class RecordingMediaStoreClient : MediaStoreClient {
+private class RecordingStorageQueryClient : StorageQueryClient {
     var categorySizesResult: Result<List<CategoryStorage>> = Result.success(emptyList())
     var categoryFilesResult: Result<List<FileModel>> = Result.success(emptyList())
     var searchResult: Result<List<FileModel>> = Result.success(emptyList())
@@ -436,8 +436,8 @@ private class RecordingFileSystemDataSource : FileSystemDataSource {
     override suspend fun shredDetailed(paths: List<String>): Result<BatchMutationResult> =
         Result.success(BatchMutationResult(succeededPaths = paths))
     override suspend fun renameFile(path: String, newName: String): Result<FileModel> = Result.success(testFile(newName, path.substringBeforeLast('/') + "/$newName"))
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.success(emptyList())
-    override suspend fun createFakeFile(parentPath: String, name: String, size: Long, onProgress: ((dev.qtremors.arcile.core.operation.BulkFileOperationProgress) -> Unit)?): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", false, size))
+    override suspend fun detectTransferConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> = Result.success(emptyList())
+    override suspend fun createSyntheticFile(parentPath: String, name: String, size: Long, onProgress: ((dev.qtremors.arcile.core.operation.BulkFileOperationProgress) -> Unit)?): Result<FileModel> = Result.success(testFile(name, "$parentPath/$name", false, size))
     override suspend fun copyFiles(
         sourcePaths: List<String>,
         destinationPath: String,

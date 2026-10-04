@@ -63,13 +63,13 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.metadata.ImageFileMetadata
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
+import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataSections
 import dev.qtremors.arcile.core.ui.metadata.SharedImageMetadataReader
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import dev.qtremors.arcile.core.ui.metadata.buildImageMetadataDetailRows
-import dev.qtremors.arcile.core.ui.metadata.formatImageResolution
+import dev.qtremors.arcile.core.ui.metadata.buildMediaMetadataDetailRows
+import dev.qtremors.arcile.core.ui.metadata.formatMediaResolution
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -98,7 +98,7 @@ fun StandaloneImageViewer(
     var uiVisible by remember { mutableStateOf(true) }
     var metadataVisible by remember { mutableStateOf(false) }
     var rotation by remember(reference) { mutableFloatStateOf(0f) }
-    var metadata by remember(reference) { mutableStateOf<ImageFileMetadata?>(null) }
+    var metadata by remember(reference) { mutableStateOf<VisualMediaMetadata?>(null) }
     var renderFailed by remember(reference) { mutableStateOf(false) }
     val marqueeEnabled = LocalMarqueeFilenames.current
     val isExternalReference = remember(reference) {
@@ -123,7 +123,7 @@ fun StandaloneImageViewer(
         }
         FileModel(
             name = title,
-            absolutePath = reference,
+            reference = reference,
             size = sizeBytes,
             extension = title.substringAfterLast('.', ""),
             mimeType = mimeType,
@@ -200,7 +200,7 @@ fun StandaloneImageViewer(
                     Button(onClick = onOpenWith) {
                         Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(stringResource(R.string.image_gallery_open_with))
+                        Text(stringResource(R.string.viewer_open_with))
                     }
                 }
             }
@@ -250,7 +250,7 @@ fun StandaloneImageViewer(
                             modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                         )
                         val topDetails = listOfNotNull(
-                            formatImageResolution(metadata?.width ?: 0, metadata?.height ?: 0),
+                            formatMediaResolution(metadata?.width ?: 0, metadata?.height ?: 0),
                             sizeBytes.takeIf { it > 0L }?.let { formatFileSize(context, it) }
                         )
                         if (topDetails.isNotEmpty()) {
@@ -341,7 +341,7 @@ private fun StandaloneImageMetadata(
     reference: String,
     sizeBytes: Long,
     mimeType: String?,
-    metadata: ImageFileMetadata?,
+    metadata: VisualMediaMetadata?,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -369,7 +369,7 @@ private fun StandaloneImageMetadata(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = stringResource(R.string.image_gallery_metadata_title),
+                    text = stringResource(R.string.viewer_metadata_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -383,19 +383,19 @@ private fun StandaloneImageMetadata(
                 contentPadding = PaddingValues(bottom = 32.dp)
             ) {
                 item {
-                    val labels = ImageMetadataDetailLabels(
-                        title = stringResource(R.string.image_gallery_metadata_label_title),
-                        date = stringResource(R.string.image_gallery_metadata_label_date),
-                        dateTaken = stringResource(R.string.image_gallery_metadata_label_date_taken),
-                        resolution = stringResource(R.string.image_gallery_metadata_label_resolution),
-                        size = stringResource(R.string.image_gallery_metadata_label_size),
-                        uri = stringResource(R.string.image_gallery_metadata_label_uri),
-                        path = stringResource(R.string.image_gallery_metadata_label_path),
-                        mimeType = stringResource(R.string.image_gallery_metadata_label_mime_type),
-                        extension = stringResource(R.string.image_gallery_metadata_label_extension)
+                    val labels = MediaMetadataDetailLabels(
+                        title = stringResource(R.string.viewer_metadata_label_title),
+                        date = stringResource(R.string.viewer_metadata_label_date),
+                        dateTaken = stringResource(R.string.viewer_metadata_label_date_taken),
+                        resolution = stringResource(R.string.viewer_metadata_label_resolution),
+                        size = stringResource(R.string.viewer_metadata_label_size),
+                        uri = stringResource(R.string.viewer_metadata_label_uri),
+                        path = stringResource(R.string.viewer_metadata_label_path),
+                        mimeType = stringResource(R.string.viewer_metadata_label_mime_type),
+                        extension = stringResource(R.string.viewer_metadata_label_extension)
                     )
-                    ImageMetadataSections(
-                        fileRows = buildImageMetadataDetailRows(
+                    MediaMetadataSections(
+                        fileRows = buildMediaMetadataDetailRows(
                             title = title,
                             reference = reference,
                             size = sizeBytes,
@@ -408,9 +408,9 @@ private fun StandaloneImageMetadata(
                             context = androidx.compose.ui.platform.LocalContext.current
                         ),
                         metadata = metadata,
-                        sectionTitle = stringResource(R.string.image_gallery_metadata_file_information),
+                        sectionTitle = stringResource(R.string.viewer_metadata_file_information),
                         cameraTitle = stringResource(R.string.image_gallery_metadata_camera_exif),
-                        locationTitle = stringResource(R.string.image_gallery_metadata_location)
+                        locationTitle = stringResource(R.string.viewer_metadata_location)
                     )
                 }
                 item { Spacer(modifier = Modifier.height(32.dp)) }

@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.storage.domain.storageParentPath
+import dev.qtremors.arcile.core.storage.domain.RestoredTrashItem
 
 internal enum class TrashAuthorizationAction { RESTORE, RESTORE_TO_DESTINATION, EMPTY, DELETE }
 
@@ -42,7 +43,7 @@ internal data class TrashState(
     val pendingAuthorization: StorageAuthorizationRequirement? = null,
     val pendingDestinationPath: String? = null,
     val pendingRestoreIds: List<String> = emptyList(),
-    val pendingRestoreUndoPaths: List<String> = emptyList(),
+    val pendingRestoreUndoItems: List<RestoredTrashItem> = emptyList(),
     val availableVolumes: List<StorageVolume> = emptyList(),
     val searchQuery: String = "",
     val searchResults: List<TrashMetadata> = emptyList(),
@@ -110,7 +111,7 @@ internal fun List<TrashMetadata>.toPropertiesModel(): TrashPropertiesUiModel {
     val totalBytes = sumOf { it.fileModel.size }
     if (single != null) {
         rows += "Original path" to single.originalPath.ifBlank { "Unavailable" }
-        rows += "Trash payload" to single.fileModel.absolutePath
+        rows += "Trash payload" to single.fileModel.reference
         rows += "Restore status" to single.restoreStatus.name
             .replace('_', ' ')
             .lowercase()

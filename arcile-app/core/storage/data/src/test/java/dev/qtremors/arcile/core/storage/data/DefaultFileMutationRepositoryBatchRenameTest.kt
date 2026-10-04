@@ -104,7 +104,7 @@ class DefaultFileMutationRepositoryBatchRenameTest {
     private fun renamed(path: String): Result<FileModel> =
         Result.success(
             FileModel(
-                absolutePath = path,
+                reference = path,
                 name = path.substringAfterLast('/'),
                 isDirectory = false
             )

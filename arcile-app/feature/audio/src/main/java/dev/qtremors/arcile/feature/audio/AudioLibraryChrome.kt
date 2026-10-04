@@ -3,8 +3,17 @@ package dev.qtremors.arcile.feature.audio
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -28,39 +37,36 @@ internal fun AudioLibraryFloatingTopBar(
     onQueryChange: (String) -> Unit,
     onSearchFiltersChange: (SearchFilters) -> Unit,
     onViewSort: () -> Unit,
-    onDefaultPageChange: (CategoryLibraryPage) -> Unit,
+    onDefaultSectionChange: (AudioCollectionKind) -> Unit,
     onSelectAll: () -> Unit,
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val menuActions = buildList {
-        CategoryLibraryPage.entries.forEach { tab ->
+        audioNavigationSections.forEach { section ->
             add(
                 CategoryMenuAction(
-                    label = stringResource(
-                        if (tab == CategoryLibraryPage.ITEMS) {
-                            R.string.audio_open_to_audio
-                        } else {
-                            R.string.audio_open_to_folders
-                        }
-                    ),
-                    icon = if (tab == CategoryLibraryPage.ITEMS) {
-                        Icons.Default.MusicNote
-                    } else {
-                        Icons.Default.Folder
+                    label = stringResource(R.string.audio_open_to_page, section.displayName()),
+                    icon = when (section) {
+                        AudioCollectionKind.SONGS -> Icons.Default.MusicNote
+                        AudioCollectionKind.FOLDERS -> Icons.Default.Folder
+                        AudioCollectionKind.ALBUMS -> Icons.Default.Album
+                        AudioCollectionKind.ARTISTS -> Icons.Default.Person
+                        AudioCollectionKind.GENRES -> Icons.Default.Category
+                        AudioCollectionKind.PLAYLISTS -> Icons.Default.QueueMusic
                     },
-                    selected = state.defaultPage == tab,
-                    onClick = { onDefaultPageChange(tab) }
+                    selected = state.defaultSection == section,
+                    onClick = { onDefaultSectionChange(section) }
                 )
             )
         }
         val hasItems = if (
             currentTab == CategoryLibraryPage.ITEMS ||
-            state.folderFilter != null
+            state.collectionFilter != null
         ) {
             state.visibleTracks.isNotEmpty()
         } else {
-            state.folders.isNotEmpty()
+            state.collections.isNotEmpty()
         }
         if (hasItems) {
             add(
@@ -110,11 +116,11 @@ internal fun AudioSelectionTopBar(
 @Composable
 internal fun AudioLibraryBottomBar(
     state: AudioLibraryState,
-    currentTab: CategoryLibraryPage,
+    currentSection: AudioCollectionKind,
     selectedTracks: List<AudioTrack>,
     isChromeVisible: Boolean,
     selectionBackProgress: Float,
-    onSelectTab: (CategoryLibraryPage) -> Unit,
+    onSelectSection: (AudioCollectionKind) -> Unit,
     onPlaySelected: () -> Unit,
     onCopySelected: () -> Unit,
     onCutSelected: () -> Unit,
@@ -125,6 +131,8 @@ internal fun AudioLibraryBottomBar(
     onCreateZip: () -> Unit,
     onOpenWith: () -> Unit,
     onToggleFavorite: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onEditTags: () -> Unit,
     onEditAudio: () -> Unit,
     onPaste: () -> Unit,
     onCancelClipboard: () -> Unit,
@@ -132,6 +140,10 @@ internal fun AudioLibraryBottomBar(
     modifier: Modifier = Modifier
 ) {
     val isSelectionMode = selectedTracks.isNotEmpty()
+    val sectionScroll = rememberScrollState()
+    LaunchedEffect(currentSection) {
+        sectionScroll.animateScrollTo(audioNavigationSections.indexOf(currentSection).coerceAtLeast(0) * 64)
+    }
     val keepChromeVisible = isChromeVisible ||
         isSelectionMode ||
         state.clipboardState != null ||
@@ -146,27 +158,30 @@ internal fun AudioLibraryBottomBar(
             if (state.clipboardState != null || state.activeFileOperation != null) {
                 AudioClipboardToolbar(
                     state = state,
-                    canPaste = state.folderFilter != null,
+                    canPaste = state.collectionFilter != null,
                     onPaste = onPaste,
                     onCancel = onCancelClipboard,
                     onShowContents = onShowClipboardContents
                 )
             } else {
                 CategoryNavigationBar(
-                    tabs = listOf(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(sectionScroll),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    tabs = audioNavigationSections.map { section ->
                         CategoryTabSpec(
-                            label = stringResource(R.string.audio_tracks),
-                            icon = Icons.Default.MusicNote,
-                            selected = currentTab == CategoryLibraryPage.ITEMS,
-                            onClick = { onSelectTab(CategoryLibraryPage.ITEMS) }
-                        ),
-                        CategoryTabSpec(
-                            label = stringResource(R.string.audio_folders),
-                            icon = Icons.Default.Folder,
-                            selected = currentTab == CategoryLibraryPage.FOLDERS,
-                            onClick = { onSelectTab(CategoryLibraryPage.FOLDERS) }
+                            label = section.displayName(),
+                            icon = when (section) {
+                                AudioCollectionKind.SONGS -> Icons.Default.MusicNote
+                                AudioCollectionKind.FOLDERS -> Icons.Default.Folder
+                                AudioCollectionKind.ALBUMS -> Icons.Default.Album
+                                AudioCollectionKind.ARTISTS -> Icons.Default.Person
+                                AudioCollectionKind.GENRES -> Icons.Default.Category
+                                AudioCollectionKind.PLAYLISTS -> Icons.Default.QueueMusic
+                            },
+                            selected = currentSection == section,
+                            onClick = { onSelectSection(section) }
                         )
-                    )
+                    }
                 )
             }
         },
@@ -174,7 +189,7 @@ internal fun AudioLibraryBottomBar(
             AudioSelectionActionsBar(
                 canUseSingleTrackActions = selectedTracks.size == 1,
                 allSelectedFavorite = selectedTracks.all {
-                    it.file.absolutePath in state.favoritePaths
+                    it.file.reference in state.favoritePaths
                 },
                 onPlay = onPlaySelected,
                 onCopy = onCopySelected,
@@ -186,6 +201,8 @@ internal fun AudioLibraryBottomBar(
                 onCreateZip = onCreateZip,
                 onOpenWith = onOpenWith,
                 onToggleFavorite = onToggleFavorite,
+                onAddToPlaylist = onAddToPlaylist,
+                onEditTags = onEditTags,
                 onEditAudio = onEditAudio
             )
         }

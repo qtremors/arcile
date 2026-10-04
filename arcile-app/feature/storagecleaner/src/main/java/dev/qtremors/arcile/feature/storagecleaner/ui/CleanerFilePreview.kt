@@ -99,7 +99,7 @@ private fun CleanerCandidate.toFileModel(): FileModel {
     val extension = name.substringAfterLast('.', "").lowercase()
     return FileModel(
         name = name,
-        absolutePath = absolutePath,
+        reference = absolutePath,
         size = size,
         lastModified = lastModified,
         isDirectory = isDirectory,
@@ -111,7 +111,7 @@ private fun CleanerCandidate.toFileModel(): FileModel {
 private fun String.toApkBadgeFileModel(): FileModel =
     FileModel(
         name = "$this.apk",
-        absolutePath = "$this.apk",
+        reference = "$this.apk",
         size = 0L,
         lastModified = 0L,
         isDirectory = false,
@@ -126,7 +126,7 @@ private fun thumbnailRequestData(file: FileModel, key: ThumbnailKey): Any? =
         ThumbnailType.Pdf,
         ThumbnailType.Apk -> key
         ThumbnailType.Image -> file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
-            ?: File(file.absolutePath)
+            ?: File(file.reference)
         ThumbnailType.Unsupported -> null
     }
 

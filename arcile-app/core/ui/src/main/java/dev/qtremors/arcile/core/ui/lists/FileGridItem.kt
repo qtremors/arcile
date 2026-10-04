@@ -149,7 +149,7 @@ fun FileGridItem(
     Card(
         modifier = modifier
             .then(
-                if (isHighlighted) Modifier.testTag("highlighted_file_${file.absolutePath}")
+                if (isHighlighted) Modifier.testTag("highlighted_file_${file.reference}")
                 else Modifier
             )
             .fillMaxWidth().graphicsLayer { scaleX = scale; scaleY = scale }
@@ -264,7 +264,7 @@ private fun FileGridPreview(
         )
         if (shouldLoadThumbnail) {
             val archiveData = ArchiveEntryThumbnailData.fromVirtualPath(
-                path = file.absolutePath,
+                path = file.reference,
                 sizeBytes = file.size,
                 lastModifiedMillis = file.lastModified
             )
@@ -324,7 +324,7 @@ private fun GridFileIcon(
     val folderIconsEnabled = LocalFolderIconsEnabled.current
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val folderAppIcon = if (file.isDirectory) {
-            dev.qtremors.arcile.core.ui.rememberFolderAppIcon(file.name, file.absolutePath)
+            dev.qtremors.arcile.core.ui.rememberFolderAppIcon(file.name, file.reference)
         } else null
 
         if (folderAppIcon != null) {

@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -37,10 +39,53 @@ import java.io.File
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class FileSystemDataSourceTest {
+    @Test
+    fun `list publishes files while index persistence is blocked`() = runTest {
+        File(root, "one.txt").writeText("one")
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val dao = mockk<StorageNodeDao>()
+        coEvery { dao.replaceChildren(any(), any()) } coAnswers { started.complete(Unit); gate.await() }
+        val dispatcher = kotlinx.coroutines.test.StandardTestDispatcher(testScheduler)
+        val source = DefaultFileSystemDataSource(context, volumeProvider, mockk(relaxed = true),
+            dispatchers = dev.qtremors.arcile.core.runtime.di.ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            storageNodeDao = dao)
+        val pages = mutableListOf<dev.qtremors.arcile.core.storage.domain.ListingPage>()
+        val job = launch { source.list(StorageNodePath.of(root.absolutePath)).collect { pages += it } }
+        runCurrent()
+        assertTrue(started.isCompleted)
+        assertEquals("one.txt", pages.single().files.single().name)
+        assertTrue(pages.single().isComplete)
+        gate.complete(Unit)
+        job.join()
+        io.mockk.coVerify(exactly = 1) { dao.replaceChildren(root.absolutePath, match { it.single().name == "one.txt" }) }
+    }
+
+    @Test
+    fun `list preserves published files when optional indexing fails`() = runTest {
+        File(root, "one.txt").writeText("one")
+        val dao = mockk<StorageNodeDao>()
+        coEvery { dao.replaceChildren(any(), any()) } throws java.io.IOException("index unavailable")
+        val source = DefaultFileSystemDataSource(context, volumeProvider, mockk(relaxed = true), storageNodeDao = dao)
+        val pages = source.list(StorageNodePath.of(root.absolutePath)).toList()
+        assertTrue(pages.all { it.error == null })
+        assertEquals("one.txt", pages.single().files.single().name)
+    }
+
+    @Test
+    fun `list clears stale indexed children when the directory becomes empty`() = runTest {
+        val file = File(root, "gone.txt").apply { writeText("gone") }
+        dataSource.list(StorageNodePath.of(root.absolutePath)).toList()
+        assertEquals(1, storageNodeDao.listChildren(root.absolutePath).size)
+        file.delete()
+        val pages = dataSource.list(StorageNodePath.of(root.absolutePath)).toList()
+        assertTrue(pages.single().files.isEmpty())
+        assertTrue(storageNodeDao.listChildren(root.absolutePath).isEmpty())
+    }
 
     private lateinit var context: Context
     private lateinit var volumeProvider: VolumeProvider
-    private lateinit var mediaStoreClient: MediaStoreClient
+    private lateinit var storageQueryClient: StorageQueryClient
     private lateinit var folderStatsStore: FolderStatsStore
     private lateinit var database: ArcileDatabase
     private lateinit var storageNodeDao: StorageNodeDao
@@ -57,7 +102,7 @@ class FileSystemDataSourceTest {
         coEvery { volumeProvider.currentVolumes() } returns listOf(testVolume("test-vol", root.absolutePath))
         every { volumeProvider.observeStorageVolumes() } returns flowOf(listOf(testVolume("test-vol", root.absolutePath)))
 
-        mediaStoreClient = mockk(relaxed = true)
+        storageQueryClient = mockk(relaxed = true)
         database = Room.inMemoryDatabaseBuilder(context, ArcileDatabase::class.java)
             .allowMainThreadQueries()
             .build()
@@ -75,7 +120,7 @@ class FileSystemDataSourceTest {
             volumeProvider,
             MutationFinalizer(
                 context = context,
-                mediaStoreClient = mediaStoreClient,
+                storageQueryClient = storageQueryClient,
                 volumeProvider = volumeProvider,
                 folderStatsStore = folderStatsStore,
                 storageNodeDao = storageNodeDao

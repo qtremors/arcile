@@ -5,8 +5,21 @@ import dev.qtremors.arcile.core.storage.domain.StorageMutationResult
 import dev.qtremors.arcile.core.storage.domain.TrashMetadata
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.toStorageMutationResult
+import dev.qtremors.arcile.core.storage.domain.RestoredTrashItem
+import dev.qtremors.arcile.core.storage.domain.TrashRestoreBatch
 
 class FakeTrashRepository : TrashRepository {
+    var restoreBatchProvider: (suspend (List<String>, String?) -> TrashRestoreBatch)? = null
+    val undoRestoreRequests = mutableListOf<List<RestoredTrashItem>>()
+
+    override suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): TrashRestoreBatch =
+        restoreBatchProvider?.invoke(trashIds, destinationPath)
+            ?: TrashRestoreBatch(restoreFromTrash(trashIds, destinationPath), emptyList())
+
+    override suspend fun undoRestore(items: List<RestoredTrashItem>): Result<Unit> {
+        undoRestoreRequests += items
+        return Result.success(Unit)
+    }
     var moveToTrashResultProvider:
         (suspend (List<String>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var restoreFromTrashResultProvider:

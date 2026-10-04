@@ -10,51 +10,6 @@ import androidx.exifinterface.media.ExifInterface
 import java.io.File
 import java.util.Locale
 
-data class ImageFileMetadata(
-    val path: String,
-    val size: Long,
-    val mimeType: String?,
-    val width: Int,
-    val height: Int,
-    val megapixel: Double,
-    val cameraMaker: String?,
-    val cameraModel: String?,
-    val lensModel: String?,
-    val iso: Int?,
-    val exposureTime: String?,
-    val fNumber: Double?,
-    val focalLength: Double?,
-    val whiteBalance: String?,
-    val flash: String?,
-    val dateTaken: String?,
-    val latitude: Double?,
-    val longitude: Double?,
-    val altitude: Double?,
-    val description: String? = null,
-    val userComment: String? = null,
-    val artist: String? = null,
-    val copyright: String? = null,
-    val isEditable: Boolean = false
-)
-
-data class ImageMetadataDetailLabels(
-    val title: String,
-    val date: String,
-    val dateTaken: String,
-    val resolution: String,
-    val size: String,
-    val uri: String,
-    val path: String,
-    val mimeType: String,
-    val extension: String,
-    val aspectRatio: String = "Aspect ratio"
-)
-
-data class ImageMetadataDetailRow(
-    val label: String,
-    val value: String
-)
-
 data class ImageMetadataUpdate(
     val description: String?,
     val userComment: String?,
@@ -75,7 +30,7 @@ sealed interface ImageMetadataWriteResult {
 }
 
 object SharedImageMetadataReader {
-    fun readMetadata(context: Context, reference: String, mimeType: String? = null): ImageFileMetadata {
+    fun readMetadata(context: Context, reference: String, mimeType: String? = null): VisualMediaMetadata {
         val uri = runCatching { reference.toUri() }.getOrNull()
         return if (uri?.scheme == "content") {
             readContentMetadata(context, uri, mimeType)
@@ -84,7 +39,7 @@ object SharedImageMetadataReader {
         }
     }
 
-    fun readFileMetadata(filePath: String, mimeType: String? = null): ImageFileMetadata {
+    fun readFileMetadata(filePath: String, mimeType: String? = null): VisualMediaMetadata {
         val file = File(filePath)
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(filePath, options)
@@ -156,7 +111,7 @@ object SharedImageMetadataReader {
         }
     }
 
-    private fun readContentMetadata(context: Context, uri: Uri, mimeType: String?): ImageFileMetadata {
+    private fun readContentMetadata(context: Context, uri: Uri, mimeType: String?): VisualMediaMetadata {
         val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use { input ->
             BitmapFactory.decodeStream(input, null, options)
@@ -183,7 +138,7 @@ object SharedImageMetadataReader {
         height: Int,
         exif: ExifInterface?,
         isEditable: Boolean
-    ): ImageFileMetadata {
+    ): VisualMediaMetadata {
         val megapixel = if (width > 0 && height > 0) {
             Math.round((width * height).toDouble() / 1_000_000.0 * 100.0) / 100.0
         } else {
@@ -199,7 +154,7 @@ object SharedImageMetadataReader {
         val alt = exif?.getAttributeDouble(ExifInterface.TAG_GPS_ALTITUDE, -1.0) ?: -1.0
         val altRef = exif?.getAttributeInt(ExifInterface.TAG_GPS_ALTITUDE_REF, 0) ?: 0
 
-        return ImageFileMetadata(
+        return VisualMediaMetadata(
             path = reference,
             size = size,
             mimeType = mimeType,
@@ -308,46 +263,7 @@ object SharedImageMetadataReader {
 
 private fun String?.normalizedMetadataValue(): String? = this?.trim()?.takeIf(String::isNotEmpty)
 
-fun buildImageMetadataDetailRows(
-    title: String,
-    reference: String,
-    size: Long,
-    lastModifiedText: String?,
-    mimeType: String?,
-    extension: String?,
-    metadata: ImageFileMetadata?,
-    labels: ImageMetadataDetailLabels,
-    context: Context,
-    isUriReference: Boolean = reference.startsWith("content://"),
-    fileSizeFormatter: ((Long) -> String)? = null
-): List<ImageMetadataDetailRow> {
-    val rows = mutableListOf<ImageMetadataDetailRow>()
-    title.takeIf { it.isNotBlank() }?.let { rows += ImageMetadataDetailRow(labels.title, it) }
-    lastModifiedText?.takeIf { it.isNotBlank() }?.let { rows += ImageMetadataDetailRow(labels.date, it) }
-    metadata?.dateTaken?.takeIf { it.isNotBlank() }?.let { rows += ImageMetadataDetailRow(labels.dateTaken, it) }
-    metadata?.let { formatImageResolution(it.width, it.height) }?.let { rows += ImageMetadataDetailRow(labels.resolution, it) }
-    metadata?.let { formatImageAspectRatio(it.width, it.height) }?.let {
-        rows += ImageMetadataDetailRow(labels.aspectRatio, it)
-    }
-    val formattedSize = fileSizeFormatter?.invoke(size.takeIf { it > 0L } ?: metadata?.size ?: 0L)
-        ?: dev.qtremors.arcile.core.presentation.formatFileSize(
-            context,
-            size.takeIf { it > 0L } ?: metadata?.size ?: 0L
-        )
-    rows += ImageMetadataDetailRow(labels.size, formattedSize)
-    reference.takeIf { it.isNotBlank() }?.let {
-        rows += ImageMetadataDetailRow(if (isUriReference) labels.uri else labels.path, it)
-    }
-    (metadata?.mimeType ?: mimeType)?.takeIf { it.isNotBlank() }?.let {
-        rows += ImageMetadataDetailRow(labels.mimeType, it)
-    }
-    extension?.takeIf { it.isNotBlank() }?.let {
-        rows += ImageMetadataDetailRow(labels.extension, it.uppercase())
-    }
-    return rows
-}
-
-fun imageHasExif(metadata: ImageFileMetadata?): Boolean =
+fun imageHasExif(metadata: VisualMediaMetadata?): Boolean =
     metadata != null && (
         metadata.cameraMaker != null ||
             metadata.cameraModel != null ||
@@ -366,17 +282,3 @@ fun imageHasExif(metadata: ImageFileMetadata?): Boolean =
             metadata.artist != null ||
             metadata.copyright != null
         )
-
-fun formatImageResolution(width: Int, height: Int): String? {
-    if (width <= 0 || height <= 0) return null
-    return "$width x $height"
-}
-
-fun formatImageAspectRatio(width: Int, height: Int): String? {
-    if (width <= 0 || height <= 0) return null
-    val divisor = greatestCommonDivisor(width, height)
-    return "${width / divisor}:${height / divisor}"
-}
-
-private tailrec fun greatestCommonDivisor(a: Int, b: Int): Int =
-    if (b == 0) kotlin.math.abs(a).coerceAtLeast(1) else greatestCommonDivisor(b, a % b)

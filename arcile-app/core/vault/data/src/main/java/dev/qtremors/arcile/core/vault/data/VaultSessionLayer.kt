@@ -7,6 +7,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 internal abstract class VaultSessionLayer(
     context: Context,
@@ -62,78 +64,107 @@ internal abstract class VaultSessionLayer(
     override suspend fun prepareBiometricEnrollment(
         vaultId: VaultId,
         password: CharArray
-    ): Result<VaultBiometricChallenge> {
-        var masterSecret: ByteArray? = null
-        return try {
-            val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
-            val opened = headerCodec.open(location.access, password).getOrThrow()
-            if (opened.id != vaultId) throw VaultFailure.StaleRegistration()
-            masterSecret = opened.masterKey
-            val cipher = biometricStore.prepareEnrollment(vaultId)
-            val ownedSecret = masterSecret
-            masterSecret = null
-            Result.success(
-                VaultBiometricChallengeImpl(
-                    vaultId,
-                    VaultBiometricPurpose.ENROLL,
-                    biometricStore.cryptoObject(cipher),
-                    ownedSecret
+    ): Result<VaultBiometricChallenge> = try {
+        prepareChallenge {
+            var masterSecret: ByteArray? = null
+            try {
+                val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
+                val generation = lockGeneration
+                val opened = headerCodec.open(location.access, password).getOrThrow()
+                masterSecret = opened.masterKey
+                currentCoroutineContext().ensureActive()
+                if (opened.id != vaultId) throw VaultFailure.StaleRegistration()
+                val cipher = biometricStore.prepareEnrollment(vaultId)
+                val ownedSecret = masterSecret
+                val challenge = VaultBiometricChallengeImpl(
+                    vaultId, VaultBiometricPurpose.ENROLL, biometricStore.cryptoObject(cipher), ownedSecret
                 ) {
-                    biometricStore.finishEnrollment(vaultId, cipher, ownedSecret)
+                    withContext(dispatchers.io) {
+                        lifecycleMutex.withLock {
+                            currentCoroutineContext().ensureActive()
+                            checkBiometricGeneration(vaultId, location, generation)
+                            biometricStore.finishEnrollment(vaultId, cipher, ownedSecret)
+                        }
+                    }
                 }
-            )
-        } catch (error: Throwable) {
-            Result.failure(error)
-        } finally {
-            masterSecret?.fill(0)
-            password.fill('\u0000')
+                masterSecret = null
+                Result.success(challenge)
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Result.failure(error)
+            } finally {
+                masterSecret?.fill(0)
+            }
         }
+    } finally {
+        password.fill('\u0000')
     }
 
     override suspend fun prepareBiometricUnlock(vaultId: VaultId): Result<VaultBiometricChallenge> =
-        try {
-            if (sessions.containsKey(vaultId.value)) {
-                throw VaultFailure.Unavailable("Vault is already unlocked")
-            }
-            val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
-            val cipher = biometricStore.prepareUnlock(vaultId)
-            Result.success(
-                VaultBiometricChallengeImpl(
-                    vaultId,
-                    VaultBiometricPurpose.UNLOCK,
-                    biometricStore.cryptoObject(cipher)
+        prepareChallenge {
+            try {
+                if (sessions.containsKey(vaultId.value)) throw VaultFailure.Unavailable("Vault is already unlocked")
+                val location = locations[vaultId.value] ?: throw VaultFailure.NotFound(vaultId)
+                val generation = lockGeneration
+                val cipher = biometricStore.prepareUnlock(vaultId)
+                Result.success(VaultBiometricChallengeImpl(
+                    vaultId, VaultBiometricPurpose.UNLOCK, biometricStore.cryptoObject(cipher)
                 ) {
-                    var secret: ByteArray? = null
-                    try {
-                        secret = biometricStore.finishUnlock(vaultId, cipher)
-                        transactionManager.recover(location.access, vaultId, secret)
-                        val candidate = VaultSessionRecord(vaultId, location.access, secret)
-                        candidate.root().let { root ->
+                    withContext(dispatchers.io) {
+                        lifecycleMutex.withLock {
+                            checkBiometricGeneration(vaultId, location, generation)
+                            if (sessions.containsKey(vaultId.value)) throw VaultFailure.Unavailable("Vault is already unlocked")
+                            var secret: ByteArray? = null
+                            var candidate: VaultSessionRecord? = null
                             try {
-                                candidate.readDirectory(root).clearProtectedKeys()
+                                secret = biometricStore.finishUnlock(vaultId, cipher)
+                                currentCoroutineContext().ensureActive()
+                                transactionManager.recover(location.access, vaultId, secret)
+                                val opened = VaultSessionRecord(vaultId, location.access, secret)
+                                candidate = opened
+                                opened.root().let { root ->
+                                    try { opened.readDirectory(root).clearProtectedKeys() }
+                                    finally { root.key.fill(0) }
+                                }
+                                currentCoroutineContext().ensureActive()
+                                sessions[vaultId.value] = opened
+                                candidate = null
+                                secret = null
+                                publishUnlockedIds()
+                            } catch (error: Throwable) {
+                                if (error is VaultFailure.BiometricInvalidated) biometricStore.remove(vaultId)
+                                throw error
                             } finally {
-                                root.key.fill(0)
+                                candidate?.destroy()
+                                secret?.fill(0)
                             }
                         }
-                        synchronized(sessions) {
-                            sessions.put(vaultId.value, candidate)?.destroy()
-                        }
-                        secret = null
-                        publishUnlockedIds()
-                        mutableVaults.value = mutableVaults.value.map {
-                            if (it.id == vaultId) it.copy(isUnlocked = true) else it
-                        }
-                    } catch (error: Throwable) {
-                        if (error is VaultFailure.BiometricInvalidated) biometricStore.remove(vaultId)
-                        throw error
-                    } finally {
-                        secret?.fill(0)
                     }
-                }
-            )
-        } catch (error: Throwable) {
-            Result.failure(error)
+                })
+            } catch (error: Throwable) {
+                if (error is CancellationException) throw error
+                Result.failure(error)
+            }
         }
+
+    private fun checkBiometricGeneration(vaultId: VaultId, location: VaultLocationRecord, generation: Long) {
+        if (generation != lockGeneration) throw VaultFailure.Locked(vaultId)
+        if (locations[vaultId.value]?.location != location.location) throw VaultFailure.StaleRegistration()
+    }
+
+    private suspend fun prepareChallenge(block: suspend () -> Result<VaultBiometricChallenge>): Result<VaultBiometricChallenge> {
+        var pending: VaultBiometricChallenge? = null
+        return try {
+            val result = withContext(dispatchers.io) {
+                lifecycleMutex.withLock { block().also { pending = it.getOrNull() } }
+            }
+            pending = null
+            result
+        } finally {
+            // A cancelled dispatcher handoff must not strand a challenge's secret.
+            pending?.close()
+        }
+    }
 
     override suspend fun removeBiometric(vaultId: VaultId): Result<Unit> =
         withContext(dispatchers.io) {
@@ -188,6 +219,7 @@ internal abstract class VaultSessionLayer(
 
     override suspend fun lock(vaultId: VaultId) = withContext(dispatchers.io) {
         lifecycleMutex.withLock {
+            lockGeneration++
             requestLock(vaultId)
             refreshVaults()
         }
@@ -195,6 +227,7 @@ internal abstract class VaultSessionLayer(
 
     override suspend fun lockAll() = withContext(dispatchers.io) {
         lifecycleMutex.withLock {
+            lockGeneration++
             sessions.values.toList().forEach { requestLock(it.id) }
             refreshVaults()
         }

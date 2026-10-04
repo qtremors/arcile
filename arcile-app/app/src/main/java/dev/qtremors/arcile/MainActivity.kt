@@ -22,13 +22,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
 import dev.qtremors.arcile.presentation.MainViewModel
 import dev.qtremors.arcile.feature.onboarding.OnboardingRoute
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 import dev.qtremors.arcile.presentation.ui.ArcileAppShell
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import dev.qtremors.arcile.presentation.ui.PermissionRequestScreen
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemePreferences
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.R
 import kotlinx.coroutines.launch
 import dagger.hilt.android.AndroidEntryPoint
@@ -45,7 +46,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
 
     @Inject
-    lateinit var themePreferences: ThemePreferences
+    lateinit var uiPreferencesStore: UiPreferencesStore
 
     @Inject
     lateinit var onboardingPreferencesStore: OnboardingPreferencesStore
@@ -68,7 +69,7 @@ class MainActivity : ComponentActivity() {
             try {
                 traceStartupSection("Arcile.splashPreferencePreload") {
                     withTimeoutOrNull(2000L) {
-                        themePreferences.themeState.first()
+                        uiPreferencesStore.uiPreferences.first()
                         onboardingPreferencesStore.preferencesFlow.first()
                     }
                 }
@@ -80,8 +81,8 @@ class MainActivity : ComponentActivity() {
         
         traceStartupSection("Arcile.setContent") {
             setContent {
-                val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
-                    initialValue = ThemeState()
+                val uiPreferences by uiPreferencesStore.uiPreferences.collectAsStateWithLifecycle(
+                    initialValue = UiPreferences()
                 )
                 val hasPermission by viewModel.hasPermission.collectAsStateWithLifecycle()
                 val fileOpenBehaviors by viewModel.fileOpenBehaviors.collectAsStateWithLifecycle()
@@ -89,16 +90,16 @@ class MainActivity : ComponentActivity() {
                 val keepAppBarsCollapsed by viewModel.keepAppBarsCollapsed.collectAsStateWithLifecycle()
                 val coroutineScope = rememberCoroutineScope()
 
-                ArcileTheme(themeState = themeState) {
+                ArcileTheme(uiPreferences = uiPreferences) {
                     Surface(
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
                         OnboardingRoute(
-                            currentThemeState = themeState,
+                            currentUiPreferences = uiPreferences,
                             onThemeChange = { newState ->
                                 coroutineScope.launch {
-                                    themePreferences.saveThemeState(newState)
+                                    uiPreferencesStore.saveUiPreferences(newState)
                                 }
                             },
                             hasStoragePermission = hasPermission,
@@ -108,10 +109,10 @@ class MainActivity : ComponentActivity() {
                             appContent = {
                                 ArcileAppShell(
                                     appLaunchContext = appLaunchContext,
-                                    currentThemeState = themeState,
+                                    currentUiPreferences = uiPreferences,
                                     onThemeChange = { newState ->
                                         coroutineScope.launch {
-                                            themePreferences.saveThemeState(newState)
+                                            uiPreferencesStore.saveUiPreferences(newState)
                                         }
                                     },
                                     onOpenFile = ::openFile,
@@ -134,6 +135,17 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             }
+        }
+        if (intent.getBooleanExtra(AudioFeatureEntryPoint.EXTRA_OPEN_PLAYER, false)) {
+            AudioFeatureEntryPoint.expandPlayer(this)
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(AudioFeatureEntryPoint.EXTRA_OPEN_PLAYER, false)) {
+            AudioFeatureEntryPoint.expandPlayer(this)
         }
     }
 
@@ -178,7 +190,7 @@ class MainActivity : ComponentActivity() {
                 val chooser = ExternalFileAccessHelper.createExternalOpenChooser(
                     this@MainActivity,
                     intent,
-                    getString(R.string.image_gallery_open_with)
+                    getString(R.string.viewer_open_with)
                 )
                 startActivity(chooser)
             } catch (e: Exception) {

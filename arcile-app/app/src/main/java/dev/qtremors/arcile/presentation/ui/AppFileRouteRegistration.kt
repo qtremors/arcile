@@ -14,8 +14,8 @@ import dev.qtremors.arcile.feature.browser.BrowserDestination
 import dev.qtremors.arcile.feature.browser.BrowserEntry
 import dev.qtremors.arcile.feature.browser.BrowserEntryRequest
 import dev.qtremors.arcile.feature.browser.BrowserRoute
-import dev.qtremors.arcile.feature.imagegallery.registerImageGalleryRoute
-import dev.qtremors.arcile.feature.imagegallery.registerImageViewerRoute
+import dev.qtremors.arcile.feature.gallery.registerMediaGalleryRoute
+import dev.qtremors.arcile.feature.gallery.registerImageViewerRoute
 import dev.qtremors.arcile.feature.documents.registerDocumentLibraryRoute
 import dev.qtremors.arcile.feature.videoplayer.registerVideoViewerRoute
 import dev.qtremors.arcile.feature.recentfiles.registerRecentFilesRoute
@@ -42,7 +42,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
                     when {
                         isGalleryCategory(destination.name) -> {
                             navController.navigate(
-                                AppRoutes.ImageGallery(
+                                AppRoutes.MediaGallery(
                                     volumeId = destination.volumeId,
                                     categoryId = FileCategories.find(destination.name)?.id?.value
                                         ?: FileCategories.Images.id.value
@@ -110,7 +110,7 @@ internal fun NavGraphBuilder.registerFileRoutes(
                 when (destination) {
                     BrowserDestination.ExitToHome,
                     BrowserDestination.ExitToPreviousRoute -> navController.popBackStack()
-                    is BrowserDestination.OpenFile -> actions.openPathWithSurroundingImages(
+                    is BrowserDestination.OpenFile -> actions.openPathWithContext(
                         destination.path,
                         destination.surroundingFiles
                     )
@@ -124,16 +124,16 @@ internal fun NavGraphBuilder.registerFileRoutes(
     }
     registerDocumentLibraryRoute(
         onNavigateBack = { navController.popBackStack() },
-        onOpenFile = { file, context -> actions.openPathWithSurroundingImages(file.absolutePath, context) },
-        onOpenWith = { actions.openFileWith(it.absolutePath) },
-        onShare = { files -> actions.shareKnownFiles(files.map { it.absolutePath }, files) },
+        onOpenFile = { file, context -> actions.openPathWithContext(file.reference, context) },
+        onOpenWith = { actions.openFileWith(it.reference) },
+        onShare = { files -> actions.shareKnownFiles(files.map { it.reference }, files) },
         onFeedback = onFeedback
     )
     registerApkLibraryRoute(
         onNavigateBack = { navController.popBackStack() },
-        onInstall = { actions.openPath(it.absolutePath) },
-        onOpenWith = { actions.openFileWith(it.absolutePath) },
-        onShare = { files -> actions.shareKnownFiles(files.map { it.absolutePath }, files) },
+        onInstall = { actions.openPath(it.reference) },
+        onOpenWith = { actions.openFileWith(it.reference) },
+        onShare = { files -> actions.shareKnownFiles(files.map { it.reference }, files) },
         onFeedback = onFeedback
     )
     registerTrashRoute(
@@ -153,15 +153,15 @@ internal fun NavGraphBuilder.registerFileRoutes(
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
-        onOpenFile = actions::openPathWithSurroundingImages,
+        onOpenFile = actions::openPathWithContext,
         onOpenFileWith = actions::openFileWith,
         onShareSelected = { files ->
-            actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
+            actions.shareKnownFiles(files.map(FileModel::reference), files)
         },
         onDestination = actions.destinationMappers.recentFiles::map,
         onFeedback = onFeedback
     )
-    registerImageGalleryRoute(
+    registerMediaGalleryRoute(
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
@@ -169,9 +169,9 @@ internal fun NavGraphBuilder.registerFileRoutes(
         onNavigateBack = { navController.popBackStack() },
         onDestination = actions.destinationMappers.gallery::map,
         onShareSelected = { files ->
-            actions.shareKnownFiles(files.map(FileModel::absolutePath), files)
+            actions.shareKnownFiles(files.map(FileModel::reference), files)
         },
-        onOpenWith = { actions.openFileWith(it.absolutePath) },
+        onOpenWith = { actions.openFileWith(it.reference) },
         onFeedback = onFeedback
     )
     registerAudioLibraryRoute(
@@ -188,15 +188,15 @@ internal fun NavGraphBuilder.registerFileRoutes(
         },
         onShareSelected = { tracks ->
             actions.shareKnownFiles(
-                tracks.map { it.file.absolutePath },
+                tracks.map { it.file.reference },
                 tracks.map { it.file }
             )
         },
         onOpenPlayer = actions::openAudioPlayer,
         onEditSelected = { tracks ->
-            actions.openAudioEditor(tracks.map { it.file.absolutePath })
+            actions.openAudioEditor(tracks.map { it.file.reference })
         },
-        onOpenWith = { track -> actions.openFileWith(track.file.absolutePath) },
+        onOpenWith = { track -> actions.openFileWith(track.file.reference) },
         onFeedback = onFeedback
     )
     registerImageViewerRoute(

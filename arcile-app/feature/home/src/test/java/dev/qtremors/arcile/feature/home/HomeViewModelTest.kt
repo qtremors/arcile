@@ -12,7 +12,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
-import dev.qtremors.arcile.core.storage.domain.UtilityPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.HomeAndUtilityPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import dev.qtremors.arcile.testutil.FakeStorageRepositoryBundle
@@ -36,6 +36,182 @@ import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class HomeViewModelTest {
+
+    @Test
+    fun `startup displays cached values while live reads are pending and keeps them on failure`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val release = CompletableDeferred<Unit>()
+            val recent = listOf(homeFile("cached.jpg"))
+            val categories = listOf(CategoryStorage("Images", 4096L, emptySet()))
+            val repository = FakeStorageRepositoryBundle()
+            val analytics = object : dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+                by repository.storageAnalyticsRepository {
+                override suspend fun getCachedRecentFiles(scope: StorageScope, limit: Int, minTimestamp: Long) = recent
+                override suspend fun getCachedCategoryStorageSizes(scope: StorageScope) = categories
+                override suspend fun getRecentFiles(scope: StorageScope, limit: Int, offset: Int, minTimestamp: Long): Result<List<FileModel>> {
+                    release.await()
+                    return Result.failure(IllegalStateException("offline"))
+                }
+                override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> {
+                    release.await()
+                    return Result.failure(IllegalStateException("offline"))
+                }
+            }
+            val quickAccess = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+                io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+            }
+            val viewModel = HomeViewModel(repository.volumeRepository, analytics, repository.searchRepository,
+                HomeFakeStorageClassificationStore(), quickAccess)
+            runCurrent()
+            assertEquals(recent, viewModel.state.value.recentFiles)
+            assertEquals(categories, viewModel.state.value.categoryStorages)
+            assertTrue(viewModel.state.value.hasRestoredCachedHomeData)
+            assertFalse(viewModel.state.value.isLoading)
+            assertFalse(viewModel.state.value.isCalculatingStorage)
+            assertFalse(viewModel.state.value.isPullToRefreshing)
+
+            release.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(recent, viewModel.state.value.recentFiles)
+            assertEquals(categories, viewModel.state.value.categoryStorages)
+        }
+
+    @Test
+    fun `cold Home launch shows saved totals while forcing a live category read`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val saved = listOf(CategoryStorage("Images", 100L, emptySet()))
+            val updated = listOf(CategoryStorage("Images", 200L, emptySet()))
+            val release = CompletableDeferred<Unit>()
+            var invalidations = 0
+            var liveReads = 0
+            val repository = FakeStorageRepositoryBundle()
+            val analytics = object : dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+                by repository.storageAnalyticsRepository {
+                override suspend fun getCachedCategoryStorageSizes(scope: StorageScope) = saved
+                override suspend fun invalidateAnalyticsCache() { invalidations++ }
+                override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> {
+                    liveReads++
+                    release.await()
+                    return Result.success(if (invalidations > 0) updated else saved)
+                }
+            }
+            val quickAccess = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+                io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+            }
+            val viewModel = HomeViewModel(repository.volumeRepository, analytics, repository.searchRepository,
+                HomeFakeStorageClassificationStore(), quickAccess)
+
+            runCurrent()
+            assertEquals(saved, viewModel.state.value.categoryStorages)
+            assertFalse(viewModel.state.value.isLoading)
+            assertFalse(viewModel.state.value.isPullToRefreshing)
+            assertEquals(1, invalidations)
+            assertEquals(1, liveReads)
+
+            release.complete(Unit)
+            advanceUntilIdle()
+            assertEquals(updated, viewModel.state.value.categoryStorages)
+            viewModel.resumeHomeData()
+            advanceUntilIdle()
+            assertEquals(1, invalidations)
+            assertEquals(1, liveReads)
+        }
+
+    @Test
+    fun `failed cold-start cache invalidation retains saved totals and retries on resume`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val saved = listOf(CategoryStorage("Images", 100L, emptySet()))
+            val updated = listOf(CategoryStorage("Images", 200L, emptySet()))
+            val repository = FakeStorageRepositoryBundle()
+            var invalidations = 0
+            val analytics = object : dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+                by repository.storageAnalyticsRepository {
+                override suspend fun getCachedCategoryStorageSizes(scope: StorageScope) = saved
+                override suspend fun invalidateAnalyticsCache() {
+                    invalidations++
+                    if (invalidations == 1) throw IllegalStateException("cache unavailable")
+                }
+                override suspend fun getCategoryStorageSizes(scope: StorageScope) =
+                    Result.success(if (invalidations > 1) updated else saved)
+            }
+            val quickAccess = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+                io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+            }
+            val viewModel = HomeViewModel(repository.volumeRepository, analytics, repository.searchRepository,
+                HomeFakeStorageClassificationStore(), quickAccess)
+
+            advanceUntilIdle()
+            assertEquals(saved, viewModel.state.value.categoryStorages)
+            assertTrue(viewModel.state.value.error != null)
+
+            viewModel.resumeHomeData()
+            advanceUntilIdle()
+            assertEquals(2, invalidations)
+            assertEquals(updated, viewModel.state.value.categoryStorages)
+            assertTrue(viewModel.state.value.error == null)
+        }
+
+    @Test
+    fun `startup restores saved volume breakdowns before live categories finish`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val volumes = listOf(
+                testVolume("primary", "/storage/emulated/0"),
+                testVolume("sd", "/storage/1234", kind = StorageKind.SD_CARD)
+            )
+            val release = CompletableDeferred<Unit>()
+            val saved = listOf(CategoryStorage("Images", 4096L, emptySet()))
+            val repository = FakeStorageRepositoryBundle(volumes = volumes)
+            val analytics = object : dev.qtremors.arcile.core.storage.domain.StorageAnalyticsRepository
+                by repository.storageAnalyticsRepository {
+                override suspend fun getCachedCategoryStorageSizes(scope: StorageScope) =
+                    if (scope is StorageScope.Volume) saved else null
+                override suspend fun getCategoryStorageSizes(scope: StorageScope): Result<List<CategoryStorage>> {
+                    release.await()
+                    return Result.success(saved)
+                }
+            }
+            val quickAccess = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+                io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+            }
+            val viewModel = HomeViewModel(repository.volumeRepository, analytics, repository.searchRepository,
+                HomeFakeStorageClassificationStore(), quickAccess)
+
+            runCurrent()
+            assertEquals(saved, viewModel.state.value.categoryStoragesByVolume["primary"])
+            assertEquals(saved, viewModel.state.value.categoryStoragesByVolume["sd"])
+            release.complete(Unit)
+            advanceUntilIdle()
+        }
+
+    @Test
+    fun `resume does not duplicate initialization or repeat a fresh completed refresh`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val release = CompletableDeferred<Unit>()
+            var requests = 0
+            val repository = FakeStorageRepositoryBundle(volumes = listOf(testVolume("primary", "/storage/emulated/0"))).apply {
+                recentFilesResultProvider = { _, _, _, _ ->
+                    requests++
+                    release.await()
+                    Result.success(listOf(homeFile("latest.jpg")))
+                }
+            }
+            val quickAccess = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
+                io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
+            }
+            val viewModel = HomeViewModel(repository.volumeRepository, repository.storageAnalyticsRepository,
+                repository.searchRepository, HomeFakeStorageClassificationStore(), quickAccess)
+            runCurrent()
+            viewModel.resumeHomeData()
+            release.complete(Unit)
+            advanceUntilIdle()
+            viewModel.resumeHomeData()
+            advanceUntilIdle()
+            assertEquals(1, requests)
+
+            viewModel.loadHomeData(HomeRefreshMode.MANUAL)
+            advanceUntilIdle()
+            assertEquals(2, requests)
+        }
 
     @get:Rule
     val mainDispatcherRule = MainDispatcherRule()
@@ -423,12 +599,12 @@ class HomeViewModelTest {
 
         viewModel.loadHomeData(HomeRefreshMode.INITIAL)
         advanceUntilIdle()
-        assertEquals(0, repository.invalidateAnalyticsCacheCalls)
+        assertEquals(1, repository.invalidateAnalyticsCacheCalls)
 
         viewModel.loadHomeData(HomeRefreshMode.MANUAL)
         advanceUntilIdle()
 
-        assertEquals(1, repository.invalidateAnalyticsCacheCalls)
+        assertEquals(2, repository.invalidateAnalyticsCacheCalls)
         assertTrue(repository.requestedCategoryScopes.contains(StorageScope.AllStorage))
     }
 
@@ -436,7 +612,7 @@ class HomeViewModelTest {
     fun `utility preference controls which utilities are visible on home`() = runTest(mainDispatcherRule.dispatcher) {
         val repository = FakeStorageRepositoryBundle()
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> { io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList()) }
-        val utilityStore = HomeFakeUtilityPreferencesStore()
+        val utilityStore = HomeFakeHomeAndUtilityPreferencesStore()
         val viewModel = HomeViewModel(
             repository.volumeRepository,
             repository.storageAnalyticsRepository,
@@ -462,7 +638,7 @@ class HomeViewModelTest {
         val quickAccessRepo = io.mockk.mockk<dev.qtremors.arcile.core.storage.domain.QuickAccessPreferencesStore> {
             io.mockk.every { quickAccessItems } returns kotlinx.coroutines.flow.flowOf(emptyList())
         }
-        val utilityStore = HomeFakeUtilityPreferencesStore()
+        val utilityStore = HomeFakeHomeAndUtilityPreferencesStore()
         val viewModel = HomeViewModel(
             repository.volumeRepository,
             repository.storageAnalyticsRepository,
@@ -514,7 +690,7 @@ private class HomeFakeStorageClassificationStore(
     override suspend fun resetClassification(storageKey: String) = Unit
 }
 
-private class HomeFakeUtilityPreferencesStore : UtilityPreferencesStore {
+private class HomeFakeHomeAndUtilityPreferencesStore : HomeAndUtilityPreferencesStore {
     private val ids = MutableStateFlow(listOf("trash", "cleaner"))
     private val layout = MutableStateFlow(HomeLayoutPreferences())
 

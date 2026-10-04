@@ -48,7 +48,7 @@ internal fun presentDocuments(state: DocumentLibraryState): DocumentLibraryState
     val filtered = categoryFiles.asSequence()
         .filter {
             state.folderFilter == null ||
-                dev.qtremors.arcile.core.storage.domain.storageParentPath(it.absolutePath) ==
+                dev.qtremors.arcile.core.storage.domain.storageParentPath(it.reference) ==
                     state.folderFilter.path
         }
         .filter { query.isBlank() || it.name.contains(query, ignoreCase = true) }
@@ -58,6 +58,6 @@ internal fun presentDocuments(state: DocumentLibraryState): DocumentLibraryState
     return state.copy(
         files = sortCategoryFiles(filtered, state.presentation.sortOption),
         folders = sortCategoryFolders(folders, state.folderPresentation.sortOption),
-        selectedPaths = state.selectedPaths.intersect(state.allFiles.mapTo(mutableSetOf(), FileModel::absolutePath))
+        selectedPaths = state.selectedPaths.intersect(state.allFiles.mapTo(mutableSetOf(), FileModel::reference))
     )
 }

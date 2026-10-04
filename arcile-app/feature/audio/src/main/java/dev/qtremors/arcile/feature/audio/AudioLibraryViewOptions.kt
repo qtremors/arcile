@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.audio
 
-import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -54,28 +53,23 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AudioViewOptionsDialog(
-    tab: CategoryLibraryPage,
+internal fun AudioViewOptionsSheet(
+    section: AudioCollectionKind,
     presentation: FileListingPreferences,
     grouping: CategoryGrouping,
     showFileDetails: Boolean,
-    onApply: (FileListingPreferences, CategoryGrouping, Boolean) -> Unit,
-    onDismiss: () -> Unit
+    musicOnly: Boolean,
+    onApply: (FileListingPreferences, CategoryGrouping, Boolean, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    listOnly: Boolean = false
 ) {
     val haptics = rememberArcileHaptics()
-    var draftPresentation by remember(presentation, tab) {
-        mutableStateOf(
-            presentation.normalized().let {
-                if (tab == CategoryLibraryPage.FOLDERS) {
-                    it.copy(viewMode = FileViewMode.GRID)
-                } else {
-                    it
-                }
-            }
-        )
+    var draftPresentation by remember(presentation, section) {
+        mutableStateOf(presentation.normalized())
     }
     var draftGrouping by remember(grouping) { mutableStateOf(grouping) }
     var draftDetails by remember(showFileDetails) { mutableStateOf(showFileDetails) }
+    var draftMusicOnly by remember(musicOnly) { mutableStateOf(musicOnly) }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -99,17 +93,11 @@ internal fun AudioViewOptionsDialog(
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 Text(
-                    text = stringResource(
-                        if (tab == CategoryLibraryPage.ITEMS) {
-                            R.string.audio_view_sort_title
-                        } else {
-                            R.string.audio_folder_view_sort_title
-                        }
-                    ),
+                    text = stringResource(R.string.audio_page_view_sort, section.displayName()),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                if (tab == CategoryLibraryPage.ITEMS) {
+                if (!listOnly) {
                     AudioViewModeSection(
                         selected = draftPresentation.viewMode,
                         onSelected = {
@@ -123,17 +111,19 @@ internal fun AudioViewOptionsDialog(
                     onChange = { draftPresentation = it }
                 )
                 AudioSortSection(
+                    section = section,
                     selected = draftPresentation.sortOption,
                     onSelected = {
                         draftPresentation = draftPresentation.copy(sortOption = it)
                     }
                 )
-                if (tab == CategoryLibraryPage.ITEMS) {
+                if (section == AudioCollectionKind.SONGS) {
                     AudioGroupingSection(draftGrouping) { draftGrouping = it }
                 }
-                if (tab == CategoryLibraryPage.ITEMS) {
+                if (section == AudioCollectionKind.SONGS) {
                     AudioDetailsSection(draftDetails) { draftDetails = it }
                 }
+                AudioMusicOnlySection(draftMusicOnly) { draftMusicOnly = it }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
@@ -150,15 +140,8 @@ internal fun AudioViewOptionsDialog(
                         onClick = {
                             haptics.selectionChanged()
                             onApply(
-                                draftPresentation.normalized().let {
-                                    if (tab == CategoryLibraryPage.FOLDERS) {
-                                        it.copy(viewMode = FileViewMode.GRID)
-                                    } else {
-                                        it
-                                    }
-                                },
-                                draftGrouping,
-                                draftDetails
+                                draftPresentation.normalized(), draftGrouping,
+                                draftDetails, draftMusicOnly
                             )
                             onDismiss()
                         },
@@ -286,12 +269,30 @@ private fun AudioSizeSection(
 
 @Composable
 private fun AudioSortSection(
+    section: AudioCollectionKind,
     selected: FileSortOption,
     onSelected: (FileSortOption) -> Unit
 ) {
+    val options = when (section) {
+        AudioCollectionKind.SONGS, AudioCollectionKind.FOLDERS -> FileSortOption.entries
+        AudioCollectionKind.ALBUMS -> listOf(
+            FileSortOption.NAME_ASC, FileSortOption.NAME_DESC,
+            FileSortOption.DATE_NEWEST, FileSortOption.DATE_OLDEST,
+            FileSortOption.FILE_COUNT_HIGHEST, FileSortOption.FILE_COUNT_LOWEST
+        )
+        AudioCollectionKind.ARTISTS, AudioCollectionKind.GENRES -> listOf(
+            FileSortOption.NAME_ASC, FileSortOption.NAME_DESC,
+            FileSortOption.FILE_COUNT_HIGHEST, FileSortOption.FILE_COUNT_LOWEST
+        )
+        AudioCollectionKind.PLAYLISTS -> listOf(
+            FileSortOption.NAME_ASC, FileSortOption.NAME_DESC,
+            FileSortOption.DATE_NEWEST, FileSortOption.DATE_OLDEST,
+            FileSortOption.FILE_COUNT_HIGHEST, FileSortOption.FILE_COUNT_LOWEST
+        )
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         AudioOptionTitle(stringResource(dev.qtremors.arcile.core.ui.R.string.action_sort))
-        FileSortOption.entries.chunked(2).forEach { rowOptions ->
+        options.chunked(2).forEach { rowOptions ->
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 rowOptions.forEach { option ->
                     ExpressiveFilterChip(
@@ -299,7 +300,15 @@ private fun AudioSortSection(
                         onClick = { onSelected(option) },
                         label = {
                             Text(
-                                text = stringResource(
+                                text = if (section == AudioCollectionKind.ALBUMS &&
+                                    option == FileSortOption.DATE_NEWEST
+                                ) stringResource(R.string.audio_year_newest) else if (section == AudioCollectionKind.ALBUMS &&
+                                    option == FileSortOption.DATE_OLDEST
+                                ) stringResource(R.string.audio_year_oldest) else if (section == AudioCollectionKind.PLAYLISTS &&
+                                    option == FileSortOption.DATE_NEWEST
+                                ) stringResource(R.string.audio_recently_edited) else if (section == AudioCollectionKind.PLAYLISTS &&
+                                    option == FileSortOption.DATE_OLDEST
+                                ) stringResource(R.string.audio_oldest_edit) else stringResource(
                                     when (option) {
                                         FileSortOption.NAME_ASC ->
                                             dev.qtremors.arcile.core.ui.R.string.sort_name_asc
@@ -383,6 +392,25 @@ private fun AudioDetailsSection(
             )
         }
         Switch(checked = showDetails, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun AudioMusicOnlySection(musicOnly: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.audio_music_only))
+            Text(
+                stringResource(R.string.audio_music_only_description),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = musicOnly, onCheckedChange = onChange)
     }
 }
 

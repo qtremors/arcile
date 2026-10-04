@@ -65,8 +65,8 @@ class VideoPlaybackSessionStoreTest {
     fun `session allows a larger pager context than its eager playback queue`() {
         val item = VideoPlaybackItem(MediaItem.EMPTY, "selected")
         val context = listOf(
-            FileModel(name = "selected.mp4", absolutePath = "/videos/selected.mp4"),
-            FileModel(name = "sibling.mp4", absolutePath = "/videos/sibling.mp4")
+            FileModel(name = "selected.mp4", reference = "/videos/selected.mp4"),
+            FileModel(name = "sibling.mp4", reference = "/videos/sibling.mp4")
         )
 
         val session = VideoPlaybackSession(items = listOf(item), files = context)

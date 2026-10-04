@@ -43,7 +43,7 @@ class BrowserQuickAccessViewModelTest {
         val item = store.added.single()
         assertTrue(item.id.startsWith("custom_"))
         assertEquals("Documents", item.label)
-        assertEquals("/storage/Documents", item.path)
+        assertEquals("/storage/Documents", item.targetReference)
         assertEquals(QuickAccessType.CUSTOM, item.type)
         assertTrue(item.isPinned)
         assertTrue(item.isEnabled)

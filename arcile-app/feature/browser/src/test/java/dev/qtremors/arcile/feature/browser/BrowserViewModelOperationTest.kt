@@ -159,7 +159,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
         viewModel.navigateToSpecificFolder("/storage/emulated/0/Download")
         advanceUntilIdle()
-        viewModel.createFakeFile("payload.bin", 128L)
+        viewModel.createSyntheticFile("payload.bin", 128L)
         advanceUntilIdle()
 
         val request = coordinator.activeRequest.value!!
@@ -194,7 +194,7 @@ class BrowserViewModelOperationTest {
         advanceUntilIdle()
         assertEquals(listOf("before.txt"), viewModel.uiState.value.files.map { it.name })
 
-        viewModel.createFakeFile("after.txt", 128L)
+        viewModel.createSyntheticFile("after.txt", 128L)
         advanceUntilIdle()
         val request = coordinator.activeRequest.value!!
         repo.filesByPath = mapOf(

@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.recentfiles
 
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -409,7 +409,7 @@ class RecentFilesViewModelTest {
     @Test
     fun `saved recent sort is migrated to newest first`() = runTest(mainDispatcherRule.dispatcher) {
         val preferences = FakeFilePreferencesStore(
-            BrowserPreferences(
+            SharedFilePreferences(
                 recentPresentation = FileListingPreferences(
                     sortOption = FileSortOption.NAME_ASC,
                     viewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID

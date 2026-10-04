@@ -49,15 +49,15 @@ internal fun OperationProgressDetailsSheet(
     onDismissRequest: () -> Unit
 ) {
     val timeElapsedSec = (System.currentTimeMillis() - activeOp.startTimeMillis) / 1000f
-    val bytesCopied = activeOp.bytesCopied
+    val bytesProcessed = activeOp.bytesProcessed
     val totalBytes = activeOp.totalBytes
-    val speedBytesPerSec = if (timeElapsedSec > 0.5f && bytesCopied != null) {
-        bytesCopied.toFloat() / timeElapsedSec
+    val speedBytesPerSec = if (timeElapsedSec > 0.5f && bytesProcessed != null) {
+        bytesProcessed.toFloat() / timeElapsedSec
     } else {
         0f
     }
-    val etaSec = if (speedBytesPerSec > 1024f && totalBytes != null && bytesCopied != null) {
-        val remainingBytes = totalBytes - bytesCopied
+    val etaSec = if (speedBytesPerSec > 1024f && totalBytes != null && bytesProcessed != null) {
+        val remainingBytes = totalBytes - bytesProcessed
         (remainingBytes.toFloat() / speedBytesPerSec).toLong()
     } else {
         -1L
@@ -147,7 +147,7 @@ private fun TransferProgress(activeOp: OperationUiState) {
     val totalBytes = activeOp.totalBytes
     val progressFraction = when {
         totalBytes != null && totalBytes > 0L ->
-            ((activeOp.bytesCopied ?: 0L).toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+            ((activeOp.bytesProcessed ?: 0L).toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
         activeOp.totalItems > 0 ->
             (activeOp.completedItems.toFloat() / activeOp.totalItems.toFloat()).coerceIn(0f, 1f)
         else -> 0f
@@ -164,7 +164,7 @@ private fun TransferProgress(activeOp: OperationUiState) {
         val context = androidx.compose.ui.platform.LocalContext.current
         stringResource(
             R.string.transfer_progress_bytes,
-            formatFileSize(context, activeOp.bytesCopied ?: 0L),
+            formatFileSize(context, activeOp.bytesProcessed ?: 0L),
             formatFileSize(context, totalBytes)
         )
     } else {

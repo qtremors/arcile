@@ -130,8 +130,8 @@ class DefaultImageCatalogRepository @Inject constructor(
     ): StorageNodeEntity {
         val file = toFileModel(volumes)
         return StorageNodeEntity(
-            path = file.absolutePath,
-            parentPath = File(file.absolutePath).parent,
+            path = file.reference,
+            parentPath = File(file.reference).parent,
             name = file.name,
             extension = file.extension.lowercase(),
             mimeType = file.mimeType,
@@ -155,7 +155,7 @@ class DefaultImageCatalogRepository @Inject constructor(
         ImageCatalogItem(
             file = FileModel(
                 name = name,
-                absolutePath = path,
+                reference = path,
                 size = sizeBytes,
                 lastModified = lastModified,
                 isDirectory = isDirectory,
@@ -178,6 +178,6 @@ class DefaultImageCatalogRepository @Inject constructor(
         )
 
     private fun ImageCatalogItem.hasReadableSource(): Boolean {
-        return File(file.absolutePath).let { it.exists() && it.isFile && it.length() >= 0L }
+        return File(file.reference).let { it.exists() && it.isFile && it.length() >= 0L }
     }
 }

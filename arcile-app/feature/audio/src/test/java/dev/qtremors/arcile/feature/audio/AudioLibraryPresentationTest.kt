@@ -12,19 +12,63 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AudioLibraryPresentationTest {
+    @Test
+    fun `audio navigation has five pages and safely falls back from the old genres page`() {
+        assertEquals(listOf(AudioCollectionKind.SONGS, AudioCollectionKind.FOLDERS,
+            AudioCollectionKind.ALBUMS, AudioCollectionKind.ARTISTS, AudioCollectionKind.PLAYLISTS),
+            audioNavigationSections)
+        assertEquals(4, audioNavigationPage(AudioCollectionKind.PLAYLISTS))
+        assertEquals(0, audioNavigationPage(AudioCollectionKind.GENRES))
+    }
 
     @Test
-    fun `library groups tracks into folders`() {
+    fun `related albums match album artist and exclude the open album and other artists`() {
+        val tracks = listOf(
+            track("/one.mp3", "One", "Artist", "First", albumArtist = "Artist"),
+            track("/two.mp3", "Two", "Guest", "Second", albumArtist = "Artist"),
+            track("/three.mp3", "Three", "Other", "First", albumArtist = "Other"),
+            track("/four.mp3", "Four", "Artist", "Third", albumArtist = "Artist")
+        )
+        val albums = buildAudioLibraryState(AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
+        val album = albums.collections.first { it.title == "First" && it.subtitle == "Artist" }
+        assertEquals(listOf("Second", "Third"), relatedAudioAlbums(album, tracks).map { it.title })
+    }
+
+    @Test
+    fun `albums without an artist do not suggest unrelated unknown artist albums`() {
+        val tracks = listOf(track("/one.mp3", "One", "", "First"), track("/two.mp3", "Two", "", "Second"))
+        val albums = buildAudioLibraryState(AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
+        assertEquals(emptyList<AudioCollection>(), relatedAudioAlbums(albums.collections.first(), tracks))
+    }
+
+    @Test
+    fun `album tracks use a list without changing the saved songs grid`() {
+        val initial = buildAudioLibraryState(
+            AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS,
+                audioPresentation = FileListingPreferences(viewMode = FileViewMode.GRID)),
+            listOf(track("/Music/one.mp3", "One", "Artist", "Album")))
+        val album = initial.collections.single()
+        val insideAlbum = initial.copy(collectionFilter = album)
+
+        assertEquals(FileViewMode.LIST, insideAlbum.trackPresentation().viewMode)
+        assertEquals(FileViewMode.GRID, insideAlbum.audioPresentation.viewMode)
+        assertEquals(FileViewMode.GRID, initial.trackPresentation().viewMode)
+    }
+
+
+    @Test
+    fun `library groups tracks into collections`() {
         val tracks = listOf(
             track("/Music/One/first.mp3", "First", "Artist", "Album"),
             track("/Music/One/second.mp3", "Second", "Artist", "Album"),
             track("/Music/Two/third.mp3", "Third", "Other", "Other album")
         )
 
-        val state = buildAudioLibraryState(AudioLibraryState(), tracks)
+        val state = buildAudioLibraryState(
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS), tracks)
 
-        assertEquals(listOf("One", "Two"), state.folders.map(AudioFolder::title))
-        assertEquals(2, state.folders.first().tracks.size)
+        assertEquals(listOf("One", "Two"), state.collections.map(AudioCollection::title))
+        assertEquals(2, state.collections.first().tracks.size)
     }
 
     @Test
@@ -35,17 +79,17 @@ class AudioLibraryPresentationTest {
         )
 
         val byArtist = buildAudioLibraryState(
-            AudioLibraryState(query = "composer"),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS, query = "composer"),
             tracks
         )
         val byFolder = buildAudioLibraryState(
-            AudioLibraryState(query = "podcasts"),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS, query = "podcasts"),
             tracks
         )
 
         assertEquals(listOf("Opening"), byArtist.visibleTracks.map { it.displayTitle })
         assertEquals(listOf("Episode"), byFolder.visibleTracks.map { it.displayTitle })
-        assertEquals(listOf("Tech"), byFolder.folders.map(AudioFolder::title))
+        assertEquals(listOf("Tech"), byFolder.collections.map(AudioCollection::title))
     }
 
     @Test
@@ -54,18 +98,19 @@ class AudioLibraryPresentationTest {
             track("/Music/folder/one.mp3", "One", "folder", "Album"),
             track("/Music/Elsewhere/two.mp3", "Two", "Artist", "folder")
         )
-        val initial = buildAudioLibraryState(AudioLibraryState(), tracks)
+        val initial = buildAudioLibraryState(
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS), tracks)
 
-        val folder = initial.folders.first { it.title == "folder" }
+        val folder = initial.collections.first { it.title == "folder" }
 
         assertEquals(
             listOf("One"),
-            buildAudioLibraryState(initial.copy(folderFilter = folder)).visibleTracks.map { it.displayTitle }
+            buildAudioLibraryState(initial.copy(collectionFilter = folder)).visibleTracks.map { it.displayTitle }
         )
     }
 
     @Test
-    fun `audio defaults to list view with newest files first`() {
+    fun `audio defaults to an alphabetical song list`() {
         val tracks = listOf(
             track("/Music/old.mp3", "Old", "Artist", "Album", modified = 10L),
             track("/Music/new.mp3", "New", "Artist", "Album", modified = 30L),
@@ -76,7 +121,7 @@ class AudioLibraryPresentationTest {
 
         assertEquals(FileViewMode.LIST, state.audioPresentation.viewMode)
         assertEquals(
-            listOf("New", "Middle", "Old"),
+            listOf("Middle", "New", "Old"),
             state.visibleTracks.map { it.displayTitle }
         )
     }
@@ -90,20 +135,21 @@ class AudioLibraryPresentationTest {
         )
         val state = buildAudioLibraryState(
             AudioLibraryState(
-                folderPresentation = FileListingPreferences(
+                collectionKind = AudioCollectionKind.FOLDERS,
+                collectionPresentation = FileListingPreferences(
                     sortOption = FileSortOption.SIZE_LARGEST
                 )
             ),
             tracks
         )
 
-        assertEquals(listOf("Large", "Small"), state.folders.map { it.title })
+        assertEquals(listOf("Large", "Small"), state.collections.map { it.title })
     }
 
     @Test
     fun `folder cover always uses the latest modified artwork`() {
         val state = buildAudioLibraryState(
-            AudioLibraryState(),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS),
             listOf(
                 track("/Music/Folder/alphabetical.mp3", "A", "Artist", "Album", modified = 10L),
                 track("/Music/Folder/latest.mp3", "Z", "Artist", "Album", modified = 30L),
@@ -111,13 +157,14 @@ class AudioLibraryPresentationTest {
             )
         )
 
-        assertEquals("latest.mp3", state.folders.single().coverTrack.file.name)
+        assertEquals("latest.mp3", state.collections.single().coverTrack?.file?.name)
     }
 
     @Test
     fun `custom folder cover overrides the automatic latest track`() {
         val state = buildAudioLibraryState(
             AudioLibraryState(
+                collectionKind = AudioCollectionKind.FOLDERS,
                 folderCoverPaths = mapOf(
                     "/Music/Folder" to "/Music/Folder/selected.mp3"
                 )
@@ -128,15 +175,16 @@ class AudioLibraryPresentationTest {
             )
         )
 
-        assertEquals("selected.mp3", state.folders.single().coverTrack.file.name)
+        assertEquals("selected.mp3", state.collections.single().coverTrack?.file?.name)
     }
 
     @Test
-    fun `pinned audio folders stay ahead of the selected sort order`() {
+    fun `pinned audio collections stay ahead of the selected sort order`() {
         val state = buildAudioLibraryState(
             AudioLibraryState(
+                collectionKind = AudioCollectionKind.FOLDERS,
                 pinnedFolderPaths = setOf("/Music/Zed"),
-                folderPresentation = FileListingPreferences(
+                collectionPresentation = FileListingPreferences(
                     sortOption = FileSortOption.NAME_ASC
                 )
             ),
@@ -146,8 +194,8 @@ class AudioLibraryPresentationTest {
             )
         )
 
-        assertEquals(listOf("Zed", "Alpha"), state.folders.map(AudioFolder::title))
-        assertEquals(true, state.folders.first().isPinned)
+        assertEquals(listOf("Zed", "Alpha"), state.collections.map(AudioCollection::title))
+        assertEquals(true, state.collections.first().isPinned)
     }
 
     @Test
@@ -157,14 +205,15 @@ class AudioLibraryPresentationTest {
             track("/Music/Two/other.mp3", "Other", "Artist", "Album")
         )
         val state = buildAudioLibraryState(
-            AudioLibraryState(favoritePaths = setOf("/Music/One/favorite.mp3")),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS,
+                favoritePaths = setOf("/Music/One/favorite.mp3")),
             tracks
         )
-        val favorites = state.folders.first()
-        val filtered = buildAudioLibraryState(state.copy(folderFilter = favorites), tracks)
+        val favorites = state.collections.first()
+        val filtered = buildAudioLibraryState(state.copy(collectionFilter = favorites), tracks)
 
         assertEquals(true, favorites.isFavorites)
-        assertEquals(AudioFolderKind.Favorites, favorites.kind)
+        assertEquals(AudioCollectionType.Favorites, favorites.kind)
         assertEquals("", favorites.title)
         assertEquals("Favoris", favorites.displayTitle("Favoris"))
         assertEquals(listOf("Favorite"), favorites.tracks.map { it.displayTitle })
@@ -178,6 +227,7 @@ class AudioLibraryPresentationTest {
         )
         val english = buildAudioLibraryState(
             AudioLibraryState(
+                collectionKind = AudioCollectionKind.FOLDERS,
                 query = "favorites",
                 favoritePaths = setOf("/Music/One/song.mp3"),
                 favoriteSearchAliases = setOf("Favorites")
@@ -192,14 +242,15 @@ class AudioLibraryPresentationTest {
             tracks
         )
 
-        assertEquals(AudioFolderKind.Favorites, english.folders.single().kind)
-        assertEquals(AudioFolderKind.Favorites, french.folders.single().kind)
+        assertEquals(AudioCollectionType.Favorites, english.collections.single().kind)
+        assertEquals(AudioCollectionType.Favorites, french.collections.single().kind)
     }
 
     @Test
-    fun `folder tab selection scope includes every track in visible folders`() {
+    fun `folder tab selection scope includes every track in visible collections`() {
         val presented = buildAudioLibraryState(
-            AudioLibraryState(query = "Scores", tab = CategoryLibraryPage.FOLDERS),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS,
+                query = "Scores", tab = CategoryLibraryPage.FOLDERS),
             listOf(
                 track("/Music/Scores/one.mp3", "One", "Artist", "Album"),
                 track("/Music/Scores/two.mp3", "Two", "Artist", "Album"),
@@ -214,18 +265,19 @@ class AudioLibraryPresentationTest {
     }
 
     @Test
-    fun `opening a folder atomically presents only that folders tracks`() {
+    fun `opening a folder atomically presents only that collections tracks`() {
         val presented = buildAudioLibraryState(
-            AudioLibraryState(tab = CategoryLibraryPage.FOLDERS),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS,
+                tab = CategoryLibraryPage.FOLDERS),
             listOf(
                 track("/Music/Scores/one.mp3", "One", "Artist", "Album"),
                 track("/Music/Scores/two.mp3", "Two", "Artist", "Album"),
                 track("/Music/Other/three.mp3", "Three", "Artist", "Album")
             )
         )
-        val scoresFolder = presented.folders.first { it.title == "Scores" }
+        val scoresFolder = presented.collections.first { it.title == "Scores" }
         val folderContents = presented
-            .copy(folderFilter = scoresFolder)
+            .copy(collectionFilter = scoresFolder)
             .withPresentedVisibleTracks()
 
         assertEquals(CategoryLibraryPage.FOLDERS, folderContents.tab)
@@ -263,7 +315,8 @@ class AudioLibraryPresentationTest {
     @Test
     fun `structured search filters apply to audio and folder results`() {
         val state = buildAudioLibraryState(
-            AudioLibraryState(searchFilters = SearchFilters(minSize = 10L)),
+            AudioLibraryState(collectionKind = AudioCollectionKind.FOLDERS,
+                searchFilters = SearchFilters(minSize = 10L)),
             listOf(
                 track("/Music/Large/large.mp3", "Large", "Artist", "Album", size = 20L),
                 track("/Music/Small/small.mp3", "Small", "Artist", "Album", size = 5L)
@@ -271,7 +324,7 @@ class AudioLibraryPresentationTest {
         )
 
         assertEquals(listOf("Large"), state.visibleTracks.map { it.displayTitle })
-        assertEquals(listOf("Large"), state.folders.map(AudioFolder::title))
+        assertEquals(listOf("Large"), state.collections.map(AudioCollection::title))
     }
 
     @Test
@@ -282,17 +335,122 @@ class AudioLibraryPresentationTest {
         assertEquals(1f, audioProgressFraction(12_000f, 10_000L), 0f)
     }
 
+    @Test
+    fun `albums are grouped by album artist and ordered by release year`() {
+        val tracks = listOf(
+            track("/Music/a.mp3", "A", "Singer", "Older", year = 2001),
+            track("/Music/b.mp3", "B", "Singer", "Newer", year = 2024),
+            track("/Music/c.mp3", "C", "Guest", "Newer", year = 2024,
+                albumArtist = "Singer")
+        )
+        val state = buildAudioLibraryState(AudioLibraryState(
+            collectionKind = AudioCollectionKind.ALBUMS,
+            sectionPresentations = mapOf(AudioCollectionKind.ALBUMS to FileListingPreferences(
+                sortOption = FileSortOption.DATE_NEWEST
+            ))
+        ), tracks)
+
+        assertEquals(listOf("Newer", "Older"), state.collections.map(AudioCollection::title))
+        assertEquals(2, state.collections.first().tracks.size)
+    }
+
+    @Test
+    fun `album details follow disc and track numbers`() {
+        val tracks = listOf(
+            track("/Music/three.mp3", "Three", "Artist", "Record")
+                .copy(discNumber = 2, trackNumber = 1),
+            track("/Music/two.mp3", "Two", "Artist", "Record")
+                .copy(discNumber = 1, trackNumber = 2),
+            track("/Music/one.mp3", "One", "Artist", "Record")
+                .copy(discNumber = 1, trackNumber = 1)
+        )
+        val state = buildAudioLibraryState(
+            AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
+        val details = buildAudioLibraryState(state.copy(collectionFilter = state.collections.single()))
+
+        assertEquals(listOf("One", "Two", "Three"),
+            details.visibleTracks.map(AudioTrack::displayTitle))
+    }
+
+    @Test
+    fun `artists and genres use separate song count sorting`() {
+        val tracks = listOf(
+            track("/Music/a.mp3", "A", "One", "Album", genre = "Rock"),
+            track("/Music/b.mp3", "B", "One", "Album", genre = "Jazz"),
+            track("/Music/c.mp3", "C", "Two", "Album", genre = "Rock")
+        )
+        val settings = FileListingPreferences(sortOption = FileSortOption.FILE_COUNT_HIGHEST)
+        val artists = buildAudioLibraryState(AudioLibraryState(
+            collectionKind = AudioCollectionKind.ARTISTS,
+            sectionPresentations = mapOf(AudioCollectionKind.ARTISTS to settings)
+        ), tracks)
+        val genres = buildAudioLibraryState(AudioLibraryState(
+            collectionKind = AudioCollectionKind.GENRES,
+            sectionPresentations = mapOf(AudioCollectionKind.GENRES to settings)
+        ), tracks)
+
+        assertEquals("One", artists.collections.first().title)
+        assertEquals("Rock", genres.collections.first().title)
+    }
+
+    @Test
+    fun `playlist keeps user order and stays visible when empty`() {
+        val tracks = listOf(
+            track("/Music/a.mp3", "A", "Artist", "Album"),
+            track("/Music/b.mp3", "B", "Artist", "Album")
+        )
+        val playlist = AudioPlaylist("p1", "Mix",
+            listOf("/Music/b.mp3", "/missing.mp3", "/Music/a.mp3"), 1L)
+        val state = buildAudioLibraryState(AudioLibraryState(
+            collectionKind = AudioCollectionKind.PLAYLISTS,
+            playlists = listOf(playlist, AudioPlaylist("p2", "Empty", emptyList(), 2L))
+        ), tracks)
+        val mix = state.collections.first { it.key == "p1" }
+        val contents = buildAudioLibraryState(state.copy(collectionFilter = mix), tracks)
+
+        assertEquals(listOf("B", "A"), contents.visibleTracks.map(AudioTrack::displayTitle))
+        assertEquals(2, state.collections.size)
+        assertEquals(null, state.collections.first { it.key == "p2" }.coverTrack)
+    }
+
+    @Test
+    fun `song shortcuts use Audio favorites and listening records`() {
+        val tracks = listOf(
+            track("/Music/a.mp3", "A", "Artist", "Album"),
+            track("/Music/b.mp3", "B", "Artist", "Album"),
+            track("/Music/c.mp3", "C", "Artist", "Album")
+        )
+        val base = AudioLibraryState(
+            favoritePaths = setOf("/Music/b.mp3"),
+            playCounts = mapOf("/Music/a.mp3" to 3, "/Music/c.mp3" to 8),
+            lastPlayedAt = mapOf("/Music/a.mp3" to 20L, "/Music/c.mp3" to 10L)
+        )
+
+        assertEquals(listOf("B"), buildAudioLibraryState(
+            base.copy(songFilter = AudioSongFilter.FAVORITES), tracks
+        ).visibleTracks.map(AudioTrack::displayTitle))
+        assertEquals(listOf("A", "C"), buildAudioLibraryState(
+            base.copy(songFilter = AudioSongFilter.RECENTLY_PLAYED), tracks
+        ).visibleTracks.map(AudioTrack::displayTitle))
+        assertEquals(listOf("C", "A"), buildAudioLibraryState(
+            base.copy(songFilter = AudioSongFilter.MOST_PLAYED), tracks
+        ).visibleTracks.map(AudioTrack::displayTitle))
+    }
+
     private fun track(
         path: String,
         title: String,
         artist: String,
         album: String,
         modified: Long = 1L,
-        size: Long = 1L
+        size: Long = 1L,
+        genre: String? = null,
+        year: Int? = null,
+        albumArtist: String? = null
     ) = AudioTrack(
         file = FileModel(
             name = path.substringAfterLast('/'),
-            absolutePath = path,
+            reference = path,
             size = size,
             lastModified = modified,
             extension = "mp3",
@@ -301,6 +459,9 @@ class AudioLibraryPresentationTest {
         title = title,
         artist = artist,
         album = album,
-        durationMs = 10_000L
+        durationMs = 10_000L,
+        genre = genre,
+        year = year,
+        albumArtist = albumArtist
     )
 }

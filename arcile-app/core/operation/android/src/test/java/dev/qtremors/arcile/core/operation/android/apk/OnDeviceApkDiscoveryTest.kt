@@ -62,41 +62,41 @@ class OnDeviceApkDiscoveryTest {
 
     @Test
     fun `discoverArcileUpdate returns highest valid candidate for matching application ID`() = runTest {
-        val file1 = FileModel(name = "arcile-2.1.0.apk", absolutePath = "/sdcard/Download/arcile-2.1.0.apk", size = 100, lastModified = 1000, isDirectory = false)
-        val file2 = FileModel(name = "arcile-2.2.0.apk", absolutePath = "/sdcard/Download/arcile-2.2.0.apk", size = 100, lastModified = 2000, isDirectory = false)
-        val fileDowngrade = FileModel(name = "arcile-1.9.0.apk", absolutePath = "/sdcard/Download/arcile-1.9.0.apk", size = 100, lastModified = 500, isDirectory = false)
+        val file1 = FileModel(name = "arcile-2.1.0.apk", reference = "/sdcard/Download/arcile-2.1.0.apk", size = 100, lastModified = 1000, isDirectory = false)
+        val file2 = FileModel(name = "arcile-2.2.0.apk", reference = "/sdcard/Download/arcile-2.2.0.apk", size = 100, lastModified = 2000, isDirectory = false)
+        val fileDowngrade = FileModel(name = "arcile-1.9.0.apk", reference = "/sdcard/Download/arcile-1.9.0.apk", size = 100, lastModified = 500, isDirectory = false)
 
         coEvery { searchRepository.getFilesByCategory(any(), any()) } returns Result.success(listOf(file1, file2, fileDowngrade))
 
         val signatureDigest = DefaultApkArchiveMetadataReader.sha256Digest(byteArrayOf(1, 2, 3))
-        coEvery { metadataReader.readMetadata(file1.absolutePath) } returns ApkArchiveMetadata(
+        coEvery { metadataReader.readMetadata(file1.reference) } returns ApkArchiveMetadata(
             packageName = context.packageName,
             versionName = "2.1.0",
             versionCode = 210L,
             minSdkVersion = 30,
             targetSdkVersion = 34,
             signingDigests = listOf(signatureDigest),
-            filePath = file1.absolutePath,
+            filePath = file1.reference,
             lastModified = 1000
         )
-        coEvery { metadataReader.readMetadata(file2.absolutePath) } returns ApkArchiveMetadata(
+        coEvery { metadataReader.readMetadata(file2.reference) } returns ApkArchiveMetadata(
             packageName = context.packageName,
             versionName = "2.2.0",
             versionCode = 220L,
             minSdkVersion = 30,
             targetSdkVersion = 34,
             signingDigests = listOf(signatureDigest),
-            filePath = file2.absolutePath,
+            filePath = file2.reference,
             lastModified = 2000
         )
-        coEvery { metadataReader.readMetadata(fileDowngrade.absolutePath) } returns ApkArchiveMetadata(
+        coEvery { metadataReader.readMetadata(fileDowngrade.reference) } returns ApkArchiveMetadata(
             packageName = context.packageName,
             versionName = "1.9.0",
             versionCode = 190L,
             minSdkVersion = 30,
             targetSdkVersion = 34,
             signingDigests = listOf(signatureDigest),
-            filePath = fileDowngrade.absolutePath,
+            filePath = fileDowngrade.reference,
             lastModified = 500
         )
 
@@ -106,22 +106,22 @@ class OnDeviceApkDiscoveryTest {
         assertNotNull(result)
         assertEquals(220L, result?.metadata?.versionCode)
         assertEquals("2.2.0", result?.metadata?.versionName)
-        assertEquals(file2.absolutePath, result?.metadata?.filePath)
+        assertEquals(file2.reference, result?.metadata?.filePath)
         assertTrue(result?.isValid == true)
     }
 
     @Test
     fun `discoverArcileUpdate returns null if all candidates are downgrades or have mismatched signatures`() = runTest {
-        val fileMismatch = FileModel(name = "arcile-3.0.0.apk", absolutePath = "/sdcard/Download/arcile-3.0.0.apk", size = 100, lastModified = 1000, isDirectory = false)
+        val fileMismatch = FileModel(name = "arcile-3.0.0.apk", reference = "/sdcard/Download/arcile-3.0.0.apk", size = 100, lastModified = 1000, isDirectory = false)
         coEvery { searchRepository.getFilesByCategory(any(), any()) } returns Result.success(listOf(fileMismatch))
-        coEvery { metadataReader.readMetadata(fileMismatch.absolutePath) } returns ApkArchiveMetadata(
+        coEvery { metadataReader.readMetadata(fileMismatch.reference) } returns ApkArchiveMetadata(
             packageName = context.packageName,
             versionName = "3.0.0",
             versionCode = 300L,
             minSdkVersion = 30,
             targetSdkVersion = 34,
             signingDigests = listOf("untrusted_signature_digest"),
-            filePath = fileMismatch.absolutePath
+            filePath = fileMismatch.reference
         )
 
         val discovery = DefaultOnDeviceApkDiscovery(context, searchRepository, metadataReader, dispatchers)
@@ -134,20 +134,20 @@ class OnDeviceApkDiscoveryTest {
     fun `discoverArcileUpdate rejects candidate when signer metadata is missing`() = runTest {
         val file = FileModel(
             name = "arcile-3.0.0.apk",
-            absolutePath = "/sdcard/Download/arcile-3.0.0.apk",
+            reference = "/sdcard/Download/arcile-3.0.0.apk",
             size = 100,
             lastModified = 1000,
             isDirectory = false
         )
         coEvery { searchRepository.getFilesByCategory(any(), any()) } returns Result.success(listOf(file))
-        coEvery { metadataReader.readMetadata(file.absolutePath) } returns ApkArchiveMetadata(
+        coEvery { metadataReader.readMetadata(file.reference) } returns ApkArchiveMetadata(
             packageName = context.packageName,
             versionName = "3.0.0",
             versionCode = 300L,
             minSdkVersion = 30,
             targetSdkVersion = 34,
             signingDigests = emptyList(),
-            filePath = file.absolutePath
+            filePath = file.reference
         )
 
         val discovery = DefaultOnDeviceApkDiscovery(context, searchRepository, metadataReader, dispatchers)

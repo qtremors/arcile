@@ -72,7 +72,7 @@ class BulkFileOperationCoordinatorTest {
             sourcePaths = listOf("/test.txt"),
             destinationPath = "/dest",
             resolutions = emptyMap(),
-            fakeFileSize = null
+            syntheticFileSize = null
         )
 
         assertTrue(result)
@@ -224,7 +224,7 @@ class BulkFileOperationCoordinatorTest {
                 completedItems = 0,
                 totalItems = 1,
                 currentPath = "/large.bin",
-                bytesCopied = megabytes * 1024L * 1024L,
+                bytesProcessed = megabytes * 1024L * 1024L,
                 totalBytes = 1024L * 1024L * 1024L
             )
             if (progressCoordinator.onOperationProgress(request, progress)) {
@@ -236,10 +236,10 @@ class BulkFileOperationCoordinatorTest {
 
         assertTrue("presentation updates should stay below four per second", presentedUpdates <= 3)
         assertTrue("journal writes should stay below four per second plus terminal flush", journal.progressWrites <= 4)
-        assertEquals(1023L * 1024L * 1024L, journal.lastPersisted?.progress?.bytesCopied)
+        assertEquals(1023L * 1024L * 1024L, journal.lastPersisted?.progress?.bytesProcessed)
         assertEquals(OperationPhase.COMPLETED, journal.lastPersisted?.phase)
         assertTrue(observed.zipWithNext().all { (before, after) ->
-            (before.bytesCopied ?: 0L) <= (after.bytesCopied ?: 0L)
+            (before.bytesProcessed ?: 0L) <= (after.bytesProcessed ?: 0L)
         })
         assertEquals(journal.lastPersisted?.progress, observed.last())
         collector.cancel()
@@ -414,7 +414,7 @@ class BulkFileOperationCoordinatorTest {
 
     private fun testFile(path: String) = FileModel(
         name = path.substringAfterLast('/'),
-        absolutePath = path,
+        reference = path,
         size = 0L,
         lastModified = 0L,
         isDirectory = false

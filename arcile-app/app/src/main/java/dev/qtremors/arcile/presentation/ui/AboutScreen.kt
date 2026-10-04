@@ -3,6 +3,7 @@
 
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import android.content.ClipData
 import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.compose.foundation.layout.Arrangement
@@ -51,7 +52,6 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -139,12 +139,11 @@ fun AboutScreen(
     }
 
     ArcileScreenScaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         topBar = {
             LargeTopAppBar(
                 title = { Text(stringResource(R.string.about_title), maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                scrollBehavior = scrollBehavior,
-                expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
+                scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior),
                 navigationIcon = {
                     IconButton(
                         onClick = onNavigateBack,

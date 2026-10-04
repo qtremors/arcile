@@ -4,28 +4,28 @@ import kotlinx.coroutines.flow.Flow
 
 data class GalleryPreferences(
     val globalShowThumbnails: Boolean = FileListingPreferences.DEFAULT_SHOW_THUMBNAILS,
-    val imagePresentation: FileListingPreferences? = null,
+    val itemPresentation: FileListingPreferences? = null,
     val showFileDetails: Boolean = true,
     val aspectRatio: Boolean = false,
     val sectioned: Boolean = false,
     val grouping: CategoryGrouping = CategoryGrouping.MONTH,
     val defaultPage: CategoryLibraryPage = CategoryLibraryPage.ITEMS,
-    val albumPresentation: FileListingPreferences = FileListingPreferences(
+    val folderPresentation: FileListingPreferences = FileListingPreferences(
         sortOption = FileSortOption.NAME_ASC,
         viewMode = FileViewMode.GRID,
         gridMinCellSize = 160f
     ),
-    val albumAspectRatio: Boolean = false,
+    val folderAspectRatio: Boolean = false,
     val favoriteFiles: Set<String> = emptySet(),
-    val pinnedAlbums: Set<String> = emptySet(),
-    val albumCovers: Map<String, String> = emptyMap(),
+    val pinnedFolders: Set<String> = emptySet(),
+    val folderCovers: Map<String, String> = emptyMap(),
     val scrollbarEnabled: Boolean = true
 ) {
     companion object {
         private const val IMAGE_GALLERY_PRESENTATION_PATH = "image_gallery"
 
         fun from(
-            preferences: BrowserPreferences,
+            preferences: SharedFilePreferences,
             categoryName: String = FileCategories.Images.id.value
         ): GalleryPreferences {
             val legacyItemPresentation = preferences.exactPathPresentationOptions[
@@ -38,10 +38,10 @@ data class GalleryPreferences(
             val folderPresentation = preferences.categoryPresentationOrNull(
                 categoryName,
                 CategoryLibraryPage.FOLDERS
-            ) ?: preferences.albumPresentation
+            ) ?: preferences.folderPresentation
             return GalleryPreferences(
             globalShowThumbnails = preferences.globalPresentation.showThumbnails,
-            imagePresentation = itemPresentation,
+            itemPresentation = itemPresentation,
             showFileDetails = preferences.categoryShowFileDetails[categoryName]
                 ?: preferences.imageGalleryShowFileDetails,
             aspectRatio = preferences.categoryAspectRatios[categoryName]
@@ -52,11 +52,11 @@ data class GalleryPreferences(
                 ?: preferences.imageGalleryGrouping,
             defaultPage = preferences.categoryDefaultPages[categoryName]
                 ?: preferences.imageGalleryDefaultPage,
-            albumPresentation = folderPresentation,
-            albumAspectRatio = preferences.albumAspectRatio,
+            folderPresentation = folderPresentation,
+            folderAspectRatio = preferences.folderAspectRatio,
             favoriteFiles = preferences.favoriteFiles,
-            pinnedAlbums = preferences.pinnedAlbums,
-            albumCovers = preferences.albumCovers,
+            pinnedFolders = preferences.pinnedFolders,
+            folderCovers = preferences.folderCovers,
             scrollbarEnabled = preferences.galleryScrollbarEnabled
         )
         }
@@ -80,13 +80,13 @@ interface GalleryPreferencesStore {
         categoryName: String,
         presentation: FileListingPreferences
     )
-    suspend fun updateAlbumAspectRatio(enabled: Boolean)
+    suspend fun updateFolderAspectRatio(enabled: Boolean)
     suspend fun updateFavorite(path: String, isFavorite: Boolean)
-    suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean)
-    suspend fun updateAlbumCover(albumPath: String, coverPath: String)
+    suspend fun updatePinnedFolder(folderPath: String, isPinned: Boolean)
+    suspend fun updateFolderCover(folderPath: String, coverPath: String)
 }
 
-private fun BrowserPreferences.categoryPresentationOrNull(
+private fun SharedFilePreferences.categoryPresentationOrNull(
     categoryName: String,
     page: CategoryLibraryPage
 ): FileListingPreferences? {

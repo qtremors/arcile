@@ -66,7 +66,7 @@ data class BrowserLocationPreferences(
         categoryShowFileDetails[categoryName] ?: true
 
     companion object {
-        fun from(preferences: BrowserPreferences) = BrowserLocationPreferences(
+        fun from(preferences: SharedFilePreferences) = BrowserLocationPreferences(
             appStartPage = preferences.appStartPage,
             globalPresentation = preferences.globalPresentation,
             pathPresentationOptions = preferences.pathPresentationOptions,
@@ -102,6 +102,7 @@ interface BrowserLocationPreferencesStore {
     )
     suspend fun updateLastOpenedLocation(path: String, volumeId: String?)
     suspend fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior)
+    suspend fun removeFileOpenBehavior(key: String)
     suspend fun updateCategoryGrouping(
         categoryName: String,
         grouping: CategoryGrouping

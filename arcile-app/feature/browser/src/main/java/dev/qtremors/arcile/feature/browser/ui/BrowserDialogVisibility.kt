@@ -13,7 +13,7 @@ internal class BrowserDialogVisibility(
     private val createFolderState: MutableState<Boolean>,
     private val renameState: MutableState<Boolean>,
     private val createFileState: MutableState<Boolean>,
-    private val createFakeFileState: MutableState<Boolean>,
+    private val createSyntheticFileState: MutableState<Boolean>,
     private val createArchiveState: MutableState<Boolean>,
     private val extractArchiveState: MutableState<Boolean>,
     private val sortState: MutableState<Boolean>,
@@ -22,7 +22,7 @@ internal class BrowserDialogVisibility(
     var showCreateFolderDialog by createFolderState
     var showRenameDialog by renameState
     var showCreateFileDialog by createFileState
-    var showCreateFakeFileDialog by createFakeFileState
+    var showCreateSyntheticFileDialog by createSyntheticFileState
     var showCreateArchiveDialog by createArchiveState
     var showExtractArchiveDialog by extractArchiveState
     var showSortDialog by sortState
@@ -31,7 +31,7 @@ internal class BrowserDialogVisibility(
     val hasVisibleDialog: Boolean
         get() = showCreateFolderDialog ||
             showCreateFileDialog ||
-            showCreateFakeFileDialog ||
+            showCreateSyntheticFileDialog ||
             showCreateArchiveDialog ||
             showExtractArchiveDialog ||
             showRenameDialog ||
@@ -45,7 +45,7 @@ internal fun rememberBrowserDialogVisibility(): BrowserDialogVisibility =
         createFolderState = rememberSaveable { mutableStateOf(false) },
         renameState = rememberSaveable { mutableStateOf(false) },
         createFileState = rememberSaveable { mutableStateOf(false) },
-        createFakeFileState = rememberSaveable { mutableStateOf(false) },
+        createSyntheticFileState = rememberSaveable { mutableStateOf(false) },
         createArchiveState = rememberSaveable { mutableStateOf(false) },
         extractArchiveState = rememberSaveable { mutableStateOf(false) },
         sortState = rememberSaveable { mutableStateOf(false) },

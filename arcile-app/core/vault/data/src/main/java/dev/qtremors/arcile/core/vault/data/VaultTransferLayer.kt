@@ -76,18 +76,15 @@ internal abstract class VaultTransferLayer(
             vaultIds,
             cancellation
         ) { sessionsById, source ->
-            val copied = transferEngine.copyOne(
+            transferEngine.copyOne(
                 requireNotNull(sessionsById[source.vaultId]),
                 source,
                 requireNotNull(sessionsById[destinationVault]),
                 destination,
                 conflicts,
-                cancellation
+                cancellation,
+                moveSource = move
             )
-            if (move && copied.outcome == VaultItemOutcome.COMPLETED) {
-                transferEngine.deleteOne(requireNotNull(sessionsById[source.vaultId]), source)
-            }
-            copied
         }
     }
 

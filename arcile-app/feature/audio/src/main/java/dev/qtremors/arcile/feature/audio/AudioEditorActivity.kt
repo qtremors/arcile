@@ -11,23 +11,23 @@ import dagger.hilt.android.AndroidEntryPoint
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemePreferences
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 
 @AndroidEntryPoint
 class AudioEditorActivity : ComponentActivity() {
     private val viewModel by viewModels<AudioEditorViewModel>()
-    private val themePreferences by lazy { ThemePreferences(applicationContext) }
+    private val uiPreferencesStore by lazy { UiPreferencesStore(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         viewModel.load(intent.getStringArrayListExtra(EXTRA_AUDIO_EDIT_PATHS).orEmpty())
         setContent {
-            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
-                initialValue = ThemeState()
+            val uiPreferences by uiPreferencesStore.uiPreferences.collectAsStateWithLifecycle(
+                initialValue = UiPreferences()
             )
-            ArcileTheme(themeState = themeState) {
+            ArcileTheme(uiPreferences = uiPreferences) {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 AudioEditorScreen(
                     state = state,

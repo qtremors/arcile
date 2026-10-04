@@ -21,7 +21,7 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import java.io.File
@@ -38,7 +38,7 @@ internal class VideoViewerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            ArcileTheme(ThemeState()) {
+            ArcileTheme(UiPreferences()) {
                 val resolved = target
                 if (resolved == null) ExternalViewerLoadScreen(loadError, ::loadTarget) else {
                     GlobalVideoViewer(

@@ -151,28 +151,11 @@ class DefaultFileSystemDataSource(
                     return@flow
                 }
 
-            if (children.isEmpty()) {
-                emit(ListingPage(path = path, files = emptyList(), pageIndex = 0, isComplete = true))
-                return@flow
-            }
-
             val scannedAt = System.currentTimeMillis()
             val directoryAllowsMutations = PathSafety.validatePath(
                 directory,
                 volumeProvider.activeStorageRoots
             ).isSuccess
-            storageNodeDao?.takeIf { !isFilesystemRoot && directoryAllowsMutations }?.run {
-                val volumes = volumeProvider.currentVolumes()
-                deleteChildren(directory.absolutePath)
-                upsert(children.map { child ->
-                    fileModelMapper.toStorageNodeEntity(
-                        file = child,
-                        volumeId = volumes.firstOrNull { volume -> child.absolutePath.startsWith(volume.path) }?.id,
-                        scannedAt = scannedAt
-                    )
-                })
-            }
-
             emitListingPages(
                 path = path,
                 files = children.asSequence()
@@ -192,6 +175,22 @@ class DefaultFileSystemDataSource(
                 .toList(),
                 pageSize = pageSize
             ) { page -> emit(page) }
+            // Index maintenance must not hold back usable listing pages. A cancelled
+            // transaction retains the previous index instead of publishing half a scan.
+            storageNodeDao?.takeIf { !isFilesystemRoot && directoryAllowsMutations }?.let { dao ->
+                runCatchingPreservingCancellation {
+                    val volumes = volumeProvider.currentVolumes()
+                    dao.replaceChildren(directory.absolutePath, children.map { child ->
+                        fileModelMapper.toStorageNodeEntity(
+                            file = child,
+                            volumeId = volumes.firstOrNull { volume -> child.absolutePath.startsWith(volume.path) }?.id,
+                            scannedAt = scannedAt
+                        )
+                    })
+                }.onFailure { error ->
+                    dev.qtremors.arcile.core.runtime.logging.AppLogger.e("BrowserIndex", "Unable to index listing", error)
+                }
+            }
         } catch (e: SecurityException) {
             emit(ListingPage.failed(path, FileOperationException.AccessDenied(cause = e)))
         } catch (e: java.io.IOException) {
@@ -368,7 +367,7 @@ class DefaultFileSystemDataSource(
                 }
 
                 val shredFailures = runCatchingPreservingCancellation {
-                    secureFileEraser.shredRecursively(file)
+                    secureFileEraser.overwriteTreeWithZeros(file)
                 }.getOrElse { error ->
                     listOf(error.toBatchFailure(file, cleanupRequired = true))
                 }
@@ -485,11 +484,11 @@ class DefaultFileSystemDataSource(
     private fun File.hasExactChildName(name: String): Boolean =
         listFiles().orEmpty().any { child -> child.name == name }
 
-    override suspend fun detectCopyConflicts(
+    override suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>> =
-        transferCoordinator.detectCopyConflicts(sourcePaths, destinationPath)
+        transferCoordinator.detectTransferConflicts(sourcePaths, destinationPath)
 
     override suspend fun copyFiles(
         sourcePaths: List<String>,
@@ -509,7 +508,7 @@ class DefaultFileSystemDataSource(
         sourcePaths, destinationPath, resolutions, onProgress
     )
 
-    override suspend fun createFakeFile(
+    override suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,

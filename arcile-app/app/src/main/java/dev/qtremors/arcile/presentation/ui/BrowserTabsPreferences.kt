@@ -14,7 +14,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
-import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
+import dev.qtremors.arcile.core.storage.domain.usecase.ObserveStorageVolumesUseCase
 import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -88,13 +88,13 @@ internal class BrowserTabsPreferencesRepository @Inject constructor(
 @HiltViewModel
 internal class BrowserTabsViewModel @Inject constructor(
     private val repository: BrowserTabsPreferencesRepository,
-    private val getStorageVolumes: GetStorageVolumesUseCase
+    private val observeStorageVolumesUseCase: ObserveStorageVolumesUseCase
 ) : ViewModel() {
     val restoredTabs: StateFlow<List<PersistedBrowserTab>?> = repository.pinnedTabs
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val tabsEnabled: StateFlow<Boolean> = repository.tabsEnabled
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-    val storageVolumes: StateFlow<List<StorageVolume>> = getStorageVolumes()
+    val storageVolumes: StateFlow<List<StorageVolume>> = observeStorageVolumesUseCase()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val persistenceJobs = mutableMapOf<Int, Job>()

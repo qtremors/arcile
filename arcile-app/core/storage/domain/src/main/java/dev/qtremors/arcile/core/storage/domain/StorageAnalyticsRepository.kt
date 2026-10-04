@@ -1,6 +1,17 @@
 package dev.qtremors.arcile.core.storage.domain
 
 interface StorageAnalyticsRepository {
+    /** Last known values for display while a live query runs; never a freshness guarantee. */
+    suspend fun getCachedRecentFiles(
+        scope: StorageScope = StorageScope.AllStorage,
+        limit: Int = 10,
+        minTimestamp: Long = 0L
+    ): List<FileModel>? = null
+
+    suspend fun getCachedCategoryStorageSizes(
+        scope: StorageScope = StorageScope.AllStorage
+    ): List<CategoryStorage>? = null
+
     suspend fun getRecentFiles(
         scope: StorageScope = StorageScope.AllStorage,
         limit: Int = 10,

@@ -335,7 +335,7 @@ internal fun createVaultVideoPlaybackSession(
             VideoPlaybackItem(
                 mediaItem = MediaItem.Builder()
                     .setUri("onlyfiles://playback/${node.ref.nodeId.value}")
-                    .setMediaId(sharedFile.absolutePath)
+                    .setMediaId(sharedFile.reference)
                     .setMimeType(node.mimeType)
                     .build(),
                 title = node.name

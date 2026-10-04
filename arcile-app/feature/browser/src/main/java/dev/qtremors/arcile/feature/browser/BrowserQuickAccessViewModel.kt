@@ -21,7 +21,7 @@ internal class BrowserQuickAccessViewModel @Inject constructor(
                 QuickAccessItem(
                     id = "custom_${UUID.randomUUID()}",
                     label = label,
-                    path = path,
+                    targetReference = path,
                     type = QuickAccessType.CUSTOM,
                     isPinned = true,
                     isEnabled = true

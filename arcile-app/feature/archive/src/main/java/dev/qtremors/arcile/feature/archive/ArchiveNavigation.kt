@@ -45,7 +45,7 @@ fun NavGraphBuilder.registerArchiveViewerRoute(
             val file = File(route.archivePath)
             FileModel(
                 name = file.name,
-                absolutePath = file.absolutePath,
+                reference = file.absolutePath,
                 size = file.length(),
                 lastModified = file.lastModified(),
                 extension = file.extension,
@@ -56,7 +56,7 @@ fun NavGraphBuilder.registerArchiveViewerRoute(
             currentFile = archiveFileModel,
             sourceScope = ViewerSourceScope.Normal,
             onFileRenamed = { _, renamed ->
-                onDestination(ArchiveDestination.OpenInBrowser(renamed.absolutePath))
+                onDestination(ArchiveDestination.OpenInBrowser(renamed.reference))
                 onNavigateBack()
             },
             onFileDeleted = { onNavigateBack() }

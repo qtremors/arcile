@@ -21,7 +21,7 @@ class VaultLocalImportReaderTest {
         nested.resolve("two.txt").writeText("two")
         val context = ApplicationProvider.getApplicationContext<Context>()
 
-        val sources = VaultUriTreeReader(context.contentResolver).collect(listOf(root.absolutePath))
+        val sources = VaultImportSourceReader(context.contentResolver).collect(listOf(root.absolutePath))
 
         assertEquals(4, sources.size)
         assertTrue(sources.any { it.isDirectory && it.relativeParent == listOf(root.name) })

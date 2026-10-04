@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -23,7 +24,8 @@ data class BulkFileOperationRequest(
     val sourcePaths: List<String>,
     val destinationPath: String? = null,
     val resolutions: Map<String, ConflictResolution> = emptyMap(),
-    val fakeFileSize: Long? = null,
+    @SerialName("fakeFileSize")
+    val syntheticFileSize: Long? = null,
     val archiveFormat: ArchiveFormat? = null,
     val archiveEntryPrefix: String? = null,
     val archivePassword: String? = null,

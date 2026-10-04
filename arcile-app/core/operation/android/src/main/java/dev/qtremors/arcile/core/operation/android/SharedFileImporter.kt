@@ -207,7 +207,7 @@ internal class SharedFileImporter(
         completedItems = completedItems,
         totalItems = totalItems,
         currentPath = currentPath,
-        bytesCopied = totalBytes?.let { copiedBytes.coerceAtMost(it) } ?: copiedBytes,
+        bytesProcessed = totalBytes?.let { copiedBytes.coerceAtMost(it) } ?: copiedBytes,
         totalBytes = totalBytes
     )
 

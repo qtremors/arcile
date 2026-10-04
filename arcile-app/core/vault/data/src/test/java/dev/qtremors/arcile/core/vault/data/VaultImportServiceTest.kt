@@ -153,7 +153,7 @@ class VaultImportServiceTest {
     private fun progress(completedItems: Int, totalItems: Int) = VaultImportProgress(
         completedItems = completedItems,
         totalItems = totalItems,
-        bytesCopied = completedItems.toLong(),
+        bytesProcessed = completedItems.toLong(),
         totalBytes = totalItems.toLong(),
         currentName = "file-$completedItems"
     )

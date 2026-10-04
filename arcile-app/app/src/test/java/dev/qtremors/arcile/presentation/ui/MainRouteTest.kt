@@ -392,7 +392,7 @@ class MainRouteTest {
             requestedEntry = null
         )
 
-        assertEquals(BrowserEntry.PrimaryStorage, requests[1]?.entry)
+        assertEquals(BrowserEntry.Root(true), requests[1]?.entry)
         assertTrue(requests[1]?.preferSavedLocation == true)
         assertEquals(pinnedEntry, requests[3]?.entry)
         assertTrue(requests[3]?.preferSavedLocation == true)
@@ -584,6 +584,22 @@ class MainRouteTest {
         ).initialBrowserEntry(requestId = 5)
 
         assertEquals(BrowserEntry.Archive("/storage/files.zip"), request?.entry)
+    }
+
+    @Test
+    fun `fresh swipe workspace restores last location while explicit roots retain their policy`() {
+        fun initial(entry: BrowserEntryRequest? = null) = initialBrowserEntryRequests(
+            hasSavedTabs = false,
+            initialTabs = listOf(BrowserTab(1)),
+            restoredPinnedTabs = emptyList(),
+            requestedEntry = entry
+        )[1]?.entry
+
+        assertEquals(BrowserEntry.Root(true), initial())
+        assertEquals(BrowserEntry.Root(true), initial(BrowserEntryRequest(0L, BrowserEntry.Root(true))))
+        assertEquals(BrowserEntry.Root(false), initial(BrowserEntryRequest(0L, BrowserEntry.Root(false))))
+        val path = BrowserEntry.Path("/storage/emulated/0", seedInitialPathHistory = false)
+        assertEquals(path, initial(BrowserEntryRequest(0L, path)))
     }
 
     private fun testTabsCoordinator(

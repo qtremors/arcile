@@ -8,7 +8,6 @@ data class ViewerActionState(
     val showRenameDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
     val showPropertiesDialog: Boolean = false,
-    val showCreateArchiveDialog: Boolean = false,
     val isPropertiesLoading: Boolean = false,
     val properties: PropertiesUiModel? = null,
     val isPermanentDeleteOnly: Boolean = false,

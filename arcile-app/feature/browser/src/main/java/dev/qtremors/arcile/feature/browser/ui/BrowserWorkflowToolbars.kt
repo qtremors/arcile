@@ -153,7 +153,7 @@ private fun recoverySummary(state: BrowserUiState): String {
         BulkFileOperationType.TRASH -> stringResource(R.string.file_operation_moving_files_to_trash)
         BulkFileOperationType.DELETE -> stringResource(R.string.file_operation_deleting_files)
         BulkFileOperationType.SHRED -> stringResource(R.string.file_operation_shredding_files)
-        BulkFileOperationType.CREATE_FAKE -> stringResource(R.string.file_operation_creating_fake_file)
+        BulkFileOperationType.CREATE_SYNTHETIC -> stringResource(R.string.file_operation_creating_synthetic_file)
         BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
         BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
         BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
@@ -248,7 +248,7 @@ internal fun BrowserSelectionToolbar(
                     mutableListOf<@Composable () -> Unit>().apply {
                         if (!isArchiveSelection) add {
                             ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.archive_compress_zip)) },
+                                text = { Text(stringResource(R.string.archive_create_menu_action)) },
                                 leadingIcon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
                                 onClick = {
                                     showSelectionMenu = false
@@ -258,11 +258,11 @@ internal fun BrowserSelectionToolbar(
                         }
                         val selectedPath = state.selectedFiles.singleOrNull()
                         val selectedFile = selectedPath?.let { path ->
-                            state.displayState.visibleFiles.firstOrNull { it.absolutePath == path }
+                            state.displayState.visibleFiles.firstOrNull { it.reference == path }
                         }
                         if (!isArchiveSelection && selectedPath != null && selectedFile?.isDirectory == false) add {
                             ArcileDropdownMenuItem(
-                                text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                text = { Text(stringResource(R.string.viewer_open_with)) },
                                 leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
                                 onClick = {
                                     showSelectionMenu = false

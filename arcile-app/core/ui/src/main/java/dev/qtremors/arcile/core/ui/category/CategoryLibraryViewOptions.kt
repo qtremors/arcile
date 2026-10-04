@@ -140,6 +140,7 @@ internal fun CategoryLibraryViewOptionsSheet(
     grouping: CategoryGrouping,
     showFileDetails: Boolean,
     isFolderPage: Boolean,
+    gridViewportWidth: androidx.compose.ui.unit.Dp,
     onApply: (FileListingPreferences, CategoryGrouping, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -163,7 +164,7 @@ internal fun CategoryLibraryViewOptionsSheet(
         ),
         containerColor = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        BoxWithConstraints(
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
@@ -189,7 +190,8 @@ internal fun CategoryLibraryViewOptionsSheet(
                 }
                 CategorySizeSection(
                     preferences = draft,
-                    availableWidth = this@BoxWithConstraints.maxWidth,
+                    availableWidth = gridViewportWidth,
+                    gridLayout = if (isFolderPage) CategoryGridLayout.Folders else CategoryGridLayout.Files,
                     onPreferencesChange = { draft = it }
                 )
                 CategorySortSection(
@@ -324,22 +326,14 @@ private fun CategoryViewModeSection(
 private fun CategorySizeSection(
     preferences: FileListingPreferences,
     availableWidth: androidx.compose.ui.unit.Dp,
+    gridLayout: CategoryGridLayout,
     onPreferencesChange: (FileListingPreferences) -> Unit
 ) {
     val isList = preferences.viewMode == FileViewMode.LIST
-    val gridOptions = remember(availableWidth) {
-        dev.qtremors.arcile.core.ui.GridColumnModel.options(
-            contentWidthDp = availableWidth.value,
-            horizontalPaddingDp = 32f,
-            itemSpacingDp = 8f
-        )
+    val gridOptions = remember(availableWidth, gridLayout) {
+        gridLayout.options(availableWidth.value)
     }
-    val gridColumnCount = dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
-        cellSizeDp = preferences.gridMinCellSize,
-        contentWidthDp = availableWidth.value,
-        horizontalPaddingDp = 32f,
-        itemSpacingDp = 8f
-    )
+    val gridColumnCount = gridLayout.columnCount(preferences.gridMinCellSize, availableWidth.value)
     val selectedOptionIndex = gridOptions.indexOf(gridColumnCount).coerceAtLeast(0)
     val maxGridIndex = max(1, gridOptions.size - 1).toFloat()
 
@@ -392,12 +386,7 @@ private fun CategorySizeSection(
                 onValueChange = { indexFloat ->
                     val idx = indexFloat.roundToInt().coerceIn(0, gridOptions.size - 1)
                     val cols = gridOptions[idx]
-                    val newCellSize = dev.qtremors.arcile.core.ui.GridColumnModel.cellSizeForColumnCount(
-                        columnCount = cols,
-                        contentWidthDp = availableWidth.value,
-                        horizontalPaddingDp = 32f,
-                        itemSpacingDp = 8f
-                    )
+                    val newCellSize = gridLayout.cellSize(cols, availableWidth.value)
                     onPreferencesChange(preferences.copy(gridMinCellSize = newCellSize))
                 },
                 valueRange = 0f..maxGridIndex,

@@ -7,10 +7,10 @@ data class RecentFilesPreferences(
         sortOption = FileListingPreferences.DEFAULT_CATEGORY_SORT_OPTION,
         foldersFirst = false
     ),
-    val homeCarouselLimit: Int = BrowserPreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
+    val homeCarouselLimit: Int = SharedFilePreferences.DEFAULT_HOME_RECENT_CAROUSEL_LIMIT
 ) {
     companion object {
-        fun from(preferences: BrowserPreferences) = RecentFilesPreferences(
+        fun from(preferences: SharedFilePreferences) = RecentFilesPreferences(
             presentation = preferences.recentPresentation,
             homeCarouselLimit = preferences.homeRecentCarouselLimit
         )

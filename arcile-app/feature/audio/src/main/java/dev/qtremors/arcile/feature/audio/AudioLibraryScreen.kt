@@ -2,8 +2,14 @@ package dev.qtremors.arcile.feature.audio
 
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -41,7 +47,7 @@ import kotlinx.coroutines.launch
 private enum class AudioBackAction {
     CLEAR_SELECTION,
     CLOSE_SEARCH,
-    CLOSE_FOLDER,
+    CLOSE_COLLECTION,
     NAVIGATE_BACK
 }
 
@@ -49,20 +55,32 @@ private enum class AudioBackAction {
 internal fun AudioLibraryScreen(
     state: AudioLibraryState,
     playback: AudioPlaybackState,
+    tagEditor: AudioTagEditor,
     onNavigateBack: () -> Unit,
     onRefresh: () -> Unit,
     onQueryChange: (String) -> Unit,
     onSearchFiltersChange: (SearchFilters) -> Unit,
     onSelectTab: (CategoryLibraryPage) -> Unit,
-    onSelectFolder: (AudioFolder) -> Unit,
-    onClearFolderFilter: () -> Unit,
-    onPresentationChange: (CategoryLibraryPage, FileListingPreferences) -> Unit,
+    onSelectCollection: (AudioCollectionKind) -> Unit,
+    onSelectSongFilter: (AudioSongFilter) -> Unit,
+    onClearListeningHistory: () -> Unit,
+    onOpenCollection: (AudioCollection) -> Unit,
+    onClearCollectionFilter: () -> Unit,
+    onPresentationChange: (AudioCollectionKind, FileListingPreferences) -> Unit,
+    onCreatePlaylist: (String) -> Unit,
+    onCreatePlaylistFromSelection: (String) -> Unit,
+    onAddSelectionToPlaylist: (String) -> Unit,
+    onRenamePlaylist: (String, String) -> Unit,
+    onDeletePlaylist: (String) -> Unit,
+    onSetPlaylistTracks: (String, List<String>) -> Unit,
+    onTagEdited: (AudioTrack) -> Unit,
     onGroupingChange: (CategoryGrouping) -> Unit,
     onShowFileDetailsChange: (Boolean) -> Unit,
-    onDefaultPageChange: (CategoryLibraryPage) -> Unit,
+    onMusicOnlyChange: (Boolean) -> Unit,
+    onDefaultSectionChange: (AudioCollectionKind) -> Unit,
     onToggleFavoriteSelection: () -> Unit,
-    onTogglePinnedFolder: (AudioFolder) -> Unit,
-    onUpdateFolderCover: (AudioFolder, String?) -> Unit,
+    onTogglePinnedFolder: (AudioCollection) -> Unit,
+    onUpdateFolderCover: (AudioCollection, String?) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectPaths: (Collection<String>) -> Unit,
     onTogglePaths: (Collection<String>) -> Unit,
@@ -95,39 +113,54 @@ internal fun AudioLibraryScreen(
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val haptics = rememberArcileHaptics()
+    val shellState = rememberCategoryLibraryShellState()
+    val miniPlayerVisible = AudioFeatureEntryPoint.categoryMiniPlayerVisible()
+    val miniPlayerClearance by animateDpAsState(
+        targetValue = if (miniPlayerVisible && (shellState.isChromeVisible ||
+            state.selectedPaths.isNotEmpty() || state.clipboardState != null ||
+            state.activeFileOperation != null)) 88.dp else 8.dp,
+        animationSpec = spring(),
+        label = "audio mini player clearance"
+    )
     val selectedTracks = remember(state.tracks, state.selectedPaths) {
-        state.tracks.filter { it.file.absolutePath in state.selectedPaths }
+        state.tracks.filter { it.file.reference in state.selectedPaths }
     }
     val isSelectionMode = selectedTracks.isNotEmpty()
+    val keepBottomChromeVisible = shellState.isChromeVisible || isSelectionMode ||
+        state.clipboardState != null || state.activeFileOperation != null
+    val bottomChromeOffset by animateDpAsState(
+        targetValue = if (keepBottomChromeVisible) 0.dp else 260.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "audio bottom chrome offset"
+    )
+    val bottomChromeAlpha by animateFloatAsState(
+        targetValue = if (keepBottomChromeVisible) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "audio bottom chrome alpha"
+    )
     var showSearchBar by rememberSaveable {
         mutableStateOf(state.query.isNotEmpty() || state.searchFilters.hasActiveFilters)
     }
     var showPresentationSheet by rememberSaveable { mutableStateOf(false) }
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
-    var coverFolder by remember { mutableStateOf<AudioFolder?>(null) }
-    val shellState = rememberCategoryLibraryShellState()
+    var showPlaylistPicker by rememberSaveable { mutableStateOf(false) }
+    var tagEditTrack by remember { mutableStateOf<AudioTrack?>(null) }
+    var coverFolder by remember { mutableStateOf<AudioCollection?>(null) }
     var backProgress by remember { mutableFloatStateOf(0f) }
     var backAction by remember { mutableStateOf<AudioBackAction?>(null) }
     val pagerState = rememberPagerState(
-        initialPage = if (state.defaultPage == CategoryLibraryPage.FOLDERS) 1 else 0,
-        pageCount = { 2 }
+        initialPage = audioNavigationPage(state.defaultSection),
+        pageCount = { audioNavigationSections.size }
     )
     val coroutineScope = rememberCoroutineScope()
-    var activeAudioGridSize by remember(state.audioPresentation.gridMinCellSize) {
-        mutableFloatStateOf(state.audioPresentation.gridMinCellSize)
-    }
-    var activeFolderGridSize by remember(state.folderPresentation.gridMinCellSize) {
-        mutableFloatStateOf(state.folderPresentation.gridMinCellSize)
-    }
 
-    LaunchedEffect(pagerState.currentPage) {
-        val tab =
-            if (pagerState.currentPage == 0) CategoryLibraryPage.ITEMS else CategoryLibraryPage.FOLDERS
-        if (state.tab != tab) onSelectTab(tab)
+    LaunchedEffect(pagerState.settledPage) {
+        val section = audioNavigationSections[pagerState.settledPage]
+        if (state.collectionKind != section) onSelectCollection(section)
     }
-    LaunchedEffect(state.tab) {
-        val page = if (state.tab == CategoryLibraryPage.ITEMS) 0 else 1
+    LaunchedEffect(state.collectionKind) {
+        val page = audioNavigationPage(state.collectionKind)
         if (pagerState.currentPage != page) pagerState.animateScrollToPage(page)
     }
     LaunchedEffect(state.error, playback.error) {
@@ -147,7 +180,7 @@ internal fun AudioLibraryScreen(
         backAction = when {
             isSelectionMode -> AudioBackAction.CLEAR_SELECTION
             showSearchBar -> AudioBackAction.CLOSE_SEARCH
-            state.folderFilter != null -> AudioBackAction.CLOSE_FOLDER
+            state.collectionFilter != null -> AudioBackAction.CLOSE_COLLECTION
             else -> AudioBackAction.NAVIGATE_BACK
         }
         try {
@@ -158,7 +191,7 @@ internal fun AudioLibraryScreen(
                     showSearchBar = false
                     onQueryChange("")
                 }
-                AudioBackAction.CLOSE_FOLDER -> onClearFolderFilter()
+                AudioBackAction.CLOSE_COLLECTION -> onClearCollectionFilter()
                 AudioBackAction.NAVIGATE_BACK -> onNavigateBack()
             }
         } catch (_: CancellationException) {
@@ -186,7 +219,7 @@ internal fun AudioLibraryScreen(
             } else {
                 0f
             },
-            extraBottomContentPadding = 8.dp,
+            extraBottomContentPadding = miniPlayerClearance,
             topChrome = {
                 if (isSelectionMode) {
                     AudioSelectionTopBar(
@@ -217,11 +250,11 @@ internal fun AudioLibraryScreen(
                         onQueryChange = onQueryChange,
                         onSearchFiltersChange = onSearchFiltersChange,
                         onViewSort = { showPresentationSheet = true },
-                        onDefaultPageChange = onDefaultPageChange,
+                        onDefaultSectionChange = onDefaultSectionChange,
                         onSelectAll = onSelectAll,
                         onNavigateBack = {
-                            if (state.folderFilter != null) {
-                                onClearFolderFilter()
+                            if (state.collectionFilter != null) {
+                                onClearCollectionFilter()
                             } else {
                                 onNavigateBack()
                             }
@@ -230,16 +263,18 @@ internal fun AudioLibraryScreen(
                     )
                 }
             },
-            bottomChrome = { isChromeVisible ->
-                AudioLibraryBottomBar(
+            bottomChrome = {
+                Column(modifier = Modifier.align(Alignment.BottomCenter)
+                    .widthIn(max = 632.dp).fillMaxWidth().graphicsLayer {
+                    translationY = bottomChromeOffset.toPx()
+                    alpha = bottomChromeAlpha
+                }) {
+                    AudioFeatureEntryPoint.CategoryMiniPlayer()
+                    AudioLibraryBottomBar(
                     state = state,
-                    currentTab = if (pagerState.currentPage == 0) {
-                        CategoryLibraryPage.ITEMS
-                    } else {
-                        CategoryLibraryPage.FOLDERS
-                    },
+                    currentSection = audioNavigationSections[pagerState.currentPage],
                     selectedTracks = selectedTracks,
-                    isChromeVisible = isChromeVisible,
+                    isChromeVisible = true,
                     selectionBackProgress = if (
                         backAction == AudioBackAction.CLEAR_SELECTION
                     ) {
@@ -247,15 +282,15 @@ internal fun AudioLibraryScreen(
                     } else {
                         0f
                     },
-                    onSelectTab = { tab ->
+                    onSelectSection = { section ->
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(
-                                if (tab == CategoryLibraryPage.ITEMS) 0 else 1
+                                audioNavigationPage(section)
                             )
                         }
                     },
                     onPlaySelected = {
-                        onPlaySelection(selectedTracks.map { it.file.absolutePath })
+                        onPlaySelection(selectedTracks.map { it.file.reference })
                         onClearSelection()
                     },
                     onCopySelected = onCopySelection,
@@ -275,6 +310,8 @@ internal fun AudioLibraryScreen(
                         onToggleFavoriteSelection()
                         onClearSelection()
                     },
+                    onAddToPlaylist = { showPlaylistPicker = true },
+                    onEditTags = { tagEditTrack = selectedTracks.singleOrNull() },
                     onEditAudio = {
                         onEditSelected(selectedTracks)
                         onClearSelection()
@@ -282,8 +319,9 @@ internal fun AudioLibraryScreen(
                     onPaste = onPaste,
                     onCancelClipboard = onCancelClipboard,
                     onShowClipboardContents = { showClipboardContents = true },
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
+                    modifier = Modifier.fillMaxWidth()
+                    )
+                }
             }
         ) { contentPadding ->
             HorizontalPager(
@@ -291,46 +329,51 @@ internal fun AudioLibraryScreen(
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = !isSelectionMode
             ) { page ->
-                val tab =
-                    if (page == 0) CategoryLibraryPage.ITEMS else CategoryLibraryPage.FOLDERS
-                val showingFolderContents =
-                    tab == CategoryLibraryPage.FOLDERS && state.folderFilter != null
-                val presentationPage = if (showingFolderContents) {
-                    CategoryLibraryPage.ITEMS
-                } else {
-                    tab
+                val section = audioNavigationSections[page]
+                val pageState = if (section == state.collectionKind &&
+                    state.presentedCollectionKind == section
+                ) state else remember(state, section) {
+                    buildAudioLibraryState(state.copy(
+                        collectionKind = section,
+                        collectionFilter = null,
+                        selectedPaths = emptySet()
+                    ))
                 }
+                val tab = if (section == AudioCollectionKind.SONGS) {
+                    CategoryLibraryPage.ITEMS
+                } else CategoryLibraryPage.FOLDERS
+                val showingFolderContents =
+                    section == state.collectionKind && state.collectionFilter != null
+                val presentationSection = if (showingFolderContents) {
+                    AudioCollectionKind.SONGS
+                } else section
+                var activeGridSize by remember(
+                    presentationSection,
+                    state.presentationFor(presentationSection).gridMinCellSize
+                ) { mutableFloatStateOf(state.presentationFor(presentationSection).gridMinCellSize) }
                 AudioLibraryPage(
-                    state = state,
+                    state = pageState,
                     tab = tab,
-                    activeGridSize = if (presentationPage == CategoryLibraryPage.ITEMS) {
-                        activeAudioGridSize
-                    } else {
-                        activeFolderGridSize
-                    },
+                    activeGridSize = activeGridSize,
                     contentPadding = contentPadding,
                     currentMediaId = playback.currentMediaId,
-                    onGridSizeChange = { size ->
-                        if (presentationPage == CategoryLibraryPage.ITEMS) {
-                            activeAudioGridSize = size
-                        } else {
-                            activeFolderGridSize = size
-                        }
-                    },
+                    onGridSizeChange = { size -> activeGridSize = size },
                     onGridSizeFinalized = { size ->
-                        val current = if (presentationPage == CategoryLibraryPage.ITEMS) {
-                            state.audioPresentation
-                        } else {
-                            state.folderPresentation
-                        }
                         onPresentationChange(
-                            presentationPage,
-                            current.copy(gridMinCellSize = size)
+                            presentationSection,
+                            state.presentationFor(presentationSection).copy(gridMinCellSize = size)
                         )
                     },
                     onRefresh = onRefresh,
                     onPlay = onPlay,
-                    onSelectFolder = onSelectFolder,
+                    onSelectSongFilter = onSelectSongFilter,
+                    onClearListeningHistory = onClearListeningHistory,
+                    onOpenCollection = onOpenCollection,
+                    onCreatePlaylist = onCreatePlaylist,
+                    onAddSelectionToPlaylist = onAddSelectionToPlaylist,
+                    onRenamePlaylist = onRenamePlaylist,
+                    onDeletePlaylist = onDeletePlaylist,
+                    onSetPlaylistTracks = onSetPlaylistTracks,
                     onToggleSelection = onToggleSelection,
                     onSelectPaths = onSelectPaths,
                     onTogglePaths = onTogglePaths,
@@ -340,7 +383,7 @@ internal fun AudioLibraryScreen(
                     onResetFolderCover = { onUpdateFolderCover(it, null) },
                     modifier = Modifier.graphicsLayer {
                         if (
-                            backAction == AudioBackAction.CLOSE_FOLDER &&
+                            backAction == AudioBackAction.CLOSE_COLLECTION &&
                             showingFolderContents
                         ) {
                             translationX = backProgress * 120.dp.toPx()
@@ -352,31 +395,57 @@ internal fun AudioLibraryScreen(
         }
 
     if (showPresentationSheet) {
-        val selectedTab =
-            if (pagerState.currentPage == 0) CategoryLibraryPage.ITEMS else CategoryLibraryPage.FOLDERS
-        val presentationPage = if (
-            selectedTab == CategoryLibraryPage.FOLDERS &&
-            state.folderFilter != null
-        ) {
-            CategoryLibraryPage.ITEMS
-        } else {
-            selectedTab
-        }
-        AudioViewOptionsDialog(
-            tab = presentationPage,
-            presentation = if (presentationPage == CategoryLibraryPage.ITEMS) {
-                state.audioPresentation
-            } else {
-                state.folderPresentation
-            },
+        val selectedSection = audioNavigationSections[pagerState.currentPage]
+        val presentationSection = if (state.collectionFilter != null) {
+            AudioCollectionKind.SONGS
+        } else selectedSection
+        AudioViewOptionsSheet(
+            section = presentationSection,
+            presentation = if (state.collectionFilter != null) {
+                state.trackPresentation()
+            } else state.presentationFor(presentationSection),
+            listOnly = state.collectionFilter?.kind == AudioCollectionType.Album,
             grouping = state.grouping,
             showFileDetails = state.showFileDetails,
-            onApply = { presentation, grouping, showDetails ->
-                onPresentationChange(presentationPage, presentation)
+            musicOnly = state.musicOnly,
+            onApply = { presentation, grouping, showDetails, musicOnly ->
+                onPresentationChange(
+                    presentationSection,
+                    if (state.collectionFilter?.kind == AudioCollectionType.Album) {
+                        presentation.copy(viewMode = state.audioPresentation.viewMode)
+                    } else presentation
+                )
                 onGroupingChange(grouping)
                 onShowFileDetailsChange(showDetails)
+                onMusicOnlyChange(musicOnly)
             },
             onDismiss = { showPresentationSheet = false }
+        )
+    }
+    if (showPlaylistPicker) {
+        AudioAddToPlaylistDialog(
+            playlists = state.playlists,
+            onAdd = { id ->
+                onAddSelectionToPlaylist(id)
+                showPlaylistPicker = false
+            },
+            onCreate = { name ->
+                onCreatePlaylistFromSelection(name)
+                showPlaylistPicker = false
+            },
+            onDismiss = { showPlaylistPicker = false }
+        )
+    }
+    tagEditTrack?.let { selected ->
+        AudioMetadataEditorSheet(
+            track = selected,
+            editor = tagEditor,
+            onSaved = { updated ->
+                onTagEdited(updated)
+                onClearSelection()
+                tagEditTrack = null
+            },
+            onDismiss = { tagEditTrack = null }
         )
     }
     coverFolder?.let { folder ->

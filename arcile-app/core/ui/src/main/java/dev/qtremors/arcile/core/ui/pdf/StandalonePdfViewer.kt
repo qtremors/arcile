@@ -301,7 +301,7 @@ fun StandalonePdfViewer(
         }
         FileModel(
             name = title,
-            absolutePath = reference,
+            reference = reference,
             size = sizeBytes,
             extension = "pdf",
             mimeType = "application/pdf",

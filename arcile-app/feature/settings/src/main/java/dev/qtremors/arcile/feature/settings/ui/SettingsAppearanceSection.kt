@@ -5,16 +5,14 @@ package dev.qtremors.arcile.feature.settings.ui
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.Alignment
-import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ShortText
-import androidx.compose.material.icons.automirrored.filled.WrapText
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -24,118 +22,154 @@ import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.ui.ArcileListSurface
 import dev.qtremors.arcile.core.ui.ArcileSectionHeader
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.settings.AccentColorSelector
+import dev.qtremors.arcile.core.ui.settings.SettingsChoiceHeader
+import dev.qtremors.arcile.core.ui.settings.SettingsConnectedChoices
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
+import dev.qtremors.arcile.core.ui.theme.titleMediumBold
+
+internal enum class FilenameDisplayMode {
+    SINGLE_LINE,
+    TWO_LINES,
+    AUTO_SCROLL
+}
+
+internal val UiPreferences.filenameDisplayMode: FilenameDisplayMode
+    get() = when {
+        doubleLineFilenames -> FilenameDisplayMode.TWO_LINES
+        marqueeFilenames -> FilenameDisplayMode.AUTO_SCROLL
+        else -> FilenameDisplayMode.SINGLE_LINE
+    }
+
+internal fun UiPreferences.withFilenameDisplayMode(mode: FilenameDisplayMode): UiPreferences = when (mode) {
+    FilenameDisplayMode.SINGLE_LINE -> copy(doubleLineFilenames = false, marqueeFilenames = false)
+    FilenameDisplayMode.TWO_LINES -> copy(doubleLineFilenames = true, marqueeFilenames = false)
+    FilenameDisplayMode.AUTO_SCROLL -> copy(marqueeFilenames = true, doubleLineFilenames = false)
+}
+
+@Composable
+internal fun FilenameDisplaySelector(
+    currentMode: FilenameDisplayMode,
+    onModeSelected: (FilenameDisplayMode) -> Unit
+) {
+    val haptics = rememberArcileHaptics()
+    val labels = mapOf(
+        FilenameDisplayMode.SINGLE_LINE to stringResource(R.string.filename_display_single),
+        FilenameDisplayMode.TWO_LINES to stringResource(R.string.filename_display_double),
+        FilenameDisplayMode.AUTO_SCROLL to stringResource(R.string.filename_display_scroll)
+    )
+    val modes = FilenameDisplayMode.entries
+    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+        SettingsChoiceHeader(
+            title = stringResource(R.string.settings_filename_display),
+            description = stringResource(R.string.settings_filename_display_description),
+            icon = Icons.Default.TextFields
+        )
+        SettingsConnectedChoices(
+            options = modes.map(labels::getValue),
+            isSelected = { modes[it] == currentMode },
+            onSelectionChanged = { index, checked ->
+                if (checked) {
+                    haptics.toggleMenu()
+                    onModeSelected(modes[index])
+                }
+            },
+            dynamicExpand = true,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        )
+    }
+}
 
 @Composable
 internal fun SettingsAppearanceSection(
-    theme: ThemeState,
+    theme: UiPreferences,
     preferences: dev.qtremors.arcile.feature.settings.SettingsPreferences,
-    actions: SettingsPreferenceActions
+    actions: SettingsPreferenceActions,
+    showHeading: Boolean = true
 ) {
     val haptics = rememberArcileHaptics()
     Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        ArcileSectionHeader(text = stringResource(R.string.section_appearance))
-        ArcileListSurface {
-            ThemeModeSelector(
-                currentMode = theme.themeMode,
-                onModeSelected = { actions.themeChange(theme.copy(themeMode = it)) }
-            )
-        }
-        ArcileListSurface {
-            ThemePresetSelector(
-                currentPreset = theme.themePreset,
-                onPresetSelected = { actions.themeChange(theme.copy(themePreset = it)) }
-            )
-        }
-        if (theme.themePreset == ThemePreset.CUSTOM) {
+        if (showHeading) ArcileSectionHeader(text = stringResource(R.string.section_appearance))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ArcileSectionHeader(text = stringResource(R.string.settings_appearance_theme_section))
             ArcileListSurface {
-                CustomThemeCreatorPanel(
-                    themeState = theme,
-                    onThemeChange = actions.themeChange
+                ThemeModeSelector(
+                    currentMode = theme.themeMode,
+                    onModeSelected = { actions.themeChange(theme.copy(themeMode = it)) }
+                )
+            }
+            ArcileListSurface {
+                ThemePresetSelector(
+                    currentPreset = theme.themePreset,
+                    onPresetSelected = { actions.themeChange(theme.copy(themePreset = it)) }
+                )
+            }
+            if (theme.themePreset == ThemePreset.CUSTOM) {
+                ArcileListSurface {
+                    CustomThemeCreatorPanel(
+                        uiPreferences = theme,
+                        onThemeChange = actions.themeChange
+                    )
+                }
+            }
+            if (theme.themePreset == ThemePreset.NONE) {
+                ArcileListSurface {
+                    AccentColorSelector(
+                        currentAccent = theme.accentColor,
+                        onAccentSelected = { actions.themeChange(theme.copy(accentColor = it)) }
+                    )
+                }
+            }
+            SettingsSwitchRow(
+                title = stringResource(R.string.settings_harmonize_colors),
+                description = stringResource(R.string.settings_harmonize_colors_description),
+                checked = theme.harmonizeColors,
+                switchTag = "harmonize_colors_switch",
+                rowTag = "harmonize_colors_setting_row",
+                leadingIcon = Icons.Default.Palette,
+                onCheckedChange = { checked ->
+                    haptics.toggleMenu()
+                    actions.themeChange(theme.copy(harmonizeColors = checked))
+                }
+            )
+        }
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ArcileSectionHeader(text = stringResource(R.string.settings_appearance_names_section))
+            ArcileListSurface {
+                FilenameDisplaySelector(
+                    currentMode = theme.filenameDisplayMode,
+                    onModeSelected = { actions.themeChange(theme.withFilenameDisplayMode(it)) }
                 )
             }
         }
-        if (theme.themePreset == ThemePreset.NONE) {
-            ArcileListSurface {
-                AccentColorSelector(
-                    currentAccent = theme.accentColor,
-                    onAccentSelected = { actions.themeChange(theme.copy(accentColor = it)) }
-                )
-            }
-        }
-        Column(
-            verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)
-        ) {
-                SettingsSwitchRow(
-                    index = 0,
-                    count = 4,
-                    title = stringResource(R.string.settings_harmonize_colors),
-                    description = stringResource(R.string.settings_harmonize_colors_description),
-                    checked = theme.harmonizeColors,
-                    switchTag = "harmonize_colors_switch",
-                    rowTag = "harmonize_colors_setting_row",
-                    leadingIcon = Icons.Default.Palette,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.copy(harmonizeColors = checked))
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 1,
-                    count = 4,
-                    title = stringResource(R.string.settings_vibrations),
-                    description = stringResource(R.string.settings_vibrations_description),
-                    checked = theme.vibrationsEnabled,
-                    switchTag = "vibrations_switch",
-                    rowTag = "vibrations_setting_row",
-                    leadingIcon = Icons.Default.Vibration,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.copy(vibrationsEnabled = checked))
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 2,
-                    count = 4,
-                    title = stringResource(R.string.settings_double_line_filenames),
-                    description = stringResource(R.string.settings_double_line_filenames_description),
-                    checked = theme.doubleLineFilenames,
-                    switchTag = "double_line_filenames_switch",
-                    rowTag = "double_line_filenames_setting_row",
-                    leadingIcon = Icons.AutoMirrored.Filled.WrapText,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.withDoubleLineFilenames(checked))
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 3,
-                    count = 4,
-                    title = stringResource(R.string.settings_marquee_filenames),
-                    description = stringResource(R.string.settings_marquee_filenames_description),
-                    checked = theme.marqueeFilenames,
-                    switchTag = "marquee_filenames_switch",
-                    rowTag = "marquee_filenames_setting_row",
-                    leadingIcon = Icons.AutoMirrored.Filled.ShortText,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.withMarqueeFilenames(checked))
-                    }
-                )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            ArcileSectionHeader(text = stringResource(R.string.settings_appearance_feedback_section))
+            SettingsSwitchRow(
+                title = stringResource(R.string.settings_vibrations),
+                description = stringResource(R.string.settings_vibrations_description),
+                checked = theme.vibrationsEnabled,
+                switchTag = "vibrations_switch",
+                rowTag = "vibrations_setting_row",
+                leadingIcon = Icons.Default.Vibration,
+                onCheckedChange = { checked ->
+                    haptics.toggleMenu()
+                    actions.themeChange(theme.copy(vibrationsEnabled = checked))
+                }
+            )
         }
     }
 }
@@ -146,7 +180,7 @@ internal fun SettingsSwitchRow(
     index: Int = 0,
     count: Int = 1,
     title: String,
-    description: String,
+    description: String? = null,
     checked: Boolean,
     switchTag: String,
     rowTag: String,
@@ -174,7 +208,7 @@ internal fun SettingsSwitchRow(
             }
         } else null,
         content = { Text(title) },
-        supportingContent = { Text(description) },
+        supportingContent = if (!description.isNullOrBlank()) { { Text(description) } } else null,
         trailingContent = {
             Box(
                 modifier = Modifier.fillMaxHeight(),
@@ -197,24 +231,23 @@ internal fun SettingsSwitchRow(
     )
 }
 
-internal fun ThemeState.withDoubleLineFilenames(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withDoubleLineFilenames(enabled: Boolean): UiPreferences = copy(
     doubleLineFilenames = enabled,
     marqueeFilenames = if (enabled) false else marqueeFilenames
 )
 
-internal fun ThemeState.withMarqueeFilenames(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withMarqueeFilenames(enabled: Boolean): UiPreferences = copy(
     marqueeFilenames = enabled,
     doubleLineFilenames = if (enabled) false else doubleLineFilenames
 )
 
-internal fun ThemeState.withLandscapeDualPane(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withLandscapeDualPane(enabled: Boolean): UiPreferences = copy(
     landscapeDualPaneEnabled = enabled
 )
 
-internal fun ThemeState.withFolderIcons(enabled: Boolean): ThemeState = copy(
+internal fun UiPreferences.withFolderIcons(enabled: Boolean): UiPreferences = copy(
     folderIconsEnabled = enabled
 )
-
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -253,9 +286,9 @@ internal fun HomeRecentCarouselLimit(
                             onValueChange(rounded)
                         }
                     },
-                    valueRange = BrowserPreferences.MIN_HOME_RECENT_CAROUSEL_LIMIT.toFloat()..
-                        BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT.toFloat(),
-                    steps = BrowserPreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT - 1,
+                    valueRange = SharedFilePreferences.MIN_HOME_RECENT_CAROUSEL_LIMIT.toFloat()..
+                        SharedFilePreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT.toFloat(),
+                    steps = SharedFilePreferences.MAX_HOME_RECENT_CAROUSEL_LIMIT - 1,
                     modifier = Modifier.testTag("home_recent_carousel_limit_slider")
                 )
             }

@@ -59,7 +59,7 @@ internal fun RecentFilesContent(
 ) {
     val isSelectionMode = state.selectedFiles.isNotEmpty()
     val haptics = rememberArcileHaptics()
-    val visiblePaths = remember(filesToDisplay) { filesToDisplay.map { it.absolutePath } }
+    val visiblePaths = remember(filesToDisplay) { filesToDisplay.map { it.reference } }
     var selectionAnchorPath by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(visiblePaths) {
         if (selectionAnchorPath !in visiblePaths) selectionAnchorPath = null
@@ -144,7 +144,7 @@ internal fun RecentFilesContent(
                     gridItemsIndexed(
                         items = group.files,
                         key = { index, file ->
-                            "${group.dayStartMillis}-$index-${file.absolutePath}"
+                            "${group.dayStartMillis}-$index-${file.reference}"
                         },
                         contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
                     ) { _, file ->
@@ -152,15 +152,15 @@ internal fun RecentFilesContent(
                             modifier = Modifier.animateItem(),
                             file = file,
                             formattedDate = formatter.format(Date(file.lastModified)),
-                            isSelected = state.selectedFiles.contains(file.absolutePath),
+                            isSelected = state.selectedFiles.contains(file.reference),
                             isInSelectionMode = isSelectionMode,
                             presentation = FileItemPresentation(
                                 showThumbnails = state.presentation.showThumbnails,
                                 openFileFromThumbnailInSelectionMode = true
                             ),
-                            onClick = { onGroupedClick(file.absolutePath) },
-                            onLongClick = { onGroupedLongClick(file.absolutePath) },
-                            onOpenDirectly = { onOpenFile(file.absolutePath) }
+                            onClick = { onGroupedClick(file.reference) },
+                            onLongClick = { onGroupedLongClick(file.reference) },
+                            onOpenDirectly = { onOpenFile(file.reference) }
                         )
                     }
                 }
@@ -246,23 +246,23 @@ internal fun RecentFilesContent(
                 itemsIndexed(
                     items = group.files,
                     key = { index, file ->
-                        "${group.dayStartMillis}-$index-${file.absolutePath}"
+                        "${group.dayStartMillis}-$index-${file.reference}"
                     },
                     contentType = { _, file -> if (file.isDirectory) "directory" else "file" }
                 ) { _, file ->
                     FileItemRow(
                         file = file,
                         formattedDate = formatter.format(Date(file.lastModified)),
-                        isSelected = state.selectedFiles.contains(file.absolutePath),
+                        isSelected = state.selectedFiles.contains(file.reference),
                         isInSelectionMode = isSelectionMode,
                         presentation = FileItemPresentation(
                             zoom = state.presentation.listZoom,
                             showThumbnails = state.presentation.showThumbnails,
                             openFileFromThumbnailInSelectionMode = true
                         ),
-                        onClick = { onGroupedClick(file.absolutePath) },
-                        onLongClick = { onGroupedLongClick(file.absolutePath) },
-                        onOpenDirectly = { onOpenFile(file.absolutePath) }
+                        onClick = { onGroupedClick(file.reference) },
+                        onLongClick = { onGroupedLongClick(file.reference) },
+                        onOpenDirectly = { onOpenFile(file.reference) }
                     )
                 }
             }

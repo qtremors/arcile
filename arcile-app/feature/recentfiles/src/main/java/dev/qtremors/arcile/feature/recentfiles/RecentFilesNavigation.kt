@@ -60,7 +60,7 @@ fun NavGraphBuilder.registerRecentFilesRoute(
                 clear = viewModel::clearSelection,
                 share = {
                     coroutineScope.launch {
-                        val shareFiles = openFiles.filter { it.absolutePath in state.selectedFiles }
+                        val shareFiles = openFiles.filter { it.reference in state.selectedFiles }
                         if (onShareSelected(shareFiles)) {
                             viewModel.clearSelection()
                         }

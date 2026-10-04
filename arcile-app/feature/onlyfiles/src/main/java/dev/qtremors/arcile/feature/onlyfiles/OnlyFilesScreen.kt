@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import android.content.ClipData
 import android.content.Intent
 import android.net.Uri
@@ -83,7 +84,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -164,7 +164,7 @@ private fun OnlyFilesScreen(
     var createItem by remember { mutableStateOf<CreateItemKind?>(null) }
     var renameNode by remember { mutableStateOf<VaultNodeMetadata?>(null) }
     var deleteNodes by remember { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
-    var showSort by remember { mutableStateOf(false) }
+    var showViewOptions by remember { mutableStateOf(false) }
     var showOverflow by remember { mutableStateOf(false) }
     var externalRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
     var fallbackRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
@@ -237,7 +237,7 @@ private fun OnlyFilesScreen(
     }
 
     ArcileScreenScaffold(
-        modifier = predictiveBackModifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = predictiveBackModifier.arcileTopAppBarNestedScroll(scrollBehavior),
         snackbarHost = { ArcileSnackbarHost(snackbarHost) },
         topBar = {
             if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
@@ -267,7 +267,6 @@ private fun OnlyFilesScreen(
                     )
                 } else {
                     LargeTopAppBar(
-                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(),
                         title = {
                             val vaultTitle = state.selectedVault?.name
                                 ?: stringResource(R.string.onlyfiles_title)
@@ -278,7 +277,7 @@ private fun OnlyFilesScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
-                        scrollBehavior = scrollBehavior,
+                        scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior),
                         navigationIcon = {
                             Box(
                                 modifier = Modifier
@@ -304,7 +303,7 @@ private fun OnlyFilesScreen(
                                         ToolbarAction(
                                             icon = Icons.AutoMirrored.Filled.Sort,
                                             contentDescription = sortDescription,
-                                            onClick = { showSort = true }
+                                            onClick = { showViewOptions = true }
                                         )
                                     )
                                 }
@@ -456,8 +455,8 @@ private fun OnlyFilesScreen(
             dismissButton = { TextButton(onClick = { deleteNodes = emptyList() }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
         )
     }
-    if (showSort) SortDialog(state, onDismiss = { showSort = false }, onSort = { field, direction ->
-        showSort = false; viewModel.setSort(field, direction)
+    if (showViewOptions) VaultViewOptionsSheet(state, onDismiss = { showViewOptions = false }, onSort = { field, direction ->
+        showViewOptions = false; viewModel.setSort(field, direction)
     }, onLayoutChange = { layout ->
         viewModel.setLayout(layout)
     })
@@ -522,7 +521,7 @@ private fun OnlyFilesScreen(
             }
         )
     }
-    if (state.showSettingsDialog) OnlyFilesSettingsSheet(
+    if (state.showSettingsSheet) OnlyFilesSettingsSheet(
         state = state,
         onDismiss = viewModel::closeSettings,
         onSetScreenshotProtection = viewModel::setScreenshotProtection,

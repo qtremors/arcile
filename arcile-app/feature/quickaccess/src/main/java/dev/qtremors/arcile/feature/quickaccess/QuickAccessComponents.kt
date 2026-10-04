@@ -200,7 +200,7 @@ internal fun QuickAccessListItem(
                 text = item.handoffDescription ?: if (item.type == QuickAccessType.SAF_TREE) {
                     stringResource(R.string.quick_access_scoped_description)
                 } else {
-                    item.path
+                    item.targetReference
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

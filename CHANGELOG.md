@@ -1,10 +1,95 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.0
-> **Last Updated:** 2026-08-28
+> **Version:** 2.2.0
+> **Last Updated:** 2026-10-04
 
 ---
+
+## [2.2.0] - 2026-10-04
+
+- **Audio Library**: Remove song overflow buttons and Genres navigation. Improve playlist empty states and creation. Clear song selection after Copy or Cut.
+- **Albums**: Show track lists, song counts, and other albums by the same artist.
+- **Player**: Align the mini player with five-tab navigation and hide both on scroll. Tap artwork to play or pause; remember the visualizer preference, off by default.
+- **Lyrics**: Add inline and full screen lyrics with line seeking, playback following, LRC offsets, and a dedicated editor.
+- **Music Details**: Use spacious rounded editor fields, aligned actions, and metadata, listening history, and file information cards.
+- **Sound Settings**: Add media volume controls, finer speed and pitch adjustments, and speed presets.
+- **File Replacement**: Keep copied replacements intact when cleanup of the old backup fails.
+
+## [2.1.9] - 2026-10-04
+
+- **Browser Entry**: Resume the remembered folder when swiping into Browser, while storage shortcuts open their selected root.
+- **Audio Queue Removal**: Advance in playback order, including shuffle, preserve paused playback, and clear an empty player.
+- **Image Deletion**: Advance to the next image, or the previous at the end, and retain the position after rotation.
+- **Vault Video Rotation**: Keep protected videos open during rotation and close them when backgrounded.
+- **APK Install Status**: Clear stale confirmation messages, retain progress through rotation, and report final installation results accurately.
+- **Library Grids**: Make APK and Documents grid-size controls match the displayed layout.
+- **Text Editor Panels**: Use opaque controls and a compact, scrollable information card with an accessible close button.
+- **Easier Renaming**: Focus and select the name while preserving file extensions and user-adjusted selections.
+- **Paste Status**: Show compact item counts with full accessibility announcements.
+- **Accessible File Labels**: Make file details and opening and selection labels translatable.
+
+## [2.1.8] - 2026-10-04
+
+- **Browser Responsiveness**: Show folder contents before logging, indexing, and saved folder-size lookups finish. Reuse unchanged displays, update affected rows, and batch file-count sorting updates.
+- **Responsive Biometrics**: Prepare and complete biometric vault access in the background, preserve cancellation, and reject pending challenges after locking.
+- **Bounded Text Editing**: Limit documents and recovery drafts to 4 MiB, cap combined Undo/Redo history at 8 MiB of text, and keep oversized recovery drafts with clear feedback.
+- **Markdown Selection**: Format text selected in either direction without crashing, with working Undo and Redo.
+- **Safe Viewer Startup**: Keep standalone viewers from cleaning shared operations, and preserve temporary files and compatibility copies owned by live processes.
+- **Accurate Restore Undo**: Undo the actual restored files, including renamed conflicts and partial restores. Keep items that changed after restoration.
+- **Recoverable Text Saves**: Verify staged local saves before replacing originals, preserve durable drafts before provider writes, and offer recovery when a document differs from its draft.
+- **Reliable Text Editor State**: Keep document contents and editing history out of Android saved state while retaining edits across screen recreation.
+- **Vault Transaction Recovery**: Reject oversized operations before committing and finish authenticated older transactions that exceeded collection limits.
+
+## [2.1.7] - 2026-10-03
+
+- **Safe Trash And Restore**: Preserve complete verified copies and trash recovery information when source cleanup fails or is cancelled, including recovery after restarting Arcile.
+- **Safe Vault Folder Moves**: Keep skipped files and their folders at the source during merged moves within or between vaults. Report partial completion and reject oversized transactions safely before committing.
+- **Safe File Replacement**: Keep existing destinations safe when moves fail, verify replacement contents with checksums, and preserve or restore original backups after interrupted replacements.
+- **Verified Move Recovery**: Recheck recorded file identities and contents before retrying source cleanup. Preserve new or changed files and recovery information when a safe match cannot be established.
+- **Clearer Labels**: Call gallery groups Folders and generated random files Synthetic Files, while preserving saved settings and pending operations.
+- **Maintenance**: Update internal naming and organization while preserving existing features and saved preferences.
+
+## [2.1.6] - 2026-09-28
+
+- **Music Library Layouts**: Show artwork, artist, album, duration, and song counts across Audio pages, with alphabetical songs by default and direct actions for favorites, playlists, music details, and audio editing.
+- **Listening Library**: Save favorites, recent plays, and play counts in a dedicated Audio database. Import existing favorites and offer Recently played and Most played views with a history reset.
+- **Player and Lyrics**: Place the mini player above Audio navigation, keep its expand and collapse motion, and give timed lyrics a full screen view with seek and playback controls.
+- **Library Stability**: Update visible page content together with its filters and keep artwork tied to the correct song while lists change.
+
+## [2.1.5] - 2026-09-28
+
+- **Integrated Audio Player**: Keep the mini player inside Arcile's layout so navigation, text fields, and Android gestures remain available. Expand and collapse the full player within the app, and open externally launched audio in a full screen player.
+- **Playback and Queue Controls**: Restore the paused queue and position after relaunch, return to the player from its notification, show the real shuffle order, and add queue editing, playlist saving, playback speed, pitch, and a sleep timer.
+- **Audio Library Updates**: Refresh on MediaStore changes, offer a saved Music only filter, smooth search updates, and move playlists to a dedicated file with migration from existing saved playlists.
+
+## [2.1.4] - 2026-09-28
+
+- **Music Library Pages**: Browse Songs, Folders, Albums, Artists, Genres, and Playlists inside Audio. Choose an opening page and keep separate list or grid views and sorting for each page.
+- **Playlists and Collections**: Create, rename, delete, and reorder playlists; add selected songs and open collection details with artwork, song counts, and playback controls.
+- **Music Details and Lyrics**: Edit song tags and artwork in supported audio files, with verification and a recovery copy during writes. View plain or timed lyrics during playback and save timed lyrics beside the audio file.
+
+## [2.1.3] - 2026-09-28
+
+- **New Audio Player Layouts**: Give the mini player circular artwork, a progress ring, and grouped previous and next buttons. Add a favorite button, straight seek slider, pill shaped transport controls, paired lower actions sized to match file actions, and a More menu anchored to its button in the full player.
+- **Player Motion and Themes**: Animate track changes, playback controls, and mini player expansion on tap or swipe. Open the queue with an upward swipe, and use the selected theme's background and accent colors throughout the full player.
+- **Playback Visualizer and Layout**: Show audio-responsive bars in the play/pause button with an on/off switch. Distribute player content across available height, resize artwork to fit, and scroll on short screens.
+- **Storage Settings**: Show connected storage volumes and classification controls directly in Settings alongside temporary file cleanup.
+
+## [2.1.2] - 2026-09-27
+
+- **Settings Pages**: Organize controls into focused pages with clearer section names and descriptions.
+- **Compact Choices**: Keep the theme mode tiles and show start page, theme preset, filename, and extension choices in compact rows that scroll when needed. Put the Custom theme preset on its own row.
+- **File Opening**: Choose which supported or installed plugin extensions open in Arcile, and add or remove custom extension exclusions.
+- **Settings Stability**: Fix the Appearance crash when choices overflow on narrow screens.
+
+## [2.1.1] - 2026-09-26
+
+- **Stable Home Dashboard**: Show saved recent files and category totals immediately, then quietly check live storage on a cold launch. Avoid duplicate resume refreshes and keep the multicolor storage animation visible when the category breakdown is unavailable.
+- **Recent File Cache**: Remove obsolete saved preview lists after successful refreshes while keeping the latest fallback for the next launch.
+- **Persistent Folder Details**: Keep saved folder sizes visible while recalculating folders shown after a new launch. Retain counts through failed scans and show explicit pending or unavailable sizes when no saved value exists.
+- **Consistent Collapsed App Bars**: Keep locked app bars in their natural collapsed position with the compact title visible, and prevent dragging them open until expansion is enabled.
+- **Home Cache and Scrolling Corrections**: Show saved category totals before quiet background updates, restore the multicolor loading bar with a smoother segment reveal, keep categories ranked by size, and allow scrolling with collapsed app bars.
 
 ## [2.1.0] - 2026-08-28
 
@@ -907,4 +992,4 @@ The beta channel turned Arcile from a basic local file browser into a full Andro
 - Added browser-native archive browsing, selected archive extraction, expanded archive formats, sequential archive workflows, operation recovery, safer open/share handling, custom themes, progress details, utility preferences, configurable Home recents, and thumbnail policy centralization.
 - Completed major release hardening for imports, archive thumbnails, stale navigation cancellation, partial destructive operation reporting, MediaStore content URI resilience, transactional extraction replacement, stable directory paging, and release metadata.
 
-Detailed beta changelog history is archived in [beta/CHANGELOG-BETA.md](beta/CHANGELOG-BETA.md).
+Detailed beta changelog history is archived in [CHANGELOG-BETA.md](https://github.com/qtremors/arcile/blob/9af343e9e619d06cd14e41b0dc9bd571697e26c7/beta/CHANGELOG-BETA.md).

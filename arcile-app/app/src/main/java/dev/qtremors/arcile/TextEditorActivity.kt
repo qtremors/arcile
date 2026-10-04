@@ -16,8 +16,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.texteditor.StandaloneTextEditor
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemePreferences
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import java.io.File
@@ -25,7 +25,7 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 open class TextEditorActivity : ComponentActivity() {
-    private val themePreferences by lazy { ThemePreferences(applicationContext) }
+    private val uiPreferencesStore by lazy { UiPreferencesStore(applicationContext) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,10 +43,10 @@ open class TextEditorActivity : ComponentActivity() {
         }
 
         setContent {
-            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
-                initialValue = ThemeState()
+            val uiPreferences by uiPreferencesStore.uiPreferences.collectAsStateWithLifecycle(
+                initialValue = UiPreferences()
             )
-            ArcileTheme(themeState = themeState) {
+            ArcileTheme(uiPreferences = uiPreferences) {
                 StandaloneTextEditor(
                     reference = target.reference,
                     title = target.displayName,

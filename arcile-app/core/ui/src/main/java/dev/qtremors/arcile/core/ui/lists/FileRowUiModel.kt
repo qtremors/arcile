@@ -30,7 +30,7 @@ data class FileRowUiModel(
     val thumbnailSizePx: Int,
     val thumbnailKey: ThumbnailKey
 ) {
-    val absolutePath: String get() = file.absolutePath
+    val absolutePath: String get() = file.reference
     val isDirectory: Boolean get() = file.isDirectory
 }
 
@@ -97,7 +97,7 @@ fun FileModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any? {
         ThumbnailType.Pdf,
         ThumbnailType.Apk -> key
         ThumbnailType.Image -> nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
-            ?: File(absolutePath)
+            ?: File(reference)
         ThumbnailType.Unsupported -> null
     }
 }
@@ -105,7 +105,7 @@ fun FileModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any? {
 fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any =
     file.thumbnailRequestData(archiveThumbnailData)
         ?: file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
-        ?: File(file.absolutePath)
+        ?: File(file.reference)
 
 @Composable
 fun FileRowUiModel.displaySubtitle(): String {
@@ -113,9 +113,8 @@ fun FileRowUiModel.displaySubtitle(): String {
         return subtitle.ifBlank { formatFileSize(LocalContext.current, file.size) }
     }
     val stats = folderStats
-    if (stats == null || stats.status == FolderStatsStatus.Unavailable) {
-        return stringResource(R.string.folder_label)
-    }
+    if (stats == null) return stringResource(R.string.folder_stats_pending)
+    if (stats.status == FolderStatsStatus.Unavailable) return stringResource(R.string.folder_stats_unavailable)
     val filesLabel = pluralStringResource(
         R.plurals.folder_stats_files,
         stats.fileCount.toInt(),

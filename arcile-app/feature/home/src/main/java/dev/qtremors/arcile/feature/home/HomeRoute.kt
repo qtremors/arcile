@@ -57,7 +57,7 @@ fun HomeRoute(
             navigateToRecentFiles = { onDestination(HomeDestination.RecentFiles) },
             navigateToQuickAccess = { onDestination(HomeDestination.QuickAccess) },
             navigateToExternalFolder = { item ->
-                onDestination(HomeDestination.ExternalFolder(item.path))
+                onDestination(HomeDestination.ExternalFolder(item.targetReference))
             },
             openStorageDashboard = { onDestination(HomeDestination.StorageDashboard(it)) },
             navigateToCleaner = { onDestination(HomeDestination.Cleaner) },
@@ -66,7 +66,7 @@ fun HomeRoute(
         ),
         contentIntents = HomeContentIntents(
             refresh = { viewModel.loadHomeData(HomeRefreshMode.MANUAL) },
-            resumeRefresh = { viewModel.loadHomeData(HomeRefreshMode.SILENT) },
+            resumeRefresh = viewModel::resumeHomeData,
             shareRecentFile = { path ->
                 onDestination(HomeDestination.ShareRecentFile(path, state.displayState.todayRecentFiles))
             },

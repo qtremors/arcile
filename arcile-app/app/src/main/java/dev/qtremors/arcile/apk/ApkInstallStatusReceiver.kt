@@ -33,11 +33,23 @@ class ApkInstallStatusReceiver : BroadcastReceiver() {
                 @Suppress("DEPRECATION")
                 intent.getParcelableExtra(Intent.EXTRA_INTENT)
             }
-            confirmIntent?.let {
-                it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(it)
+            if (confirmIntent == null) {
+                runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
+                PackageInstallerEngine.onInstallationResult(
+                    sessionId, PackageInstaller.STATUS_FAILURE_ABORTED, null, packageName
+                )
+                return
             }
             PackageInstallerEngine.onUserConfirmationRequested(sessionId)
+            try {
+                confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(confirmIntent)
+            } catch (_: Exception) {
+                runCatching { context.packageManager.packageInstaller.abandonSession(sessionId) }
+                PackageInstallerEngine.onInstallationResult(
+                    sessionId, PackageInstaller.STATUS_FAILURE_BLOCKED, null, packageName
+                )
+            }
             return
         }
 

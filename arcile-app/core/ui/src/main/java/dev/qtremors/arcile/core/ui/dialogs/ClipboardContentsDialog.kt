@@ -86,10 +86,10 @@ fun ClipboardContentsDialog(
                         .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(state.files, key = { it.absolutePath }) { file ->
+                    items(state.files, key = { it.reference }) { file ->
                         ClipboardFileItem(
                             file = file,
-                            onRemove = { onRemoveItem(file.absolutePath) }
+                            onRemove = { onRemoveItem(file.reference) }
                         )
                     }
                 }

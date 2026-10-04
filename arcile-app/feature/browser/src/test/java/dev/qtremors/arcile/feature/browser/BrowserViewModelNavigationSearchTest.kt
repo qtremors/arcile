@@ -2,7 +2,7 @@ package dev.qtremors.arcile.feature.browser
 
 import androidx.lifecycle.SavedStateHandle
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
@@ -28,7 +28,7 @@ class BrowserViewModelNavigationSearchTest {
     @Test
     fun `hidden files can be toggled from the browser`() = runTest(mainDispatcherRule.dispatcher) {
         val preferences = FakeFilePreferencesStore(
-            BrowserPreferences(showHiddenFiles = false)
+            SharedFilePreferences(showHiddenFiles = false)
         )
         val viewModel = createViewModel(
             repository = BrowserFakeFileRepository(),
@@ -51,7 +51,7 @@ class BrowserViewModelNavigationSearchTest {
         val internal = browserVolume("primary", "Internal", "/storage/emulated/0", isPrimary = true)
         val sd = browserVolume("sd", "SD Card", "/storage/1234-5678", isPrimary = false, isRemovable = true)
         val preferences = FakeFilePreferencesStore(
-            BrowserPreferences(
+            SharedFilePreferences(
                 globalPresentation = FileListingPreferences(sortOption = FileSortOption.NAME_ASC),
                 pathPresentationOptions = mapOf(
                     "/" to FileListingPreferences(sortOption = FileSortOption.SIZE_LARGEST)

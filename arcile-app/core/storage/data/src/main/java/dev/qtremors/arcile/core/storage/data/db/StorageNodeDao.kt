@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.storage.data.db
 import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Upsert
+import androidx.room.Transaction
 
 @Dao
 interface StorageNodeDao {
@@ -38,6 +39,12 @@ interface StorageNodeDao {
 
     @Query("DELETE FROM storage_nodes WHERE parent_path = :parentPath")
     suspend fun deleteChildren(parentPath: String)
+
+    @Transaction
+    suspend fun replaceChildren(parentPath: String, nodes: List<StorageNodeEntity>) {
+        deleteChildren(parentPath)
+        upsert(nodes)
+    }
 
     @Query(
         """

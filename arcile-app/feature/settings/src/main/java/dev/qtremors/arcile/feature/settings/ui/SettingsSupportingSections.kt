@@ -66,10 +66,11 @@ internal fun SettingsPluginSection(onOpen: () -> Unit) {
 internal fun SettingsBackupSection(
     state: PreferencesBackupUiState,
     onExport: () -> Unit,
-    onRestore: () -> Unit
+    onRestore: () -> Unit,
+    showHeading: Boolean = true
 ) {
     val enabled = state != PreferencesBackupUiState.Busy
-    SettingsSection(title = stringResource(R.string.section_setup)) {
+    SettingsSection(title = stringResource(R.string.section_setup), showTitle = showHeading) {
         SegmentedListItem(
             onClick = { if (enabled) onExport() },
             enabled = enabled,

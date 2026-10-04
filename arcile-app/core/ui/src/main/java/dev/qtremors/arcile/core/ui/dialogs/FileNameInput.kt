@@ -13,7 +13,10 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -22,6 +25,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.keyboardInputField
@@ -73,6 +77,40 @@ fun FileNameInput(
     existingNames: Set<String> = emptySet(),
     ignoredName: String? = null,
     validationValue: String = value,
+    showValidationErrors: Boolean = true,
+    autoFocus: Boolean = false,
+    leadingIcon: ImageVector = Icons.Default.DriveFileRenameOutline,
+    onDone: () -> Unit = {}
+) {
+    var fieldValue by remember { mutableStateOf(TextFieldValue(value)) }
+    if (fieldValue.text != value) fieldValue = fieldValue.copy(text = value)
+    FileNameInput(
+        value = fieldValue,
+        onValueChange = {
+            fieldValue = it
+            if (it.text != value) onValueChange(it.text)
+        },
+        label = label,
+        modifier = modifier,
+        existingNames = existingNames,
+        ignoredName = ignoredName,
+        validationValue = validationValue,
+        showValidationErrors = showValidationErrors,
+        autoFocus = autoFocus,
+        leadingIcon = leadingIcon,
+        onDone = onDone
+    )
+}
+
+@Composable
+fun FileNameInput(
+    value: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    existingNames: Set<String> = emptySet(),
+    ignoredName: String? = null,
+    validationValue: String = value.text,
     showValidationErrors: Boolean = true,
     autoFocus: Boolean = false,
     leadingIcon: ImageVector = Icons.Default.DriveFileRenameOutline,

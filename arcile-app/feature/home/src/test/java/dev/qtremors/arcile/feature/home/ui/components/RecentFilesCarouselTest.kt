@@ -11,7 +11,7 @@ class RecentFilesCarouselTest {
     fun `home recent thumbnail cache key uses rendered image variant`() {
         val file = FileModel(
             name = "shot.png",
-            absolutePath = "/storage/emulated/0/Pictures/Screenshots/shot.png",
+            reference = "/storage/emulated/0/Pictures/Screenshots/shot.png",
             size = 42_000L,
             lastModified = 1_234L,
             isDirectory = false,

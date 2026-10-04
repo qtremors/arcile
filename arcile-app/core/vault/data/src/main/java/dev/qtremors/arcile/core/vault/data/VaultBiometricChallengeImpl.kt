@@ -22,6 +22,7 @@ internal class VaultBiometricChallengeImpl(
             completion()
             Result.success(Unit)
         } catch (error: Throwable) {
+            if (error is kotlinx.coroutines.CancellationException) throw error
             Result.failure(error)
         } finally {
             secretToClear?.fill(0)

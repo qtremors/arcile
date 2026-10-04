@@ -49,7 +49,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -88,12 +87,12 @@ internal fun TextEditorTopChrome(
             modifier = Modifier
                 .weight(1f)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.62f))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             Text(
                 text = title,
-                color = Color.White,
+                color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
@@ -107,7 +106,7 @@ internal fun TextEditorTopChrome(
                     isDirty -> stringResource(R.string.text_editor_unsaved_changes)
                     else -> stringResource(R.string.text_editor_saved)
                 },
-                color = Color.White.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1
             )
@@ -151,7 +150,7 @@ internal fun TextEditorBottomChrome(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(20.dp))
-                    .background(Color.Black.copy(alpha = 0.62f))
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                     .horizontalScroll(rememberScrollState())
                     .padding(8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -167,8 +166,8 @@ internal fun TextEditorBottomChrome(
                         ToolbarAction(Icons.Default.InsertLink, stringResource(R.string.text_editor_format_link)) { onFormat("[", "](url)") },
                         ToolbarAction(Icons.Default.HorizontalRule, stringResource(R.string.text_editor_format_hr)) { onFormat("\n---\n", "") }
                     ),
-                    containerColor = Color.Black.copy(alpha = 0.5f),
-                    contentColor = Color.White,
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
                     height = 40.dp,
                     minWidth = 40.dp,
                     iconSize = 20.dp
@@ -180,7 +179,7 @@ internal fun TextEditorBottomChrome(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color.Black.copy(alpha = 0.62f))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -208,7 +207,7 @@ internal fun TextEditorBottomChrome(
                             ToolbarAction(
                                 icon = Icons.AutoMirrored.Filled.Undo,
                                 contentDescription = stringResource(R.string.text_editor_undo),
-                                tint = if (canUndo) Color.White else Color.White.copy(alpha = 0.35f),
+                                tint = if (canUndo) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                                 onClick = { if (canUndo) onUndo() }
                             )
                         )
@@ -216,7 +215,7 @@ internal fun TextEditorBottomChrome(
                             ToolbarAction(
                                 icon = Icons.AutoMirrored.Filled.Redo,
                                 contentDescription = stringResource(R.string.text_editor_redo),
-                                tint = if (canRedo) Color.White else Color.White.copy(alpha = 0.35f),
+                                tint = if (canRedo) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                                 onClick = { if (canRedo) onRedo() }
                             )
                         )
@@ -224,7 +223,7 @@ internal fun TextEditorBottomChrome(
                             ToolbarAction(
                                 icon = Icons.Default.Save,
                                 contentDescription = stringResource(R.string.text_editor_save),
-                                tint = if (isDirty && !isSaving) Color.White else Color.White.copy(alpha = 0.35f),
+                                tint = if (isDirty && !isSaving) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
                                 onClick = { if (isDirty && !isSaving) onSave() }
                             )
                         )
@@ -233,8 +232,8 @@ internal fun TextEditorBottomChrome(
                 if (actions.isNotEmpty()) {
                     SplitButtonGroup(
                         actions = actions,
-                        containerColor = Color.Black.copy(alpha = 0.5f),
-                        contentColor = Color.White,
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
                         height = 48.dp,
                         minWidth = 48.dp,
                         iconSize = 24.dp
@@ -280,7 +279,7 @@ internal fun TextEditorBottomChrome(
             }
             Text(
                 text = androidx.compose.ui.res.pluralStringResource(R.plurals.text_editor_stats_format, lines, lines, words, chars),
-                color = Color.White.copy(alpha = 0.72f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.align(Alignment.CenterHorizontally)
             )
@@ -296,13 +295,13 @@ private fun ViewerIconButton(
 ) {
     Surface(
         shape = CircleShape,
-        color = Color.Black.copy(alpha = 0.62f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier
             .size(48.dp)
             .bounceClickable(onClick = onClick)
     ) {
         Box(contentAlignment = Alignment.Center) {
-            Icon(icon, contentDescription = description, tint = Color.White, modifier = Modifier.size(24.dp))
+            Icon(icon, contentDescription = description, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(24.dp))
         }
     }
 }

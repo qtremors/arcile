@@ -148,7 +148,7 @@ internal fun RecentSelectionToolbar(
                                 if (selectedFiles.size == 1) {
                                     add {
                                         ArcileDropdownMenuItem(
-                                            text = { Text(stringResource(R.string.image_gallery_open_with)) },
+                                            text = { Text(stringResource(R.string.viewer_open_with)) },
                                             leadingIcon = {
                                                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                                             },

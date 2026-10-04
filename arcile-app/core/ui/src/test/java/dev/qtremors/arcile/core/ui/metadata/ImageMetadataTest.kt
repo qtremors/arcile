@@ -13,7 +13,7 @@ import org.robolectric.annotation.Config
 class ImageMetadataTest {
     @Test
     fun `detail rows include content uri image metadata`() {
-        val metadata = ImageFileMetadata(
+        val metadata = VisualMediaMetadata(
             path = "content://example/photo",
             size = 4096L,
             mimeType = "image/jpeg",
@@ -35,7 +35,7 @@ class ImageMetadataTest {
             altitude = null
         )
 
-        val rows = buildImageMetadataDetailRows(
+        val rows = buildMediaMetadataDetailRows(
             title = "photo.jpg",
             reference = "content://example/photo",
             size = 4096L,
@@ -61,7 +61,7 @@ class ImageMetadataTest {
 
     @Test
     fun `detail rows omit resolution when metadata is missing`() {
-        val rows = buildImageMetadataDetailRows(
+        val rows = buildMediaMetadataDetailRows(
             title = "photo",
             reference = "/storage/emulated/0/photo",
             size = 0L,
@@ -81,14 +81,14 @@ class ImageMetadataTest {
 
     @Test
     fun `aspect ratio is reduced using exact dimensions`() {
-        assertEquals("16:9", formatImageAspectRatio(3840, 2160))
-        assertEquals("9:16", formatImageAspectRatio(1080, 1920))
-        assertEquals("1053:317", formatImageAspectRatio(1053, 317))
-        assertNull(formatImageAspectRatio(0, 1080))
+        assertEquals("16:9", formatMediaAspectRatio(3840, 2160))
+        assertEquals("9:16", formatMediaAspectRatio(1080, 1920))
+        assertEquals("1053:317", formatMediaAspectRatio(1053, 317))
+        assertNull(formatMediaAspectRatio(0, 1080))
     }
 }
 
-private val labels = ImageMetadataDetailLabels(
+private val labels = MediaMetadataDetailLabels(
     title = "Title",
     date = "Date",
     dateTaken = "Date taken",
@@ -101,5 +101,5 @@ private val labels = ImageMetadataDetailLabels(
     aspectRatio = "Aspect ratio"
 )
 
-private fun List<ImageMetadataDetailRow>.valueFor(label: String): String? =
+private fun List<MediaMetadataDetailRow>.valueFor(label: String): String? =
     firstOrNull { it.label == label }?.value

@@ -12,6 +12,41 @@ import org.junit.Assert.assertSame
 import org.junit.Test
 
 class BrowserDisplayStateTest {
+    @Test
+    fun `folder size updates reuse ordering and only replace the affected active row`() {
+        val folder = file("folder", "/folder", isDirectory = true)
+        val plain = file("one.txt", "/one.txt")
+        val initial = BrowserNavigationState().withValues(files = listOf(folder, plain).toPersistentList(),
+            browserViewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.LIST).withUpdatedDisplayState()
+        val updated = initial.withValues(folderStatsByPath = kotlinx.collections.immutable.persistentMapOf(
+            folder.reference to FolderStats(2, 20, 2, FolderStatsStatus.Ready)
+        )).withUpdatedDisplayState(setOf(folder.reference))
+        assertSame(initial.displayState.visibleFiles, updated.displayState.visibleFiles)
+        assertSame(initial.displayState.visiblePaths, updated.displayState.visiblePaths)
+        assertSame(initial.displayState.visibleListRows[1], updated.displayState.visibleListRows[1])
+        org.junit.Assert.assertNotSame(initial.displayState.visibleListRows[0], updated.displayState.visibleListRows[0])
+        org.junit.Assert.assertTrue(updated.displayState.visibleGridRows.isEmpty())
+        val grid = updated.withValues(browserViewMode = dev.qtremors.arcile.core.storage.domain.FileViewMode.GRID).withUpdatedDisplayState()
+        assertEquals(2, grid.displayState.visibleGridRows.size)
+        assertEquals(0, grid.displayState.visibleListRows.size)
+    }
+
+    @Test
+    fun `file count updates deliberately reorder folder rows`() {
+        val a = file("a", "/a", isDirectory = true)
+        val b = file("b", "/b", isDirectory = true)
+        val initial = BrowserNavigationState().withValues(files = listOf(a, b).toPersistentList(),
+            browserSortOption = FileSortOption.FILE_COUNT_HIGHEST,
+            folderStatsByPath = kotlinx.collections.immutable.persistentMapOf(
+                "/a" to FolderStats(2, 20, 2, FolderStatsStatus.Ready),
+                "/b" to FolderStats(1, 10, 1, FolderStatsStatus.Ready)
+            )).withUpdatedDisplayState()
+        val updated = initial.withValues(folderStatsByPath = initial.folderStatsByPath.put(
+            "/b", FolderStats(3, 30, 3, FolderStatsStatus.Ready)
+        )).withUpdatedDisplayState(setOf("/b"))
+        assertEquals(listOf("a", "b"), initial.displayState.visibleFiles.map { it.name })
+        assertEquals(listOf("b", "a"), updated.displayState.visibleFiles.map { it.name })
+    }
 
     @Test
     fun `display state sorts visible files and exposes visible paths`() {
@@ -33,7 +68,7 @@ class BrowserDisplayStateTest {
         )
 
         assertEquals(listOf("alpha", "beta.txt", "zeta.txt"), display.visibleFiles.map { it.name })
-        assertEquals(display.visibleFiles.map { it.absolutePath }, display.visiblePaths)
+        assertEquals(display.visibleFiles.map { it.reference }, display.visiblePaths)
         assertEquals(setOf("alpha", "beta.txt", "zeta.txt"), display.existingNames)
         assertEquals("primary", display.currentVolume?.id)
     }
@@ -111,7 +146,7 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(files.first().absolutePath to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
+            folderStatsByPath = mapOf(files.first().reference to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
         )
 
         val updated = buildBrowserDisplayState(
@@ -123,7 +158,7 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(files.first().absolutePath to FolderStats(1, 10, 1, FolderStatsStatus.Ready)),
+            folderStatsByPath = mapOf(files.first().reference to FolderStats(1, 10, 1, FolderStatsStatus.Ready)),
             previousDisplayState = initial
         )
 
@@ -146,7 +181,7 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(folder.absolutePath to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
+            folderStatsByPath = mapOf(folder.reference to FolderStats(1, 10, 1, FolderStatsStatus.Ready))
         )
 
         val updated = buildBrowserDisplayState(
@@ -158,11 +193,11 @@ class BrowserDisplayStateTest {
             storageVolumes = emptyList(),
             showHiddenFiles = true,
             allFilesLabel = "All files",
-            folderStatsByPath = mapOf(folder.absolutePath to FolderStats(2, 20, 2, FolderStatsStatus.Ready)),
+            folderStatsByPath = mapOf(folder.reference to FolderStats(2, 20, 2, FolderStatsStatus.Ready)),
             previousDisplayState = initial
         )
 
-        assertEquals(folder.absolutePath, updated.visibleListRows[0].absolutePath)
+        assertEquals(folder.reference, updated.visibleListRows[0].absolutePath)
         assertSame(initial.visibleListRows[1], updated.visibleListRows[1])
         assertSame(initial.visibleGridRows[1], updated.visibleGridRows[1])
         org.junit.Assert.assertNotSame(initial.visibleListRows[0], updated.visibleListRows[0])
@@ -209,7 +244,7 @@ class BrowserDisplayStateTest {
         isHidden: Boolean = false
     ) = FileModel(
         name = name,
-        absolutePath = path,
+        reference = path,
         size = size,
         lastModified = size,
         isDirectory = isDirectory,

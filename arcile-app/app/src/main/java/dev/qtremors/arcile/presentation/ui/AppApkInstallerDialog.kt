@@ -46,9 +46,10 @@ internal fun AppApkInstallerDialog(
     val currentInstallState by rememberUpdatedState(installState)
 
     LaunchedEffect(target) {
-        PackageInstallerEngine.resetState()
-        withContext(Dispatchers.IO) {
-            details = target.contentUri?.let { contentUri ->
+        val targetKey = "${target.path}|${target.contentUri}|${target.splitPaths}"
+        PackageInstallerEngine.prepareTarget(targetKey)
+        details = PackageInstallerEngine.preparedDetails(targetKey) ?: withContext(Dispatchers.IO) {
+            target.contentUri?.let { contentUri ->
                 ApkPackageParser.parseContentUri(
                     context = context,
                     contentUri = contentUri,
@@ -56,15 +57,16 @@ internal fun AppApkInstallerDialog(
                 )
             } ?: ApkPackageParser.parse(context, target.path, target.splitPaths)
         }
+        PackageInstallerEngine.rememberPreparedDetails(targetKey, details)
     }
 
     // Auto-detect permission grant when returning from Android Settings
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                PackageInstallerEngine.reconcileSession(context)
                 if (PackageInstallerEngine.canRequestPackageInstalls(context)) {
                     if (currentInstallState is ApkInstallState.UnknownAppSourcesPermissionRequired) {
-                        PackageInstallerEngine.resetState()
                         currentDetails?.let { pkg ->
                             PackageInstallerEngine.installPackage(context, pkg)
                         }
@@ -75,13 +77,6 @@ internal fun AppApkInstallerDialog(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    DisposableEffect(target) {
-        onDispose {
-            PackageInstallerEngine.resetState()
-            ApkPackageParser.cleanupStaging(context, currentDetails)
         }
     }
 

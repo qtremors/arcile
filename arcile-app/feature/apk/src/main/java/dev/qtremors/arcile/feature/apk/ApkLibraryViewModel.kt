@@ -76,7 +76,7 @@ internal class ApkLibraryViewModel @Inject constructor(
             presentApks(
                 state.copy(
                     allFiles = state.allFiles.filterNot {
-                        normalizeStoragePath(it.absolutePath) in removed
+                        normalizeStoragePath(it.reference) in removed
                     },
                     selectedPaths = state.selectedPaths.filterNot {
                         normalizeStoragePath(it) in removed
@@ -145,7 +145,7 @@ internal class ApkLibraryViewModel @Inject constructor(
                 _state.update {
                     presentApks(
                         it.copy(
-                            allFiles = files.distinctBy { file -> file.absolutePath },
+                            allFiles = files.distinctBy { file -> file.reference },
                             isLoading = false,
                             error = null
                         )
@@ -185,10 +185,10 @@ internal class ApkLibraryViewModel @Inject constructor(
 
     fun clearSelection() = _state.update { it.copy(selectedPaths = emptySet()) }
 
-    fun selectAll() = _state.update { it.copy(selectedPaths = it.files.mapTo(mutableSetOf()) { file -> file.absolutePath }) }
+    fun selectAll() = _state.update { it.copy(selectedPaths = it.files.mapTo(mutableSetOf()) { file -> file.reference }) }
 
     fun invertSelection() = _state.update {
-        val visible = it.files.mapTo(mutableSetOf()) { file -> file.absolutePath }
+        val visible = it.files.mapTo(mutableSetOf()) { file -> file.reference }
         it.copy(selectedPaths = visible - it.selectedPaths)
     }
 

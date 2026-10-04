@@ -41,7 +41,7 @@ data class ThumbnailKey(
     companion object {
         fun from(file: FileModel): ThumbnailKey =
             ThumbnailKey(
-                path = file.absolutePath,
+                path = file.reference,
                 extension = file.extension.lowercase(),
                 sizeBytes = file.size,
                 lastModifiedMillis = file.lastModified,

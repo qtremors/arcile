@@ -37,7 +37,7 @@ internal fun NavBackStackEntry.toActivityPageVisit(): ActivityPageVisit? {
         "RecentFiles" -> ActivityPageVisit(ActivityLogPage.RECENT_FILES)
         "ImageGallery" -> ActivityPageVisit(
             ActivityLogPage.IMAGE_GALLERY,
-            runCatching { toRoute<AppRoutes.ImageGallery>().categoryId }.getOrNull()
+            runCatching { toRoute<AppRoutes.MediaGallery>().categoryId }.getOrNull()
         )
         "ImageViewer" -> ActivityPageVisit(
             ActivityLogPage.IMAGE_VIEWER,

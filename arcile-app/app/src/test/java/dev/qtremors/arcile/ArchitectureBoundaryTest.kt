@@ -40,7 +40,7 @@ class ArchitectureBoundaryTest {
             "audio",
             "browser",
             "home",
-            "imagegallery",
+            "gallery",
             "videoplayer",
             "importing",
             "settings",
@@ -506,9 +506,9 @@ class ArchitectureBoundaryTest {
             "documents.registerDocumentLibraryRoute",
             "home.HomeDestination",
             "home.HomeRoute",
-            "imagegallery.GalleryDestination",
-            "imagegallery.registerImageGalleryRoute",
-            "imagegallery.registerImageViewerRoute",
+            "gallery.GalleryDestination",
+            "gallery.registerMediaGalleryRoute",
+            "gallery.registerImageViewerRoute",
             "videoplayer.registerVideoViewerRoute",
             "onboarding.OnboardingRoute",
             "onlyfiles.registerOnlyFilesRoute",
@@ -741,7 +741,7 @@ class ArchitectureBoundaryTest {
             "feature/home",
             "feature/import",
             "feature/settings",
-            "feature/imagegallery",
+            "feature/gallery",
             "feature/videoplayer",
             "feature/onboarding",
             "feature/plugins",
@@ -912,7 +912,7 @@ class ArchitectureBoundaryTest {
         )
 
         val LARGE_FILE_BASELINE = mapOf(
-            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/BrowserPreferencesDataSource.kt" to 800,
+            "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/FilePreferencesDataSource.kt" to 800,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1150,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800,
             "arcile-app/feature/videoplayer/src/main/java/dev/qtremors/arcile/feature/videoplayer/VideoViewerPlaybackSurface.kt" to 800

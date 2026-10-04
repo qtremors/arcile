@@ -35,6 +35,7 @@ interface FolderStatsStore {
     fun observeUpdates(): Flow<FolderStatUpdate>
     fun queue(paths: List<String>)
     suspend fun invalidate(paths: Collection<String>)
+    suspend fun invalidateAll() = clear()
     suspend fun clear()
 }
 
@@ -64,6 +65,7 @@ class DefaultFolderStatsStore @Inject constructor(
     }
 
     private val memoryCache = ConcurrentHashMap<String, FolderStats>()
+    private val refreshedThisSession = ConcurrentHashMap.newKeySet<String>()
     private val queuedPaths = ConcurrentHashMap.newKeySet<String>()
     private val activeJobs = ConcurrentHashMap<String, Job>()
     private val retryCounts = ConcurrentHashMap<String, Int>()
@@ -81,7 +83,7 @@ class DefaultFolderStatsStore @Inject constructor(
         val missedPaths = mutableListOf<String>()
         normalizedPaths.forEach { path ->
             memoryCache[path]?.let {
-                result[path] = it
+                result[path] = staleUntilRefreshed(path, it)
                 return@forEach
             }
             missedPaths += path
@@ -89,7 +91,7 @@ class DefaultFolderStatsStore @Inject constructor(
 
         if (missedPaths.isNotEmpty()) {
             folderStatsDao.get(missedPaths).forEach { entity ->
-                val stats = entity.toDomain()
+                val stats = staleUntilRefreshed(entity.path, entity.toDomain())
                 memoryCache[entity.path] = stats
                 result[entity.path] = stats
             }
@@ -111,11 +113,18 @@ class DefaultFolderStatsStore @Inject constructor(
                     try {
                         storageWorkCoordinator.awaitLowPrioritySlot()
                         onCalculationStarted?.invoke(path)
-                        val stats = calculate(path)
+                        val calculated = calculate(path)
+                        // A failed refresh must not erase the last usable counts, including after restart.
+                        val previous = if (calculated.status == FolderStatsStatus.Unavailable) {
+                            getCached(listOf(path))[path]
+                        } else null
+                        val stats = previous?.takeIf { it.status != FolderStatsStatus.Unavailable }
+                            ?.copy(cachedAt = 0L) ?: calculated
                         beforePublish?.invoke(path)
                         val currentGeneration = pathGenerations[path] ?: 0L
 
                         if (currentGeneration == generation) {
+                            refreshedThisSession.add(path)
                             memoryCache[path] = stats
                             persist(path, stats)
                             updates.emit(FolderStatUpdate(path, stats))
@@ -142,12 +151,21 @@ class DefaultFolderStatsStore @Inject constructor(
             nextGeneration(path)
             activeJobs.remove(path)?.cancel()
             queuedPaths.remove(path)
-            memoryCache.remove(path)
-            runCatchingPreservingCancellation { folderStatsDao.delete(listOf(path)) }
+            memoryCache.computeIfPresent(path) { _, stats -> stats.copy(cachedAt = 0L) }
+            runCatchingPreservingCancellation { folderStatsDao.markStale(listOf(path)) }
                 .onFailure { error ->
-                    AppLogger.w("FolderStatsStore", "Failed to delete folder stats cache for $path", error)
+                    AppLogger.w("FolderStatsStore", "Failed to mark folder stats stale for $path", error)
                 }
         }
+    }
+
+    override suspend fun invalidateAll() = withContext(dispatchers.io) {
+        (activeJobs.keys + memoryCache.keys).forEach(::nextGeneration)
+        activeJobs.values.forEach { it.cancel() }
+        activeJobs.clear()
+        queuedPaths.clear()
+        memoryCache.replaceAll { _, stats -> stats.copy(cachedAt = 0L) }
+        folderStatsDao.markAllStale()
     }
 
     override suspend fun clear() {
@@ -156,6 +174,7 @@ class DefaultFolderStatsStore @Inject constructor(
             activeJobs.clear()
             queuedPaths.clear()
             memoryCache.clear()
+            refreshedThisSession.clear()
             retryCounts.clear()
             pathGenerations.clear()
             runCatchingPreservingCancellation { folderStatsDao.clear() }
@@ -201,6 +220,13 @@ class DefaultFolderStatsStore @Inject constructor(
 
     private fun normalizePath(path: String): String =
         path.trimEnd('/', File.separatorChar).ifEmpty { path }
+
+    private fun staleUntilRefreshed(path: String, stats: FolderStats): FolderStats =
+        if (path !in refreshedThisSession && stats.cachedAt != 0L) {
+            stats.copy(cachedAt = 0L)
+        } else {
+            stats
+        }
 
     override fun close() {
         workerScope.cancel()

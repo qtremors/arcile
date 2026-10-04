@@ -56,7 +56,7 @@ import dev.qtremors.arcile.AppLaunchMode
 import dev.qtremors.arcile.navigation.AppRoutes
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
@@ -67,6 +67,7 @@ import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.ui.LocalKeepAppBarsCollapsed
+import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
 
 private val FeedbackAboveActionsPadding = 88.dp
 
@@ -74,8 +75,8 @@ private val FeedbackAboveActionsPadding = 88.dp
 @Composable
 fun ArcileAppShell(
     appLaunchContext: AppLaunchContext,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onOpenFile: (String) -> Unit,
     onOpenFileWith: (String) -> Unit,
     onRecordFileOpened: (String) -> Unit,
@@ -93,6 +94,9 @@ fun ArcileAppShell(
         mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
     }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
+    val audioLibraryIsCurrent = AppRoutes.AudioLibrary::class.qualifiedName?.let { route ->
+        navBackStackEntry?.destination?.route?.startsWith(route)
+    } == true
     val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
 
@@ -159,46 +163,58 @@ fun ArcileAppShell(
 
     CompositionLocalProvider(LocalKeepAppBarsCollapsed provides keepAppBarsCollapsed) {
         androidx.compose.animation.SharedTransitionLayout {
-            Scaffold(
-                snackbarHost = {
-                    ArcileSnackbarHost(
-                        hostState = snackbarHostState,
-                        modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
-                        severityFor = { currentFeedbackSeverity }
-                    )
-                },
-                containerColor = Color.Transparent,
-                contentWindowInsets = WindowInsets(0, 0, 0, 0)
-            ) { padding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                ) {
-                    AppNavigationGraph(
-                        navController = navController,
-                        currentThemeState = currentThemeState,
-                        onThemeChange = onThemeChange,
-                        onOpenFile = onOpenFile,
-                        onOpenFileWith = onOpenFileWith,
-                        onRecordFileOpened = onRecordFileOpened,
-                        onRecordPageVisited = onRecordPageVisited,
-                        fileOpenBehaviors = fileOpenBehaviors,
-                        appStartPage = appStartPage ?: AppStartPage.HOME,
-                        onAppStartPageChange = onAppStartPageChange,
-                        onRestartApp = onRestartApp,
-                        enableStartupUpdateCheck = appLaunchContext.mode == AppLaunchMode.ColdLauncher &&
-                            !isColdLaunchResetting,
-                        onFeedback = emitOwnedFeedback
-                    )
-                    if (isColdLaunchResetting) {
-                        Surface(
-                            modifier = Modifier.fillMaxSize(),
-                            color = MaterialTheme.colorScheme.background,
-                            content = {}
+            CompositionLocalProvider(
+                AudioFeatureEntryPoint.LocalSharedTransitionScope provides this@SharedTransitionLayout
+            ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                Scaffold(
+                    bottomBar = {
+                        if (!audioLibraryIsCurrent) {
+                            AudioFeatureEntryPoint.MiniPlayer(this@SharedTransitionLayout)
+                        }
+                    },
+                    snackbarHost = {
+                        ArcileSnackbarHost(
+                            hostState = snackbarHostState,
+                            modifier = Modifier.padding(bottom = FeedbackAboveActionsPadding),
+                            severityFor = { currentFeedbackSeverity }
                         )
+                    },
+                    containerColor = Color.Transparent,
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0)
+                ) { padding ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding)
+                    ) {
+                        AppNavigationGraph(
+                            navController = navController,
+                            currentUiPreferences = currentUiPreferences,
+                            onThemeChange = onThemeChange,
+                            onOpenFile = onOpenFile,
+                            onOpenFileWith = onOpenFileWith,
+                            onRecordFileOpened = onRecordFileOpened,
+                            onRecordPageVisited = onRecordPageVisited,
+                            fileOpenBehaviors = fileOpenBehaviors,
+                            appStartPage = appStartPage ?: AppStartPage.HOME,
+                            onAppStartPageChange = onAppStartPageChange,
+                            onRestartApp = onRestartApp,
+                            enableStartupUpdateCheck = appLaunchContext.mode == AppLaunchMode.ColdLauncher &&
+                                !isColdLaunchResetting,
+                            onFeedback = emitOwnedFeedback
+                        )
+                        if (isColdLaunchResetting) {
+                            Surface(
+                                modifier = Modifier.fillMaxSize(),
+                                color = MaterialTheme.colorScheme.background,
+                                content = {}
+                            )
+                        }
                     }
                 }
+                AudioFeatureEntryPoint.ExpandedPlayer(this@SharedTransitionLayout)
+            }
             }
         }
     }

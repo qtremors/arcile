@@ -4,7 +4,7 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
 
 class DefaultRecentFilesPreferencesStore(
-    private val dataSource: BrowserPreferencesDataSource
+    private val dataSource: FilePreferencesDataSource
 ) : RecentFilesPreferencesStore {
     override val recentFilesPreferencesFlow = dataSource.recentFilesPreferencesFlow
 

@@ -14,7 +14,7 @@ class ActivityLogRowsTest {
         assertEquals(R.string.activity_log_operation_trash, "TRASH".activityLogOperationNameRes())
         assertEquals(R.string.activity_log_operation_delete, "DELETE".activityLogOperationNameRes())
         assertEquals(R.string.activity_log_operation_shred, "SHRED".activityLogOperationNameRes())
-        assertEquals(R.string.activity_log_operation_create_fake, "CREATE_FAKE".activityLogOperationNameRes())
+        assertEquals(R.string.activity_log_operation_create_synthetic, "CREATE_FAKE".activityLogOperationNameRes())
         assertEquals(R.string.activity_log_operation_extract_archive, "EXTRACT_ARCHIVE".activityLogOperationNameRes())
         assertEquals(R.string.activity_log_operation_create_archive, "CREATE_ARCHIVE".activityLogOperationNameRes())
         assertEquals(R.string.activity_log_operation_unknown, "future-operation".activityLogOperationNameRes())

@@ -18,6 +18,10 @@ import dev.qtremors.arcile.core.storage.domain.GalleryPreferences
 import dev.qtremors.arcile.core.storage.domain.GalleryPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferences
 import dev.qtremors.arcile.core.storage.domain.RecentFilesPreferencesStore
+import dev.qtremors.arcile.core.storage.domain.StorageClassificationStore
+import dev.qtremors.arcile.core.storage.domain.StorageKind
+import dev.qtremors.arcile.core.storage.domain.StorageVolume
+import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalStagingCache
 import dev.qtremors.arcile.feature.settings.ui.SettingsExternalCacheState
@@ -27,6 +31,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -37,7 +42,9 @@ internal class SettingsViewModel @Inject constructor(
     private val galleryPreferencesStore: GalleryPreferencesStore,
     private val activityLogStore: ActivityLogStore,
     private val preferencesBackupManager: PreferencesBackupGateway,
-    private val externalStagingCache: ExternalStagingCache
+    private val externalStagingCache: ExternalStagingCache,
+    private val volumeRepository: VolumeRepository,
+    private val classificationStore: StorageClassificationStore
 ) : ViewModel() {
     val browserPreferences = combine(
         browserPreferencesStore.locationPreferencesFlow,
@@ -53,6 +60,10 @@ internal class SettingsViewModel @Inject constructor(
 
     private val _externalCache = MutableStateFlow(SettingsExternalCacheState())
     val externalCache: StateFlow<SettingsExternalCacheState> = _externalCache.asStateFlow()
+
+    val storageVolumes: StateFlow<List<StorageVolume>?> = volumeRepository.observeStorageVolumes()
+        .map<List<StorageVolume>, List<StorageVolume>?> { it }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     init {
         refreshExternalCache()
@@ -88,6 +99,24 @@ internal class SettingsViewModel @Inject constructor(
                 },
                 onFailure = { _externalCache.value = _externalCache.value.copy(isBusy = false) }
             )
+        }
+    }
+
+    fun setVolumeClassification(storageKey: String, kind: StorageKind) {
+        viewModelScope.launch {
+            val volume = storageVolumes.value?.firstOrNull { it.storageKey == storageKey }
+            classificationStore.setClassification(
+                storageKey = storageKey,
+                kind = kind,
+                lastSeenName = volume?.name,
+                lastSeenPath = volume?.path
+            )
+        }
+    }
+
+    fun resetVolumeClassification(storageKey: String) {
+        viewModelScope.launch {
+            classificationStore.resetClassification(storageKey)
         }
     }
 
@@ -149,6 +178,12 @@ internal class SettingsViewModel @Inject constructor(
     fun updateFileOpenBehavior(categoryName: String, behavior: FileOpenBehavior) {
         viewModelScope.launch {
             browserPreferencesStore.updateFileOpenBehavior(categoryName, behavior)
+        }
+    }
+
+    fun removeFileOpenBehavior(key: String) {
+        viewModelScope.launch {
+            browserPreferencesStore.removeFileOpenBehavior(key)
         }
     }
 

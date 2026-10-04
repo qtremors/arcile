@@ -433,7 +433,8 @@ private fun CategorySelectionIconButton(
 @Composable
 fun CategoryNavigationBar(
     tabs: List<CategoryTabSpec>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    horizontalArrangement: Arrangement.Horizontal = Arrangement.spacedBy(8.dp)
 ) {
     Row(
         modifier = modifier
@@ -443,7 +444,7 @@ fun CategoryNavigationBar(
             )
             .padding(6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = horizontalArrangement
     ) {
         tabs.forEach { tab ->
             CategoryTabItem(tab)

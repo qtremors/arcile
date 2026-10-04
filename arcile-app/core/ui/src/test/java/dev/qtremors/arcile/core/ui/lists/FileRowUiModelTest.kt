@@ -28,7 +28,7 @@ class FileRowUiModelTest {
         val context = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
         val row = FileModel(
             name = "clip.mp4",
-            absolutePath = "/storage/emulated/0/Movies/clip.mp4",
+            reference = "/storage/emulated/0/Movies/clip.mp4",
             size = 1000,
             lastModified = 0,
             extension = "mp4",
@@ -50,7 +50,7 @@ class FileRowUiModelTest {
 
         val row = FileModel(
             name = "report.pdf",
-            absolutePath = "/storage/emulated/0/Documents/report.pdf",
+            reference = "/storage/emulated/0/Documents/report.pdf",
             size = 512,
             lastModified = 0,
             extension = "pdf",
@@ -63,9 +63,9 @@ class FileRowUiModelTest {
     @Test
     fun `supports thumbnails for pdf apk and audio rows`() {
         val rows = listOf(
-            FileModel(name = "report.pdf", absolutePath = "/storage/emulated/0/report.pdf", extension = "pdf"),
-            FileModel(name = "app.apk", absolutePath = "/storage/emulated/0/app.apk", extension = "apk"),
-            FileModel(name = "song.mp3", absolutePath = "/storage/emulated/0/song.mp3", extension = "mp3")
+            FileModel(name = "report.pdf", reference = "/storage/emulated/0/report.pdf", extension = "pdf"),
+            FileModel(name = "app.apk", reference = "/storage/emulated/0/app.apk", extension = "apk"),
+            FileModel(name = "song.mp3", reference = "/storage/emulated/0/song.mp3", extension = "mp3")
         ).map { it.toFileRowUiModel(formatter) }
 
         assertTrue(rows.all { it.canShowThumbnail })
@@ -75,7 +75,7 @@ class FileRowUiModelTest {
     fun `image rows prefer content uri request data when present`() {
         val row = FileModel(
             name = "photo.png",
-            absolutePath = "/storage/emulated/0/DCIM/photo.png",
+            reference = "/storage/emulated/0/DCIM/photo.png",
             extension = "png",
             nodeRef = StorageNodeRef.mediaStore(
                 id = 42L,
@@ -92,7 +92,7 @@ class FileRowUiModelTest {
     fun `image rows fall back to file request data without content uri`() {
         val row = FileModel(
             name = "photo.png",
-            absolutePath = "/storage/emulated/0/DCIM/photo.png",
+            reference = "/storage/emulated/0/DCIM/photo.png",
             extension = "png"
         ).toFileRowUiModel(formatter)
 
@@ -103,7 +103,7 @@ class FileRowUiModelTest {
     fun `audio rows use thumbnail key request data for content uri fetchers`() {
         val row = FileModel(
             name = "song.mp3",
-            absolutePath = "/storage/emulated/0/Music/song.mp3",
+            reference = "/storage/emulated/0/Music/song.mp3",
             extension = "mp3",
             nodeRef = StorageNodeRef.mediaStore(
                 id = 42L,
@@ -118,8 +118,8 @@ class FileRowUiModelTest {
 
     @Test
     fun `fileModel thumbnailRequestData returns null for directories and unsupported types`() {
-        val folder = FileModel(name = "Docs", absolutePath = "/storage/emulated/0/Docs", isDirectory = true)
-        val unknown = FileModel(name = "test.unknown", absolutePath = "/storage/emulated/0/test.unknown", extension = "unknown")
+        val folder = FileModel(name = "Docs", reference = "/storage/emulated/0/Docs", isDirectory = true)
+        val unknown = FileModel(name = "test.unknown", reference = "/storage/emulated/0/test.unknown", extension = "unknown")
 
         assertEquals(null, folder.thumbnailRequestData())
         assertEquals(null, unknown.thumbnailRequestData())

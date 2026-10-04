@@ -1,9 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="tool_analyze">Analyze Storage</string>
     <string name="tool_clean">Clean Junk</string>
-    <string name="tool_duplicates">Duplicates</string>
-    <string name="tool_large">Large Files</string>
     <string name="tool_onlyfiles">OnlyFiles</string>
     <string name="onlyfiles_import_notification_channel">OnlyFiles imports</string>
     <string name="onlyfiles_import_notification_title">Importing into OnlyFiles</string>

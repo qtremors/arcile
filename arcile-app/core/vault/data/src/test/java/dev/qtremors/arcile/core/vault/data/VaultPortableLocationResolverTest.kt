@@ -51,7 +51,7 @@ class VaultPortableLocationResolverTest {
         assertEquals("portable-id", identified.location.volumeId)
         assertEquals("Documents/Safe", identified.location.relativePath)
 
-        val pointer = ExternalVaultPointer(
+        val pointer = PortableVaultPointer(
             vaultId = VaultId.random().value,
             volumeId = identified.location.volumeId,
             relativePath = identified.location.relativePath,
@@ -66,7 +66,7 @@ class VaultPortableLocationResolverTest {
 
     @Test
     fun `missing volume and escaping relative paths fail without fallback`() = runTest {
-        val pointer = ExternalVaultPointer(
+        val pointer = PortableVaultPointer(
             vaultId = VaultId.random().value,
             volumeId = "gone",
             relativePath = "Safe",
@@ -82,7 +82,7 @@ class VaultPortableLocationResolverTest {
     @Test
     fun `new registry records never persist an absolute path`() {
         val registry = VaultLocationRegistry(context)
-        val pointer = ExternalVaultPointer(
+        val pointer = PortableVaultPointer(
             vaultId = VaultId.random().value,
             volumeId = "portable-id",
             relativePath = "Documents/Safe",
@@ -111,7 +111,7 @@ class VaultPortableLocationResolverTest {
     )
 }
 
-private suspend fun VaultPortableLocationResolver.resolveCatching(pointer: ExternalVaultPointer): Throwable? =
+private suspend fun VaultPortableLocationResolver.resolveCatching(pointer: PortableVaultPointer): Throwable? =
     runCatching { resolve(pointer) }.exceptionOrNull()
 
 private class MutableVolumeRepository(initial: StorageVolume) : VolumeRepository {

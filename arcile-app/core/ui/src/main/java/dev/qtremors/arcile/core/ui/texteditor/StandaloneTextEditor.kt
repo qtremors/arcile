@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,14 +31,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -58,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,17 +70,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import java.io.File
-import java.security.MessageDigest
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 enum class TextEditorMode {
     EDIT, PREVIEW
@@ -114,11 +110,13 @@ fun StandaloneTextEditor(
     val coroutineScope = rememberCoroutineScope()
     var loadState by remember(reference) { mutableStateOf<TextLoadState>(TextLoadState.Loading) }
     var loadRequest by remember { mutableIntStateOf(0) }
-    var textState by rememberSaveable(reference, stateSaver = TextFieldValue.Saver) {
-        mutableStateOf(TextFieldValue(""))
-    }
-    var sessionInitialized by rememberSaveable(reference) { mutableStateOf(false) }
-    var originalText by remember(reference) { mutableStateOf("") }
+    val session: TextEditorSession = viewModel(key = "text-editor:$reference")
+    var textState by session::text
+    var sessionInitialized by session::initialized
+    var originalText by session::original
+    var recoveryDraft by session::recoveryDraft
+    var cursorStart by rememberSaveable(reference) { mutableIntStateOf(0) }
+    var cursorEnd by rememberSaveable(reference) { mutableIntStateOf(0) }
     var mode by rememberSaveable(reference) {
         mutableStateOf(
             if (supportsMarkdownPreview && !writable) TextEditorMode.PREVIEW else TextEditorMode.EDIT
@@ -128,8 +126,8 @@ fun StandaloneTextEditor(
     var showUnsavedDialog by rememberSaveable { mutableStateOf(false) }
     var infoVisible by rememberSaveable { mutableStateOf(false) }
     var draftFailureShown by remember { mutableStateOf(false) }
-    var undoStack by remember { mutableStateOf(listOf<TextFieldValue>()) }
-    var redoStack by remember { mutableStateOf(listOf<TextFieldValue>()) }
+    var undoStack by session::undo
+    var redoStack by session::redo
     val editorScrollState = rememberScrollState()
     val previewScrollState = rememberScrollState()
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
@@ -140,42 +138,49 @@ fun StandaloneTextEditor(
         loadState = TextLoadState.Loading
         val loaded = withContext(Dispatchers.IO) {
             runCatching {
-                loadContent?.invoke() ?: readTextFileContent(context, reference)
+                val source = loadContent?.invoke() ?: readTextFileContent(context, reference)
+                if (!textFitsEditor(source)) throw TextTooLargeException()
+                val draft = if (writable && !sessionInitialized) readRecoveryDraft(context, reference) else null
+                source to draft
             }
         }
         loaded.fold(
-            onSuccess = { sourceText ->
-                originalText = sourceText
+            onSuccess = { (sourceText, restoredDraft) ->
                 if (!sessionInitialized) {
-                    val restoredDraft = if (writable) {
-                        withContext(Dispatchers.IO) {
-                            readMatchingDraft(context, reference, sourceText)
-                        }
-                    } else {
-                        null
-                    }
-                    textState = TextFieldValue(restoredDraft ?: sourceText)
+                    originalText = sourceText
+                    recoveryDraft = restoredDraft?.takeUnless { it.matches(sourceText) || it.text == sourceText }
+                    val restoredText = restoredDraft?.takeIf { it.matches(sourceText) }?.text ?: sourceText
+                    textState = TextFieldValue(restoredText, TextRange(cursorStart.coerceIn(0, restoredText.length), cursorEnd.coerceIn(0, restoredText.length)))
                     sessionInitialized = true
                 }
                 loadState = TextLoadState.Ready
             },
             onFailure = { error ->
                 if (error is CancellationException) throw error
-                loadState = TextLoadState.Failed(error.localizedMessage)
+                loadState = TextLoadState.Failed(if (error is TextTooLargeException)
+                    resources.getString(R.string.text_editor_too_large) else error.localizedMessage)
             }
         )
     }
 
-    LaunchedEffect(reference, textState.text, originalText, sessionInitialized) {
-        if (!writable || !sessionInitialized) return@LaunchedEffect
+    LaunchedEffect(textState.selection, sessionInitialized) {
+        if (sessionInitialized) {
+            cursorStart = textState.selection.start
+            cursorEnd = textState.selection.end
+        }
+    }
+
+    LaunchedEffect(reference, textState.text, originalText, sessionInitialized, isSaving, recoveryDraft) {
+        if (!writable || !sessionInitialized || isSaving || recoveryDraft != null) return@LaunchedEffect
         delay(600)
         val textToPersist = textState.text
         val draftResult = withContext(Dispatchers.IO) {
+            val draftContext = currentCoroutineContext()
             runCatching {
                 if (textToPersist != originalText) {
-                    writeDraft(context, reference, originalText, textToPersist)
+                    writeDraft(context, reference, originalText, textToPersist) { draftContext.ensureActive() }
                 } else {
-                    clearDraft(context, reference)
+                    clearMatchingDraft(context, reference, originalText) { draftContext.ensureActive() }
                 }
             }
         }
@@ -210,8 +215,12 @@ fun StandaloneTextEditor(
 
     fun updateTextWithHistory(newValue: TextFieldValue) {
         if (!writable) return
+        if (!textFitsEditor(newValue.text)) {
+            coroutineScope.launch { snackbarHostState.showSnackbar(resources.getString(R.string.text_editor_edit_limit)) }
+            return
+        }
         if (newValue.text != textState.text) {
-            undoStack = (undoStack + textState).takeLast(50)
+            undoStack = boundedEditorHistory(undoStack + textState, emptyList()).first
             redoStack = emptyList()
         }
         textState = newValue
@@ -219,30 +228,23 @@ fun StandaloneTextEditor(
 
     fun handleUndo() {
         val previous = undoStack.lastOrNull() ?: return
-        undoStack = undoStack.dropLast(1)
-        redoStack = (redoStack + textState).takeLast(50)
+        val history = boundedEditorHistory(undoStack.dropLast(1), redoStack + textState)
+        undoStack = history.first
+        redoStack = history.second
         textState = previous
     }
 
     fun handleRedo() {
         val next = redoStack.lastOrNull() ?: return
-        redoStack = redoStack.dropLast(1)
-        undoStack = (undoStack + textState).takeLast(50)
+        val history = boundedEditorHistory(undoStack + textState, redoStack.dropLast(1))
+        undoStack = history.first
+        redoStack = history.second
         textState = next
     }
 
     fun insertFormatting(prefix: String, suffix: String) {
         if (!writable) return
-        val selection = textState.selection
-        val selectedText = textState.text.substring(selection.start, selection.end)
-        val replacement = "$prefix$selectedText$suffix"
-        val newText = textState.text.replaceRange(selection.start, selection.end, replacement)
-        val cursor = if (selection.collapsed) {
-            selection.start + prefix.length
-        } else {
-            selection.start + replacement.length
-        }
-        updateTextWithHistory(TextFieldValue(newText, TextRange(cursor)))
+        updateTextWithHistory(formatEditorSelection(textState, prefix, suffix))
     }
 
     fun performSave(onSuccess: () -> Unit = {}) {
@@ -251,19 +253,26 @@ fun StandaloneTextEditor(
         isSaving = true
         coroutineScope.launch {
             val result = withContext(Dispatchers.IO) {
-                persistContent?.invoke(snapshot)
-                    ?: writeAndVerifyTextFile(context, reference, snapshot)
+                runCatching {
+                    // Preserve this snapshot durably before any provider can truncate its target.
+                    writeDraft(context, reference, originalText, snapshot)
+                    (persistContent?.invoke(snapshot)
+                        ?: writeAndVerifyTextFile(context, reference, snapshot)).getOrThrow()
+                }
             }
             isSaving = false
             result.fold(
                 onSuccess = {
                     originalText = snapshot
-                    val noNewEdits = textState.text == snapshot
                     withContext(Dispatchers.IO) {
-                        if (noNewEdits) clearDraft(context, reference)
+                        // Keep newer edits even if they arrived while publication was running.
+                        if (textState.text == snapshot) clearDraft(context, reference)
                     }
+                    val noNewEdits = textState.text == snapshot
                     coroutineScope.launch {
-                        snackbarHostState.showSnackbar(resources.getString(R.string.text_editor_save_success))
+                        val message = if (persistContent == null && reference.toUri().scheme == "content")
+                            R.string.text_editor_provider_save_success else R.string.text_editor_save_success
+                        snackbarHostState.showSnackbar(resources.getString(message))
                     }
                     if (noNewEdits) onSuccess()
                 },
@@ -284,6 +293,25 @@ fun StandaloneTextEditor(
 
     fun afterSavingIfNeeded(action: () -> Unit) {
         if (isDirty) performSave(onSuccess = action) else action()
+    }
+
+    recoveryDraft?.let { draft ->
+        AlertDialog(
+            onDismissRequest = { recoveryDraft = null },
+            title = { Text(stringResource(R.string.text_editor_recover_draft)) },
+            text = { Text(stringResource(R.string.text_editor_recover_draft_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    textState = TextFieldValue(draft.text)
+                    recoveryDraft = null
+                }) { Text(stringResource(R.string.text_editor_recover_draft)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { recoveryDraft = null }) {
+                    Text(stringResource(R.string.text_editor_keep_current))
+                }
+            }
+        )
     }
 
     Surface(
@@ -394,12 +422,7 @@ fun StandaloneTextEditor(
                     onFormat = ::insertFormatting
                 )
             }
-            AnimatedVisibility(
-                visible = infoVisible,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            if (infoVisible) {
                 TextDocumentInfoSheet(
                     title = title,
                     reference = reference,
@@ -455,19 +478,19 @@ private fun LoadFailure(
         modifier = modifier
             .padding(24.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(Color.Black.copy(alpha = 0.68f))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = stringResource(R.string.text_editor_load_failed),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         if (!message.isNullOrBlank()) {
-            Text(message, color = Color.White.copy(alpha = 0.72f), style = MaterialTheme.typography.bodySmall)
+            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
@@ -480,109 +503,18 @@ private fun LoadFailure(
     }
 }
 
-@Composable
-private fun TextDocumentInfoSheet(
-    title: String,
-    reference: String,
-    sizeBytes: Long,
-    text: String,
-    onDismiss: () -> Unit
-) {
-    val lines = remember(text) { text.lines().size }
-    val words = remember(text) { text.wordCount() }
-    val chars = remember(text) { text.length }
-    Surface(Modifier.fillMaxSize(), color = Color.Black.copy(alpha = 0.92f)) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(24.dp)
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.15f),
-                    modifier = Modifier.size(48.dp).bounceClickable(onClick = onDismiss)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = Color.White
-                        )
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    stringResource(R.string.text_editor_file_info),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.height(24.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                item {
-                    InfoCard {
-                        Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            stringResource(R.string.text_editor_path_format, reference),
-                            color = Color.White.copy(alpha = 0.72f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-                item {
-                    InfoCard {
-                        InfoRow(stringResource(R.string.text_editor_lines), lines.toString())
-                        InfoRow(stringResource(R.string.text_editor_words), words.toString())
-                        InfoRow(stringResource(R.string.text_editor_characters), chars.toString())
-                        if (sizeBytes > 0) {
-                            InfoRow(stringResource(R.string.text_editor_file_size), formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.12f)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content
-        )
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-        Text(label, color = Color.White.copy(alpha = 0.72f), style = MaterialTheme.typography.bodyMedium)
-        Text(value, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-    }
-}
-
 internal fun readTextFileContent(context: Context, reference: String): String {
     val uri = reference.toUri()
     return when (uri.scheme) {
         "content" -> context.contentResolver.openInputStream(uri)?.use {
-            it.bufferedReader().readText()
+            readBoundedText(it)
         } ?: error("Unable to open the document for reading")
         "file", null -> {
             val file = if (uri.scheme == "file") File(uri.path.orEmpty()) else File(reference)
             require(file.isFile && ExternalFileAccessHelper.isAllowedUserFile(context, file)) {
                 "Access denied or file does not exist"
             }
-            file.readText()
+            file.inputStream().use { readBoundedText(it) }
         }
         else -> error("Unsupported URI scheme ${uri.scheme}")
     }
@@ -595,6 +527,7 @@ internal fun writeAndVerifyTextFile(
 ): Result<Unit> = persistVerifiedText(
     content = content,
     write = { snapshot ->
+        writeDraft(context, reference, readTextFileContent(context, reference), snapshot)
         val uri = reference.toUri()
         when (uri.scheme) {
             "content" -> context.contentResolver.openOutputStream(uri, "wt")?.use {
@@ -609,7 +542,7 @@ internal fun writeAndVerifyTextFile(
                 ) {
                     "The file is read-only or no longer available"
                 }
-                file.writeText(snapshot)
+                persistAtomicText(file, snapshot).getOrThrow()
             }
             else -> error("Unsupported URI scheme ${uri.scheme}")
         }
@@ -624,43 +557,4 @@ internal fun persistVerifiedText(
 ): Result<Unit> = runCatching {
     write(content)
     check(read() == content) { "The provider did not persist the complete document" }
-}
-
-private fun draftFile(context: Context, reference: String): File {
-    val key = MessageDigest.getInstance("SHA-256")
-        .digest(reference.toByteArray())
-        .joinToString("") { "%02x".format(it) }
-    return File(File(context.cacheDir, "text_editor_drafts"), "$key.draft")
-}
-
-private fun contentHash(content: String): String = MessageDigest.getInstance("SHA-256")
-    .digest(content.toByteArray())
-    .joinToString("") { "%02x".format(it) }
-
-private fun readMatchingDraft(context: Context, reference: String, source: String): String? {
-    val file = draftFile(context, reference)
-    if (!file.isFile) return null
-    val saved = runCatching { file.readText() }.getOrNull() ?: return null
-    val separator = saved.indexOf('\n')
-    if (separator < 0 || saved.substring(0, separator) != contentHash(source)) {
-        file.delete()
-        return null
-    }
-    return saved.substring(separator + 1)
-}
-
-private fun writeDraft(context: Context, reference: String, source: String, draft: String) {
-    val destination = draftFile(context, reference)
-    destination.parentFile?.mkdirs()
-    val temporary = File(destination.parentFile, "${destination.name}.tmp")
-    temporary.writeText("${contentHash(source)}\n$draft")
-    if (destination.exists() && !destination.delete()) error("Unable to replace editor draft")
-    if (!temporary.renameTo(destination)) {
-        temporary.copyTo(destination, overwrite = true)
-        temporary.delete()
-    }
-}
-
-private fun clearDraft(context: Context, reference: String) {
-    draftFile(context, reference).delete()
 }

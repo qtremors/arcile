@@ -43,7 +43,7 @@ class CategoryFileActionControllerTest {
             withSelection = { current, selection -> current.copy(selection = selection) },
             withActions = { current, actions -> current.copy(actions = actions) },
             withoutPaths = { current, paths ->
-                current.copy(files = current.files.filterNot { it.absolutePath in paths })
+                current.copy(files = current.files.filterNot { it.reference in paths })
             },
             onOperationFeedback = { feedbackCount += 1 },
             reload = { reloadCount += 1 }
@@ -51,7 +51,7 @@ class CategoryFileActionControllerTest {
         val request = BulkFileOperationRequest(
             operationId = "browser-delete",
             type = BulkFileOperationType.DELETE,
-            sourcePaths = listOf(deletedFile.absolutePath),
+            sourcePaths = listOf(deletedFile.reference),
             presentationOwnerId = "browser-owner"
         )
 
@@ -71,7 +71,7 @@ class CategoryFileActionControllerTest {
 
     private fun file(path: String) = FileModel(
         name = path.substringAfterLast('/'),
-        absolutePath = path,
+        reference = path,
         extension = path.substringAfterLast('.', "")
     )
 }

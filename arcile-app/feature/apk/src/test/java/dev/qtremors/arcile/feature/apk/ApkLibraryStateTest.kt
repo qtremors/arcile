@@ -44,7 +44,7 @@ class ApkLibraryStateTest {
 
     private fun file(path: String, modified: Long) = FileModel(
         name = path.substringAfterLast('/'),
-        absolutePath = path,
+        reference = path,
         size = 1L,
         lastModified = modified,
         extension = path.substringAfterLast('.')

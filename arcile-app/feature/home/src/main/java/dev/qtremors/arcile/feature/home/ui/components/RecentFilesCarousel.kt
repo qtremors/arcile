@@ -105,7 +105,7 @@ internal fun RecentFilesCarousel(
         val file = files[index]
         RecentFileCarouselItem(
             file = file,
-            onClick = { onOpenFile(file.absolutePath) },
+            onClick = { onOpenFile(file.reference) },
             onNavigateToPath = onNavigateToPath,
             onShareFile = onShareFile,
             itemHeight = itemHeight,
@@ -133,7 +133,7 @@ internal fun RecentFileCarouselItem(
     )
     val context = LocalContext.current
     val thumbnailPolicy = remember { ThumbnailPolicy() }
-    val thumbnailKey = remember(file.absolutePath, file.lastModified, file.size) {
+    val thumbnailKey = remember(file.reference, file.lastModified, file.size) {
         ThumbnailKey.from(file)
     }
     val thumbnailSizePx = remember(renderedThumbnailSizePx, thumbnailKey.type) {
@@ -143,7 +143,7 @@ internal fun RecentFileCarouselItem(
     val thumbnailData = remember(thumbnailKey) {
         homeThumbnailRequestData(file, thumbnailKey)
     }
-    val thumbnailCacheKey = remember(file.absolutePath, file.lastModified, file.size, thumbnailSizePx) {
+    val thumbnailCacheKey = remember(file.reference, file.lastModified, file.size, thumbnailSizePx) {
         homeThumbnailCacheKey(file, thumbnailSizePx)
     }
     val thumbnailRequest = remember(thumbnailData, thumbnailSizePx, thumbnailCacheKey) {
@@ -261,7 +261,7 @@ internal fun RecentFileCarouselItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Spacer(modifier = Modifier.height(4.dp))
-                val parentFolderName = storageParentPath(file.absolutePath)
+                val parentFolderName = storageParentPath(file.reference)
                     ?.let(::storagePathName)
                     ?: stringResource(R.string.unknown_folder)
                 Text(
@@ -322,7 +322,7 @@ internal fun RecentFileCarouselItem(
                                 leadingIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
                                 onClick = {
                                     showMenu = false
-                                    storageParentPath(file.absolutePath)?.let(onNavigateToPath)
+                                    storageParentPath(file.reference)?.let(onNavigateToPath)
                                 }
                             )
                         }
@@ -332,7 +332,7 @@ internal fun RecentFileCarouselItem(
                                 leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
                                 onClick = {
                                     showMenu = false
-                                    onShareFile(file.absolutePath)
+                                    onShareFile(file.reference)
                                 }
                             )
                         }
@@ -422,8 +422,8 @@ internal fun homeThumbnailRequestData(file: FileModel, thumbnailKey: ThumbnailKe
         ThumbnailType.Image -> thumbnailKey.contentUri
             ?.takeIf { it.isNotBlank() }
             ?.let(Uri::parse)
-            ?: File(file.absolutePath)
-        ThumbnailType.Unsupported -> File(file.absolutePath)
+            ?: File(file.reference)
+        ThumbnailType.Unsupported -> File(file.reference)
     }
 
 internal fun homeThumbnailCacheKey(file: FileModel, thumbnailSizePx: Int): String =

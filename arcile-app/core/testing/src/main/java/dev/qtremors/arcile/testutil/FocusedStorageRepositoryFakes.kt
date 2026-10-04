@@ -85,7 +85,7 @@ class FakeFileBrowserRepository(
 class FakeFileMutationRepository : FileMutationRepository {
     var createDirectoryResultProvider: (suspend (String, String) -> Result<FileModel>)? = null
     var createFileResultProvider: (suspend (String, String) -> Result<FileModel>)? = null
-    var createFakeFileResultProvider: (suspend (String, String, Long, ((BulkFileOperationProgress) -> Unit)?) -> Result<FileModel>)? = null
+    var createSyntheticFileResultProvider: (suspend (String, String, Long, ((BulkFileOperationProgress) -> Unit)?) -> Result<FileModel>)? = null
     var deleteFileResultProvider: (suspend (String) -> Result<Unit>)? = null
     var deletePermanentlyResult: Result<Unit> = Result.failure(NotImplementedError())
     var deletePermanentlyDetailedResultProvider: (suspend (List<String>) -> Result<BatchMutationResult>)? = null
@@ -96,14 +96,14 @@ class FakeFileMutationRepository : FileMutationRepository {
 
     val createDirectoryRequests = mutableListOf<Pair<String, String>>()
     val createFileRequests = mutableListOf<Pair<String, String>>()
-    val createFakeFileRequests = mutableListOf<CreateFakeFileRequest>()
+    val createSyntheticFileRequests = mutableListOf<CreateSyntheticFileRequest>()
     val deleteFileRequests = mutableListOf<String>()
     val deletePermanentlyRequests = mutableListOf<List<String>>()
     val shredRequests = mutableListOf<List<String>>()
     val renameRequests = mutableListOf<Pair<String, String>>()
     val batchRenameRequests = mutableListOf<List<Pair<String, String>>>()
 
-    data class CreateFakeFileRequest(val parentPath: String, val name: String, val size: Long)
+    data class CreateSyntheticFileRequest(val parentPath: String, val name: String, val size: Long)
 
     override suspend fun createDirectory(parentPath: String, name: String): Result<FileModel> {
         createDirectoryRequests += parentPath to name
@@ -117,14 +117,14 @@ class FakeFileMutationRepository : FileMutationRepository {
             ?: Result.success(testFile(name, "$parentPath/$name"))
     }
 
-    override suspend fun createFakeFile(
+    override suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,
         onProgress: ((BulkFileOperationProgress) -> Unit)?
     ): Result<FileModel> {
-        createFakeFileRequests += CreateFakeFileRequest(parentPath, name, size)
-        return createFakeFileResultProvider?.invoke(parentPath, name, size, onProgress)
+        createSyntheticFileRequests += CreateSyntheticFileRequest(parentPath, name, size)
+        return createSyntheticFileResultProvider?.invoke(parentPath, name, size, onProgress)
             ?: Result.success(testFile(name, "$parentPath/$name", size = size))
     }
 
@@ -202,7 +202,7 @@ class FakeClipboardRepository : ClipboardRepository {
         return true
     }
 
-    var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
+    var detectTransferConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)? = null
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
     var moveFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)? = null
 
@@ -217,9 +217,9 @@ class FakeClipboardRepository : ClipboardRepository {
         val resolutions: Map<String, ConflictResolution>
     )
 
-    override suspend fun detectCopyConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> {
+    override suspend fun detectTransferConflicts(sourcePaths: List<String>, destinationPath: String): Result<List<FileConflict>> {
         copyConflictRequests += CopyConflictRequest(sourcePaths, destinationPath)
-        return detectCopyConflictsResultProvider?.invoke(sourcePaths, destinationPath) ?: Result.success(emptyList())
+        return detectTransferConflictsResultProvider?.invoke(sourcePaths, destinationPath) ?: Result.success(emptyList())
     }
 
     override suspend fun copyFiles(
@@ -382,10 +382,10 @@ class FakeStorageRepositoryBundle(
         set(value) {
             fileMutationRepository.renameFileResultProvider = value
         }
-    var detectCopyConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)?
-        get() = clipboardRepository.detectCopyConflictsResultProvider
+    var detectTransferConflictsResultProvider: (suspend (List<String>, String) -> Result<List<FileConflict>>)?
+        get() = clipboardRepository.detectTransferConflictsResultProvider
         set(value) {
-            clipboardRepository.detectCopyConflictsResultProvider = value
+            clipboardRepository.detectTransferConflictsResultProvider = value
         }
     var copyFilesResultProvider: (suspend (List<String>, String, Map<String, ConflictResolution>, ((BulkFileOperationProgress) -> Unit)?) -> Result<Unit>)?
         get() = clipboardRepository.copyFilesResultProvider

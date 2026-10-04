@@ -6,15 +6,15 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 
 class DefaultAudioLibraryPreferencesStore(
-    private val dataSource: BrowserPreferencesDataSource
+    private val dataSource: FilePreferencesDataSource
 ) : AudioLibraryPreferencesStore {
     override val audioLibraryPreferencesFlow = dataSource.audioLibraryPreferencesFlow
 
     override suspend fun updateAudioPresentation(presentation: FileListingPreferences) =
         dataSource.updateAudioPresentation(presentation)
 
-    override suspend fun updateAudioFolderPresentation(presentation: FileListingPreferences) =
-        dataSource.updateAudioFolderPresentation(presentation)
+    override suspend fun updateAudioCollectionPresentation(presentation: FileListingPreferences) =
+        dataSource.updateAudioCollectionPresentation(presentation)
 
     override suspend fun updateAudioGrouping(grouping: CategoryGrouping) =
         dataSource.updateAudioGrouping(grouping)
@@ -27,6 +27,8 @@ class DefaultAudioLibraryPreferencesStore(
 
     override suspend fun updateFavorite(path: String, isFavorite: Boolean) =
         dataSource.updateAudioFavorite(path, isFavorite)
+
+    override suspend fun clearMigratedFavorites() = dataSource.clearMigratedAudioFavorites()
 
     override suspend fun updatePinnedFolder(path: String, isPinned: Boolean) =
         dataSource.updateAudioPinnedFolder(path, isPinned)

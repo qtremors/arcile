@@ -58,6 +58,12 @@
 # Commons Compress exposes optional Zstandard support that Arcile does not ship.
 -dontwarn com.github.luben.zstd.ZstdInputStream
 
+# Audio tagging uses ArtworkFactory's Android mode. Its unused desktop decoder
+# references Java desktop image classes that are not part of Android.
+-dontwarn java.awt.image.BufferedImage
+-dontwarn javax.imageio.ImageIO
+-dontwarn javax.imageio.stream.ImageInputStream
+
 # Keep all @Serializable data classes that are persisted to disk or passed via Intent extras
 -keep class dev.qtremors.arcile.** implements kotlinx.serialization.KSerializer { *; }
 -keep @kotlinx.serialization.Serializable class dev.qtremors.arcile.** { *; }

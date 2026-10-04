@@ -14,7 +14,7 @@ fun buildFolderTabs(
     allLabel: String
 ): List<FolderTab> {
     val folderTabs = files
-        .groupBy { containingFolderPath(it.absolutePath) }
+        .groupBy { containingFolderPath(it.reference) }
         .mapNotNull { (path, folderFiles) ->
             if (path == null) return@mapNotNull null
             FolderTab(
@@ -33,12 +33,12 @@ fun filterFilesByFolderTab(
     selectedFolderTabPath: String?
 ): List<FileModel> {
     if (selectedFolderTabPath == null) return files
-    return files.filter { containingFolderPath(it.absolutePath) == selectedFolderTabPath }
+    return files.filter { containingFolderPath(it.reference) == selectedFolderTabPath }
 }
 
 fun hasFolderTabPath(files: List<FileModel>, selectedFolderTabPath: String?): Boolean {
     if (selectedFolderTabPath == null) return true
-    return files.any { containingFolderPath(it.absolutePath) == selectedFolderTabPath }
+    return files.any { containingFolderPath(it.reference) == selectedFolderTabPath }
 }
 
 fun containingFolderPath(path: String): String? {

@@ -9,7 +9,7 @@ import android.provider.MediaStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.data.db.StorageNodeDao
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
-import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.StorageQueryClient
 import dev.qtremors.arcile.core.storage.data.util.PathSafety
 import dev.qtremors.arcile.core.storage.domain.StorageMutationNotifier
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
@@ -25,11 +25,10 @@ import kotlinx.coroutines.launch
 class StorageCacheInvalidationObserver @Inject constructor(
     @param:ApplicationContext private val context: Context,
     @param:ApplicationScope private val applicationScope: CoroutineScope,
-    private val mediaStoreClient: MediaStoreClient,
+    private val storageQueryClient: StorageQueryClient,
     private val volumeProvider: VolumeProvider,
     private val storageNodeDao: StorageNodeDao,
     private val folderStatsStore: FolderStatsStore,
-    private val recentFilesSnapshotStore: RecentFilesSnapshotStore,
     private val storageUsageSnapshotStore: StorageUsageSnapshotStore,
     private val storageCleanerSnapshotStore: StorageCleanerSnapshotStore,
     private val storageMutationNotifier: StorageMutationNotifier
@@ -66,7 +65,8 @@ class StorageCacheInvalidationObserver @Inject constructor(
             true,
             observer
         )
-        scheduleInvalidation(null, invalidateCleaner = false, notifyMutation = false)
+        // Registration is not a file change. Keep persisted values across process starts;
+        // actual notifications and cache freshness policies decide what needs refreshing.
     }
 
     private fun scheduleInvalidation(
@@ -101,17 +101,16 @@ class StorageCacheInvalidationObserver @Inject constructor(
             val (broadInvalidation, invalidateCleaner, notifyMutation) = flags
 
             if (broadInvalidation) {
-                mediaStoreClient.invalidateCache()
+                storageQueryClient.invalidateCache()
                 storageNodeDao.clear()
-                folderStatsStore.clear()
-                recentFilesSnapshotStore.clear()
+                folderStatsStore.invalidateAll()
                 storageUsageSnapshotStore.invalidate(emptyList())
                 if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(emptyList())
                 if (notifyMutation) storageMutationNotifier.notify(emptyList())
                 return@launch
             }
 
-            val targets = uris.mapNotNull { mediaStoreClient.resolveInvalidationUri(it) }
+            val targets = uris.mapNotNull { storageQueryClient.resolveInvalidationUri(it) }
             val hasUnresolvedTarget = targets.any { it.path.isNullOrBlank() }
             val paths = targets.mapNotNull { it.path }.distinct()
             val parentPaths = targets.mapNotNull { it.parentPath }.distinct()
@@ -123,9 +122,9 @@ class StorageCacheInvalidationObserver @Inject constructor(
 
             if (paths.isNotEmpty()) {
                 if (hasUnresolvedTarget) {
-                    mediaStoreClient.invalidateCache()
+                    storageQueryClient.invalidateCache()
                 } else {
-                    mediaStoreClient.invalidateCache(*paths.toTypedArray())
+                    storageQueryClient.invalidateCache(*paths.toTypedArray())
                 }
                 storageNodeDao.delete(paths)
                 paths.forEach { path -> storageNodeDao.deleteTree(path, "$path/%") }
@@ -135,8 +134,8 @@ class StorageCacheInvalidationObserver @Inject constructor(
                 if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(paths)
                 if (notifyMutation) storageMutationNotifier.notify((paths + parentPaths).distinct())
             } else {
-                mediaStoreClient.invalidateCache()
-                folderStatsStore.clear()
+                storageQueryClient.invalidateCache()
+                folderStatsStore.invalidateAll()
                 storageUsageSnapshotStore.invalidate(emptyList())
                 if (invalidateCleaner) storageCleanerSnapshotStore.invalidate(emptyList())
                 if (notifyMutation) storageMutationNotifier.notify(emptyList())
@@ -147,7 +146,7 @@ class StorageCacheInvalidationObserver @Inject constructor(
             if (mediaStoreIds.isNotEmpty()) {
                 storageNodeDao.deleteByMediaStoreIds(mediaStoreIds)
             }
-            recentFilesSnapshotStore.clear()
+            // Recent snapshots are presentation fallbacks; getRecentFiles still queries live data.
         }
     }
 

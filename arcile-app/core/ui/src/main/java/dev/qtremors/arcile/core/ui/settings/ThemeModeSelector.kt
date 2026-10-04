@@ -41,6 +41,12 @@ fun ThemeModeSelector(
         Text(
             text = stringResource(R.string.theme_mode),
             style = MaterialTheme.typography.titleMediumBold,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 4.dp)
+        )
+        Text(
+            text = stringResource(R.string.settings_theme_mode_description),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
         )
 

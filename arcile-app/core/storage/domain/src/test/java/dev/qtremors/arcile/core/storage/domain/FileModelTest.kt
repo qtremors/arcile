@@ -7,15 +7,33 @@ import org.junit.Test
 
 class FileModelTest {
 
+    @Suppress("DEPRECATION")
+    @Test
+    fun `content reference preserves its typed identity and compatibility access`() {
+        val reference = "content://media/external/audio/media/42"
+        val identity = StorageNodeRef.mediaStore(
+            id = 42L,
+            volumeName = "external",
+            contentUri = reference,
+            displayPath = "/Music/song.mp3"
+        )
+        val file = FileModel(name = "song.mp3", reference = reference, nodeRef = identity)
+
+        assertEquals(reference, file.reference)
+        assertEquals(reference, file.absolutePath)
+        assertEquals(identity, file.nodeRef)
+        assertEquals(reference, file.nodeRef.contentUri)
+    }
+
     @Test
     fun `FileModel uses sensible defaults for optional fields`() {
         val file = FileModel(
             name = "example.txt",
-            absolutePath = "/storage/emulated/0/Download/example.txt"
+            reference = "/storage/emulated/0/Download/example.txt"
         )
 
         assertEquals("example.txt", file.name)
-        assertEquals("/storage/emulated/0/Download/example.txt", file.absolutePath)
+        assertEquals("/storage/emulated/0/Download/example.txt", file.reference)
         assertEquals(0L, file.size)
         assertEquals(0L, file.lastModified)
         assertFalse(file.isDirectory)
@@ -28,7 +46,7 @@ class FileModelTest {
     fun `FileModel preserves explicitly provided metadata`() {
         val file = FileModel(
             name = ".photo.jpg",
-            absolutePath = "/storage/emulated/0/DCIM/.photo.jpg",
+            reference = "/storage/emulated/0/DCIM/.photo.jpg",
             size = 2048L,
             lastModified = 123456789L,
             isDirectory = false,

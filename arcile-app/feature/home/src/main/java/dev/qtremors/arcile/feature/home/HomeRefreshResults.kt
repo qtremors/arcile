@@ -95,7 +95,7 @@ internal fun HomeState.afterRefresh(
     val volumes = results.resolveVolumes(this)
     val storageInfo = results.resolveStorageInfo(this)
     val nextCategories = if (results.shouldRefreshAnalytics && !results.timedOut) {
-        results.categories?.getOrNull().orEmpty()
+        results.categories?.getOrNull() ?: categoryStorages
     } else {
         categoryStorages
     }.toPersistentList()

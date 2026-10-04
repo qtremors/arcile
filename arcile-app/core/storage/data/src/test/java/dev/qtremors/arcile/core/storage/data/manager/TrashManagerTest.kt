@@ -7,8 +7,11 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.storage.data.FolderStatsStore
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
+import dev.qtremors.arcile.core.storage.data.DefaultMutationJournal
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
-import dev.qtremors.arcile.core.storage.data.source.MediaStoreClient
+import dev.qtremors.arcile.core.storage.data.source.FileTransferEngine
+import dev.qtremors.arcile.core.storage.data.source.StorageQueryClient
 import dev.qtremors.arcile.core.storage.domain.FolderStatUpdate
 import dev.qtremors.arcile.core.storage.domain.FolderStats
 import dev.qtremors.arcile.core.storage.domain.DestinationRequiredException
@@ -27,6 +30,9 @@ import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -39,14 +45,86 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class TrashManagerTest {
+    private fun undoManager() = DefaultTrashManager(context, volumeProvider,
+        MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore),
+        undoFileKey = { Files.readAttributes(it.toPath(), BasicFileAttributes::class.java).creationTime().toString() })
+
+    @Test
+    fun `conflict restore undo trashes only actual output for original and picked destinations`() = runTest {
+        for (pickDestination in listOf(false, true)) {
+            val manager = undoManager()
+            val original = File(root, "report-$pickDestination.txt").apply { writeText("restored") }
+            manager.moveToTrash(listOf(original.path)).getOrThrow()
+            val id = manager.getTrashFiles().getOrThrow().single().id
+            val destination = if (pickDestination) File(root, "picked").apply { mkdirs() } else root
+            val existing = File(destination, original.name).apply { writeText("existing") }
+            val item = manager.restoreWithResults(listOf(id), destination.path.takeIf { pickDestination }).getOrThrow().single()
+            assertNotEquals(existing.path, item.path)
+            assertEquals("restored", File(item.path).readText())
+            assertTrue(item.renamedForConflict)
+            manager.undoRestore(listOf(item)).getOrThrow()
+            assertEquals("existing", existing.readText())
+            assertFalse(File(item.path).exists())
+            manager.emptyTrash().getOrThrow()
+        }
+    }
+
+    @Test
+    fun `undo refuses changed contents and newly added folder children`() = runTest {
+        val manager = undoManager()
+        val folder = File(root, "folder").apply { mkdirs() }
+        File(folder, "original.txt").writeText("old")
+        manager.moveToTrash(listOf(folder.path)).getOrThrow()
+        val id = manager.getTrashFiles().getOrThrow().single().id
+        val item = manager.restoreWithResults(listOf(id), null).getOrThrow().single()
+        File(folder, "new.txt").writeText("new")
+        assertTrue(manager.undoRestore(listOf(item)).isFailure)
+        assertEquals("new", File(folder, "new.txt").readText())
+        File(folder, "new.txt").delete()
+        File(folder, "original.txt").writeText("changed")
+        assertTrue(manager.undoRestore(listOf(item)).isFailure)
+        assertEquals("changed", File(folder, "original.txt").readText())
+    }
+
+    @Test
+    fun `partial restore reports only completed published items`() = runTest {
+        val manager = undoManager()
+        val first = File(root, "first.txt").apply { writeText("first") }
+        val second = File(root, "second.txt").apply { writeText("second") }
+        manager.moveToTrash(listOf(first.path, second.path)).getOrThrow()
+        val items = manager.getTrashFiles().getOrThrow()
+        val firstId = items.single { it.originalPath == first.path }.id
+        val secondId = items.single { it.originalPath == second.path }.id
+        File(root, ".arcile/.metadata/$secondId.json").writeText("broken")
+        val result = manager.restoreWithResults(listOf(firstId, secondId), null)
+        val error = result.exceptionOrNull() as dev.qtremors.arcile.core.storage.domain.PartialTrashRestoreException
+        assertEquals(first.path, error.restored.single().path)
+        manager.undoRestore(error.restored).getOrThrow()
+        assertFalse(first.exists())
+        assertEquals(2, manager.getTrashFiles().getOrThrow().size)
+    }
+
+    @Test
+    fun `restore without stable identities succeeds without unsafe undo`() = runTest {
+        val manager = DefaultTrashManager(context, volumeProvider,
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore), undoFileKey = { null })
+        val file = File(root, "no-identity.txt").apply { writeText("kept") }
+        manager.moveToTrash(listOf(file.path)).getOrThrow()
+        val item = manager.restoreWithResults(listOf(manager.getTrashFiles().getOrThrow().single().id), null).getOrThrow().single()
+        assertEquals(null, item.undoToken)
+        assertTrue(manager.undoRestore(listOf(item)).isFailure)
+        assertEquals("kept", file.readText())
+    }
 
     private lateinit var context: Context
     private lateinit var volumeProvider: VolumeProvider
-    private lateinit var mediaStoreClient: MediaStoreClient
+    private lateinit var storageQueryClient: StorageQueryClient
     private lateinit var folderStatsStore: FolderStatsStore
     private lateinit var trashManager: DefaultTrashManager
     private lateinit var root: File
@@ -54,6 +132,7 @@ class TrashManagerTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        DefaultMutationJournal.clearForTest(context)
         root = createTempStorageRoot("trash-test")
 
         volumeProvider = mockk(relaxed = true)
@@ -62,7 +141,7 @@ class TrashManagerTest {
         coEvery { volumeProvider.currentVolumes() } returns listOf(vol)
         every { volumeProvider.observeStorageVolumes() } returns flowOf(listOf(vol))
 
-        mediaStoreClient = mockk(relaxed = true)
+        storageQueryClient = mockk(relaxed = true)
         folderStatsStore = object : FolderStatsStore {
             override suspend fun getCached(paths: Collection<String>): Map<String, FolderStats> = emptyMap()
             override fun observeUpdates() = emptyFlow<FolderStatUpdate>()
@@ -74,20 +153,21 @@ class TrashManagerTest {
         trashManager = DefaultTrashManager(
             context,
             volumeProvider,
-            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore)
         )
     }
 
     @After
     fun teardown() {
         root.deleteRecursively()
+        DefaultMutationJournal.clearForTest(context)
     }
 
     private fun newTrashManager(): DefaultTrashManager {
         return DefaultTrashManager(
             context,
             volumeProvider,
-            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore)
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore)
         )
     }
 
@@ -277,7 +357,7 @@ class TrashManagerTest {
         assertTrue(result.isSuccess)
         assertFalse(directory.exists())
         val trashItem = trashManager.getTrashFiles().getOrThrow().single()
-        val payload = File(trashItem.fileModel.absolutePath)
+        val payload = File(trashItem.fileModel.reference)
         assertTrue(payload.isDirectory)
         assertEquals("copied safely", File(payload, "child.txt").readText())
         assertNotEquals(directory.absolutePath, payload.absolutePath)
@@ -291,7 +371,7 @@ class TrashManagerTest {
         val fallbackManager = DefaultTrashManager(
             context,
             volumeProvider,
-            MutationFinalizer(context, mediaStoreClient, volumeProvider, folderStatsStore),
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore),
             mutationJournal = journal,
             rename = { source, target ->
                 if (source == directory) false else source.renameTo(target)
@@ -310,7 +390,7 @@ class TrashManagerTest {
         assertEquals(1, journal.forgottenTrashFallbacks)
         assertTrue(journal.temporaryPaths.isEmpty())
         val trashItem = fallbackManager.getTrashFiles().getOrThrow().single()
-        assertEquals("copied with progress", File(trashItem.fileModel.absolutePath, "child.txt").readText())
+        assertEquals("copied with progress", File(trashItem.fileModel.reference, "child.txt").readText())
     }
 
     @Test
@@ -326,7 +406,7 @@ class TrashManagerTest {
         val manager = DefaultTrashManager(
             resolverContext,
             volumeProvider,
-            MutationFinalizer(resolverContext, mediaStoreClient, volumeProvider, folderStatsStore)
+            MutationFinalizer(resolverContext, storageQueryClient, volumeProvider, folderStatsStore)
         )
 
         val result = manager.moveToTrashTargets(
@@ -359,7 +439,7 @@ class TrashManagerTest {
         val manager = DefaultTrashManager(
             resolverContext,
             volumeProvider,
-            MutationFinalizer(resolverContext, mediaStoreClient, volumeProvider, folderStatsStore)
+            MutationFinalizer(resolverContext, storageQueryClient, volumeProvider, folderStatsStore)
         )
 
         val result = manager.moveToTrash(listOf(file.absolutePath))
@@ -388,6 +468,109 @@ class TrashManagerTest {
 
         assertEquals(0L, usage.totalBytes)
         assertTrue(usage.byVolumeId.isEmpty())
+    }
+
+    @Test
+    fun `failed trash cleanup preserves every byte and metadata through restart`() = runTest {
+        exercisePartialCleanup(restoring = false, cancel = false)
+    }
+
+    @Test
+    fun `cancelled trash cleanup preserves every byte and metadata through restart`() = runTest {
+        exercisePartialCleanup(restoring = false, cancel = true)
+    }
+
+    @Test
+    fun `failed restore cleanup preserves complete restored folder through restart`() = runTest {
+        exercisePartialCleanup(restoring = true, cancel = false)
+    }
+
+    @Test
+    fun `cancelled restore cleanup preserves complete restored folder through restart`() = runTest {
+        exercisePartialCleanup(restoring = true, cancel = true)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun exercisePartialCleanup(restoring: Boolean, cancel: Boolean) {
+        val folder = File(root, "partial-folder").apply { mkdirs() }
+        val contents = mapOf("a.txt" to "original a", "b.txt" to "original b")
+        contents.forEach { (name, text) -> File(folder, name).writeText(text) }
+        val item = if (restoring) {
+            trashManager.moveToTrash(listOf(folder.absolutePath)).getOrThrow()
+            trashManager.getTrashFiles().getOrThrow().single()
+        } else null
+        val source = item?.let { File(it.fileModel.reference) } ?: folder
+        val dispatcher = UnconfinedTestDispatcher()
+        val dispatchers = ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher)
+        fun newJournal() = DefaultMutationJournal(
+            context, volumeProvider, dispatchers,
+            recoveryFileKey = { file -> Files.readAttributes(file.toPath(), BasicFileAttributes::class.java)
+                .let { it.fileKey()?.toString() ?: it.creationTime().toString() } }
+        )
+        val journal = newJournal()
+        var deleted: File? = null
+        val engine = FileTransferEngine(
+            validatePath = { Result.success(Unit) },
+            mutationJournal = journal,
+            deleteSourceEntry = { file ->
+                if (deleted == null && file.isFile) {
+                    file.delete().also { if (it) deleted = file }
+                } else if (cancel) {
+                    throw CancellationException("Injected cleanup interruption")
+                } else false
+            }
+        )
+        val manager = DefaultTrashManager(
+            context, volumeProvider,
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore),
+            dispatchers = dispatchers, mutationJournal = journal,
+            rename = { _, _ -> false }, transferEngine = engine
+        )
+        val error = try {
+            val result = if (restoring) manager.restoreFromTrash(listOf(requireNotNull(item).id), null)
+            else manager.moveToTrash(listOf(folder.absolutePath))
+            assertTrue(result.isFailure)
+            result.exceptionOrNull()
+        } catch (error: CancellationException) {
+            error
+        }
+        assertTrue(error != null)
+        assertEquals(cancel, error is CancellationException)
+        assertTrue(source.exists())
+        assertFalse(requireNotNull(deleted).exists())
+        val metadata = File(root, ".arcile/.metadata").listFiles().orEmpty().single { it.extension == "json" }
+        val output = if (restoring) folder else File(manager.getTrashFiles().getOrThrow().single().fileModel.reference)
+        contents.forEach { (name, text) -> assertEquals(text, File(output, name).readText()) }
+        assertTrue(metadata.exists())
+        assertTrue(DefaultMutationJournal.storeFile(context).exists())
+
+        // Recreate the journal from disk, then repeat recovery to check idempotence.
+        newJournal().cleanupAbandonedMutations()
+        newJournal().cleanupAbandonedMutations()
+        assertFalse(source.exists())
+        contents.forEach { (name, text) -> assertEquals(text, File(output, name).readText()) }
+        if (!restoring) {
+            assertTrue(metadata.exists())
+            assertEquals(folder.absolutePath, newTrashManager().getTrashFiles().getOrThrow().single().originalPath)
+        }
+    }
+
+    @Test
+    fun `trash failure before publication rolls back metadata and staging`() = runTest {
+        val source = File(root, "failed-copy.txt").apply { writeText("original") }
+        val manager = DefaultTrashManager(
+            context, volumeProvider,
+            MutationFinalizer(context, storageQueryClient, volumeProvider, folderStatsStore),
+            rename = { _, _ -> false },
+            transferEngine = FileTransferEngine(
+                validatePath = { Result.success(Unit) },
+                afterCopy = { _, target -> target.appendText("corrupt") }
+            )
+        )
+        assertTrue(manager.moveToTrash(listOf(source.absolutePath)).isFailure)
+        assertEquals("original", source.readText())
+        assertTrue(manager.getTrashFiles().getOrThrow().isEmpty())
+        assertTrue(File(root, ".arcile/.trash").listFiles().orEmpty().all { it.name == ".nomedia" })
     }
 
     private class RecordingMutationJournal : MutationJournal {

@@ -9,7 +9,7 @@ import androidx.datastore.preferences.core.PreferencesFileSerializer
 import androidx.datastore.preferences.core.emptyPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.data.activityLogDataStore
-import dev.qtremors.arcile.core.storage.data.browserDataStore
+import dev.qtremors.arcile.core.storage.data.filePreferencesDataStore
 import dev.qtremors.arcile.core.storage.data.classificationDataStore
 import dev.qtremors.arcile.core.storage.data.onboardingDataStore
 import dev.qtremors.arcile.core.storage.data.quickAccessDataStore
@@ -24,8 +24,8 @@ import dev.qtremors.arcile.core.ui.backup.PreferencesBackupOperationResult
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupPreview
 import dev.qtremors.arcile.core.ui.theme.AccentColor
 import dev.qtremors.arcile.core.ui.theme.ThemeMode
-import dev.qtremors.arcile.core.ui.theme.ThemePreferences
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.dataStore as themeDataStore
 import dev.qtremors.arcile.core.vault.data.vaultSecurityDataStore
 import dev.qtremors.arcile.presentation.ui.browserTabsDataStore
@@ -47,9 +47,9 @@ import kotlinx.serialization.json.Json
 @Singleton
 class PreferencesBackupManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val themePreferences: ThemePreferences
+    private val uiPreferencesStore: UiPreferencesStore
 ) : PreferencesBackupGateway {
-    constructor(context: Context) : this(context, ThemePreferences(context))
+    constructor(context: Context) : this(context, UiPreferencesStore(context))
 
     internal var beforeRestoreCommit: (storeName: String) -> Unit = {}
 
@@ -63,7 +63,7 @@ class PreferencesBackupManager @Inject constructor(
         runCatching {
             val failures = mutableListOf<PreferencesBackupFailure>()
             var totalBytes = 0L
-            val themeState = themePreferences.themeState.first().toBackupState()
+            val uiPreferences = uiPreferencesStore.uiPreferences.first().toBackupState()
             val stores = livePreferenceStores().mapNotNull { (storeName, store) ->
                 runCatching {
                     val bytes = serializePreferences(store.data.first())
@@ -88,10 +88,10 @@ class PreferencesBackupManager @Inject constructor(
                 schemaVersion = CURRENT_SCHEMA_VERSION,
                 createdAtMillis = System.currentTimeMillis(),
                 packageName = context.packageName,
-                themeState = themeState,
+                uiPreferences = uiPreferences,
                 stores = stores
             )
-            require(payload.stores.isNotEmpty() || payload.themeState != null) {
+            require(payload.stores.isNotEmpty() || payload.uiPreferences != null) {
                 "No settings are available to export yet"
             }
             val encodedPayload = json.encodeToString(payload).toByteArray()
@@ -226,7 +226,7 @@ class PreferencesBackupManager @Inject constructor(
         }
         return preferenceStoreNames.associateWith { storeName ->
             decoded[storeName]
-                ?: payload.themeState
+                ?: payload.uiPreferences
                     ?.takeIf { storeName == THEME_STORE_NAME }
                     ?.toPreferences()
                 ?: emptyPreferences()
@@ -240,7 +240,7 @@ class PreferencesBackupManager @Inject constructor(
     }
 
     private fun livePreferenceStores(): Map<String, DataStore<Preferences>> = linkedMapOf(
-        "browser_prefs" to context.browserDataStore,
+        "browser_prefs" to context.filePreferencesDataStore,
         "browser_tabs" to context.browserTabsDataStore,
         "quick_access_prefs" to context.quickAccessDataStore,
         "storage_classifications_prefs" to context.classificationDataStore,
@@ -257,7 +257,7 @@ class PreferencesBackupManager @Inject constructor(
 
     private fun PreferencesBackupPayload.toExportItems(): List<PreferencesBackupItem> {
         val items = stores.map { it.toItem(PreferencesBackupItemStatus.Exported) }.toMutableList()
-        if (themeState != null && items.none { it.id == THEME_STORE_NAME }) {
+        if (uiPreferences != null && items.none { it.id == THEME_STORE_NAME }) {
             items += PreferencesBackupItem(
                 THEME_STORE_NAME,
                 THEME_STORE_NAME.displayName(),
@@ -268,7 +268,7 @@ class PreferencesBackupManager @Inject constructor(
     }
 
     private fun PreferencesBackupPayload.hasStore(storeName: String): Boolean =
-        stores.any { it.name == storeName } || (storeName == THEME_STORE_NAME && themeState != null)
+        stores.any { it.name == storeName } || (storeName == THEME_STORE_NAME && uiPreferences != null)
 
     private fun String.displayName(): String = when (this) {
         "browser_prefs" -> "Browser preferences"
@@ -340,7 +340,7 @@ private data class PreferencesBackupPayload(
     val schemaVersion: Int = 1,
     val createdAtMillis: Long,
     val packageName: String,
-    val themeState: ThemeBackupState? = null,
+    val uiPreferences: ThemeBackupState? = null,
     val stores: List<PreferencesBackupStore>
 )
 
@@ -367,7 +367,7 @@ private data class ThemeBackupState(
     val customBackgroundColorHex: String
 )
 
-private fun ThemeState.toBackupState(): ThemeBackupState = ThemeBackupState(
+private fun UiPreferences.toBackupState(): ThemeBackupState = ThemeBackupState(
     themeMode = themeMode.name,
     accentColor = accentColor.name,
     harmonizeColors = harmonizeColors,
@@ -383,16 +383,16 @@ private fun ThemeState.toBackupState(): ThemeBackupState = ThemeBackupState(
 
 private fun ThemeBackupState.toPreferences(): Preferences {
     val preferences = emptyPreferences().toMutablePreferences()
-    preferences[ThemePreferences.THEME_MODE_KEY] = themeMode
-    preferences[ThemePreferences.ACCENT_COLOR_KEY] = accentColor
-    preferences[ThemePreferences.HARMONIZE_COLORS_KEY] = harmonizeColors
-    preferences[ThemePreferences.VIBRATIONS_ENABLED_KEY] = vibrationsEnabled
-    preferences[ThemePreferences.DOUBLE_LINE_FILENAMES_KEY] = doubleLineFilenames
-    preferences[ThemePreferences.MARQUEE_FILENAMES_KEY] = marqueeFilenames
-    preferences[ThemePreferences.LANDSCAPE_DUAL_PANE_KEY] = landscapeDualPaneEnabled
-    preferences[ThemePreferences.FOLDER_ICONS_ENABLED_KEY] = folderIconsEnabled
-    preferences[ThemePreferences.THEME_PRESET_KEY] = themePreset
-    preferences[ThemePreferences.CUSTOM_PRIMARY_KEY] = customPrimaryColorHex
-    preferences[ThemePreferences.CUSTOM_BACKGROUND_KEY] = customBackgroundColorHex
+    preferences[UiPreferencesStore.THEME_MODE_KEY] = themeMode
+    preferences[UiPreferencesStore.ACCENT_COLOR_KEY] = accentColor
+    preferences[UiPreferencesStore.HARMONIZE_COLORS_KEY] = harmonizeColors
+    preferences[UiPreferencesStore.VIBRATIONS_ENABLED_KEY] = vibrationsEnabled
+    preferences[UiPreferencesStore.DOUBLE_LINE_FILENAMES_KEY] = doubleLineFilenames
+    preferences[UiPreferencesStore.MARQUEE_FILENAMES_KEY] = marqueeFilenames
+    preferences[UiPreferencesStore.LANDSCAPE_DUAL_PANE_KEY] = landscapeDualPaneEnabled
+    preferences[UiPreferencesStore.FOLDER_ICONS_ENABLED_KEY] = folderIconsEnabled
+    preferences[UiPreferencesStore.THEME_PRESET_KEY] = themePreset
+    preferences[UiPreferencesStore.CUSTOM_PRIMARY_KEY] = customPrimaryColorHex
+    preferences[UiPreferencesStore.CUSTOM_BACKGROUND_KEY] = customBackgroundColorHex
     return preferences.toPreferences()
 }

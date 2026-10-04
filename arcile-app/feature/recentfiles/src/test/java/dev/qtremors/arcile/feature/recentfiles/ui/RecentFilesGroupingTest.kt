@@ -57,7 +57,7 @@ class RecentFilesGroupingTest {
 
     private fun file(name: String, timestamp: String) = FileModel(
         name = name,
-        absolutePath = "/$name",
+        reference = "/$name",
         lastModified = parser.parse(timestamp)!!.time,
         isDirectory = false
     )

@@ -9,9 +9,9 @@ dependencies {
 
 gradlePlugin {
     plugins {
-        register("arcileAndroidApplicationConventions") {
-            id = "arcile.android.application.conventions"
-            implementationClass = "dev.qtremors.arcile.buildlogic.ArcileAndroidApplicationConventionsPlugin"
+        register("arcileBuildVerification") {
+            id = "arcile.build.verification"
+            implementationClass = "dev.qtremors.arcile.buildlogic.ArcileBuildVerificationPlugin"
         }
     }
 }

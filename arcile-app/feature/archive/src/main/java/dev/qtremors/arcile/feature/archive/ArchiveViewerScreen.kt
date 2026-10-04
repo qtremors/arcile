@@ -105,7 +105,7 @@ internal fun ArchiveViewerScreen(
     extractionActions: ArchiveExtractionActions,
     conflictActions: ArchiveConflictActions,
     selectionActions: ArchiveSelectionActions,
-    archiveFileModel: FileModel = FileModel(name = "", absolutePath = ""),
+    archiveFileModel: FileModel = FileModel(name = "", reference = ""),
     viewerActions: Set<ViewerFileAction> = emptySet(),
     onViewerAction: (ViewerFileAction) -> Unit = {}
 ) {

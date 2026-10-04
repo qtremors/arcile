@@ -112,7 +112,7 @@ class BrowserViewModelFolderStatsTest {
 
         assertEquals(updatedStats, viewModel.uiState.value.folderStatsByPath["/storage/emulated/0/Download/Docs"])
         assertEquals(updatedStats, viewModel.uiState.value.displayState.visibleListRows.single().folderStats)
-        assertEquals(updatedStats, viewModel.uiState.value.displayState.visibleGridRows.single().folderStats)
+        assertTrue(viewModel.uiState.value.displayState.visibleGridRows.isEmpty())
         assertFalse(viewModel.uiState.value.folderStatsLoadingPaths.contains("/storage/emulated/0/Download/Docs"))
     }
 

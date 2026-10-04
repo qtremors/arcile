@@ -3,10 +3,12 @@ package dev.qtremors.arcile.feature.audio
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.session.MediaController
@@ -15,6 +17,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -35,10 +38,23 @@ internal data class AudioPlaybackState(
     val hasPrevious: Boolean = false,
     val hasNext: Boolean = false,
     val queueMediaIds: List<String> = emptyList(),
+    val queueEntries: List<AudioQueueEntry> = emptyList(),
     val currentMediaIndex: Int = 0,
+    val shuffleMediaIds: List<String> = emptyList(),
     val repeatMode: AudioRepeatMode = AudioRepeatMode.OFF,
     val shuffleEnabled: Boolean = false,
+    val playbackSpeed: Float = 1f,
+    val playbackPitch: Float = 1f,
+    val sleepTimerEndElapsedMs: Long? = null,
     val error: Boolean = false
+)
+
+internal data class AudioQueueEntry(
+    val id: String,
+    val uri: String,
+    val title: String?,
+    val artist: String?,
+    val album: String?
 )
 
 internal enum class AudioRepeatMode {
@@ -55,11 +71,18 @@ internal class AudioPlaybackController @Inject constructor(
     private val _state = MutableStateFlow(AudioPlaybackState())
     val state: StateFlow<AudioPlaybackState> = _state.asStateFlow()
     private var controller: MediaController? = null
-    private var pendingQueue: Pair<List<AudioTrack>, String>? = null
+    private var pendingQueue: Triple<List<AudioTrack>, String, Boolean>? = null
+    private val playbackPreferences = context.getSharedPreferences("audio_playback_settings", Context.MODE_PRIVATE)
+    private var sleepTimerJob: Job? = null
+    private var progressJob: Job? = null
 
     private val listener = object : Player.Listener {
         override fun onEvents(player: Player, events: Player.Events) {
             publish(player)
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            updateProgressPolling(isPlaying)
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -75,50 +98,60 @@ internal class AudioPlaybackController @Inject constructor(
                 runCatching { future.get() }.onSuccess { connected ->
                     controller = connected
                     connected.addListener(listener)
+                    connected.setPlaybackParameters(PlaybackParameters(
+                        playbackPreferences.getFloat("speed", 1f),
+                        playbackPreferences.getFloat("pitch", 1f)
+                    ))
                     publish(connected)
-                    pendingQueue?.let { (tracks, initialPath) ->
+                    updateProgressPolling(connected.isPlaying)
+                    pendingQueue?.let { (tracks, initialPath, startPlayback) ->
                         pendingQueue = null
-                        playQueue(tracks, initialPath)
+                        playQueue(tracks, initialPath, startPlayback)
                     }
                 }
             },
             ContextCompat.getMainExecutor(context)
         )
-        scope.launch {
-            while (isActive) {
-                controller?.let(::publish)
-                delay(POSITION_UPDATE_MS)
-            }
-        }
     }
 
-    fun playQueue(tracks: List<AudioTrack>, initialPath: String) {
+    private fun updateProgressPolling(isPlaying: Boolean) {
+        progressJob?.cancel()
+        progressJob = if (isPlaying) scope.launch {
+            while (isActive) {
+                delay(POSITION_UPDATE_MS)
+                controller?.takeIf { it.isPlaying }?.let { publish(it, refreshQueue = false) }
+            }
+        } else null
+    }
+
+    fun playQueue(tracks: List<AudioTrack>, initialPath: String, startPlayback: Boolean = true) {
         val player = controller
         if (player == null) {
-            pendingQueue = tracks to initialPath
+            pendingQueue = Triple(tracks, initialPath, startPlayback)
             return
         }
         val items = tracks.map { it.toMediaItem() }
-        val initialIndex = tracks.indexOfFirst { it.file.absolutePath == initialPath }
+        val initialIndex = tracks.indexOfFirst { it.file.reference == initialPath }
             .takeIf { it >= 0 } ?: 0
+        if (!startPlayback) player.pause()
         player.setMediaItems(items, initialIndex, C.TIME_UNSET)
         player.prepare()
-        player.play()
+        if (startPlayback) player.play()
         publish(player)
     }
 
     fun expandQueue(tracks: List<AudioTrack>, currentPath: String) {
-        if (tracks.none { it.file.absolutePath == currentPath }) return
+        if (tracks.none { it.file.reference == currentPath }) return
         val player = controller
         if (player == null) {
             if (pendingQueue?.second == currentPath) {
-                pendingQueue = tracks to currentPath
+                pendingQueue = Triple(tracks, currentPath, pendingQueue?.third ?: true)
             }
             return
         }
         if (player.currentMediaItem?.mediaId != currentPath || player.mediaItemCount != 1) return
 
-        val currentIndex = tracks.indexOfFirst { it.file.absolutePath == currentPath }
+        val currentIndex = tracks.indexOfFirst { it.file.reference == currentPath }
         val before = tracks.take(currentIndex).map { it.toMediaItem() }
         val after = tracks.drop(currentIndex + 1).map { it.toMediaItem() }
         if (before.isNotEmpty()) player.addMediaItems(0, before)
@@ -130,6 +163,40 @@ internal class AudioPlaybackController @Inject constructor(
         controller?.let { player ->
             if (player.isPlaying) player.pause() else player.play()
             publish(player)
+        }
+    }
+
+    fun closePlayer() {
+        setSleepTimerMinutes(null)
+        pendingQueue = null
+        controller?.let { player ->
+            player.stop()
+            player.clearMediaItems()
+            publish(player)
+        }
+    }
+
+    fun setPlaybackParameters(speed: Float, pitch: Float) {
+        val safeSpeed = speed.coerceIn(0.5f, 2f)
+        val safePitch = pitch.coerceIn(0.5f, 2f)
+        playbackPreferences.edit().putFloat("speed", safeSpeed)
+            .putFloat("pitch", safePitch).apply()
+        controller?.setPlaybackParameters(PlaybackParameters(safeSpeed, safePitch))
+    }
+
+    fun setSleepTimerMinutes(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        val durationMs = minutes?.takeIf { it > 0 }?.toLong()?.times(60_000L)
+        _state.value = _state.value.copy(
+            sleepTimerEndElapsedMs = durationMs?.let { SystemClock.elapsedRealtime() + it }
+        )
+        if (durationMs != null) {
+            sleepTimerJob = scope.launch {
+                delay(durationMs)
+                controller?.pause()
+                _state.value = _state.value.copy(sleepTimerEndElapsedMs = null)
+            }
         }
     }
 
@@ -155,36 +222,55 @@ internal class AudioPlaybackController @Inject constructor(
         }
     }
 
+    fun seekToQueueMediaId(mediaId: String) {
+        controller?.let { player ->
+            val index = (0 until player.mediaItemCount).firstOrNull {
+                player.getMediaItemAt(it).mediaId == mediaId
+            } ?: return@let
+            seekToQueueIndex(index)
+        }
+    }
+
+    fun moveQueueItem(mediaId: String, direction: Int) {
+        controller?.let { player ->
+            val from = (0 until player.mediaItemCount).firstOrNull {
+                player.getMediaItemAt(it).mediaId == mediaId
+            } ?: return@let
+            val to = from + direction
+            if (to in 0 until player.mediaItemCount) {
+                player.moveMediaItem(from, to)
+                publish(player)
+            }
+        }
+    }
+
     fun removeQueueItems(paths: Collection<String>) {
         if (paths.isEmpty()) return
         val removed = paths.toSet()
-        pendingQueue = pendingQueue?.let { (tracks, initialPath) ->
-            val remaining = tracks.filterNot { it.file.absolutePath in removed }
+        pendingQueue = pendingQueue?.let { (tracks, initialPath, startPlayback) ->
+            val remaining = tracks.filterNot { it.file.reference in removed }
             if (remaining.isEmpty()) {
                 null
             } else {
-                remaining to if (initialPath in removed) {
-                    remaining.first().file.absolutePath
+                Triple(remaining, if (initialPath in removed) {
+                    audioQueueSuccessor(tracks.map { it.file.reference }, initialPath, removed)
+                        ?: remaining.first().file.reference
                 } else {
                     initialPath
-                }
+                }, startPlayback)
             }
         }
         controller?.let { player ->
-            (player.mediaItemCount - 1 downTo 0).forEach { index ->
-                if (player.getMediaItemAt(index).mediaId in removed) {
-                    player.removeMediaItem(index)
-                }
-            }
+            removeAudioQueueItems(player, removed)
             publish(player)
         }
     }
 
     fun replaceQueueItem(oldPath: String, track: AudioTrack) {
-        pendingQueue = pendingQueue?.let { (tracks, initialPath) ->
-            tracks.map {
-                if (it.file.absolutePath == oldPath) track else it
-            } to if (initialPath == oldPath) track.file.absolutePath else initialPath
+        pendingQueue = pendingQueue?.let { (tracks, initialPath, startPlayback) ->
+            Triple(tracks.map {
+                if (it.file.reference == oldPath) track else it
+            }, if (initialPath == oldPath) track.file.reference else initialPath, startPlayback)
         }
         controller?.let { player ->
             val index = (0 until player.mediaItemCount).firstOrNull {
@@ -217,10 +303,28 @@ internal class AudioPlaybackController @Inject constructor(
         _state.value = _state.value.copy(error = false)
     }
 
-    private fun publish(player: Player) {
-        val timeline = player.currentTimeline
+    private fun publish(player: Player, refreshQueue: Boolean = true) {
+        val previous = _state.value
         val mediaCount = player.mediaItemCount
-        val queueIds = if (!timeline.isEmpty && player.shuffleModeEnabled) {
+        val queueIds = if (refreshQueue || previous.queueMediaIds.size != mediaCount) {
+            (0 until mediaCount).map { index -> player.getMediaItemAt(index).mediaId }
+        } else previous.queueMediaIds
+        val queueEntries = if (refreshQueue || previous.queueEntries.size != mediaCount) {
+            (0 until mediaCount).map { index ->
+                val item = player.getMediaItemAt(index)
+                AudioQueueEntry(
+                    id = item.mediaId,
+                    uri = item.localConfiguration?.uri?.toString().orEmpty(),
+                    title = item.mediaMetadata.title?.toString(),
+                    artist = item.mediaMetadata.artist?.toString(),
+                    album = item.mediaMetadata.albumTitle?.toString()
+                )
+            }
+        } else previous.queueEntries
+        val timeline = player.currentTimeline
+        val shuffleIds = if (!refreshQueue && previous.shuffleEnabled == player.shuffleModeEnabled &&
+            previous.shuffleMediaIds.size == mediaCount
+        ) previous.shuffleMediaIds else if (!timeline.isEmpty && player.shuffleModeEnabled) {
             val ids = mutableListOf<String>()
             var idx = timeline.getFirstWindowIndex(true)
             while (idx != C.INDEX_UNSET && ids.size < mediaCount) {
@@ -228,17 +332,9 @@ internal class AudioPlaybackController @Inject constructor(
                 idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, true)
             }
             ids.ifEmpty { (0 until mediaCount).map { player.getMediaItemAt(it).mediaId } }
-        } else {
-            (0 until mediaCount).map { index ->
-                player.getMediaItemAt(index).mediaId
-            }
-        }
+        } else emptyList()
         val currentId = player.currentMediaItem?.mediaId?.takeIf(String::isNotBlank)
-        val currentIndex = if (player.shuffleModeEnabled && currentId != null && queueIds.isNotEmpty()) {
-            queueIds.indexOf(currentId).takeIf { it >= 0 } ?: player.currentMediaItemIndex.coerceAtLeast(0)
-        } else {
-            player.currentMediaItemIndex.coerceAtLeast(0)
-        }
+        val currentIndex = player.currentMediaItemIndex.coerceAtLeast(0)
 
         _state.value = AudioPlaybackState(
             isConnected = true,
@@ -249,22 +345,27 @@ internal class AudioPlaybackController @Inject constructor(
             hasPrevious = player.hasPreviousMediaItem(),
             hasNext = player.hasNextMediaItem(),
             queueMediaIds = queueIds,
+            queueEntries = queueEntries,
             currentMediaIndex = currentIndex,
+            shuffleMediaIds = shuffleIds,
             repeatMode = when (player.repeatMode) {
                 Player.REPEAT_MODE_ALL -> AudioRepeatMode.ALL
                 Player.REPEAT_MODE_ONE -> AudioRepeatMode.ONE
                 else -> AudioRepeatMode.OFF
             },
             shuffleEnabled = player.shuffleModeEnabled,
-            error = _state.value.error
+            playbackSpeed = player.playbackParameters.speed,
+            playbackPitch = player.playbackParameters.pitch,
+            sleepTimerEndElapsedMs = previous.sleepTimerEndElapsedMs,
+            error = previous.error
         )
     }
 
     private fun AudioTrack.toMediaItem(): MediaItem {
         val contentUri = file.nodeRef.contentUri?.takeIf(String::isNotBlank)?.let(Uri::parse)
-            ?: Uri.fromFile(File(file.absolutePath))
+            ?: Uri.fromFile(File(file.reference))
         return MediaItem.Builder()
-            .setMediaId(file.absolutePath)
+            .setMediaId(file.reference)
             .setUri(contentUri)
             .setMimeType(file.mimeType)
             .setMediaMetadata(
@@ -280,5 +381,37 @@ internal class AudioPlaybackController @Inject constructor(
 
     private companion object {
         const val POSITION_UPDATE_MS = 500L
+    }
+}
+
+internal fun audioQueueSuccessor(order: List<String>, currentId: String?, removed: Set<String>): String? {
+    val currentIndex = order.indexOf(currentId)
+    return order.drop(currentIndex + 1).firstOrNull { it !in removed }
+        ?: order.take(currentIndex.coerceAtLeast(0)).lastOrNull { it !in removed }
+}
+
+internal fun removeAudioQueueItems(player: Player, removed: Set<String>) {
+    val currentId = player.currentMediaItem?.mediaId
+    val resumePlayback = player.playWhenReady
+    val timeline = player.currentTimeline
+    val order = buildList {
+        var index = timeline.getFirstWindowIndex(player.shuffleModeEnabled)
+        while (index != C.INDEX_UNSET && size < player.mediaItemCount) {
+            add(player.getMediaItemAt(index).mediaId)
+            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
+        }
+    }.ifEmpty { (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId } }
+    val successor = if (currentId in removed) audioQueueSuccessor(order, currentId, removed) else null
+    (player.mediaItemCount - 1 downTo 0).forEach { index ->
+        if (player.getMediaItemAt(index).mediaId in removed) player.removeMediaItem(index)
+    }
+    if (successor != null) {
+        val index = (0 until player.mediaItemCount).firstOrNull {
+            player.getMediaItemAt(it).mediaId == successor
+        }
+        if (index != null) {
+            player.seekToDefaultPosition(index)
+            player.playWhenReady = resumePlayback
+        }
     }
 }

@@ -158,7 +158,7 @@ internal fun String.activityLogOperationNameRes(): Int = when (this) {
     "TRASH" -> R.string.activity_log_operation_trash
     "DELETE" -> R.string.activity_log_operation_delete
     "SHRED" -> R.string.activity_log_operation_shred
-    "CREATE_FAKE" -> R.string.activity_log_operation_create_fake
+    "CREATE_FAKE" -> R.string.activity_log_operation_create_synthetic
     "EXTRACT_ARCHIVE" -> R.string.activity_log_operation_extract_archive
     "CREATE_ARCHIVE" -> R.string.activity_log_operation_create_archive
     "CREATE_FOLDER" -> R.string.activity_log_operation_create_folder

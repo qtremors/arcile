@@ -289,7 +289,7 @@ internal class ZipArchiveHandler(
                                 completedItems = completed,
                                 totalItems = totalItems,
                                 currentPath = file.absolutePath,
-                                bytesCopied = totalBytes?.let { (copied + entryCopied).coerceAtMost(it) } ?: copied + entryCopied,
+                                bytesProcessed = totalBytes?.let { (copied + entryCopied).coerceAtMost(it) } ?: copied + entryCopied,
                                 totalBytes = totalBytes
                             )
                         )

@@ -137,7 +137,7 @@ class BrowserOwnedStateReducerTest {
         isDirectory: Boolean = false
     ) = FileModel(
         name = name,
-        absolutePath = path,
+        reference = path,
         size = size,
         lastModified = 0,
         isDirectory = isDirectory,

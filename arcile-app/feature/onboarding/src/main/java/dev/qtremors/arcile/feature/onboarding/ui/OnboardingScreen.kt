@@ -89,7 +89,7 @@ import dev.qtremors.arcile.core.ui.settings.AccentColorPickerSheet
 import dev.qtremors.arcile.core.ui.settings.accentLabelRes
 import dev.qtremors.arcile.core.ui.settings.ThemeModeSelector
 import androidx.activity.compose.PredictiveBackHandler
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.spacing
 import kotlin.math.absoluteValue
 
@@ -97,8 +97,8 @@ import kotlin.math.absoluteValue
 @Composable
 internal fun OnboardingScreen(
     state: OnboardingUiState,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onNext: () -> Unit,
     onBack: () -> Unit,
     onStepSelected: (OnboardingStep) -> Unit,
@@ -208,7 +208,7 @@ internal fun OnboardingScreen(
                     OnboardingStep.WelcomeAndFeatures -> OnboardingWelcomeAndFeatures()
                     OnboardingStep.SetupPermissions -> OnboardingSetupPermissions(
                         state = state,
-                        currentThemeState = currentThemeState,
+                        currentUiPreferences = currentUiPreferences,
                         onThemeChange = onThemeChange,
                         restoreState = restoreState,
                         onChooseRestoreBackup = onChooseRestoreBackup,

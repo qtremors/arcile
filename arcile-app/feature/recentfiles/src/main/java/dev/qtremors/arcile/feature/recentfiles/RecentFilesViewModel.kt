@@ -189,9 +189,9 @@ internal class RecentFilesViewModel @Inject constructor(
                     if (loadGeneration != recentLoadGeneration) return@update it
                     if (loadMore && it.currentOffset != capturedState.currentOffset) return@update it
                     val newFiles = if (loadMore) {
-                        (it.recentFiles + files).distinctBy { file -> file.absolutePath }
+                        (it.recentFiles + files).distinctBy { file -> file.reference }
                     } else {
-                        files.distinctBy { file -> file.absolutePath }
+                        files.distinctBy { file -> file.reference }
                     }
                     it.copy(
                         isLoading = false,
@@ -232,7 +232,7 @@ internal class RecentFilesViewModel @Inject constructor(
         _state.update { currentState ->
             val updatedSelection = SelectionReducer.toggle(currentState.selectedFiles, path)
             val totalSize = currentState.recentFiles
-                .filter { updatedSelection.contains(it.absolutePath) }
+                .filter { updatedSelection.contains(it.reference) }
                 .sumOf { it.size }
             currentState.copy(
                 selectedFiles = updatedSelection,
@@ -267,13 +267,13 @@ internal class RecentFilesViewModel @Inject constructor(
     fun selectAll() {
         _state.update { currentState ->
             val allPaths = if (currentState.searchQuery.isNotBlank() || currentState.activeSearchFilters.hasActiveFilters) {
-                currentState.searchResults.map { it.absolutePath }
+                currentState.searchResults.map { it.reference }
             } else {
-                currentState.displayedRecentFiles.map { it.absolutePath }
+                currentState.displayedRecentFiles.map { it.reference }
             }
             val allPathsSet = SelectionReducer.all(allPaths)
             val totalSize = currentState.recentFiles
-                .filter { allPathsSet.contains(it.absolutePath) }
+                .filter { allPathsSet.contains(it.reference) }
                 .sumOf { it.size }
             currentState.copy(
                 selectedFiles = allPathsSet,
@@ -286,7 +286,7 @@ internal class RecentFilesViewModel @Inject constructor(
         _state.update { currentState ->
             val updatedSelection = SelectionReducer.add(currentState.selectedFiles, paths)
             val totalSize = currentState.recentFiles
-                .filter { updatedSelection.contains(it.absolutePath) }
+                .filter { updatedSelection.contains(it.reference) }
                 .sumOf { it.size }
             currentState.copy(
                 selectedFiles = updatedSelection,

@@ -135,10 +135,7 @@ fun ArcileTopBar(
     }
 
     androidx.compose.material3.LargeTopAppBar(
-        scrollBehavior = scrollBehavior,
-        expandedHeight = arcileLargeTopAppBarHeight(
-            forceCompact = selectionCount > 0 || !expandable
-        ),
+        scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior, forceCompact = selectionCount > 0 || !expandable),
         title = {
             val selectionLabel = if (selectionCount > 0) {
                 androidx.compose.ui.res.pluralStringResource(

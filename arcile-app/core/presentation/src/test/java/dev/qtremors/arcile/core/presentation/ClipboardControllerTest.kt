@@ -60,7 +60,7 @@ class ClipboardControllerTest {
         clipboard.value = ClipboardState(ClipboardOperation.COPY, listOf(file("one"), file("two")))
 
         controller.remove("/one")
-        assertEquals(listOf("/two"), clipboard.value?.files?.map(FileModel::absolutePath))
+        assertEquals(listOf("/two"), clipboard.value?.files?.map(FileModel::reference))
 
         controller.remove("/two")
         assertNull(clipboard.value)
@@ -68,7 +68,7 @@ class ClipboardControllerTest {
 
     private fun file(name: String) = FileModel(
         name = name,
-        absolutePath = "/$name",
+        reference = "/$name",
         size = 0,
         lastModified = 0,
         isDirectory = false,

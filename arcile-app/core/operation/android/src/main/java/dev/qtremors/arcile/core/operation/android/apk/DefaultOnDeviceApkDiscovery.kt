@@ -48,7 +48,7 @@ class DefaultOnDeviceApkDiscovery @Inject constructor(
             val parsedMetadataList = apkFiles.map { fileModel ->
                 async {
                     parsingSemaphore.withPermit {
-                        apkMetadataReader.readMetadata(fileModel.absolutePath)
+                        apkMetadataReader.readMetadata(fileModel.reference)
                     }
                 }
             }.awaitAll().filterNotNull()
@@ -101,7 +101,7 @@ class DefaultOnDeviceApkDiscovery @Inject constructor(
             val parsedMetadataList = apkFiles.map { fileModel ->
                 async {
                     parsingSemaphore.withPermit {
-                        apkMetadataReader.readMetadata(fileModel.absolutePath)
+                        apkMetadataReader.readMetadata(fileModel.reference)
                     }
                 }
             }.awaitAll().filterNotNull()

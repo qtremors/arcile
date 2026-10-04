@@ -234,7 +234,7 @@ class ArchiveManagerTest {
                 ArchiveFormat.ZIP,
                 password = "pass123"
             ) { update ->
-                progress += update.bytesCopied ?: 0L
+                progress += update.bytesProcessed ?: 0L
             }.isSuccess
         )
         assertTrue(manager.listArchiveEntries(archive.absolutePath).isFailure)

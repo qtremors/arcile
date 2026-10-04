@@ -12,7 +12,7 @@ internal fun fileModelFromPath(path: String): FileModel {
     val extension = name.substringAfterLast('.', "").lowercase()
     return FileModel(
         name = name,
-        absolutePath = path,
+        reference = path,
         size = 0L,
         lastModified = 0L,
         isDirectory = false,
@@ -32,7 +32,7 @@ internal fun fileModelFromPath(path: String): FileModel {
 }
 
 internal fun FileModel.openableReference(): String =
-    nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: absolutePath
+    nodeRef.contentUri?.takeIf { it.isNotBlank() } ?: reference
 
 internal fun viewerPositionLabel(currentPage: Int, total: Int): String {
     if (total <= 0) return "0/0"

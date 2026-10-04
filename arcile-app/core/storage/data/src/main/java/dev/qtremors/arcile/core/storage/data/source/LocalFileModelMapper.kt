@@ -19,7 +19,7 @@ internal class LocalFileModelMapper {
         val capabilities = file.localCapabilities(isDirectory, allowMutations)
         return FileModel(
             name = file.name,
-            absolutePath = file.absolutePath,
+            reference = file.absolutePath,
             size = if (file.isFile) file.length() else 0L,
             lastModified = file.lastModified(),
             isDirectory = isDirectory,
@@ -62,7 +62,7 @@ internal class LocalFileModelMapper {
         val file = File(entity.path)
         return FileModel(
             name = entity.name,
-            absolutePath = entity.path,
+            reference = entity.path,
             size = entity.sizeBytes,
             lastModified = entity.lastModified,
             isDirectory = entity.isDirectory,

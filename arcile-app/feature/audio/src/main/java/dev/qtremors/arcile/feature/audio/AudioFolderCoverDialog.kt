@@ -29,7 +29,7 @@ import androidx.compose.ui.window.Dialog
 
 @Composable
 internal fun AudioFolderCoverDialog(
-    folder: AudioFolder,
+    folder: AudioCollection,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -60,10 +60,10 @@ internal fun AudioFolderCoverDialog(
                         .padding(top = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(folder.tracks, key = { it.file.absolutePath }) { track ->
-                        val selected = track.file.absolutePath == folder.customCoverPath
+                    items(folder.tracks, key = { it.file.reference }) { track ->
+                        val selected = track.file.reference == folder.customCoverPath
                         Surface(
-                            onClick = { onSelect(track.file.absolutePath) },
+                            onClick = { onSelect(track.file.reference) },
                             shape = MaterialTheme.shapes.large,
                             color = if (selected) {
                                 MaterialTheme.colorScheme.primaryContainer

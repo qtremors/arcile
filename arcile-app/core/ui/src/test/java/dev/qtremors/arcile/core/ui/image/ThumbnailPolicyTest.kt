@@ -127,7 +127,7 @@ class ThumbnailPolicyTest {
     fun `thumbnail key preserves media store content uri`() {
         val model = FileModel(
             name = "clip.mp4",
-            absolutePath = "/storage/emulated/0/Movies/clip.mp4",
+            reference = "/storage/emulated/0/Movies/clip.mp4",
             extension = "mp4",
             nodeRef = StorageNodeRef.mediaStore(
                 id = 12L,

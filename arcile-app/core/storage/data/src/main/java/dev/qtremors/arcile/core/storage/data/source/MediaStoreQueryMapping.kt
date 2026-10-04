@@ -62,7 +62,7 @@ internal data class MediaStoreFileRow(
         val uri = contentUri
         return FileModel(
             name = displayName,
-            absolutePath = path,
+            reference = path,
             size = size,
             lastModified = lastModified,
             isDirectory = false,

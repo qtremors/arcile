@@ -13,9 +13,9 @@ import dev.qtremors.arcile.core.storage.domain.storagePathNameWithoutExtension
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.PasteConflictDialog
 import dev.qtremors.arcile.core.ui.SearchFiltersSheet
-import dev.qtremors.arcile.core.ui.SortOptionDialog
+import dev.qtremors.arcile.core.ui.FileViewOptionsSheet
 import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
-import dev.qtremors.arcile.core.ui.dialogs.CreateFakeFileDialog
+import dev.qtremors.arcile.core.ui.dialogs.CreateSyntheticFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.CreateFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
@@ -96,12 +96,12 @@ internal fun BrowserDialogs(
         )
     }
 
-    if (dialogVisibility.showCreateFakeFileDialog) {
-        CreateFakeFileDialog(
-            onDismiss = { dialogVisibility.showCreateFakeFileDialog = false },
+    if (dialogVisibility.showCreateSyntheticFileDialog) {
+        CreateSyntheticFileDialog(
+            onDismiss = { dialogVisibility.showCreateSyntheticFileDialog = false },
             onConfirm = { fileName, size ->
-                dialogVisibility.showCreateFakeFileDialog = false
-                mutationIntents.onCreateFakeFile(fileName, size)
+                dialogVisibility.showCreateSyntheticFileDialog = false
+                mutationIntents.onCreateSyntheticFile(fileName, size)
             }
         )
     }
@@ -159,6 +159,7 @@ internal fun BrowserDialogs(
         val currentName = storagePathName(selectedPath)
         RenameDialog(
             currentName = currentName,
+            isDirectory = state.files.firstOrNull { it.reference == selectedPath }?.isDirectory == true,
             onDismiss = {
                 dialogVisibility.showRenameDialog = false
                 selectionIntents.onClearSelection()
@@ -173,7 +174,7 @@ internal fun BrowserDialogs(
 
     if (dialogVisibility.showRenameDialog && state.selectedFiles.size > 1) {
         val selectedModels = state.files
-            .filter { file -> state.selectedFiles.contains(file.absolutePath) }
+            .filter { file -> state.selectedFiles.contains(file.reference) }
         BatchRenameDialog(
             files = selectedModels,
             onDismiss = {
@@ -192,7 +193,7 @@ internal fun BrowserDialogs(
     }
 
     if (dialogVisibility.showSortDialog) {
-        SortOptionDialog(
+        FileViewOptionsSheet(
             title = stringResource(R.string.sort_folder_title),
             selectedPreferences = currentPresentation,
             showApplyToSubfolders = !state.isCategoryScreen,

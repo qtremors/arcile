@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.trash
 
+import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
@@ -73,7 +74,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import dev.qtremors.arcile.core.storage.domain.isIndexed
 import dev.qtremors.arcile.feature.trash.TrashFilter
 import dev.qtremors.arcile.feature.trash.TrashPropertiesUiModel
@@ -159,13 +159,13 @@ internal fun TrashScreen(
                 ArcileFeedbackEvent(
                     message = message,
                     severity = ArcileFeedbackSeverity.Success,
-                    actionLabel = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                    actionLabel = state.pendingRestoreUndoItems.takeIf { it.isNotEmpty() }?.let {
                         UiText.StringResource(R.string.undo)
                     },
-                    onAction = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                    onAction = state.pendingRestoreUndoItems.takeIf { it.isNotEmpty() }?.let {
                         { onUndoLastRestore() }
                     },
-                    onDismiss = state.pendingRestoreUndoPaths.takeIf { it.isNotEmpty() }?.let {
+                    onDismiss = state.pendingRestoreUndoItems.takeIf { it.isNotEmpty() }?.let {
                         { onClearPendingRestoreUndo() }
                     }
                 )
@@ -204,7 +204,7 @@ internal fun TrashScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
+        modifier = Modifier.arcileTopAppBarNestedScroll(scrollBehavior),
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = {},
         topBar = {
@@ -230,9 +230,6 @@ internal fun TrashScreen(
                     )
                 } else {
                     LargeTopAppBar(
-                        expandedHeight = dev.qtremors.arcile.core.ui.arcileLargeTopAppBarHeight(
-                            forceCompact = isSelectionMode
-                        ),
                         title = {
                             Text(
                                 text = if (isSelectionMode) androidx.compose.ui.res.pluralStringResource(R.plurals.selected_count, state.selectedFiles.size, state.selectedFiles.size) else stringResource(R.string.trash_bin),
@@ -240,7 +237,7 @@ internal fun TrashScreen(
                                 overflow = TextOverflow.Ellipsis
                             )
                         },
-                        scrollBehavior = scrollBehavior,
+                        scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior, forceCompact = isSelectionMode),
                         navigationIcon = {
                             if (isSelectionMode) {
                                 IconButton(

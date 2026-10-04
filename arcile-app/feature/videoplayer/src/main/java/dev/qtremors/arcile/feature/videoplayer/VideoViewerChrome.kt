@@ -239,7 +239,7 @@ internal fun VideoViewerBottomChrome(
         files.associate { file ->
             val thumbnailKey = ThumbnailKey.from(file)
             val cacheKey = thumbnailKey.variantKey(VIDEO_STRIP_THUMBNAIL_SIZE_PX).cacheKey
-            file.absolutePath to VideoStripThumbnailEntry(
+            file.reference to VideoStripThumbnailEntry(
                 cacheKey = cacheKey,
                 request = buildThumbnailImageRequest(
                     context = context,
@@ -305,11 +305,11 @@ internal fun VideoViewerBottomChrome(
                     verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.CenterVertically),
                     contentPadding = PaddingValues(vertical = thumbnailSidePadding)
                 ) {
-                    itemsIndexed(files, key = { _, file -> file.absolutePath }) { index, file ->
+                    itemsIndexed(files, key = { _, file -> file.reference }) { index, file ->
                         VideoViewerStripThumbnail(
                             file = file,
                             selected = currentPage == index,
-                            entry = thumbnailEntries[file.absolutePath],
+                            entry = thumbnailEntries[file.reference],
                             painterCache = thumbnailPainterCache,
                             onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
                         )
@@ -351,12 +351,12 @@ internal fun VideoViewerBottomChrome(
                     ) {
                         itemsIndexed(
                             items = files,
-                            key = { _, file -> file.absolutePath }
+                            key = { _, file -> file.reference }
                         ) { index, file ->
                             VideoViewerStripThumbnail(
                                 file = file,
                                 selected = currentPage == index,
-                                entry = thumbnailEntries[file.absolutePath],
+                                entry = thumbnailEntries[file.reference],
                                 painterCache = thumbnailPainterCache,
                                 onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
                             )
@@ -367,12 +367,12 @@ internal fun VideoViewerBottomChrome(
 
             // 2. Playback seek bar (video-specific addition)
             if (currentFile != null) {
-                var isSeeking by remember(currentFile.absolutePath) { mutableStateOf(false) }
-                var sliderValue by remember(currentFile.absolutePath) { mutableFloatStateOf(0f) }
-                var showRemainingTime by remember(currentFile.absolutePath) { mutableStateOf(false) }
+                var isSeeking by remember(currentFile.reference) { mutableStateOf(false) }
+                var sliderValue by remember(currentFile.reference) { mutableFloatStateOf(0f) }
+                var showRemainingTime by remember(currentFile.reference) { mutableStateOf(false) }
                 val seekState = videoSeekState(playbackPosition, playbackDuration)
 
-                DisposableEffect(currentFile.absolutePath, actions) {
+                DisposableEffect(currentFile.reference, actions) {
                     onDispose { actions.onScrubStateChange(false) }
                 }
 
@@ -466,10 +466,10 @@ internal fun VideoViewerBottomChrome(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val isFavorite = currentFile != null && currentFile.absolutePath in favoriteFiles
+                val isFavorite = currentFile != null && currentFile.reference in favoriteFiles
                 val favoriteDescription = stringResource(R.string.action_favorite)
                 val deleteDescription = stringResource(R.string.action_delete_selected)
-                val isSelected = currentFile != null && currentFile.absolutePath in selectedFiles
+                val isSelected = currentFile != null && currentFile.reference in selectedFiles
                 val selectionDescription = stringResource(
                     if (isSelected) R.string.deselect_video else R.string.select_video
                 )
@@ -522,7 +522,7 @@ internal fun VideoViewerBottomChrome(
                                     onClick = {
                                         currentFile?.let {
                                             haptics.selectionChanged()
-                                            actions.onToggleSelection(it.absolutePath)
+                                            actions.onToggleSelection(it.reference)
                                         }
                                     }
                                 )
@@ -566,7 +566,7 @@ internal fun VideoViewerBottomChrome(
                                     onClick = {
                                         currentFile?.let {
                                             haptics.selectionChanged()
-                                            actions.onToggleFavorite(it.absolutePath)
+                                            actions.onToggleFavorite(it.reference)
                                         }
                                     }
                                 )
@@ -581,7 +581,7 @@ internal fun VideoViewerBottomChrome(
                                     onClick = {
                                         currentFile?.let {
                                             haptics.selectionStart()
-                                            actions.onDelete(it.absolutePath)
+                                            actions.onDelete(it.reference)
                                         }
                                     }
                                 )
@@ -604,7 +604,7 @@ internal fun VideoViewerBottomChrome(
                     allowedActions = viewerActions,
                     onAction = onViewerAction,
                     onShowMetadata = if (!readOnly && currentFile != null) {
-                        { actions.onShowMetadata(currentFile.absolutePath) }
+                        { actions.onShowMetadata(currentFile.reference) }
                     } else {
                         null
                     },

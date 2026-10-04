@@ -95,7 +95,7 @@ fun FileModel.matchesCategorySearchFilters(
 }
 
 fun buildCategoryFolders(files: List<FileModel>): List<CategoryFolderSummary> =
-    files.groupBy { storageParentPath(it.absolutePath).orEmpty() }
+    files.groupBy { storageParentPath(it.reference).orEmpty() }
         .filterKeys(String::isNotBlank)
         .map { (path, children) ->
             CategoryFolderSummary(

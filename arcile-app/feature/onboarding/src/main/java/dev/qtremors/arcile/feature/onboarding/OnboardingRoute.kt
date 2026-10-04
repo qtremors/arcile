@@ -19,12 +19,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.backup.PreferencesBackupItemStatus
 import dev.qtremors.arcile.feature.onboarding.ui.OnboardingScreen
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 
 @Composable
 fun OnboardingRoute(
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     hasStoragePermission: Boolean,
     keepApplicationContentVisible: Boolean = hasStoragePermission,
     onOpenStoragePermissionSettings: () -> Unit,
@@ -92,7 +92,7 @@ fun OnboardingRoute(
         !state.preferencesLoaded -> Unit
         !state.isCompleted && !shouldAutoCompleteExistingUser -> OnboardingScreen(
             state = state,
-            currentThemeState = currentThemeState,
+            currentUiPreferences = currentUiPreferences,
             onThemeChange = onThemeChange,
             onNext = viewModel::next,
             onBack = viewModel::back,

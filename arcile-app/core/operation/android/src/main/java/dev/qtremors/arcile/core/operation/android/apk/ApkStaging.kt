@@ -11,9 +11,11 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import dev.qtremors.arcile.core.runtime.ProcessOwnership
 
 internal const val APK_STAGING_PREFIX = "apk_staging_"
 private const val APK_STAGING_BUFFER_SIZE = 64 * 1024
+private val stagingLock = Any()
 
 internal data class ApkStagingPolicy(
     val maxArchiveEntries: Int = 512,
@@ -135,10 +137,16 @@ internal fun cleanupApkStaging(context: Context, details: ApkPackageDetails?) {
     runCatching { cleanupOwnedApkStagingDirectory(context.cacheDir, File(path)) }
 }
 
-internal fun cleanupAbandonedApkStaging(context: Context) {
-    context.cacheDir.listFiles().orEmpty()
-        .filter { it.isDirectory && it.name.startsWith(APK_STAGING_PREFIX) }
-        .forEach { directory -> runCatching { directory.deleteRecursively() } }
+internal fun cleanupAbandonedApkStaging(context: Context, ownerIsAlive: (String) -> Boolean = ProcessOwnership::isAlive) {
+    synchronized(stagingLock) {
+        context.cacheDir.listFiles().orEmpty()
+            .filter { it.isDirectory && it.name.startsWith(APK_STAGING_PREFIX) }
+            .filter { directory ->
+                val owner = directory.name.removePrefix(APK_STAGING_PREFIX).substringBefore('_')
+                !owner.matches(Regex("[0-9]+-[0-9]+(?:-[0-9a-f]+)?")) || !ownerIsAlive(owner)
+            }
+            .forEach { directory -> runCatching { cleanupOwnedApkStagingDirectory(context.cacheDir, directory) } }
+    }
 }
 
 internal fun cleanupOwnedApkStagingDirectory(cacheDir: File, directory: File): Boolean {
@@ -150,11 +158,11 @@ internal fun cleanupOwnedApkStagingDirectory(cacheDir: File, directory: File): B
     return !canonicalDirectory.exists() || canonicalDirectory.deleteRecursively()
 }
 
-internal fun createUniqueStagingDirectory(cacheDir: File): File {
+internal fun createUniqueStagingDirectory(cacheDir: File): File = synchronized(stagingLock) {
     require(cacheDir.mkdirs() || cacheDir.isDirectory) { "APK staging cache is unavailable" }
     repeat(8) {
-        val candidate = File(cacheDir, "$APK_STAGING_PREFIX${UUID.randomUUID()}")
-        if (candidate.mkdir()) return candidate
+        val candidate = File(cacheDir, "$APK_STAGING_PREFIX${ProcessOwnership.token ?: "legacy"}_${UUID.randomUUID()}")
+        if (candidate.mkdir()) return@synchronized candidate
     }
     error("Could not create a unique APK staging directory")
 }

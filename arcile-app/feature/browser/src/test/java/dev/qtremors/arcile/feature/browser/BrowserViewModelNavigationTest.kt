@@ -5,7 +5,7 @@ import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
@@ -336,7 +336,7 @@ class BrowserViewModelNavigationTest {
                 filesByCategory = mapOf("Images" to listOf(browserFile("pic.jpg", "/storage/emulated/0/DCIM/pic.jpg")))
             ),
             browserPreferencesRepository = FakeFilePreferencesStore(
-                BrowserPreferences(
+                SharedFilePreferences(
                     pathPresentationOptions = mapOf(
                         "category_Images" to FileListingPreferences(sortOption = FileSortOption.DATE_OLDEST)
                     )

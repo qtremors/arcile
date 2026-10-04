@@ -42,6 +42,7 @@ internal data class HomeState(
     val isSearching: Boolean = false,
     val isSearchFilterMenuVisible: Boolean = false,
     val isLoading: Boolean = true,
+    val hasRestoredCachedHomeData: Boolean = false,
     val isPullToRefreshing: Boolean = false,
     val isCalculatingStorage: Boolean = false,
     val isRootStorageUsageLoading: Boolean = false,

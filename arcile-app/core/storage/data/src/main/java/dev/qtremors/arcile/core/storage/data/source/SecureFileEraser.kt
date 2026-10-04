@@ -10,7 +10,7 @@ internal class SecureFileEraser(
         (File) -> DefaultFileSystemDataSource.SecureOverwriteResult
     )?
 ) {
-    fun shredRecursively(file: File): List<BatchMutationFailure> {
+    fun overwriteTreeWithZeros(file: File): List<BatchMutationFailure> {
         if (file.isDirectory) {
             val children = file.listFiles() ?: return listOf(
                 BatchMutationFailure(
@@ -21,11 +21,11 @@ internal class SecureFileEraser(
                     cleanupRequired = true
                 )
             )
-            return children.flatMap(::shredRecursively)
+            return children.flatMap(::overwriteTreeWithZeros)
         }
         if (!file.isFile) return emptyList()
 
-        return when (val result = overwriteSecurely(file)) {
+        return when (val result = overwriteWithZeros(file)) {
             DefaultFileSystemDataSource.SecureOverwriteResult.Success -> emptyList()
             is DefaultFileSystemDataSource.SecureOverwriteResult.Failure -> listOf(
                 BatchMutationFailure(
@@ -39,7 +39,7 @@ internal class SecureFileEraser(
         }
     }
 
-    private fun overwriteSecurely(
+    private fun overwriteWithZeros(
         file: File
     ): DefaultFileSystemDataSource.SecureOverwriteResult {
         overwriteOverride()?.let { return it(file) }

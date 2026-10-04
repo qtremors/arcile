@@ -49,7 +49,7 @@ internal class SyntheticFileCreator(
                             completedItems = 0,
                             totalItems = 1,
                             currentPath = target.absolutePath,
-                            bytesCopied = totalWritten,
+                            bytesProcessed = totalWritten,
                             totalBytes = size
                         )
                     )

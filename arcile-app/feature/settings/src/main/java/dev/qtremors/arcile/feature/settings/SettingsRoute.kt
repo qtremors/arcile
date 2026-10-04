@@ -4,10 +4,17 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.platform.LocalContext
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import kotlinx.coroutines.launch
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupActions
 import dev.qtremors.arcile.feature.settings.ui.SettingsBackupDialogs
 import dev.qtremors.arcile.feature.settings.ui.SettingsNavigationActions
@@ -18,8 +25,8 @@ import dev.qtremors.arcile.feature.settings.ui.SettingsStorageActions
 
 @Composable
 internal fun SettingsRoute(
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onNavigateBack: () -> Unit,
     onDestination: (SettingsDestination) -> Unit,
     onRestartApp: () -> Unit
@@ -28,7 +35,15 @@ internal fun SettingsRoute(
     val preferences by viewModel.browserPreferences.collectAsStateWithLifecycle()
     val backupState by viewModel.backupState.collectAsStateWithLifecycle()
     val externalCache by viewModel.externalCache.collectAsStateWithLifecycle()
+    val storageVolumes by viewModel.storageVolumes.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var pluginExtensions by remember { mutableStateOf(emptySet<String>()) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        scope.launch {
+            pluginExtensions = queryCompatiblePluginExtensions(context)
+        }
+    }
 
     val exportBackupLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json")
@@ -49,15 +64,16 @@ internal fun SettingsRoute(
     )
 
     SettingsScreen(
+        pluginExtensions = pluginExtensions,
         state = SettingsScreenState(
-            theme = currentThemeState,
+            theme = currentUiPreferences,
             preferences = preferences,
             backup = backupState,
-            externalCache = externalCache
+            externalCache = externalCache,
+            storageVolumes = storageVolumes
         ),
         navigationActions = SettingsNavigationActions(
             navigateBack = onNavigateBack,
-            openStorageManagement = { onDestination(SettingsDestination.StorageManagement) },
             navigateToPlugins = { onDestination(SettingsDestination.Plugins) },
             navigateToAbout = { onDestination(SettingsDestination.About) }
         ),
@@ -73,7 +89,8 @@ internal fun SettingsRoute(
             activityRecordingChange = viewModel::updateActivityRecording,
             browserScrollbarEnabledChange = viewModel::updateBrowserScrollbarEnabled,
             galleryScrollbarEnabledChange = viewModel::updateGalleryScrollbarEnabled,
-            fileOpenBehaviorChange = viewModel::updateFileOpenBehavior
+            fileOpenBehaviorChange = viewModel::updateFileOpenBehavior,
+            fileOpenBehaviorRemove = viewModel::removeFileOpenBehavior
         ),
         backupActions = SettingsBackupActions(
             requestExport = { exportBackupLauncher.launch("arcile-settings-backup.json") },
@@ -82,7 +99,9 @@ internal fun SettingsRoute(
             }
         ),
         storageActions = SettingsStorageActions(
-            clearExternalCache = viewModel::clearExternalCache
+            clearExternalCache = viewModel::clearExternalCache,
+            setVolumeClassification = viewModel::setVolumeClassification,
+            resetVolumeClassification = viewModel::resetVolumeClassification
         )
     )
 }

@@ -10,6 +10,30 @@ class AppRoutesTest {
     private val json = Json
 
     @Test
+    fun `viewer folder context retains its saved album field`() {
+        val savedRoute = """{"initialPath":"/Pictures/one.jpg","albumPath":"/Pictures"}"""
+        val route = json.decodeFromString<AppRoutes.ImageViewer>(savedRoute)
+
+        assertEquals("/Pictures", route.folderPath)
+        assertEquals(savedRoute, json.encodeToString(route))
+    }
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    @Test
+    fun `media gallery retains the saved navigation identity and payload`() {
+        assertEquals(
+            "dev.qtremors.arcile.navigation.AppRoutes.ImageGallery",
+            AppRoutes.MediaGallery.serializer().descriptor.serialName
+        )
+        val savedRoute = """{"volumeId":"primary","categoryId":"Videos"}"""
+        assertEquals(
+            AppRoutes.MediaGallery(volumeId = "primary", categoryId = "Videos"),
+            json.decodeFromString<AppRoutes.MediaGallery>(savedRoute)
+        )
+        assertEquals("imageViewerReturnSelectionPaths", AppRoutes.MEDIA_VIEWER_RETURN_SELECTION_PATHS_KEY)
+    }
+
+    @Test
     fun `serializes and deserializes object routes`() {
         assertEquals(AppRoutes.Home, json.decodeFromString<AppRoutes.Home>(json.encodeToString(AppRoutes.Home)))
         assertEquals(AppRoutes.Tools, json.decodeFromString<AppRoutes.Tools>(json.encodeToString(AppRoutes.Tools)))

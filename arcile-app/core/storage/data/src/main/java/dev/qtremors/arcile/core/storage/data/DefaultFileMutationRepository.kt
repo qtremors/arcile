@@ -29,13 +29,13 @@ class DefaultFileMutationRepository(
         name: String
     ): Result<FileModel> = fileSystemDataSource.createFile(parentPath, name)
 
-    override suspend fun createFakeFile(
+    override suspend fun createSyntheticFile(
         parentPath: String,
         name: String,
         size: Long,
         onProgress: ((FileOperationProgress) -> Unit)?
     ): Result<FileModel> =
-        fileSystemDataSource.createFakeFile(parentPath, name, size, onProgress)
+        fileSystemDataSource.createSyntheticFile(parentPath, name, size, onProgress)
 
     override suspend fun deleteFile(path: String): Result<Unit> =
         withContext(dispatchers.io) {
@@ -112,7 +112,7 @@ class DefaultFileMutationRepository(
                     rollbackBatchRename(transaction)
                     return@withContext Result.failure(failure)
                 }
-                entry.currentPath = result.getOrThrow().absolutePath
+                entry.currentPath = result.getOrThrow().reference
                 entry.phase = BatchRenamePhase.STAGED
             }
 
@@ -126,7 +126,7 @@ class DefaultFileMutationRepository(
                     rollbackBatchRename(transaction)
                     return@withContext Result.failure(failure)
                 }
-                entry.currentPath = result.getOrThrow().absolutePath
+                entry.currentPath = result.getOrThrow().reference
                 entry.phase = BatchRenamePhase.FINAL
             }
 
@@ -185,20 +185,20 @@ class DefaultFileMutationRepository(
             if (entry.phase == BatchRenamePhase.FINAL) {
                 fileSystemDataSource.renameFile(entry.currentPath, entry.temporaryName)
                     .onSuccess { restored ->
-                        entry.currentPath = restored.absolutePath
+                        entry.currentPath = restored.reference
                         entry.phase = BatchRenamePhase.STAGED
                     }
             } else if (entry.phase == BatchRenamePhase.FINALIZING) {
                 val restaged = fileSystemDataSource.renameFile(entry.finalPath, entry.temporaryName)
                 if (restaged.isSuccess) {
                     restaged.onSuccess { restored ->
-                        entry.currentPath = restored.absolutePath
+                        entry.currentPath = restored.reference
                         entry.phase = BatchRenamePhase.STAGED
                     }
                 } else {
                     fileSystemDataSource.renameFile(entry.temporaryPath, entry.originalName)
                         .onSuccess { restored ->
-                            entry.currentPath = restored.absolutePath
+                            entry.currentPath = restored.reference
                             entry.phase = BatchRenamePhase.ORIGINAL
                         }
                 }
@@ -211,7 +211,7 @@ class DefaultFileMutationRepository(
             } else if (entry.phase == BatchRenamePhase.STAGED) {
                 fileSystemDataSource.renameFile(entry.currentPath, entry.originalName)
                     .onSuccess { restored ->
-                        entry.currentPath = restored.absolutePath
+                        entry.currentPath = restored.reference
                         entry.phase = BatchRenamePhase.ORIGINAL
                     }
             }

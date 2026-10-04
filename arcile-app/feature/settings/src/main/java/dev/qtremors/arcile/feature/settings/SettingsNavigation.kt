@@ -7,7 +7,7 @@ import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import dev.qtremors.arcile.navigation.AppRoutes
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 
 sealed interface SettingsDestination {
     data object StorageManagement : SettingsDestination
@@ -20,8 +20,8 @@ fun NavGraphBuilder.registerSettingsRoute(
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
-    currentThemeState: ThemeState,
-    onThemeChange: (ThemeState) -> Unit,
+    currentUiPreferences: UiPreferences,
+    onThemeChange: (UiPreferences) -> Unit,
     onNavigateBack: () -> Unit,
     onDestination: (SettingsDestination) -> Unit,
     onRestartApp: () -> Unit
@@ -33,7 +33,7 @@ fun NavGraphBuilder.registerSettingsRoute(
         popExitTransition = popExitTransition
     ) {
         SettingsRoute(
-            currentThemeState = currentThemeState,
+            currentUiPreferences = currentUiPreferences,
             onThemeChange = onThemeChange,
             onNavigateBack = onNavigateBack,
             onDestination = onDestination,

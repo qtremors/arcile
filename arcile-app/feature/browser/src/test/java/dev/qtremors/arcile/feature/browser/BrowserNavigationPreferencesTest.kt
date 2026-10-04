@@ -8,6 +8,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BrowserNavigationPreferencesTest {
+    @Test
+    fun `remembered location changes preserve the display instance`() {
+        val initial = directoryState(path).withUpdatedDisplayState()
+        val updated = initial.applyNavigationPreferences(BrowserLocationPreferences(lastOpenedPath = "$path/child"))
+        org.junit.Assert.assertSame(initial.displayState, updated.displayState)
+    }
     private val path = "/storage/emulated/0/Pictures"
     private val presentation = FileListingPreferences(
         sortOption = FileSortOption.DATE_NEWEST,

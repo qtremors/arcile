@@ -6,7 +6,7 @@ data class SaveDestinationPreferences(
     val defaultPath: String? = null
 ) {
     companion object {
-        fun from(preferences: BrowserPreferences) =
+        fun from(preferences: SharedFilePreferences) =
             SaveDestinationPreferences(defaultPath = preferences.defaultSaveToArcilePath)
     }
 }

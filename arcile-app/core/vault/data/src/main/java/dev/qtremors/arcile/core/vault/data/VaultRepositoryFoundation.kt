@@ -22,7 +22,7 @@ internal abstract class VaultRepositoryFoundation(
     protected val applicationScope: CoroutineScope,
     protected val portableLocationResolver: VaultPortableLocationResolver
 ) {
-    protected val headerCodec = VaultManifestCodec()
+    protected val headerCodec = VaultHeaderCodec()
     protected val directoryCodec = VaultDirectoryManifestCodec()
     protected val fileCodec = VaultFileCodec()
     protected val transactionManager = VaultTransactionManager(directoryCodec)
@@ -33,9 +33,10 @@ internal abstract class VaultRepositoryFoundation(
     protected val locations = ConcurrentHashMap<String, VaultLocationRecord>()
     protected val importReservations = ConcurrentHashMap<String, VaultSessionRecord>()
     protected val lifecycleMutex = Mutex()
+    protected var lockGeneration = 0L
     protected val locationRegistry = VaultLocationRegistry(context)
     protected val importEngine = VaultImportEngine(context, directoryCodec, fileCodec, transactionManager)
-    protected val externalManager = VaultExternalManager(locationRegistry)
+    protected val portableManager = VaultPortableManager(locationRegistry)
     protected val appPrivateManager = VaultAppPrivateManager(vaultRoot)
     protected val biometricStore = VaultBiometricStore(context)
     protected val mutableVaults = MutableStateFlow<List<VaultSummary>>(emptyList())

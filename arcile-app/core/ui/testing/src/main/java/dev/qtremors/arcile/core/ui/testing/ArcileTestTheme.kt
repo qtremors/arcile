@@ -6,12 +6,12 @@ import dev.qtremors.arcile.core.ui.theme.AccentColor
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import dev.qtremors.arcile.core.ui.theme.ThemeMode
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 
 @Composable
 fun ArcileTestTheme(content: @Composable () -> Unit) {
     ArcileTheme(
-        themeState = ThemeState(
+        uiPreferences = UiPreferences(
             themeMode = ThemeMode.LIGHT,
             accentColor = AccentColor.BLUE
         ),

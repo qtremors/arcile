@@ -3,8 +3,11 @@ package dev.qtremors.arcile.feature.audio
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
+import android.os.SystemClock
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
@@ -16,10 +19,104 @@ import androidx.media3.session.SessionError
 import androidx.media3.session.SessionResult
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @androidx.annotation.OptIn(UnstableApi::class)
+@AndroidEntryPoint
 internal class AudioPlaybackService : MediaSessionService() {
+    @Inject lateinit var listeningStore: AudioListeningStore
     private var mediaSession: MediaSession? = null
+    private lateinit var queueStore: AudioPlaybackQueueStore
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var positionJob: Job? = null
+    private var listeningPath: String? = null
+    private var listenedMs = 0L
+    private var listeningDurationMs = C.TIME_UNSET
+    private var lastListeningSampleMs = 0L
+    private var wasPlaying = false
+    private var qualified = false
+
+    private fun sampleListening() {
+        val now = SystemClock.elapsedRealtime()
+        if (wasPlaying && lastListeningSampleMs > 0L) {
+            listenedMs += (now - lastListeningSampleMs).coerceAtLeast(0L)
+        }
+        lastListeningSampleMs = now
+        val path = listeningPath ?: return
+        val duration = listeningDurationMs.takeIf { it > 0L && it != C.TIME_UNSET }
+        val threshold = duration?.div(2)?.coerceAtMost(30_000L) ?: 30_000L
+        if (!qualified && listenedMs >= threshold) {
+            qualified = true
+            serviceScope.launch(Dispatchers.IO) {
+                runCatching { listeningStore.recordQualifiedPlay(path) }
+            }
+        }
+    }
+
+    private val visualizerListener = object : Player.Listener {
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            sampleListening()
+            if (listeningPath == null) listeningPath = mediaSession?.player?.currentMediaItem?.mediaId
+            wasPlaying = isPlaying
+            lastListeningSampleMs = SystemClock.elapsedRealtime()
+            AudioPlaybackSpectrum.setPlaying(isPlaying)
+            positionJob?.cancel()
+            mediaSession?.player?.let(queueStore::savePosition)
+            if (isPlaying) {
+                positionJob = serviceScope.launch {
+                    while (isActive) {
+                        delay(5_000L)
+                        mediaSession?.player?.let(queueStore::savePosition)
+                        sampleListening()
+                    }
+                }
+            }
+        }
+
+        override fun onEvents(player: Player, events: Player.Events) {
+            if (player.currentMediaItem?.mediaId == listeningPath &&
+                player.duration > 0L && player.duration != C.TIME_UNSET
+            ) {
+                listeningDurationMs = player.duration
+            }
+            if (events.contains(Player.EVENT_TIMELINE_CHANGED)) {
+                queueStore.saveQueue(player)
+            } else if (
+                events.contains(Player.EVENT_MEDIA_ITEM_TRANSITION) ||
+                events.contains(Player.EVENT_POSITION_DISCONTINUITY) ||
+                events.contains(Player.EVENT_REPEAT_MODE_CHANGED) ||
+                events.contains(Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED)
+            ) {
+                queueStore.savePosition(player)
+            }
+        }
+
+        override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+            sampleListening()
+            listeningPath = mediaItem?.mediaId
+            listenedMs = 0L
+            listeningDurationMs = C.TIME_UNSET
+            qualified = false
+            lastListeningSampleMs = SystemClock.elapsedRealtime()
+            AudioPlaybackSpectrum.clear()
+        }
+
+        override fun onPlaybackStateChanged(playbackState: Int) {
+            if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
+                sampleListening()
+                wasPlaying = false
+                AudioPlaybackSpectrum.clear()
+            }
+        }
+    }
     private val closePlayerCommand = SessionCommand(ACTION_CLOSE_AUDIO_PLAYER, Bundle.EMPTY)
     private val sessionCallback = object : MediaSession.Callback {
         override fun onConnect(
@@ -45,6 +142,7 @@ internal class AudioPlaybackService : MediaSessionService() {
             if (customCommand == closePlayerCommand) {
                 session.player.stop()
                 session.player.clearMediaItems()
+                queueStore.saveQueue(session.player)
                 sendBroadcast(
                     Intent(ACTION_CLOSE_AUDIO_PLAYER).setPackage(packageName)
                 )
@@ -57,11 +155,12 @@ internal class AudioPlaybackService : MediaSessionService() {
     @UnstableApi
     override fun onCreate() {
         super.onCreate()
+        queueStore = AudioPlaybackQueueStore(this)
         val notificationProvider = DefaultMediaNotificationProvider.Builder(this)
             .build()
             .apply { setSmallIcon(R.drawable.ic_arcile_notification) }
         setMediaNotificationProvider(notificationProvider)
-        val player = ExoPlayer.Builder(this)
+        val player = ExoPlayer.Builder(this, AudioVisualizerRenderersFactory(this))
             .setAudioAttributes(
                 AudioAttributes.Builder()
                     .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -71,11 +170,19 @@ internal class AudioPlaybackService : MediaSessionService() {
             )
             .setHandleAudioBecomingNoisy(true)
             .build()
+        queueStore.read()?.let { saved ->
+            player.setMediaItems(saved.items, saved.index, saved.positionMs)
+            player.repeatMode = saved.repeatMode
+            player.shuffleModeEnabled = saved.shuffleEnabled
+            player.prepare()
+        }
+        player.addListener(visualizerListener)
         val sessionActivity = packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
             PendingIntent.getActivity(
                 this,
                 0,
-                intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    .putExtra(AudioFeatureEntryPoint.EXTRA_OPEN_PLAYER, true),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
@@ -102,7 +209,11 @@ internal class AudioPlaybackService : MediaSessionService() {
     ): MediaSession? = mediaSession
 
     override fun onDestroy() {
+        positionJob?.cancel()
+        AudioPlaybackSpectrum.setPlaying(false)
+        AudioPlaybackSpectrum.clear()
         mediaSession?.run {
+            queueStore.savePosition(player)
             player.release()
             release()
         }

@@ -6,12 +6,12 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
-import dev.qtremors.arcile.core.storage.data.browserDataStore
+import dev.qtremors.arcile.core.storage.data.filePreferencesDataStore
 import dev.qtremors.arcile.core.storage.data.utilityDataStore
 import dev.qtremors.arcile.core.ui.theme.AccentColor
 import dev.qtremors.arcile.core.ui.theme.ThemeMode
-import dev.qtremors.arcile.core.ui.theme.ThemePreferences
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import java.io.File
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
@@ -31,28 +31,28 @@ import org.robolectric.annotation.Config
 class PreferencesBackupManagerTest {
     private lateinit var context: Context
     private lateinit var manager: PreferencesBackupManager
-    private lateinit var themePreferences: ThemePreferences
+    private lateinit var uiPreferencesStore: UiPreferencesStore
     private val browserValue = stringPreferencesKey("backup_test_browser_value")
     private val utilityValue = stringPreferencesKey("backup_test_utility_value")
 
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        themePreferences = ThemePreferences(context)
-        manager = PreferencesBackupManager(context, themePreferences)
+        uiPreferencesStore = UiPreferencesStore(context)
+        manager = PreferencesBackupManager(context, uiPreferencesStore)
         runBlocking {
-            context.browserDataStore.updateData { emptyPreferences() }
+            context.filePreferencesDataStore.updateData { emptyPreferences() }
             context.utilityDataStore.updateData { emptyPreferences() }
-            themePreferences.saveThemeState(ThemeState())
+            uiPreferencesStore.saveUiPreferences(UiPreferences())
         }
     }
 
     @Test
     fun `export and restore updates live preference datastores`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "browser-backup" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "browser-backup" }
         context.utilityDataStore.edit { it[utilityValue] = "utility-backup" }
-        themePreferences.saveThemeState(
-            ThemeState(
+        uiPreferencesStore.saveUiPreferences(
+            UiPreferences(
                 themeMode = ThemeMode.DARK,
                 accentColor = AccentColor.GREEN,
                 harmonizeColors = false,
@@ -63,10 +63,10 @@ class PreferencesBackupManagerTest {
         val backupFile = backupFile("settings-backup.json")
 
         val exportResult = manager.exportTo(Uri.fromFile(backupFile)).getOrThrow()
-        context.browserDataStore.edit { it[browserValue] = "browser-current" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "browser-current" }
         context.utilityDataStore.edit { it[utilityValue] = "utility-current" }
-        themePreferences.saveThemeState(
-            ThemeState(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.RED)
+        uiPreferencesStore.saveUiPreferences(
+            UiPreferences(themeMode = ThemeMode.LIGHT, accentColor = AccentColor.RED)
         )
 
         val preview = manager.preview(Uri.fromFile(backupFile)).getOrThrow()
@@ -77,13 +77,13 @@ class PreferencesBackupManagerTest {
         assertEquals(10, restoreResult.successCount)
         assertTrue(backupFile.readText().contains("\"decodedSizeBytes\""))
         assertTrue(backupFile.readText().contains("\"sha256\""))
-        assertEquals("browser-backup", context.browserDataStore.data.first()[browserValue])
+        assertEquals("browser-backup", context.filePreferencesDataStore.data.first()[browserValue])
         assertEquals("utility-backup", context.utilityDataStore.data.first()[utilityValue])
-        assertEquals(ThemeMode.DARK, themePreferences.themeState.first().themeMode)
-        assertEquals(AccentColor.GREEN, themePreferences.themeState.first().accentColor)
-        assertEquals(false, themePreferences.themeState.first().harmonizeColors)
-        assertTrue(themePreferences.themeState.first().landscapeDualPaneEnabled)
-        assertFalse(themePreferences.themeState.first().folderIconsEnabled)
+        assertEquals(ThemeMode.DARK, uiPreferencesStore.uiPreferences.first().themeMode)
+        assertEquals(AccentColor.GREEN, uiPreferencesStore.uiPreferences.first().accentColor)
+        assertEquals(false, uiPreferencesStore.uiPreferences.first().harmonizeColors)
+        assertTrue(uiPreferencesStore.uiPreferences.first().landscapeDualPaneEnabled)
+        assertFalse(uiPreferencesStore.uiPreferences.first().folderIconsEnabled)
     }
 
     @Test
@@ -109,7 +109,7 @@ class PreferencesBackupManagerTest {
 
     @Test
     fun `duplicate stores are rejected before settings change`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "unchanged" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "unchanged" }
         val backupFile = backupFile("duplicate-backup.json").apply {
             writeText(
                 """
@@ -129,12 +129,12 @@ class PreferencesBackupManagerTest {
         val result = manager.restoreFrom(Uri.fromFile(backupFile))
 
         assertTrue(result.isFailure)
-        assertEquals("unchanged", context.browserDataStore.data.first()[browserValue])
+        assertEquals("unchanged", context.filePreferencesDataStore.data.first()[browserValue])
     }
 
     @Test
     fun `unknown stores are rejected before settings change`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "unchanged" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "unchanged" }
         val backupFile = backupFile("unknown-backup.json").apply {
             writeText(
                 """
@@ -153,12 +153,12 @@ class PreferencesBackupManagerTest {
         val result = manager.restoreFrom(Uri.fromFile(backupFile))
 
         assertTrue(result.isFailure)
-        assertEquals("unchanged", context.browserDataStore.data.first()[browserValue])
+        assertEquals("unchanged", context.filePreferencesDataStore.data.first()[browserValue])
     }
 
     @Test
     fun `declared oversized stores are rejected before decoding`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "unchanged" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "unchanged" }
         val backupFile = backupFile("oversized-backup.json").apply {
             writeText(
                 """
@@ -182,15 +182,15 @@ class PreferencesBackupManagerTest {
         val result = manager.restoreFrom(Uri.fromFile(backupFile))
 
         assertTrue(result.isFailure)
-        assertEquals("unchanged", context.browserDataStore.data.first()[browserValue])
+        assertEquals("unchanged", context.filePreferencesDataStore.data.first()[browserValue])
     }
 
     @Test
     fun `integrity failure preserves every current setting`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "backup" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "backup" }
         val backupFile = backupFile("corrupt-backup.json")
         manager.exportTo(Uri.fromFile(backupFile)).getOrThrow()
-        context.browserDataStore.edit { it[browserValue] = "current" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "current" }
         backupFile.writeText(
             backupFile.readText().replaceFirst(
                 Regex("\\\"sha256\\\": \\\"[0-9a-f]+\\\""),
@@ -201,14 +201,14 @@ class PreferencesBackupManagerTest {
         val result = manager.restoreFrom(Uri.fromFile(backupFile))
 
         assertTrue(result.isFailure)
-        assertEquals("current", context.browserDataStore.data.first()[browserValue])
+        assertEquals("current", context.filePreferencesDataStore.data.first()[browserValue])
     }
 
     @Test
     fun `commit failure at every step rolls back stores already restored`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "backup" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "backup" }
         context.utilityDataStore.edit { it[utilityValue] = "utility-backup" }
-        themePreferences.saveThemeState(ThemeState(themeMode = ThemeMode.DARK))
+        uiPreferencesStore.saveUiPreferences(UiPreferences(themeMode = ThemeMode.DARK))
         val backupFile = backupFile("rollback-backup.json")
         manager.exportTo(Uri.fromFile(backupFile)).getOrThrow()
         val storeNames = listOf(
@@ -225,9 +225,9 @@ class PreferencesBackupManagerTest {
         )
 
         storeNames.forEach { failingStore ->
-            context.browserDataStore.edit { it[browserValue] = "current-$failingStore" }
+            context.filePreferencesDataStore.edit { it[browserValue] = "current-$failingStore" }
             context.utilityDataStore.edit { it[utilityValue] = "utility-current-$failingStore" }
-            themePreferences.saveThemeState(ThemeState(themeMode = ThemeMode.LIGHT))
+            uiPreferencesStore.saveUiPreferences(UiPreferences(themeMode = ThemeMode.LIGHT))
             manager.beforeRestoreCommit = { storeName ->
                 if (storeName == failingStore) error("Injected failure at $storeName")
             }
@@ -237,19 +237,19 @@ class PreferencesBackupManagerTest {
             assertTrue("Expected failure at $failingStore", result.isFailure)
             assertEquals(
                 "current-$failingStore",
-                context.browserDataStore.data.first()[browserValue]
+                context.filePreferencesDataStore.data.first()[browserValue]
             )
             assertEquals(
                 "utility-current-$failingStore",
                 context.utilityDataStore.data.first()[utilityValue]
             )
-            assertEquals(ThemeMode.LIGHT, themePreferences.themeState.first().themeMode)
+            assertEquals(ThemeMode.LIGHT, uiPreferencesStore.uiPreferences.first().themeMode)
         }
     }
 
     @Test
     fun `missing stores reset through their live datastore`() = runTest {
-        context.browserDataStore.edit { it[browserValue] = "remove-me" }
+        context.filePreferencesDataStore.edit { it[browserValue] = "remove-me" }
         val backupFile = backupFile("reset-backup.json").apply {
             writeText(
                 """
@@ -265,7 +265,7 @@ class PreferencesBackupManagerTest {
 
         manager.restoreFrom(Uri.fromFile(backupFile)).getOrThrow()
 
-        assertNull(context.browserDataStore.data.first()[browserValue])
+        assertNull(context.filePreferencesDataStore.data.first()[browserValue])
     }
 
     private fun backupFile(name: String) = File(context.cacheDir, name).apply { delete() }

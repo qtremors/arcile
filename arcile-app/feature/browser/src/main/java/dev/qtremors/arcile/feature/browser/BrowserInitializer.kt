@@ -2,10 +2,10 @@ package dev.qtremors.arcile.feature.browser
 
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.StorageBrowserLocation
-import dev.qtremors.arcile.core.storage.domain.usecase.GetStorageVolumesUseCase
+import dev.qtremors.arcile.core.storage.domain.usecase.ObserveStorageVolumesUseCase
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.feature.browser.delegate.BrowserNavigationController
-import dev.qtremors.arcile.feature.browser.delegate.openArchive
+import dev.qtremors.arcile.feature.browser.navigation.BrowserNavigationController
+import dev.qtremors.arcile.feature.browser.navigation.openArchive
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 
 internal class BrowserInitializer(
     private val scope: CoroutineScope,
-    private val getStorageVolumes: GetStorageVolumesUseCase,
+    private val observeStorageVolumesUseCase: ObserveStorageVolumesUseCase,
     private val navigation: BrowserNavigationController
 ) {
     private val _state = MutableStateFlow<BrowserInitializationState>(
@@ -78,7 +78,7 @@ internal class BrowserInitializer(
         volumeObservationJob?.cancel()
         volumeObservationJob = scope.launch {
             try {
-                getStorageVolumes().collectLatest { volumes ->
+                observeStorageVolumesUseCase().collectLatest { volumes ->
                     hasObservedVolumes = true
                     navigation.setStorageVolumes(volumes)
                     if (!initializationStarted) {

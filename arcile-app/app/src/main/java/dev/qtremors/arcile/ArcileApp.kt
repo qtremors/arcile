@@ -64,15 +64,18 @@ class ArcileApp : Application(), ImageLoaderFactory {
 
     override fun onCreate() {
         super.onCreate()
-        val priorPolicy = StrictMode.allowThreadDiskWrites()
-        try {
-            ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(this)
-        } finally {
-            StrictMode.setThreadPolicy(priorPolicy)
-        }
-        applicationScope.launch {
-            ApkPackageParser.cleanupAbandonedStaging(this@ArcileApp)
-            ExternalFileAccessHelper.clearQuarantinedPrivatePlaintextFallbacks(this@ArcileApp)
+        if (getProcessName() == packageName) {
+            val priorPolicy = StrictMode.allowThreadDiskWrites()
+            try {
+                ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(this)
+            } finally {
+                StrictMode.setThreadPolicy(priorPolicy)
+            }
+            applicationScope.launch {
+                ApkPackageParser.cleanupAbandonedStaging(this@ArcileApp)
+                ExternalFileAccessHelper.clearQuarantinedPrivatePlaintextFallbacks(this@ArcileApp)
+                mutationJournal.cleanupAbandonedMutations()
+            }
         }
         storageCacheInvalidationObserver.register()
         SensitiveMemory.clearDelegate = { Coil.imageLoader(this).memoryCache?.clear() }
@@ -87,7 +90,6 @@ class ArcileApp : Application(), ImageLoaderFactory {
             applicationScope = applicationScope
         )
         applicationScope.launch {
-            mutationJournal.cleanupAbandonedMutations()
             val snapshot = thumbnailCacheStore.snapshot()
             GlobalThumbnailStatePersistence.restore(
                 loadedVariantKeys = snapshot.loadedVariantKeys,

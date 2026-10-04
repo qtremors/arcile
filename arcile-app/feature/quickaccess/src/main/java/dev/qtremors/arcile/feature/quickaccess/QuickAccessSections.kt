@@ -103,9 +103,9 @@ private fun LazyListScope.quickAccessSection(
                     item.type == QuickAccessType.SAF_TREE ||
                     item.type == QuickAccessType.FILES_APP
                 ) {
-                    actions.navigateToSaf(item.path)
+                    actions.navigateToSaf(item.targetReference)
                 } else {
-                    actions.navigateToPath(item.path)
+                    actions.navigateToPath(item.targetReference)
                 }
             },
             onTogglePin = { actions.togglePin(item) },
@@ -149,8 +149,8 @@ internal fun List<QuickAccessItem>.toQuickAccessSections(): QuickAccessSectionIt
 
 private fun QuickAccessItem.isAppFolderShortcut(): Boolean =
     id == WHATSAPP_MEDIA_ID ||
-        path.contains("com.whatsapp", ignoreCase = true) ||
-        path.contains("whatsapp", ignoreCase = true)
+        targetReference.contains("com.whatsapp", ignoreCase = true) ||
+        targetReference.contains("whatsapp", ignoreCase = true)
 
 private const val WHATSAPP_MEDIA_ID = "standard_whatsapp_media"
 private const val ARCILE_STORAGE_ID = "internal_all_files"

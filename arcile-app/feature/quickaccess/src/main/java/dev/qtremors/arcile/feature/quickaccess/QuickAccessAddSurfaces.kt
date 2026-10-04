@@ -160,4 +160,4 @@ private fun quickAccessShortcut(
     label: String,
     path: String,
     type: QuickAccessType
-) = QuickAccessItem(id = id, label = label, path = path, type = type)
+) = QuickAccessItem(id = id, label = label, targetReference = path, type = type)

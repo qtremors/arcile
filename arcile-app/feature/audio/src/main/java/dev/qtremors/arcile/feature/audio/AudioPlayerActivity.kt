@@ -13,36 +13,11 @@ import android.view.Gravity
 import android.view.WindowManager
 import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.EnterTransition
-import androidx.compose.animation.ExperimentalSharedTransitionApi
-import androidx.compose.animation.ExitTransition
-import androidx.compose.animation.SharedTransitionLayout
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentHeight
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -60,8 +35,8 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.ui.externalfile.resolveExternalContentMetadata
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
-import dev.qtremors.arcile.core.ui.theme.ThemePreferences
-import dev.qtremors.arcile.core.ui.theme.ThemeState
+import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Job
@@ -78,10 +53,19 @@ class AudioPlayerActivity : ComponentActivity() {
     internal lateinit var repository: AudioLibraryRepository
 
     @Inject
-    internal lateinit var themePreferences: ThemePreferences
+    internal lateinit var listeningStore: AudioListeningStore
+
+    @Inject
+    internal lateinit var uiPreferencesStore: UiPreferencesStore
 
     @Inject
     internal lateinit var dispatchers: ArcileDispatchers
+
+    @Inject
+    internal lateinit var tagEditor: AudioTagEditor
+
+    @Inject
+    internal lateinit var musicStore: AudioCollectionStore
 
     private var queue by mutableStateOf<List<AudioTrack>>(emptyList())
     private var initialPath by mutableStateOf<String?>(null)
@@ -104,16 +88,19 @@ class AudioPlayerActivity : ComponentActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        setPlayerWindowExpanded(false)
+        setPlayerWindowExpanded(true)
         setContent {
-            val themeState by themePreferences.themeState.collectAsStateWithLifecycle(
-                initialValue = ThemeState()
+            val uiPreferences by uiPreferencesStore.uiPreferences.collectAsStateWithLifecycle(
+                initialValue = UiPreferences()
             )
-            ArcileTheme(themeState = themeState) {
+            ArcileTheme(uiPreferences = uiPreferences) {
                 val playbackState by playback.state.collectAsStateWithLifecycle()
+                val favorites by listeningStore.favoritePaths.collectAsStateWithLifecycle(
+                    initialValue = emptySet()
+                )
                 val current = queue.firstOrNull {
-                    it.file.absolutePath == playbackState.currentMediaId
-                } ?: queue.firstOrNull { it.file.absolutePath == initialPath }
+                    it.file.reference == playbackState.currentMediaId
+                } ?: queue.firstOrNull { it.file.reference == initialPath }
                 if (current == null) {
                     ExternalViewerLoadScreen(loadError) { openIntent(intent) }
                 } else {
@@ -121,26 +108,58 @@ class AudioPlayerActivity : ComponentActivity() {
                         track = current,
                         queue = queue,
                         playbackState = playbackState,
+                        isFavorite = current.file.reference in favorites,
+                        onToggleFavorite = {
+                            val path = current.file.reference
+                            val nextFavorite = path !in favorites
+                            lifecycleScope.launch {
+                                runCatching { listeningStore.setFavorite(path, nextFavorite) }
+                            }
+                        },
                         playbackController = playback,
+                        tagEditor = tagEditor,
+                        listeningStore = listeningStore,
                         launchId = playerLaunchId,
+                        allowMini = false,
                         miniPlayerBottomClearanceDp = miniPlayerBottomClearanceDp,
                         onWindowModeChange = ::setPlayerWindowExpanded,
                         onFinish = ::finish,
                         onShare = { share(it.file) },
                         onEdit = { openEditor(it.file) },
+                        onTagSaved = { updated ->
+                            val path = updated.file.reference
+                            queue = queue.map { if (it.file.reference == path) updated else it }
+                            playback.replaceQueueItem(path, updated)
+                            musicStore.notifyMediaChanged()
+                        },
                         onOpenWith = { openWith(it.file) },
                         onFileRenamed = { oldPath, newFile ->
-                            val oldTrack = queue.firstOrNull { it.file.absolutePath == oldPath }
+                            val oldTrack = queue.firstOrNull { it.file.reference == oldPath }
                             if (oldTrack != null) {
                                 val renamedTrack = oldTrack.copy(file = newFile)
-                                queue = queue.map { if (it.file.absolutePath == oldPath) renamedTrack else it }
+                                queue = queue.map { if (it.file.reference == oldPath) renamedTrack else it }
                                 playback.replaceQueueItem(oldPath, renamedTrack)
+                                musicStore.notifyMediaChanged()
+                                lifecycleScope.launch {
+                                    runCatching {
+                                        musicStore.replaceTrackPath(oldPath, newFile.reference)
+                                        listeningStore.replacePath(oldPath, newFile.reference)
+                                    }
+                                }
                             }
                         },
                         onFileDeleted = { deletedPath ->
-                            queue = queue.filterNot { it.file.absolutePath == deletedPath }
+                            queue = queue.filterNot { it.file.reference == deletedPath }
                             playback.removeQueueItems(listOf(deletedPath))
                             if (queue.isEmpty()) finish()
+                        },
+                        onRemoveQueueTrack = { path ->
+                            queue = queue.filterNot { it.file.reference == path }
+                            playback.removeQueueItems(listOf(path))
+                            if (queue.isEmpty()) finish()
+                        },
+                        onSaveQueue = { name, paths ->
+                            lifecycleScope.launch { runCatching { musicStore.createPlaylist(name, paths) } }
                         }
                     )
                 }
@@ -158,7 +177,7 @@ class AudioPlayerActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         openIntent(intent)
-        setPlayerWindowExpanded(false)
+        setPlayerWindowExpanded(true)
     }
 
     private fun setPlayerWindowExpanded(expanded: Boolean) {
@@ -200,9 +219,8 @@ class AudioPlayerActivity : ComponentActivity() {
             val immediateTrack = target.toBasicAudioTrack()
             queue = listOf(immediateTrack)
             initialPath = target.reference
-            if (intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)) {
-                playback.playQueue(queue, target.reference)
-            }
+            val startPlayback = intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)
+            playback.playQueue(queue, target.reference, startPlayback)
             val tracks = buildQueue(
                 target,
                 intent.getStringArrayListExtra(EXTRA_QUEUE_PATHS).orEmpty()
@@ -211,9 +229,7 @@ class AudioPlayerActivity : ComponentActivity() {
                 return@launch
             }
             queue = tracks
-            if (intent.getBooleanExtra(EXTRA_START_PLAYBACK, true)) {
-                playback.expandQueue(tracks, target.reference)
-            }
+            playback.expandQueue(tracks, target.reference)
         }
     }
 
@@ -229,18 +245,18 @@ class AudioPlayerActivity : ComponentActivity() {
         val indexed = repository.getTracks(StorageScope.AllStorage).getOrNull().orEmpty()
         val queue = if (contextPaths.isEmpty()) {
             indexed.filter {
-                File(it.file.absolutePath).parent == File(target.reference).parent
+                File(it.file.reference).parent == File(target.reference).parent
             }
         } else {
             orderAudioTracksByContext(indexed, contextPaths)
         }
-        val withTarget = if (queue.any { it.file.absolutePath == target.reference }) {
+        val withTarget = if (queue.any { it.file.reference == target.reference }) {
             queue
         } else {
-            queue + indexed.firstOrNull { it.file.absolutePath == target.reference }
+            queue + indexed.firstOrNull { it.file.reference == target.reference }
                 .orFallback(target.toAudioTrack(this@AudioPlayerActivity))
         }
-        withTarget.distinctBy { it.file.absolutePath }
+        withTarget.distinctBy { it.file.reference }
     }
 
     private fun share(file: FileModel) {
@@ -276,16 +292,16 @@ class AudioPlayerActivity : ComponentActivity() {
     }
 
     private fun openEditor(file: FileModel) {
-        if (!File(file.absolutePath).isFile) {
+        if (!File(file.reference).isFile) {
             showFailure()
             return
         }
-        startActivity(createAudioEditorIntent(this, listOf(file.absolutePath)))
+        startActivity(createAudioEditorIntent(this, listOf(file.reference)))
     }
 
     private fun FileModel.toHandoffReference() =
         ExternalFileAccessHelper.ExternalFileReference(
-            path = absolutePath,
+            path = reference,
             displayName = name,
             sizeBytes = size,
             mimeType = mimeType,
@@ -301,164 +317,9 @@ internal fun orderAudioTracksByContext(
     indexedTracks: List<AudioTrack>,
     contextPaths: List<String>
 ): List<AudioTrack> {
-    val indexedByPath = indexedTracks.associateBy { it.file.absolutePath }
+    val indexedByPath = indexedTracks.associateBy { it.file.reference }
     return contextPaths.mapNotNull(indexedByPath::get)
-        .distinctBy { it.file.absolutePath }
-}
-
-@OptIn(ExperimentalSharedTransitionApi::class)
-@androidx.compose.runtime.Composable
-private fun StandaloneAudioPlayer(
-    track: AudioTrack,
-    queue: List<AudioTrack>,
-    playbackState: AudioPlaybackState,
-    playbackController: AudioPlaybackController,
-    launchId: Int,
-    miniPlayerBottomClearanceDp: Int,
-    onWindowModeChange: (Boolean) -> Unit,
-    onFinish: () -> Unit,
-    onShare: (AudioTrack) -> Unit,
-    onEdit: (AudioTrack) -> Unit,
-    onOpenWith: (AudioTrack) -> Unit,
-    onFileRenamed: (String, FileModel) -> Unit,
-    onFileDeleted: (String) -> Unit
-) {
-    var presentation by remember(launchId) {
-        mutableStateOf(AudioPlayerPresentation.MINI)
-    }
-    val expanded = presentation == AudioPlayerPresentation.EXPANDED
-    val playerTransition = updateTransition(
-        targetState = expanded,
-        label = "audio-player-expansion"
-    )
-    val usesFullWindow = presentation != AudioPlayerPresentation.MINI
-    val backdropAlpha by playerTransition.animateFloat(
-        transitionSpec = { tween(durationMillis = 220) },
-        label = "audio-player-backdrop"
-    ) { isExpanded ->
-        if (isExpanded) 1f else 0f
-    }
-
-    LaunchedEffect(
-        presentation,
-        playerTransition.currentState,
-        playerTransition.targetState
-    ) {
-        if (
-            presentation == AudioPlayerPresentation.COLLAPSING &&
-            !playerTransition.currentState &&
-            !playerTransition.targetState
-        ) {
-            presentation = AudioPlayerPresentation.MINI
-            onWindowModeChange(false)
-        }
-    }
-    BackHandler {
-        if (presentation != AudioPlayerPresentation.MINI) {
-            presentation = AudioPlayerPresentation.COLLAPSING
-        }
-    }
-    SharedTransitionLayout {
-        Box(
-            modifier = if (usesFullWindow) {
-                Modifier
-                    .fillMaxSize()
-                    .background(
-                        MaterialTheme.colorScheme.surface.copy(alpha = backdropAlpha)
-                    )
-            } else {
-                Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-            }
-        ) {
-            playerTransition.AnimatedContent(
-                modifier = if (usesFullWindow) {
-                    Modifier.fillMaxSize()
-                } else {
-                    Modifier
-                        .fillMaxWidth()
-                        .wrapContentHeight()
-                },
-                contentAlignment = Alignment.BottomCenter,
-                transitionSpec = {
-                    EnterTransition.None togetherWith ExitTransition.None
-                },
-                contentKey = { it }
-            ) { isExpanded ->
-                val visibilityScope = this
-                if (!isExpanded) {
-                    Box(
-                        modifier = if (usesFullWindow) {
-                            Modifier
-                                .fillMaxSize()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 12.dp, vertical = 12.dp)
-                                .padding(bottom = miniPlayerBottomClearanceDp.dp)
-                        } else {
-                            Modifier
-                                .fillMaxWidth()
-                                .navigationBarsPadding()
-                                .padding(horizontal = 12.dp, vertical = 12.dp)
-                        }.onGloballyPositioned { coordinates ->
-                            val parentHeight = coordinates.parentCoordinates?.size?.height
-                                ?: return@onGloballyPositioned
-                            if (
-                                shouldStartAudioPlayerExpansion(
-                                    presentation = presentation,
-                                    parentHeightPx = parentHeight,
-                                    miniPlayerHeightPx = coordinates.size.height
-                                )
-                            ) {
-                                presentation = AudioPlayerPresentation.EXPANDED
-                            }
-                        },
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        AudioMiniPlayer(
-                            track = track,
-                            playback = playbackState,
-                            sharedTransitionScope = this@SharedTransitionLayout,
-                            animatedVisibilityScope = visibilityScope,
-                            onExpand = {
-                                if (presentation == AudioPlayerPresentation.MINI) {
-                                    presentation =
-                                        AudioPlayerPresentation.PREPARING_EXPANSION
-                                    onWindowModeChange(true)
-                                }
-                            },
-                            onDismiss = onFinish,
-                            onTogglePlayback = playbackController::togglePlayback,
-                            onNext = playbackController::seekToNext
-                        )
-                    }
-                } else {
-                    AudioNowPlayingScreen(
-                        track = track,
-                        queue = queue,
-                        playback = playbackState,
-                        sharedTransitionScope = this@SharedTransitionLayout,
-                        animatedVisibilityScope = visibilityScope,
-                        onCollapse = {
-                            presentation = AudioPlayerPresentation.COLLAPSING
-                        },
-                        onTogglePlayback = playbackController::togglePlayback,
-                        onPrevious = playbackController::seekToPrevious,
-                        onNext = playbackController::seekToNext,
-                        onQueueTrack = playbackController::seekToQueueIndex,
-                        onToggleRepeat = playbackController::toggleRepeatMode,
-                        onToggleShuffle = playbackController::toggleShuffle,
-                        onSeek = playbackController::seekTo,
-                        onShare = { onShare(track) },
-                        onEdit = { onEdit(track) },
-                        onOpenWith = { onOpenWith(track) },
-                        onFileRenamed = onFileRenamed,
-                        onFileDeleted = onFileDeleted
-                    )
-                }
-            }
-        }
-    }
+        .distinctBy { it.file.reference }
 }
 
 internal enum class AudioPlayerPresentation {
@@ -605,7 +466,7 @@ private fun StandaloneAudioTarget.toBasicAudioTrack(): AudioTrack {
     return AudioTrack(
         file = FileModel(
             name = displayName,
-            absolutePath = reference,
+            reference = reference,
             size = sizeBytes ?: 0L,
             extension = extension,
             mimeType = mimeType,

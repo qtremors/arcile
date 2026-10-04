@@ -187,10 +187,10 @@ class BulkFileOperationService : Service() {
                                     onSuccess = { it.requireCompleteSuccess("Secure shred") },
                                     onFailure = { Result.failure(it) }
                                 )
-                            BulkFileOperationType.CREATE_FAKE -> fileMutationRepository.createFakeFile(
+                            BulkFileOperationType.CREATE_SYNTHETIC -> fileMutationRepository.createSyntheticFile(
                                 requireNotNull(request.destinationPath),
                                 request.sourcePaths.first(),
-                                requireNotNull(request.fakeFileSize)
+                                requireNotNull(request.syntheticFileSize)
                             ) { progress ->
                                 handleProgress(request, progress)
                             }
@@ -351,7 +351,7 @@ class BulkFileOperationService : Service() {
             BulkFileOperationType.TRASH -> getString(R.string.file_operation_moving_files_to_trash)
             BulkFileOperationType.DELETE -> getString(R.string.file_operation_deleting_files)
             BulkFileOperationType.SHRED -> getString(R.string.file_operation_shredding_files)
-            BulkFileOperationType.CREATE_FAKE -> getString(R.string.file_operation_creating_fake_file)
+            BulkFileOperationType.CREATE_SYNTHETIC -> getString(R.string.file_operation_creating_synthetic_file)
             BulkFileOperationType.EXTRACT_ARCHIVE -> getString(R.string.file_operation_extracting_archive)
             BulkFileOperationType.CREATE_ARCHIVE -> getString(R.string.file_operation_creating_archive)
             BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> getString(R.string.save_to_arcile_title)
@@ -395,7 +395,7 @@ class BulkFileOperationService : Service() {
     }
 
     private fun notificationProgressDetails(progress: BulkFileOperationProgress, nowMillis: Long): String? {
-        val copied = progress.bytesCopied ?: return null
+        val copied = progress.bytesProcessed ?: return null
         val total = progress.totalBytes?.takeIf { it > 0L } ?: return null
         if (copied <= 0L) return null
         val elapsedMillis = (nowMillis - notificationMetrics.startedAtMillis).coerceAtLeast(1L)
@@ -434,7 +434,7 @@ class BulkFileOperationService : Service() {
     private fun progressPercent(progress: BulkFileOperationProgress): Int {
         val totalBytes = progress.totalBytes ?: return 0
         if (totalBytes <= 0L) return 0
-        val copied = progress.bytesCopied ?: 0L
+        val copied = progress.bytesProcessed ?: 0L
         return ((copied.toDouble() / totalBytes.toDouble()) * 100.0).toInt().coerceIn(0, 100)
     }
 

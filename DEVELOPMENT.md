@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.1.0 | **Last Updated:** 2026-08-27
+**Version:** 2.2.0 | **Last Updated:** 2026-10-04
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -18,6 +18,7 @@
 - [Storage & File Operations](#storage--file-operations)
 - [OnlyFiles Vault System](#onlyfiles-vault-system)
 - [Global Media Sources & Video Player](#global-media-sources--video-player)
+- [Audio Library & Background Player](#audio-library--background-player)
 - [Room Cache Database](#room-cache-database)
 - [Archive System](#archive-system)
 - [Trash System](#trash-system)
@@ -48,7 +49,7 @@ graph TD
     B -->|use cases / repository calls| C["Focused Domain Contracts"]
     C -->|implemented by| D["Focused Storage Repositories"]
     D --> E["VolumeProvider"]
-    D --> F["MediaStoreClient"]
+    D --> F["StorageQueryClient"]
     D --> G["DefaultFileSystemDataSource"]
     D --> H["TrashManager"]
     D --> I["ArchiveManager"]
@@ -72,7 +73,7 @@ graph TD
 | **Focused Storage Capabilities** | Features inject only listing, mutation, search, analytics, trash, archive, volume, or clipboard contracts that they actually use. |
 | **Typed Navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings to verify routing correctness at compile time. |
 | **Offline-first Privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
-| **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
+| **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and synthetic-file work runs through a dedicated foreground service and emits progress updates. |
 | **Room Database Caching** | Cache metadata, aggregate folder sizes, categories, and thumbnail listings are persisted in a local Room database to prevent repeated, expensive disk scans. |
 | **Intent-based Plugins** | Optional heavyweight viewers run as separately installed, same-signer APKs and communicate through versioned explicit intents and temporary read-only content URI grants. |
 | **Encrypted Vault Boundary** | OnlyFiles keeps vault catalog, authenticated sessions, transactions, cryptography, and external plaintext grants behind neutral `core:vault:*` contracts. Presentation code never handles vault keys or raw storage layout. |
@@ -82,7 +83,7 @@ graph TD
 
 | Area | Technology |
 |------|------------|
-| Language and toolchain | Kotlin 2.4.10, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.5.0, Android Gradle Plugin 9.3.1, KSP 2.3.11 |
+| Language and toolchain | Kotlin 2.4.10, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.6.0, Android Gradle Plugin 9.4.1, KSP 2.3.11 |
 | Android platform | compileSdk/targetSdk 37, minSdk 30, AndroidX Core, Lifecycle, Activity, SplashScreen |
 | UI | Jetpack Compose BOM 2026.08.00, Material 3 1.5.0-alpha26, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor 5.0.0 |
 | State and architecture | Feature-owned MVVM, StateFlow, Kotlin Coroutines, immutable collections, Hilt/Dagger |
@@ -94,7 +95,7 @@ graph TD
 | Vault cryptography | Android Keystore and Bouncy Castle |
 | Tests | JUnit 4, AndroidX Test, Espresso, Robolectric, MockK, Turbine, ArchUnit |
 
-Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intentionally remains on its compatible 2.x line; a Coil 3 update is a separate source migration rather than a version-only upgrade. MaterialKolor remains on its stable 4.x line while 5.x is preview-only.
+Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intentionally remains on its compatible 2.x line; a Coil 3 update is a separate source migration rather than a version-only upgrade. MaterialKolor uses the catalog's 5.0.0 release.
 
 ---
 
@@ -138,7 +139,7 @@ arcile/
 │   │   ├── browser/                             # Browser route, state slices, controllers, file UI
 │   │   ├── documents/                           # Documents library, text/Markdown editor, and PDF viewing
 │   │   ├── home/                                # Home dashboard and shortcuts
-│   │   ├── imagegallery/                        # Independent Gallery and Viewer routes
+│   │   ├── gallery/                        # Independent Gallery and Viewer routes
 │   │   ├── import/                              # Save-to-Arcile share target
 │   │   ├── onboarding/                          # First-run setup and permission guidance
 │   │   ├── onlyfiles/                           # Encrypted-vault presentation and media adapters
@@ -153,11 +154,10 @@ arcile/
 │   ├── plugin-api/                              # Stable dependency-light intent contract
 │   └── plugin-ui/                               # Stateless UI shared with plugin APKs
 ├── docs/                                        # Landing page website files
-├── beta/                                        # Beta phase archived changelog & releases
 ├── CHANGELOG.md                                 # Stable release changelog
 ├── DEVELOPMENT.md                               # Architecture & development guide (This Document)
 ├── RELEASES.md                                  # Stable user-facing release notes
-├── TASKS.md                                     # Prioritized work queue and completed release tasks
+├── TASKS.md                                     # Unfinished feature and workflow tasks
 └── README.md                                    # Main entry point overview
 ```
 
@@ -216,7 +216,7 @@ The navigation endpoints are modeled as serializable classes/objects under the `
 - `AppRoutes.Plugins`
 - `AppRoutes.Trash`
 - `AppRoutes.RecentFiles(volumeId)`
-- `AppRoutes.ImageGallery(volumeId)`
+- `AppRoutes.MediaGallery(volumeId)`
 - `AppRoutes.ImageViewer(initialPath, albumPath, searchQuery, volumeId, returnToBrowserPage)`
 - `AppRoutes.VideoViewer(sessionToken)`
 - `AppRoutes.StorageDashboard(volumeId)`
@@ -244,7 +244,7 @@ To maintain premium design aesthetics, Arcile implements customized bouncy sprin
 Storage is split into independently bound implementations for file browsing, mutation, media search and analytics, trash, archives, volumes, and clipboard state. Each implementation delegates only to the lower-level services required by its contract:
 
 - `VolumeProvider`: Discovers mounted storage volumes, resolves pathways, and parses volume details.
-- `MediaStoreClient`: Queries MediaStore for files, recent assets, categories, and folder statistics.
+- `StorageQueryClient`: Queries MediaStore for files, recent assets, categories, and folder statistics, and searches filesystem paths.
 - `DefaultFileSystemDataSource`: Conducts direct JVM `java.io.File` listing and mutations behind storage contracts.
 - `FolderStatsStore`: Manages async aggregate size calculations.
 - `TrashManager`: Handles custom volume-scoped trash.
@@ -256,9 +256,16 @@ Feature composables and ViewModels must not inspect filesystem existence, writab
 
 ### Conflict Detection & Resolution Preflight
 To prevent accidental data loss, file conflict resolution runs *before* operations execute:
-1. `detectCopyConflicts` performs a high-speed top-level name comparison in the destination directory to identify collisions before starting heavy recursive jobs.
+1. `detectTransferConflicts` performs a high-speed top-level name comparison in the destination directory to identify collisions before starting heavy recursive jobs.
 2. The user resolves conflicts in the `PasteConflictDialog` with options to **Replace**, **Keep Both**, or **Skip** (supports batch application).
 3. `FileConflictNameGenerator` resolves Keep Both options into stable name modifications (e.g. `image (1).png`).
+
+### Verified Transfers and Recovery
+
+- `FileTransferEngine` stages local replacements, verifies their contents, and records the original backup before publication. Failure before backup cleanup can roll back the publication. Once backup cleanup starts, failure or cancellation must retain the verified replacement and pending journal record because the original backup may already be incomplete.
+- Cross-filesystem moves and Trash transfers verify the destination before source cleanup. Cleanup failure retains the complete destination and recovery metadata. Recovery rechecks recorded identities and contents before deleting sources; changed or additional files must survive.
+- Restore Undo tracks actual published destinations, including renamed conflicts and partial restores, and preserves files changed since restoration.
+- Publish browser contents before background indexing, activity logging, and folder-stat lookups finish. Preserve cached folder statistics through failed scans, reuse unchanged presentation, and batch count-driven sorting updates.
 
 ---
 
@@ -281,6 +288,8 @@ OnlyFiles is an encrypted virtual filesystem, not a hidden ordinary folder. Its 
 - Normal import and export use Arcile's `FileBrowserRepository`, storage volumes, and `SaveDestinationBrowser` directly. Content-URI reading exists only for genuine external-provider imports; it must never replace the native file-manager flow. Every transfer uses a one-shot in-memory reservation and a separate bounded transfer lease, so leaving the mounted browser does not expose keys through navigation or saved state.
 - A vault-scoped transaction lock serializes manifest changes. Cross-vault transfers acquire locks in stable UUID order to avoid deadlocks.
 - Each mutation stages encrypted objects and a replacement manifest, verifies the staged generation, atomically publishes it, and then removes superseded objects. Startup recovery completes or rolls back interrupted transactions deterministically.
+- Merged vault moves remove only transferred source nodes; skipped children and their parent folders remain. Validate transaction collection and byte limits before writing the commit marker. Recovery still accepts authenticated older markers exceeding collection limits within the existing byte and integrity bounds.
+- Prepare and complete biometric access on the injected I/O dispatcher. Locking invalidates pending challenges; cancellation must release their secret material and prevent a late unlock.
 - Directory manifests are paged and authenticated. Implementations must stream objects and traverse directory trees iteratively so large sibling sets and deeply nested trees do not exhaust memory or the call stack.
 
 ### Plaintext Boundary
@@ -325,12 +334,16 @@ Feature modules must not depend on `feature:videoplayer`; they emit or provide n
 
 ## Audio Library & Background Player
 
-`feature:audio` owns the Audio category from MediaStore-backed discovery through file workflows and playback. Its route presents Songs and Folders independently from Browser while reusing shared operation, clipboard, metadata, dialog, and external-file capabilities.
+`feature:audio` owns the Audio category from MediaStore-backed discovery through file workflows and playback. Its route presents Songs, Folders, Albums, Artists, and Playlists independently from Browser while reusing shared operation, clipboard, metadata, dialog, and external-file capabilities.
 
-- `AudioLibraryViewModel` owns search, sorting, grouping, presentation preferences, selection, clipboard actions, and refresh behavior without leaking state into other categories.
+- `AudioLibraryViewModel` owns search, sorting, grouping, per-page presentation preferences, selection, clipboard actions, and MediaStore refresh behavior without leaking state into other categories. Presentation rebuilds preserve live selection; intentional selection resets, including successful Copy/Cut, must update live state before rebuilding.
+- `AudioCollectionStore` persists playlists in `audio_playlists.json`, migrates earlier preference-backed playlists, and stores the Music only filter. `AudioListeningDatabase` (`arcile_audio.db`) separately owns favorites, play counts, and recent listening history, with migration of existing favorites and a history reset.
 - `AudioPlaybackService` owns the Media3 player and `MediaSession`, keeping playback and Android media controls available while Arcile is backgrounded.
 - `AudioPlaybackController` connects the Compose UI to the service-backed session and publishes queue, position, repeat, shuffle, and playback state.
-- Mini and full-player surfaces share transition identities inside the Audio route; queue editing and player expansion remain UI state and do not expose file paths through global navigation.
+- Mini and full-player surfaces share transition identities in the app shell. The mini player sits above Audio's five-page navigation and follows its scroll visibility. External audio intents use a full screen player.
+- Queue persistence restores tracks and position paused after relaunch. Queue display and removal follow actual playback order, including shuffle; removing the current track preserves paused state, and removing the final track clears playback.
+- Lyrics support inline and full screen views, timed-line seeking, playback following, LRC offsets, and sidecar editing. Music Details owns tag/artwork editing and listening/file information; tag writes verify their output and retain a recovery copy.
+- Sound controls expose media volume, speed, pitch, presets, and a sleep timer. `AudioPlayerPreferences` persists the optional visualizer, disabled by default.
 - Playback resources and controller connections must be released with their lifecycle, while missing or removed tracks must degrade to recoverable library state.
 
 ---
@@ -563,7 +576,7 @@ Plugin implementations are distributed separately from this repository. Before p
 
 Arcile implements a high-end, premium design system built on **Material 3 Expressive** design tokens, custom spring physics, responsive gesture mechanics, and wallpaper-reactive accents.
 
-### 1. Theme & Customization Engine (`Theme.kt`, `ThemeState`)
+### 1. Theme & Customization Engine (`Theme.kt`, `UiPreferences`)
 - **Theme Modes:**
   - `LIGHT`, `DARK`, `SYSTEM`: Dynamically updates layouts and system status/navigation bars via `WindowCompat`.
   - `OLED`: Pure-black overrides that set the background, surface, and container variants to `Color.Black` for maximum battery savings and deep-contrast aesthetics.
@@ -575,7 +588,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
   - *Monochrome / Monochrome OLED Scheme:* Clean greyscale layouts.
   - *Predefined Colors:* Blue, green, purple, orange, etc., dynamically built into a Material 3 palette via a helper seed builder.
 - **Color Harmonization:**
-  - When `harmonizeColors` is enabled in `ThemeState`, category-specific colors (e.g., folder item types) and semantic colors are blended with the primary color scheme using color harmonization to prevent visual clashes.
+  - When `harmonizeColors` is enabled in `UiPreferences`, category-specific colors (e.g., folder item types) and semantic colors are blended with the primary color scheme using color harmonization to prevent visual clashes.
 - **Composition Locals:**
   - `LocalCategoryColors` / `LocalSemanticColors`: Resolved color lists.
   - `LocalSpacing`: Access spacing coordinates.
@@ -619,7 +632,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 
 - `ArcileUtilityCatalog` in `core:ui` is the single source of truth for Utilities and Home shortcuts. A catalog entry is allowed only when its route and primary workflow are implemented; placeholders, disabled cards, and "Soon" actions do not belong in the production catalog.
 - The current implemented utilities are Trash, Storage Cleaner, Activity Log, and OnlyFiles. The Tools screen navigates to those same destinations and contains no duplicate feature definitions.
-- `UtilityPreferencesStore` persists an **ordered list** of utility IDs. The repository filters unknown IDs, removes duplicates, preserves user order, and migrates the former unordered `home_utility_ids` set into deterministic catalog order.
+- `HomeAndUtilityPreferencesStore` persists an **ordered list** of utility IDs. The repository filters unknown IDs, removes duplicates, preserves user order, and migrates the former unordered `home_utility_ids` set into deterministic catalog order.
 - The Tools screen lets users show or hide each implemented utility on Home. Move-up and move-down actions reorder only the visible group; Home projects the catalog through that saved list, so rendered order exactly matches the preference.
 - The same store persists Home section order and enablement independently. Unknown section IDs are discarded and newly introduced sections are appended safely without changing the user's existing order.
 - Home's overflow editor uses a configuration-safe draft, reset control, switches for visibility, and drag handles with haptics and edge auto-scrolling. The first visible section omits its title unless it retains a trailing header action; later sections use one shared header and spacing contract.
@@ -653,12 +666,12 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - **Controllers:** Navigation, selection, search, clipboard, conflicts, mutations, operations, reveal, archive, properties, and transient feedback have focused owners. Cross-domain transitions remain coordinated through the Browser owner rather than controllers mutating one another.
 
 ### 2. Home (`feature/home`)
-- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, saved section layout, and neutral navigation destinations. It consumes utility IDs and Home layout preferences from `UtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
+- Owns dashboard state, recent-file presentation, category shortcuts, ordered user-selected utility shortcuts, saved section layout, and neutral navigation destinations. It consumes utility IDs and Home layout preferences from `HomeAndUtilityPreferencesStore`; it does not define or reorder the utility catalog itself.
 
-### 3. Gallery and Viewer (`feature/imagegallery`)
-- `ImageGalleryViewModel` owns albums, timelines, filters, selection, and gallery presentation.
+### 3. Gallery and Viewer (`feature/gallery`)
+- `MediaGalleryViewModel` owns folders, timelines, filters, selection, and gallery presentation.
 - `ImageViewerViewModel` independently owns the current viewer session, metadata panel, rotations, and chrome.
-- `ImageGalleryFileActionController` owns reusable file actions. EXIF reads/writes and editability decisions stay behind the shared metadata adapter rather than feature composables.
+- `MediaGalleryFileActionController` owns reusable file actions. EXIF reads/writes and editability decisions stay behind the shared metadata adapter rather than feature composables.
 
 ### 4. Archive (`feature/archive`)
 - Owns archive viewing, selection, password prompts, extraction presentation, and typed return-to-Browser destinations. Archive path creation and extraction destinations are resolved by storage-domain services.
@@ -704,6 +717,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 
 ### 17. Documents (`feature/documents`)
 - Owns the Documents category library, document/folder search and presentation, and file actions. Native text, Markdown, and PDF activities remain shared app or UI capabilities so external intents and other producers use the same viewers.
+- The shared text editor limits documents and draft text to 4 MiB and combined Undo/Redo text to 8 MiB, with at most 50 history entries. Document contents and history stay outside Android saved-state bundles. Local saves verify staged output before atomic replacement; provider saves retain a durable draft before writing, and conflicting or oversized recovery drafts remain available with feedback.
 
 ### 18. APK (`feature/apk`)
 - Owns the APK and split-package category library, package/folder presentation, search, selection, and file actions. Package parsing, bounded staging, device-compatible split selection, and Package Installer sessions remain in `core:operation:android`.
@@ -747,13 +761,13 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 210 |
-| **Version Name** | `2.1.0` |
+| **Version Code** | 220 |
+| **Version Name** | `2.2.0` |
 | **Java Target** | JVM 11 |
-| **Gradle Version** | 9.5.0 |
+| **Gradle Version** | 9.6.0 |
 | **Gradle JVM** | JDK 21 |
 | **Kotlin Version** | 2.4.10 |
-| **AGP Version** | 9.3.1 |
+| **AGP Version** | 9.4.1 |
 | **Compose BOM** | 2026.08.00 |
 
 ### Manifest Declarations
@@ -862,7 +876,7 @@ Use module-scoped tasks when iterating on a focused area:
 # Feature modules
 ./gradlew :feature:audio:testDebugUnitTest
 ./gradlew :feature:browser:testDebugUnitTest
-./gradlew :feature:imagegallery:testDebugUnitTest
+./gradlew :feature:gallery:testDebugUnitTest
 ./gradlew :feature:storagecleaner:testDebugUnitTest
 ./gradlew :feature:storageusage:testDebugUnitTest
 ./gradlew :feature:recentfiles:testDebugUnitTest
@@ -902,7 +916,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.1.0-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.2.0-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -924,8 +938,8 @@ signing.keyPassword=your_key_password
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.1.0-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.1.0.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.2.0-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.2.0.apk`
 
 ---
 
@@ -961,7 +975,8 @@ When reviewing code changes, ensure:
 - **Missing files:** Run a MediaStore sync via `MutationFinalizer` after making file mutations.
 - **Archive errors:** Verify password credentials and check for path safety violations.
 - **OnlyFiles remains locked or unavailable:** Check biometric capability, session timeout, portable-volume identity, catalog health, and recovery status. Do not work around the failure by reading vault storage directly.
-- **OnlyFiles transfer is interrupted:** Reopen the vault to trigger recovery, inspect the typed health result, and confirm SAF staging documents were removed before retrying.
+- **OnlyFiles transfer is interrupted:** Reopen the vault to trigger recovery and inspect the typed health result before retrying. Normal local exports use sibling staging files; do not remove staged or recovery data belonging to a live operation.
+- **Replacement reports backup cleanup failure:** Keep the verified destination and pending replacement record. The remaining original backup may be incomplete, so do not force rollback or discard the journal without checking recovery ownership.
 - **Video token expired:** Reopen the video from its source to register a new process-local playback session. Tokens intentionally do not survive process death.
 - **Vault video stops after locking:** This is expected after the active reader lease closes; unlock the vault and start a new playback session.
 - **Build configuration errors:** Ensure Android SDK 37 is installed via the Android SDK Manager.

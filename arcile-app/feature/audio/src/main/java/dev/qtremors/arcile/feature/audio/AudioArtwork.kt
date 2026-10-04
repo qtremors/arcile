@@ -31,7 +31,7 @@ internal fun AudioArtwork(
     modifier: Modifier = Modifier,
     shape: Shape = MaterialTheme.shapes.large
 ) {
-    var retainedArtwork by remember { mutableStateOf<Painter?>(null) }
+    var retainedArtwork by remember(track.file.reference) { mutableStateOf<Painter?>(null) }
     Surface(
         modifier = modifier.clip(shape),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,

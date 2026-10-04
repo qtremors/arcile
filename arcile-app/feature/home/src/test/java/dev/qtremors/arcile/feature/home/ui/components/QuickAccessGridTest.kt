@@ -16,7 +16,7 @@ class QuickAccessGridTest {
         val item = QuickAccessItem(
             id = "standard_whatsapp_media",
             label = "WhatsApp",
-            path = "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media",
+            targetReference = "/storage/emulated/0/Android/media/com.whatsapp/WhatsApp/Media",
             type = QuickAccessType.STANDARD
         )
 
@@ -28,7 +28,7 @@ class QuickAccessGridTest {
         val item = QuickAccessItem(
             id = "standard_whatsapp_media",
             label = "WhatsApp Business",
-            path = "/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media",
+            targetReference = "/storage/emulated/0/Android/media/com.whatsapp.w4b/WhatsApp Business/Media",
             type = QuickAccessType.STANDARD
         )
 
@@ -49,7 +49,7 @@ class QuickAccessGridTest {
         val item = QuickAccessItem(
             id = "custom_downloads",
             label = "Downloads",
-            path = "/storage/emulated/0/Download",
+            targetReference = "/storage/emulated/0/Download",
             type = QuickAccessType.CUSTOM
         )
 
@@ -61,7 +61,7 @@ class QuickAccessGridTest {
         val item = QuickAccessItem(
             id = "internal_all_files",
             label = "All Files",
-            path = "",
+            targetReference = "",
             type = QuickAccessType.STANDARD
         )
 
@@ -73,7 +73,7 @@ class QuickAccessGridTest {
         val item = QuickAccessItem(
             id = "standard_root_storage",
             label = "Root Storage",
-            path = "/",
+            targetReference = "/",
             type = QuickAccessType.STANDARD
         )
 

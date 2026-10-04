@@ -65,7 +65,7 @@ internal fun QuickAccessGrid(
                         } else if (folder.type == QuickAccessType.SAF_TREE || folder.type == QuickAccessType.EXTERNAL_HANDOFF || folder.type == QuickAccessType.FILES_APP) {
                             onNavigateToSaf(folder)
                         } else {
-                            onNavigateToPath(folder.path)
+                            onNavigateToPath(folder.targetReference)
                         }
                     }
                     Surface(

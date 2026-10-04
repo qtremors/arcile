@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.testutil
 
-import dev.qtremors.arcile.core.storage.domain.BrowserPreferences
+import dev.qtremors.arcile.core.storage.domain.SharedFilePreferences
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferences
 import dev.qtremors.arcile.core.storage.domain.BrowserLocationPreferencesStore
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 
 class FakeFilePreferencesStore(
-    initialPreferences: BrowserPreferences = BrowserPreferences()
+    initialPreferences: SharedFilePreferences = SharedFilePreferences()
 ) : BrowserLocationPreferencesStore,
     RecentFilesPreferencesStore,
     GalleryPreferencesStore,
@@ -43,14 +43,14 @@ class FakeFilePreferencesStore(
     var lastUpdatedRememberLastFolder: Boolean? = null
     var lastUpdatedExpandableAppBar: Boolean? = null
     var lastUpdatedGalleryScrollbarEnabled: Boolean? = null
-    var lastUpdatedImageGalleryShowFileDetails: Boolean? = null
-    var lastUpdatedImageGalleryAspectRatio: Boolean? = null
-    var lastUpdatedImageGallerySectioned: Boolean? = null
+    var lastUpdatedMediaGalleryShowFileDetails: Boolean? = null
+    var lastUpdatedMediaGalleryAspectRatio: Boolean? = null
+    var lastUpdatedMediaGallerySectioned: Boolean? = null
     var lastUpdatedCategoryGrouping: dev.qtremors.arcile.core.storage.domain.CategoryGrouping? = null
     var lastUpdatedCategoryLibraryPage: dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage? = null
-    var lastUpdatedAlbumPresentation: FileListingPreferences? = null
-    var lastUpdatedImageGalleryPresentation: FileListingPreferences? = null
-    var lastUpdatedAlbumAspectRatio: Boolean? = null
+    var lastUpdatedGalleryFolderPresentation: FileListingPreferences? = null
+    var lastUpdatedMediaGalleryPresentation: FileListingPreferences? = null
+    var lastUpdatedGalleryFolderAspectRatio: Boolean? = null
     var lastUpdatedPath: String? = null
     var lastUpdatedPathPresentation: FileListingPreferences? = null
     var lastUpdatedDefaultSaveToArcilePath: String? = null
@@ -71,7 +71,7 @@ class FakeFilePreferencesStore(
     }
 
     override suspend fun updateHomeRecentCarouselLimit(limit: Int) {
-        val normalized = BrowserPreferences.normalizeHomeRecentCarouselLimit(limit)
+        val normalized = SharedFilePreferences.normalizeHomeRecentCarouselLimit(limit)
         lastUpdatedHomeRecentCarouselLimit = normalized
         preferences.value = preferences.value.copy(homeRecentCarouselLimit = normalized)
     }
@@ -107,7 +107,7 @@ class FakeFilePreferencesStore(
     }
 
     override suspend fun updateShowFileDetails(categoryName: String, show: Boolean) {
-        lastUpdatedImageGalleryShowFileDetails = show
+        lastUpdatedMediaGalleryShowFileDetails = show
         preferences.value = preferences.value.copy(
             categoryShowFileDetails =
                 preferences.value.categoryShowFileDetails + (categoryName to show)
@@ -115,14 +115,14 @@ class FakeFilePreferencesStore(
     }
 
     override suspend fun updateAspectRatio(categoryName: String, enabled: Boolean) {
-        lastUpdatedImageGalleryAspectRatio = enabled
+        lastUpdatedMediaGalleryAspectRatio = enabled
         preferences.value = preferences.value.copy(
             categoryAspectRatios = preferences.value.categoryAspectRatios + (categoryName to enabled)
         )
     }
 
     override suspend fun updateSectioned(categoryName: String, enabled: Boolean) {
-        lastUpdatedImageGallerySectioned = enabled
+        lastUpdatedMediaGallerySectioned = enabled
         preferences.value = preferences.value.copy(
             categorySectioned = preferences.value.categorySectioned + (categoryName to enabled)
         )
@@ -152,7 +152,7 @@ class FakeFilePreferencesStore(
         categoryName: String,
         presentation: FileListingPreferences
     ) {
-        lastUpdatedAlbumPresentation = presentation
+        lastUpdatedGalleryFolderPresentation = presentation
         updatePathPresentation(
             "category_${categoryName}_folders",
             presentation,
@@ -164,7 +164,7 @@ class FakeFilePreferencesStore(
         categoryName: String,
         presentation: FileListingPreferences
     ) {
-        lastUpdatedImageGalleryPresentation = presentation
+        lastUpdatedMediaGalleryPresentation = presentation
         updatePathPresentation(
             "category_${categoryName}_items",
             presentation,
@@ -172,9 +172,9 @@ class FakeFilePreferencesStore(
         )
     }
 
-    override suspend fun updateAlbumAspectRatio(enabled: Boolean) {
-        lastUpdatedAlbumAspectRatio = enabled
-        preferences.value = preferences.value.copy(albumAspectRatio = enabled)
+    override suspend fun updateFolderAspectRatio(enabled: Boolean) {
+        lastUpdatedGalleryFolderAspectRatio = enabled
+        preferences.value = preferences.value.copy(folderAspectRatio = enabled)
     }
 
     override suspend fun updatePathPresentation(
@@ -211,6 +211,12 @@ class FakeFilePreferencesStore(
     ) {
         preferences.value = preferences.value.copy(
             fileOpenBehaviors = preferences.value.fileOpenBehaviors + (categoryName to behavior)
+        )
+    }
+
+    override suspend fun removeFileOpenBehavior(key: String) {
+        preferences.value = preferences.value.copy(
+            fileOpenBehaviors = preferences.value.fileOpenBehaviors - key
         )
     }
 
@@ -256,24 +262,24 @@ class FakeFilePreferencesStore(
         preferences.value = preferences.value.copy(favoriteFiles = newFavorites)
     }
 
-    override suspend fun updatePinnedAlbum(albumPath: String, isPinned: Boolean) {
-        val currentPinned = preferences.value.pinnedAlbums
+    override suspend fun updatePinnedFolder(folderPath: String, isPinned: Boolean) {
+        val currentPinned = preferences.value.pinnedFolders
         val newPinned = if (isPinned) {
-            currentPinned + albumPath
+            currentPinned + folderPath
         } else {
-            currentPinned - albumPath
+            currentPinned - folderPath
         }
-        preferences.value = preferences.value.copy(pinnedAlbums = newPinned)
+        preferences.value = preferences.value.copy(pinnedFolders = newPinned)
     }
 
-    override suspend fun updateAlbumCover(albumPath: String, coverPath: String) {
-        val currentCovers = preferences.value.albumCovers
+    override suspend fun updateFolderCover(folderPath: String, coverPath: String) {
+        val currentCovers = preferences.value.folderCovers
         val newCovers = if (coverPath.isEmpty()) {
-            currentCovers - albumPath
+            currentCovers - folderPath
         } else {
-            currentCovers + (albumPath to coverPath)
+            currentCovers + (folderPath to coverPath)
         }
-        preferences.value = preferences.value.copy(albumCovers = newCovers)
+        preferences.value = preferences.value.copy(folderCovers = newCovers)
     }
 
 }

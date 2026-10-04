@@ -51,17 +51,29 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
         AudioLibraryScreen(
             state = state,
             playback = playback,
+            tagEditor = viewModel.tagEditor,
             onNavigateBack = onNavigateBack,
             onRefresh = { viewModel.load(refresh = true) },
             onQueryChange = viewModel::updateQuery,
             onSearchFiltersChange = viewModel::updateSearchFilters,
             onSelectTab = viewModel::selectTab,
-            onSelectFolder = viewModel::selectFolder,
-            onClearFolderFilter = viewModel::clearFolderFilter,
-            onPresentationChange = viewModel::updatePresentation,
+            onSelectCollection = viewModel::selectCollection,
+            onSelectSongFilter = viewModel::selectSongFilter,
+            onClearListeningHistory = viewModel::clearListeningHistory,
+            onOpenCollection = viewModel::openCollection,
+            onClearCollectionFilter = viewModel::clearCollectionFilter,
+            onPresentationChange = viewModel::updateSectionPresentation,
+            onCreatePlaylist = viewModel::createPlaylist,
+            onCreatePlaylistFromSelection = viewModel::createPlaylistFromSelection,
+            onAddSelectionToPlaylist = viewModel::addSelectionToPlaylist,
+            onRenamePlaylist = viewModel::renamePlaylist,
+            onDeletePlaylist = viewModel::deletePlaylist,
+            onSetPlaylistTracks = viewModel::setPlaylistTracks,
+            onTagEdited = viewModel::applyTagEdit,
             onGroupingChange = viewModel::updateGrouping,
             onShowFileDetailsChange = viewModel::updateShowFileDetails,
-            onDefaultPageChange = viewModel::updateDefaultPage,
+            onMusicOnlyChange = viewModel::updateMusicOnly,
+            onDefaultSectionChange = viewModel::updateDefaultSection,
             onToggleFavoriteSelection = viewModel::toggleFavoriteSelection,
             onTogglePinnedFolder = viewModel::togglePinnedFolder,
             onUpdateFolderCover = viewModel::updateFolderCover,
@@ -98,13 +110,13 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onDismissPasteConflictDialog = viewModel::dismissPasteConflictDialog,
             onPlay = { path ->
                 val queue = state.visibleTracks.takeIf(List<AudioTrack>::isNotEmpty) ?: state.tracks
-                queue.firstOrNull { it.file.absolutePath == path }?.let {
+                queue.firstOrNull { it.file.reference == path }?.let {
                     onOpenPlayer(it, queue, true)
                 }
             },
             onPlaySelection = { paths ->
                 val selected = paths.toSet()
-                val queue = state.tracks.filter { it.file.absolutePath in selected }
+                val queue = state.tracks.filter { it.file.reference in selected }
                 queue.firstOrNull()?.let { onOpenPlayer(it, queue, true) }
             },
             onShareSelected = { tracks, onShared ->

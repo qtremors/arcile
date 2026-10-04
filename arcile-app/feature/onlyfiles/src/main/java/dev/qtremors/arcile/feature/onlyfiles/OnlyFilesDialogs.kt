@@ -126,7 +126,7 @@ internal fun CreateItemDialog(initialKind: CreateItemKind, onDismiss: () -> Unit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun SortDialog(
+internal fun VaultViewOptionsSheet(
     state: OnlyFilesUiState,
     onDismiss: () -> Unit,
     onSort: (VaultSortField, VaultSortDirection) -> Unit,

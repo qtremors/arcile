@@ -72,8 +72,8 @@ import androidx.media3.ui.PlayerView
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataSections
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.security.SecureWindowEffect
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
@@ -117,13 +117,13 @@ internal fun VideoViewerScreen(
         }
     }
 
-    val externalFiles = remember(session.files) { session.files.orEmpty().distinctBy(FileModel::absolutePath) }
+    val externalFiles = remember(session.files) { session.files.orEmpty().distinctBy(FileModel::reference) }
     val initialPath = remember(session) { videoPlaybackInitialPath(session) }
     val viewerContext = remember(initialPath, externalFiles, state.displayedFiles, state.files) {
         val matchingExternalFile = externalFiles.find {
-            videoReferencesMatch(it.absolutePath, initialPath)
+            videoReferencesMatch(it.reference, initialPath)
         }
-        val targetPath = matchingExternalFile?.absolutePath ?: initialPath
+        val targetPath = matchingExternalFile?.reference ?: initialPath
 
         if (state.isInitialized) {
             videoViewerFileContextAfterInitialization(
@@ -131,7 +131,7 @@ internal fun VideoViewerScreen(
                 displayedFiles = state.displayedFiles,
                 allFiles = state.files
             )
-        } else if (externalFiles.any { it.absolutePath == targetPath }) {
+        } else if (externalFiles.any { it.reference == targetPath }) {
             videoViewerFileContextForInitialPath(targetPath, externalFiles, externalFiles)
         } else {
             videoViewerFileContextForInitialPath(targetPath, state.displayedFiles, state.files)
@@ -219,14 +219,14 @@ internal fun VideoViewerScreen(
     )
 
     val displayedPaths = remember(displayedFiles) {
-        displayedFiles.map(FileModel::absolutePath)
+        displayedFiles.map(FileModel::reference)
     }
     LaunchedEffect(displayedPaths) {
         if (displayedFiles.isEmpty()) return@LaunchedEffect
         val matchingExternalFile = externalFiles.find {
-            videoReferencesMatch(it.absolutePath, initialPath)
+            videoReferencesMatch(it.reference, initialPath)
         }
-        val targetPath = matchingExternalFile?.absolutePath ?: initialPath
+        val targetPath = matchingExternalFile?.reference ?: initialPath
         val anchoredPath = state.viewerCurrentPath ?: targetPath
         val anchoredPage = videoViewerPageAfterDatasetChange(
             anchoredPath,
@@ -234,16 +234,16 @@ internal fun VideoViewerScreen(
             displayedFiles
         )
         if (pagerState.currentPage != anchoredPage) pagerState.scrollToPage(anchoredPage)
-        if (displayedFiles[anchoredPage].absolutePath != anchoredPath) {
-            viewModel.setViewerCurrentPath(displayedFiles[anchoredPage].absolutePath)
+        if (displayedFiles[anchoredPage].reference != anchoredPath) {
+            viewModel.setViewerCurrentPath(displayedFiles[anchoredPage].reference)
         }
     }
 
     LaunchedEffect(initialPath, viewerContext.initialPage, displayedFiles.size) {
         val matchingExternalFile = externalFiles.find {
-            videoReferencesMatch(it.absolutePath, initialPath)
+            videoReferencesMatch(it.reference, initialPath)
         }
-        val targetPath = matchingExternalFile?.absolutePath ?: initialPath
+        val targetPath = matchingExternalFile?.reference ?: initialPath
         if (displayedFiles.isNotEmpty() && state.viewerSessionInitialPath != targetPath) {
             viewModel.startViewerSession(targetPath)
             pagerState.scrollToPage(viewerContext.initialPage.coerceIn(0, displayedFiles.lastIndex))
@@ -252,10 +252,10 @@ internal fun VideoViewerScreen(
 
     LaunchedEffect(pagerState.settledPage, state.viewerMetadataPath) {
         displayedFiles.getOrNull(pagerState.settledPage)?.let { file ->
-            viewModel.setViewerCurrentPath(file.absolutePath)
+            viewModel.setViewerCurrentPath(file.reference)
             if (
                 state.viewerMetadataPath != null &&
-                (readOnly || state.viewerMetadataPath != file.absolutePath)
+                (readOnly || state.viewerMetadataPath != file.reference)
             ) {
                 viewModel.setViewerMetadataVisible(null, visible = false)
             }

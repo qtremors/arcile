@@ -76,8 +76,8 @@ import androidx.media3.ui.PlayerView
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataDetailLabels
-import dev.qtremors.arcile.core.ui.metadata.ImageMetadataSections
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
+import dev.qtremors.arcile.core.ui.metadata.MediaMetadataSections
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
@@ -437,7 +437,7 @@ internal fun VideoViewerPlaybackSurface(
             val currentPlaybackItem = remember(playbackItemResolver, currentFile, settledPage) {
                 currentFile?.let { playbackItemResolver.resolve(it, settledPage) }
             }
-            val isArchiveEntry = currentFile?.absolutePath
+            val isArchiveEntry = currentFile?.reference
                 ?.startsWith(ArchiveEntryThumbnailData.VIRTUAL_PREFIX) == true
             val fallbackFileActionsAllowed = session.securityScopeId == null && !isArchiveEntry
             val canOpenWith = currentPlaybackItem?.onOpenWith != null || fallbackFileActionsAllowed
@@ -473,13 +473,13 @@ internal fun VideoViewerPlaybackSurface(
                     metadataCache.clear()
                 }
             }
-            val currentPath = currentFile?.absolutePath
+            val currentPath = currentFile?.reference
             LaunchedEffect(currentPath, state.isRefreshing, readOnly) {
                 val file = currentFile ?: return@LaunchedEffect
-                if (!readOnly && !state.isRefreshing && metadataCache[file.absolutePath] == null) {
+                if (!readOnly && !state.isRefreshing && metadataCache[file.reference] == null) {
                     metadataCache.putBounded(
-                        file.absolutePath,
-                        viewModel.readVideoMetadata(file.absolutePath, file.mimeType),
+                        file.reference,
+                        viewModel.readVideoMetadata(file.reference, file.mimeType),
                         64
                     )
                 }
@@ -510,25 +510,25 @@ internal fun VideoViewerPlaybackSurface(
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
                     val verticalPagerState = rememberPagerState(
-                        initialPage = if (!readOnly && state.viewerMetadataPath == file.absolutePath) 1 else 0,
+                        initialPage = if (!readOnly && state.viewerMetadataPath == file.reference) 1 else 0,
                         pageCount = { if (readOnly) 1 else 2 }
                     )
 
                     val isCurrentPage = settledPage == page
-                    var metadata by remember(file.absolutePath) {
-                        mutableStateOf<VideoFileMetadata?>(metadataCache[file.absolutePath])
+                    var metadata by remember(file.reference) {
+                        mutableStateOf<VideoFileMetadata?>(metadataCache[file.reference])
                     }
                     LaunchedEffect(
-                        file.absolutePath,
+                        file.reference,
                         state.isRefreshing,
                         showMetadataSheet,
                         isCurrentPage,
                         readOnly
                     ) {
                         if (!readOnly && !state.isRefreshing && showMetadataSheet && isCurrentPage) {
-                            val data = metadataCache[file.absolutePath]
-                                ?: viewModel.readVideoMetadata(file.absolutePath, file.mimeType).also {
-                                    metadataCache.putBounded(file.absolutePath, it, 64)
+                            val data = metadataCache[file.reference]
+                                ?: viewModel.readVideoMetadata(file.reference, file.mimeType).also {
+                                    metadataCache.putBounded(file.reference, it, 64)
                                 }
                             metadata = data
                         }
@@ -536,7 +536,7 @@ internal fun VideoViewerPlaybackSurface(
 
                     LaunchedEffect(showMetadataSheet, isCurrentPage) {
                         if (isCurrentPage) {
-                            val shouldShowMetadata = state.viewerMetadataPath == file.absolutePath
+                            val shouldShowMetadata = state.viewerMetadataPath == file.reference
                             if (shouldShowMetadata && verticalPagerState.currentPage == 0) {
                                 verticalPagerState.animateScrollToPage(
                                     1,
@@ -554,7 +554,7 @@ internal fun VideoViewerPlaybackSurface(
                     LaunchedEffect(verticalPagerState.currentPage, isCurrentPage) {
                         if (isCurrentPage) {
                             viewModel.setViewerMetadataVisible(
-                                path = file.absolutePath,
+                                path = file.reference,
                                 visible = verticalPagerState.currentPage == 1
                             )
                         }
@@ -578,10 +578,10 @@ internal fun VideoViewerPlaybackSurface(
                                 attachPlayerSurface = videoPlayerSurfaceCanAttach(
                                     isPageFocused = isCurrentPage,
                                     loadedPath = loadedPath,
-                                    pagePath = file.absolutePath
+                                    pagePath = file.reference
                                 ),
                                 isBuffering = isCurrentPage && isBuffering && !isScrubbing,
-                                showPlaceholder = isCurrentPage && renderedPath != file.absolutePath,
+                                showPlaceholder = isCurrentPage && renderedPath != file.reference,
                                 playbackError = playbackError.takeIf { isCurrentPage },
                                 resizeMode = resizeModes[resizeModeIndex],
                                 onTap = { viewModel.toggleViewerUi() },
@@ -595,9 +595,9 @@ internal fun VideoViewerPlaybackSurface(
                                 },
                                 onToggleMetadata = { visible ->
                                     if (visible) {
-                                        viewModel.setViewerMetadataVisible(file.absolutePath, visible = true)
+                                        viewModel.setViewerMetadataVisible(file.reference, visible = true)
                                     } else {
-                                        if (state.viewerMetadataPath == file.absolutePath) {
+                                        if (state.viewerMetadataPath == file.reference) {
                                             viewModel.setViewerMetadataVisible(null, visible = false)
                                         } else {
                                             dismissPlayer()
@@ -730,7 +730,7 @@ internal fun VideoViewerPlaybackSurface(
                                 ?: viewerActionController.onAction(action)
                         }
                         ViewerFileAction.Properties -> currentFile?.let {
-                            viewModel.setViewerMetadataVisible(it.absolutePath, visible = true)
+                            viewModel.setViewerMetadataVisible(it.reference, visible = true)
                         }
                         else -> viewerActionController.onAction(action)
                     }

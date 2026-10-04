@@ -16,13 +16,13 @@ internal class LocalFileTransferCoordinator(
     private val validateDestination: (File) -> Result<Unit>,
     private val finalizeMutation: suspend (List<String>) -> Unit
 ) {
-    suspend fun detectCopyConflicts(
+    suspend fun detectTransferConflicts(
         sourcePaths: List<String>,
         destinationPath: String
     ): Result<List<FileConflict>> = withContext(dispatchers.io) {
         storageResult {
             val destination = validatedDirectory(destinationPath)
-            conflictDetector.detectCopyConflicts(sourcePaths, destination)
+            conflictDetector.detectTransferConflicts(sourcePaths, destination)
         }
     }
 

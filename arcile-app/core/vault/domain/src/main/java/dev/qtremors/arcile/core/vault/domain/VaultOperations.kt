@@ -73,7 +73,7 @@ data class VaultConflict(
 )
 
 enum class VaultTransferAction { COPY, MOVE, IMPORT, EXPORT, SHARE, OPEN_WITH }
-enum class VaultItemOutcome { COMPLETED, SKIPPED, FAILED, ROLLED_BACK }
+enum class VaultItemOutcome { COMPLETED, PARTIAL, SKIPPED, FAILED, ROLLED_BACK }
 
 data class VaultItemResult(
     val sourceIdentity: String,
@@ -84,6 +84,7 @@ data class VaultItemResult(
 
 data class VaultBatchResult(val items: List<VaultItemResult>) {
     val completed: List<VaultItemResult> get() = items.filter { it.outcome == VaultItemOutcome.COMPLETED }
+    val partial: List<VaultItemResult> get() = items.filter { it.outcome == VaultItemOutcome.PARTIAL }
     val skipped: List<VaultItemResult> get() = items.filter { it.outcome == VaultItemOutcome.SKIPPED }
     val failed: List<VaultItemResult> get() = items.filter { it.outcome == VaultItemOutcome.FAILED }
     val rolledBack: List<VaultItemResult> get() = items.filter { it.outcome == VaultItemOutcome.ROLLED_BACK }
@@ -105,7 +106,7 @@ fun interface VaultCancellationSignal {
 data class VaultImportProgress(
     val completedItems: Int,
     val totalItems: Int,
-    val bytesCopied: Long,
+    val bytesProcessed: Long,
     val totalBytes: Long?,
     val currentName: String?
 )

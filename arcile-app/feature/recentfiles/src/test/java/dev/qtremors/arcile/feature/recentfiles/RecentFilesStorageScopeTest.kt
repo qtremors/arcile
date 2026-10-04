@@ -49,7 +49,7 @@ class RecentFilesStorageScopeTest {
         assertTrue(StorageScope.Volume("sd") in repository.requestedRecentScopes)
         assertEquals(
             listOf("/storage/1234-5678/Movies/clip.mp4"),
-            viewModel.state.value.recentFiles.map { it.absolutePath }
+            viewModel.state.value.recentFiles.map { it.reference }
         )
     }
 

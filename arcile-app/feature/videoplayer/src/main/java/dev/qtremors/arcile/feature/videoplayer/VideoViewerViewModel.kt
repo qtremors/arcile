@@ -34,7 +34,7 @@ import kotlinx.coroutines.launch
 
 @HiltViewModel
 internal class VideoViewerViewModel @Inject constructor(
-    private val browserPreferencesStore: GalleryPreferencesStore,
+    private val galleryPreferencesStore: GalleryPreferencesStore,
     private val fileBrowserRepository: FileBrowserRepository,
     private val volumeRepository: VolumeRepository,
     private val operationCoordinator: BulkFileOperationCoordinator,
@@ -51,8 +51,7 @@ internal class VideoViewerViewModel @Inject constructor(
             viewerCurrentPath = savedStateHandle[KEY_CURRENT_PATH],
             viewerMetadataPath = savedStateHandle[KEY_METADATA_PATH],
             viewerUiVisible = savedStateHandle[KEY_UI_VISIBLE] ?: true,
-            showThumbnails = savedStateHandle[KEY_SHOW_THUMBNAILS] ?: persistentShowThumbnails,
-            viewerEraseDialogPath = savedStateHandle[KEY_ERASE_DIALOG_PATH]
+            showThumbnails = savedStateHandle[KEY_SHOW_THUMBNAILS] ?: persistentShowThumbnails
         )
     )
     val state: StateFlow<VideoViewerState> = _state.asStateFlow()
@@ -149,7 +148,7 @@ internal class VideoViewerViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            browserPreferencesStore.galleryPreferencesFlow.collectLatest { preferences ->
+            galleryPreferencesStore.galleryPreferencesFlow.collectLatest { preferences ->
                 _state.update {
                     it.copy(favoriteFiles = preferences.favoriteFiles.toPersistentSet())
                 }
@@ -164,10 +163,10 @@ internal class VideoViewerViewModel @Inject constructor(
                     _state.update { current ->
                         current.copy(
                             files = current.files
-                                .filterNot { it.absolutePath in removedPaths }
+                                .filterNot { it.reference in removedPaths }
                                 .toPersistentList(),
                             displayedFiles = current.displayedFiles
-                                .filterNot { it.absolutePath in removedPaths }
+                                .filterNot { it.reference in removedPaths }
                                 .toPersistentList(),
                             selectedFiles = current.selectedFiles
                                 .filterNot { it in removedPaths }
@@ -189,7 +188,7 @@ internal class VideoViewerViewModel @Inject constructor(
     ) {
         siblingLoadJob?.cancel()
         val files = (contextFiles + fileModelFromPath(initialPath))
-            .distinctBy(FileModel::absolutePath).toPersistentList()
+            .distinctBy(FileModel::reference).toPersistentList()
         _state.update {
             it.copy(
                 isInitialized = true,
@@ -200,7 +199,7 @@ internal class VideoViewerViewModel @Inject constructor(
         }
         startViewerSession(initialPath)
 
-        if (discoverSiblings && contextFiles.distinctBy(FileModel::absolutePath).size <= 1) {
+        if (discoverSiblings && contextFiles.distinctBy(FileModel::reference).size <= 1) {
             siblingLoadJob = viewModelScope.launch {
                 val parentPath = viewerParentPath(initialPath) ?: return@launch
                 val siblings = fileBrowserRepository.listFiles(parentPath).getOrNull()
@@ -210,7 +209,7 @@ internal class VideoViewerViewModel @Inject constructor(
                             FileCategories.Videos
                     }
                     .orEmpty()
-                if (siblings.none { it.absolutePath == initialPath }) return@launch
+                if (siblings.none { it.reference == initialPath }) return@launch
                 if (_state.value.viewerSessionInitialPath != initialPath) return@launch
                 val siblingFiles = siblings.toPersistentList()
                 _state.update {
@@ -256,7 +255,7 @@ internal class VideoViewerViewModel @Inject constructor(
     fun toggleFavorite(path: String) {
         val isFavorite = path in state.value.favoriteFiles
         viewModelScope.launch {
-            browserPreferencesStore.updateFavorite(path, !isFavorite)
+            galleryPreferencesStore.updateFavorite(path, !isFavorite)
         }
     }
 
@@ -271,14 +270,12 @@ internal class VideoViewerViewModel @Inject constructor(
         savedStateHandle[KEY_CURRENT_PATH] = initialPath
         savedStateHandle[KEY_UI_VISIBLE] = true
         savedStateHandle.remove<String>(KEY_METADATA_PATH)
-        savedStateHandle.remove<String>(KEY_ERASE_DIALOG_PATH)
         _state.update {
             it.copy(
                 viewerSessionInitialPath = initialPath,
                 viewerCurrentPath = initialPath,
                 viewerMetadataPath = null,
-                viewerUiVisible = true,
-                viewerEraseDialogPath = null
+                viewerUiVisible = true
             )
         }
     }
@@ -289,18 +286,18 @@ internal class VideoViewerViewModel @Inject constructor(
     }
 
     fun applyViewerRename(oldPath: String, newFile: FileModel) {
-        savedStateHandle[KEY_CURRENT_PATH] = newFile.absolutePath
+        savedStateHandle[KEY_CURRENT_PATH] = newFile.reference
         _state.update { current ->
             current.copy(
-                files = current.files.map { if (it.absolutePath == oldPath) newFile else it }.toPersistentList(),
+                files = current.files.map { if (it.reference == oldPath) newFile else it }.toPersistentList(),
                 displayedFiles = current.displayedFiles
-                    .map { if (it.absolutePath == oldPath) newFile else it }
+                    .map { if (it.reference == oldPath) newFile else it }
                     .toPersistentList(),
                 selectedFiles = current.selectedFiles
-                    .map { if (it == oldPath) newFile.absolutePath else it }
+                    .map { if (it == oldPath) newFile.reference else it }
                     .toPersistentSet(),
                 viewerCurrentPath = if (current.viewerCurrentPath == oldPath) {
-                    newFile.absolutePath
+                    newFile.reference
                 } else {
                     current.viewerCurrentPath
                 }
@@ -310,14 +307,14 @@ internal class VideoViewerViewModel @Inject constructor(
 
     fun applyViewerDelete(deletedPath: String) {
         _state.update { current ->
-            val remaining = current.displayedFiles.filterNot { it.absolutePath == deletedPath }.toPersistentList()
+            val remaining = current.displayedFiles.filterNot { it.reference == deletedPath }.toPersistentList()
             current.copy(
-                files = current.files.filterNot { it.absolutePath == deletedPath }.toPersistentList(),
+                files = current.files.filterNot { it.reference == deletedPath }.toPersistentList(),
                 displayedFiles = remaining,
                 selectedFiles = current.selectedFiles.removing(deletedPath),
                 viewerCurrentPath = current.viewerCurrentPath
                     .takeUnless { it == deletedPath }
-                    ?: remaining.firstOrNull()?.absolutePath
+                    ?: remaining.firstOrNull()?.reference
             )
         }
     }
@@ -345,11 +342,6 @@ internal class VideoViewerViewModel @Inject constructor(
         _state.update { it.copy(showThumbnails = newShow) }
     }
 
-    fun setViewerEraseDialogPath(path: String?) {
-        savedStateHandle[KEY_ERASE_DIALOG_PATH] = path
-        _state.update { it.copy(viewerEraseDialogPath = path) }
-    }
-
     private companion object {
         var persistentShowThumbnails: Boolean = true
         val viewerRemovalOperationTypes = setOf(
@@ -363,6 +355,5 @@ internal class VideoViewerViewModel @Inject constructor(
         const val KEY_METADATA_PATH = "video_viewer.metadata_path"
         const val KEY_UI_VISIBLE = "video_viewer.ui_visible"
         const val KEY_SHOW_THUMBNAILS = "video_viewer.show_thumbnails"
-        const val KEY_ERASE_DIALOG_PATH = "video_viewer.erase_dialog_path"
     }
 }
