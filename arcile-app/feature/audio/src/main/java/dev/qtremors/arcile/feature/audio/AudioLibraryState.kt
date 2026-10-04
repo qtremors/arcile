@@ -16,6 +16,14 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 
 internal enum class AudioCollectionKind { SONGS, FOLDERS, ALBUMS, ARTISTS, GENRES, PLAYLISTS }
 
+internal val audioNavigationSections = listOf(
+    AudioCollectionKind.SONGS, AudioCollectionKind.FOLDERS, AudioCollectionKind.ALBUMS,
+    AudioCollectionKind.ARTISTS, AudioCollectionKind.PLAYLISTS
+)
+
+internal fun audioNavigationPage(section: AudioCollectionKind): Int =
+    audioNavigationSections.indexOf(section).coerceAtLeast(0)
+
 internal enum class AudioSongFilter { ALL, FAVORITES, RECENTLY_PLAYED, MOST_PLAYED }
 
 internal enum class AudioCollectionType {
@@ -109,4 +117,11 @@ internal fun AudioLibraryState.presentationFor(section: AudioCollectionKind): Fi
         AudioCollectionKind.SONGS -> audioPresentation
         AudioCollectionKind.FOLDERS -> collectionPresentation
         else -> sectionPresentations[section] ?: collectionPresentation
+    }
+
+internal fun AudioLibraryState.trackPresentation(): FileListingPreferences =
+    if (collectionFilter?.kind == AudioCollectionType.Album) {
+        audioPresentation.copy(viewMode = FileViewMode.LIST)
+    } else {
+        audioPresentation
     }

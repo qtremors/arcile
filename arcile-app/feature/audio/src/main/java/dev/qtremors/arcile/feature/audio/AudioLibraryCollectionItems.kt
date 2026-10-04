@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Restore
@@ -84,7 +85,8 @@ internal fun AudioCollectionListItem(
         ) {
             collection.coverTrack?.let {
                 AudioArtwork(it, Modifier.fillMaxSize(), shape = MaterialTheme.shapes.medium)
-            } ?: Icon(Icons.Default.Image, contentDescription = null)
+            } ?: Icon(if (collection.kind == AudioCollectionType.Playlist) Icons.AutoMirrored.Filled.QueueMusic
+                else Icons.Default.Image, contentDescription = null)
         }
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -106,7 +108,8 @@ internal fun AudioCollectionListItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            if (showDetails && collection.subtitle != null && !collection.isDirectory) {
+            if ((showDetails || collection.kind == AudioCollectionType.Album) &&
+                collection.subtitle != null && !collection.isDirectory) {
                 Text(
                     androidx.compose.ui.res.pluralStringResource(
                         R.plurals.audio_song_count, collection.tracks.size, collection.tracks.size
@@ -206,7 +209,8 @@ internal fun AudioCollectionGridItem(
         ) {
             collection.coverTrack?.let { cover ->
                 AudioArtwork(cover, Modifier.fillMaxSize(), shape = MaterialTheme.shapes.medium)
-            } ?: Icon(Icons.Default.Image, contentDescription = null, modifier = Modifier.size(48.dp))
+            } ?: Icon(if (collection.kind == AudioCollectionType.Playlist) Icons.AutoMirrored.Filled.QueueMusic
+                else Icons.Default.Image, contentDescription = null, modifier = Modifier.size(48.dp))
         if (canPaste && !isSelected) {
             Surface(
                 onClick = onPaste,
@@ -289,6 +293,13 @@ internal fun AudioCollectionGridItem(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp)
         )
+        if (collection.kind == AudioCollectionType.Album && !collection.subtitle.isNullOrBlank()) {
+            Text(androidx.compose.ui.res.pluralStringResource(
+                R.plurals.audio_song_count, collection.tracks.size, collection.tracks.size),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 4.dp))
+        }
     }
 }
 

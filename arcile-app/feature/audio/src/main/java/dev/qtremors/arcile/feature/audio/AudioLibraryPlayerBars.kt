@@ -15,6 +15,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -27,7 +28,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -43,7 +43,6 @@ import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SkipNext
@@ -62,12 +61,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalDensity
@@ -285,32 +284,18 @@ internal fun AudioMiniPlayer(
                                     )
                                 }
                             )
-                            .clickable(onClick = onTogglePlayback)
+                            .clickable(
+                                onClickLabel = stringResource(if (playback.isPlaying) R.string.audio_pause else R.string.audio_play),
+                                onClick = onTogglePlayback
+                            )
                     }
                 )
-                AnimatedContent(
-                    targetState = !playback.isPlaying,
-                    transitionSpec = {
-                        fadeIn(tween(180)) togetherWith fadeOut(tween(180))
-                    },
-                    label = "mini player play overlay"
-                ) { showPlay ->
-                    if (showPlay) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.36f))
-                                .clickable(onClick = onTogglePlayback),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.PlayArrow,
-                                contentDescription = stringResource(R.string.audio_play),
-                                tint = Color.White,
-                                modifier = Modifier.size(22.dp)
-                            )
-                        }
+                if (!playback.isPlaying) {
+                    Box(Modifier.size(40.dp).clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.36f))
+                        .clickable(onClick = onTogglePlayback), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Default.PlayArrow, stringResource(R.string.audio_play),
+                            tint = Color.White, modifier = Modifier.size(22.dp))
                     }
                 }
                 Canvas(Modifier.size(48.dp)) {
@@ -361,8 +346,8 @@ internal fun AudioMiniPlayer(
                         onClick = onNext
                     )
                 ),
-                height = 40.dp,
-                minWidth = 40.dp,
+                height = 48.dp,
+                minWidth = 48.dp,
                 iconSize = 20.dp
             )
         }

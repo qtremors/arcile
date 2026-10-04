@@ -27,7 +27,10 @@ class FileTransferEngine(
     private val checksumFile: (File) -> ByteArray = ::calculateSha256,
     private val afterCopy: (File, File) -> Unit = { _, _ -> },
     private val deleteSourceEntry: (File) -> Boolean = { file -> file.delete() },
-    private val mutationJournal: MutationJournal = NoOpMutationJournal()
+    private val mutationJournal: MutationJournal = NoOpMutationJournal(),
+    private val deleteTarget: (File) -> Boolean = { target ->
+        if (!target.exists()) true else if (target.isDirectory) target.deleteRecursively() else target.delete()
+    }
 ) {
     private companion object {
         const val TRANSFER_ESTIMATE_NODE_LIMIT = 10_000
@@ -434,8 +437,13 @@ class FileTransferEngine(
         private val backup: File? = null,
         var originalIdentity: MutationPathIdentity? = null
     ) {
+        private var backupCleanupStarted = false
+
         fun finish() {
             if (backup == null) return
+            // Recursive cleanup may destroy only part of the original tree.
+            // Keep the verified publication and journal if cleanup fails.
+            backupCleanupStarted = true
             if (backup.exists() && (originalIdentity?.matchesOwned(backup) != true || !deleteTarget(backup))) {
                 throw IOException("Replacement is published, but its original backup still needs recovery")
             }
@@ -443,6 +451,7 @@ class FileTransferEngine(
         }
 
         fun rollback() {
+            if (backupCleanupStarted) return
             runCatchingPreservingCancellation {
                 if (backup == null) {
                     if (identity.matchesOwned(target)) deleteTarget(target)
@@ -540,9 +549,6 @@ class FileTransferEngine(
             error.rethrowIfCancellation()
             throw IOException("Unable to identify directory: ${directory.absolutePath}", error)
         }
-
-    private fun deleteTarget(target: File): Boolean =
-        if (!target.exists()) true else if (target.isDirectory) target.deleteRecursively() else target.delete()
 
     private inner class ProgressTracker(
         sourcePaths: List<String>,

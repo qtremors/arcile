@@ -118,6 +118,7 @@ class AudioPlayerActivity : ComponentActivity() {
                         },
                         playbackController = playback,
                         tagEditor = tagEditor,
+                        listeningStore = listeningStore,
                         launchId = playerLaunchId,
                         allowMini = false,
                         miniPlayerBottomClearanceDp = miniPlayerBottomClearanceDp,

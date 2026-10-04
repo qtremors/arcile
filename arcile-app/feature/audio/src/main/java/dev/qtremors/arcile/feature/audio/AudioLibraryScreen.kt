@@ -3,10 +3,13 @@ package dev.qtremors.arcile.feature.audio
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -76,7 +79,6 @@ internal fun AudioLibraryScreen(
     onMusicOnlyChange: (Boolean) -> Unit,
     onDefaultSectionChange: (AudioCollectionKind) -> Unit,
     onToggleFavoriteSelection: () -> Unit,
-    onToggleFavoriteTrack: (String) -> Unit,
     onTogglePinnedFolder: (AudioCollection) -> Unit,
     onUpdateFolderCover: (AudioCollection, String?) -> Unit,
     onToggleSelection: (String) -> Unit,
@@ -111,9 +113,12 @@ internal fun AudioLibraryScreen(
     onFeedback: (ArcileFeedbackEvent) -> Unit
 ) {
     val haptics = rememberArcileHaptics()
+    val shellState = rememberCategoryLibraryShellState()
     val miniPlayerVisible = AudioFeatureEntryPoint.categoryMiniPlayerVisible()
     val miniPlayerClearance by animateDpAsState(
-        targetValue = if (miniPlayerVisible) 88.dp else 8.dp,
+        targetValue = if (miniPlayerVisible && (shellState.isChromeVisible ||
+            state.selectedPaths.isNotEmpty() || state.clipboardState != null ||
+            state.activeFileOperation != null)) 88.dp else 8.dp,
         animationSpec = spring(),
         label = "audio mini player clearance"
     )
@@ -121,6 +126,18 @@ internal fun AudioLibraryScreen(
         state.tracks.filter { it.file.reference in state.selectedPaths }
     }
     val isSelectionMode = selectedTracks.isNotEmpty()
+    val keepBottomChromeVisible = shellState.isChromeVisible || isSelectionMode ||
+        state.clipboardState != null || state.activeFileOperation != null
+    val bottomChromeOffset by animateDpAsState(
+        targetValue = if (keepBottomChromeVisible) 0.dp else 260.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "audio bottom chrome offset"
+    )
+    val bottomChromeAlpha by animateFloatAsState(
+        targetValue = if (keepBottomChromeVisible) 1f else 0f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "audio bottom chrome alpha"
+    )
     var showSearchBar by rememberSaveable {
         mutableStateOf(state.query.isNotEmpty() || state.searchFilters.hasActiveFilters)
     }
@@ -129,23 +146,21 @@ internal fun AudioLibraryScreen(
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
     var showPlaylistPicker by rememberSaveable { mutableStateOf(false) }
     var tagEditTrack by remember { mutableStateOf<AudioTrack?>(null) }
-    var optionsTrack by remember { mutableStateOf<AudioTrack?>(null) }
     var coverFolder by remember { mutableStateOf<AudioCollection?>(null) }
-    val shellState = rememberCategoryLibraryShellState()
     var backProgress by remember { mutableFloatStateOf(0f) }
     var backAction by remember { mutableStateOf<AudioBackAction?>(null) }
     val pagerState = rememberPagerState(
-        initialPage = AudioCollectionKind.entries.indexOf(state.defaultSection),
-        pageCount = { AudioCollectionKind.entries.size }
+        initialPage = audioNavigationPage(state.defaultSection),
+        pageCount = { audioNavigationSections.size }
     )
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(pagerState.settledPage) {
-        val section = AudioCollectionKind.entries[pagerState.settledPage]
+        val section = audioNavigationSections[pagerState.settledPage]
         if (state.collectionKind != section) onSelectCollection(section)
     }
     LaunchedEffect(state.collectionKind) {
-        val page = AudioCollectionKind.entries.indexOf(state.collectionKind)
+        val page = audioNavigationPage(state.collectionKind)
         if (pagerState.currentPage != page) pagerState.animateScrollToPage(page)
     }
     LaunchedEffect(state.error, playback.error) {
@@ -248,14 +263,18 @@ internal fun AudioLibraryScreen(
                     )
                 }
             },
-            bottomChrome = { isChromeVisible ->
-                Column(modifier = Modifier.align(Alignment.BottomCenter)) {
+            bottomChrome = {
+                Column(modifier = Modifier.align(Alignment.BottomCenter)
+                    .widthIn(max = 632.dp).fillMaxWidth().graphicsLayer {
+                    translationY = bottomChromeOffset.toPx()
+                    alpha = bottomChromeAlpha
+                }) {
                     AudioFeatureEntryPoint.CategoryMiniPlayer()
                     AudioLibraryBottomBar(
                     state = state,
-                    currentSection = AudioCollectionKind.entries[pagerState.currentPage],
+                    currentSection = audioNavigationSections[pagerState.currentPage],
                     selectedTracks = selectedTracks,
-                    isChromeVisible = isChromeVisible,
+                    isChromeVisible = true,
                     selectionBackProgress = if (
                         backAction == AudioBackAction.CLEAR_SELECTION
                     ) {
@@ -266,7 +285,7 @@ internal fun AudioLibraryScreen(
                     onSelectSection = { section ->
                         coroutineScope.launch {
                             pagerState.animateScrollToPage(
-                                AudioCollectionKind.entries.indexOf(section)
+                                audioNavigationPage(section)
                             )
                         }
                     },
@@ -310,7 +329,7 @@ internal fun AudioLibraryScreen(
                 modifier = Modifier.fillMaxSize(),
                 userScrollEnabled = !isSelectionMode
             ) { page ->
-                val section = AudioCollectionKind.entries[page]
+                val section = audioNavigationSections[page]
                 val pageState = if (section == state.collectionKind &&
                     state.presentedCollectionKind == section
                 ) state else remember(state, section) {
@@ -347,7 +366,6 @@ internal fun AudioLibraryScreen(
                     },
                     onRefresh = onRefresh,
                     onPlay = onPlay,
-                    onTrackOptions = { optionsTrack = it },
                     onSelectSongFilter = onSelectSongFilter,
                     onClearListeningHistory = onClearListeningHistory,
                     onOpenCollection = onOpenCollection,
@@ -377,18 +395,26 @@ internal fun AudioLibraryScreen(
         }
 
     if (showPresentationSheet) {
-        val selectedSection = AudioCollectionKind.entries[pagerState.currentPage]
+        val selectedSection = audioNavigationSections[pagerState.currentPage]
         val presentationSection = if (state.collectionFilter != null) {
             AudioCollectionKind.SONGS
         } else selectedSection
         AudioViewOptionsSheet(
             section = presentationSection,
-            presentation = state.presentationFor(presentationSection),
+            presentation = if (state.collectionFilter != null) {
+                state.trackPresentation()
+            } else state.presentationFor(presentationSection),
+            listOnly = state.collectionFilter?.kind == AudioCollectionType.Album,
             grouping = state.grouping,
             showFileDetails = state.showFileDetails,
             musicOnly = state.musicOnly,
             onApply = { presentation, grouping, showDetails, musicOnly ->
-                onPresentationChange(presentationSection, presentation)
+                onPresentationChange(
+                    presentationSection,
+                    if (state.collectionFilter?.kind == AudioCollectionType.Album) {
+                        presentation.copy(viewMode = state.audioPresentation.viewMode)
+                    } else presentation
+                )
                 onGroupingChange(grouping)
                 onShowFileDetailsChange(showDetails)
                 onMusicOnlyChange(musicOnly)
@@ -420,30 +446,6 @@ internal fun AudioLibraryScreen(
                 tagEditTrack = null
             },
             onDismiss = { tagEditTrack = null }
-        )
-    }
-    optionsTrack?.let { selected ->
-        AudioTrackActionsSheet(
-            track = selected,
-            isFavorite = selected.file.reference in state.favoritePaths,
-            onDismiss = { optionsTrack = null },
-            onToggleFavorite = {
-                onToggleFavoriteTrack(selected.file.reference)
-                optionsTrack = null
-            },
-            onEditTags = {
-                optionsTrack = null
-                tagEditTrack = selected
-            },
-            onEditAudio = {
-                optionsTrack = null
-                onEditSelected(listOf(selected))
-            },
-            onAddToPlaylist = {
-                optionsTrack = null
-                onSelectPaths(listOf(selected.file.reference))
-                showPlaylistPicker = true
-            }
         )
     }
     coverFolder?.let { folder ->

@@ -60,7 +60,8 @@ internal fun AudioViewOptionsSheet(
     showFileDetails: Boolean,
     musicOnly: Boolean,
     onApply: (FileListingPreferences, CategoryGrouping, Boolean, Boolean) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    listOnly: Boolean = false
 ) {
     val haptics = rememberArcileHaptics()
     var draftPresentation by remember(presentation, section) {
@@ -96,12 +97,14 @@ internal fun AudioViewOptionsSheet(
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.SemiBold
                 )
-                AudioViewModeSection(
-                    selected = draftPresentation.viewMode,
-                    onSelected = {
-                        draftPresentation = draftPresentation.copy(viewMode = it)
-                    }
-                )
+                if (!listOnly) {
+                    AudioViewModeSection(
+                        selected = draftPresentation.viewMode,
+                        onSelected = {
+                            draftPresentation = draftPresentation.copy(viewMode = it)
+                        }
+                    )
+                }
                 AudioSizeSection(
                     presentation = draftPresentation,
                     availableWidth = this@BoxWithConstraints.maxWidth,

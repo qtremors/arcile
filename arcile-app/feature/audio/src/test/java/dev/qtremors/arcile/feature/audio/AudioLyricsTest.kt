@@ -6,6 +6,25 @@ import org.junit.Test
 
 class AudioLyricsTest {
     @Test
+    fun `lyric offsets shift cues and never seek before the start`() {
+        assertEquals(listOf(1500L, 3000L),
+            parseLrc("[offset:500]\n[00:01]One\n[00:02.5]Two").map(TimedLyricLine::timeMs))
+        assertEquals(listOf(0L, 1000L),
+            parseLrc("[offset:-1500]\n[00:01]One\n[00:02.5]Two").map(TimedLyricLine::timeMs))
+    }
+
+    @Test
+    fun `active cue follows seeking in either direction and timestamp boundaries`() {
+        val lines = parseLrc("[00:01]One\n[00:03]Two\n[00:03]Translation\n[00:05]Three")
+        assertEquals(-1, activeLyricIndex(emptyList(), 5000L))
+        assertEquals(-1, activeLyricIndex(lines, 999L))
+        assertEquals(0, activeLyricIndex(lines, 1000L))
+        assertEquals(2, activeLyricIndex(lines, 3000L))
+        assertEquals(3, activeLyricIndex(lines, 60_000L))
+        assertEquals(0, activeLyricIndex(lines, 2999L))
+    }
+
+    @Test
     fun `LRC parser sorts cues and converts fractional timestamps`() {
         val parsed = parseLrc("""
             [00:12.50]Second line

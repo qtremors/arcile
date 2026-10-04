@@ -310,11 +310,11 @@
                                 <i data-lucide="images" class="w-7 h-7 text-pink-400"></i>
                             </div>
                             <div class="flex gap-2">
-                                <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Albums</div>
+                                <div class="px-3 py-1.5 rounded-full bg-m3-surfaceContainerHighest text-m3-onSurface text-xs font-semibold border border-m3-outlineVariant/30 leading-none">Folders</div>
                             </div>
                         </div>
                         <h3 class="text-2xl font-medium text-m3-onSurface mb-3 font-display">Gallery & Viewers</h3>
-                        <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Browse media albums with gesture controls, 3-zone video seeking, thumbnail strips, and metadata sheets.</p>
+                        <p class="text-m3-onSurfaceVariant text-base leading-relaxed">Browse media folders with gesture controls, 3-zone video seeking, thumbnail strips, and metadata sheets.</p>
                     </div>
                 </div>
 
@@ -332,7 +332,7 @@
                             </div>
                         </div>
                         <h3 class="text-3xl sm:text-4xl font-medium text-m3-onSurface mb-4 font-display">Audio Library & Waveform Editor</h3>
-                        <p class="text-m3-onSurfaceVariant text-lg leading-relaxed max-w-4xl">Browse songs and folders with artwork, search, and queue management, or edit audio with zoomable waveforms, millisecond precision, trimming, middle-cuts, and track combining.</p>
+                        <p class="text-m3-onSurfaceVariant text-lg leading-relaxed max-w-4xl">Browse songs, folders, albums, artists, and playlists with artwork and listening history. Follow timed lyrics, edit music details, manage the playback queue, or edit audio with zoomable waveforms, millisecond precision, trimming, middle-cuts, and track combining.</p>
                     </div>
                 </div>
 
@@ -643,7 +643,7 @@
                         </div>
                         <div class="faq-content">
                             <div class="faq-inner px-6 pb-5">
-                                <p class="text-m3-onSurfaceVariant leading-relaxed">Arcile does not declare Android's <code>android.permission.INTERNET</code> permission in its manifest. Because the operating system blocks all network sockets at the kernel level, it is physically impossible for the app to send data, track usage, or upload telemetry to any server.</p>
+                                <p class="text-m3-onSurfaceVariant leading-relaxed">Arcile does not declare Android's <code>android.permission.INTERNET</code> permission in its manifest and has no ads, trackers, or telemetry. Preferences and listening history stay on your device. Files leave Arcile only when you choose to share or open them with another app.</p>
                             </div>
                         </div>
                     </div>
@@ -685,7 +685,7 @@
                         </div>
                         <div class="faq-content">
                             <div class="faq-inner px-6 pb-5">
-                                <p class="text-m3-onSurfaceVariant leading-relaxed">Arcile requests Android's <code>All Files Access</code> (<code>MANAGE_EXTERNAL_STORAGE</code>) permission to manage your storage. For system-restricted paths like <code>Android/data</code> or <code>Android/obb</code>, Arcile uses Android's Storage Access Framework (SAF) folder picker to grant explicit scoped access.</p>
+                                <p class="text-m3-onSurfaceVariant leading-relaxed">Arcile requests Android's <code>All Files Access</code> (<code>MANAGE_EXTERNAL_STORAGE</code>) permission to manage shared storage. Android still restricts access to protected locations such as <code>Android/data</code> and <code>Android/obb</code>; this permission does not bypass those restrictions.</p>
                             </div>
                         </div>
                     </div>
@@ -698,7 +698,7 @@
                         </div>
                         <div class="faq-content">
                             <div class="faq-inner px-6 pb-5">
-                                <p class="text-m3-onSurfaceVariant leading-relaxed">Deleted files are safely moved into a hidden <code>.arcile/.trash</code> directory on the same storage volume. Arcile preserves original file metadata so you can preview, restore items back to their exact original locations, or empty the trash permanently when you need space.</p>
+                                <p class="text-m3-onSurfaceVariant leading-relaxed">On storage classified as permanent, deleted files move into a hidden <code>.arcile/.trash</code> directory on the same volume. Arcile preserves recovery metadata so you can preview or restore them, choosing another folder when needed and keeping both files if names conflict. Temporary storage uses permanent deletion instead of Trash.</p>
                             </div>
                         </div>
                     </div>
@@ -777,6 +777,7 @@
                     <ul class="space-y-3 text-sm text-m3-onSurfaceVariant">
                         <li><a href="https://github.com/qtremors/arcile/blob/main/README.md" target="_blank" class="hover:text-m3-primary transition-colors">Documentation</a></li>
                         <li><a href="https://github.com/qtremors/arcile/blob/main/CHANGELOG.md" target="_blank" class="hover:text-m3-primary transition-colors">Changelog</a></li>
+                        <li><a href="https://github.com/qtremors/arcile/blob/main/RELEASES.md" target="_blank" class="hover:text-m3-primary transition-colors">Release Notes</a></li>
                         <li><a href="https://github.com/qtremors/arcile/blob/main/DEVELOPMENT.md" target="_blank" class="hover:text-m3-primary transition-colors">Architecture Guide</a></li>
                         <li><a href="https://github.com/qtremors/arcile/issues" target="_blank" class="hover:text-m3-primary transition-colors">Bug Tracker</a></li>
                     </ul>

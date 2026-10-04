@@ -1,6 +1,6 @@
 # Arcile Task Backlog
 
-> **Version:** 2.1.9 | **Last Updated:** 2026-10-04
+> **Version:** 2.2.0 | **Last Updated:** 2026-10-04
 
 30 open feature and workflow tasks. No open bug or maintenance tasks.
 

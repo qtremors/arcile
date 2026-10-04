@@ -54,7 +54,7 @@ internal class AudioCollectionStore @Inject constructor(
 
     fun defaultSection(fallback: AudioCollectionKind): AudioCollectionKind =
         preferences.getString(DEFAULT_SECTION_KEY, null)?.let { saved ->
-            AudioCollectionKind.entries.firstOrNull { it.name == saved }
+            audioNavigationSections.firstOrNull { it.name == saved }
         } ?: fallback
 
     suspend fun saveDefaultSection(section: AudioCollectionKind) = withContext(Dispatchers.IO) {

@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.9
+> **Version:** 2.2.0
 > **Last Updated:** 2026-10-04
 
 ---
+
+## [2.2.0] - 2026-10-04
+
+- **Audio Library**: Remove song overflow buttons and Genres navigation. Improve playlist empty states and creation. Clear song selection after Copy or Cut.
+- **Albums**: Show track lists, song counts, and other albums by the same artist.
+- **Player**: Align the mini player with five-tab navigation and hide both on scroll. Tap artwork to play or pause; remember the visualizer preference, off by default.
+- **Lyrics**: Add inline and full screen lyrics with line seeking, playback following, LRC offsets, and a dedicated editor.
+- **Music Details**: Use spacious rounded editor fields, aligned actions, and metadata, listening history, and file information cards.
+- **Sound Settings**: Add media volume controls, finer speed and pitch adjustments, and speed presets.
+- **File Replacement**: Keep copied replacements intact when cleanup of the old backup fails.
 
 ## [2.1.9] - 2026-10-04
 
@@ -982,4 +992,4 @@ The beta channel turned Arcile from a basic local file browser into a full Andro
 - Added browser-native archive browsing, selected archive extraction, expanded archive formats, sequential archive workflows, operation recovery, safer open/share handling, custom themes, progress details, utility preferences, configurable Home recents, and thumbnail policy centralization.
 - Completed major release hardening for imports, archive thumbnails, stale navigation cancellation, partial destructive operation reporting, MediaStore content URI resilience, transactional extraction replacement, stable directory paging, and release metadata.
 
-Detailed beta changelog history is archived in [beta/CHANGELOG-BETA.md](beta/CHANGELOG-BETA.md).
+Detailed beta changelog history is archived in [CHANGELOG-BETA.md](https://github.com/qtremors/arcile/blob/9af343e9e619d06cd14e41b0dc9bd571697e26c7/beta/CHANGELOG-BETA.md).

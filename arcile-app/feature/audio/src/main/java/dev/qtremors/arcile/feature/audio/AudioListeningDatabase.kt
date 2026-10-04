@@ -62,6 +62,9 @@ internal interface AudioListeningDao {
     @Query("SELECT * FROM audio_tracks WHERE path = :path LIMIT 1")
     suspend fun track(path: String): AudioTrackRecord?
 
+    @Query("SELECT * FROM audio_tracks WHERE path = :path LIMIT 1")
+    fun observeTrack(path: String): Flow<AudioTrackRecord?>
+
     @Query("SELECT value FROM audio_metadata WHERE `key` = :key LIMIT 1")
     suspend fun metadata(key: String): String?
 
@@ -125,6 +128,8 @@ internal class AudioListeningStore @Inject constructor(
     }
     val trackRecords: Flow<List<AudioTrackRecord>> = dao.observeTrackRecords()
     val historyPaths: Flow<List<String>> = dao.observeHistoryPaths()
+
+    fun trackRecord(path: String): Flow<AudioTrackRecord?> = dao.observeTrack(path)
 
     suspend fun setFavorite(path: String, favorite: Boolean) {
         if (path.isBlank()) return

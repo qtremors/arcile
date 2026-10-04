@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.feature.audio
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +30,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 
@@ -38,6 +41,10 @@ internal fun AudioCollectionDetailHeader(
     onSelectAll: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    if (collection.kind == AudioCollectionType.Album) {
+        AudioAlbumDetailHeader(collection, onPlayAll, onSelectAll, modifier)
+        return
+    }
     val tracks = collection.tracks
     val type = when (collection.kind) {
         AudioCollectionType.Directory -> stringResource(R.string.audio_folder_type)
@@ -122,6 +129,45 @@ internal fun AudioCollectionDetailHeader(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+    }
+}
+
+@Composable
+private fun AudioAlbumDetailHeader(
+    album: AudioCollection,
+    onPlayAll: () -> Unit,
+    onSelectAll: () -> Unit,
+    modifier: Modifier
+) {
+    BoxWithConstraints(modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
+        val artworkSize = minOf(maxWidth, 280.dp)
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            album.coverTrack?.let {
+                AudioArtwork(it, Modifier.size(artworkSize).aspectRatio(1f),
+                    MaterialTheme.shapes.extraLarge)
+            }
+            Text(album.title, style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Text(buildList {
+                album.subtitle?.takeIf(String::isNotBlank)?.let(::add)
+                album.tracks.mapNotNull(AudioTrack::year).maxOrNull()?.let { add(it.toString()) }
+                add(formatAudioDuration(album.tracks.sumOf(AudioTrack::durationMs)))
+            }.joinToString(" • "), style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onPlayAll, enabled = album.tracks.isNotEmpty()) {
+                    Icon(Icons.Default.PlayArrow, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.audio_play_collection))
+                }
+                OutlinedButton(onClick = onSelectAll, enabled = album.tracks.isNotEmpty()) {
+                    Text(stringResource(R.string.audio_select_collection_songs))
+                }
+            }
+            Text(pluralStringResource(R.plurals.audio_song_count, album.tracks.size, album.tracks.size),
+                Modifier.fillMaxWidth(), style = MaterialTheme.typography.titleMedium)
         }
     }
 }

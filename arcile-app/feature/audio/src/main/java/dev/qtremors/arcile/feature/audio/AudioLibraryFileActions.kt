@@ -179,9 +179,9 @@ internal class AudioLibraryFileActions(
             .map { it.file }
             .filter { it.reference in selected }
         return if (clipboardController.store(operation, files)) {
+            clearSelection()
             rebuildPresentation {
                 it.copy(
-                    selectedPaths = emptySet(),
                     tab = CategoryLibraryPage.FOLDERS,
                     collectionFilter = null
                 )

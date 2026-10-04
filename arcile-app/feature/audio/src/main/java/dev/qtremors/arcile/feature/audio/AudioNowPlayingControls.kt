@@ -30,11 +30,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Lyrics
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
@@ -105,6 +109,9 @@ internal fun AudioPlayerSongActions(
 @Composable
 internal fun AudioPlayerTopBar(
     track: AudioTrack,
+    onCollapse: () -> Unit,
+    lyricsVisible: Boolean,
+    onShowLyrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -116,7 +123,10 @@ internal fun AudioPlayerTopBar(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Spacer(Modifier.size(42.dp))
+        IconButton(onClick = onCollapse) {
+            Icon(Icons.Default.KeyboardArrowDown,
+                contentDescription = stringResource(R.string.audio_collapse_player))
+        }
         Column(
             modifier = Modifier.weight(1f),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -135,7 +145,12 @@ internal fun AudioPlayerTopBar(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Spacer(Modifier.size(42.dp))
+        IconButton(onClick = onShowLyrics) {
+            Icon(if (lyricsVisible) Icons.Default.Album else Icons.Default.Lyrics,
+                contentDescription = stringResource(
+                    if (lyricsVisible) R.string.audio_show_artwork else R.string.audio_lyrics
+                ))
+        }
     }
 }
 

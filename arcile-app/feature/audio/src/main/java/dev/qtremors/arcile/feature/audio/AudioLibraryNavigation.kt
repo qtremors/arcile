@@ -75,7 +75,6 @@ fun NavGraphBuilder.registerAudioLibraryRoute(
             onMusicOnlyChange = viewModel::updateMusicOnly,
             onDefaultSectionChange = viewModel::updateDefaultSection,
             onToggleFavoriteSelection = viewModel::toggleFavoriteSelection,
-            onToggleFavoriteTrack = viewModel::toggleFavoriteTrack,
             onTogglePinnedFolder = viewModel::togglePinnedFolder,
             onUpdateFolderCover = viewModel::updateFolderCover,
             onToggleSelection = viewModel::toggleSelection,

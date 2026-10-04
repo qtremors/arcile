@@ -65,6 +65,19 @@ class AudioListeningStoreTest {
         )
     }
 
+    @Test fun `song details observe only that songs listening record`() = runTest {
+        val store = AudioListeningStore(legacy, database)
+        assertEquals(null, store.trackRecord("/Music/first.mp3").first())
+        store.recordQualifiedPlay("/Music/first.mp3", playedAt = 30L)
+        store.recordQualifiedPlay("/Music/second.mp3", playedAt = 50L)
+
+        val record = store.trackRecord("/Music/first.mp3").first()
+        assertEquals(1, record?.playCount)
+        assertEquals(30L, record?.lastPlayedAt)
+        store.clearHistory()
+        assertEquals(0, store.trackRecord("/Music/first.mp3").first()?.playCount)
+    }
+
     @Test fun `renaming keeps favorite count and history together`() = runTest {
         val store = AudioListeningStore(legacy, database)
         store.setFavorite("/Music/old.mp3", true)

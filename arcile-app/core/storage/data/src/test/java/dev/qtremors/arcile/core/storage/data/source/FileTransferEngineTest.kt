@@ -394,8 +394,53 @@ class FileTransferEngineTest {
         assertTrue(destination.listFiles().orEmpty().none { it.name.contains("arcile-") })
     }
 
+    @Test
+    fun `replacement copy retains published target and journal after partial backup cleanup`() = runTest {
+        val failures = listOf(null, IOException("Cleanup failed"), CancellationException("Cleanup cancelled"))
+        failures.forEachIndexed { index, failure ->
+            val source = File(root, "source-$index/items").apply { mkdirs() }
+            File(source, "new.txt").writeText("complete replacement")
+            val destination = File(root, "destination-$index").apply { mkdirs() }
+            val target = File(destination, source.name).apply { mkdirs() }
+            File(target, "deleted.txt").writeText("old deletable file")
+            File(target, "retained.txt").writeText("old retained file")
+            val journal = RecordingMutationJournal()
+            val engine = FileTransferEngine(
+                validatePath = { Result.success(Unit) },
+                mutationJournal = journal,
+                deleteTarget = { file ->
+                    if (file.name.contains("arcile-replace")) {
+                        check(File(file, "deleted.txt").delete())
+                        if (failure != null) throw failure
+                        false
+                    } else {
+                        if (file.isDirectory) file.deleteRecursively() else file.delete()
+                    }
+                }
+            )
+
+            try {
+                assertTrue(engine.copyFiles(
+                    listOf(source.absolutePath), destination,
+                    mapOf(source.absolutePath to ConflictResolution.REPLACE)
+                ).isFailure)
+                assertFalse(failure is CancellationException)
+            } catch (error: CancellationException) {
+                assertTrue(failure === error)
+            }
+
+            assertEquals("complete replacement", File(target, "new.txt").readText())
+            assertEquals("complete replacement", File(source, "new.txt").readText())
+            val backup = destination.listFiles().orEmpty().single { it.name.contains("arcile-replace") }
+            assertFalse(File(backup, "deleted.txt").exists())
+            assertEquals("old retained file", File(backup, "retained.txt").readText())
+            assertEquals(setOf(target.absolutePath to backup.absolutePath), journal.pendingReplacements)
+        }
+    }
+
     private class RecordingMutationJournal : MutationJournal {
         val pendingSourceCleanups = mutableSetOf<Pair<String, String>>()
+        val pendingReplacements = mutableSetOf<Pair<String, String>>()
 
         override fun recordTemporaryPath(path: String) = Unit
         override fun forgetTemporaryPath(path: String) = Unit
@@ -406,6 +451,12 @@ class FileTransferEngineTest {
         }
         override fun forgetSourceCleanup(sourcePath: String, destinationPath: String) {
             pendingSourceCleanups -= sourcePath to destinationPath
+        }
+        override fun recordReplacement(targetPath: String, stagingPath: String, backupPath: String, sourcePath: String?) {
+            pendingReplacements += targetPath to backupPath
+        }
+        override fun forgetReplacement(targetPath: String, backupPath: String) {
+            pendingReplacements -= targetPath to backupPath
         }
         override suspend fun cleanupAbandonedMutations() = Unit
     }

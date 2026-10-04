@@ -22,7 +22,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +40,7 @@ internal fun StandaloneAudioPlayer(
     onToggleFavorite: () -> Unit,
     playbackController: AudioPlaybackController,
     tagEditor: AudioTagEditor,
+    listeningStore: AudioListeningStore,
     launchId: Int,
     allowMini: Boolean,
     miniPlayerBottomClearanceDp: Int,
@@ -58,7 +58,8 @@ internal fun StandaloneAudioPlayer(
     var presentation by remember(launchId) {
         mutableStateOf(if (allowMini) AudioPlayerPresentation.MINI else AudioPlayerPresentation.EXPANDED)
     }
-    var visualizerEnabled by rememberSaveable { mutableStateOf(true) }
+    val playerPreferences = rememberAudioPlayerPreferences()
+    val visualizerEnabled by playerPreferences.visualizerEnabledState()
     val expanded = presentation == AudioPlayerPresentation.EXPANDED
     val playerTransition = updateTransition(
         targetState = expanded,
@@ -174,7 +175,9 @@ internal fun StandaloneAudioPlayer(
                         queue = queue,
                         playback = playbackState,
                         visualizerEnabled = visualizerEnabled,
-                        onToggleVisualizer = { visualizerEnabled = !visualizerEnabled },
+                        onToggleVisualizer = {
+                            playerPreferences.visualizerEnabled = !playerPreferences.visualizerEnabled
+                        },
                         isFavorite = isFavorite,
                         onToggleFavorite = onToggleFavorite,
                         sharedTransitionScope = this@SharedTransitionLayout,
@@ -202,6 +205,7 @@ internal fun StandaloneAudioPlayer(
                         onShare = { onShare(track) },
                         onEdit = { onEdit(track) },
                         tagEditor = tagEditor,
+                        listeningStore = listeningStore,
                         onTagSaved = onTagSaved,
                         onOpenWith = { onOpenWith(track) },
                         onFileRenamed = onFileRenamed,

@@ -51,7 +51,11 @@ Each top-level mutation is a generation transaction:
 5. It publishes stable manifests.
 6. It removes the marker and obsolete objects.
 
-Readers see either the previous complete generation or the replacement. On the next unlock, Arcile ignores incomplete uncommitted staging and completes or cleans up committed work. A failed or cancelled top-level selection is rolled back while earlier completed selections remain reported as complete.
+Readers see either the previous complete generation or the replacement. On the next unlock, Arcile ignores incomplete uncommitted staging and completes or cleans up committed work. A failed or cancelled top-level selection is rolled back only before its commit marker is written; committed work remains recoverable, and earlier completed selections remain reported as complete.
+
+New transactions are limited to 32 manifest publications, 100,000 new object paths (including manifest pages), and 100,000 obsolete paths. Each published root is bounded to 8 MiB and the plaintext commit marker to 32 MiB. Arcile checks these limits before committing. Recovery can finish authenticated older markers exceeding the collection counts while retaining the byte limits, path validation, and object integrity checks.
+
+When a folder move merges into an existing vault folder, skipped files and their parent folders stay at the source. A partially completed move does not delete the whole source tree.
 
 Recovery cannot reconstruct logical names or hierarchy when all authenticated metadata copies are lost. OnlyFiles does not merge concurrent writers or synchronize independently modified copies. Lock a vault before copying or backing up its folder.
 
@@ -73,7 +77,9 @@ OnlyFiles accepts any non-empty password. Weak passwords receive a warning and r
 
 Optional biometric unlock requires Android's `BIOMETRIC_STRONG` class. Password unlock is always available as a fallback. Biometric convenience material is protected by Android Keystore and excluded from backup. Enrollment changes, device-security changes, key invalidation, or restored app state can invalidate that material; use the vault password and enroll again.
 
-Interactive keys are zeroed when Arcile leaves the foreground. Vault viewers close, navigation and in-memory clipboard state reset, and decrypted thumbnail memory is cleared. Operation-specific leases let an already confirmed import, export, transfer, or external grant finish without keeping interactive access unlocked.
+Biometric preparation and completion run in the background. Locking invalidates pending challenges, so a delayed biometric result cannot reopen a locked session. Cancelling access releases the pending secret material.
+
+Interactive keys are zeroed when Arcile leaves the foreground. Vault viewers close, navigation and in-memory clipboard state reset, and decrypted thumbnail memory is cleared. Screen rotation alone does not background the app and keeps an active vault video open. Operation-specific leases let an already confirmed import, export, transfer, or external grant finish without keeping interactive access unlocked.
 
 Unlocked OnlyFiles screens block screenshots and screen recording with `FLAG_SECURE` by default. The global setting can disable that protection.
 

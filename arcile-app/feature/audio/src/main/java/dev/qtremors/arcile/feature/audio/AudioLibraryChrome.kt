@@ -11,7 +11,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
@@ -43,7 +43,7 @@ internal fun AudioLibraryFloatingTopBar(
     modifier: Modifier = Modifier
 ) {
     val menuActions = buildList {
-        AudioCollectionKind.entries.forEach { section ->
+        audioNavigationSections.forEach { section ->
             add(
                 CategoryMenuAction(
                     label = stringResource(R.string.audio_open_to_page, section.displayName()),
@@ -142,7 +142,7 @@ internal fun AudioLibraryBottomBar(
     val isSelectionMode = selectedTracks.isNotEmpty()
     val sectionScroll = rememberScrollState()
     LaunchedEffect(currentSection) {
-        sectionScroll.animateScrollTo(AudioCollectionKind.entries.indexOf(currentSection) * 64)
+        sectionScroll.animateScrollTo(audioNavigationSections.indexOf(currentSection).coerceAtLeast(0) * 64)
     }
     val keepChromeVisible = isChromeVisible ||
         isSelectionMode ||
@@ -164,25 +164,25 @@ internal fun AudioLibraryBottomBar(
                     onShowContents = onShowClipboardContents
                 )
             } else {
-                Row(modifier = Modifier.fillMaxWidth().horizontalScroll(sectionScroll)) {
-                    CategoryNavigationBar(
-                        tabs = AudioCollectionKind.entries.map { section ->
-                            CategoryTabSpec(
-                                label = section.displayName(),
-                                icon = when (section) {
-                                    AudioCollectionKind.SONGS -> Icons.Default.MusicNote
-                                    AudioCollectionKind.FOLDERS -> Icons.Default.Folder
-                                    AudioCollectionKind.ALBUMS -> Icons.Default.Album
-                                    AudioCollectionKind.ARTISTS -> Icons.Default.Person
-                                    AudioCollectionKind.GENRES -> Icons.Default.Category
-                                    AudioCollectionKind.PLAYLISTS -> Icons.Default.QueueMusic
-                                },
-                                selected = currentSection == section,
-                                onClick = { onSelectSection(section) }
-                            )
-                        }
-                    )
-                }
+                CategoryNavigationBar(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(sectionScroll),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    tabs = audioNavigationSections.map { section ->
+                        CategoryTabSpec(
+                            label = section.displayName(),
+                            icon = when (section) {
+                                AudioCollectionKind.SONGS -> Icons.Default.MusicNote
+                                AudioCollectionKind.FOLDERS -> Icons.Default.Folder
+                                AudioCollectionKind.ALBUMS -> Icons.Default.Album
+                                AudioCollectionKind.ARTISTS -> Icons.Default.Person
+                                AudioCollectionKind.GENRES -> Icons.Default.Category
+                                AudioCollectionKind.PLAYLISTS -> Icons.Default.QueueMusic
+                            },
+                            selected = currentSection == section,
+                            onClick = { onSelectSection(section) }
+                        )
+                    }
+                )
             }
         },
         selectionContent = {

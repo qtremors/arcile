@@ -18,7 +18,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -227,7 +226,7 @@ internal fun AudioQueueSheet(
             onDismissRequest = { showSaveDialog = false },
             title = { Text(stringResource(R.string.audio_save_queue)) },
             text = {
-                OutlinedTextField(
+                AudioTextField(
                     value = name,
                     onValueChange = { name = it },
                     label = { Text(stringResource(R.string.audio_playlist_name)) },

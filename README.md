@@ -41,7 +41,7 @@ Arcile needs Android's all-files access permission for full shared-storage manag
 - **Private and offline:** No ads, accounts, trackers, data collection, or internet permission.
 - **Full file browser:** Browse Internal Storage, SD cards, USB drives, and folders available through Android.
 - **Everyday file tools:** Create, search, copy, move, rename, share, delete, restore, and securely erase files. Tabs, split view, batch rename, sorting, and filters are included.
-- **Photos, video, and music:** Browse galleries and albums, edit photo details, watch videos with subtitles and gesture controls, and play music in the background.
+- **Photos, video, and music:** Browse galleries, songs, folders, albums, artists, and playlists. Edit photo and music details, follow timed lyrics, watch videos with subtitles and gesture controls, and play music in the background.
 - **Documents:** Read PDFs, edit text and Markdown, preview formatting, print documents, and open other formats in installed apps.
 - **Archives and Android apps:** Open, create, and extract common archives, including password-protected ZIP and 7z files. Inspect and install APK, APKS, APKM, and XAPK packages.
 - **Storage tools:** See what uses space and find large, old, duplicate, empty, or unnecessary files.

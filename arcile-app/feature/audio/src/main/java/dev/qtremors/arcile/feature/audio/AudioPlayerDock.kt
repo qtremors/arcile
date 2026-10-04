@@ -20,11 +20,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -219,7 +216,7 @@ internal fun AudioPlayerDock(
             Box(
                 modifier = Modifier.fillMaxWidth()
                     .then(if (aboveNavigation) Modifier else Modifier.navigationBarsPadding())
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                    .padding(horizontal = if (aboveNavigation) 16.dp else 12.dp, vertical = 8.dp)
             ) { AudioMiniPlayer(
                 track = track,
                 playback = playback,
@@ -249,7 +246,8 @@ internal fun AudioPlayerExpanded(
     val panel by coordinator.state.collectAsStateWithLifecycle()
     val playback by playbackController.state.collectAsStateWithLifecycle()
     val favorites by listeningStore.favoritePaths.collectAsStateWithLifecycle(initialValue = emptySet())
-    var visualizerEnabled by rememberSaveable { mutableStateOf(true) }
+    val playerPreferences = rememberAudioPlayerPreferences()
+    val visualizerEnabled by playerPreferences.visualizerEnabledState()
     val track = panel.queue.firstOrNull { it.file.reference == playback.currentMediaId }
         ?: panel.queue.firstOrNull { it.file.reference == panel.initialPath }
     AnimatedVisibility(
@@ -264,7 +262,9 @@ internal fun AudioPlayerExpanded(
                 queue = panel.queue,
                 playback = playback,
                 visualizerEnabled = visualizerEnabled,
-                onToggleVisualizer = { visualizerEnabled = !visualizerEnabled },
+                onToggleVisualizer = {
+                    playerPreferences.visualizerEnabled = !playerPreferences.visualizerEnabled
+                },
                 isFavorite = track.file.reference in favorites,
                 onToggleFavorite = {
                     val path = track.file.reference
@@ -295,6 +295,7 @@ internal fun AudioPlayerExpanded(
                     }
                 },
                 tagEditor = tagEditor,
+                listeningStore = listeningStore,
                 onTagSaved = { coordinator.replace(it.file.reference, it) },
                 onOpenWith = { scope.launch { openAudioWith(context, track.file) } },
                 onFileRenamed = { oldPath, file ->

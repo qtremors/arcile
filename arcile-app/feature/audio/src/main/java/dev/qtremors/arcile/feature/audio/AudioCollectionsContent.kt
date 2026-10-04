@@ -10,6 +10,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.QueueMusic
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilledTonalButton
+import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,10 +33,8 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -72,6 +80,10 @@ internal fun AudioCollectionsContent(
     var renamePlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var deletePlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
     var editPlaylistId by rememberSaveable { mutableStateOf<String?>(null) }
+    val showCreationFab = state.collectionKind == AudioCollectionKind.PLAYLISTS &&
+        state.playlists.isNotEmpty() && state.selectedPaths.isEmpty()
+    val showSelectionHeader = state.collectionKind == AudioCollectionKind.PLAYLISTS &&
+        state.selectedPaths.isNotEmpty() && state.playlists.isNotEmpty()
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val scrollbarState: ScrollbarState = LazyGridScrollbarState(gridState)
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
@@ -79,13 +91,32 @@ internal fun AudioCollectionsContent(
         start = 16.dp,
         top = contentPadding.calculateTopPadding() + 8.dp,
         end = 16.dp,
-        bottom = contentPadding.calculateBottomPadding()
+        bottom = contentPadding.calculateBottomPadding() +
+            if (showCreationFab) 80.dp else 0.dp
     )
     val favoritesTitle = stringResource(R.string.audio_favorites)
     val folderLabels = remember(state.collections, favoritesTitle) {
         state.collections.map { it.displayTitle(favoritesTitle) }
     }
-    if (state.presentationFor(state.collectionKind).viewMode == FileViewMode.LIST) {
+    Box(Modifier.fillMaxSize()) {
+    if (state.collectionKind == AudioCollectionKind.PLAYLISTS && state.collections.isEmpty()) {
+        val searching = state.query.isNotBlank() || state.searchFilters.hasActiveFilters
+        EmptyState(modifier = Modifier.fillMaxSize().padding(contentPadding),
+            variant = if (searching) EmptyStateVariant.Search else EmptyStateVariant.Generic,
+            icon = if (searching) null else Icons.AutoMirrored.Filled.QueueMusic,
+            title = stringResource(if (searching) R.string.audio_no_results else R.string.audio_no_playlists),
+            description = stringResource(if (searching) R.string.audio_no_results_description
+                else R.string.audio_playlist_empty_description),
+            action = if (!searching) {
+                {
+                    FilledTonalButton(onClick = { playlistName = ""; showCreatePlaylist = true }) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.audio_new_playlist))
+                    }
+                }
+            } else null)
+    } else if (state.presentationFor(state.collectionKind).viewMode == FileViewMode.LIST) {
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 state = listState,
@@ -93,12 +124,9 @@ internal fun AudioCollectionsContent(
                 contentPadding = folderContentPadding,
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                if (state.collectionKind == AudioCollectionKind.PLAYLISTS) {
+                if (showSelectionHeader) {
                     item {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { showCreatePlaylist = true }) {
-                                Text(stringResource(R.string.audio_new_playlist))
-                            }
                             if (state.selectedPaths.isNotEmpty() && state.playlists.isNotEmpty()) {
                                 Box {
                                     TextButton(onClick = { showPlaylistPicker = true }) {
@@ -163,7 +191,7 @@ internal fun AudioCollectionsContent(
             }
             ArcileFastScrollbar(
                 scrollbarState = LazyListScrollbarState(listState),
-                labelForIndex = { index -> folderLabels.getOrNull(index).orEmpty() },
+                labelForIndex = { index -> folderLabels.getOrNull(index - if (showSelectionHeader) 1 else 0).orEmpty() },
                 modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight(),
                 contentPadding = folderContentPadding,
                 enabled = state.scrollbarEnabled
@@ -184,6 +212,7 @@ internal fun AudioCollectionsContent(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            if (showSelectionHeader) {
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -191,9 +220,6 @@ internal fun AudioCollectionsContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (state.collectionKind == AudioCollectionKind.PLAYLISTS) {
-                        Button(onClick = { showCreatePlaylist = true }) {
-                            Text(stringResource(R.string.audio_new_playlist))
-                        }
                         if (state.selectedPaths.isNotEmpty() && state.playlists.isNotEmpty()) {
                             Box {
                                 TextButton(onClick = { showPlaylistPicker = true }) {
@@ -217,6 +243,7 @@ internal fun AudioCollectionsContent(
                         }
                     }
                 }
+            }
             }
             if (state.collections.isEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
@@ -272,7 +299,7 @@ internal fun AudioCollectionsContent(
         }
         ArcileFastScrollbar(
             scrollbarState = scrollbarState,
-            labelForIndex = { index -> folderLabels.getOrNull(index).orEmpty() },
+            labelForIndex = { index -> folderLabels.getOrNull(index - if (showSelectionHeader) 1 else 0).orEmpty() },
             modifier = Modifier
                 .align(Alignment.CenterEnd)
                 .fillMaxHeight(),
@@ -280,12 +307,22 @@ internal fun AudioCollectionsContent(
             enabled = state.scrollbarEnabled
         )
     }
+    if (showCreationFab) {
+        ExtendedFloatingActionButton(
+            onClick = { playlistName = ""; showCreatePlaylist = true },
+            icon = { Icon(Icons.Default.Add, null) },
+            text = { Text(stringResource(R.string.audio_new_playlist)) },
+            modifier = Modifier.align(Alignment.BottomEnd)
+                .padding(end = 24.dp, bottom = contentPadding.calculateBottomPadding() + 8.dp)
+        )
+    }
+    }
     if (showCreatePlaylist) {
         AlertDialog(
             onDismissRequest = { showCreatePlaylist = false },
             title = { Text(stringResource(R.string.audio_new_playlist)) },
             text = {
-                OutlinedTextField(
+                AudioTextField(
                     value = playlistName,
                     onValueChange = { playlistName = it },
                     label = { Text(stringResource(R.string.audio_playlist_name)) },
@@ -314,7 +351,7 @@ internal fun AudioCollectionsContent(
             onDismissRequest = { renamePlaylistId = null },
             title = { Text(stringResource(R.string.audio_rename_playlist)) },
             text = {
-                OutlinedTextField(
+                AudioTextField(
                     value = playlistName,
                     onValueChange = { playlistName = it },
                     label = { Text(stringResource(R.string.audio_playlist_name)) },

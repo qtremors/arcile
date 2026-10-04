@@ -95,7 +95,7 @@ class AudioCollectionStoreTest {
             reopened.presentation(AudioCollectionKind.ARTISTS).viewMode)
         assertEquals(FileSortOption.NAME_ASC,
             reopened.presentation(AudioCollectionKind.GENRES).sortOption)
-        assertEquals(AudioCollectionKind.GENRES,
+        assertEquals(AudioCollectionKind.SONGS,
             reopened.defaultSection(AudioCollectionKind.SONGS))
     }
 }

@@ -172,6 +172,16 @@ private fun presentVisibleAudioTracks(
     }
 }
 
+internal fun relatedAudioAlbums(album: AudioCollection, tracks: List<AudioTrack>): List<AudioCollection> {
+    if (album.kind != AudioCollectionType.Album) return emptyList()
+    val artist = album.subtitle?.trim()?.takeIf(String::isNotEmpty)
+        ?: album.tracks.firstNotNullOfOrNull { (it.albumArtist ?: it.artist)?.trim()?.takeIf(String::isNotEmpty) }
+        ?: return emptyList()
+    return buildCollections(AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
+        .filter { it.key != album.key && it.subtitle?.trim()?.equals(artist, ignoreCase = true) == true }
+        .sortedBy { it.title.lowercase(Locale.getDefault()) }
+}
+
 private fun buildCollections(
     state: AudioLibraryState,
     tracks: List<AudioTrack>

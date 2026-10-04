@@ -12,6 +12,49 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class AudioLibraryPresentationTest {
+    @Test
+    fun `audio navigation has five pages and safely falls back from the old genres page`() {
+        assertEquals(listOf(AudioCollectionKind.SONGS, AudioCollectionKind.FOLDERS,
+            AudioCollectionKind.ALBUMS, AudioCollectionKind.ARTISTS, AudioCollectionKind.PLAYLISTS),
+            audioNavigationSections)
+        assertEquals(4, audioNavigationPage(AudioCollectionKind.PLAYLISTS))
+        assertEquals(0, audioNavigationPage(AudioCollectionKind.GENRES))
+    }
+
+    @Test
+    fun `related albums match album artist and exclude the open album and other artists`() {
+        val tracks = listOf(
+            track("/one.mp3", "One", "Artist", "First", albumArtist = "Artist"),
+            track("/two.mp3", "Two", "Guest", "Second", albumArtist = "Artist"),
+            track("/three.mp3", "Three", "Other", "First", albumArtist = "Other"),
+            track("/four.mp3", "Four", "Artist", "Third", albumArtist = "Artist")
+        )
+        val albums = buildAudioLibraryState(AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
+        val album = albums.collections.first { it.title == "First" && it.subtitle == "Artist" }
+        assertEquals(listOf("Second", "Third"), relatedAudioAlbums(album, tracks).map { it.title })
+    }
+
+    @Test
+    fun `albums without an artist do not suggest unrelated unknown artist albums`() {
+        val tracks = listOf(track("/one.mp3", "One", "", "First"), track("/two.mp3", "Two", "", "Second"))
+        val albums = buildAudioLibraryState(AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS), tracks)
+        assertEquals(emptyList<AudioCollection>(), relatedAudioAlbums(albums.collections.first(), tracks))
+    }
+
+    @Test
+    fun `album tracks use a list without changing the saved songs grid`() {
+        val initial = buildAudioLibraryState(
+            AudioLibraryState(collectionKind = AudioCollectionKind.ALBUMS,
+                audioPresentation = FileListingPreferences(viewMode = FileViewMode.GRID)),
+            listOf(track("/Music/one.mp3", "One", "Artist", "Album")))
+        val album = initial.collections.single()
+        val insideAlbum = initial.copy(collectionFilter = album)
+
+        assertEquals(FileViewMode.LIST, insideAlbum.trackPresentation().viewMode)
+        assertEquals(FileViewMode.GRID, insideAlbum.audioPresentation.viewMode)
+        assertEquals(FileViewMode.GRID, initial.trackPresentation().viewMode)
+    }
+
 
     @Test
     fun `library groups tracks into collections`() {

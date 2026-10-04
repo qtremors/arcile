@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.1.9 | **Last Updated:** 2026-10-04
+**Version:** 2.2.0 | **Last Updated:** 2026-10-04
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -18,6 +18,7 @@
 - [Storage & File Operations](#storage--file-operations)
 - [OnlyFiles Vault System](#onlyfiles-vault-system)
 - [Global Media Sources & Video Player](#global-media-sources--video-player)
+- [Audio Library & Background Player](#audio-library--background-player)
 - [Room Cache Database](#room-cache-database)
 - [Archive System](#archive-system)
 - [Trash System](#trash-system)
@@ -72,7 +73,7 @@ graph TD
 | **Focused Storage Capabilities** | Features inject only listing, mutation, search, analytics, trash, archive, volume, or clipboard contracts that they actually use. |
 | **Typed Navigation** | `AppRoutes.kt` uses `kotlinx.serialization` route objects instead of raw route strings to verify routing correctness at compile time. |
 | **Offline-first Privacy** | The manifest does not request `android.permission.INTERNET`; app behavior is local-only by design. |
-| **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and fake-file work runs through a dedicated foreground service and emits progress updates. |
+| **Foreground Operation Pipeline** | Long-running copy, move, archive, extract, and synthetic-file work runs through a dedicated foreground service and emits progress updates. |
 | **Room Database Caching** | Cache metadata, aggregate folder sizes, categories, and thumbnail listings are persisted in a local Room database to prevent repeated, expensive disk scans. |
 | **Intent-based Plugins** | Optional heavyweight viewers run as separately installed, same-signer APKs and communicate through versioned explicit intents and temporary read-only content URI grants. |
 | **Encrypted Vault Boundary** | OnlyFiles keeps vault catalog, authenticated sessions, transactions, cryptography, and external plaintext grants behind neutral `core:vault:*` contracts. Presentation code never handles vault keys or raw storage layout. |
@@ -94,7 +95,7 @@ graph TD
 | Vault cryptography | Android Keystore and Bouncy Castle |
 | Tests | JUnit 4, AndroidX Test, Espresso, Robolectric, MockK, Turbine, ArchUnit |
 
-Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intentionally remains on its compatible 2.x line; a Coil 3 update is a separate source migration rather than a version-only upgrade. MaterialKolor remains on its stable 4.x line while 5.x is preview-only.
+Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intentionally remains on its compatible 2.x line; a Coil 3 update is a separate source migration rather than a version-only upgrade. MaterialKolor uses the catalog's 5.0.0 release.
 
 ---
 
@@ -153,11 +154,10 @@ arcile/
 │   ├── plugin-api/                              # Stable dependency-light intent contract
 │   └── plugin-ui/                               # Stateless UI shared with plugin APKs
 ├── docs/                                        # Landing page website files
-├── beta/                                        # Beta phase archived changelog & releases
 ├── CHANGELOG.md                                 # Stable release changelog
 ├── DEVELOPMENT.md                               # Architecture & development guide (This Document)
 ├── RELEASES.md                                  # Stable user-facing release notes
-├── TASKS.md                                     # Prioritized work queue and completed release tasks
+├── TASKS.md                                     # Unfinished feature and workflow tasks
 └── README.md                                    # Main entry point overview
 ```
 
@@ -260,6 +260,13 @@ To prevent accidental data loss, file conflict resolution runs *before* operatio
 2. The user resolves conflicts in the `PasteConflictDialog` with options to **Replace**, **Keep Both**, or **Skip** (supports batch application).
 3. `FileConflictNameGenerator` resolves Keep Both options into stable name modifications (e.g. `image (1).png`).
 
+### Verified Transfers and Recovery
+
+- `FileTransferEngine` stages local replacements, verifies their contents, and records the original backup before publication. Failure before backup cleanup can roll back the publication. Once backup cleanup starts, failure or cancellation must retain the verified replacement and pending journal record because the original backup may already be incomplete.
+- Cross-filesystem moves and Trash transfers verify the destination before source cleanup. Cleanup failure retains the complete destination and recovery metadata. Recovery rechecks recorded identities and contents before deleting sources; changed or additional files must survive.
+- Restore Undo tracks actual published destinations, including renamed conflicts and partial restores, and preserves files changed since restoration.
+- Publish browser contents before background indexing, activity logging, and folder-stat lookups finish. Preserve cached folder statistics through failed scans, reuse unchanged presentation, and batch count-driven sorting updates.
+
 ---
 
 ## OnlyFiles Vault System
@@ -281,6 +288,8 @@ OnlyFiles is an encrypted virtual filesystem, not a hidden ordinary folder. Its 
 - Normal import and export use Arcile's `FileBrowserRepository`, storage volumes, and `SaveDestinationBrowser` directly. Content-URI reading exists only for genuine external-provider imports; it must never replace the native file-manager flow. Every transfer uses a one-shot in-memory reservation and a separate bounded transfer lease, so leaving the mounted browser does not expose keys through navigation or saved state.
 - A vault-scoped transaction lock serializes manifest changes. Cross-vault transfers acquire locks in stable UUID order to avoid deadlocks.
 - Each mutation stages encrypted objects and a replacement manifest, verifies the staged generation, atomically publishes it, and then removes superseded objects. Startup recovery completes or rolls back interrupted transactions deterministically.
+- Merged vault moves remove only transferred source nodes; skipped children and their parent folders remain. Validate transaction collection and byte limits before writing the commit marker. Recovery still accepts authenticated older markers exceeding collection limits within the existing byte and integrity bounds.
+- Prepare and complete biometric access on the injected I/O dispatcher. Locking invalidates pending challenges; cancellation must release their secret material and prevent a late unlock.
 - Directory manifests are paged and authenticated. Implementations must stream objects and traverse directory trees iteratively so large sibling sets and deeply nested trees do not exhaust memory or the call stack.
 
 ### Plaintext Boundary
@@ -325,12 +334,16 @@ Feature modules must not depend on `feature:videoplayer`; they emit or provide n
 
 ## Audio Library & Background Player
 
-`feature:audio` owns the Audio category from MediaStore-backed discovery through file workflows and playback. Its route presents Songs and Folders independently from Browser while reusing shared operation, clipboard, metadata, dialog, and external-file capabilities.
+`feature:audio` owns the Audio category from MediaStore-backed discovery through file workflows and playback. Its route presents Songs, Folders, Albums, Artists, and Playlists independently from Browser while reusing shared operation, clipboard, metadata, dialog, and external-file capabilities.
 
-- `AudioLibraryViewModel` owns search, sorting, grouping, presentation preferences, selection, clipboard actions, and refresh behavior without leaking state into other categories.
+- `AudioLibraryViewModel` owns search, sorting, grouping, per-page presentation preferences, selection, clipboard actions, and MediaStore refresh behavior without leaking state into other categories. Presentation rebuilds preserve live selection; intentional selection resets, including successful Copy/Cut, must update live state before rebuilding.
+- `AudioCollectionStore` persists playlists in `audio_playlists.json`, migrates earlier preference-backed playlists, and stores the Music only filter. `AudioListeningDatabase` (`arcile_audio.db`) separately owns favorites, play counts, and recent listening history, with migration of existing favorites and a history reset.
 - `AudioPlaybackService` owns the Media3 player and `MediaSession`, keeping playback and Android media controls available while Arcile is backgrounded.
 - `AudioPlaybackController` connects the Compose UI to the service-backed session and publishes queue, position, repeat, shuffle, and playback state.
-- Mini and full-player surfaces share transition identities inside the Audio route; queue editing and player expansion remain UI state and do not expose file paths through global navigation.
+- Mini and full-player surfaces share transition identities in the app shell. The mini player sits above Audio's five-page navigation and follows its scroll visibility. External audio intents use a full screen player.
+- Queue persistence restores tracks and position paused after relaunch. Queue display and removal follow actual playback order, including shuffle; removing the current track preserves paused state, and removing the final track clears playback.
+- Lyrics support inline and full screen views, timed-line seeking, playback following, LRC offsets, and sidecar editing. Music Details owns tag/artwork editing and listening/file information; tag writes verify their output and retain a recovery copy.
+- Sound controls expose media volume, speed, pitch, presets, and a sleep timer. `AudioPlayerPreferences` persists the optional visualizer, disabled by default.
 - Playback resources and controller connections must be released with their lifecycle, while missing or removed tracks must degrade to recoverable library state.
 
 ---
@@ -704,6 +717,7 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 
 ### 17. Documents (`feature/documents`)
 - Owns the Documents category library, document/folder search and presentation, and file actions. Native text, Markdown, and PDF activities remain shared app or UI capabilities so external intents and other producers use the same viewers.
+- The shared text editor limits documents and draft text to 4 MiB and combined Undo/Redo text to 8 MiB, with at most 50 history entries. Document contents and history stay outside Android saved-state bundles. Local saves verify staged output before atomic replacement; provider saves retain a durable draft before writing, and conflicting or oversized recovery drafts remain available with feedback.
 
 ### 18. APK (`feature/apk`)
 - Owns the APK and split-package category library, package/folder presentation, search, selection, and file actions. Package parsing, bounded staging, device-compatible split selection, and Package Installer sessions remain in `core:operation:android`.
@@ -747,8 +761,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 219 |
-| **Version Name** | `2.1.9` |
+| **Version Code** | 220 |
+| **Version Name** | `2.2.0` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.6.0 |
 | **Gradle JVM** | JDK 21 |
@@ -902,7 +916,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.1.9-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.2.0-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -924,8 +938,8 @@ signing.keyPassword=your_key_password
 ```
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.1.9-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.1.9.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.2.0-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.2.0.apk`
 
 ---
 
@@ -961,7 +975,8 @@ When reviewing code changes, ensure:
 - **Missing files:** Run a MediaStore sync via `MutationFinalizer` after making file mutations.
 - **Archive errors:** Verify password credentials and check for path safety violations.
 - **OnlyFiles remains locked or unavailable:** Check biometric capability, session timeout, portable-volume identity, catalog health, and recovery status. Do not work around the failure by reading vault storage directly.
-- **OnlyFiles transfer is interrupted:** Reopen the vault to trigger recovery, inspect the typed health result, and confirm SAF staging documents were removed before retrying.
+- **OnlyFiles transfer is interrupted:** Reopen the vault to trigger recovery and inspect the typed health result before retrying. Normal local exports use sibling staging files; do not remove staged or recovery data belonging to a live operation.
+- **Replacement reports backup cleanup failure:** Keep the verified destination and pending replacement record. The remaining original backup may be incomplete, so do not force rollback or discard the journal without checking recovery ownership.
 - **Video token expired:** Reopen the video from its source to register a new process-local playback session. Tokens intentionally do not survive process death.
 - **Vault video stops after locking:** This is expected after the active reader lease closes; unlock the vault and start a new playback session.
 - **Build configuration errors:** Ensure Android SDK 37 is installed via the Android SDK Manager.

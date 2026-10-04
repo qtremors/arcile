@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 2.1.0
-> **Last Updated:** 2026-08-28
+> **Version:** 2.2.0
+> **Last Updated:** 2026-10-04
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v2.2.0](#v220) | 2026-10-04 | Expanded music library, integrated playback and lyrics, faster browsing, and safer file recovery |
 | [v2.1.0](#v210) | 2026-08-28 | Adaptive workspaces, unified viewer actions, precision audio editing, safer storage cleaning, and conflict dialog refinements |
 | [v2.0.5](#v205) | 2026-08-21 | Responsive navigation, focused Root access, richer file opening and sorting, complete activity history, and surrounding-aware media controls |
 | [v2.0.0](#v200) | 2026-08-13 | Provider-aware Root and Shizuku workflows, refined video playback, clearer documentation, and compatible platform updates |
@@ -17,6 +18,58 @@
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v2.2.0
+
+**Release Date:** October 4, 2026
+
+Arcile v2.2.0 expands the music library and player, improves browsing responsiveness, and makes interrupted file operations safer.
+
+## Added
+
+- **Audio collections:** Albums, Artists, and Playlists pages, with artwork, track lists, song counts, and related artist albums.
+- **Playlists:** Create, rename, delete, and reorder playlists, and add selected songs.
+- **Listening history:** Recently played and Most played views, history reset, and saved favorites carried over from earlier versions.
+- **Music details:** Edit tags and artwork in supported audio files, with clearer fields, listening and file information cards, and a recovery copy during writes.
+- **Lyrics:** View and edit plain or timed lyrics inline or full screen, follow playback, seek by line, adjust timing offsets, and save lyrics beside the song.
+- **Playback tools:** Edit queues, save them as playlists, set a sleep timer, and adjust volume, speed, and pitch with finer controls and speed presets.
+
+## Changed
+
+- **Audio browsing:** Choose an opening page, save separate layouts and sorting, and see artwork and track details. Songs sort alphabetically by default.
+- **Library updates:** Refresh Audio when files change, remember the Music only filter, and update search results more smoothly.
+- **Player layout:** Integrated mini and full players with themed controls, animated transitions, and layouts that fit short screens. Tap or swipe to expand, or swipe up for the queue.
+- **Player access:** Keep Audio navigation and the mini player aligned while scrolling, tap artwork to play or pause, return from the notification, and open external audio full screen.
+- **Playback preferences:** Restore the queue and position paused after relaunch, and remember the visualizer setting, off by default.
+- **Home loading:** Show saved recent files and category totals immediately, refresh quietly, and keep categories ranked with a multicolor storage indicator.
+- **Folder loading:** Show browser contents sooner and retain saved folder sizes during refreshes and failed scans, with clear pending or unavailable states.
+- **Settings:** Focused pages, compact choices, and connected storage volumes with classification and temporary-file cleanup controls.
+- **File opening:** Choose which supported and plugin file extensions open in Arcile, with custom extension exclusions.
+- **File presentation:** Easier renaming that preserves extensions and selections, compact accessible paste status, matching APK and Documents grid sizes, and translatable file labels.
+- **Text editor panels:** Opaque controls and a compact, scrollable information card with an accessible close button.
+- **Labels:** Gallery groups are called Folders, and generated random files are called Synthetic Files.
+
+## Fixed
+
+- **Compact layouts:** Fix narrow-screen Appearance crashes and keep collapsed app-bar titles visible without blocking scrolling.
+- **Browser entry:** Resume the remembered folder when swiping into Browser; storage shortcuts open their selected root.
+- **Safe transfers:** Interrupted moves and Trash operations retain verified files and recovery information after cancellation or restart, while protecting new or changed source files.
+- **File replacement:** Preserve existing destinations when replacement fails, and retain verified replacements when old-backup cleanup fails.
+- **Restore Undo:** Undo the files actually restored, including renamed conflicts and partial restores, while keeping files changed afterward.
+- **Vault moves:** Retain skipped files and folders during merged moves, report partial completion, reject oversized operations safely, and recover older interrupted transactions.
+- **Biometrics:** Keep vault authentication responsive, handle cancellation, and prevent pending authentication from reopening a locked vault.
+- **Text saving:** Preserve recovery drafts during failed saves, offer recovery when a document differs from its draft, and retain edits across rotation.
+- **Text editing:** Fix reversed Markdown selections and Undo/Redo. Limit documents to 4 MiB, bound editing history, and retain oversized recovery drafts with clear feedback.
+- **Viewer startup:** Preserve active file operations and temporary files when opening standalone viewers.
+- **Audio stability:** Keep artwork and filters matched to visible songs, clear Copy/Cut selection, and remove queued tracks in playback order while preserving paused playback or clearing an empty player.
+- **Media rotation:** Keep image position after deletion and rotation, choosing the next image or the previous at the end. Vault videos survive rotation and close when backgrounded.
+- **APK installation:** Clear stale confirmation messages, retain progress through rotation, and report final results accurately.
+
+## Removed
+
+- Genres navigation and per-song overflow buttons in Audio. File actions remain available through selection.
 
 ---
 
@@ -523,7 +576,7 @@ Arcile v1.0.0 is the first stable release and the first release outside the beta
 
 ## Beta Recap: v0.2.0 - v0.8.0
 
-The stable release builds on the public beta milestones below. Full beta release notes remain archived in [beta/RELEASES-BETA.md](beta/RELEASES-BETA.md).
+The stable release builds on the public beta milestones below. Full beta release notes remain archived in [RELEASES-BETA.md](https://github.com/qtremors/arcile/blob/9af343e9e619d06cd14e41b0dc9bd571697e26c7/beta/RELEASES-BETA.md).
 
 ### v0.2.0 Beta - Material 3 Redesign
 - Introduced a major Material 3 refresh, faster MediaStore-backed search/categories, thumbnail support, settings improvements, DataStore preferences, and high-refresh-rate scrolling.
@@ -549,4 +602,4 @@ The stable release builds on the public beta milestones below. Full beta release
 ### v0.8.0 Beta - Storage Tools, Trash Rebuild & Safety
 - Delivered rebuilt Trash metadata/recovery, Storage Cleaner, radial Storage Usage Map, advanced search filters, accessibility/haptics, safer file operations, archive safety policies, thumbnail policies, backup privacy, and comprehensive regression coverage.
 
-Detailed beta release notes are archived in [beta/RELEASES-BETA.md](beta/RELEASES-BETA.md).
+Detailed beta release notes are archived in [RELEASES-BETA.md](https://github.com/qtremors/arcile/blob/9af343e9e619d06cd14e41b0dc9bd571697e26c7/beta/RELEASES-BETA.md).
