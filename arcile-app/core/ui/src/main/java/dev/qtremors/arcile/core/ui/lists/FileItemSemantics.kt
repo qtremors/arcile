@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.core.ui.lists
 
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -11,6 +13,9 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.ui.R
+
+@Composable
 fun Modifier.fileItemSemantics(
     file: FileModel,
     isSelected: Boolean,
@@ -22,71 +27,77 @@ fun Modifier.fileItemSemantics(
     onLongClick: () -> Unit,
     onOpenDirectly: () -> Unit,
     onToggleSelectionDirectly: () -> Unit
-): Modifier = this.semantics(mergeDescendants = true) {
-    selected = isSelected
-    role = Role.Button
-    
+): Modifier {
     val nameText = if (file.name.startsWith(".")) {
-        "${file.name} (Hidden)"
+        stringResource(R.string.file_item_hidden_name, file.name)
     } else {
         file.name
     }
-    
-    val typeText = if (file.isDirectory) "Folder" else "File"
-    val sizeOrStats = if (file.isDirectory) {
-        folderStatsText ?: ""
-    } else {
-        fileSizeText ?: ""
-    }
-    
-    contentDescription = buildString {
-        append(nameText)
-        append(", ")
-        append(typeText)
-        if (sizeOrStats.isNotEmpty()) {
-            append(", ")
-            append(sizeOrStats)
+    val typeText = stringResource(if (file.isDirectory) R.string.folder_label else R.string.file_item_type_file)
+    val modifiedText = stringResource(R.string.file_item_modified, formattedDate)
+    val openLabel = stringResource(if (file.isDirectory) R.string.file_item_open_folder else R.string.open_file)
+    val toggleSelectionLabel = stringResource(R.string.file_item_toggle_selection)
+    val selectionOptionsLabel = stringResource(R.string.file_item_selection_options)
+    val selectLabel = stringResource(R.string.file_item_select)
+    val unselectLabel = stringResource(R.string.file_item_unselect)
+    return this.semantics(mergeDescendants = true) {
+        selected = isSelected
+        role = Role.Button
+        val sizeOrStats = if (file.isDirectory) {
+            folderStatsText ?: ""
+        } else {
+            fileSizeText ?: ""
         }
-        append(", Modified ")
-        append(formattedDate)
-    }
 
-    onClick(label = if (isInSelectionMode) "Toggle selection" else if (file.isDirectory) "Open folder" else "Open file") {
-        onClick()
-        true
-    }
+        contentDescription = buildString {
+            append(nameText)
+            append(", ")
+            append(typeText)
+            if (sizeOrStats.isNotEmpty()) {
+                append(", ")
+                append(sizeOrStats)
+            }
+            append(", ")
+            append(modifiedText)
+        }
 
-    onLongClick(label = "Show selection options") {
-        onLongClick()
-        true
-    }
+        onClick(label = if (isInSelectionMode) toggleSelectionLabel else openLabel) {
+            onClick()
+            true
+        }
 
-    customActions = if (isInSelectionMode) {
-        listOf(
-            CustomAccessibilityAction(
-                label = if (isSelected) "Unselect item" else "Select item",
-                action = {
-                    onToggleSelectionDirectly()
-                    true
-                }
-            ),
-            CustomAccessibilityAction(
-                label = if (file.isDirectory) "Open folder" else "Open file",
-                action = {
-                    onOpenDirectly()
-                    true
-                }
+        onLongClick(label = selectionOptionsLabel) {
+            onLongClick()
+            true
+        }
+
+        customActions = if (isInSelectionMode) {
+            listOf(
+                CustomAccessibilityAction(
+                    label = if (isSelected) unselectLabel else selectLabel,
+                    action = {
+                        onToggleSelectionDirectly()
+                        true
+                    }
+                ),
+                CustomAccessibilityAction(
+                    label = openLabel,
+                    action = {
+                        onOpenDirectly()
+                        true
+                    }
+                )
             )
-        )
-    } else {
-        listOf(
-            CustomAccessibilityAction(
-                label = "Select item",
-                action = {
-                    onToggleSelectionDirectly()
-                    true
-                }
+        } else {
+            listOf(
+                CustomAccessibilityAction(
+                    label = selectLabel,
+                    action = {
+                        onToggleSelectionDirectly()
+                        true
+                    }
+                )
             )
-        )
+        }
     }
 }

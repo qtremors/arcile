@@ -354,6 +354,7 @@ internal class ImageViewerViewModel @Inject constructor(
 
     fun applyViewerDelete(deletedPath: String) {
         _state.update { current ->
+            val deletedIndex = current.displayedFiles.indexOfFirst { it.reference == deletedPath }
             val remaining = current.displayedFiles.filterNot { it.reference == deletedPath }.toPersistentList()
             current.copy(
                 files = current.files.filterNot { it.reference == deletedPath }.toPersistentList(),
@@ -361,9 +362,14 @@ internal class ImageViewerViewModel @Inject constructor(
                 selectedFiles = current.selectedFiles.removing(deletedPath),
                 viewerCurrentPath = current.viewerCurrentPath
                     .takeUnless { it == deletedPath }
-                    ?: remaining.firstOrNull()?.reference
+                    ?: remaining.getOrNull(deletedIndex.coerceIn(0, remaining.lastIndex.coerceAtLeast(0)))?.reference,
+                viewerMetadataPath = current.viewerMetadataPath.takeUnless { it == deletedPath },
+                viewerEraseDialogPath = current.viewerEraseDialogPath.takeUnless { it == deletedPath }
             )
         }
+        savedStateHandle[KEY_CURRENT_PATH] = state.value.viewerCurrentPath
+        savedStateHandle[KEY_METADATA_PATH] = state.value.viewerMetadataPath
+        savedStateHandle[KEY_ERASE_DIALOG_PATH] = state.value.viewerEraseDialogPath
     }
 
     fun setViewerMetadataVisible(path: String?, visible: Boolean) {

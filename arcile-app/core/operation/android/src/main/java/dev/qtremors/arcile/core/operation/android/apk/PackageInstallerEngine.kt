@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
@@ -29,7 +31,11 @@ import java.util.concurrent.atomic.AtomicReference
 sealed interface ApkInstallState {
     data object Idle : ApkInstallState
     data object UnknownAppSourcesPermissionRequired : ApkInstallState
-    data class Installing(val progress: Float = 0f, val currentFile: String = "") : ApkInstallState
+    data class Installing(
+        val progress: Float = 0f,
+        val currentFile: String = "",
+        val awaitingUserConfirmation: Boolean = false
+    ) : ApkInstallState
     data class Success(val packageName: String) : ApkInstallState
     data class Failed(val reason: String) : ApkInstallState
 }
@@ -45,9 +51,80 @@ object PackageInstallerEngine {
     private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val activeSessionIds = ConcurrentHashMap.newKeySet<Int>()
     private val activeInstallJob = AtomicReference<Job?>(null)
+    private val sessionStatuses = ConcurrentHashMap<Int, String>()
+    private var observedInstaller: PackageInstaller? = null
+    private var targetKey: String? = null
+    private var preparedDetails: ApkPackageDetails? = null
+
+    @Synchronized
+    fun preparedDetails(key: String): ApkPackageDetails? = preparedDetails.takeIf { targetKey == key }
+
+    @Synchronized
+    fun rememberPreparedDetails(key: String, details: ApkPackageDetails?) {
+        if (targetKey == key) preparedDetails = details
+    }
+
+    @Synchronized
+    fun prepareTarget(key: String) {
+        if (targetKey == key) return
+        resetState()
+        targetKey = key
+    }
+
+    @Synchronized
+    private fun observeSessions(context: Context) {
+        if (observedInstaller != null) return
+        val installer = context.applicationContext.packageManager.packageInstaller
+        installer.registerSessionCallback(object : PackageInstaller.SessionCallback() {
+            override fun onCreated(sessionId: Int) = Unit
+            override fun onBadgingChanged(sessionId: Int) = Unit
+            override fun onActiveChanged(sessionId: Int, active: Boolean) {
+                if (active && installer.getSessionInfo(sessionId)?.isActive == true) {
+                    onSessionActivity(sessionId)
+                }
+            }
+            override fun onProgressChanged(sessionId: Int, progress: Float) {
+                // Re-read activity so queued staging progress cannot dismiss confirmation.
+                if (installer.getSessionInfo(sessionId)?.isActive == true) {
+                    onSessionActivity(sessionId)
+                }
+            }
+            override fun onFinished(sessionId: Int, success: Boolean) {
+                if (sessionId !in activeSessionIds) return
+                _installState.value = ApkInstallState.Installing(
+                    progress = 0.99f,
+                    currentFile = "Finishing installation..."
+                )
+            }
+        }, Handler(Looper.getMainLooper()))
+        observedInstaller = installer
+    }
+
+    internal fun onSessionActivity(sessionId: Int) {
+        if (sessionId !in activeSessionIds) return
+        val current = _installState.value as? ApkInstallState.Installing ?: return
+        if (!current.awaitingUserConfirmation) return
+        _installState.value = current.copy(
+            currentFile = sessionStatuses[sessionId] ?: "Installing...",
+            awaitingUserConfirmation = false
+        )
+    }
+
+    fun reconcileSession(context: Context) {
+        observeSessions(context)
+        activeSessionIds.forEach { sessionId ->
+            if (observedInstaller?.getSessionInfo(sessionId)?.isActive == true) {
+                onSessionActivity(sessionId)
+            }
+        }
+    }
 
     fun resetState() {
         activeInstallJob.getAndSet(null)?.cancel()
+        activeSessionIds.clear()
+        sessionStatuses.clear()
+        targetKey = null
+        preparedDetails = null
         _installState.value = ApkInstallState.Idle
     }
 
@@ -80,6 +157,7 @@ object PackageInstallerEngine {
         )
 
         val appContext = context.applicationContext
+        observeSessions(appContext)
         lateinit var installJob: Job
         installJob = engineScope.launch(start = CoroutineStart.LAZY) {
             var createdSessionId = -1
@@ -96,6 +174,7 @@ object PackageInstallerEngine {
                 val sessionId = packageInstaller.createSession(params)
                 createdSessionId = sessionId
                 activeSessionIds.add(sessionId)
+                sessionStatuses[sessionId] = activeStatus
                 val session = packageInstaller.openSession(sessionId)
                 openedSession = session
 
@@ -153,6 +232,7 @@ object PackageInstallerEngine {
             } catch (e: Exception) {
                 if (createdSessionId >= 0) {
                     activeSessionIds.remove(createdSessionId)
+                    sessionStatuses.remove(createdSessionId)
                     runCatching {
                         context.packageManager.packageInstaller.abandonSession(createdSessionId)
                     }
@@ -172,13 +252,15 @@ object PackageInstallerEngine {
     fun onUserConfirmationRequested(sessionId: Int) {
         activeSessionIds.add(sessionId)
         _installState.value = ApkInstallState.Installing(
-            progress = 0.95f,
-            currentFile = "Awaiting user confirmation..."
+            progress = 0.85f,
+            currentFile = "Awaiting user confirmation...",
+            awaitingUserConfirmation = true
         )
     }
 
     fun onInstallationResult(sessionId: Int, status: Int, message: String?, packageName: String?) {
         activeSessionIds.remove(sessionId)
+        sessionStatuses.remove(sessionId)
         when (status) {
             PackageInstaller.STATUS_SUCCESS -> {
                 _installState.value = ApkInstallState.Success(packageName.orEmpty())

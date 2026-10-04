@@ -16,7 +16,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -32,14 +31,11 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -74,10 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import java.io.File
 import java.util.concurrent.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -428,12 +422,7 @@ fun StandaloneTextEditor(
                     onFormat = ::insertFormatting
                 )
             }
-            AnimatedVisibility(
-                visible = infoVisible,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier.fillMaxSize()
-            ) {
+            if (infoVisible) {
                 TextDocumentInfoSheet(
                     title = title,
                     reference = reference,
@@ -489,19 +478,19 @@ private fun LoadFailure(
         modifier = modifier
             .padding(24.dp)
             .clip(RoundedCornerShape(24.dp))
-            .background(Color.Black.copy(alpha = 0.68f))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text(
             text = stringResource(R.string.text_editor_load_failed),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onSurface,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         if (!message.isNullOrBlank()) {
-            Text(message, color = Color.White.copy(alpha = 0.72f), style = MaterialTheme.typography.bodySmall)
+            Text(message, color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
@@ -511,97 +500,6 @@ private fun LoadFailure(
                 Text(stringResource(R.string.open_app))
             }
         }
-    }
-}
-
-@Composable
-private fun TextDocumentInfoSheet(
-    title: String,
-    reference: String,
-    sizeBytes: Long,
-    text: String,
-    onDismiss: () -> Unit
-) {
-    val lines = remember(text) { text.lines().size }
-    val words = remember(text) { text.wordCount() }
-    val chars = remember(text) { text.length }
-    Surface(Modifier.fillMaxSize(), color = Color.Black.copy(alpha = 0.92f)) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(24.dp)
-        ) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Surface(
-                    shape = CircleShape,
-                    color = Color.White.copy(alpha = 0.15f),
-                    modifier = Modifier.size(48.dp).bounceClickable(onClick = onDismiss)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = Color.White
-                        )
-                    }
-                }
-                Spacer(Modifier.width(16.dp))
-                Text(
-                    stringResource(R.string.text_editor_file_info),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(Modifier.height(24.dp))
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                item {
-                    InfoCard {
-                        Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            stringResource(R.string.text_editor_path_format, reference),
-                            color = Color.White.copy(alpha = 0.72f),
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-                }
-                item {
-                    InfoCard {
-                        InfoRow(stringResource(R.string.text_editor_lines), lines.toString())
-                        InfoRow(stringResource(R.string.text_editor_words), words.toString())
-                        InfoRow(stringResource(R.string.text_editor_characters), chars.toString())
-                        if (sizeBytes > 0) {
-                            InfoRow(stringResource(R.string.text_editor_file_size), formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes))
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun InfoCard(content: @Composable ColumnScope.() -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        color = Color.White.copy(alpha = 0.12f)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content
-        )
-    }
-}
-
-@Composable
-private fun InfoRow(label: String, value: String) {
-    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-        Text(label, color = Color.White.copy(alpha = 0.72f), style = MaterialTheme.typography.bodyMedium)
-        Text(value, color = Color.White, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
     }
 }
 

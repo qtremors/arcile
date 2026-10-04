@@ -5,11 +5,14 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.Saver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
 import androidx.media3.common.MediaItem
 import androidx.navigation.NavHostController
@@ -46,12 +49,13 @@ internal class AppNavigationActions(
     private val onOpenFile: (String) -> Unit,
     private val onOpenFileWith: (String) -> Unit,
     private val onRecordFileOpened: (String) -> Unit,
-    private val onFeedback: (ArcileFeedbackEvent) -> Unit
+    private val onFeedback: (ArcileFeedbackEvent) -> Unit,
+    apkTargetState: MutableState<AppFileOpenResolution.InstallApk?>
 ) {
     var pluginPrompt by mutableStateOf<PluginFileResolution?>(null)
         private set
 
-    var apkInstallTarget by mutableStateOf<AppFileOpenResolution.InstallApk?>(null)
+    var apkInstallTarget by apkTargetState
         private set
 
     val destinationMappers = AppDestinationMappers(
@@ -570,6 +574,9 @@ internal fun rememberAppNavigationActions(
 ): AppNavigationActions {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val apkTargetState = rememberSaveable(stateSaver = ApkInstallTargetSaver) {
+        mutableStateOf<AppFileOpenResolution.InstallApk?>(null)
+    }
     return remember(
         context,
         navController,
@@ -591,7 +598,23 @@ internal fun rememberAppNavigationActions(
             onOpenFile = onOpenFile,
             onOpenFileWith = onOpenFileWith,
             onRecordFileOpened = onRecordFileOpened,
-            onFeedback = onFeedback
+            onFeedback = onFeedback,
+            apkTargetState = apkTargetState
         )
     }
 }
+
+internal val ApkInstallTargetSaver = Saver<AppFileOpenResolution.InstallApk?, List<String>>(
+    save = { target ->
+        target?.let { listOf(it.path, it.contentUri.orEmpty(), it.displayName.orEmpty()) + it.splitPaths }
+            ?: emptyList()
+    },
+    restore = { saved ->
+        if (saved.size < 3) null else AppFileOpenResolution.InstallApk(
+            path = saved[0],
+            contentUri = saved[1].takeIf(String::isNotEmpty),
+            displayName = saved[2].takeIf(String::isNotEmpty),
+            splitPaths = saved.drop(3)
+        )
+    }
+)

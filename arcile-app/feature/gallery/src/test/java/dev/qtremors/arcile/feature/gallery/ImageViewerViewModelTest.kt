@@ -183,6 +183,49 @@ class ImageViewerViewModelTest {
             assertTrue(coordinator.startedRequests.isEmpty())
         }
 
+    @Test
+    fun `deleting the middle image advances and saves the next image`() = runTest {
+        val savedState = SavedStateHandle()
+        val viewModel = createViewModel(savedState)
+        val paths = arrayOf("/photos/one.jpg", "/photos/two.jpg", "/photos/three.jpg")
+        viewModel.initialize(paths[1], imageFiles(*paths))
+        viewModel.setViewerMetadataVisible(paths[1], true)
+        viewModel.setViewerEraseDialogPath(paths[1])
+
+        viewModel.applyViewerDelete(paths[1])
+
+        assertEquals(paths[2], viewModel.state.value.viewerCurrentPath)
+        assertEquals(paths[2], createViewModel(savedState).state.value.viewerCurrentPath)
+        assertNull(viewModel.state.value.viewerMetadataPath)
+        assertNull(viewModel.state.value.viewerEraseDialogPath)
+    }
+
+    @Test
+    fun `deleting the final image selects the preceding image then empties the viewer`() = runTest {
+        val viewModel = createViewModel()
+        val paths = arrayOf("/photos/one.jpg", "/photos/two.jpg", "/photos/three.jpg")
+        viewModel.initialize(paths[2], imageFiles(*paths))
+
+        viewModel.applyViewerDelete(paths[2])
+        assertEquals(paths[1], viewModel.state.value.viewerCurrentPath)
+        viewModel.applyViewerDelete(paths[1])
+        assertEquals(paths[0], viewModel.state.value.viewerCurrentPath)
+        viewModel.applyViewerDelete(paths[0])
+        assertNull(viewModel.state.value.viewerCurrentPath)
+        assertTrue(viewModel.state.value.displayedFiles.isEmpty())
+    }
+
+    @Test
+    fun `deleting another image preserves the active image`() = runTest {
+        val viewModel = createViewModel()
+        val paths = arrayOf("/photos/one.jpg", "/photos/two.jpg", "/photos/three.jpg")
+        viewModel.initialize(paths[1], imageFiles(*paths))
+
+        viewModel.applyViewerDelete(paths[0])
+
+        assertEquals(paths[1], viewModel.state.value.viewerCurrentPath)
+    }
+
     private fun createViewModel(
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
         metadataRepository: ImageMetadataRepository = mockk(relaxed = true),

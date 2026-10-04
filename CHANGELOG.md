@@ -1,10 +1,23 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.1.8
+> **Version:** 2.1.9
 > **Last Updated:** 2026-10-04
 
 ---
+
+## [2.1.9] - 2026-10-04
+
+- **Browser Entry**: Resume the remembered folder when swiping into Browser, while storage shortcuts open their selected root.
+- **Audio Queue Removal**: Advance in playback order, including shuffle, preserve paused playback, and clear an empty player.
+- **Image Deletion**: Advance to the next image, or the previous at the end, and retain the position after rotation.
+- **Vault Video Rotation**: Keep protected videos open during rotation and close them when backgrounded.
+- **APK Install Status**: Clear stale confirmation messages, retain progress through rotation, and report final installation results accurately.
+- **Library Grids**: Make APK and Documents grid-size controls match the displayed layout.
+- **Text Editor Panels**: Use opaque controls and a compact, scrollable information card with an accessible close button.
+- **Easier Renaming**: Focus and select the name while preserving file extensions and user-adjusted selections.
+- **Paste Status**: Show compact item counts with full accessibility announcements.
+- **Accessible File Labels**: Make file details and opening and selection labels translatable.
 
 ## [2.1.8] - 2026-10-04
 

@@ -80,21 +80,23 @@ class ArcileBuildVerificationPlugin : Plugin<Project> {
                             exclude("**/ui/theme/**")
                         }.files.flatMap { sourceFile ->
                             val relativePath = sourceFile.relativeTo(rootProject.projectDir).invariantSeparatorsPath
-                            sourceFile.readLines().mapIndexedNotNull { index, line ->
+                            val source = sourceFile.readText()
+                            val semanticsOffenders = hardcodedSemanticsLines(source)
+                            source.lineSequence().mapIndexedNotNull { index, line ->
                                 val trimmed = line.trim()
-                                if (suspiciousPattern.containsMatchIn(trimmed) &&
+                                if (index in semanticsOffenders || (suspiciousPattern.containsMatchIn(trimmed) &&
                                     allowedFragments.none { trimmed.contains(it) } &&
                                     !trimmed.contains("R.string.") &&
                                     !trimmed.contains("R.plurals.") &&
                                     !trimmed.contains("stringResource(") &&
                                     !trimmed.contains("pluralStringResource(") &&
-                                    !trimmed.contains("getString(")
+                                    !trimmed.contains("getString("))
                                 ) {
                                     "$relativePath:${index + 1}: $trimmed"
                                 } else {
                                     null
                                 }
-                            }
+                            }.toList()
                         }
                         if (offenders.isNotEmpty()) {
                             throw GradleException(buildString {

@@ -1,0 +1,10 @@
+<resources>
+    <string name="file_item_hidden_name">%1$s (Hidden)</string>
+    <string name="file_item_type_file">File</string>
+    <string name="file_item_modified">Modified %1$s</string>
+    <string name="file_item_open_folder">Open folder</string>
+    <string name="file_item_toggle_selection">Toggle selection</string>
+    <string name="file_item_selection_options">Show selection options</string>
+    <string name="file_item_select">Select item</string>
+    <string name="file_item_unselect">Unselect item</string>
+</resources>

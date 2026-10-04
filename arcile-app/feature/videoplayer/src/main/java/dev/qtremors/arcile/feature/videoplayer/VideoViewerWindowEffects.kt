@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.videoplayer
 
+import android.app.Activity
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
@@ -37,14 +38,11 @@ internal fun VideoViewerWindowEffects(
                 WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             controller?.hide(WindowInsetsCompat.Type.systemBars())
         }
-        val observer = LifecycleEventObserver { _, event ->
-            when (event) {
-                Lifecycle.Event.ON_START,
-                Lifecycle.Event.ON_RESUME -> enterImmersiveMode()
-                Lifecycle.Event.ON_STOP -> currentOnBackgrounded.value?.invoke()
-                else -> Unit
-            }
-        }
+        val observer = videoViewerLifecycleObserver(
+            activity = activity,
+            onForegrounded = ::enterImmersiveMode,
+            onBackgrounded = { currentOnBackgrounded.value?.invoke() }
+        )
         lifecycleOwner.lifecycle.addObserver(observer)
         enterImmersiveMode()
         onDispose {
@@ -54,5 +52,18 @@ internal fun VideoViewerWindowEffects(
                 controller?.show(WindowInsetsCompat.Type.systemBars())
             }
         }
+    }
+}
+
+internal fun videoViewerLifecycleObserver(
+    activity: Activity?,
+    onForegrounded: () -> Unit,
+    onBackgrounded: () -> Unit
+): LifecycleEventObserver = LifecycleEventObserver { _, event ->
+    when (event) {
+        Lifecycle.Event.ON_START,
+        Lifecycle.Event.ON_RESUME -> onForegrounded()
+        Lifecycle.Event.ON_STOP -> if (activity?.isChangingConfigurations != true) onBackgrounded()
+        else -> Unit
     }
 }

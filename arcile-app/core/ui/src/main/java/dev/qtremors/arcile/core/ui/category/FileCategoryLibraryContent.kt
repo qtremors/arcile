@@ -82,6 +82,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
@@ -238,6 +240,8 @@ internal fun FileCategoryLibraryContent(
         mutableStateOf(query.isNotBlank() || searchFilters.hasActiveFilters)
     }
     var optionsVisible by rememberSaveable { mutableStateOf(false) }
+    val density = LocalDensity.current
+    var gridViewportWidth by remember { mutableStateOf(0.dp) }
     val shellState = rememberCategoryLibraryShellState()
     var showRenameDialog by rememberSaveable { mutableStateOf(false) }
     var showClipboardContents by rememberSaveable { mutableStateOf(false) }
@@ -471,7 +475,9 @@ internal fun FileCategoryLibraryContent(
     ) { shellContentPadding ->
         val topContentPadding = shellContentPadding.calculateTopPadding()
         val bottomContentPadding = shellContentPadding.calculateBottomPadding()
-        Box(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxSize().onSizeChanged { size ->
+            gridViewportWidth = with(density) { size.width.toDp() }
+        }) {
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize(),
@@ -598,6 +604,7 @@ internal fun FileCategoryLibraryContent(
             grouping = grouping,
             showFileDetails = showFileDetails,
             isFolderPage = activePresentationPage == CategoryLibraryPage.FOLDERS,
+            gridViewportWidth = gridViewportWidth,
             onApply = { presentation, updatedGrouping, updatedShowFileDetails ->
                 onPresentationChange(activePresentationPage, presentation)
                 if (activePresentationPage == CategoryLibraryPage.ITEMS) {
@@ -614,6 +621,7 @@ internal fun FileCategoryLibraryContent(
         if (selected != null) {
             RenameDialog(
                 currentName = selected.name,
+                isDirectory = selected.isDirectory,
                 onDismiss = { showRenameDialog = false },
                 onConfirm = {
                     fileActions.onRename(it)

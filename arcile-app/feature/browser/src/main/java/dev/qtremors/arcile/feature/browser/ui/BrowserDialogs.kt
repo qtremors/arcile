@@ -159,6 +159,7 @@ internal fun BrowserDialogs(
         val currentName = storagePathName(selectedPath)
         RenameDialog(
             currentName = currentName,
+            isDirectory = state.files.firstOrNull { it.reference == selectedPath }?.isDirectory == true,
             onDismiss = {
                 dialogVisibility.showRenameDialog = false
                 selectionIntents.onClearSelection()

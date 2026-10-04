@@ -302,7 +302,7 @@ internal fun initialBrowserEntryRequests(
 ): Map<Int, BrowserEntryRequest> = buildMap {
     put(
         PRIMARY_BROWSER_TAB_ID,
-        BrowserEntryRequest(0L, BrowserEntry.PrimaryStorage, preferSavedLocation = hasSavedTabs)
+        BrowserEntryRequest(0L, BrowserEntry.Root(restorePersistentLocation = true), preferSavedLocation = hasSavedTabs)
     )
     restoredPinnedTabs.forEach { restored ->
         if (initialTabs.any { tab -> tab.id == restored.tab.id && tab.isPinned }) {
@@ -315,11 +315,7 @@ internal fun initialBrowserEntryRequests(
     requestedEntry?.let { request ->
         put(
             PRIMARY_BROWSER_TAB_ID,
-            if (request.entry is BrowserEntry.Root) {
-                request.copy(entry = BrowserEntry.PrimaryStorage)
-            } else {
-                request
-            }
+            request
         )
     }
 }

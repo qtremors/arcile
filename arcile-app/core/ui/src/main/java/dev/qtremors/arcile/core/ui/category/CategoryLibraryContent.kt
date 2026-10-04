@@ -82,6 +82,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.drawBehind
@@ -212,9 +214,9 @@ internal fun CategoryFilesContent(
         lastInteractedIndex = index
     }
     val gridContentPadding = PaddingValues(
-        start = 12.dp,
+        start = CategoryGridLayout.Files.sidePaddingDp.dp,
         top = topPadding + 8.dp,
-        end = 12.dp,
+        end = CategoryGridLayout.Files.sidePaddingDp.dp,
         bottom = bottomPadding
     )
     val listContentPadding = PaddingValues(top = topPadding, bottom = bottomPadding)
@@ -228,26 +230,15 @@ internal fun CategoryFilesContent(
         }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         if (presentation.viewMode == FileViewMode.GRID) {
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
-            val horizontalPaddingDp = with(density) {
-                (gridContentPadding.calculateLeftPadding(layoutDirection) +
-                    gridContentPadding.calculateRightPadding(layoutDirection)).toPx() / density.density
-            }
-            val columnCount = remember(presentation.gridMinCellSize, maxWidth, horizontalPaddingDp) {
-                dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
-                    cellSizeDp = presentation.gridMinCellSize,
-                    contentWidthDp = maxWidth.value,
-                    horizontalPaddingDp = horizontalPaddingDp,
-                    itemSpacingDp = 8f
-                )
+            val columnCount = remember(presentation.gridMinCellSize, maxWidth) {
+                CategoryGridLayout.Files.columnCount(presentation.gridMinCellSize, maxWidth.value)
             }
             LazyVerticalGrid(
                 columns = GridCells.Fixed(columnCount),
                 state = gridState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = gridContentPadding,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(CategoryGridLayout.Files.spacingDp.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (grouping == CategoryGrouping.NONE) {
@@ -344,34 +335,23 @@ internal fun CategoryFoldersContent(
     folderItem: @Composable (CategoryFolderSummary, () -> Unit, Modifier) -> Unit
 ) {
     val contentPadding = PaddingValues(
-        start = 16.dp,
+        start = CategoryGridLayout.Folders.sidePaddingDp.dp,
         top = topPadding + 8.dp,
-        end = 16.dp,
+        end = CategoryGridLayout.Folders.sidePaddingDp.dp,
         bottom = bottomPadding
     )
     val gridState = rememberSaveable(saver = LazyGridState.Saver) { LazyGridState() }
     val scrollbarState: ScrollbarState = LazyGridScrollbarState(gridState)
     BoxWithConstraints(Modifier.fillMaxSize()) {
-        val density = androidx.compose.ui.platform.LocalDensity.current
-        val layoutDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
-        val horizontalPaddingDp = with(density) {
-            (contentPadding.calculateLeftPadding(layoutDirection) +
-                contentPadding.calculateRightPadding(layoutDirection)).toPx() / density.density
-        }
-        val columnCount = remember(presentation.gridMinCellSize, maxWidth, horizontalPaddingDp) {
-            dev.qtremors.arcile.core.ui.GridColumnModel.columnCountForCellSize(
-                cellSizeDp = presentation.gridMinCellSize,
-                contentWidthDp = maxWidth.value,
-                horizontalPaddingDp = horizontalPaddingDp,
-                itemSpacingDp = 16f
-            )
+        val columnCount = remember(presentation.gridMinCellSize, maxWidth) {
+            CategoryGridLayout.Folders.columnCount(presentation.gridMinCellSize, maxWidth.value)
         }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columnCount),
             state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = contentPadding,
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(CategoryGridLayout.Folders.spacingDp.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(folders, key = CategoryFolderSummary::path) { folder ->
@@ -510,20 +490,24 @@ internal fun CategoryClipboardToolbar(
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary
                 )
-                Column {
+                Column(Modifier.weight(1f)) {
                     val itemCount = operation?.totalItems ?: clipboard?.files?.size ?: 0
+                    val accessibleCount = androidx.compose.ui.res.pluralStringResource(
+                        if (operation == null) R.plurals.clipboard_items_ready_to_paste else R.plurals.clipboard_item_count,
+                        itemCount,
+                        itemCount
+                    )
                     Text(
                         text = androidx.compose.ui.res.pluralStringResource(
-                            if (operation == null) {
-                                R.plurals.clipboard_items_ready_to_paste
-                            } else {
-                                R.plurals.clipboard_item_count
-                            },
+                            R.plurals.clipboard_item_count,
                             itemCount,
                             itemCount
                         ),
                         style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.clearAndSetSemantics { contentDescription = accessibleCount }
                     )
                     val context = androidx.compose.ui.platform.LocalContext.current
                     Text(
@@ -541,7 +525,9 @@ internal fun CategoryClipboardToolbar(
                                 clipboard?.let { formatFileSize(context, it.totalSize) }.orEmpty()
                             },
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

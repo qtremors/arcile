@@ -14,9 +14,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
@@ -27,11 +30,14 @@ fun RenameDialog(
     currentName: String,
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
-    existingNames: Set<String> = emptySet()
+    existingNames: Set<String> = emptySet(),
+    isDirectory: Boolean = false
 ) {
-    var newName by remember { mutableStateOf(currentName) }
+    var newName by rememberSaveable(currentName, isDirectory, stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(currentName, initialRenameSelection(currentName, isDirectory)))
+    }
     val validation = remember(newName, existingNames, currentName) {
-        validateFileName(newName, existingNames, ignoredName = currentName)
+        validateFileName(newName.text, existingNames, ignoredName = currentName)
     }
     val hasChanged = validation.sanitizedName != currentName
 
@@ -46,6 +52,7 @@ fun RenameDialog(
                 label = stringResource(R.string.label_new_name),
                 existingNames = existingNames,
                 ignoredName = currentName,
+                autoFocus = true,
                 onDone = {
                     if (validation.isValid && hasChanged) {
                         onConfirm(validation.sanitizedName)
@@ -78,4 +85,11 @@ fun RenameDialog(
             }
         }
     )
+}
+
+internal fun initialRenameSelection(name: String, isDirectory: Boolean): TextRange {
+    val extensionStart = name.lastIndexOf('.').takeIf {
+        !isDirectory && it > 0 && it < name.lastIndex
+    }
+    return TextRange(0, extensionStart ?: name.length)
 }

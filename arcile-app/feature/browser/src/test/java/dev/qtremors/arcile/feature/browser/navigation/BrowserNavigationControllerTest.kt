@@ -146,6 +146,23 @@ class BrowserNavigationControllerTest {
         assertFalse(controller.state.value.folderStatsLoadingPaths.contains("$first/folder"))
     }
 
+    @Test
+    fun `remembered entry resumes last folder but explicit storage entry opens its root`() = testScope.runTest {
+        val lastPath = "/storage/emulated/0/Documents"
+        every { browserPreferencesRepository.locationPreferencesFlow } returns kotlinx.coroutines.flow.flowOf(
+            BrowserLocationPreferences(lastOpenedPath = lastPath, lastOpenedVolumeId = "vol1", rememberLastFolder = true)
+        )
+        repository.filesByPath = mapOf(lastPath to emptyList(), "/storage/emulated/0" to emptyList())
+
+        delegate.openFileBrowser(restorePersistentLocation = true)
+        advanceUntilIdle()
+        assertEquals(lastPath, delegate.state.value.currentPath)
+
+        delegate.navigateToSpecificFolder("/storage/emulated/0")
+        advanceUntilIdle()
+        assertEquals("/storage/emulated/0", delegate.state.value.currentPath)
+    }
+
     private lateinit var testScope: TestScope
     private lateinit var repository: FakeStorageRepositoryBundle
     private lateinit var browserPreferencesRepository: BrowserLocationPreferencesStore

@@ -83,7 +83,10 @@ internal class AudioPlayerCoordinator @Inject constructor(
             playback.state.map { it.queueEntries to it.currentMediaId }
                 .distinctUntilChanged()
                 .collectLatest { (entries, currentId) ->
-                    if (currentId == null || entries.isEmpty()) return@collectLatest
+                    if (currentId == null || entries.isEmpty()) {
+                        if (playback.state.value.isConnected) mutableState.value = AudioPanelState()
+                        return@collectLatest
+                    }
                     val panel = mutableState.value
                     if (panel.visible && panel.queue.map { it.file.reference } ==
                         entries.map { it.id }
