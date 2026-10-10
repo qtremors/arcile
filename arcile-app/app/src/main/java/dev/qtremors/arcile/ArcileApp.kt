@@ -2,14 +2,17 @@ package dev.qtremors.arcile
 
 import android.app.Application
 import android.os.StrictMode
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.decode.SvgDecoder
-import coil.decode.VideoFrameDecoder
-import coil.disk.DiskCache
-import coil.memory.MemoryCache
+import coil3.request.crossfade
+import coil3.request.addLastModifiedToFileCacheKey
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.gif.GifDecoder
+import coil3.gif.AnimatedImageDecoder
+import coil3.svg.SvgDecoder
+import coil3.video.VideoFrameDecoder
+import okio.Path.Companion.toOkioPath
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.StorageCacheInvalidationObserver
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheRecord
@@ -34,13 +37,12 @@ import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultThumbnailCache
 import dev.qtremors.arcile.core.vault.data.VaultThumbnailFetcher
 import javax.inject.Inject
-import coil.Coil
 import dev.qtremors.arcile.core.ui.security.SensitiveMemory
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.operation.android.apk.ApkPackageParser
 
 @HiltAndroidApp
-class ArcileApp : Application(), ImageLoaderFactory {
+class ArcileApp : Application(), SingletonImageLoader.Factory {
     val appSessionTracker = AppSessionTracker()
 
     @Inject
@@ -78,7 +80,7 @@ class ArcileApp : Application(), ImageLoaderFactory {
             }
         }
         storageCacheInvalidationObserver.register()
-        SensitiveMemory.clearDelegate = { Coil.imageLoader(this).memoryCache?.clear() }
+        SensitiveMemory.clearDelegate = { SingletonImageLoader.get(this).memoryCache?.clear() }
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) {
                 SensitiveMemory.clear()
@@ -98,22 +100,23 @@ class ArcileApp : Application(), ImageLoaderFactory {
         }
     }
 
-    override fun newImageLoader(): ImageLoader {
-        return ImageLoader.Builder(this)
+    override fun newImageLoader(context: android.content.Context): ImageLoader {
+        return ImageLoader.Builder(context)
+            .addLastModifiedToFileCacheKey(true)
             .memoryCache {
-                MemoryCache.Builder(this)
-                    .maxSizePercent(0.25)
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.25)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
-                    .directory(this.cacheDir.resolve("image_cache"))
+                    .directory(context.cacheDir.resolve("image_cache").toOkioPath())
                     .maxSizePercent(0.08)
                     .build()
             }
             .components {
                 add(ThumbnailKeyer())
-                add(ImageDecoderDecoder.Factory())
+                add(AnimatedImageDecoder.Factory())
                 add(GifDecoder.Factory())
                 add(SvgDecoder.Factory())
                 add(PdfThumbnailFetcher.Factory())

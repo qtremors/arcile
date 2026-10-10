@@ -2,11 +2,9 @@ package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
-import androidx.navigation.compose.NavHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import dev.qtremors.arcile.core.ui.theme.UiPreferences
-import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
@@ -53,13 +51,9 @@ fun AppNavigationGraph(
         onFeedback = onFeedback
     )
 
-    NavHost(
+    AppNavHost(
         navController = navController,
-        startDestination = AppRoutes.Main(),
-        enterTransition = transitions.rootEnter,
-        exitTransition = transitions.rootExit,
-        popEnterTransition = transitions.rootPopEnter,
-        popExitTransition = transitions.rootPopExit
+        transitions = transitions
     ) {
         registerMainRoute(
             navController,

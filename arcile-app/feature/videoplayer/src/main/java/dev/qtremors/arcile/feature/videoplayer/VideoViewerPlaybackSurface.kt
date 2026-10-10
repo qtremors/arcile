@@ -89,8 +89,8 @@ import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min

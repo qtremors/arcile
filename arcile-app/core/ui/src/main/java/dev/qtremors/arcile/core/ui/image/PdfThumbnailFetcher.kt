@@ -7,14 +7,14 @@ import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
 import android.net.Uri
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
-import coil.ImageLoader
-import coil.decode.DataSource
-import coil.fetch.DrawableResult
-import coil.fetch.FetchResult
-import coil.fetch.Fetcher
-import coil.request.Options
+import coil3.ImageLoader
+import coil3.decode.DataSource
+import coil3.asImage
+import coil3.fetch.ImageFetchResult
+import coil3.fetch.FetchResult
+import coil3.fetch.Fetcher
+import coil3.request.Options
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.CoroutineContext
@@ -51,8 +51,8 @@ class PdfThumbnailFetcher(
                         bitmap.eraseColor(Color.WHITE)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
 
-                        DrawableResult(
-                            drawable = bitmap.toDrawable(options.context.resources),
+                        ImageFetchResult(
+                            image = bitmap.asImage(),
                             isSampled = true,
                             dataSource = DataSource.DISK
                         )
@@ -65,10 +65,11 @@ class PdfThumbnailFetcher(
         }
     }
 
-    class Factory : Fetcher.Factory<File> {
-        override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
-            return if (data.extension.equals("pdf", ignoreCase = true)) {
-                PdfThumbnailFetcher(data, options)
+    class Factory : Fetcher.Factory<coil3.Uri> {
+        override fun create(data: coil3.Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
+            val file = data.localThumbnailFile() ?: return null
+            return if (file.extension.equals("pdf", ignoreCase = true)) {
+                PdfThumbnailFetcher(file, options)
             } else {
                 null
             }

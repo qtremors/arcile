@@ -8,9 +8,10 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Size
 import androidx.test.core.app.ApplicationProvider
-import coil.fetch.DrawableResult
-import coil.request.Options
-import coil.size.Size as CoilSize
+import coil3.toBitmap
+import coil3.fetch.ImageFetchResult
+import coil3.request.Options
+import coil3.size.Size as CoilSize
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -34,9 +35,9 @@ class AudioAlbumArtFetcherTest {
             every { context } returns ApplicationProvider.getApplicationContext()
         }
 
-        assertNotNull(factory.create(File("track.mp3"), options, mockk(relaxed = true)))
-        assertNotNull(factory.create(File("voice.m4a"), options, mockk(relaxed = true)))
-        assertNull(factory.create(File("image.jpg"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "track.mp3"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "voice.m4a"), options, mockk(relaxed = true)))
+        assertNull(factory.create(coil3.Uri(scheme = "file", path = "image.jpg"), options, mockk(relaxed = true)))
         assertNotNull(AudioAlbumArtFetcher.KeyFactory().create(ThumbnailKey.from(File("track.mp3")), options, mockk(relaxed = true)))
     }
 
@@ -90,11 +91,11 @@ class AudioAlbumArtFetcherTest {
             File("/storage/emulated/0/Music/song.mp3"),
             options,
             contentUri = "content://media/external_primary/audio/media/42"
-        ).fetch() as DrawableResult
+        ).fetch() as ImageFetchResult
 
         assertEquals(0, queryCount)
         assertEquals("content://media/external_primary/audio/media/42", requestedUri.toString())
-        assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
+        assertEquals(expectedBitmap, result.image.toBitmap())
     }
 
     @Test

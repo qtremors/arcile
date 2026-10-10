@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.0
-> **Last Updated:** 2026-10-04
+> **Version:** 2.2.1
+> **Last Updated:** 2026-11-02
 
 ---
+
+## [2.2.1] - 2026-11-02
+
+### Changed
+- **Dependency Updates**: Upgraded Android build tooling and app libraries, including Coil 3, Compose, Navigation, and Media3, with the required image-loading and navigation migrations.
+- **License**: Updated the project license to Tremors Source License (TSL) Version 2.0.
 
 ## [2.2.0] - 2026-10-04
 

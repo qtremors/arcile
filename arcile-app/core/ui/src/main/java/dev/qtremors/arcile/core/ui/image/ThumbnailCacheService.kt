@@ -1,8 +1,8 @@
 package dev.qtremors.arcile.core.ui.image
 
 import android.content.Context
-import coil.annotation.ExperimentalCoilApi
-import coil.imageLoader
+import coil3.annotation.ExperimentalCoilApi
+import coil3.imageLoader
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn

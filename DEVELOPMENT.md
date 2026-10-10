@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.2.0 | **Last Updated:** 2026-10-04
+**Version:** 2.2.1 | **Last Updated:** 2026-11-02
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -83,19 +83,19 @@ graph TD
 
 | Area | Technology |
 |------|------------|
-| Language and toolchain | Kotlin 2.4.10, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.6.0, Android Gradle Plugin 9.4.1, KSP 2.3.11 |
+| Language and toolchain | Kotlin 2.4.21, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.8.2, Android Gradle Plugin 9.4.1, KSP 2.3.12 |
 | Android platform | compileSdk/targetSdk 37, minSdk 30, AndroidX Core, Lifecycle, Activity, SplashScreen |
-| UI | Jetpack Compose BOM 2026.08.00, Material 3 1.5.0-alpha26, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor 5.0.0 |
+| UI | Jetpack Compose BOM 2026.09.00, Material 3 1.5.0-beta02, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor 5.0.1 |
 | State and architecture | Feature-owned MVVM, StateFlow, Kotlin Coroutines, immutable collections, Hilt/Dagger |
 | Navigation | Navigation Compose with Kotlin Serialization typed routes |
 | Persistence | Room cache database and DataStore Preferences |
 | Storage | Android filesystem APIs, MediaStore, Storage Access Framework, FileProvider/content grants |
-| Media and metadata | Media3, Coil 2, ExifInterface, platform PDF and media APIs |
+| Media and metadata | Media3, Coil 3, ExifInterface, platform PDF and media APIs |
 | Archives | Apache Commons Compress, Tukaani XZ, Zip4j |
 | Vault cryptography | Android Keystore and Bouncy Castle |
 | Tests | JUnit 4, AndroidX Test, Espresso, Robolectric, MockK, Turbine, ArchUnit |
 
-Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil intentionally remains on its compatible 2.x line; a Coil 3 update is a separate source migration rather than a version-only upgrade. MaterialKolor uses the catalog's 5.0.0 release.
+Versions are centralized in `arcile-app/gradle/libs.versions.toml`. Coil 3 uses local image and decoder modules with the application's custom thumbnail fetchers; network image loading is not included. MaterialKolor uses the catalog's 5.0.1 release.
 
 ---
 
@@ -761,14 +761,14 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 220 |
-| **Version Name** | `2.2.0` |
+| **Version Code** | 221 |
+| **Version Name** | `2.2.1` |
 | **Java Target** | JVM 11 |
-| **Gradle Version** | 9.6.0 |
+| **Gradle Version** | 9.8.2 |
 | **Gradle JVM** | JDK 21 |
-| **Kotlin Version** | 2.4.10 |
+| **Kotlin Version** | 2.4.21 |
 | **AGP Version** | 9.4.1 |
-| **Compose BOM** | 2026.08.00 |
+| **Compose BOM** | 2026.09.00 |
 
 ### Manifest Declarations
 
@@ -916,7 +916,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.2.0-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.2.1-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -937,9 +937,19 @@ signing.keyAlias=your_key_alias
 signing.keyPassword=your_key_password
 ```
 
+### Google Play Internal Testing
+
+The normal APK release commands and application ID remain unchanged. To generate a separate signed app bundle with application ID `play.qtremors.arcile`, explicitly opt in to the Play build:
+
+```bash
+./gradlew :app:bundleRelease -Parcile.play=true
+```
+
+The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.2.1.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
+
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.2.0-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.2.0.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.2.1-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.2.1.apk`
 
 ---
 

@@ -612,6 +612,7 @@ internal fun AudioNowPlayingScreen(
         AudioMetadataSheet(
             track = track,
             listeningStore = listeningStore,
+            tagEditor = tagEditor,
             onEditTags = {
                 showMetadata = false
                 lyricsEditorOnly = false
@@ -690,14 +691,4 @@ internal fun AudioNowPlayingScreen(
             onDismiss = { showSleepTimer = false }
         )
     }
-}
-
-private suspend fun Animatable<Float, *>.springBack() {
-    animateTo(
-        0f,
-        spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        )
-    )
 }

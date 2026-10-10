@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.core.ui.image
 
-import coil.request.Options
-import coil.size.Dimension
+import coil3.request.Options
+import coil3.size.Dimension
 
 object ThumbnailTargetSize {
     const val MIN_PX = 96

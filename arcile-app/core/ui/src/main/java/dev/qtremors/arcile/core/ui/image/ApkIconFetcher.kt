@@ -5,18 +5,19 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.BitmapDrawable
-import coil.ImageLoader
-import coil.decode.DataSource
-import coil.fetch.DrawableResult
-import coil.fetch.FetchResult
-import coil.fetch.Fetcher
-import coil.request.Options
+import androidx.core.graphics.drawable.toDrawable
+import coil3.ImageLoader
+import coil3.decode.DataSource
+import coil3.asImage
+import coil3.fetch.ImageFetchResult
+import coil3.fetch.FetchResult
+import coil3.fetch.Fetcher
+import coil3.request.Options
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import java.io.File
 import java.io.FileOutputStream
 import android.net.Uri
 import androidx.core.graphics.createBitmap
-import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
 
 class ApkIconFetcher(
@@ -51,8 +52,8 @@ class ApkIconFetcher(
                         options,
                         maxPx = ThumbnailTargetSize.MAX_EXPENSIVE_PX
                     )
-                    DrawableResult(
-                        drawable = icon.toBoundedDrawable(options.context, targetSize),
+                    ImageFetchResult(
+                        image = icon.toBoundedDrawable(options.context, targetSize).asImage(),
                         isSampled = true,
                         dataSource = DataSource.DISK
                     )
@@ -61,10 +62,11 @@ class ApkIconFetcher(
         }
     }
 
-    class Factory : Fetcher.Factory<File> {
-        override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
-            return if (data.extension.lowercase() in FileCategories.APKs.extensions) {
-                ApkIconFetcher(data, options)
+    class Factory : Fetcher.Factory<coil3.Uri> {
+        override fun create(data: coil3.Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
+            val file = data.localThumbnailFile() ?: return null
+            return if (file.extension.lowercase() in FileCategories.APKs.extensions) {
+                ApkIconFetcher(file, options)
             } else {
                 null
             }

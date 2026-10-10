@@ -1,8 +1,5 @@
 package dev.qtremors.arcile.feature.audio
 
-import android.media.MediaExtractor
-import android.media.MediaFormat
-import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -54,16 +51,13 @@ import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-
-private data class AudioFileDetails(val bitrate: Int?, val sampleRate: Int?, val channels: Int?)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AudioMetadataSheet(
     track: AudioTrack,
     listeningStore: AudioListeningStore,
+    tagEditor: AudioTagEditor,
     onEditTags: () -> Unit,
     onEditLyrics: () -> Unit,
     onDismiss: () -> Unit
@@ -75,26 +69,7 @@ internal fun AudioMetadataSheet(
     val record by recordFlow.collectAsStateWithLifecycle(initialValue = null)
     var fileDetails by remember(track) { mutableStateOf<AudioFileDetails?>(null) }
     LaunchedEffect(track) {
-        fileDetails = withContext(Dispatchers.IO) {
-            val extractor = MediaExtractor()
-            try {
-                val uri = track.file.nodeRef.contentUri
-                if (uri != null) extractor.setDataSource(context, Uri.parse(uri), null)
-                else extractor.setDataSource(track.file.reference)
-                (0 until extractor.trackCount).asSequence().map(extractor::getTrackFormat)
-                    .firstOrNull { it.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
-                    ?.let { format ->
-                        fun number(key: String) = if (format.containsKey(key))
-                            format.getInteger(key).takeIf { it > 0 } else null
-                        AudioFileDetails(number(MediaFormat.KEY_BIT_RATE),
-                            number(MediaFormat.KEY_SAMPLE_RATE), number(MediaFormat.KEY_CHANNEL_COUNT))
-                    }
-            } catch (_: Exception) {
-                null
-            } finally {
-                extractor.release()
-            }
-        }
+        fileDetails = tagEditor.fileDetails(track)
     }
     ModalBottomSheet(onDismissRequest = onDismiss,
         sheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden,

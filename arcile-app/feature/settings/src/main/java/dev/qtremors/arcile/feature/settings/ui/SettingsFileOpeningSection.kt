@@ -493,7 +493,7 @@ private fun ExtensionChoiceGroup(
                     .heightIn(min = 44.dp)
                     .testTag("file_extension_$extension"),
                 shapes = ToggleButtonShapes(CircleShape, CircleShape, CircleShape),
-                colors = ToggleButtonDefaults.toggleButtonColors(
+                colors = ToggleButtonDefaults.colors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,

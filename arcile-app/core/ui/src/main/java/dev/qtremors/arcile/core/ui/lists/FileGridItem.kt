@@ -43,8 +43,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
+import androidx.compose.runtime.collectAsState
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
@@ -284,9 +285,10 @@ private fun FileGridPreview(
                 },
                 onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) }
             )
-            if (painter.state is AsyncImagePainter.State.Empty ||
-                painter.state is AsyncImagePainter.State.Loading ||
-                painter.state is AsyncImagePainter.State.Error
+            val painterState by painter.state.collectAsState()
+            if (painterState is AsyncImagePainter.State.Empty ||
+                painterState is AsyncImagePainter.State.Loading ||
+                painterState is AsyncImagePainter.State.Error
             ) {
                 GridFileIcon(file, Modifier.fillMaxSize())
             }

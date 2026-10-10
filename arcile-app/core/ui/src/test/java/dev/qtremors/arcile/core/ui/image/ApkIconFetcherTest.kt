@@ -6,9 +6,10 @@ import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import coil.fetch.DrawableResult
-import coil.request.Options
-import coil.size.Size
+import coil3.toBitmap
+import coil3.fetch.ImageFetchResult
+import coil3.request.Options
+import coil3.size.Size
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -28,9 +29,9 @@ class ApkIconFetcherTest {
             every { context } returns mockk<Context>(relaxed = true)
         }
 
-        assertNotNull(factory.create(java.io.File("sample.apk"), options, mockk(relaxed = true)))
-        assertNotNull(factory.create(java.io.File("bundle.xapk"), options, mockk(relaxed = true)))
-        assertNull(factory.create(java.io.File("notes.txt"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "sample.apk"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "bundle.xapk"), options, mockk(relaxed = true)))
+        assertNull(factory.create(coil3.Uri(scheme = "file", path = "notes.txt"), options, mockk(relaxed = true)))
         assertNotNull(ApkIconFetcher.KeyFactory().create(ThumbnailKey.from(java.io.File("sample.apk")), options, mockk(relaxed = true)))
     }
 
@@ -63,9 +64,9 @@ class ApkIconFetcherTest {
             every { size } returns Size(96, 96)
         }
 
-        val result = ApkIconFetcher(apk, options).fetch() as DrawableResult
+        val result = ApkIconFetcher(apk, options).fetch() as ImageFetchResult
 
-        assertNotNull(result.drawable)
+        assertNotNull(result.image)
         assertEquals(apk.absolutePath, appInfo.sourceDir)
         assertEquals(apk.absolutePath, appInfo.publicSourceDir)
     }

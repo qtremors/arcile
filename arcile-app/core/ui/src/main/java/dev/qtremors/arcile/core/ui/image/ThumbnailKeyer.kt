@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.core.ui.image
 
-import coil.key.Keyer
-import coil.request.Options
+import coil3.key.Keyer
+import coil3.request.Options
 
 class ThumbnailKeyer : Keyer<ThumbnailKey> {
     override fun key(data: ThumbnailKey, options: Options): String {

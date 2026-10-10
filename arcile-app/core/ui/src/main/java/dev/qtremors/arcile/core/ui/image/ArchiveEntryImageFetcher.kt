@@ -2,13 +2,13 @@ package dev.qtremors.arcile.core.ui.image
 
 import android.graphics.BitmapFactory
 import android.graphics.drawable.BitmapDrawable
-import androidx.core.graphics.drawable.toDrawable
-import coil.ImageLoader
-import coil.decode.DataSource
-import coil.fetch.DrawableResult
-import coil.fetch.FetchResult
-import coil.fetch.Fetcher
-import coil.request.Options
+import coil3.ImageLoader
+import coil3.decode.DataSource
+import coil3.asImage
+import coil3.fetch.ImageFetchResult
+import coil3.fetch.FetchResult
+import coil3.fetch.Fetcher
+import coil3.request.Options
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -48,8 +48,8 @@ class ArchiveEntryImageFetcher(
                         inSampleSize = calculateInSampleSize(width, height, targetSize)
                     }
                     val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return@withContext null
-                    DrawableResult(
-                        drawable = bitmap.toDrawable(options.context.resources),
+                    ImageFetchResult(
+                        image = bitmap.asImage(),
                         isSampled = true,
                         dataSource = DataSource.DISK
                     )

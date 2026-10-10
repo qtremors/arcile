@@ -2,6 +2,8 @@ package dev.qtremors.arcile.feature.audio
 
 import android.content.Context
 import android.media.MediaScannerConnection
+import android.media.MediaExtractor
+import android.media.MediaFormat
 import android.net.Uri
 import android.webkit.MimeTypeMap
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +25,8 @@ import org.jaudiotagger.tag.images.ArtworkFactory
 
 internal data class AudioLyrics(val plain: String?, val syncedLrc: String?)
 
+internal data class AudioFileDetails(val bitrate: Int?, val sampleRate: Int?, val channels: Int?)
+
 internal data class AudioMetadataEdit(
     val title: String,
     val artist: String,
@@ -43,6 +47,29 @@ internal class AudioTagEditor @Inject constructor(
     @ApplicationContext private val context: Context
 ) {
     private val writeMutex = Mutex()
+
+    suspend fun fileDetails(track: AudioTrack): AudioFileDetails? = withContext(Dispatchers.IO) {
+        val extractor = MediaExtractor()
+        try {
+            val uri = track.file.nodeRef.contentUri
+            if (uri != null) extractor.setDataSource(context, Uri.parse(uri), null)
+            else extractor.setDataSource(track.file.reference)
+            (0 until extractor.trackCount).asSequence().map(extractor::getTrackFormat)
+                .firstOrNull { it.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true }
+                ?.let { format ->
+                    fun number(key: String) = if (format.containsKey(key))
+                        format.getInteger(key).takeIf { it > 0 } else null
+                    AudioFileDetails(number(MediaFormat.KEY_BIT_RATE),
+                        number(MediaFormat.KEY_SAMPLE_RATE), number(MediaFormat.KEY_CHANNEL_COUNT))
+                }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        } finally {
+            extractor.release()
+        }
+    }
 
     suspend fun lyrics(track: AudioTrack): AudioLyrics = withContext(Dispatchers.IO) {
         val file = File(track.file.reference)

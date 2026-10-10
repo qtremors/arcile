@@ -151,10 +151,11 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
-import coil.imageLoader
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import coil.size.Precision
+import coil3.imageLoader
+import coil3.request.CachePolicy
+import coil3.request.crossfade
+import coil3.request.ImageRequest
+import coil3.size.Precision
 import dev.qtremors.arcile.core.ui.image.ThumbnailKey
 import dev.qtremors.arcile.core.ui.image.ThumbnailType
 import dev.qtremors.arcile.core.ui.ArcilePullRefreshIndicator

@@ -1,8 +1,9 @@
 package dev.qtremors.arcile.core.ui.image
 
 import android.content.Context
-import coil.request.CachePolicy
-import coil.request.ImageRequest
+import coil3.request.CachePolicy
+import coil3.request.crossfade
+import coil3.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.SensitiveThumbnailRequest
 
 fun buildThumbnailImageRequest(

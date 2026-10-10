@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.core.ui.image
 
-import coil.request.Options
-import coil.size.Size
+import coil3.request.Options
+import coil3.size.Size
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.Assert.assertEquals

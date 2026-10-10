@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.core.ui.image
 
 import androidx.test.core.app.ApplicationProvider
-import coil.request.Options
+import coil3.request.Options
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -23,9 +23,9 @@ class PdfThumbnailFetcherTest {
             every { context } returns ApplicationProvider.getApplicationContext()
         }
 
-        assertNotNull(factory.create(File("report.pdf"), options, mockk(relaxed = true)))
-        assertNotNull(factory.create(File("REPORT.PDF"), options, mockk(relaxed = true)))
-        assertNull(factory.create(File("report.txt"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "report.pdf"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "REPORT.PDF"), options, mockk(relaxed = true)))
+        assertNull(factory.create(coil3.Uri(scheme = "file", path = "report.txt"), options, mockk(relaxed = true)))
         assertNotNull(PdfThumbnailFetcher.KeyFactory().create(ThumbnailKey.from(File("report.pdf")), options, mockk(relaxed = true)))
     }
 

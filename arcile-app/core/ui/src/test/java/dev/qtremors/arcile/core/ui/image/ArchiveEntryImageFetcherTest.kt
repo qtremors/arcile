@@ -4,9 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import androidx.test.core.app.ApplicationProvider
-import coil.fetch.DrawableResult
-import coil.request.Options
-import coil.size.Size as CoilSize
+import coil3.toBitmap
+import coil3.fetch.ImageFetchResult
+import coil3.request.Options
+import coil3.size.Size as CoilSize
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -33,9 +34,9 @@ class ArchiveEntryImageFetcherTest {
         val options = options(128)
         val data = ArchiveEntryThumbnailData(archive.absolutePath, "photo.png", 1L, 1L)
 
-        val result = ArchiveEntryImageFetcher(data, options).fetch() as DrawableResult
+        val result = ArchiveEntryImageFetcher(data, options).fetch() as ImageFetchResult
 
-        val bitmap = (result.drawable as BitmapDrawable).bitmap
+        val bitmap = result.image.toBitmap()
         assertTrue(result.isSampled)
         assertTrue(bitmap.width <= 256)
         assertTrue(bitmap.height <= 256)

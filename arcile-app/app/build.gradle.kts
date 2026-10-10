@@ -1,4 +1,19 @@
+import com.android.build.api.artifact.SingleArtifact
 import java.util.Properties
+
+abstract class NameBundleTask : DefaultTask() {
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
+    abstract val inputBundle: RegularFileProperty
+
+    @get:OutputFile
+    abstract val outputBundle: RegularFileProperty
+
+    @TaskAction
+    fun nameBundle() {
+        inputBundle.get().asFile.copyTo(outputBundle.get().asFile, overwrite = true)
+    }
+}
 
 plugins {
     alias(libs.plugins.android.application)
@@ -17,10 +32,14 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 220
-        versionName = "2.2.0"
+        versionCode = 221
+        versionName = "2.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    if (providers.gradleProperty("arcile.play").orNull == "true") {
+        defaultConfig.applicationId = "play.qtremors.arcile"
     }
 
     val keystoreProperties = Properties()
@@ -101,6 +120,14 @@ androidComponents {
             val version = output.versionName.get() ?: "0.0.0"
             output.outputFileName.set("Arcile-$version.apk")
         }
+        val version = variant.outputs.single().versionName.get() ?: "0.0.0"
+        val nameBundle = tasks.register<NameBundleTask>(
+            "name${variant.name.replaceFirstChar { it.uppercaseChar() }}Bundle"
+        )
+        variant.artifacts.use(nameBundle)
+            .wiredWithFiles(NameBundleTask::inputBundle, NameBundleTask::outputBundle)
+            .withName("Arcile-$version.aab")
+            .toTransform(SingleArtifact.BUNDLE)
     }
 }
 

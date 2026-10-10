@@ -75,7 +75,7 @@ Architecture, project structure, technology choices, setup, build commands, test
 
 ## License
 
-Arcile is source-available under the **Tremors Source License (TSL)**. Viewing, forking, and derivative works require attribution; commercial use requires written permission.
+Arcile is source-available under the **Tremors Source License (TSL) Version 2.0**. Viewing, forking, and derivative works require attribution; commercial use requires written permission.
 
 Read [LICENSE.md](LICENSE.md) or the [web version](https://qtremors.github.io/license).
 
