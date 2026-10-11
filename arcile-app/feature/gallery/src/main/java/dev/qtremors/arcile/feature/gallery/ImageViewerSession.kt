@@ -106,14 +106,6 @@ internal data class ViewerFileContext(
     val initialPage: Int
 )
 
-internal enum class ViewerThumbnailScrollAction {
-    None,
-    Jump,
-    Animate
-}
-
-internal const val VIEWER_MIN_STABLE_SCALE = 0.000001f
-internal const val VIEWER_MAX_STABLE_SCALE = 1_000_000f
 
 internal fun viewerFileContextForInitialPath(
     initialPath: String,
@@ -164,19 +156,4 @@ internal fun <K, V> MutableMap<K, V>.putBoundedViewerEntry(
 ) {
     if (key !in this && size >= MAX_VIEWER_METADATA_ENTRIES) keys.firstOrNull()?.let(::remove)
     this[key] = value
-}
-
-internal fun viewerThumbnailScrollAction(
-    previousIndex: Int?,
-    targetIndex: Int,
-    maxAnimatedDistance: Int = 12
-): ViewerThumbnailScrollAction {
-    if (targetIndex < 0) return ViewerThumbnailScrollAction.None
-    val previous = previousIndex ?: return ViewerThumbnailScrollAction.Jump
-    if (previous == targetIndex) return ViewerThumbnailScrollAction.None
-    return if (kotlin.math.abs(targetIndex - previous) <= maxAnimatedDistance) {
-        ViewerThumbnailScrollAction.Animate
-    } else {
-        ViewerThumbnailScrollAction.Jump
-    }
 }

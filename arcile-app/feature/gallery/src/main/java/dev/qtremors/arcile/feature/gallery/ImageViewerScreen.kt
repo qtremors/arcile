@@ -1,5 +1,10 @@
 package dev.qtremors.arcile.feature.gallery
 
+import dev.qtremors.arcile.core.ui.viewer.ZoomableImageViewer
+import dev.qtremors.arcile.core.ui.viewer.ImageViewerBottomChrome
+import dev.qtremors.arcile.core.ui.viewer.ImageViewerChromeActions
+import dev.qtremors.arcile.core.ui.viewer.ImageViewerTopChrome
+
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
@@ -347,8 +352,9 @@ internal fun ImageViewerScreen(
                         )
                     ) { vertPage ->
                         if (vertPage == 0) {
+                            val requestData = remember(file) { imageRequestDataFor(file) }
                             ZoomableImageViewer(
-                                file = file,
+                                requestData = requestData,
                                 rotation = rotation,
                                 onDismiss = onNavigateBack,
                                 onTap = { viewModel.toggleViewerUi() },
@@ -444,7 +450,7 @@ internal fun ImageViewerScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             )
 
-            val chromeActions = remember(viewModel, pagerState, onOpenWith, onShareFile) {
+            val chromeActions = remember(viewModel, pagerState) {
                 ImageViewerChromeActions(
                     onPageSelected = { page -> pagerState.animateScrollToPage(page) },
                     onToggleFavorite = viewModel::toggleFavorite,
@@ -455,9 +461,7 @@ internal fun ImageViewerScreen(
                     onToggleSelection = viewModel::toggleSelection,
                     onShowMetadata = { path ->
                         viewModel.setViewerMetadataVisible(path, visible = true)
-                    },
-                    onOpenWith = onOpenWith,
-                    onShare = onShareFile
+                    }
                 )
             }
             ImageViewerBottomChrome(

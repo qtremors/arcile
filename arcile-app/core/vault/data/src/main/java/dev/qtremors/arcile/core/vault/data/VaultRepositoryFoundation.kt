@@ -240,7 +240,8 @@ internal fun VaultManifestEntry.toLegacyNode(parent: VaultPath): VaultNode = Vau
 internal data class SearchFrame(
     val directoryId: DirectoryId,
     val key: ByteArray,
-    val parentNames: List<String>
+    val parentNames: List<String>,
+    val parentDirectoryIds: List<DirectoryId> = emptyList()
 )
 
 internal fun VaultManifestEntry.toMetadata(vaultId: VaultId, parentId: DirectoryId): VaultNodeMetadata =
@@ -260,16 +261,27 @@ internal fun VaultManifestEntry.toMetadata(vaultId: VaultId, parentId: Directory
         mimeType = mimeType
     )
 
-internal fun VaultListOptions.comparator(): Comparator<VaultNodeMetadata> {
+internal fun vaultListingComparator(
+    sortField: VaultSortField,
+    direction: VaultSortDirection,
+    foldersFirst: Boolean,
+    fileCounts: Map<NodeId, Long>
+): Comparator<VaultNodeMetadata> {
+    val name = compareBy<VaultNodeMetadata> { VaultName.of(it.name).comparisonKey }
     val fieldComparator = when (sortField) {
         VaultSortField.NAME -> compareBy<VaultNodeMetadata> { VaultName.of(it.name).comparisonKey }
         VaultSortField.MODIFIED -> compareBy { it.modifiedAtMillis }
         VaultSortField.SIZE -> compareBy { it.sizeBytes }
         VaultSortField.TYPE -> compareBy<VaultNodeMetadata> { it.mimeType.orEmpty() }
             .thenBy { VaultName.of(it.name).comparisonKey }
+        VaultSortField.FILE_COUNT -> compareBy { fileCounts[it.ref.nodeId] ?: 0L }
     }
     val directed = if (direction == VaultSortDirection.ASCENDING) fieldComparator else fieldComparator.reversed()
-    return compareByDescending<VaultNodeMetadata> { it.isDirectory }.then(directed)
+    val ranked = if (sortField == VaultSortField.FILE_COUNT) {
+        compareBy<VaultNodeMetadata> { it.ref.nodeId !in fileCounts }.then(directed)
+    } else directed
+    val grouped = if (foldersFirst) compareByDescending<VaultNodeMetadata> { it.isDirectory }.then(ranked) else ranked
+    return grouped.then(name).thenBy { it.ref.nodeId }
 }
 
 internal fun String?.toPageOffset(maximum: Int): Int {

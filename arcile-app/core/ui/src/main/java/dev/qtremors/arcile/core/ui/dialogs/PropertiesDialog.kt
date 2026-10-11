@@ -52,13 +52,14 @@ import java.util.Date
 fun PropertiesDialog(
     properties: PropertiesUiModel?,
     isLoading: Boolean,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    readLocalImageMetadata: Boolean = true
 ) {
     val context = LocalContext.current
     var imageMetadata by remember(properties?.pathSummary, properties?.isSingleItem) {
         mutableStateOf<VisualMediaMetadata?>(null)
     }
-    val shouldLoadImageMetadata = remember(properties) { properties?.isSingleImageProperty() == true }
+    val shouldLoadImageMetadata = readLocalImageMetadata && properties?.isSingleImageProperty() == true
 
     LaunchedEffect(properties?.pathSummary, shouldLoadImageMetadata) {
         imageMetadata = null

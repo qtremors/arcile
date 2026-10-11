@@ -3,6 +3,7 @@ package dev.qtremors.arcile.core.ui.video
 import androidx.media3.common.MediaItem
 import androidx.media3.datasource.DataSource
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.SensitiveThumbnailRequest
 import java.util.UUID
 
 data class VideoPlaybackItem(
@@ -24,7 +25,9 @@ data class VideoPlaybackSession(
     /** Managed-trash media is shareable/openable but must remain read-only in the viewer. */
     val managedTrash: Boolean = false,
     /** Keeps the host window protected while this sensitive playback session is visible. */
-    val screenshotProtectionEnabled: Boolean = false
+    val screenshotProtectionEnabled: Boolean = false,
+    /** Optional thumbnail source for protected media whose references are opaque. */
+    val thumbnailData: ((FileModel, Int) -> SensitiveThumbnailRequest?)? = null
 ) {
     init {
         require(items.isNotEmpty())

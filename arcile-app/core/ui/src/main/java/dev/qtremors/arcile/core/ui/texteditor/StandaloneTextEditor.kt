@@ -103,14 +103,17 @@ fun StandaloneTextEditor(
     onOpenWith: () -> Unit,
     modifier: Modifier = Modifier,
     loadContent: (suspend () -> String)? = null,
-    persistContent: (suspend (String) -> Result<Unit>)? = null
+    persistContent: (suspend (String) -> Result<Unit>)? = null,
+    privateSession: Boolean = false
 ) {
+    require(!privateSession || loadContent != null && (!writable || persistContent != null))
     val context = LocalContext.current
     val resources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
     var loadState by remember(reference) { mutableStateOf<TextLoadState>(TextLoadState.Loading) }
     var loadRequest by remember { mutableIntStateOf(0) }
-    val session: TextEditorSession = viewModel(key = "text-editor:$reference")
+    val session: TextEditorSession = if (privateSession) remember(reference) { TextEditorSession() }
+        else viewModel(key = "text-editor:$reference")
     var textState by session::text
     var sessionInitialized by session::initialized
     var originalText by session::original
@@ -140,7 +143,7 @@ fun StandaloneTextEditor(
             runCatching {
                 val source = loadContent?.invoke() ?: readTextFileContent(context, reference)
                 if (!textFitsEditor(source)) throw TextTooLargeException()
-                val draft = if (writable && !sessionInitialized) readRecoveryDraft(context, reference) else null
+                val draft = if (!privateSession && writable && !sessionInitialized) readRecoveryDraft(context, reference) else null
                 source to draft
             }
         }
@@ -171,7 +174,7 @@ fun StandaloneTextEditor(
     }
 
     LaunchedEffect(reference, textState.text, originalText, sessionInitialized, isSaving, recoveryDraft) {
-        if (!writable || !sessionInitialized || isSaving || recoveryDraft != null) return@LaunchedEffect
+        if (privateSession || !writable || !sessionInitialized || isSaving || recoveryDraft != null) return@LaunchedEffect
         delay(600)
         val textToPersist = textState.text
         val draftResult = withContext(Dispatchers.IO) {
@@ -255,7 +258,7 @@ fun StandaloneTextEditor(
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     // Preserve this snapshot durably before any provider can truncate its target.
-                    writeDraft(context, reference, originalText, snapshot)
+                    if (!privateSession) writeDraft(context, reference, originalText, snapshot)
                     (persistContent?.invoke(snapshot)
                         ?: writeAndVerifyTextFile(context, reference, snapshot)).getOrThrow()
                 }
@@ -266,7 +269,7 @@ fun StandaloneTextEditor(
                     originalText = snapshot
                     withContext(Dispatchers.IO) {
                         // Keep newer edits even if they arrived while publication was running.
-                        if (textState.text == snapshot) clearDraft(context, reference)
+                        if (!privateSession && textState.text == snapshot) clearDraft(context, reference)
                     }
                     val noNewEdits = textState.text == snapshot
                     coroutineScope.launch {
@@ -458,7 +461,7 @@ fun StandaloneTextEditor(
                     }
                     TextButton(onClick = {
                         showUnsavedDialog = false
-                        clearDraft(context, reference)
+                        if (!privateSession) clearDraft(context, reference)
                         onNavigateBack()
                     }) { Text(stringResource(R.string.text_editor_discard)) }
                 }

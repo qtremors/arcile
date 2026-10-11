@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -102,17 +104,16 @@ internal class OnlyFilesViewModel @Inject constructor(
             }.collect { vaults ->
                 val biometricVaultIds = vaults.filter { sessionManager.hasBiometricEnrollment(it.id) }
                     .mapTo(linkedSetOf(), VaultSummary::id)
+                val activeVault = _state.value.selectedVaultId
+                if (activeVault != null && vaults.none { it.id == activeVault && it.isUnlocked }) {
+                    GlobalVideoPlaybackSessions.removeSecurityScope(vaultSecurityScope(activeVault))
+                    dismissVaultSession()
+                    resolveConflict(VaultConflictDecision.SKIP, true)
+                }
                 _state.update { current ->
-                    val selectedStillUnlocked = vaults.any { it.id == current.selectedVaultId && it.isUnlocked }
                     current.copy(
                         vaults = vaults,
                         biometricVaultIds = biometricVaultIds,
-                        selectedVaultId = current.selectedVaultId.takeIf { selectedStillUnlocked },
-                        directoryStack = current.directoryStack.takeIf { selectedStillUnlocked }.orEmpty(),
-                        nodes = current.nodes.takeIf { selectedStillUnlocked }.orEmpty(),
-                        searchHits = current.searchHits.takeIf { selectedStillUnlocked }.orEmpty(),
-                        selectedNodeIds = current.selectedNodeIds.takeIf { selectedStillUnlocked }.orEmpty(),
-                        viewer = current.viewer.takeIf { selectedStillUnlocked },
                         clipboard = current.clipboard?.takeIf { clipboard ->
                             vaults.any { it.id == clipboard.sources.firstOrNull()?.vaultId && it.isUnlocked }
                         }
@@ -188,17 +189,22 @@ internal class OnlyFilesViewModel @Inject constructor(
                 )
             }
             reload()
-        } else if (node.isViewableImage() || node.isViewableVideo()) {
-            _state.update { it.copy(viewer = node, selectedNodeIds = emptySet()) }
         } else {
-            _state.update { it.copy(message = "This file type cannot be previewed") }
+            _state.update {
+                it.copy(
+                    viewer = node,
+                    viewerQueue = if (node.isViewableImage()) it.displayedNodes.filter(VaultNodeMetadata::isViewableImage)
+                    else emptyList(),
+                    selectedNodeIds = emptySet()
+                )
+            }
         }
     }
 
     fun navigateUp(): Boolean {
         val current = _state.value
         if (current.viewer != null) {
-            _state.update { it.copy(viewer = null) }
+            _state.update { it.copy(viewer = null, viewerQueue = emptyList()) }
             return true
         }
         if (current.directoryStack.size <= 1) {
@@ -220,14 +226,12 @@ internal class OnlyFilesViewModel @Inject constructor(
         return true
     }
 
-    fun navigateViewer(offset: Int) {
-        if (offset == 0) return
-        val snapshot = _state.value
-        val current = snapshot.viewer ?: return
-        val siblings = snapshot.displayedNodes.filter(VaultNodeMetadata::isViewableImage)
-        val index = siblings.indexOfFirst { it.ref.nodeId == current.ref.nodeId }
-        val destination = index.takeIf { it >= 0 }?.plus(offset)?.takeIf { it in siblings.indices } ?: return
-        _state.update { it.copy(viewer = siblings[destination]) }
+    fun showViewerImage(ref: VaultNodeRef) {
+        _state.update { current ->
+            if (current.viewer?.isViewableImage() != true) return@update current
+            val image = current.viewerQueue.firstOrNull { it.ref == ref } ?: return@update current
+            current.copy(viewer = image)
+        }
     }
 
     fun refresh() = browser.refresh()
@@ -302,6 +306,10 @@ internal class OnlyFilesViewModel @Inject constructor(
         externalAccess.revoke(grants)
     }
 
+    fun reportExternalLaunchFailure(message: String) {
+        _state.update { it.copy(message = message) }
+    }
+
     fun verifyHealth(mode: VaultHealthMode) {
         val id = _state.value.selectedVaultId ?: return
         runBusy {
@@ -367,16 +375,37 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun clearMessage() = _state.update { it.copy(message = null) }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader> = fileSystem.openReader(ref)
 
+    suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
+
+    suspend fun saveVaultText(ref: VaultNodeRef, revision: Long, text: String): Result<VaultNodeMetadata> {
+        val bytes = text.encodeToByteArray()
+        val result = try {
+            if (bytes.size > MAX_VAULT_EDITOR_BYTES) {
+                Result.failure(IllegalArgumentException("This file exceeds the text editor limit."))
+            } else {
+                fileSystem.replaceFileContents(ref, revision, bytes)
+            }
+        } finally {
+            bytes.fill(0)
+        }
+        if (result.isSuccess) withContext(Dispatchers.Main.immediate) {
+            if (_state.value.selectedVaultId == ref.vaultId) browser.refresh()
+        }
+        return result
+    }
+
     private fun selectVault(vaultId: VaultId) {
         _state.update {
             it.copy(
                 selectedVaultId = vaultId,
+                mountGeneration = it.mountGeneration + 1L,
                 directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "", VaultPath.Root)),
                 nodes = emptyList(),
                 searchHits = emptyList(),
                 searchQuery = "",
                 selectedNodeIds = emptySet(),
-                viewer = null
+                viewer = null,
+                viewerQueue = emptyList()
             )
         }
         reload()
@@ -387,11 +416,18 @@ internal class OnlyFilesViewModel @Inject constructor(
     private fun clearSensitiveUiState() {
         transfers.clear()
         boundary.clear()
+        dismissVaultSession()
+    }
+
+    private fun dismissVaultSession() {
         browser.cancel()
+        localPicker.cancel()
+        boundary.cancelSelection()
         cancelImportSelection()
         _state.update {
             it.copy(
                 selectedVaultId = null,
+                mountGeneration = it.mountGeneration + 1L,
                 directoryStack = emptyList(),
                 nodes = emptyList(),
                 searchHits = emptyList(),
@@ -399,6 +435,7 @@ internal class OnlyFilesViewModel @Inject constructor(
                 selectedNodeIds = emptySet(),
                 clipboard = null,
                 viewer = null,
+                viewerQueue = emptyList(),
                 properties = emptyList(),
                 pendingConflict = null,
                 healthReport = null

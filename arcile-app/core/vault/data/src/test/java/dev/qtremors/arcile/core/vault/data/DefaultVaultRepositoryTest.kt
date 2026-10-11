@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
@@ -129,12 +130,67 @@ class DefaultVaultRepositoryTest {
         val search = repository.search(
             vaultId,
             VaultSessionRecord.ROOT_DIRECTORY_ID,
-            VaultSearchQuery("empty", recursive = true)
+            VaultSearchQuery("empty", recursive = true, pageSize = 1)
         ).getOrThrow()
         assertEquals(listOf("empty.txt"), search.items.map { it.metadata.name })
+        assertEquals(listOf("Folder"), search.items.single().parentNames)
+        assertEquals(listOf(folderId), search.items.single().parentDirectoryIds)
+        assertEquals(null, search.nextPageToken)
+        assertEquals(VaultFolderTotals(1L, 0L), repository.folderTotals(folder.ref).getOrThrow())
+
+        val contents = "# Updated".encodeToByteArray()
+        val saved = repository.replaceFileContents(empty.ref, empty.revision, contents).getOrThrow()
+        assertEquals(empty.ref, saved.ref)
+        assertEquals(empty.revision + 1L, saved.revision)
+        assertEquals(VaultFolderTotals(1L, contents.size.toLong()), repository.folderTotals(folder.ref).getOrThrow())
+        repository.createDirectory(vaultId, folderId, "Nested").getOrThrow()
+        assertEquals(
+            VaultFolderTotals(1L, contents.size.toLong(), folderCount = 1),
+            repository.folderTotals(folder.ref).getOrThrow()
+        )
+        assertTrue(repository.replaceFileContents(empty.ref, empty.revision, byteArrayOf(1)).isFailure)
+        repository.openReader(saved.ref).getOrThrow().use { reader ->
+            val loaded = ByteArray(contents.size)
+            assertEquals(contents.size, reader.readAt(0, loaded, 0, loaded.size))
+            assertTrue(contents.contentEquals(loaded))
+        }
 
         assertTrue(repository.verify(vaultId, VaultHealthMode.QUICK).getOrThrow().isHealthy)
         assertTrue(repository.verify(vaultId, VaultHealthMode.FULL).getOrThrow().isHealthy)
+
+        val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+        val hidden = repository.createDirectory(vaultId, root, ".private").getOrThrow()
+        repository.createEmptyFile(vaultId, requireNotNull(hidden.ref.directoryId), "hidden.txt").getOrThrow()
+        val visiblePage = repository.listDirectory(
+            vaultId, root, VaultListOptions(pageSize = 1, showHiddenFiles = false)
+        ).getOrThrow()
+        assertEquals(listOf("Folder"), visiblePage.items.map { it.name })
+        assertEquals(null, visiblePage.nextPageToken)
+        val filtered = repository.search(
+            vaultId, root,
+            VaultSearchQuery("", recursive = true, pageSize = 1, includeHidden = false) { !it.isDirectory }
+        ).getOrThrow()
+        assertEquals(listOf("empty.txt"), filtered.items.map { it.metadata.name })
+        assertEquals(null, filtered.nextPageToken)
+
+        val later = repository.createEmptyFile(vaultId, root, "z.txt").getOrThrow()
+        val sortedQuery = VaultSearchQuery(
+            ".txt", recursive = true, pageSize = 1, includeHidden = false,
+            direction = dev.qtremors.arcile.core.vault.domain.VaultSortDirection.DESCENDING
+        )
+        val firstPage = repository.search(vaultId, root, sortedQuery).getOrThrow()
+        assertEquals(later.ref, firstPage.items.single().metadata.ref)
+        val nextPage = repository.search(vaultId, root, sortedQuery.copy(pageToken = requireNotNull(firstPage.nextPageToken))).getOrThrow()
+        assertEquals(empty.ref, nextPage.items.single().metadata.ref)
+        assertEquals(null, nextPage.nextPageToken)
+        val countSort = repository.listDirectory(
+            vaultId, root,
+            VaultListOptions(
+                sortField = dev.qtremors.arcile.core.vault.domain.VaultSortField.FILE_COUNT,
+                showHiddenFiles = false, foldersFirst = false
+            )
+        ).getOrThrow()
+        assertEquals(listOf("Folder", "z.txt"), countSort.items.map { it.name })
 
         val orphan = VaultObjectId.of("f".repeat(64))
         val orphanFile = File(context.noBackupFilesDir, "$ROOT_DIRECTORY/${vaultId.value}/${orphan.shardedPath()}")

@@ -9,11 +9,14 @@ import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
 import dev.qtremors.arcile.core.vault.domain.*
 import java.io.ByteArrayInputStream
 import java.util.ArrayDeque
+import java.util.PriorityQueue
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -41,7 +44,7 @@ internal class DefaultVaultRepository @Inject constructor(
         listDirectory(session, directoryId, options)
     }
 
-    internal fun listDirectory(
+    internal suspend fun listDirectory(
         session: VaultSessionRecord,
         directoryId: DirectoryId,
         options: VaultListOptions
@@ -50,7 +53,10 @@ internal class DefaultVaultRepository @Inject constructor(
         return try {
             val snapshot = session.readDirectory(directory)
             try {
+                val fileCounts = mutableMapOf<NodeId, Long>()
+                val budget = FolderScanBudget()
                 snapshot.entries.filter { entry ->
+                    if (!options.showHiddenFiles && entry.name.startsWith('.')) return@filter false
                     if (entry.kind == VaultNodeKind.DIRECTORY) {
                         session.cacheDirectoryKey(
                             requireNotNull(entry.childDirectoryId),
@@ -58,8 +64,14 @@ internal class DefaultVaultRepository @Inject constructor(
                         )
                     }
                     true
-                }.map { it.toMetadata(session.id, directoryId) }
-                    .sortedWith(options.comparator())
+                }.map { entry ->
+                    val node = entry.toMetadata(session.id, directoryId)
+                    if (options.sortField == VaultSortField.FILE_COUNT) {
+                        readFileCount(session, entry, budget)?.let { fileCounts[node.ref.nodeId] = it }
+                    }
+                    node
+                }
+                    .sortedWith(vaultListingComparator(options.sortField, options.direction, options.foldersFirst, fileCounts))
                     .let { sorted ->
                         val offset = options.pageToken.toPageOffset(sorted.size)
                         val items = sorted.drop(offset).take(options.pageSize)
@@ -82,6 +94,83 @@ internal class DefaultVaultRepository @Inject constructor(
             metadata(session, ref)
         }
 
+    override suspend fun folderTotals(ref: VaultNodeRef): Result<VaultFolderTotals> = withSession(ref.vaultId) { session ->
+        val (parent, snapshot, entry) = resolveStableEntry(session, ref)
+        try {
+            val root = entry.childDirectoryId ?: throw VaultFailure.Unavailable("The item is not a folder")
+            scanFolder(session, root, entry.protectedKey, FolderScanBudget())
+        } finally {
+            entry.protectedKey.fill(0)
+            snapshot.clearProtectedKeys()
+            parent.key.fill(0)
+        }
+    }
+
+    private suspend fun readFileCount(
+        session: VaultSessionRecord,
+        entry: VaultManifestEntry,
+        budget: FolderScanBudget
+    ): Long? {
+        val child = entry.childDirectoryId ?: return null
+        if (budget.directories <= 0 || budget.entries <= 0) return null
+        return try {
+            scanFolder(session, child, entry.protectedKey, budget).fileCount
+        } catch (_: VaultFailure) {
+            null
+        }
+    }
+
+    private class FolderScanBudget(var directories: Int = 128, var entries: Int = 8192)
+
+    private suspend fun scanFolder(
+        session: VaultSessionRecord,
+        root: DirectoryId,
+        rootKey: ByteArray,
+        budget: FolderScanBudget
+    ): VaultFolderTotals {
+        val pending = ArrayDeque<Pair<DirectoryId, ByteArray>>()
+        pending.add(root to rootKey.copyOf())
+        val coroutine = currentCoroutineContext()
+        val visited = mutableSetOf<DirectoryId>()
+        var fileCount = 0L
+        var totalBytes = 0L
+        return try {
+            while (pending.isNotEmpty()) {
+                coroutine.ensureActive()
+                val (id, key) = pending.removeFirst()
+                try {
+                    if (budget.directories-- <= 0) throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
+                    if (!visited.add(id)) throw VaultFailure.IntegrityFailed("A vault folder was encountered twice")
+                    val directory = session.readDirectory(id, key)
+                    try {
+                        budget.entries -= directory.entries.size
+                        if (budget.entries < 0) throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
+                        for (child in directory.entries) {
+                            val childId = child.childDirectoryId
+                            if (childId != null) {
+                                if (pending.size >= budget.directories) {
+                                    budget.directories = 0
+                                    throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
+                                }
+                                pending.add(childId to child.protectedKey.copyOf())
+                            } else {
+                                fileCount++
+                                totalBytes = Math.addExact(totalBytes, child.sizeBytes)
+                            }
+                        }
+                    } finally {
+                        directory.clearProtectedKeys()
+                    }
+                } finally {
+                    key.fill(0)
+                }
+            }
+            VaultFolderTotals(fileCount, totalBytes, folderCount = visited.size - 1)
+        } finally {
+            while (pending.isNotEmpty()) pending.removeFirst().second.fill(0)
+        }
+    }
+
     internal fun metadata(session: VaultSessionRecord, ref: VaultNodeRef): VaultNodeMetadata {
         val (parent, snapshot, entry) = resolveStableEntry(session, ref)
         return try {
@@ -98,39 +187,54 @@ internal class DefaultVaultRepository @Inject constructor(
         directoryId: DirectoryId,
         query: VaultSearchQuery
     ): Result<VaultPage<VaultSearchHit>> = withSession(vaultId) { session ->
+        val requestedOffset = query.pageToken.toPageOffset(Int.MAX_VALUE)
         val start = session.resolveDirectory(directoryId)
         val frames = ArrayDeque<SearchFrame>()
         frames += SearchFrame(start.id, start.key, emptyList())
-        val requestedOffset = query.pageToken.toPageOffset(Int.MAX_VALUE)
-        val matches = mutableListOf<VaultSearchHit>()
-        var skipped = 0
+        val visited = mutableSetOf(start.id)
+        val limit = (requestedOffset.toLong() + query.pageSize + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val fileCounts = mutableMapOf<NodeId, Long>()
+        val budget = FolderScanBudget()
+        val nodeComparator = vaultListingComparator(query.sortField, query.direction, query.foldersFirst, fileCounts)
+        val comparator = Comparator<VaultSearchHit> { left, right -> nodeComparator.compare(left.metadata, right.metadata) }
+        // Keep only the prefix needed for this page while ranking matches across the whole tree.
+        val matches = PriorityQueue(comparator.reversed())
         var generation = 0L
         try {
-            searchLoop@ while (frames.isNotEmpty()) {
+            while (frames.isNotEmpty()) {
                 val frame = frames.removeLast()
                 try {
                     val snapshot = session.readDirectory(frame.directoryId, frame.key)
                     generation = maxOf(generation, snapshot.generation)
                     try {
                         for (entry in snapshot.entries) {
+                            currentCoroutineContext().ensureActive()
+                            if (!query.includeHidden && entry.name.startsWith('.')) continue
                             if (query.recursive && entry.kind == VaultNodeKind.DIRECTORY) {
                                 val childId = requireNotNull(entry.childDirectoryId)
+                                if (!visited.add(childId)) throw VaultFailure.IntegrityFailed("A vault folder was encountered twice")
                                 session.cacheDirectoryKey(childId, entry.protectedKey)
                                 frames += SearchFrame(
                                     childId,
                                     entry.protectedKey.copyOf(),
-                                    frame.parentNames + entry.name
+                                    frame.parentNames + entry.name,
+                                    frame.parentDirectoryIds + childId
                                 )
                             }
                             if (entry.name.contains(query.text, ignoreCase = true)) {
-                                if (skipped < requestedOffset) {
-                                    skipped++
-                                } else {
-                                    matches += VaultSearchHit(
-                                        entry.toMetadata(session.id, frame.directoryId),
-                                        frame.parentNames
-                                    )
-                                    if (matches.size == query.pageSize) break@searchLoop
+                                val metadata = entry.toMetadata(session.id, frame.directoryId)
+                                if (query.matches?.invoke(metadata) == false) continue
+                                if (query.sortField == VaultSortField.FILE_COUNT) {
+                                    readFileCount(session, entry, budget)?.let {
+                                        fileCounts[metadata.ref.nodeId] = it
+                                    }
+                                }
+                                val hit = VaultSearchHit(metadata, frame.parentNames, frame.parentDirectoryIds)
+                                if (matches.size < limit) {
+                                    matches.add(hit)
+                                } else if (comparator.compare(hit, matches.peek()) < 0) {
+                                    matches.remove()
+                                    matches.add(hit)
                                 }
                             }
                         }
@@ -145,13 +249,9 @@ internal class DefaultVaultRepository @Inject constructor(
         } finally {
             while (frames.isNotEmpty()) frames.removeLast().key.fill(0)
         }
-        VaultPage(
-            matches,
-            if (matches.size == query.pageSize) {
-                (requestedOffset + matches.size).toString()
-            } else null,
-            generation
-        )
+        val page = matches.sortedWith(comparator).drop(requestedOffset)
+        val items = page.take(query.pageSize)
+        VaultPage(items, (requestedOffset + items.size).takeIf { page.size > items.size }?.toString(), generation)
     }
 
     override suspend fun createDirectory(
@@ -266,6 +366,55 @@ internal class DefaultVaultRepository @Inject constructor(
         withSession(ref.vaultId) { session ->
             deletePermanently(session, ref)
         }
+
+    override suspend fun replaceFileContents(
+        ref: VaultNodeRef,
+        expectedRevision: Long,
+        content: ByteArray
+    ): Result<VaultNodeMetadata> = mutate(ref.vaultId) { session ->
+        val (parent, snapshot, existing) = resolveStableEntry(session, ref)
+        val objectId = VaultObjectId.fromRandomBytes(VaultCryptography.randomBytes(32))
+        val objectPath = objectId.shardedPath()
+        val contentKey = VaultCryptography.randomBytes(32)
+        try {
+            if (existing.kind != VaultNodeKind.FILE || !ref.capabilities.canRename) {
+                throw VaultFailure.Unavailable("This vault item cannot be edited")
+            }
+            if (existing.revision != expectedRevision) {
+                throw VaultFailure.Unavailable("The file changed. Reopen it before saving.")
+            }
+            val revision = existing.revision + 1L
+            fileCodec.writeObject(
+                session.directory, objectPath, session.id, objectId, revision,
+                contentKey, ByteArrayInputStream(content)
+            )
+            val replacement = existing.copy(
+                revision = revision,
+                modifiedAtMillis = System.currentTimeMillis(),
+                sizeBytes = content.size.toLong(),
+                objectId = objectId,
+                protectedKey = contentKey
+            )
+            val prepared = directoryCodec.prepare(
+                session.id, parent.id, parent.key, snapshot.generation + 1L,
+                snapshot.entries.map { if (it.nodeId == existing.nodeId) replacement else it }
+            )
+            transactionManager.commit(
+                session.directory, session.id, session.masterSecret,
+                listOf(VaultPreparedDirectory(prepared, parent.key.copyOf())),
+                setOf(objectPath), setOf(requireNotNull(existing.objectId).shardedPath())
+            )
+            replacement.toMetadata(session.id, parent.id)
+        } catch (error: Throwable) {
+            if (!transactionManager.hasPendingCommit(session.directory)) session.directory.delete(objectPath)
+            throw error
+        } finally {
+            contentKey.fill(0)
+            existing.protectedKey.fill(0)
+            snapshot.clearProtectedKeys()
+            parent.key.fill(0)
+        }
+    }
 
     internal suspend fun deletePermanently(session: VaultSessionRecord, ref: VaultNodeRef) =
         session.mutationMutex.withLock {

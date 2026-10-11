@@ -8,6 +8,7 @@ import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.VaultThumbnailRequest
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
 import dev.qtremors.arcile.core.vault.crypto.VaultSealedValue
@@ -77,8 +78,11 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
             readEncrypted(destination, key, associatedData)?.let { return it }
             val reader = repository.openReader(ref).getOrThrow()
             val encoded = reader.use {
-                if (metadata.mimeType?.startsWith("video/") == true) createVideoThumbnail(it, bucket)
-                else createImageThumbnail(it, bucket)
+                if (FileCategories.getCategoryForFile(metadata.extension, metadata.mimeType) == FileCategories.Videos) {
+                    createVideoThumbnail(it, bucket)
+                } else {
+                    createImageThumbnail(it, bucket)
+                }
             }
             require(encoded.size in 1..MAX_PLAINTEXT_BYTES) { "Thumbnail output is invalid" }
             val sealed = VaultCryptography.seal(key, encoded, associatedData)

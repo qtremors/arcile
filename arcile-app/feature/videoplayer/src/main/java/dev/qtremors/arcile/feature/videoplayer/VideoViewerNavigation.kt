@@ -62,7 +62,8 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                     initialPath = initialPath,
                     contextFiles = contextFiles,
                     selectedPaths = session.initialSelectedPaths.toList(),
-                    discoverSiblings = session.files == null
+                    discoverSiblings = session.files == null,
+                    persistFileReferences = session.securityScopeId == null
                 )
             }
 
@@ -71,12 +72,12 @@ fun NavGraphBuilder.registerVideoViewerRoute(
             val navigateBack = {
                 if (!isNavigatingBack) {
                     isNavigatingBack = true
-                    viewModel.state.value.viewerCurrentPath?.let { path ->
+                    viewModel.state.value.viewerCurrentPath?.takeIf { session.securityScopeId == null }?.let { path ->
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY, path)
                     }
-                    if (session.initialSelectedPaths.isNotEmpty()) {
+                    if (session.securityScopeId == null && session.initialSelectedPaths.isNotEmpty()) {
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set(

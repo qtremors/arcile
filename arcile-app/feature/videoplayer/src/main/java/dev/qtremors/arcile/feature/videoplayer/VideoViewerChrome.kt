@@ -81,6 +81,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.SensitiveThumbnailRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
@@ -228,30 +229,46 @@ internal fun VideoViewerBottomChrome(
     resizeModeIndex: Int,
     actions: VideoViewerChromeActions,
     modifier: Modifier = Modifier,
-    showThumbnails: Boolean = true
+    showThumbnails: Boolean = true,
+    thumbnailData: ((FileModel, Int) -> SensitiveThumbnailRequest?)? = null
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
     val context = LocalContext.current
     val windowSize = LocalWindowInfo.current.containerSize
     val isLandscape = windowSize.width > windowSize.height
-    val thumbnailEntries = remember(context, files) {
-        files.associate { file ->
-            val thumbnailKey = ThumbnailKey.from(file)
-            val cacheKey = thumbnailKey.variantKey(VIDEO_STRIP_THUMBNAIL_SIZE_PX).cacheKey
-            file.reference to VideoStripThumbnailEntry(
-                cacheKey = cacheKey,
-                request = buildThumbnailImageRequest(
-                    context = context,
-                    data = thumbnailKey,
-                    cacheKey = cacheKey,
-                    sizePx = VIDEO_STRIP_THUMBNAIL_SIZE_PX,
-                    useMemoryCachePlaceholder = true
+    val thumbnailEntries = remember(context, files, showThumbnails, thumbnailData) {
+        if (!showThumbnails) return@remember emptyMap()
+        buildMap {
+            for (file in files) {
+                val data: Any
+                val cacheKey: String
+                if (thumbnailData == null) {
+                    val key = ThumbnailKey.from(file)
+                    data = key
+                    cacheKey = key.variantKey(VIDEO_STRIP_THUMBNAIL_SIZE_PX).cacheKey
+                } else {
+                    val request = thumbnailData(file, VIDEO_STRIP_THUMBNAIL_SIZE_PX) ?: continue
+                    data = request
+                    cacheKey = request.memoryCacheKey
+                }
+                put(
+                    file.reference,
+                    VideoStripThumbnailEntry(
+                        cacheKey = cacheKey,
+                        request = buildThumbnailImageRequest(
+                            context = context,
+                            data = data,
+                            cacheKey = cacheKey,
+                            sizePx = VIDEO_STRIP_THUMBNAIL_SIZE_PX,
+                            useMemoryCachePlaceholder = true
+                        )
+                    )
                 )
-            )
+            }
         }
     }
-    val thumbnailPainterCache = remember { VideoStripLoadedValueCache<Painter>() }
+    val thumbnailPainterCache = remember(thumbnailData) { VideoStripLoadedValueCache<Painter>() }
     val thumbnailListState = rememberLazyListState()
     var previousThumbnailPage by remember(files) { mutableStateOf<Int?>(null) }
     var thumbnailStripWasVisible by remember { mutableStateOf(false) }

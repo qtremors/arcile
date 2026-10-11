@@ -40,7 +40,8 @@ fun DeleteConfirmationDialog(
     onTogglePermanentDelete: () -> Unit,
     decision: DeleteDecision? = null,
     isShredChecked: Boolean = false,
-    onToggleShred: (() -> Unit)? = null
+    onToggleShred: (() -> Unit)? = null,
+    showPermanentDeleteToggle: Boolean = true
 ) {
     val haptics = dev.qtremors.arcile.core.ui.rememberArcileHaptics()
     val permanentlyDeleteLabel = stringResource(R.string.permanently_delete_checkbox)
@@ -152,7 +153,7 @@ fun DeleteConfirmationDialog(
                     }
                 }
 
-                if (resolvedDecision.destination != DeleteDestination.MixedBlocked) {
+                if (showPermanentDeleteToggle && resolvedDecision.destination != DeleteDestination.MixedBlocked) {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()

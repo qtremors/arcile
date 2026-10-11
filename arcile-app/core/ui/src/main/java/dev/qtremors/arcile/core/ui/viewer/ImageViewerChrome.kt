@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.feature.gallery
+package dev.qtremors.arcile.core.ui.viewer
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.only
@@ -34,24 +33,15 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.RotateRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -79,35 +69,29 @@ import coil3.request.crossfade
 import coil3.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.SplitButtonGroup
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.core.ui.theme.menuGroupLast
-import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
 import dev.qtremors.arcile.core.ui.viewer.ViewerOverflowMenu
+import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 
-internal data class ImageViewerChromeActions(
+data class ImageViewerChromeActions(
     val onPageSelected: suspend (Int) -> Unit,
     val onToggleFavorite: (String) -> Unit,
     val onRotate: (String) -> Unit,
     val onDelete: (String) -> Unit,
     val onToggleSelection: (String) -> Unit,
-    val onShowMetadata: (String) -> Unit,
-    val onOpenWith: (FileModel) -> Unit,
-    val onShare: (FileModel) -> Unit
+    val onShowMetadata: (String) -> Unit
 )
 
 private val LandscapeThumbnailStripWidth = 56.dp
 private val LandscapeChromeEndPadding = 80.dp
 
 @Composable
-internal fun ImageViewerTopChrome(
+fun ImageViewerTopChrome(
     visible: Boolean,
     currentFile: FileModel?,
     positionText: String,
@@ -176,7 +160,7 @@ internal fun ImageViewerTopChrome(
 }
 
 @Composable
-internal fun ImageViewerBottomChrome(
+fun ImageViewerBottomChrome(
     visible: Boolean,
     files: List<FileModel>,
     currentPage: Int,
@@ -188,7 +172,10 @@ internal fun ImageViewerBottomChrome(
     viewerActions: Set<ViewerFileAction>,
     onViewerAction: (ViewerFileAction) -> Unit,
     actions: ImageViewerChromeActions,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    showFavorite: Boolean = !readOnly,
+    showDelete: Boolean = !readOnly,
+    thumbnailData: ((FileModel, Int) -> Any?)? = null
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
@@ -239,6 +226,7 @@ internal fun ImageViewerBottomChrome(
                         ImageViewerStripThumbnail(
                             file = file,
                             selected = currentPage == index,
+                            thumbnailData = thumbnailData,
                             onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
                         )
                     }
@@ -283,6 +271,7 @@ internal fun ImageViewerBottomChrome(
                         ImageViewerStripThumbnail(
                             file = file,
                             selected = currentPage == index,
+                            thumbnailData = thumbnailData,
                             onClick = { coroutineScope.launch { actions.onPageSelected(index) } }
                         )
                     }
@@ -315,7 +304,8 @@ internal fun ImageViewerBottomChrome(
                     isSelected,
                     selectionDescription,
                     selectionModeEnabled,
-                    readOnly,
+                    showFavorite,
+                    showDelete,
                     deleteTint,
                     actions
                 ) {
@@ -339,7 +329,7 @@ internal fun ImageViewerBottomChrome(
                                 )
                             )
                         }
-                        if (!readOnly) {
+                        if (showFavorite) {
                             add(
                                 ToolbarAction(
                                     icon = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -367,7 +357,7 @@ internal fun ImageViewerBottomChrome(
                                 }
                             )
                         )
-                        if (!readOnly) {
+                        if (showDelete) {
                             add(
                                 ToolbarAction(
                                     icon = Icons.Default.Delete,
@@ -414,6 +404,7 @@ internal fun ImageViewerBottomChrome(
 private fun ImageViewerStripThumbnail(
     file: FileModel,
     selected: Boolean,
+    thumbnailData: ((FileModel, Int) -> Any?)?,
     onClick: () -> Unit
 ) {
     val animElevation by animateDpAsState(
@@ -450,11 +441,18 @@ private fun ImageViewerStripThumbnail(
             )
             .bounceClickable(onClick = onClick)
     ) {
-        AsyncImage(
-            model = ImageRequest.Builder(LocalContext.current)
+        val context = LocalContext.current
+        val sizePx = with(androidx.compose.ui.platform.LocalDensity.current) { 54.dp.roundToPx() }
+        val model = if (thumbnailData != null) {
+            buildThumbnailImageRequest(context, thumbnailData(file, sizePx), file.reference, sizePx)
+        } else {
+            ImageRequest.Builder(context)
                 .data(file.reference)
                 .crossfade(false)
-                .build(),
+                .build()
+        }
+        AsyncImage(
+            model = model,
             contentDescription = file.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
@@ -462,79 +460,23 @@ private fun ImageViewerStripThumbnail(
     }
 }
 
-@Composable
-private fun ImageViewerOverflowMenu(
-    currentFile: FileModel?,
-    readOnly: Boolean,
-    actions: ImageViewerChromeActions
-) {
-    var expanded by remember { mutableStateOf(false) }
+enum class ViewerThumbnailScrollAction {
+    None,
+    Jump,
+    Animate
+}
 
-    val haptics = rememberArcileHaptics()
-    Box {
-        Surface(
-            onClick = {
-                haptics.selectionStart()
-                expanded = true
-            },
-            shape = CircleShape,
-            color = Color.Black.copy(alpha = 0.5f),
-            modifier = Modifier
-                .size(48.dp)
-                .bounceClickable(
-                    onClick = {
-                        haptics.selectionStart()
-                        expanded = true
-                    }
-                )
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = stringResource(R.string.action_more_options),
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        }
-
-        val menuActions = buildList<@Composable () -> Unit> {
-            if (!readOnly) add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(R.string.action_info),
-                    leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        currentFile?.let { actions.onShowMetadata(it.reference) }
-                    }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(R.string.viewer_open_with),
-                    leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        currentFile?.let(actions.onOpenWith)
-                    }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(R.string.share),
-                    leadingIcon = { Icon(Icons.Default.Share, contentDescription = null) },
-                    onClick = {
-                        expanded = false
-                        currentFile?.let(actions.onShare)
-                    }
-                )
-            }
-        }
-
-        dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-            items = menuActions
-        )
+fun viewerThumbnailScrollAction(
+    previousIndex: Int?,
+    targetIndex: Int,
+    maxAnimatedDistance: Int = 12
+): ViewerThumbnailScrollAction {
+    if (targetIndex < 0) return ViewerThumbnailScrollAction.None
+    val previous = previousIndex ?: return ViewerThumbnailScrollAction.Jump
+    if (previous == targetIndex) return ViewerThumbnailScrollAction.None
+    return if (kotlin.math.abs(targetIndex - previous) <= maxAnimatedDistance) {
+        ViewerThumbnailScrollAction.Animate
+    } else {
+        ViewerThumbnailScrollAction.Jump
     }
 }

@@ -195,7 +195,7 @@ internal fun PdfBottomChrome(
     onOpenWith: () -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    onPrint: () -> Unit,
+    onPrint: (() -> Unit)?,
     viewerActions: Set<ViewerFileAction> = emptySet(),
     onViewerAction: (ViewerFileAction) -> Unit = {}
 ) {
@@ -296,7 +296,7 @@ private fun PdfOverflowMenu(
     onOpenWith: () -> Unit,
     keepScreenOn: Boolean,
     onKeepScreenOnChange: (Boolean) -> Unit,
-    onPrint: () -> Unit,
+    onPrint: (() -> Unit)?,
     viewerActions: Set<ViewerFileAction>,
     onViewerAction: (ViewerFileAction) -> Unit
 ) {
@@ -343,17 +343,18 @@ private fun PdfOverflowMenu(
                         }
                     )
                 })
-                add(
-                {
-                    ArcileDropdownMenuItem(
-                        text = stringResource(R.string.pdf_print),
-                        leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) },
-                        onClick = {
-                            expanded = false
-                            onPrint()
-                        }
-                    )
-                })
+                if (onPrint != null) {
+                    add {
+                        ArcileDropdownMenuItem(
+                            text = stringResource(R.string.pdf_print),
+                            leadingIcon = { Icon(Icons.Default.Print, contentDescription = null) },
+                            onClick = {
+                                expanded = false
+                                onPrint()
+                            }
+                        )
+                    }
+                }
                 add(
                 {
                     ArcileDropdownMenuItem(
@@ -415,7 +416,7 @@ private fun PdfOverflowMenu(
 @Composable
 internal fun PdfInfoSheet(
     title: String,
-    reference: String,
+    reference: String?,
     sizeBytes: Long,
     pageCount: Int
 ) {
@@ -436,16 +437,11 @@ internal fun PdfInfoSheet(
         if (sizeBytes > 0L) {
             PdfInfoRow(stringResource(R.string.pdf_size), formatFileSize(androidx.compose.ui.platform.LocalContext.current, sizeBytes))
         }
-        PdfInfoRow(
-            stringResource(
-                if (reference.startsWith("content://")) {
-                    R.string.viewer_metadata_label_uri
-                } else {
-                    R.string.viewer_metadata_label_path
-                }
-            ),
-            reference
-        )
+        if (reference != null) {
+            val label = if (reference.startsWith("content://")) R.string.viewer_metadata_label_uri
+            else R.string.viewer_metadata_label_path
+            PdfInfoRow(stringResource(label), reference)
+        }
         Spacer(Modifier.height(16.dp))
     }
 }

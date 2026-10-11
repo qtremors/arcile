@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.foundation.layout.navigationBarsPadding
 import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import android.content.ClipData
 import android.content.Intent
@@ -125,7 +126,7 @@ import java.text.DateFormat
 import kotlinx.coroutines.flow.collect
 
 internal enum class CreateItemKind { FOLDER, FILE }
-internal enum class ExternalAction { SHARE, OPEN_WITH }
+internal enum class ExternalAction { SHARE, OPEN_WITH, INSTALL_APK }
 
 @Composable
 internal fun OnlyFilesRoute(
@@ -158,25 +159,25 @@ private fun OnlyFilesScreen(
     onBoundaryTransfer: (List<VaultNodeMetadata>, Boolean) -> Unit
 ) {
     val context = LocalContext.current
-    val snackbarHost = remember { SnackbarHostState() }
+    val snackbarHost = remember(state.mountGeneration) { SnackbarHostState() }
     var showCreateVault by remember { mutableStateOf(false) }
     var unlockVaultId by remember { mutableStateOf<VaultId?>(null) }
-    var createItem by remember { mutableStateOf<CreateItemKind?>(null) }
-    var renameNode by remember { mutableStateOf<VaultNodeMetadata?>(null) }
-    var deleteNodes by remember { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
-    var showViewOptions by remember { mutableStateOf(false) }
-    var showOverflow by remember { mutableStateOf(false) }
-    var externalRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
-    var fallbackRequest by remember { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
-    var boundaryRequest by remember { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
-    var fabExpanded by remember { mutableStateOf(false) }
-    var showSearch by remember { mutableStateOf(false) }
+    var createItem by remember(state.mountGeneration) { mutableStateOf<CreateItemKind?>(null) }
+    var renameNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
+    var deleteNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
+    var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
+    var showOverflow by remember(state.mountGeneration) { mutableStateOf(false) }
+    var externalRequest by remember(state.mountGeneration) { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
+    var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
+    var fabExpanded by remember(state.mountGeneration) { mutableStateOf(false) }
+    var showSearch by remember(state.mountGeneration) { mutableStateOf(false) }
     var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     val navigateBackThroughState = {
         when {
+            state.viewer != null -> viewModel.navigateUp()
             state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
             state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
             showSearch -> {
@@ -186,12 +187,11 @@ private fun OnlyFilesScreen(
             state.searchQuery.isNotEmpty() -> viewModel.updateSearch("")
             state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
-            state.viewer != null -> viewModel.navigateUp()
             state.selectedVault != null -> viewModel.navigateUp()
             else -> onNavigateBack()
         }
     }
-    PredictiveBackHandler(enabled = true) { progressFlow ->
+    PredictiveBackHandler(enabled = state.viewer?.isViewableText() != true) { progressFlow ->
         try {
             isBackPredicting = true
             progressFlow.collect { event -> predictiveBackProgress = event.progress }
@@ -210,7 +210,7 @@ private fun OnlyFilesScreen(
         }
     }
 
-    LaunchedEffect(state.message) {
+    LaunchedEffect(snackbarHost, state.message) {
         state.message?.let { message ->
             snackbarHost.showSnackbar(
                 message = message,
@@ -227,12 +227,15 @@ private fun OnlyFilesScreen(
     }
 
     state.viewer?.let { node ->
-        ViewerScreen(
-            node = node,
-            viewModel = viewModel,
-            onBack = viewModel::navigateUp,
-            modifier = predictiveBackModifier
-        )
+        Box(Modifier.fillMaxSize()) {
+            androidx.compose.runtime.key(state.mountGeneration) {
+                ViewerScreen(
+                    node, state.viewerQueue, state.propertiesLocation(listOf(node)), viewModel,
+                    { navigateBackThroughState() }, predictiveBackModifier
+                )
+            }
+            ArcileSnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+        }
         return
     }
 
@@ -464,52 +467,7 @@ private fun OnlyFilesScreen(
     state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
     state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
     externalRequest?.let { (action, nodes) ->
-        AlertDialog(
-            onDismissRequest = { externalRequest = null },
-            title = { Text(stringResource(if (action == ExternalAction.SHARE) R.string.onlyfiles_share else R.string.onlyfiles_open_with)) },
-            text = { Text(stringResource(R.string.onlyfiles_external_warning)) },
-            confirmButton = {
-                Button(onClick = {
-                    externalRequest = null
-                    viewModel.issueExternalAccess(nodes) { grants ->
-                        runCatching { launchExternalIntent(context, action, grants) }
-                            .onFailure { viewModel.revokeExternalAccess(grants) }
-                    }
-                }) { Text(stringResource(R.string.onlyfiles_continue)) }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = {
-                        fallbackRequest = externalRequest
-                        externalRequest = null
-                    }) { Text(stringResource(R.string.onlyfiles_compatibility_copy)) }
-                    TextButton(onClick = { externalRequest = null }) {
-                        Text(stringResource(R.string.onlyfiles_cancel))
-                    }
-                }
-            }
-        )
-    }
-    fallbackRequest?.let { (action, nodes) ->
-        AlertDialog(
-            onDismissRequest = { fallbackRequest = null },
-            title = { Text(stringResource(R.string.onlyfiles_compatibility_copy)) },
-            text = { Text(stringResource(R.string.onlyfiles_compatibility_copy_warning)) },
-            confirmButton = {
-                Button(onClick = {
-                    fallbackRequest = null
-                    viewModel.issuePlaintextFallbackAccess(nodes) { grants ->
-                        runCatching { launchExternalIntent(context, action, grants) }
-                            .onFailure { viewModel.revokeExternalAccess(grants) }
-                    }
-                }) { Text(stringResource(R.string.onlyfiles_create_copy)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { fallbackRequest = null }) {
-                    Text(stringResource(R.string.onlyfiles_cancel))
-                }
-            }
-        )
+        VaultExternalAccessDialogs(action, nodes, viewModel) { externalRequest = null }
     }
     boundaryRequest?.let { (nodes, move) ->
         BoundaryTransferDialog(

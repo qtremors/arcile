@@ -153,6 +153,10 @@ internal fun VaultBrowser(
     }
 }
 
+internal fun VaultNodeMetadata.thumbnailRequest(sizePx: Int) = VaultThumbnailRequest(
+    ref.vaultId.value, ref.nodeId.value, ref.parentId.value, revision, sizePx
+)
+
 internal fun VaultNodeMetadata.toSharedFileModel(): FileModel {
     val capabilities = StorageNodeCapabilities(
         canRead = ref.capabilities.canRead,

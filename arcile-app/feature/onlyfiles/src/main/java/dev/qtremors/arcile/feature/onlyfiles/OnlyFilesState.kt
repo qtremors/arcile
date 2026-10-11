@@ -29,6 +29,7 @@ internal data class OnlyFilesBatchProgress(
 internal data class OnlyFilesUiState(
     val vaults: List<VaultSummary> = emptyList(),
     val selectedVaultId: VaultId? = null,
+    val mountGeneration: Long = 0L,
     val directoryStack: List<VaultDirectoryCrumb> = emptyList(),
     val nodes: List<VaultNodeMetadata> = emptyList(),
     val nextPageToken: String? = null,
@@ -43,6 +44,7 @@ internal data class OnlyFilesUiState(
     val selectedNodeIds: Set<String> = emptySet(),
     val clipboard: VaultClipboard? = null,
     val viewer: VaultNodeMetadata? = null,
+    val viewerQueue: List<VaultNodeMetadata> = emptyList(),
     val properties: List<VaultNodeMetadata> = emptyList(),
     val pendingConflict: VaultConflictPrompt? = null,
     val transferProgress: VaultTransferProgress? = null,
@@ -68,6 +70,19 @@ internal data class OnlyFilesUiState(
         get() = if (searchQuery.isBlank()) nodes else searchHits.map(VaultSearchHit::metadata)
     val selectedNodes: List<VaultNodeMetadata>
         get() = displayedNodes.filter { it.ref.nodeId.value in selectedNodeIds }
+
+    fun propertiesLocation(items: List<VaultNodeMetadata>): String {
+        val vaultName = selectedVault?.name.orEmpty()
+        val first = items.firstOrNull() ?: return vaultName
+        if (items.any { it.ref.parentId != first.ref.parentId }) return vaultName
+        val ancestors = when {
+            first.ref.parentId == currentDirectory?.id -> emptyList()
+            else -> searchHits.firstOrNull { it.metadata.ref.parentId == first.ref.parentId }?.parentNames
+                ?: return vaultName
+        }
+        return (listOf(vaultName) + directoryStack.drop(1).map(VaultDirectoryCrumb::name) + ancestors)
+            .joinToString(" / ")
+    }
 }
 
 internal fun List<VaultSummary>.withCurrentUnlockState(

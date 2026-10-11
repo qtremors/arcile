@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.AudioFile
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
@@ -142,7 +143,7 @@ fun getFileIconVector(file: FileModel, folderIconsEnabled: Boolean = true): Imag
         "zip", "7z", "rar", "tar", "gz", "bz2", "xz", "zst" -> Icons.Outlined.FolderZip
         
         // APK
-        "apk", "xapk", "apks", "apkm" -> Icons.Outlined.Archive
+        "apk", "xapk", "apks", "apkm" -> Icons.Outlined.Android
         
         else -> Icons.AutoMirrored.Outlined.InsertDriveFile
     }

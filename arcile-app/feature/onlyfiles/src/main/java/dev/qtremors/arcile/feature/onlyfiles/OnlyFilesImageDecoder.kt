@@ -2,11 +2,73 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.ImageDecoder
+import android.graphics.Matrix
+import android.media.ExifInterface
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import java.io.InputStream
+import java.nio.ByteBuffer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+internal suspend fun decodeVaultViewerImage(
+    node: VaultNodeMetadata,
+    targetWidth: Int,
+    targetHeight: Int,
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
+): Result<Any> = withContext(Dispatchers.IO) {
+    runCatching {
+        val animated = node.extension.equals("gif", ignoreCase = true) || node.mimeType == "image/gif"
+        if (animated && node.sizeBytes in 1..MAX_ANIMATED_IMAGE_BYTES.toLong()) {
+            val bytes = openReader(node.ref).getOrThrow().use { reader ->
+                require(reader.sizeBytes in 1..MAX_ANIMATED_IMAGE_BYTES.toLong())
+                ByteArray(reader.sizeBytes.toInt()).also { target ->
+                    var offset = 0
+                    while (offset < target.size) {
+                        val count = reader.readAt(offset.toLong(), target, offset, minOf(64 * 1024, target.size - offset))
+                        check(count > 0) { "Encrypted image ended before its declared size" }
+                        offset += count
+                    }
+                }
+            }
+            return@runCatching ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) {
+                    decoder, info, _ ->
+                val scale = minOf(
+                    1f, targetWidth.toFloat() / info.size.width, targetHeight.toFloat() / info.size.height
+                )
+                decoder.setTargetSize(
+                    (info.size.width * scale).toInt().coerceAtLeast(1),
+                    (info.size.height * scale).toInt().coerceAtLeast(1)
+                )
+            }
+        }
+
+        val bitmap = requireNotNull(decodeSampledVaultImage(node.ref, targetWidth, targetHeight, openReader).getOrThrow())
+        val orientation = openReader(node.ref).getOrNull()?.use { reader ->
+            runCatching {
+                ExifInterface(VaultReaderInputStream(reader)).getAttributeInt(
+                    ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
+                )
+            }.getOrNull()
+        }
+        val transform = Matrix()
+        when (orientation) {
+            ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> transform.setScale(-1f, 1f)
+            ExifInterface.ORIENTATION_ROTATE_180 -> transform.setRotate(180f)
+            ExifInterface.ORIENTATION_FLIP_VERTICAL -> transform.setScale(1f, -1f)
+            ExifInterface.ORIENTATION_TRANSPOSE -> { transform.setRotate(90f); transform.postScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_ROTATE_90 -> transform.setRotate(90f)
+            ExifInterface.ORIENTATION_TRANSVERSE -> { transform.setRotate(-90f); transform.postScale(-1f, 1f) }
+            ExifInterface.ORIENTATION_ROTATE_270 -> transform.setRotate(-90f)
+        }
+        if (transform.isIdentity) bitmap
+        else Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, transform, true)
+    }
+}
+
+private const val MAX_ANIMATED_IMAGE_BYTES = 8 * 1024 * 1024
 
 internal suspend fun decodeSampledVaultImageOnWorker(
     ref: VaultNodeRef,

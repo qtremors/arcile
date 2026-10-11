@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.feature.browser.ui
+package dev.qtremors.arcile.core.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
@@ -34,30 +34,53 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.presentation.OperationUiState
-import dev.qtremors.arcile.core.ui.ArcileActionSheet
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import dev.qtremors.arcile.core.storage.domain.storagePathName
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun OperationProgressDetailsSheet(
-    activeOp: OperationUiState,
-    clipboardIntents: BrowserClipboardIntents,
-    onDismissRequest: () -> Unit
+fun OperationProgressDetailsSheet(
+    totalItems: Int,
+    completedItems: Int,
+    onCancel: () -> Unit,
+    onDismissRequest: () -> Unit,
+    bytesProcessed: Long? = null,
+    totalBytes: Long? = null,
+    startTimeMillis: Long? = null,
+    queueNames: List<String> = emptyList(),
+    currentQueueIndex: Int = -1,
+    currentName: String? = null
 ) {
-    val timeElapsedSec = (System.currentTimeMillis() - activeOp.startTimeMillis) / 1000f
-    val bytesProcessed = activeOp.bytesProcessed
-    val totalBytes = activeOp.totalBytes
+    ArcileActionSheet(onDismissRequest = onDismissRequest) {
+        Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            TransferDetailsHeader(onDismissRequest)
+            if (startTimeMillis != null) TransferMetrics(startTimeMillis, bytesProcessed, totalBytes)
+            TransferProgress(totalItems, completedItems, bytesProcessed, totalBytes)
+            if (queueNames.isEmpty() && currentName != null) {
+                Text(
+                    text = currentName,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 16.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            TransferCancelButton(onCancel, onDismissRequest)
+            TransferQueue(queueNames, currentQueueIndex)
+        }
+    }
+}
+
+@Composable
+private fun TransferMetrics(startTimeMillis: Long, bytesProcessed: Long?, totalBytes: Long?) {
+    val timeElapsedSec = (System.currentTimeMillis() - startTimeMillis) / 1000f
     val speedBytesPerSec = if (timeElapsedSec > 0.5f && bytesProcessed != null) {
         bytesProcessed.toFloat() / timeElapsedSec
     } else {
         0f
     }
     val etaSec = if (speedBytesPerSec > 1024f && totalBytes != null && bytesProcessed != null) {
-        val remainingBytes = totalBytes - bytesProcessed
+        val remainingBytes = (totalBytes - bytesProcessed).coerceAtLeast(0L)
         (remainingBytes.toFloat() / speedBytesPerSec).toLong()
     } else {
         -1L
@@ -72,23 +95,7 @@ internal fun OperationProgressDetailsSheet(
         etaSec >= 60 -> stringResource(R.string.transfer_eta_minutes, etaSec / 60, etaSec % 60)
         else -> stringResource(R.string.transfer_eta_seconds, etaSec)
     }
-
-    ArcileActionSheet(onDismissRequest = onDismissRequest) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            TransferDetailsHeader(onDismissRequest)
-            TransferMetrics(speedText = speedText, etaText = etaText)
-            TransferProgress(activeOp)
-            TransferCancelButton(
-                clipboardIntents = clipboardIntents,
-                onDismissRequest = onDismissRequest
-            )
-            TransferQueue(activeOp)
-        }
-    }
+    TransferMetrics(speedText = speedText, etaText = etaText)
 }
 
 @Composable
@@ -143,13 +150,12 @@ private fun TransferMetrics(speedText: String, etaText: String) {
 }
 
 @Composable
-private fun TransferProgress(activeOp: OperationUiState) {
-    val totalBytes = activeOp.totalBytes
+private fun TransferProgress(totalItems: Int, completedItems: Int, bytesProcessed: Long?, totalBytes: Long?) {
     val progressFraction = when {
         totalBytes != null && totalBytes > 0L ->
-            ((activeOp.bytesProcessed ?: 0L).toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
-        activeOp.totalItems > 0 ->
-            (activeOp.completedItems.toFloat() / activeOp.totalItems.toFloat()).coerceIn(0f, 1f)
+            ((bytesProcessed ?: 0L).toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+        totalItems > 0 ->
+            (completedItems.toFloat() / totalItems.toFloat()).coerceIn(0f, 1f)
         else -> 0f
     }
     LinearProgressIndicator(
@@ -164,11 +170,11 @@ private fun TransferProgress(activeOp: OperationUiState) {
         val context = androidx.compose.ui.platform.LocalContext.current
         stringResource(
             R.string.transfer_progress_bytes,
-            formatFileSize(context, activeOp.bytesProcessed ?: 0L),
+            formatFileSize(context, bytesProcessed ?: 0L),
             formatFileSize(context, totalBytes)
         )
     } else {
-        androidx.compose.ui.res.pluralStringResource(R.plurals.transfer_progress_items, activeOp.totalItems, activeOp.completedItems, activeOp.totalItems)
+        androidx.compose.ui.res.pluralStringResource(R.plurals.transfer_progress_items, totalItems, completedItems, totalItems)
     }
     Text(
         text = progressText,
@@ -180,11 +186,11 @@ private fun TransferProgress(activeOp: OperationUiState) {
 
 @Composable
 private fun TransferCancelButton(
-    clipboardIntents: BrowserClipboardIntents,
+    onCancel: () -> Unit,
     onDismissRequest: () -> Unit
 ) {
     val onCancelClick = {
-        clipboardIntents.onCancelClipboard()
+        onCancel()
         onDismissRequest()
     }
     Button(
@@ -200,8 +206,8 @@ private fun TransferCancelButton(
 }
 
 @Composable
-private fun TransferQueue(activeOp: OperationUiState) {
-    if (activeOp.sourcePaths.isEmpty()) return
+private fun TransferQueue(names: List<String>, currentIndex: Int) {
+    if (names.isEmpty()) return
     Spacer(modifier = Modifier.height(16.dp))
     Text(
         text = stringResource(R.string.transfer_file_queue),
@@ -218,10 +224,10 @@ private fun TransferQueue(activeOp: OperationUiState) {
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(activeOp.sourcePaths) { path ->
+        itemsIndexed(names) { index, name ->
             TransferQueueRow(
-                name = storagePathName(path),
-                isCurrent = path == activeOp.currentPath
+                name = name,
+                isCurrent = index == currentIndex
             )
         }
     }

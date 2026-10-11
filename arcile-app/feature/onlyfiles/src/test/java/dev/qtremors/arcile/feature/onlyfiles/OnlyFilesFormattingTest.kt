@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
+import dev.qtremors.arcile.core.storage.domain.VaultThumbnailRequest
 import dev.qtremors.arcile.core.vault.domain.NodeId
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
@@ -50,6 +51,10 @@ class OnlyFilesFormattingTest {
 
         assertEquals(session.files?.single()?.reference, session.items.single().mediaItem.mediaId)
         assertTrue(session.screenshotProtectionEnabled)
+        val thumbnailData = requireNotNull(session.thumbnailData)
+        val file = requireNotNull(session.files).single()
+        assertEquals(VaultThumbnailRequest("vault", "movie.mp4", "root", 1L, 128), thumbnailData(file, 128))
+        assertEquals(null, thumbnailData(file.copy(reference = "unknown"), 128))
     }
 
     private fun node(name: String, mimeType: String?) = VaultNodeMetadata(

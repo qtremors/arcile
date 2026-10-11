@@ -209,8 +209,16 @@ internal fun VideoViewerPlaybackSurface(
             val playbackItemResolver = remember(session.items, session.files) {
                 VideoPlaybackItemResolver(session)
             }
-            var restoredPlaybackPath by rememberSaveable { mutableStateOf<String?>(null) }
-            var restoredPlaybackPosition by rememberSaveable { mutableLongStateOf(0L) }
+            val privateSession = session.securityScopeId != null
+            val restoredPath = if (privateSession) null else rememberSaveable { mutableStateOf<String?>(null) }
+            val restoredPosition = if (privateSession) null else rememberSaveable { mutableLongStateOf(0L) }
+            fun playbackPositionFor(path: String?): Long {
+                return if (privateSession) {
+                    viewModel.protectedPlaybackPosition.takeIf { viewModel.protectedPlaybackPath == path } ?: 0L
+                } else {
+                    restoredPosition?.longValue?.takeIf { restoredPath?.value == path } ?: 0L
+                }
+            }
             val initialPlaybackPage = remember(session) {
                 pagerState.currentPage.coerceIn(displayedFiles.indices)
             }
@@ -243,9 +251,7 @@ internal fun VideoViewerPlaybackSurface(
                     )
                 }
                 builder.build().apply {
-                    val initialPosition = restoredPlaybackPosition.takeIf {
-                        restoredPlaybackPath == displayedPaths.getOrNull(initialPlaybackPage)
-                    } ?: 0L
+                    val initialPosition = playbackPositionFor(displayedPaths.getOrNull(initialPlaybackPage))
                     setMediaItem(initialPlaybackItem.mediaItem.withVideoTitle(initialPlaybackItem.title), initialPosition)
                     repeatMode = Player.REPEAT_MODE_ONE
                     playWhenReady = true
@@ -302,9 +308,7 @@ internal fun VideoViewerPlaybackSurface(
                     loadedPath = initialPath
                     return@LaunchedEffect
                 }
-                val initialPosition = restoredPlaybackPosition.takeIf {
-                    restoredPlaybackPath == initialPath
-                } ?: 0L
+                val initialPosition = playbackPositionFor(initialPath)
                 transitionedPath = null
                 player.setMediaItem(
                     initialPlaybackItem.mediaItem.withVideoTitle(initialPlaybackItem.title),
@@ -363,8 +367,13 @@ internal fun VideoViewerPlaybackSurface(
                     if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
                         playbackPosition = player.currentPosition.coerceAtLeast(0L)
                         loadedPath?.let { path ->
-                            restoredPlaybackPath = path
-                            restoredPlaybackPosition = playbackPosition
+                            if (privateSession) {
+                                viewModel.protectedPlaybackPath = path
+                                viewModel.protectedPlaybackPosition = playbackPosition
+                            } else {
+                                restoredPath?.value = path
+                                restoredPosition?.longValue = playbackPosition
+                            }
                         }
                         playbackDuration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
                     }
@@ -704,6 +713,11 @@ internal fun VideoViewerPlaybackSurface(
                 )
             }
 
+            val thumbnailData = remember(session) {
+                session.thumbnailData ?: if (session.securityScopeId != null) {
+                    { _: FileModel, _: Int -> null }
+                } else null
+            }
             VideoViewerBottomChrome(
                 visible = state.viewerUiVisible && !showMetadataSheet,
                 files = displayedFiles,
@@ -737,6 +751,7 @@ internal fun VideoViewerPlaybackSurface(
                 },
                 resizeModeIndex = resizeModeIndex,
                 showThumbnails = state.showThumbnails,
+                thumbnailData = thumbnailData,
                 actions = chromeActions,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

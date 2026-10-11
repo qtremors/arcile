@@ -1,5 +1,13 @@
 package dev.qtremors.arcile.feature.gallery
 
+import dev.qtremors.arcile.core.ui.viewer.ViewerThumbnailScrollAction
+import dev.qtremors.arcile.core.ui.viewer.viewerThumbnailScrollAction
+import dev.qtremors.arcile.core.ui.viewer.viewerFittedContentSize
+import dev.qtremors.arcile.core.ui.viewer.viewerOffsetForScale
+import dev.qtremors.arcile.core.ui.viewer.viewerPanLimit
+import dev.qtremors.arcile.core.ui.viewer.viewerReleaseScale
+import dev.qtremors.arcile.core.ui.viewer.viewerRenderScale
+
 import android.net.Uri
 import androidx.compose.ui.geometry.Offset
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences

@@ -38,14 +38,16 @@ data class VaultNode(
         get() = if (isDirectory || '.' !in name) "" else name.substringAfterLast('.').lowercase()
 }
 
-enum class VaultSortField { NAME, MODIFIED, SIZE, TYPE }
+enum class VaultSortField { NAME, MODIFIED, SIZE, TYPE, FILE_COUNT }
 enum class VaultSortDirection { ASCENDING, DESCENDING }
 
 data class VaultListOptions(
     val sortField: VaultSortField = VaultSortField.NAME,
     val direction: VaultSortDirection = VaultSortDirection.ASCENDING,
     val pageSize: Int = 256,
-    val pageToken: String? = null
+    val pageToken: String? = null,
+    val showHiddenFiles: Boolean = true,
+    val foldersFirst: Boolean = true
 ) {
     init {
         require(pageSize in 1..256)
@@ -62,7 +64,12 @@ data class VaultSearchQuery(
     val text: String,
     val recursive: Boolean,
     val pageSize: Int = 256,
-    val pageToken: String? = null
+    val pageToken: String? = null,
+    val includeHidden: Boolean = true,
+    val sortField: VaultSortField = VaultSortField.NAME,
+    val direction: VaultSortDirection = VaultSortDirection.ASCENDING,
+    val foldersFirst: Boolean = true,
+    val matches: ((VaultNodeMetadata) -> Boolean)? = null
 ) {
     init {
         require(text.indexOf('\u0000') < 0)

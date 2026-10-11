@@ -55,6 +55,8 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.apache.commons.compress)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

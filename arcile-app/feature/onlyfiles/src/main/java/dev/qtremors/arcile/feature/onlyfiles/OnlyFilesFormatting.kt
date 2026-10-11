@@ -7,6 +7,8 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.outlined.Description
 import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.storage.domain.ArcileOpenExtensions
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 
 internal fun nodeIcon(node: VaultNodeMetadata) = when {
@@ -17,9 +19,19 @@ internal fun nodeIcon(node: VaultNodeMetadata) = when {
 }
 
 internal fun VaultNodeMetadata.isViewableImage(): Boolean =
-    mimeType?.startsWith("image/") == true || extension in setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "avif")
+    category() == FileCategories.Images || extension.equals("avif", ignoreCase = true)
 
 internal fun VaultNodeMetadata.isViewableVideo(): Boolean =
-    mimeType?.startsWith("video/") == true || extension in setOf("mp4", "mkv", "webm", "mov", "m4v", "3gp", "avi", "ts")
+    category() == FileCategories.Videos
+
+internal fun VaultNodeMetadata.isViewableAudio(): Boolean = category() == FileCategories.Audio
+
+internal fun VaultNodeMetadata.isViewablePdf(): Boolean =
+    mimeType.equals("application/pdf", ignoreCase = true) || extension.equals("pdf", ignoreCase = true)
+
+internal fun VaultNodeMetadata.isViewableText(): Boolean =
+    extension.lowercase() in ArcileOpenExtensions.text || mimeType?.startsWith("text/", ignoreCase = true) == true
+
+private fun VaultNodeMetadata.category() = FileCategories.getCategoryForFile(extension, mimeType)
 
 internal fun formatBytes(context: Context, bytes: Long): String = formatFileSize(context, bytes)

@@ -65,6 +65,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
+import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.feature.browser.BrowserUiState
@@ -204,11 +206,18 @@ internal fun BrowserFloatingSurfaces(
         }
     }
 
-    if (showDetailedProgressSheet && state.activeFileOperation != null) {
+    val operation = state.activeFileOperation
+    if (showDetailedProgressSheet && operation != null) {
         OperationProgressDetailsSheet(
-            activeOp = state.activeFileOperation,
-            clipboardIntents = clipboardIntents,
-            onDismissRequest = { showDetailedProgressSheet = false }
+            totalItems = operation.totalItems,
+            completedItems = operation.completedItems,
+            onCancel = clipboardIntents.onCancelClipboard,
+            onDismissRequest = { showDetailedProgressSheet = false },
+            bytesProcessed = operation.bytesProcessed,
+            totalBytes = operation.totalBytes,
+            startTimeMillis = operation.startTimeMillis,
+            queueNames = remember(operation.sourcePaths) { operation.sourcePaths.map(::storagePathName) },
+            currentQueueIndex = operation.sourcePaths.indexOfFirst { it == operation.currentPath }
         )
     }
 }

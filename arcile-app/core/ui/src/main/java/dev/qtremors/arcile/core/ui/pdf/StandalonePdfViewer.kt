@@ -210,6 +210,10 @@ class PdfDocumentHandle private constructor(
         fun open(context: Context, reference: String): PdfDocumentHandle {
             val descriptor = openDescriptor(context, reference)
                 ?: throw IllegalArgumentException("Unable to open PDF")
+            return open(descriptor)
+        }
+
+        private fun open(descriptor: ParcelFileDescriptor): PdfDocumentHandle {
             try {
                 val renderer = PdfRenderer(descriptor)
                 try {
@@ -229,6 +233,8 @@ class PdfDocumentHandle private constructor(
                 throw error
             }
         }
+
+        internal fun openPrivate(descriptor: ParcelFileDescriptor): PdfDocumentHandle = open(descriptor)
 
         private fun openDescriptor(context: Context, reference: String): ParcelFileDescriptor? {
             val uri = runCatching { reference.toUri() }.getOrNull()
@@ -269,7 +275,8 @@ fun StandalonePdfViewer(
     onOpenWith: () -> Unit,
     onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
     onFileDeleted: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    openPrivateDescriptor: (() -> ParcelFileDescriptor)? = null
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -279,8 +286,9 @@ fun StandalonePdfViewer(
     val listState = rememberLazyListState()
     val horizontalScrollState = rememberScrollState()
     val marqueeEnabled = LocalMarqueeFilenames.current
-    val isExternalReference = remember(reference) {
-        runCatching { android.net.Uri.parse(reference).scheme == "content" }.getOrDefault(false)
+    val isPrivate = openPrivateDescriptor != null
+    val isExternalReference = remember(reference, isPrivate) {
+        isPrivate || runCatching { android.net.Uri.parse(reference).scheme == "content" }.getOrDefault(false)
     }
     val currentFile = remember(reference, title, sizeBytes, isExternalReference) {
         val capabilities = if (isExternalReference) {
@@ -306,7 +314,7 @@ fun StandalonePdfViewer(
             extension = "pdf",
             mimeType = "application/pdf",
             nodeRef = StorageNodeRef.local(reference, capabilities = capabilities).copy(
-                contentUri = reference.takeIf { isExternalReference }
+                contentUri = reference.takeIf { isExternalReference && !isPrivate }
             )
         )
     }
@@ -318,8 +326,10 @@ fun StandalonePdfViewer(
     )
     var uiVisible by remember { mutableStateOf(true) }
     var infoVisible by remember { mutableStateOf(false) }
-    var searchVisible by rememberSaveable(reference) { mutableStateOf(false) }
-    var searchQuery by rememberSaveable(reference) { mutableStateOf("") }
+    var searchVisible by if (isPrivate) remember(reference) { mutableStateOf(false) }
+        else rememberSaveable(reference) { mutableStateOf(false) }
+    var searchQuery by if (isPrivate) remember(reference) { mutableStateOf("") }
+        else rememberSaveable(reference) { mutableStateOf("") }
     var searchMatches by remember(reference) { mutableStateOf(emptyList<PdfTextMatch>()) }
     var activeSearchIndex by remember(reference) { mutableIntStateOf(0) }
     var searchStatus by remember(reference) { mutableStateOf<PdfSearchStatus?>(null) }
@@ -327,14 +337,22 @@ fun StandalonePdfViewer(
     var zoom by remember(reference) { mutableFloatStateOf(1f) }
     var loadState by remember(reference) { mutableStateOf<PdfLoadState>(PdfLoadState.Loading) }
 
-    LaunchedEffect(reference) {
+    LaunchedEffect(reference, isPrivate) {
         loadState = PdfLoadState.Loading
-        loadState = withContext(Dispatchers.IO) {
-            runCatching { PdfDocumentHandle.open(context, reference) }
-                .fold(
-                    onSuccess = PdfLoadState::Ready,
-                    onFailure = { PdfLoadState.Failed(it.localizedMessage) }
-                )
+        var opened: PdfDocumentHandle? = null
+        try {
+            withContext(Dispatchers.IO) {
+                opened = if (openPrivateDescriptor != null) PdfDocumentHandle.openPrivate(openPrivateDescriptor())
+                else PdfDocumentHandle.open(context, reference)
+            }
+            loadState = PdfLoadState.Ready(requireNotNull(opened))
+            opened = null
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            throw error
+        } catch (error: Exception) {
+            loadState = PdfLoadState.Failed(error.localizedMessage)
+        } finally {
+            opened?.close()
         }
     }
     val document = (loadState as? PdfLoadState.Ready)?.document
@@ -560,13 +578,13 @@ fun StandalonePdfViewer(
                         onOpenWith = onOpenWith,
                         keepScreenOn = keepScreenOn,
                         onKeepScreenOnChange = { keepScreenOn = it },
-                        onPrint = {
+                        onPrint = if (isPrivate) null else ({
                             printPdf(context, reference, title).onFailure {
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(resources.getString(R.string.pdf_print_failed))
                                 }
                             }
-                        },
+                        }),
                         viewerActions = viewerActionController.state.allowedActions,
                         onViewerAction = { action ->
                             when (action) {
@@ -597,7 +615,7 @@ fun StandalonePdfViewer(
         ) {
             PdfInfoSheet(
                 title = title,
-                reference = reference,
+                reference = reference.takeUnless { isPrivate },
                 sizeBytes = sizeBytes,
                 pageCount = document?.pageCount ?: 0
             )

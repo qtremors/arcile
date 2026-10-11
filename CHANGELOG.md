@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.1
-> **Last Updated:** 2026-11-02
+> **Version:** 2.2.2
+> **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.2] - 2026-11-04
+
+### Changed
+- OnlyFiles uses Gallery's swipeable image viewer and Arcile's video and PDF viewers. It previews audio and edits UTF-8 text with Markdown preview and encrypted saves.
+- OnlyFiles lists ZIP contents and asks before handing an APK to Android's installer. Android packages use an Android icon.
+
+### Fixed
+- Vault previews and private dialogs clear on lock. Vault video resume state stays in memory, and Back from an image preserves search context.
+- Vault video strips load encrypted thumbnails and show a play icon when a frame is unavailable.
 
 ## [2.2.1] - 2026-11-02
 

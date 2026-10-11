@@ -1,5 +1,17 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.ui.R as UiR
+import dev.qtremors.arcile.core.presentation.PropertiesUiModel
+import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.DeleteDestination
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -69,6 +81,83 @@ import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.sheet
 import java.text.DateFormat
+
+@Composable
+internal fun VaultDeleteConfirmation(
+    nodes: List<VaultNodeMetadata>,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val folderCount = nodes.count(VaultNodeMetadata::isDirectory)
+    DeleteConfirmationDialog(
+        selectedCount = nodes.size,
+        isPermanentDeleteChecked = true,
+        isPermanentDeleteToggleEnabled = false,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        onTogglePermanentDelete = {},
+        decision = DeleteDecision(
+            destination = DeleteDestination.Permanent,
+            selectedCount = nodes.size,
+            totalBytes = nodes.sumOf(VaultNodeMetadata::sizeBytes),
+            fileCount = nodes.size - folderCount,
+            folderCount = folderCount,
+            irreversible = true
+        ),
+        showPermanentDeleteToggle = false
+    )
+}
+
+@Composable
+internal fun VaultPropertiesDialog(
+    nodes: List<VaultNodeMetadata>,
+    location: String,
+    loadFolderTotals: suspend (VaultNodeRef) -> Result<VaultFolderTotals>,
+    onDismiss: () -> Unit
+) {
+    val single = nodes.singleOrNull()
+    val folder = single?.takeIf(VaultNodeMetadata::isDirectory)
+    var totals by remember(folder) { mutableStateOf<VaultFolderTotals?>(null) }
+    var isLoading by remember(folder) { mutableStateOf(folder != null) }
+    LaunchedEffect(folder) {
+        if (folder != null) {
+            totals = loadFolderTotals(folder.ref).getOrNull()
+            isLoading = false
+        }
+    }
+    val title = single?.name ?: pluralStringResource(UiR.plurals.clipboard_item_count, nodes.size, nodes.size)
+    val folderTotals = totals
+    val properties = remember(nodes, location, title, folderTotals) {
+        val folderCount = nodes.count(VaultNodeMetadata::isDirectory)
+        val modified = nodes.map(VaultNodeMetadata::modifiedAtMillis).filter { it > 0L }
+        PropertiesUiModel(
+            title = title,
+            pathSummary = location,
+            itemCount = nodes.size,
+            fileCount = nodes.size - folderCount,
+            folderCount = folderTotals?.folderCount ?: folderCount,
+            totalBytes = folderTotals?.totalBytes ?: nodes.sumOf(VaultNodeMetadata::sizeBytes),
+            newestModifiedAt = modified.maxOrNull(),
+            oldestModifiedAt = modified.minOrNull(),
+            mimeTypeSummary = single?.mimeType,
+            extensionSummary = nodes.map(VaultNodeMetadata::extension).filter(String::isNotBlank)
+                .distinct().joinToString(", ").ifBlank { null },
+            hiddenCount = nodes.count { it.name.startsWith('.') },
+            accessStatus = if (folderCount == 0 || folderTotals != null) PropertiesAccessStatus.Full
+                else PropertiesAccessStatus.Partial,
+            folderFileCount = folderTotals?.fileCount,
+            folderTotalBytes = folderTotals?.totalBytes,
+            isSingleItem = single != null,
+            isDirectory = single?.isDirectory
+        )
+    }
+    PropertiesDialog(
+        properties = properties.takeUnless { isLoading },
+        isLoading = isLoading,
+        onDismiss = onDismiss,
+        readLocalImageMetadata = false
+    )
+}
 
 @Composable
 internal fun CreateItemDialog(initialKind: CreateItemKind, onDismiss: () -> Unit, onCreate: (CreateItemKind, String) -> Unit) {
@@ -408,10 +497,64 @@ internal fun BoundaryTransferDialog(
     )
 }
 
-internal fun launchExternalIntent(context: Context, action: ExternalAction, grants: List<VaultExternalGrant>) {
+@Composable
+internal fun VaultExternalAccessDialogs(
+    action: ExternalAction,
+    nodes: List<VaultNodeMetadata>,
+    viewModel: OnlyFilesViewModel,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val errorMessage = stringResource(R.string.onlyfiles_external_launch_failed)
+    var compatibilityCopy by remember(action, nodes) { mutableStateOf(false) }
+    val title = when {
+        compatibilityCopy -> R.string.onlyfiles_compatibility_copy
+        action == ExternalAction.SHARE -> R.string.onlyfiles_share
+        action == ExternalAction.INSTALL_APK -> R.string.onlyfiles_open_installer
+        else -> R.string.onlyfiles_open_with
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(title)) },
+        text = {
+            Text(stringResource(if (compatibilityCopy) R.string.onlyfiles_compatibility_copy_warning
+            else R.string.onlyfiles_external_warning))
+        },
+        confirmButton = {
+            Button(onClick = {
+                onDismiss()
+                val launch: (List<VaultExternalGrant>) -> Unit = { grants ->
+                    runCatching { launchExternalIntent(context, action, grants) }.onFailure {
+                        viewModel.revokeExternalAccess(grants)
+                        viewModel.reportExternalLaunchFailure(errorMessage)
+                    }
+                }
+                if (compatibilityCopy) viewModel.issuePlaintextFallbackAccess(nodes, launch)
+                else viewModel.issueExternalAccess(nodes, launch)
+            }) {
+                Text(stringResource(if (compatibilityCopy) R.string.onlyfiles_create_copy
+                else R.string.onlyfiles_continue))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!compatibilityCopy) {
+                    TextButton(onClick = { compatibilityCopy = true }) {
+                        Text(stringResource(R.string.onlyfiles_compatibility_copy))
+                    }
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }
+            }
+        }
+    )
+}
+
+private fun launchExternalIntent(context: Context, action: ExternalAction, grants: List<VaultExternalGrant>) {
     require(grants.isNotEmpty())
     val uris = ArrayList(grants.map { it.contentUri.toUri() })
     val intent = when {
+        action == ExternalAction.INSTALL_APK -> Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uris.single(), "application/vnd.android.package-archive")
         action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW).setDataAndType(uris.single(), grants.single().mimeType)
         grants.size == 1 -> Intent(Intent.ACTION_SEND).setType(grants.single().mimeType).putExtra(Intent.EXTRA_STREAM, uris.single())
         else -> Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
@@ -419,7 +562,8 @@ internal fun launchExternalIntent(context: Context, action: ExternalAction, gran
     intent.clipData = ClipData.newUri(context.contentResolver, grants.first().displayName, uris.first()).apply {
         uris.drop(1).forEach { addItem(ClipData.Item(it)) }
     }
-    context.startActivity(Intent.createChooser(intent, grants.first().displayName))
+    context.startActivity(if (action == ExternalAction.INSTALL_APK) intent
+    else Intent.createChooser(intent, grants.first().displayName))
 }
 
 @Composable

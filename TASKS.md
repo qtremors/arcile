@@ -1,11 +1,5 @@
 # Arcile Task Backlog
 
-> **Version:** 2.2.1 | **Last Updated:** 2026-11-02
-
-30 open feature and workflow tasks. No open bug or maintenance tasks.
-
-Only unfinished work is listed. Task IDs are retained for reference. Source locations and current-behavior notes come from the 2026-09-26 review; recheck them before implementation.
-
 ## Browser and File Organization
 
 - [ ] **FEAT-0001 - Edit the Browser Path Bar**
@@ -91,6 +85,98 @@ Only unfinished work is listed. Task IDs are retained for reference. Source loca
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/backup/PreferencesBackupManager.kt`; `arcile-app/feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/OnboardingRoute.kt`.
   - **Current:** Export/preview/restore and an onboarding picker exist; recurring export and backup-location discovery are absent from these flows.
   - **Change:** Add opt-in scheduled settings export to a selected destination and discover compatible backups in authorized locations. Retain preview/validation; do not imply file/vault-content backup.
+
+### OnlyFiles
+
+- [ ] **UI-0001 - Share Browser Listing and View Controls**
+  - **Location:** OnlyFilesScreen.kt and OnlyFilesDialogs.kt.
+  - **Current:** Vault navigation, sort controls, and view preferences still use separate presentation.
+  - **Change:** Share Browser controls, persist per-folder choices, and support folder inheritance.
+
+- [ ] **REL-0001 - Keep Vault Search Ordered Across Pages**
+  - **Location:** OnlyFilesBrowserController.kt and DefaultVaultRepository.kt.
+  - **Current:** Vault search uses traversal order and a separate filter interaction.
+  - **Change:** Share Browser filters and apply the selected sort across pages.
+
+- [ ] **UI-0003 - Share Selection, Clipboard, and Transfer Presentation**
+  - **Location:** VaultSelectionToolbar.kt and OnlyFilesTransferController.kt.
+  - **Current:** Vault actions and transfer feedback still use separate presentation.
+  - **Change:** Share Browser actions and sheets, remove completed retry items, and scope queue names to the initiating session.
+
+- [ ] **REL-0004 - Enable Cross-Vault Copy and Cut**
+  - **Location:** OnlyFilesViewModel.kt and OnlyFilesTransferController.kt.
+  - **Current:** Leaving the source vault clears the clipboard before selecting a destination vault.
+  - **Change:** Keep unlocked source references during a destination switch and clear them when source access locks.
+
+- [ ] **REL-0005 - Refresh the Open Viewer After Edits**
+  - **Location:** OnlyFilesBrowserController.kt and OnlyFilesViewModel.kt.
+  - **Current:** Rename and text save refresh the listing while the open viewer retains old metadata.
+  - **Change:** Update the open item and media queue after successful mutations.
+
+- [ ] **REL-0006 - Preserve Import Picker Selection and Read Access**
+  - **Location:** OnlyFilesLocalPickerController.kt and OnlyFilesLocalPicker.kt.
+  - **Current:** Returning to storage roots clears selected files. Folder import requires write access.
+  - **Change:** Keep selected files across volumes and allow readable import folders.
+
+- [ ] **PERF-0001 - Keep Vault Search Pages Consistent and Responsive**
+  - **Location:** OnlyFilesBrowserController.kt and DefaultVaultRepository.kt.
+  - **Current:** Recursive pages rescan the tree and can mix offsets after mutations.
+  - **Change:** Invalidate changed result sets and measure paging on large vaults.
+
+- [ ] **UI-0002 - Match Browser Navigation and Listing Interactions**
+  - **Location:** OnlyFilesScreen.kt and OnlyFilesBrowserContent.kt.
+  - **Current:** Scrollbar, FAB dismissal, Back precedence, and search empty-state details differ.
+  - **Change:** Reuse the corresponding Browser behavior.
+
+- [ ] **UI-0004 - Add Vault Search Scope and File Reveal**
+  - **Location:** OnlyFilesBrowserController.kt and OnlyFilesViewModel.kt.
+  - **Current:** Scope is limited to the active folder and optional descendants.
+  - **Change:** Add a vault folder scope picker, reveal-in-parent, and explicit selection scope across pages.
+
+- [ ] **UI-0007 - Add Vault Shortcuts and Location Restore**
+  - **Location:** OnlyFilesNavigation.kt and OnlyFilesState.kt.
+  - **Current:** Vaults have no workspace shortcuts, Quick Access, or authenticated restore.
+  - **Change:** Support vault-scoped shortcuts and location restore after unlock.
+
+- [ ] **UI-0008 - Add Vault Batch Rename**
+  - **Location:** VaultSelectionToolbar.kt and DefaultVaultRepository.kt.
+  - **Current:** Only single-item rename is available.
+  - **Change:** Share the batch dialog and handle collisions in the encrypted backend.
+
+- [ ] **UI-0009 - Add Private Open As and File Routing**
+  - **Location:** OnlyFilesFormatting.kt and AppFileOpenResolver.kt.
+  - **Current:** OnlyFiles uses separate routing and lacks forced types, open preferences, and plugin dispatch.
+  - **Change:** Share classification and route through vault-capable readers.
+
+- [ ] **UI-0010 - Browse, Extract, and Create Vault Archives**
+  - **Location:** OnlyFilesZipPreview.kt and BrowserArchiveController.kt.
+  - **Current:** ZIP is a read-only names preview.
+  - **Change:** Add folder navigation, selected extraction, archive creation, and supported password flows.
+
+- [ ] **REL-0007 - Add Encrypted Trash and Operation Recovery**
+  - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.
+  - **Current:** Vault deletion is permanent and operation recovery lacks user-facing controls.
+  - **Change:** Add trash, restore, undo, and interrupted-operation actions using encrypted storage.
+
+- [ ] **UI-0011 - Share Conflict and Picker Interactions**
+  - **Location:** OnlyFilesDialogs.kt and OnlyFilesLocalPicker.kt.
+  - **Current:** Conflict review is sequential and picker chrome is separate.
+  - **Change:** Share the interaction where compatible with vault transfer decisions.
+
+- [ ] **UI-0012 - Complete Vault Properties and Media Actions**
+  - **Location:** OnlyFilesDialogs.kt, OnlyFilesViewer.kt, and OnlyFilesAudioPreview.kt.
+  - **Current:** Multi-folder totals, private EXIF, video actions and metadata, and audio player controls are incomplete.
+  - **Change:** Wire the shared presentation to vault-capable sources.
+
+- [ ] **UI-0013 - Support Split Package Installation from Vaults**
+  - **Location:** OnlyFilesViewer.kt and OnlyFilesExternalAccessController.kt.
+  - **Current:** Only plain APKs use the installer route.
+  - **Change:** Add bundle handling with explicit external consent.
+
+- [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
+  - **Location:** OnlyFilesScreen.kt and vault viewers.
+  - **Current:** On-device parity and lock behavior still need verification.
+  - **Change:** Compare gestures, thumbnails, document editing, install, transfer, and lock with matched fixtures.
 
 ## Media and Documents
 
