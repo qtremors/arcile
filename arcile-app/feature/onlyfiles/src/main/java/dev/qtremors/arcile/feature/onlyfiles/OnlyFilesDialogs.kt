@@ -1,17 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
-import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
-import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
-import dev.qtremors.arcile.core.ui.R as UiR
-import dev.qtremors.arcile.core.presentation.PropertiesUiModel
-import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
-import dev.qtremors.arcile.core.storage.domain.DeleteDecision
-import dev.qtremors.arcile.core.storage.domain.DeleteDestination
-import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
-import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
+
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -28,13 +18,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.DeleteDestination
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -59,6 +48,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.core.net.toUri
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -74,13 +64,23 @@ import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
-import dev.qtremors.arcile.core.ui.ExpressiveSegmentedRow
-import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.core.ui.FileViewOptionsSheet
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.sheet
-import java.text.DateFormat
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.pluralStringResource
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.R as UiR
+import dev.qtremors.arcile.core.presentation.PropertiesUiModel
+import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
 
 @Composable
 internal fun VaultDeleteConfirmation(
@@ -105,6 +105,60 @@ internal fun VaultDeleteConfirmation(
             irreversible = true
         ),
         showPermanentDeleteToggle = false
+    )
+}
+
+@Composable
+internal fun VaultViewOptionsSheet(
+    options: VaultViewOptions,
+    applyToSubfolders: Boolean,
+    gridContentWidth: Dp?,
+    onDismiss: () -> Unit,
+    onApply: (VaultViewOptions, Boolean) -> Unit
+) {
+    val ascending = options.sortDirection == VaultSortDirection.ASCENDING
+    val sortOption = when (options.sortField) {
+        VaultSortField.NAME, VaultSortField.TYPE -> if (ascending) FileSortOption.NAME_ASC else FileSortOption.NAME_DESC
+        VaultSortField.MODIFIED -> if (ascending) FileSortOption.DATE_OLDEST else FileSortOption.DATE_NEWEST
+        VaultSortField.SIZE -> if (ascending) FileSortOption.SIZE_SMALLEST else FileSortOption.SIZE_LARGEST
+        VaultSortField.FILE_COUNT -> if (ascending) FileSortOption.FILE_COUNT_LOWEST else FileSortOption.FILE_COUNT_HIGHEST
+    }
+    FileViewOptionsSheet(
+        title = stringResource(UiR.string.sort_folder_title),
+        selectedPreferences = FileListingPreferences(
+            sortOption = sortOption,
+            viewMode = if (options.grid) FileViewMode.GRID else FileViewMode.LIST,
+            listZoom = options.listZoom,
+            gridMinCellSize = options.gridMinCellSize,
+            showThumbnails = options.showThumbnails,
+            foldersFirst = options.foldersFirst
+        ),
+        showApplyToSubfolders = true,
+        initialApplyToSubfolders = applyToSubfolders,
+        showFoldersFirst = true,
+        gridContentWidth = gridContentWidth,
+        onDismiss = onDismiss,
+        onApply = { listing, inherit ->
+            val (field, direction) = when (listing.sortOption) {
+                FileSortOption.NAME_ASC -> VaultSortField.NAME to VaultSortDirection.ASCENDING
+                FileSortOption.NAME_DESC -> VaultSortField.NAME to VaultSortDirection.DESCENDING
+                FileSortOption.DATE_NEWEST -> VaultSortField.MODIFIED to VaultSortDirection.DESCENDING
+                FileSortOption.DATE_OLDEST -> VaultSortField.MODIFIED to VaultSortDirection.ASCENDING
+                FileSortOption.SIZE_LARGEST -> VaultSortField.SIZE to VaultSortDirection.DESCENDING
+                FileSortOption.SIZE_SMALLEST -> VaultSortField.SIZE to VaultSortDirection.ASCENDING
+                FileSortOption.FILE_COUNT_HIGHEST -> VaultSortField.FILE_COUNT to VaultSortDirection.DESCENDING
+                FileSortOption.FILE_COUNT_LOWEST -> VaultSortField.FILE_COUNT to VaultSortDirection.ASCENDING
+            }
+            onApply(options.copy(
+                grid = listing.viewMode == FileViewMode.GRID,
+                sortField = field,
+                sortDirection = direction,
+                listZoom = listing.listZoom,
+                gridMinCellSize = listing.gridMinCellSize,
+                showThumbnails = listing.showThumbnails,
+                foldersFirst = listing.foldersFirst
+            ), inherit)
+        }
     )
 }
 
@@ -156,242 +210,6 @@ internal fun VaultPropertiesDialog(
         isLoading = isLoading,
         onDismiss = onDismiss,
         readLocalImageMetadata = false
-    )
-}
-
-@Composable
-internal fun CreateItemDialog(initialKind: CreateItemKind, onDismiss: () -> Unit, onCreate: (CreateItemKind, String) -> Unit) {
-    var kind by remember { mutableStateOf(initialKind) }
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_new_item)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            ExpressiveSegmentedRow(
-                options = listOf(CreateItemKind.FOLDER, CreateItemKind.FILE),
-                selectedOption = kind,
-                onOptionSelected = { kind = it },
-                modifier = Modifier.fillMaxWidth()
-            ) { option ->
-                val icon = if (option == CreateItemKind.FOLDER) Icons.Default.CreateNewFolder else Icons.Default.Description
-                val label = stringResource(if (option == CreateItemKind.FOLDER) R.string.onlyfiles_folder else R.string.onlyfiles_empty_file)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(icon, null, modifier = Modifier.size(16.dp))
-                    Text(label)
-                }
-            }
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(stringResource(R.string.onlyfiles_name)) },
-                singleLine = true,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            )
-        } },
-        confirmButton = {
-            Button(
-                onClick = { onCreate(kind, name.trim()) },
-                enabled = name.isNotBlank(),
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(enabled = name.isNotBlank()) { onCreate(kind, name.trim()) }
-            ) {
-                Text(stringResource(R.string.onlyfiles_create_action))
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.onlyfiles_cancel))
-            }
-        }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun VaultViewOptionsSheet(
-    state: OnlyFilesUiState,
-    onDismiss: () -> Unit,
-    onSort: (VaultSortField, VaultSortDirection) -> Unit,
-    onLayoutChange: (OnlyFilesLayout) -> Unit
-) {
-    var field by remember { mutableStateOf(state.sortField) }
-    var direction by remember { mutableStateOf(state.sortDirection) }
-    var layout by remember { mutableStateOf(state.layout) }
-    val sheetState = rememberBottomSheetState(
-        initialValue = SheetValue.Hidden,
-        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
-    )
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = MaterialTheme.shapes.sheet
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.onlyfiles_sort),
-                style = MaterialTheme.typography.titleLarge
-            )
-
-            Text(
-                text = stringResource(dev.qtremors.arcile.core.ui.R.string.browser_layout_view_mode),
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            ExpressiveSegmentedRow(
-                options = listOf(OnlyFilesLayout.LIST, OnlyFilesLayout.GRID),
-                selectedOption = layout,
-                onOptionSelected = { layout = it },
-                modifier = Modifier.fillMaxWidth()
-            ) { mode ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (mode == OnlyFilesLayout.LIST) {
-                            Icons.AutoMirrored.Filled.ViewList
-                        } else {
-                            Icons.Default.GridView
-                        },
-                        contentDescription = null
-                    )
-                    Text(
-                        stringResource(
-                            if (mode == OnlyFilesLayout.LIST) dev.qtremors.arcile.core.ui.R.string.list_view
-                            else dev.qtremors.arcile.core.ui.R.string.grid_view
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Sort Field",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.NAME,
-                        onClick = { field = VaultSortField.NAME },
-                        label = { Text("Name", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.MODIFIED,
-                        onClick = { field = VaultSortField.MODIFIED },
-                        label = { Text("Date", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.SIZE,
-                        onClick = { field = VaultSortField.SIZE },
-                        label = { Text("Size", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.TYPE,
-                        onClick = { field = VaultSortField.TYPE },
-                        label = { Text("Type", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Direction",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            ExpressiveSegmentedRow(
-                options = VaultSortDirection.entries,
-                selectedOption = direction,
-                onOptionSelected = { direction = it },
-                modifier = Modifier.fillMaxWidth()
-            ) { option ->
-                Text(
-                    stringResource(
-                        if (option == VaultSortDirection.ASCENDING) R.string.onlyfiles_ascending
-                        else R.string.onlyfiles_descending
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = onDismiss,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = onDismiss)
-                ) {
-                    Text(stringResource(R.string.onlyfiles_cancel))
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        onSort(field, direction)
-                        onLayoutChange(layout)
-                    },
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable {
-                        onSort(field, direction)
-                        onLayoutChange(layout)
-                    }
-                ) {
-                    Text(stringResource(R.string.onlyfiles_apply))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PropertiesDialog(nodes: List<VaultNodeMetadata>, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_properties)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.onlyfiles_property_items, nodes.size))
-            Text(stringResource(R.string.onlyfiles_property_size, formatBytes(androidx.compose.ui.platform.LocalContext.current, nodes.sumOf(VaultNodeMetadata::sizeBytes))))
-            if (nodes.size == 1) {
-                Text(nodes.single().name)
-                Text(nodes.single().mimeType ?: stringResource(R.string.onlyfiles_unknown_type))
-                Text(DateFormat.getDateTimeInstance().format(nodes.single().modifiedAtMillis))
-            }
-        } },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.onlyfiles_close))
-            }
-        }
     )
 }
 
@@ -604,38 +422,6 @@ internal fun PasswordField(value: String, onValueChange: (String) -> Unit, revea
         singleLine = true,
         shape = ExpressiveShapes.medium,
         modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
-    var value by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = value,
-                onValueChange = { value = it },
-                singleLine = true,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSubmit(value.trim()) },
-                enabled = value.isNotBlank(),
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(enabled = value.isNotBlank()) { onSubmit(value.trim()) }
-            ) { Text(title) }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
-        }
     )
 }
 

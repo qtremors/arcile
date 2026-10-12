@@ -153,7 +153,7 @@ fun FileItemRow(
         .copy(fontWeight = FontWeight.Medium)
     val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale)
         .copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-    val subtitleText = row.displaySubtitle()
+    val subtitleText = presentation.contextLabel?.invoke(file) ?: row.displaySubtitle()
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val reducedMotion = LocalReducedMotionEnabled.current

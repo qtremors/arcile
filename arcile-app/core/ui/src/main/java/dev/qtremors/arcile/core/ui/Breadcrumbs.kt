@@ -37,8 +37,6 @@ fun Breadcrumbs(
     isRootStorageScope: Boolean = false,
     onPathSegmentClick: (String) -> Unit
 ) {
-    val listState = rememberLazyListState()
-
     val currentVolume = remember(currentPath, storageVolumes, isRootStorageScope) {
         if (isRootStorageScope) null else storageVolumes.find { volume ->
             currentPath == volume.path || currentPath.startsWith(volume.path + java.io.File.separator)
@@ -70,8 +68,24 @@ fun Breadcrumbs(
         }
     }
 
-    LaunchedEffect(currentPath, segmentPaths.size) {
-        listState.scrollToItem(segmentPaths.size + 1)
+    Breadcrumbs(
+        rootLabel = volumeName,
+        rootKey = volumeRootPath,
+        segments = segmentPaths,
+        onSegmentClick = onPathSegmentClick
+    )
+}
+
+@Composable
+fun Breadcrumbs(
+    rootLabel: String,
+    rootKey: String,
+    segments: List<Pair<String, String>>,
+    onSegmentClick: (String) -> Unit
+) {
+    val listState = rememberLazyListState()
+    LaunchedEffect(rootKey, segments) {
+        listState.scrollToItem(segments.size + 1)
     }
 
     LazyRow(
@@ -82,24 +96,24 @@ fun Breadcrumbs(
         contentPadding = PaddingValues(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        item(key = "volume:$volumeRootPath") {
-            val isAtRoot = segmentPaths.isEmpty() && volumeRootPath.isNotEmpty()
+        item(key = "volume:$rootKey") {
+            val isAtRoot = segments.isEmpty() && rootKey.isNotEmpty()
             Text(
-                text = volumeName,
+                text = rootLabel,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 color = if (isAtRoot) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                 modifier = Modifier
                     .padding(horizontal = 4.dp, vertical = 2.dp)
                     .clip(CircleShape)
-                    .bounceClickable(enabled = !isAtRoot && volumeRootPath.isNotEmpty()) {
-                        onPathSegmentClick(volumeRootPath)
+                    .bounceClickable(enabled = !isAtRoot && rootKey.isNotEmpty()) {
+                        onSegmentClick(rootKey)
                     }
             )
         }
 
         itemsIndexed(
-            items = segmentPaths,
+            items = segments,
             key = { _, item -> item.second }
         ) { index, (segment, segmentPath) ->
             Box(contentAlignment = Alignment.CenterStart) {
@@ -109,7 +123,7 @@ fun Breadcrumbs(
                     modifier = Modifier.padding(horizontal = 2.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                 )
-                val isLast = index == segmentPaths.lastIndex
+                val isLast = index == segments.lastIndex
                 Text(
                     text = segment,
                     style = MaterialTheme.typography.bodyMedium,
@@ -119,7 +133,7 @@ fun Breadcrumbs(
                         .padding(start = 28.dp, end = 4.dp, top = 2.dp, bottom = 2.dp)
                         .clip(CircleShape)
                         .bounceClickable(enabled = !isLast) {
-                            onPathSegmentClick(segmentPath)
+                            onSegmentClick(segmentPath)
                         }
                 )
             }

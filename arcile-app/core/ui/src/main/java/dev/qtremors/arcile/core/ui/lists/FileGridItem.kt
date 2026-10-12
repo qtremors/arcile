@@ -141,7 +141,7 @@ fun FileGridItem(
         ),
         label = "gridItemScale"
     )
-    val subtitleText = row.displaySubtitle()
+    val subtitleText = presentation.contextLabel?.invoke(file) ?: row.displaySubtitle()
     val itemShape = if (isSelected || isHighlighted) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
     val shouldOpenThumbnailInSelection = presentation.openFileFromThumbnailInSelectionMode &&
         isInSelectionMode &&

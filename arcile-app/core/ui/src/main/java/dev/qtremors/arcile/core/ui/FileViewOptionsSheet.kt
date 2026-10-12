@@ -98,7 +98,8 @@ fun FileViewOptionsSheet(
     gridContentWidth: Dp? = null,
     gridHorizontalPadding: Dp = 32.dp,
     gridItemSpacing: Dp = 16.dp,
-    filterOptions: FileViewFilterOptions = FileViewFilterOptions()
+    filterOptions: FileViewFilterOptions = FileViewFilterOptions(),
+    customSortControls: (@Composable () -> Unit)? = null
 ) {
     val minDateMillis = filterOptions.minDateMillis
     val maxDateMillis = filterOptions.maxDateMillis
@@ -344,6 +345,8 @@ fun FileViewOptionsSheet(
                         }
                     }
                 }
+
+                customSortControls?.invoke()
 
                 if (onDateRangeChange != null) {
                     SortDateRangeSection(

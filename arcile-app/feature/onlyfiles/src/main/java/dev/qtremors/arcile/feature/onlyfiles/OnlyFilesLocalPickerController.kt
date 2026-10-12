@@ -3,6 +3,9 @@ package dev.qtremors.arcile.feature.onlyfiles
 import dev.qtremors.arcile.core.storage.domain.*
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -19,6 +22,7 @@ internal class OnlyFilesLocalPickerController(
 ) {
     private var volumes = emptyList<StorageVolume>()
     private var exportNodes = emptyList<VaultNodeMetadata>()
+    private var request: Job? = null
 
     fun openImportFiles() = open(OnlyFilesLocalPickerMode.IMPORT_FILES)
     fun openImportFolder() = open(OnlyFilesLocalPickerMode.IMPORT_FOLDER)
@@ -37,6 +41,7 @@ internal class OnlyFilesLocalPickerController(
 
     fun choose() {
         val picker = state.value.localPicker ?: return
+        request?.cancel()
         state.update { it.copy(localPicker = null) }
         when (picker.mode) {
             OnlyFilesLocalPickerMode.IMPORT_FILES -> import(picker.selectedPaths.toList())
@@ -52,22 +57,28 @@ internal class OnlyFilesLocalPickerController(
     fun up() {
         val picker = state.value.localPicker ?: return
         val current = picker.current ?: return cancel()
-        scope.launch {
-            destinations.parent(current.path, volumes).fold(
-                onSuccess = { parent -> if (parent == null) showRoots(picker.mode) else load(parent.path) },
+        loadPicker {
+            val result = destinations.parent(current.path, volumes)
+            ensureActive()
+            result.fold(
+                onSuccess = { parent -> if (parent == null) showRoots(picker.mode) else loadDirectory(parent.path) },
                 onFailure = showError
             )
         }
     }
 
     fun cancel() {
+        request?.cancel()
         exportNodes = emptyList()
         state.update { it.copy(localPicker = null) }
     }
 
-    private fun open(mode: OnlyFilesLocalPickerMode) = scope.launch {
+    private fun open(mode: OnlyFilesLocalPickerMode) = loadPicker {
+        if (state.value.selectedVaultId == null) return@loadPicker
         state.update { it.copy(localPicker = OnlyFilesLocalPickerState(mode, isLoading = true)) }
-        volumeRepository.getStorageVolumes().fold(
+        val result = volumeRepository.getStorageVolumes()
+        ensureActive()
+        result.fold(
             onSuccess = { volumes = it; showRoots(mode) },
             onFailure = { cancel(); showError(it) }
         )
@@ -79,15 +90,28 @@ internal class OnlyFilesLocalPickerController(
                 FileModel(directory.name, directory.path, isDirectory = true)
             }
         }
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
         state.update { it.copy(localPicker = OnlyFilesLocalPickerState(mode, entries = roots)) }
     }
 
-    private fun load(path: String) = scope.launch {
-        val previous = state.value.localPicker ?: return@launch
+    private fun load(path: String) = loadPicker { loadDirectory(path) }
+
+    private suspend fun loadDirectory(path: String) {
+        val previous = state.value.localPicker ?: return
         state.update { it.copy(localPicker = previous.copy(isLoading = true)) }
-        val current = destinations.resolve(path, volumes).getOrElse { showError(it); return@launch }
-            ?: return@launch
-        browser.listFiles(path).fold(
+        val result = destinations.resolve(path, volumes)
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        val current = result.getOrElse {
+            state.update { it.copy(localPicker = previous) }
+            showError(it)
+            return
+        } ?: run {
+            state.update { it.copy(localPicker = previous) }
+            return
+        }
+        val entriesResult = browser.listFiles(path)
+        kotlinx.coroutines.currentCoroutineContext().ensureActive()
+        entriesResult.fold(
             onSuccess = { entries -> state.update {
                 it.copy(localPicker = OnlyFilesLocalPickerState(previous.mode, current, entries.sortedWith(
                     compareByDescending<FileModel> { file -> file.isDirectory }.thenBy { file -> file.name.lowercase() }
@@ -97,5 +121,10 @@ internal class OnlyFilesLocalPickerController(
                 currentState.copy(localPicker = currentState.localPicker?.copy(isLoading = false))
             } }
         )
+    }
+
+    private fun loadPicker(block: suspend CoroutineScope.() -> Unit) {
+        request?.cancel()
+        request = scope.launch(start = CoroutineStart.LAZY, block = block).also { it.start() }
     }
 }

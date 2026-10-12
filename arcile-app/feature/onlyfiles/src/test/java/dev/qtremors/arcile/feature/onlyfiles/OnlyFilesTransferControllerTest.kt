@@ -5,6 +5,7 @@ import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -45,5 +46,62 @@ class OnlyFilesTransferControllerTest {
         advanceUntilIdle()
         assertNull(state.value.clipboard)
         assertEquals("1 completed, 0 skipped, 0 failed", state.value.message)
+    }
+
+    @Test
+    fun `successful copy consumes its clipboard`() = runTest {
+        val vaultId = VaultId.of("vault")
+        val ref = VaultNodeRef(vaultId, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities())
+        val node = VaultNodeMetadata(ref, "File", VaultNodeKind.FILE, 0L, 0L, 0L)
+        val clipboard = VaultClipboard(VaultClipboardAction.COPY, listOf(ref), listOf(node))
+        val state = MutableStateFlow(OnlyFilesUiState(
+            selectedVaultId = vaultId,
+            directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "Vault", VaultPath.Root)),
+            clipboard = clipboard
+        ))
+        val coordinator = mockk<VaultTransferCoordinator>()
+        coEvery { coordinator.copyWithinVault(any(), any(), any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, "File", VaultItemOutcome.COMPLETED)))
+        val controller = OnlyFilesTransferController(coordinator, state, this, {})
+
+        controller.paste()
+        advanceUntilIdle()
+        assertNull(state.value.clipboard)
+
+        state.update { it.copy(clipboard = clipboard) }
+        val replacement = clipboard.copy(action = VaultClipboardAction.MOVE)
+        coEvery { coordinator.copyWithinVault(any(), any(), any(), any()) } answers {
+            state.update { it.copy(clipboard = replacement) }
+            assertEquals(listOf("File"), state.value.pasteQueueNames)
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, "File", VaultItemOutcome.COMPLETED)))
+        }
+        controller.paste()
+        advanceUntilIdle()
+        assertEquals(replacement, state.value.clipboard)
+        assertTrue(state.value.pasteQueueNames.isEmpty())
+    }
+
+    @Test
+    fun `retry contains only sources that did not complete`() = runTest {
+        val vault = VaultId.of("vault")
+        val copied = VaultNodeRef(vault, NodeId.of("copied"), DirectoryId.Root, VaultNodeCapabilities())
+        val skipped = copied.copy(nodeId = NodeId.of("skipped"))
+        val nodes = listOf(copied, skipped).map { VaultNodeMetadata(it, it.nodeId.value, VaultNodeKind.FILE, 0, 0, 0) }
+        val state = MutableStateFlow(OnlyFilesUiState(
+            selectedVaultId = vault,
+            directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "Vault", VaultPath.Root)),
+            clipboard = VaultClipboard(VaultClipboardAction.COPY, listOf(copied, skipped), nodes)
+        ))
+        val coordinator = mockk<VaultTransferCoordinator>()
+        coEvery { coordinator.copyWithinVault(any(), any(), any(), any()) } returns VaultBatchResult(listOf(
+            VaultItemResult(copied.backendIdentity, "copied", VaultItemOutcome.COMPLETED),
+            VaultItemResult(skipped.backendIdentity, "skipped", VaultItemOutcome.SKIPPED)
+        ))
+
+        OnlyFilesTransferController(coordinator, state, this, {}).paste()
+        advanceUntilIdle()
+
+        assertEquals(listOf(skipped), state.value.clipboard?.sources)
+        assertEquals(listOf(nodes.last()), state.value.clipboard?.displayNodes)
     }
 }

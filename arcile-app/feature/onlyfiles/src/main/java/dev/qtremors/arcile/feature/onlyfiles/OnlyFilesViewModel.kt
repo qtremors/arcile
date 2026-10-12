@@ -1,7 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,12 +30,15 @@ import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
 import dev.qtremors.arcile.core.ui.security.SensitiveMemory
-import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
-import dev.qtremors.arcile.core.vault.domain.VaultSortField
+import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
+import dev.qtremors.arcile.core.vault.domain.VaultFolderViewOptions
+import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -122,15 +125,16 @@ internal class OnlyFilesViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
-            transferCoordinator.progress.collect { progress -> _state.update { it.copy(transferProgress = progress) } }
+            transferCoordinator.progress.collect(::updateTransferProgress)
         }
         viewModelScope.launch {
-            boundaryTransferCoordinator.progress.collect { progress -> _state.update { it.copy(transferProgress = progress) } }
+            boundaryTransferCoordinator.progress.collect(::updateTransferProgress)
         }
         viewModelScope.launch { repository.refreshVaults() }
         viewModelScope.launch {
             securityPreferences.settings.collect { settings ->
                 _state.update { it.copy(screenshotProtectionEnabled = settings.screenshotProtectionEnabled) }
+                browser.applyViewOptions(settings)
             }
         }
     }
@@ -176,14 +180,23 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun open(node: VaultNodeMetadata) {
         if (node.isDirectory) {
             val directoryId = node.ref.directoryId ?: return showError(IllegalStateException("Folder identity is missing"))
-            val currentPath = _state.value.currentDirectory?.path ?: VaultPath.Root
             _state.update {
+                val hit = it.searchHits.firstOrNull { hit -> hit.metadata.ref == node.ref }
+                val ancestors = hit?.parentDirectoryIds.orEmpty().zip(hit?.parentNames.orEmpty())
+                val stack = it.directoryStack.toMutableList()
+                var path = stack.lastOrNull()?.path ?: VaultPath.Root
+                for ((id, name) in ancestors) {
+                    path = path.resolve(name)
+                    stack += VaultDirectoryCrumb(id, name, path)
+                }
                 it.copy(
-                    directoryStack = it.directoryStack + VaultDirectoryCrumb(
-                        directoryId, node.name, currentPath.resolve(node.name)
+                    directoryStack = stack + VaultDirectoryCrumb(
+                        directoryId, node.name, path.resolve(node.name)
                     ),
+                    nodes = emptyList(),
                     viewer = null,
                     searchQuery = "",
+                    searchFilters = SearchFilters(),
                     searchHits = emptyList(),
                     selectedNodeIds = emptySet()
                 )
@@ -214,16 +227,25 @@ internal class OnlyFilesViewModel @Inject constructor(
             }
             return false
         }
+        navigateToDirectory(current.directoryStack[current.directoryStack.lastIndex - 1].id.value)
+        return true
+    }
+
+    fun navigateToDirectory(id: String) {
+        val stack = _state.value.directoryStack
+        val index = stack.indexOfFirst { it.id.value == id }
+        if (index !in 0 until stack.lastIndex) return
         _state.update {
             it.copy(
-                directoryStack = it.directoryStack.dropLast(1),
+                directoryStack = stack.take(index + 1),
+                nodes = emptyList(),
                 searchQuery = "",
+                searchFilters = SearchFilters(),
                 searchHits = emptyList(),
                 selectedNodeIds = emptySet()
             )
         }
         reload()
-        return true
     }
 
     fun showViewerImage(ref: VaultNodeRef) {
@@ -236,17 +258,43 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     fun refresh() = browser.refresh()
     fun loadNextPage() = browser.loadNextPage()
-    fun setSort(field: VaultSortField, direction: VaultSortDirection) = browser.setSort(field, direction)
-
-    fun toggleLayout() = _state.update {
-        it.copy(layout = if (it.layout == OnlyFilesLayout.LIST) OnlyFilesLayout.GRID else OnlyFilesLayout.LIST)
+    private fun setDefaultViewOptions(options: VaultViewOptions) = viewModelScope.launch {
+        try {
+            securityPreferences.setViewOptions(options)
+        } catch (error: java.io.IOException) {
+            showError(error)
+        }
     }
-    fun setLayout(layout: OnlyFilesLayout) = _state.update {
-        it.copy(layout = layout)
+
+    fun setFolderViewOptions(options: VaultViewOptions, applyToSubfolders: Boolean) {
+        val snapshot = _state.value
+        val vault = snapshot.selectedVaultId ?: return
+        val directory = snapshot.currentDirectory?.id ?: return
+        viewModelScope.launch {
+            try {
+                securityPreferences.setFolderViewOptions(vault, directory, VaultFolderViewOptions(options, applyToSubfolders))
+            } catch (error: java.io.IOException) {
+                showError(error)
+            }
+        }
+    }
+
+    fun setRecursiveSearch(recursive: Boolean) {
+        setDefaultViewOptions(_state.value.defaultViewOptions.copy(recursiveSearch = recursive))
     }
 
     fun updateSearch(query: String) = browser.updateSearch(query)
-    fun toggleRecursiveSearch() = browser.toggleRecursiveSearch()
+    fun updateSearchFilters(filters: SearchFilters) = browser.updateSearch(_state.value.searchQuery, filters, 0L)
+    fun clearSearch() = browser.updateSearch("", SearchFilters(), 0L)
+    fun setGridCellSize(size: Float) {
+        val snapshot = _state.value
+        setFolderViewOptions(snapshot.viewOptions.copy(gridMinCellSize = size), snapshot.viewOptionsApplyToSubfolders)
+    }
+
+    fun toggleHiddenFiles() {
+        val options = _state.value.defaultViewOptions
+        setDefaultViewOptions(options.copy(showHiddenFiles = !options.showHiddenFiles))
+    }
 
     fun toggleSelection(nodeId: String) = _state.update { state ->
         val selected = state.selectedNodeIds
@@ -272,6 +320,19 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun copy(nodes: List<VaultNodeMetadata>) = transfers.setClipboard(VaultClipboardAction.COPY, nodes)
     fun move(nodes: List<VaultNodeMetadata>) = transfers.setClipboard(VaultClipboardAction.MOVE, nodes)
     fun clearClipboard() = _state.update { it.copy(clipboard = null) }
+
+    fun removeClipboardItem(reference: String) {
+        _state.update { current ->
+            val clipboard = current.clipboard ?: return@update current
+            val removed = clipboard.displayNodes.firstOrNull { it.toSharedFileModel().reference == reference }
+                ?: return@update current
+            val remaining = clipboard.sources - removed.ref
+            current.copy(clipboard = clipboard.copy(
+                sources = remaining,
+                displayNodes = clipboard.displayNodes - removed
+            ).takeIf { remaining.isNotEmpty() })
+        }
+    }
 
     fun paste() = transfers.paste()
     fun cancelTransfer() { transfers.cancel(); boundary.cancel() }
@@ -311,10 +372,15 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun verifyHealth(mode: VaultHealthMode) {
-        val id = _state.value.selectedVaultId ?: return
+        val mount = _state.value
+        val id = mount.selectedVaultId ?: return
         runBusy {
             healthService.verify(id, mode).fold(
-                onSuccess = { report -> _state.update { it.copy(healthReport = report) } },
+                onSuccess = { report ->
+                    _state.update {
+                        if (it.mountGeneration == mount.mountGeneration) it.copy(healthReport = report) else it
+                    }
+                },
                 onFailure = ::showError
             )
         }
@@ -374,7 +440,6 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun cancelImport(vaultId: VaultId) = imports.cancel(vaultId)
     fun clearMessage() = _state.update { it.copy(message = null) }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader> = fileSystem.openReader(ref)
-
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
 
     suspend fun saveVaultText(ref: VaultNodeRef, revision: Long, text: String): Result<VaultNodeMetadata> {
@@ -403,6 +468,7 @@ internal class OnlyFilesViewModel @Inject constructor(
                 nodes = emptyList(),
                 searchHits = emptyList(),
                 searchQuery = "",
+                searchFilters = SearchFilters(),
                 selectedNodeIds = emptySet(),
                 viewer = null,
                 viewerQueue = emptyList()
@@ -430,16 +496,31 @@ internal class OnlyFilesViewModel @Inject constructor(
                 mountGeneration = it.mountGeneration + 1L,
                 directoryStack = emptyList(),
                 nodes = emptyList(),
+                nextPageToken = null,
                 searchHits = emptyList(),
+                searchNextPageToken = null,
                 searchQuery = "",
+                searchFilters = SearchFilters(),
+                isSearching = false,
+                isListing = false,
                 selectedNodeIds = emptySet(),
                 clipboard = null,
+                pasteQueueNames = emptyList(),
                 viewer = null,
                 viewerQueue = emptyList(),
                 properties = emptyList(),
                 pendingConflict = null,
-                healthReport = null
+                healthReport = null,
+                message = null,
+                batchProgress = null
             )
+        }
+    }
+
+    private fun updateTransferProgress(progress: VaultTransferProgress) {
+        _state.update {
+            if (it.transferMountGeneration == null) return@update it
+            it.copy(transferProgress = progress.copy(currentName = null))
         }
     }
 

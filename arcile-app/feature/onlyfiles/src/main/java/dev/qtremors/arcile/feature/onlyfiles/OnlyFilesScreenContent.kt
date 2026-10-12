@@ -15,116 +15,132 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.EmptyState
+import dev.qtremors.arcile.core.ui.Breadcrumbs
+import dev.qtremors.arcile.core.ui.ClipboardToolbar
+import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
+import dev.qtremors.arcile.core.ui.R as UiR
+import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
+import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
+import dev.qtremors.arcile.core.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
+import dev.qtremors.arcile.core.vault.domain.VaultTransferAction
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun OnlyFilesBottomBar(state: OnlyFilesUiState, viewModel: OnlyFilesViewModel) {
-    if (state.clipboard == null && state.transferProgress == null) return
-    Column {
-        state.clipboard?.let { clipboard ->
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 4.dp
-            ) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        pluralStringResource(
-                            R.plurals.onlyfiles_clipboard_count,
-                            clipboard.sources.size,
-                            clipboard.sources.size
-                        ),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    TextButton(
-                        onClick = viewModel::clearClipboard,
-                        modifier = Modifier.bounceClickable { viewModel.clearClipboard() }
-                    ) { Text(stringResource(R.string.onlyfiles_clear)) }
-                    Spacer(Modifier.width(8.dp))
-                    Button(
-                        onClick = viewModel::paste,
-                        enabled = !state.busy,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.bounceClickable(enabled = !state.busy) { viewModel.paste() }
-                    ) { Text(stringResource(R.string.onlyfiles_paste)) }
-                }
-            }
-        }
-        state.transferProgress?.let { progress ->
-            Surface(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                shape = MaterialTheme.shapes.medium,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    Modifier.fillMaxWidth().padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    LinearProgressIndicator(
-                        progress = {
-                            progress.completedTopLevelItems.toFloat() /
-                                progress.totalTopLevelItems.coerceAtLeast(1)
-                        },
-                        modifier = Modifier.fillMaxWidth().clip(CircleShape)
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            progress.currentName ?: stringResource(R.string.onlyfiles_processing),
-                            Modifier.weight(1f),
-                            maxLines = 1,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        TextButton(
-                            onClick = viewModel::cancelTransfer,
-                            modifier = Modifier.bounceClickable { viewModel.cancelTransfer() }
-                        ) { Text(stringResource(R.string.onlyfiles_cancel)) }
-                    }
-                }
-            }
-        }
+internal fun OnlyFilesClipboardToolbar(
+    state: OnlyFilesUiState,
+    viewModel: OnlyFilesViewModel,
+    modifier: Modifier = Modifier
+) {
+    val clipboard = state.clipboard
+    val progress = state.transferProgress
+    if (clipboard == null && progress == null) return
+
+    var showDetails by remember(state.mountGeneration, progress != null) { mutableStateOf(false) }
+    val context = LocalContext.current
+    val count = progress?.totalTopLevelItems ?: clipboard?.sources?.size ?: 0
+    val title = pluralStringResource(
+        if (progress == null) UiR.plurals.clipboard_items_ready_to_paste else UiR.plurals.clipboard_item_count,
+        count, count
+    )
+    val totalBytes = progress?.totalBytes?.takeIf { it > 0L }
+    val subtitle = when {
+        progress == null -> formatBytes(context, clipboard?.displayNodes?.sumOf(VaultNodeMetadata::sizeBytes) ?: 0L)
+        totalBytes != null -> formatBytes(context, (totalBytes - progress.bytesTransferred).coerceAtLeast(0L))
+        else -> pluralStringResource(
+            UiR.plurals.transfer_progress_items, count, progress.completedTopLevelItems, count
+        )
+    }
+    val transferFraction = progress?.let {
+        if (totalBytes != null) it.bytesTransferred.toFloat() / totalBytes
+        else it.completedTopLevelItems.toFloat() / count.coerceAtLeast(1)
+    }?.coerceIn(0f, 1f)
+    val isMove = if (progress == null) clipboard?.action == VaultClipboardAction.MOVE
+        else progress.action == VaultTransferAction.MOVE
+    ClipboardToolbar(
+        title = title,
+        subtitle = subtitle,
+        icon = if (isMove) Icons.Default.ContentCut else Icons.Default.ContentCopy,
+        onStatusClick = { showDetails = true },
+        onPaste = (viewModel::paste).takeIf { progress == null && !state.busy && state.selectedVaultId != null },
+        onCancel = if (progress == null) viewModel::clearClipboard else viewModel::cancelTransfer,
+        modifier = modifier,
+        progress = transferFraction
+    )
+
+    if (showDetails && progress != null) {
+        val showNames = state.selectedVaultId != null && state.transferMountGeneration == state.mountGeneration
+        val queue = state.pasteQueueNames.takeIf { showNames }.orEmpty()
+        OperationProgressDetailsSheet(
+            totalItems = progress.totalTopLevelItems,
+            completedItems = progress.completedTopLevelItems,
+            onCancel = viewModel::cancelTransfer,
+            onDismissRequest = { showDetails = false },
+            queueNames = queue,
+            currentQueueIndex = progress.completedTopLevelItems.takeIf { it in queue.indices } ?: -1
+        )
+    } else if (showDetails && clipboard != null && clipboard.displayNodes.isNotEmpty()) {
+        val files = remember(clipboard.displayNodes) { clipboard.displayNodes.map(VaultNodeMetadata::toSharedFileModel) }
+        ClipboardContentsDialog(
+            state = ClipboardState(if (isMove) ClipboardOperation.CUT else ClipboardOperation.COPY, files),
+            onRemoveItem = viewModel::removeClipboardItem,
+            onDismiss = { showDetails = false }
+        )
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun OnlyFilesMainContent(
     state: OnlyFilesUiState,
     viewModel: OnlyFilesViewModel,
+    listingScroll: VaultListingScroll,
     contentPadding: PaddingValues,
+    onListingWidthChanged: (Int) -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    onDirectoryOpened: () -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
     onUnlockRequired: (VaultId) -> Unit,
     onShowCreateVault: () -> Unit
 ) {
     val context = LocalContext.current
-    Box(Modifier.fillMaxSize().padding(contentPadding)) {
+    val hasFloatingToolbar = state.selectedNodeIds.isNotEmpty() || state.clipboard != null || state.transferProgress != null
+    val toolbarPadding = if (hasFloatingToolbar) MaterialTheme.spacing.toolbarBottomGap else 0.dp
+    Box(Modifier.fillMaxSize().padding(contentPadding).padding(bottom = toolbarPadding)) {
         if (state.selectedVault == null) {
             VaultList(
                 vaults = state.vaults,
@@ -167,30 +183,52 @@ internal fun OnlyFilesMainContent(
                 )
             }
         } else {
-            VaultBrowser(
-                state = state,
-                onOpen = { node ->
-                    val vaultId = state.selectedVaultId
-                    if (node.isViewableVideo() && vaultId != null) {
-                        onPlayVideo(
-                            createVaultVideoPlaybackSession(
-                                state.displayedNodes,
-                                vaultId,
-                                node,
-                                state.screenshotProtectionEnabled,
-                                viewModel::openReader
-                            )
-                        )
-                    } else {
-                        viewModel.open(node)
-                    }
-                },
-                onToggleSelection = viewModel::toggleSelection,
-                onSelectRange = viewModel::selectRange,
-                onLoadMore = viewModel::loadNextPage,
-                onImportFiles = onImportFiles,
-                onImportFolder = onImportFolder
-            )
+            Column(Modifier.fillMaxSize()) {
+                val vault = requireNotNull(state.selectedVault)
+                val root = state.directoryStack.firstOrNull()
+                if (root != null && !state.hasSearch) {
+                    Breadcrumbs(
+                        rootLabel = vault.name,
+                        rootKey = root.id.value,
+                        segments = state.directoryStack.drop(1).map { it.name to it.id.value },
+                        onSegmentClick = viewModel::navigateToDirectory
+                    )
+                }
+                PullToRefreshBox(
+                    isRefreshing = state.isLoadingRows && state.displayedNodes.isNotEmpty(),
+                    onRefresh = viewModel::refresh,
+                    modifier = Modifier.weight(1f).onSizeChanged { onListingWidthChanged(it.width) }
+                ) {
+                    VaultBrowser(
+                        state = state,
+                        listingScroll = listingScroll,
+                        loadFolderTotals = viewModel::folderTotals,
+                        onOpen = { node ->
+                            val vaultId = state.selectedVaultId
+                            if (node.isViewableVideo() && vaultId != null) {
+                                onPlayVideo(
+                                    createVaultVideoPlaybackSession(
+                                        state.displayedNodes,
+                                        vaultId,
+                                        node,
+                                        state.screenshotProtectionEnabled,
+                                        viewModel::openReader
+                                    )
+                                )
+                            } else {
+                                if (node.isDirectory) onDirectoryOpened()
+                                viewModel.open(node)
+                            }
+                        },
+                        onToggleSelection = viewModel::toggleSelection,
+                        onSelectRange = viewModel::selectRange,
+                        onLoadMore = viewModel::loadNextPage,
+                        onGridSizeFinalized = viewModel::setGridCellSize,
+                        onImportFiles = onImportFiles,
+                        onImportFolder = onImportFolder
+                    )
+                }
+            }
         }
         if (state.busy && state.transferProgress == null && state.pendingConflict == null) {
             Surface(

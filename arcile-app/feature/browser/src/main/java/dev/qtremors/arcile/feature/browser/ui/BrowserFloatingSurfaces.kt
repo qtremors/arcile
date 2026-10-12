@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.browser.ui
 
-import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,8 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -65,14 +62,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
-import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.operation.OperationCompletionStatus
 import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.ClipboardToolbar
+import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
+import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.menus.ExpandableFabMenu
@@ -83,7 +81,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupLast
 import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import dev.qtremors.arcile.core.presentation.formatFileSize
-private const val PROGRESS_PILL_WIDTH_DP = 192
 
 @Composable
 internal fun BrowserCreateFab(
@@ -263,7 +260,6 @@ private fun BrowserClipboardOperationToolbar(
         }
     }
 
-    val hasActiveProgress = activeOp != null
     val rawProgress = activeOp?.let { operation ->
         val byteProgress = operation.totalBytes
             ?.takeIf { it > 0L }
@@ -285,158 +281,54 @@ private fun BrowserClipboardOperationToolbar(
         null -> inProgressColor
     }
 
-    val toolbarActions = if (activeOp != null && activeOp.terminalStatus == null) {
-        listOf(
-            ToolbarAction(
-                icon = Icons.Default.Close,
-                contentDescription = stringResource(R.string.action_cancel_transfer),
-                containerColor = MaterialTheme.colorScheme.error,
-                tint = Color.White,
-                onClick = clipboardIntents.onCancelClipboard
-            )
-        )
-    } else if (activeOp == null) {
-        listOf(
-            ToolbarAction(
-                icon = Icons.Default.ContentPaste,
-                contentDescription = stringResource(R.string.action_paste_here),
-                onClick = clipboardIntents.onPasteFromClipboard
-            ),
-            ToolbarAction(
-                icon = Icons.Default.Close,
-                contentDescription = stringResource(R.string.action_cancel_transfer),
-                containerColor = MaterialTheme.colorScheme.error,
-                tint = Color.White,
-                onClick = clipboardIntents.onCancelClipboard
-            )
-        )
-    } else {
-        emptyList()
+    val icon = when {
+        activeOp?.type == BulkFileOperationType.MOVE || clipboard?.operation == ClipboardOperation.CUT -> Icons.Default.ContentCut
+        activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
+        activeOp?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
+        activeOp?.type == BulkFileOperationType.EXTRACT_ARCHIVE -> Icons.Default.Unarchive
+        activeOp?.type == BulkFileOperationType.CREATE_SYNTHETIC -> Icons.Default.Extension
+        activeOp?.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> Icons.Default.ContentPaste
+        else -> Icons.Default.ContentCopy
     }
-
-    FloatingSelectionToolbar(
-        isVisible = true,
-        actions = toolbarActions,
-        startContent = {
-            Surface(
-                onClick = {
-                    if (activeOp != null) {
-                        onProgressClick()
-                    } else {
-                        dialogVisibility.showClipboardContents = true
-                    }
-                },
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-                tonalElevation = 4.dp,
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .height(56.dp)
-                    .padding(end = 8.dp)
-                    .width(PROGRESS_PILL_WIDTH_DP.dp)
-                    .animateContentSize()
-            ) {
-                Box(
-                    contentAlignment = Alignment.CenterStart,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            if (hasActiveProgress) {
-                                Modifier.drawBehind {
-                                    val fillWidth = size.width * displayedProgress
-                                    drawRect(
-                                        color = progressFillColor,
-                                        size = Size(fillWidth, size.height)
-                                    )
-                                }
-                            } else {
-                                Modifier
-                            }
-                        )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val opIcon = when {
-                            activeOp?.type == BulkFileOperationType.MOVE || clipboard?.operation == ClipboardOperation.CUT -> Icons.Default.ContentCut
-                            activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH -> Icons.Default.Delete
-                            activeOp?.type == BulkFileOperationType.CREATE_ARCHIVE -> Icons.Default.FolderZip
-                            activeOp?.type == BulkFileOperationType.EXTRACT_ARCHIVE -> Icons.Default.Unarchive
-                            activeOp?.type == BulkFileOperationType.CREATE_SYNTHETIC -> Icons.Default.Extension
-                            activeOp?.type == BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> Icons.Default.ContentPaste
-                            else -> Icons.Default.ContentCopy
-                        }
-                        val opTint = if (activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.primary
-                        }
-                        Icon(
-                            imageVector = opIcon,
-                            contentDescription = null,
-                            tint = opTint,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Column(
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.weight(1f, fill = false)
-                        ) {
-                            val operationTitle = when (activeOp?.type) {
-                                BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
-                                BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
-                                BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
-                                else -> {
-                                    val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
-                                    pluralStringResource(
-                                        if (activeOp == null) {
-                                            R.plurals.clipboard_items_ready_to_paste
-                                        } else {
-                                            R.plurals.clipboard_item_count
-                                        },
-                                        itemCount,
-                                        itemCount
-                                    )
-                                }
-                            }
-                            Text(
-                                text = operationTitle,
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-
-                            val context = androidx.compose.ui.platform.LocalContext.current
-                            val subtitle = if (activeOp != null) {
-                                if (activeOp.totalBytes != null && activeOp.totalBytes!! > 0L) {
-                                    val remaining = activeOp.totalBytes!! - (activeOp.bytesProcessed ?: 0L)
-                                    formatFileSize(context, remaining.coerceAtLeast(0L))
-                                } else {
-                                    androidx.compose.ui.res.pluralStringResource(
-                                        R.plurals.transfer_progress_items,
-                                        activeOp.totalItems,
-                                        activeOp.completedItems,
-                                        activeOp.totalItems
-                                    )
-                                }
-                            } else {
-                                formatFileSize(context, clipboard?.totalSize ?: 0L)
-                            }
-
-                            Text(
-                                text = subtitle,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                }
-            }
+    val iconTint = if (activeOp?.type == BulkFileOperationType.DELETE || activeOp?.type == BulkFileOperationType.TRASH) {
+        MaterialTheme.colorScheme.error
+    } else {
+        MaterialTheme.colorScheme.primary
+    }
+    val title = when (activeOp?.type) {
+        BulkFileOperationType.CREATE_ARCHIVE -> stringResource(R.string.file_operation_creating_archive)
+        BulkFileOperationType.EXTRACT_ARCHIVE -> stringResource(R.string.file_operation_extracting_archive)
+        BulkFileOperationType.SAVE_TO_ARCILE_IMPORT -> stringResource(R.string.save_to_arcile_title)
+        else -> {
+            val itemCount = activeOp?.totalItems ?: clipboard?.files?.size ?: 0
+            pluralStringResource(
+                if (activeOp == null) R.plurals.clipboard_items_ready_to_paste else R.plurals.clipboard_item_count,
+                itemCount, itemCount
+            )
         }
+    }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val totalBytes = activeOp?.totalBytes
+    val subtitle = when {
+        activeOp == null -> formatFileSize(context, clipboard?.totalSize ?: 0L)
+        totalBytes != null && totalBytes > 0L ->
+            formatFileSize(context, (totalBytes - (activeOp.bytesProcessed ?: 0L)).coerceAtLeast(0L))
+        else -> pluralStringResource(
+            R.plurals.transfer_progress_items, activeOp.totalItems, activeOp.completedItems, activeOp.totalItems
+        )
+    }
+    ClipboardToolbar(
+        title = title,
+        subtitle = subtitle,
+        icon = icon,
+        onStatusClick = {
+            if (activeOp != null) onProgressClick()
+            else dialogVisibility.showClipboardContents = true
+        },
+        onPaste = clipboardIntents.onPasteFromClipboard.takeIf { activeOp == null },
+        onCancel = clipboardIntents.onCancelClipboard.takeIf { activeOp?.terminalStatus == null },
+        progress = displayedProgress.takeIf { activeOp != null },
+        progressColor = progressFillColor,
+        iconTint = iconTint
     )
 }

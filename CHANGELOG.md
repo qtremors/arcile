@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.2
+> **Version:** 2.2.3
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.3] - 2026-11-04
+
+### Changed
+- OnlyFiles shares Browser's navigation, selection, file dialogs, clipboard, and transfer details.
+- Vault folders remember sort and view settings, with optional inheritance. Search shares Browser's filters and sorts across pages.
+
+### Fixed
+- Vault folders show file counts and sizes when available.
+- Paste retries skip completed items, and paste queue names stay within the initiating vault session.
 
 ## [2.2.2] - 2026-11-04
 

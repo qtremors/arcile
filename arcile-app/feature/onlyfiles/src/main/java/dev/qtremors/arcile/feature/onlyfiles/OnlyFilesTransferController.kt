@@ -31,7 +31,8 @@ internal class OnlyFilesTransferController(
         if (refs.isEmpty()) return
         state.update {
             it.copy(
-                clipboard = VaultClipboard(action, refs), selectedNodeIds = emptySet(),
+                clipboard = VaultClipboard(action, refs, nodes.distinctBy { node -> node.ref.nodeId }),
+                selectedNodeIds = emptySet(),
                 message = "${refs.size} item(s) ready to ${action.name.lowercase()}"
             )
         }
@@ -42,14 +43,20 @@ internal class OnlyFilesTransferController(
         val clipboard = snapshot.clipboard ?: return
         val destinationVault = snapshot.selectedVaultId ?: return
         val destination = snapshot.currentDirectory?.id ?: return
-        if (snapshot.busy || clipboard.sources.isEmpty()) return
+        if (snapshot.busy || cancelled != null || clipboard.sources.isEmpty()) return
         val signal = AtomicBoolean(false)
         cancelled = signal
         scope.launch {
-            state.update { it.copy(busy = true, message = null) }
+            state.update { current ->
+                current.copy(
+                    busy = true, message = null, transferMountGeneration = snapshot.mountGeneration,
+                    pasteQueueNames = clipboard.displayNodes.map(VaultNodeMetadata::name)
+                        .takeIf { current.mountGeneration == snapshot.mountGeneration }.orEmpty()
+                )
+            }
             var applyDecision: VaultConflictDecision? = null
             val conflicts = VaultConflictResolver { conflict ->
-                applyDecision ?: awaitConflict(conflict).also { answer ->
+                    applyDecision ?: awaitConflict(conflict, snapshot.mountGeneration).also { answer ->
                     if (answer.second) applyDecision = answer.first
                 }.first
             }
@@ -66,9 +73,14 @@ internal class OnlyFilesTransferController(
                 cancelled = null
                 conflictAnswer?.cancel()
                 conflictAnswer = null
-                state.update { it.copy(busy = false, pendingConflict = null, transferProgress = null) }
+                state.update {
+                    it.copy(
+                        busy = false, pendingConflict = null, transferProgress = null,
+                        transferMountGeneration = null, pasteQueueNames = emptyList()
+                    )
+                }
             }
-            complete(result, move)
+            complete(result, clipboard, snapshot.mountGeneration)
         }
     }
 
@@ -87,7 +99,8 @@ internal class OnlyFilesTransferController(
         conflictAnswer = null
     }
 
-    private suspend fun awaitConflict(conflict: VaultConflict): Pair<VaultConflictDecision, Boolean> {
+    private suspend fun awaitConflict(conflict: VaultConflict, mountGeneration: Long): Pair<VaultConflictDecision, Boolean> {
+        if (state.value.mountGeneration != mountGeneration) return VaultConflictDecision.SKIP to true
         val answer = CompletableDeferred<Pair<VaultConflictDecision, Boolean>>()
         conflictAnswer = answer
         state.update { it.copy(pendingConflict = VaultConflictPrompt(++conflictRequestId, conflict)) }
@@ -97,14 +110,22 @@ internal class OnlyFilesTransferController(
         }
     }
 
-    private fun complete(result: VaultBatchResult, move: Boolean) {
-        val completed = result.items.count { it.outcome == VaultItemOutcome.COMPLETED }
+    private fun complete(result: VaultBatchResult, submittedClipboard: VaultClipboard, mountGeneration: Long) {
+        val completedIds = result.completed.mapTo(mutableSetOf()) { it.sourceIdentity }
+        val completed = completedIds.size
         val partial = result.items.count { it.outcome == VaultItemOutcome.PARTIAL }
         val skipped = result.items.count { it.outcome == VaultItemOutcome.SKIPPED }
         val failed = result.items.count { it.outcome == VaultItemOutcome.FAILED || it.outcome == VaultItemOutcome.ROLLED_BACK }
         state.update {
+            if (it.mountGeneration != mountGeneration) return@update it
+            val remainingClipboard = if (it.clipboard === submittedClipboard) {
+                submittedClipboard.copy(
+                    sources = submittedClipboard.sources.filterNot { ref -> ref.backendIdentity in completedIds },
+                    displayNodes = submittedClipboard.displayNodes.filterNot { node -> node.ref.backendIdentity in completedIds }
+                ).takeIf { clipboard -> clipboard.sources.isNotEmpty() }
+            } else it.clipboard
             it.copy(
-                clipboard = it.clipboard.takeUnless { move && failed == 0 && skipped == 0 && partial == 0 },
+                clipboard = remainingClipboard,
                 message = if (partial > 0) {
                     "$completed completed, $partial partially completed, $skipped skipped, $failed failed. Skipped files remain at the source."
                 } else {
@@ -112,6 +133,6 @@ internal class OnlyFilesTransferController(
                 }
             )
         }
-        reload()
+        if (state.value.mountGeneration == mountGeneration) reload()
     }
 }

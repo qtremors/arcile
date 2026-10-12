@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
@@ -13,12 +14,18 @@ import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
+import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
+import dev.qtremors.arcile.core.vault.domain.VaultFolderViewOptions
+import dev.qtremors.arcile.core.vault.domain.vaultFolderViewKey
 
-internal enum class OnlyFilesLayout { LIST, GRID }
 internal enum class VaultClipboardAction { COPY, MOVE }
 
 internal data class VaultDirectoryCrumb(val id: DirectoryId, val name: String, val path: VaultPath)
-internal data class VaultClipboard(val action: VaultClipboardAction, val sources: List<VaultNodeRef>)
+internal data class VaultClipboard(
+    val action: VaultClipboardAction,
+    val sources: List<VaultNodeRef>,
+    val displayNodes: List<VaultNodeMetadata> = emptyList()
+)
 internal data class VaultConflictPrompt(val requestId: Long, val conflict: VaultConflict)
 internal data class OnlyFilesBatchProgress(
     val completedItems: Int,
@@ -33,14 +40,15 @@ internal data class OnlyFilesUiState(
     val directoryStack: List<VaultDirectoryCrumb> = emptyList(),
     val nodes: List<VaultNodeMetadata> = emptyList(),
     val nextPageToken: String? = null,
+    val listingRevision: Long = 0L,
     val searchHits: List<VaultSearchHit> = emptyList(),
     val searchNextPageToken: String? = null,
     val searchQuery: String = "",
-    val recursiveSearch: Boolean = false,
+    val searchFilters: SearchFilters = SearchFilters(),
     val isSearching: Boolean = false,
-    val sortField: VaultSortField = VaultSortField.NAME,
-    val sortDirection: VaultSortDirection = VaultSortDirection.ASCENDING,
-    val layout: OnlyFilesLayout = OnlyFilesLayout.LIST,
+    val isListing: Boolean = false,
+    val defaultViewOptions: VaultViewOptions = VaultViewOptions(),
+    val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
     val selectedNodeIds: Set<String> = emptySet(),
     val clipboard: VaultClipboard? = null,
     val viewer: VaultNodeMetadata? = null,
@@ -48,6 +56,8 @@ internal data class OnlyFilesUiState(
     val properties: List<VaultNodeMetadata> = emptyList(),
     val pendingConflict: VaultConflictPrompt? = null,
     val transferProgress: VaultTransferProgress? = null,
+    val transferMountGeneration: Long? = null,
+    val pasteQueueNames: List<String> = emptyList(),
     val healthReport: VaultHealthReport? = null,
     val activeImports: Map<VaultId, VaultImportState> = emptyMap(),
     val biometricVaultIds: Set<VaultId> = emptySet(),
@@ -66,8 +76,28 @@ internal data class OnlyFilesUiState(
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }
     val currentDirectory: VaultDirectoryCrumb? get() = directoryStack.lastOrNull()
+    private val activeFolderOptions: VaultFolderViewOptions?
+        get() {
+            val vault = selectedVaultId ?: return null
+            for (index in directoryStack.indices.reversed()) {
+                val folder = folderViewOptions[vaultFolderViewKey(vault, directoryStack[index].id)] ?: continue
+                if (index == directoryStack.lastIndex || folder.applyToSubfolders) return folder
+            }
+            return null
+        }
+    val viewOptions: VaultViewOptions
+        get() = activeFolderOptions?.options?.copy(
+            recursiveSearch = defaultViewOptions.recursiveSearch,
+            showHiddenFiles = defaultViewOptions.showHiddenFiles
+        ) ?: defaultViewOptions
+    val viewOptionsApplyToSubfolders: Boolean get() = activeFolderOptions?.applyToSubfolders == true
+    val recursiveSearch: Boolean get() = viewOptions.recursiveSearch
+    val sortField: VaultSortField get() = viewOptions.sortField
+    val sortDirection: VaultSortDirection get() = viewOptions.sortDirection
+    val hasSearch: Boolean get() = searchQuery.isNotBlank() || searchFilters.hasActiveFilters
+    val isLoadingRows: Boolean get() = if (hasSearch) isSearching else isListing
     val displayedNodes: List<VaultNodeMetadata>
-        get() = if (searchQuery.isBlank()) nodes else searchHits.map(VaultSearchHit::metadata)
+        get() = if (hasSearch) searchHits.map(VaultSearchHit::metadata) else nodes
     val selectedNodes: List<VaultNodeMetadata>
         get() = displayedNodes.filter { it.ref.nodeId.value in selectedNodeIds }
 

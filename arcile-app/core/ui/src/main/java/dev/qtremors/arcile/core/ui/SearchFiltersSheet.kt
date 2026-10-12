@@ -96,7 +96,10 @@ fun SearchFiltersSheet(
     currentFilters: SearchFilters,
     onApplyFilters: (SearchFilters) -> Unit,
     onDismiss: () -> Unit,
-    showCategoryFilter: Boolean = true
+    showCategoryFilter: Boolean = true,
+    showStorageFilters: Boolean = true,
+    onClearScope: (() -> Unit)? = null,
+    scopeContent: @Composable (() -> Unit)? = null
 ) {
     val allLabel = stringResource(R.string.all)
     val anyLabel = stringResource(R.string.item_type_any)
@@ -153,6 +156,7 @@ fun SearchFiltersSheet(
     )
 
     fun clearDraft() {
+        onClearScope?.invoke()
         itemType = null
         fileType = null
         minSizeText = ""
@@ -194,6 +198,8 @@ fun SearchFiltersSheet(
                     Text(stringResource(R.string.clear_all))
                 }
             }
+
+            scopeContent?.invoke()
 
             Text(stringResource(R.string.item_type), style = MaterialTheme.typography.titleMedium)
             val itemTypeOptions = listOf(anyLabel, foldersLabel, filesLabel)
@@ -399,36 +405,38 @@ fun SearchFiltersSheet(
                         .clip(ExpressiveShapes.medium)
                         .bounceClickable { includeHidden = !includeHidden }
                 )
-                OutlinedTextField(
-                    value = volumeText,
-                    onValueChange = { volumeText = it },
-                    label = { Text(stringResource(R.string.filter_storage_volume)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.SdCard,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth().keyboardInputField()
-                )
-                OutlinedTextField(
-                    value = folderScopeText,
-                    onValueChange = { folderScopeText = it },
-                    label = { Text(stringResource(R.string.filter_folder_scope)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth().keyboardInputField()
-                )
+                if (showStorageFilters) {
+                    OutlinedTextField(
+                        value = volumeText,
+                        onValueChange = { volumeText = it },
+                        label = { Text(stringResource(R.string.filter_storage_volume)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.SdCard,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        singleLine = true,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
+                    )
+                    OutlinedTextField(
+                        value = folderScopeText,
+                        onValueChange = { folderScopeText = it },
+                        label = { Text(stringResource(R.string.filter_folder_scope)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        singleLine = true,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
+                    )
+                }
                 OutlinedTextField(
                     value = mimeText,
                     onValueChange = { mimeText = it },
@@ -445,21 +453,23 @@ fun SearchFiltersSheet(
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
 
-                OutlinedTextField(
-                    value = presetName,
-                    onValueChange = { presetName = it },
-                    label = { Text(stringResource(R.string.filter_saved_preset)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Bookmark,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth().keyboardInputField()
-                )
+                if (showStorageFilters) {
+                    OutlinedTextField(
+                        value = presetName,
+                        onValueChange = { presetName = it },
+                        label = { Text(stringResource(R.string.filter_saved_preset)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Bookmark,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        singleLine = true,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
+                    )
+                }
             }
 
             FilledTonalButton(

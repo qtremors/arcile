@@ -88,21 +88,6 @@
 
 ### OnlyFiles
 
-- [ ] **UI-0001 - Share Browser Listing and View Controls**
-  - **Location:** OnlyFilesScreen.kt and OnlyFilesDialogs.kt.
-  - **Current:** Vault navigation, sort controls, and view preferences still use separate presentation.
-  - **Change:** Share Browser controls, persist per-folder choices, and support folder inheritance.
-
-- [ ] **REL-0001 - Keep Vault Search Ordered Across Pages**
-  - **Location:** OnlyFilesBrowserController.kt and DefaultVaultRepository.kt.
-  - **Current:** Vault search uses traversal order and a separate filter interaction.
-  - **Change:** Share Browser filters and apply the selected sort across pages.
-
-- [ ] **UI-0003 - Share Selection, Clipboard, and Transfer Presentation**
-  - **Location:** VaultSelectionToolbar.kt and OnlyFilesTransferController.kt.
-  - **Current:** Vault actions and transfer feedback still use separate presentation.
-  - **Change:** Share Browser actions and sheets, remove completed retry items, and scope queue names to the initiating session.
-
 - [ ] **REL-0004 - Enable Cross-Vault Copy and Cut**
   - **Location:** OnlyFilesViewModel.kt and OnlyFilesTransferController.kt.
   - **Current:** Leaving the source vault clears the clipboard before selecting a destination vault.

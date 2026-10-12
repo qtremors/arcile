@@ -47,19 +47,25 @@ internal class OnlyFilesBoundaryController(
         }
         val cancelled = AtomicBoolean(false)
         cancellation = cancelled
+        val mountGeneration = state.value.mountGeneration
         scope.launch {
-            state.update { it.copy(busy = true, selectedNodeIds = emptySet(), message = null) }
+            state.update {
+                it.copy(busy = true, selectedNodeIds = emptySet(), message = null, transferMountGeneration = mountGeneration)
+            }
             var applyAll: VaultConflictDecision? = null
             val conflicts = VaultConflictResolver { conflict ->
-                applyAll ?: awaitDecision(conflict).also { if (it.second) applyAll = it.first }.first
+                applyAll ?: awaitDecision(conflict, mountGeneration).also { if (it.second) applyAll = it.first }.first
             }
             val result = try {
                 coordinator.exportToDestination(prepared, destinationPath, move, conflicts, VaultCancellationSignal(cancelled::get))
             } finally {
                 cancellation = null
                 answer?.cancel(); answer = null
-                state.update { it.copy(busy = false, pendingConflict = null, transferProgress = null) }
+                state.update {
+                    it.copy(busy = false, pendingConflict = null, transferProgress = null, transferMountGeneration = null)
+                }
             }
+            if (state.value.mountGeneration != mountGeneration) return@launch
             val completed = result.items.count { it.outcome == VaultItemOutcome.COMPLETED }
             val skipped = result.items.count { it.outcome == VaultItemOutcome.SKIPPED }
             val failed = result.items.size - completed - skipped
@@ -88,7 +94,8 @@ internal class OnlyFilesBoundaryController(
         answer?.cancel(); answer = null
     }
 
-    private suspend fun awaitDecision(conflict: VaultConflict): Pair<VaultConflictDecision, Boolean> {
+    private suspend fun awaitDecision(conflict: VaultConflict, mountGeneration: Long): Pair<VaultConflictDecision, Boolean> {
+        if (state.value.mountGeneration != mountGeneration) return VaultConflictDecision.SKIP to true
         val pending = CompletableDeferred<Pair<VaultConflictDecision, Boolean>>()
         answer = pending
         state.update { it.copy(pendingConflict = VaultConflictPrompt(++requestId, conflict)) }

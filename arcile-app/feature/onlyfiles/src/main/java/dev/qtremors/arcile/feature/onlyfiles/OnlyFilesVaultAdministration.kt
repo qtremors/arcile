@@ -65,6 +65,7 @@ internal fun VaultActionsMenu(
     expanded: Boolean,
     vault: VaultSummary,
     viewModel: OnlyFilesViewModel,
+    hiddenFilesShown: Boolean,
     onDismiss: () -> Unit
 ) {
     var changePassword by remember { mutableStateOf(false) }
@@ -75,8 +76,13 @@ internal fun VaultActionsMenu(
     val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
 
-    val menuActions = remember(vault) {
+    val menuActions = remember(vault, hiddenFilesShown) {
         mutableListOf<@Composable () -> Unit>().apply {
+            add {
+                dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
+                    closeAnd(viewModel::toggleHiddenFiles)
+                }
+            }
             add {
                 ArcileDropdownMenuItem(
                     text = {

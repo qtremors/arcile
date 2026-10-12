@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -30,6 +32,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -37,18 +46,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.filled.Fingerprint
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FolderStats
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.VaultThumbnailRequest
 import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileList
+import dev.qtremors.arcile.core.ui.lists.pinchToResizeGrid
 import androidx.compose.foundation.layout.size
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.storageCard
 import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.collectLatest
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultImportState
 import dev.qtremors.arcile.core.vault.domain.VaultLocationKind
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
@@ -59,22 +77,62 @@ import java.text.DateFormat
 @Composable
 internal fun VaultBrowser(
     state: OnlyFilesUiState,
+    listingScroll: VaultListingScroll,
+    loadFolderTotals: suspend (VaultNodeRef) -> Result<VaultFolderTotals>,
     onOpen: (VaultNodeMetadata) -> Unit,
     onToggleSelection: (String) -> Unit,
     onSelectRange: (List<String>) -> Unit,
     onLoadMore: () -> Unit,
+    onGridSizeFinalized: (Float) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit
 ) {
-    val models = remember(state.displayedNodes) { state.displayedNodes.map(VaultNodeMetadata::toSharedFileModel) }
-    val byOpaquePath = remember(state.displayedNodes, models) {
-        models.zip(state.displayedNodes).associate { it.first.reference to it.second }
+    val displayedNodes = remember(state.nodes, state.searchHits, state.hasSearch) { state.displayedNodes }
+    val models = remember(displayedNodes) { displayedNodes.map(VaultNodeMetadata::toSharedFileModel) }
+    val byOpaquePath = remember(displayedNodes, models) {
+        models.zip(displayedNodes).associate { it.first.reference to it.second }
+    }
+    val parents = remember(state.searchHits) {
+        state.searchHits.associate { it.metadata.ref.nodeId to it.parentNames.joinToString(" / ") }
+    }
+    val directoryId = state.currentDirectory?.id
+    val scroll = remember(listingScroll, directoryId, state.searchQuery, state.searchFilters, state.recursiveSearch) {
+        when {
+            directoryId == null -> VaultDirectoryScroll()
+            !state.hasSearch -> listingScroll.forDirectory(directoryId)
+            else -> listingScroll.forSearch(directoryId, state.searchQuery, state.searchFilters, state.recursiveSearch)
+        }
+    }
+    val totalsByPath = remember(state.mountGeneration, state.listingRevision, scroll) {
+        mutableStateMapOf<String, FolderStats?>()
+    }
+    LaunchedEffect(scroll, state.viewOptions.grid, models, state.mountGeneration, state.listingRevision) {
+        snapshotFlow {
+            if (state.viewOptions.grid) scroll.grid.layoutInfo.visibleItemsInfo.map { it.index }
+            else scroll.list.layoutInfo.visibleItemsInfo.map { it.index }
+        }.collectLatest { visibleIndices ->
+            val folders = visibleIndices.mapNotNull(models::getOrNull).filter(FileModel::isDirectory)
+            val visiblePaths = folders.map(FileModel::reference).toSet()
+            for (folder in folders) {
+                if (totalsByPath.containsKey(folder.reference)) continue
+                val node = byOpaquePath[folder.reference] ?: continue
+                val totals = loadFolderTotals(node.ref).getOrNull()
+                ensureActive()
+                if (totalsByPath.size >= 128) {
+                    val evicted = totalsByPath.keys.firstOrNull { it !in visiblePaths } ?: break
+                    totalsByPath.remove(evicted)
+                }
+                totalsByPath[folder.reference] = totals?.let {
+                    FolderStats(it.fileCount, it.totalBytes, System.currentTimeMillis())
+                }
+            }
+        }
     }
     val selectedPaths = models.filter { model ->
         byOpaquePath[model.reference]?.ref?.nodeId?.value in state.selectedNodeIds
     }.map(FileModel::reference).toSet()
     if (models.isEmpty()) {
-        if (state.isSearching) {
+        if (state.isLoadingRows) {
             Box(
                 modifier = Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
@@ -84,11 +142,11 @@ internal fun VaultBrowser(
         } else {
             EmptyState(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
-                variant = if (state.searchQuery.isBlank()) EmptyStateVariant.Folder else EmptyStateVariant.Search,
-                icon = if (state.searchQuery.isBlank()) Icons.Outlined.FolderOpen else null,
-                title = stringResource(if (state.searchQuery.isBlank()) R.string.onlyfiles_empty_folder else R.string.onlyfiles_no_results),
+                variant = if (state.hasSearch) EmptyStateVariant.Search else EmptyStateVariant.Folder,
+                icon = if (state.hasSearch) null else Icons.Outlined.FolderOpen,
+                title = stringResource(if (state.hasSearch) R.string.onlyfiles_no_results else R.string.onlyfiles_empty_folder),
                 description = "",
-                action = if (state.searchQuery.isBlank()) {
+                action = if (!state.hasSearch) {
                     {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
@@ -110,39 +168,67 @@ internal fun VaultBrowser(
         return
     }
     Column(Modifier.fillMaxSize()) {
+        val folderLabel = stringResource(R.string.onlyfiles_folder)
+        val folderStats = totalsByPath.mapNotNull { (path, totals) -> totals?.let { path to it } }.toMap()
         val presentation = FileItemPresentation(
-            showThumbnails = true,
+            showThumbnails = state.viewOptions.showThumbnails,
+            zoom = state.viewOptions.listZoom.coerceIn(
+                FileListingPreferences.MIN_LIST_ZOOM, FileListingPreferences.MAX_LIST_ZOOM
+            ),
             showDetails = true,
             openFileFromThumbnailInSelectionMode = true,
+            contextLabel = { file ->
+                byOpaquePath[file.reference]?.ref?.nodeId?.let(parents::get)?.takeIf(String::isNotBlank)
+                    ?: folderLabel.takeIf { file.isDirectory && file.reference !in folderStats }
+            },
             thumbnailData = { file, size ->
                 byOpaquePath[file.reference]?.takeIf { it.isViewableImage() || it.isViewableVideo() }?.let { node ->
-                    VaultThumbnailRequest(
-                        node.ref.vaultId.value, node.ref.nodeId.value, node.ref.parentId.value, node.revision, size
-                    )
+                    node.thumbnailRequest(size)
                 }
             }
         )
         val open: (String) -> Unit = { path -> byOpaquePath[path]?.let(onOpen) }
         val toggle: (String) -> Unit = { path -> byOpaquePath[path]?.ref?.nodeId?.value?.let(onToggleSelection) }
         val range: (List<String>) -> Unit = { paths -> onSelectRange(paths.mapNotNull { byOpaquePath[it]?.ref?.nodeId?.value }) }
-        if (state.layout == OnlyFilesLayout.LIST) {
+        if (!state.viewOptions.grid) {
             FileList(
                 files = models, selectedFiles = selectedPaths, onNavigateTo = open, onOpenFile = open,
                 onToggleSelection = toggle, onSelectMultiple = range, modifier = Modifier.weight(1f),
+                listState = scroll.list,
+                folderStatsByPath = folderStats,
                 presentation = presentation
             )
         } else {
+            var cellSize by remember(state.viewOptions.gridMinCellSize) {
+                mutableFloatStateOf(
+                    state.viewOptions.gridMinCellSize.coerceIn(
+                        FileListingPreferences.MIN_GRID_MIN_CELL_SIZE, FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
+                    )
+                )
+            }
+            val currentCellSize = rememberUpdatedState(cellSize)
+            val updateCellSize = rememberUpdatedState<(Float) -> Unit> { cellSize = it }
+            val finalizeCellSize = rememberUpdatedState<(Float) -> Unit> {
+                cellSize = it
+                onGridSizeFinalized(it)
+            }
             FileGrid(
                 files = models, selectedFiles = selectedPaths, onNavigateTo = open, onOpenFile = open,
-                onToggleSelection = toggle, onSelectMultiple = range, modifier = Modifier.weight(1f),
-                presentation = presentation
+                onToggleSelection = toggle, onSelectMultiple = range,
+                modifier = Modifier.weight(1f).pinchToResizeGrid(
+                    currentCellSize, updateCellSize, finalizeCellSize, horizontalPaddingDp = 32f
+                ),
+                gridState = scroll.grid,
+                folderStatsByPath = folderStats,
+                presentation = presentation,
+                minCellSize = cellSize.dp
             )
         }
-        val hasMore = if (state.searchQuery.isBlank()) state.nextPageToken != null else state.searchNextPageToken != null
+        val hasMore = if (state.hasSearch) state.searchNextPageToken != null else state.nextPageToken != null
         if (hasMore) TextButton(onClick = onLoadMore, modifier = Modifier.align(Alignment.CenterHorizontally)) {
             Text(stringResource(R.string.onlyfiles_load_more))
         }
-        if (state.isSearching) {
+        if (state.isLoadingRows) {
             Box(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
@@ -150,6 +236,38 @@ internal fun VaultBrowser(
                 LoadingIndicator(modifier = Modifier.size(36.dp))
             }
         }
+    }
+}
+
+internal class VaultDirectoryScroll {
+    val list = LazyListState()
+    val grid = LazyGridState()
+}
+
+internal class VaultListingScroll {
+    private data class SearchKey(
+        val directoryId: DirectoryId,
+        val query: String,
+        val filters: SearchFilters,
+        val recursive: Boolean
+    )
+
+    private val directories = LinkedHashMap<DirectoryId, VaultDirectoryScroll>(32, 0.75f, true)
+    private var searchKey: SearchKey? = null
+    private var searchScroll = VaultDirectoryScroll()
+
+    fun forDirectory(id: DirectoryId): VaultDirectoryScroll = directories[id] ?: VaultDirectoryScroll().also {
+        directories[id] = it
+        if (directories.size > 32) directories.remove(directories.keys.first())
+    }
+
+    fun forSearch(id: DirectoryId, query: String, filters: SearchFilters, recursive: Boolean): VaultDirectoryScroll {
+        val key = SearchKey(id, query, filters, recursive)
+        if (searchKey != key) {
+            searchKey = key
+            searchScroll = VaultDirectoryScroll()
+        }
+        return searchScroll
     }
 }
 

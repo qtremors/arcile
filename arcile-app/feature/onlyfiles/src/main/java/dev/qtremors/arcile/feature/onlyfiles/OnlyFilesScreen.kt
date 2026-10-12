@@ -1,6 +1,14 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.ui.platform.LocalContext
+import dev.qtremors.arcile.core.ui.ArcileTopBar
+import dev.qtremors.arcile.core.ui.ArcileTopBarActions
+import dev.qtremors.arcile.core.ui.ArcileTopBarMenuAction
+import dev.qtremors.arcile.core.ui.ArcileTopBarOptions
+import dev.qtremors.arcile.core.ui.TopBarAction
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+
 import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import android.content.ClipData
 import android.content.Intent
@@ -16,6 +24,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -47,8 +56,9 @@ import androidx.compose.material.icons.outlined.FolderOpen
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
-import androidx.compose.material3.Button
+import dev.qtremors.arcile.core.ui.dialogs.CreateFileDialog
+import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -60,14 +70,11 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -78,14 +85,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -100,17 +106,18 @@ import dev.qtremors.arcile.core.ui.menus.FabMenuItem
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.SearchTopBar
+import dev.qtremors.arcile.core.ui.SearchFiltersSheet
+import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
+import dev.qtremors.arcile.core.ui.lists.ActiveFiltersRow
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.saveable.LocalSaveableStateRegistry
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.ui.SplitButtonGroup
-import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import androidx.compose.foundation.background
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.graphicsLayer
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
@@ -158,19 +165,21 @@ private fun OnlyFilesScreen(
     onImportFolder: () -> Unit,
     onBoundaryTransfer: (List<VaultNodeMetadata>, Boolean) -> Unit
 ) {
-    val context = LocalContext.current
     val snackbarHost = remember(state.mountGeneration) { SnackbarHostState() }
+    val listingScroll = remember(state.mountGeneration) { VaultListingScroll() }
     var showCreateVault by remember { mutableStateOf(false) }
     var unlockVaultId by remember { mutableStateOf<VaultId?>(null) }
     var createItem by remember(state.mountGeneration) { mutableStateOf<CreateItemKind?>(null) }
     var renameNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
     var deleteNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
-    var showOverflow by remember(state.mountGeneration) { mutableStateOf(false) }
     var externalRequest by remember(state.mountGeneration) { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
     var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
     var fabExpanded by remember(state.mountGeneration) { mutableStateOf(false) }
-    var showSearch by remember(state.mountGeneration) { mutableStateOf(false) }
+    var showSearch by remember(state.mountGeneration) { mutableStateOf(state.hasSearch) }
+    var showSearchFilters by remember(state.mountGeneration) { mutableStateOf(false) }
+    var listingWidth by remember(state.mountGeneration) { mutableStateOf<Dp?>(null) }
+    val density = LocalDensity.current
     var predictiveBackProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -179,14 +188,14 @@ private fun OnlyFilesScreen(
         when {
             state.viewer != null -> viewModel.navigateUp()
             state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
+            state.localPicker != null -> viewModel.navigateLocalPickerUp()
+            state.folderPicker != null -> viewModel.navigateVaultFolderUp()
             state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
             showSearch -> {
                 showSearch = false
-                viewModel.updateSearch("")
+                viewModel.clearSearch()
             }
-            state.searchQuery.isNotEmpty() -> viewModel.updateSearch("")
-            state.localPicker != null -> viewModel.navigateLocalPickerUp()
-            state.folderPicker != null -> viewModel.navigateVaultFolderUp()
+            state.hasSearch -> viewModel.clearSearch()
             state.selectedVault != null -> viewModel.navigateUp()
             else -> onNavigateBack()
         }
@@ -244,131 +253,75 @@ private fun OnlyFilesScreen(
         snackbarHost = { ArcileSnackbarHost(snackbarHost) },
         topBar = {
             if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
-                SearchTopBar(
-                    query = state.searchQuery,
-                    onQueryChange = viewModel::updateSearch,
-                    onClose = { showSearch = false; viewModel.updateSearch("") },
-                    onFilterClick = viewModel::toggleRecursiveSearch,
-                    placeholder = stringResource(R.string.onlyfiles_search),
-                    filtersActive = state.recursiveSearch
-                )
-            } else Column {
-                if (state.selectedNodeIds.isNotEmpty()) {
-                    SelectionTopBar(
-                        state,
-                        viewModel,
-                        onRename = { renameNode = state.selectedNodes.singleOrNull() },
-                        onDelete = { deleteNodes = state.selectedNodes },
-                        onShare = { externalRequest = ExternalAction.SHARE to state.selectedNodes },
-                        onOpenWith = {
-                            state.selectedNodes.singleOrNull()?.takeUnless(VaultNodeMetadata::isDirectory)?.let {
-                                externalRequest = ExternalAction.OPEN_WITH to listOf(it)
-                            }
-                        },
-                        onExport = { boundaryRequest = state.selectedNodes to false },
-                        onMoveOut = { boundaryRequest = state.selectedNodes to true }
+                Column {
+                    SearchTopBar(
+                        query = state.searchQuery,
+                        onQueryChange = viewModel::updateSearch,
+                        onClose = { showSearch = false; viewModel.clearSearch() },
+                        onFilterClick = { showSearchFilters = true },
+                        placeholder = stringResource(R.string.onlyfiles_search),
+                        filtersActive = state.searchFilters.hasActiveFilters || !state.recursiveSearch
                     )
-                } else {
-                    LargeTopAppBar(
-                        title = {
-                            val vaultTitle = state.selectedVault?.name
-                                ?: stringResource(R.string.onlyfiles_title)
-                            val directoryTitle = state.currentDirectory?.name?.takeIf(String::isNotBlank)
-                            Text(
-                                text = directoryTitle?.let { "$vaultTitle • $it" } ?: vaultTitle,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        scrollBehavior = dev.qtremors.arcile.core.ui.arcileTopAppBarScrollBehavior(scrollBehavior),
-                        navigationIcon = {
-                            Box(
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .bounceClickable { if (!viewModel.navigateUp()) onNavigateBack() },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.onlyfiles_back))
-                            }
-                        },
-                        actions = {
-                            if (state.selectedVault != null) {
-                                val searchDescription = stringResource(R.string.onlyfiles_search)
-                                val sortDescription = stringResource(R.string.onlyfiles_sort)
-                                val topActions = remember(searchDescription, sortDescription) {
-                                    listOf(
-                                        ToolbarAction(
-                                            icon = Icons.Default.Search,
-                                            contentDescription = searchDescription,
-                                            onClick = { showSearch = true }
-                                        ),
-                                        ToolbarAction(
-                                            icon = Icons.AutoMirrored.Filled.Sort,
-                                            contentDescription = sortDescription,
-                                            onClick = { showViewOptions = true }
-                                        )
-                                    )
-                                }
-                                SplitButtonGroup(actions = topActions)
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                        .bounceClickable { viewModel.refresh() },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.Refresh, stringResource(R.string.onlyfiles_refresh))
-                                }
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                        .bounceClickable { showOverflow = true },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_more))
-                                }
-                                /* Vault administration stays memory-only and outside navigation arguments. */
-                                VaultActionsMenu(
-                                    expanded = showOverflow,
-                                    vault = requireNotNull(state.selectedVault),
-                                    viewModel = viewModel,
-                                    onDismiss = { showOverflow = false }
-                                )
-                            } else {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    if (state.vaults.any(VaultSummary::isUnlocked)) {
-                                        TextButton(
-                                            onClick = viewModel::lockAll,
-                                            modifier = Modifier.bounceClickable { viewModel.lockAll() }
-                                        ) { Text(stringResource(R.string.onlyfiles_lock_all)) }
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .size(48.dp)
-                                            .clip(CircleShape)
-                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                                            .bounceClickable(onClick = viewModel::openSettings),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Default.Settings, stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section))
-                                    }
-                                }
-                            }
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
-                    )
+                    if (state.searchFilters.hasActiveFilters) {
+                        ActiveFiltersRow(state.searchFilters, viewModel::updateSearchFilters)
+                    }
                 }
+            } else {
+                val vault = state.selectedVault
+                val selected = state.selectedNodes
+                val lockAllLabel = stringResource(R.string.onlyfiles_lock_all)
+                val haptics = rememberArcileHaptics()
+                val vaultOverflow: (@Composable (Boolean, () -> Unit) -> Unit)? = if (vault == null) null else {
+                    { expanded, dismiss ->
+                        VaultActionsMenu(expanded, vault, viewModel, state.viewOptions.showHiddenFiles, dismiss)
+                    }
+                }
+                ArcileTopBar(
+                    title = state.currentDirectory?.name?.takeIf(String::isNotBlank)
+                        ?: vault?.name ?: stringResource(R.string.onlyfiles_title),
+                    selectionCount = selected.size,
+                    selectedSize = selected.takeIf { it.isNotEmpty() }?.let {
+                        formatBytes(LocalContext.current, it.sumOf(VaultNodeMetadata::sizeBytes))
+                    },
+                    scrollBehavior = scrollBehavior,
+                    options = ArcileTopBarOptions(
+                        showBackArrow = true,
+                        showSettingsIcon = vault == null,
+                        showSearchAction = vault != null,
+                        showSortAction = vault != null,
+                        showNewFolderAction = false
+                    ),
+                    menuActions = if (vault == null && state.vaults.any(VaultSummary::isUnlocked)) {
+                        listOf(ArcileTopBarMenuAction(lockAllLabel, Icons.Default.Lock, onClick = viewModel::lockAll))
+                    } else emptyList(),
+                    overflowContent = vaultOverflow,
+                    actions = ArcileTopBarActions(
+                        onClearSelection = viewModel::clearSelection,
+                        onSearchClick = { showSearch = true },
+                        onSortClick = { showViewOptions = true },
+                        onActionSelected = { action ->
+                            when (action) {
+                                TopBarAction.SelectAll -> {
+                                    haptics.selectionChanged()
+                                    viewModel.selectAll()
+                                }
+                                TopBarAction.InvertSelection -> {
+                                    haptics.selectionChanged()
+                                    viewModel.invertSelection()
+                                }
+                                else -> Unit
+                            }
+                        },
+                        onBackClick = { navigateBackThroughState() },
+                        onSettingsClick = viewModel::openSettings
+                    )
+                )
             }
         },
         floatingActionButton = {
-            ExpandableFabMenu(
+            if (state.selectedNodeIds.isEmpty() && !showSearch &&
+                state.clipboard == null && state.transferProgress == null
+            ) ExpandableFabMenu(
                 isExpanded = fabExpanded,
                 onToggleExpand = { fabExpanded = !fabExpanded },
                 fabIconRotation = if (fabExpanded) 45f else 0f,
@@ -398,21 +351,46 @@ private fun OnlyFilesScreen(
                     )
                 }
             )
-        },
-        bottomBar = {
-            OnlyFilesBottomBar(state, viewModel)
         }
     ) { padding ->
-        OnlyFilesMainContent(
-            state = state,
-            viewModel = viewModel,
-            contentPadding = padding,
-            onPlayVideo = onPlayVideo,
-            onImportFiles = onImportFiles,
-            onImportFolder = onImportFolder,
-            onUnlockRequired = { unlockVaultId = it },
-            onShowCreateVault = { showCreateVault = true }
-        )
+        Box(Modifier.fillMaxSize()) {
+            OnlyFilesMainContent(
+                onListingWidthChanged = { listingWidth = with(density) { it.toDp() } },
+                state = state,
+                viewModel = viewModel,
+                listingScroll = listingScroll,
+                contentPadding = padding,
+                onPlayVideo = onPlayVideo,
+                onDirectoryOpened = { showSearch = false },
+                onImportFiles = onImportFiles,
+                onImportFolder = onImportFolder,
+                onUnlockRequired = { unlockVaultId = it },
+                onShowCreateVault = { showCreateVault = true }
+            )
+            val toolbarModifier = Modifier.align(Alignment.BottomCenter)
+                .consumeWindowInsets(padding)
+                .padding(bottom = padding.calculateBottomPadding())
+            if (state.selectedNodeIds.isNotEmpty()) {
+                val selected = state.selectedNodes
+                VaultSelectionToolbar(
+                    nodes = selected,
+                    viewModel = viewModel,
+                    onRename = { renameNode = selected.singleOrNull() },
+                    onDelete = { deleteNodes = selected },
+                    onShare = {
+                        externalRequest = ExternalAction.SHARE to selected.filter {
+                            !it.isDirectory && it.ref.capabilities.canShare
+                        }
+                    },
+                    onOpenWith = { externalRequest = ExternalAction.OPEN_WITH to selected },
+                    onExport = { boundaryRequest = selected to false },
+                    onMoveOut = { boundaryRequest = selected to true },
+                    modifier = toolbarModifier
+                )
+            } else {
+                OnlyFilesClipboardToolbar(state, viewModel, toolbarModifier)
+            }
+        }
     }
 
     if (showCreateVault) CreateVaultDialog(
@@ -428,43 +406,88 @@ private fun OnlyFilesScreen(
             onDismiss = { unlockVaultId = null }
         )
     }
-    createItem?.let { kind ->
-        CreateItemDialog(
-            initialKind = kind,
-            onDismiss = { createItem = null },
-            onCreate = { selectedKind, name ->
-                createItem = null
-                if (selectedKind == CreateItemKind.FOLDER) viewModel.createFolder(name) else viewModel.createEmptyFile(name)
-            }
-        )
-    }
-    renameNode?.let { node ->
-        NameDialog(stringResource(R.string.onlyfiles_rename), node.name, { renameNode = null }) {
-            renameNode = null; viewModel.rename(node, it)
+    if (createItem != null || renameNode != null) {
+        val existingNames = remember(state.nodes) { state.nodes.mapTo(mutableSetOf(), VaultNodeMetadata::name) }
+        val destination = state.directoryStack.joinToString(" / ") { it.name }
+        when (createItem) {
+            CreateItemKind.FOLDER -> CreateFolderDialog(
+                onDismiss = { createItem = null },
+                onConfirm = { name -> createItem = null; viewModel.createFolder(name) },
+                existingNames = existingNames,
+                destinationPath = destination
+            )
+            CreateItemKind.FILE -> CreateFileDialog(
+                onDismiss = { createItem = null },
+                onConfirm = { name -> createItem = null; viewModel.createEmptyFile(name) },
+                existingNames = existingNames,
+                destinationPath = destination
+            )
+            null -> Unit
+        }
+        renameNode?.let { node ->
+            RenameDialog(
+                currentName = node.name,
+                onDismiss = { renameNode = null },
+                onConfirm = { name -> renameNode = null; viewModel.rename(node, name) },
+                existingNames = existingNames.takeIf { node.ref.parentId == state.currentDirectory?.id }.orEmpty(),
+                isDirectory = node.isDirectory,
+                saveInput = false
+            )
         }
     }
     if (deleteNodes.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { deleteNodes = emptyList() },
-            title = { Text(stringResource(R.string.onlyfiles_delete)) },
-            text = {
-                Text(pluralStringResource(
-                    R.plurals.onlyfiles_delete_many_confirm,
-                    deleteNodes.size,
-                    deleteNodes.size
-                ))
-            },
-            confirmButton = { Button(onClick = { val nodes = deleteNodes; deleteNodes = emptyList(); viewModel.delete(nodes) }) { Text(stringResource(R.string.onlyfiles_delete)) } },
-            dismissButton = { TextButton(onClick = { deleteNodes = emptyList() }) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+        VaultDeleteConfirmation(deleteNodes, onDismiss = { deleteNodes = emptyList() }) {
+            val nodes = deleteNodes
+            deleteNodes = emptyList()
+            viewModel.delete(nodes)
+        }
+    }
+    if (showSearchFilters) {
+        var recursive by remember { mutableStateOf(state.recursiveSearch) }
+        CompositionLocalProvider(LocalSaveableStateRegistry provides null) {
+            SearchFiltersSheet(
+                currentFilters = state.searchFilters,
+                onApplyFilters = { filters ->
+                    showSearchFilters = false
+                    if (recursive != state.recursiveSearch) {
+                        viewModel.setRecursiveSearch(recursive)
+                    }
+                    viewModel.updateSearchFilters(filters)
+                },
+                onDismiss = { showSearchFilters = false },
+                showStorageFilters = false,
+                onClearScope = { recursive = true },
+                scopeContent = {
+                    ExpressiveFilterChip(
+                        selected = recursive,
+                        onClick = { recursive = !recursive },
+                        label = { Text(stringResource(R.string.onlyfiles_subfolders)) }
+                    )
+                }
+            )
+        }
+    }
+    if (showViewOptions) VaultViewOptionsSheet(
+        options = state.viewOptions,
+        applyToSubfolders = state.viewOptionsApplyToSubfolders,
+        gridContentWidth = listingWidth,
+        onDismiss = { showViewOptions = false },
+        onApply = { options, inherit ->
+            showViewOptions = false
+            viewModel.setFolderViewOptions(options, inherit)
+        }
+    )
+    if (state.properties.isNotEmpty()) {
+        VaultPropertiesDialog(
+            nodes = state.properties,
+            location = state.propertiesLocation(state.properties),
+            loadFolderTotals = viewModel::folderTotals,
+            onDismiss = viewModel::dismissProperties
         )
     }
-    if (showViewOptions) VaultViewOptionsSheet(state, onDismiss = { showViewOptions = false }, onSort = { field, direction ->
-        showViewOptions = false; viewModel.setSort(field, direction)
-    }, onLayoutChange = { layout ->
-        viewModel.setLayout(layout)
-    })
-    state.properties.takeIf(List<VaultNodeMetadata>::isNotEmpty)?.let { PropertiesDialog(it, viewModel::dismissProperties) }
-    state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
+    if (state.selectedVaultId != null) {
+        state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
+    }
     state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
     externalRequest?.let { (action, nodes) ->
         VaultExternalAccessDialogs(action, nodes, viewModel) { externalRequest = null }
