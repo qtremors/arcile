@@ -40,7 +40,11 @@ object AppRoutes {
     )
     @Serializable object Tools
     @Serializable object ActivityLog
-    @Serializable object OnlyFiles
+    @Serializable data class OnlyFiles(
+        val vaultId: String? = null,
+        val directoryId: String? = null,
+        val focusNodeId: String? = null
+    )
     @Serializable object Settings
     @Serializable object Plugins
     @Serializable object Trash

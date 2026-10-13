@@ -134,7 +134,7 @@ private fun handleHomeDestination(
             popUpTo<AppRoutes.Main> { saveState = true }
             launchSingleTop = true
         }
-        HomeDestination.OnlyFiles -> navController.navigate(AppRoutes.OnlyFiles)
+        HomeDestination.OnlyFiles -> navController.navigate(AppRoutes.OnlyFiles())
         is HomeDestination.ShareRecentFile -> actions.shareKnownFilesAsync(
             listOf(destination.path),
             destination.context

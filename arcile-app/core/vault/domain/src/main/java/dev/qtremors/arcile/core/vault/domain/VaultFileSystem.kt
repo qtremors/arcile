@@ -8,6 +8,8 @@ interface VaultFileSystem {
     ): Result<VaultPage<VaultNodeMetadata>>
 
     suspend fun metadata(ref: VaultNodeRef): Result<VaultNodeMetadata>
+    suspend fun directoryTrail(vaultId: VaultId, directoryId: DirectoryId): Result<List<VaultDirectoryLocation>> =
+        Result.failure(VaultFailure.Unavailable("Folder navigation is unavailable"))
     suspend fun folderTotals(ref: VaultNodeRef): Result<VaultFolderTotals> =
         Result.failure(VaultFailure.Unavailable("Folder totals are unavailable"))
 
@@ -30,6 +32,9 @@ interface VaultFileSystem {
         mimeType: String? = null
     ): Result<VaultNodeMetadata>
 
+    suspend fun createSyntheticFile(vaultId: VaultId, parentId: DirectoryId, name: String, size: Long): Result<VaultNodeMetadata> =
+        Result.failure(VaultFailure.Unavailable("Synthetic file creation is unavailable"))
+
     suspend fun rename(ref: VaultNodeRef, newName: String): Result<VaultNodeMetadata>
     suspend fun replaceFileContents(
         ref: VaultNodeRef,
@@ -39,6 +44,8 @@ interface VaultFileSystem {
     suspend fun deletePermanently(ref: VaultNodeRef): Result<Unit>
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader>
 }
+
+data class VaultDirectoryLocation(val id: DirectoryId, val name: String)
 
 data class VaultFolderTotals(val fileCount: Long, val totalBytes: Long, val folderCount: Int = 0)
 

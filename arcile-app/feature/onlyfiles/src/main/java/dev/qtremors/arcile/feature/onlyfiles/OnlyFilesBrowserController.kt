@@ -26,6 +26,7 @@ internal class OnlyFilesBrowserController(
     private var searchJob: Job? = null
     private var directoryJob: Job? = null
     private var directoryGeneration: Long? = null
+    private var searchGeneration: Long? = null
 
     fun refresh() = reload()
 
@@ -54,6 +55,7 @@ internal class OnlyFilesBrowserController(
         debounceMillis: Long = 250L
     ) {
         searchJob?.cancel()
+        searchGeneration = null
         state.update {
             it.copy(
                 searchQuery = query, searchFilters = filters, searchHits = emptyList(), searchNextPageToken = null,
@@ -68,6 +70,7 @@ internal class OnlyFilesBrowserController(
         directoryJob?.cancel()
         searchJob?.cancel()
         directoryGeneration = null
+        searchGeneration = null
         state.update {
             it.copy(
                 nextPageToken = null, searchNextPageToken = null, isListing = false, isSearching = false,
@@ -84,6 +87,7 @@ internal class OnlyFilesBrowserController(
         directoryJob?.cancel()
         directoryJob = null
         directoryGeneration = null
+        searchGeneration = null
     }
 
     fun createFolder(name: String) = currentMutation { vaultId, directoryId ->
@@ -94,8 +98,21 @@ internal class OnlyFilesBrowserController(
         fileSystem.createEmptyFile(vaultId, directoryId, name)
     }
 
+    fun createSyntheticFile(name: String, size: Long) = currentMutation { vaultId, directoryId ->
+        fileSystem.createSyntheticFile(vaultId, directoryId, name, size)
+    }
+
     fun rename(node: VaultNodeMetadata, name: String) = runBusy {
-        fileSystem.rename(node.ref, name).fold(onSuccess = { reload() }, onFailure = showError)
+        val mount = state.value.mountGeneration
+        fileSystem.rename(node.ref, name).fold(
+            onSuccess = { updated ->
+                if (state.value.mountGeneration == mount) {
+                    state.update { it.withUpdatedViewerNode(updated) }
+                    reload()
+                }
+            },
+            onFailure = showError
+        )
     }
 
     fun delete(nodes: List<VaultNodeMetadata>) = runBusy {
@@ -161,7 +178,8 @@ internal class OnlyFilesBrowserController(
                 VaultListOptions(
                     snapshot.sortField, snapshot.sortDirection, PAGE_SIZE, pageToken,
                     showHiddenFiles = snapshot.viewOptions.showHiddenFiles,
-                    foldersFirst = snapshot.viewOptions.foldersFirst
+                    foldersFirst = snapshot.viewOptions.foldersFirst,
+                    revealHiddenNodeId = snapshot.revealHiddenNodeId
                 )
             )
             ensureActive()
@@ -183,7 +201,10 @@ internal class OnlyFilesBrowserController(
                         )
                     }
                 },
-                onFailure = { error -> state.update { it.copy(isListing = false) }; showError(error) }
+                onFailure = { error ->
+                    state.update { it.copy(isListing = false, revealNodeId = null) }
+                    showError(error)
+                }
             )
         }
     }
@@ -191,7 +212,7 @@ internal class OnlyFilesBrowserController(
     private fun scheduleSearchPage(pageToken: String?, append: Boolean, debounceMillis: Long = 0L) {
         val snapshot = state.value
         val vaultId = snapshot.selectedVaultId ?: return
-        val directoryId = snapshot.currentDirectory?.id ?: return
+        val directoryId = (snapshot.searchScope?.lastOrNull() ?: snapshot.currentDirectory)?.id ?: return
         val query = snapshot.searchQuery.trim()
         val filters = snapshot.searchFilters
         if (!snapshot.hasSearch || snapshot.isSearching || append && pageToken == null) return
@@ -213,7 +234,15 @@ internal class OnlyFilesBrowserController(
             ensureActive()
             result.fold(
                 onSuccess = { page ->
-                    if (state.value.searchQuery.trim() == query && state.value.currentDirectory?.id == directoryId) {
+                    val current = state.value
+                    val activeDirectory = (current.searchScope?.lastOrNull() ?: current.currentDirectory)?.id
+                    if (current.searchQuery.trim() == query && activeDirectory == directoryId) {
+                        if (append && searchGeneration != page.generation) {
+                            state.update { it.copy(isSearching = false, searchNextPageToken = null) }
+                            scheduleSearchPage(null, false)
+                            return@fold
+                        }
+                        searchGeneration = page.generation
                         state.update { current ->
                             val combined = (if (append) current.searchHits + page.items else page.items)
                                 .distinctBy { it.metadata.ref.nodeId }

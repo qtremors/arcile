@@ -66,6 +66,9 @@ internal fun VaultActionsMenu(
     vault: VaultSummary,
     viewModel: OnlyFilesViewModel,
     hiddenFilesShown: Boolean,
+    directoryId: dev.qtremors.arcile.core.vault.domain.DirectoryId?,
+    directoryPinned: Boolean,
+    hasExactFolderView: Boolean,
     onDismiss: () -> Unit
 ) {
     var changePassword by remember { mutableStateOf(false) }
@@ -76,12 +79,30 @@ internal fun VaultActionsMenu(
     val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
 
-    val menuActions = remember(vault, hiddenFilesShown) {
+    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView) {
         mutableListOf<@Composable () -> Unit>().apply {
             add {
                 dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
                     closeAnd(viewModel::toggleHiddenFiles)
                 }
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_pinned_folders)) },
+                    onClick = { closeAnd(viewModel::openPinnedFolders) }
+                )
+            }
+            if (directoryId != null) add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(if (directoryPinned) R.string.onlyfiles_unpin_folder else R.string.onlyfiles_pin_folder)) },
+                    onClick = { closeAnd { viewModel.toggleFolderPin(directoryId) } }
+                )
+            }
+            if (hasExactFolderView) add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_reset_folder_view)) },
+                    onClick = { closeAnd(viewModel::resetFolderView) }
+                )
             }
             add {
                 ArcileDropdownMenuItem(

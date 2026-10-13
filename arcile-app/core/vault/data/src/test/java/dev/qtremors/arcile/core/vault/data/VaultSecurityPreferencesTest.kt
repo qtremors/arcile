@@ -64,13 +64,23 @@ class VaultSecurityPreferencesTest {
             applyToSubfolders = true
         )
         preferences.setFolderViewOptions(vault, directory, folderOptions)
+        preferences.setLastDirectory(vault, directory)
+        preferences.setDirectoryPinned(vault, directory, pinned = true)
         val reloaded = DefaultVaultSecurityPreferences(context, scope)
         val reloadedSettings = withContext(Dispatchers.IO) {
-            withTimeout(5_000) { reloaded.settings.first { it.folderViewOptions.isNotEmpty() } }
+            withTimeout(5_000) { reloaded.settings.first { it.lastDirectories[vault] == directory && it.pinnedDirectories.isNotEmpty() } }
         }
         assertEquals(viewOptions, reloadedSettings.viewOptions)
         assertEquals(folderOptions, reloadedSettings.folderViewOptions[vaultFolderViewKey(vault, directory)])
         assertFalse(reloadedSettings.screenshotProtectionEnabled)
+        assertEquals(setOf(directory), reloadedSettings.pinnedDirectories[vault])
+        assertEquals(directory, reloadedSettings.lastDirectories[vault])
+        reloaded.resetFolderViewOptions(vault, directory)
+        reloaded.setDirectoryPinned(vault, directory, pinned = false)
+        val reset = withContext(Dispatchers.IO) {
+            withTimeout(5_000) { reloaded.settings.first { it.folderViewOptions.isEmpty() && it.pinnedDirectories[vault].isNullOrEmpty() } }
+        }
+        assertEquals(directory, reset.lastDirectories[vault])
 
         scope.cancel()
     }

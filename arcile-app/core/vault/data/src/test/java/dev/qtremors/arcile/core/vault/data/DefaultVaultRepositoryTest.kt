@@ -183,6 +183,9 @@ class DefaultVaultRepositoryTest {
         val nextPage = repository.search(vaultId, root, sortedQuery.copy(pageToken = requireNotNull(firstPage.nextPageToken))).getOrThrow()
         assertEquals(empty.ref, nextPage.items.single().metadata.ref)
         assertEquals(null, nextPage.nextPageToken)
+        repository.replaceFileContents(empty.ref, saved.revision, "Changed between pages".encodeToByteArray()).getOrThrow()
+        val changedPage = repository.search(vaultId, root, sortedQuery.copy(pageToken = firstPage.nextPageToken)).getOrThrow()
+        assertTrue(firstPage.generation != changedPage.generation)
         val countSort = repository.listDirectory(
             vaultId, root,
             VaultListOptions(
@@ -192,6 +195,28 @@ class DefaultVaultRepositoryTest {
         ).getOrThrow()
         assertEquals(listOf("Folder", "z.txt"), countSort.items.map { it.name })
 
+        val hiddenReveal = repository.listDirectory(
+            vaultId, root, VaultListOptions(showHiddenFiles = false, revealHiddenNodeId = hidden.ref.nodeId.value)
+        ).getOrThrow()
+        assertTrue(hiddenReveal.items.any { it.ref == hidden.ref })
+        val folderPicker = repository.listDirectory(vaultId, root, VaultListOptions(foldersOnly = true)).getOrThrow()
+        assertEquals(setOf("Folder", ".private"), folderPicker.items.map { it.name }.toSet())
+
+        val nested = repository.listDirectory(vaultId, folderId, VaultListOptions(foldersOnly = true)).getOrThrow().items.single()
+        val nestedId = requireNotNull(nested.ref.directoryId)
+        repository.rename(folder.ref, "Renamed").getOrThrow()
+        val trail = repository.directoryTrail(vaultId, nestedId).getOrThrow()
+        assertEquals(listOf(root, folderId, nestedId), trail.map { it.id })
+        assertEquals(listOf("", "Renamed", "Nested"), trail.map { it.name })
+
+        val synthetic = repository.createSyntheticFile(vaultId, nestedId, "sample.bin", 4097L).getOrThrow()
+        assertEquals(4097L, synthetic.sizeBytes)
+        repository.openReader(synthetic.ref).getOrThrow().use { reader ->
+            val tail = ByteArray(16)
+            assertEquals(1, reader.readAt(4096L, tail, 0, tail.size))
+            assertEquals(-1, reader.readAt(4097L, tail, 0, tail.size))
+        }
+
         val orphan = VaultObjectId.of("f".repeat(64))
         val orphanFile = File(context.noBackupFilesDir, "$ROOT_DIRECTORY/${vaultId.value}/${orphan.shardedPath()}")
         orphanFile.parentFile?.mkdirs()
@@ -200,6 +225,8 @@ class DefaultVaultRepositoryTest {
         assertTrue(orphan in damaged.orphanObjectIds)
         assertEquals(1, repository.cleanupOrphans(vaultId, setOf(orphan)).getOrThrow())
         assertFalse(orphanFile.exists())
+        repository.lock(vaultId)
+        assertTrue(repository.directoryTrail(vaultId, nestedId).exceptionOrNull() is VaultFailure.Locked)
         scope.cancel()
     }
 

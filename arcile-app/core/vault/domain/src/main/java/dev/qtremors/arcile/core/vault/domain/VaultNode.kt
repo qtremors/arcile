@@ -47,7 +47,9 @@ data class VaultListOptions(
     val pageSize: Int = 256,
     val pageToken: String? = null,
     val showHiddenFiles: Boolean = true,
-    val foldersFirst: Boolean = true
+    val foldersFirst: Boolean = true,
+    val foldersOnly: Boolean = false,
+    val revealHiddenNodeId: String? = null
 ) {
     init {
         require(pageSize in 1..256)

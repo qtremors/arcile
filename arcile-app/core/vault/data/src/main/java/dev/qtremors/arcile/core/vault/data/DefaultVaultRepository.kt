@@ -8,6 +8,7 @@ import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
 import dev.qtremors.arcile.core.vault.domain.*
 import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.util.ArrayDeque
 import java.util.PriorityQueue
 import java.util.UUID
@@ -20,6 +21,7 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import kotlin.random.Random
 
 @Singleton
 internal class DefaultVaultRepository @Inject constructor(
@@ -56,7 +58,10 @@ internal class DefaultVaultRepository @Inject constructor(
                 val fileCounts = mutableMapOf<NodeId, Long>()
                 val budget = FolderScanBudget()
                 snapshot.entries.filter { entry ->
-                    if (!options.showHiddenFiles && entry.name.startsWith('.')) return@filter false
+                    if (!options.showHiddenFiles && entry.name.startsWith('.') && entry.nodeId.value != options.revealHiddenNodeId) {
+                        return@filter false
+                    }
+                    if (options.foldersOnly && entry.kind != VaultNodeKind.DIRECTORY) return@filter false
                     if (entry.kind == VaultNodeKind.DIRECTORY) {
                         session.cacheDirectoryKey(
                             requireNotNull(entry.childDirectoryId),
@@ -93,6 +98,47 @@ internal class DefaultVaultRepository @Inject constructor(
         withSession(ref.vaultId) { session ->
             metadata(session, ref)
         }
+
+    override suspend fun directoryTrail(
+        vaultId: VaultId,
+        directoryId: DirectoryId
+    ): Result<List<VaultDirectoryLocation>> = withSession(vaultId) { session ->
+        val root = session.resolveDirectory(DirectoryId.Root)
+        val rootLocation = VaultDirectoryLocation(root.id, "")
+        val pending = ArrayDeque<Pair<List<VaultDirectoryLocation>, ByteArray>>()
+        val visited = mutableSetOf(root.id)
+        pending.add(listOf(rootLocation) to root.key)
+        try {
+            while (pending.isNotEmpty()) {
+                currentCoroutineContext().ensureActive()
+                val (trail, key) = pending.removeLast()
+                try {
+                    val current = trail.last().id
+                    if (current == directoryId) {
+                        session.cacheDirectoryKey(current, key)
+                        return@withSession trail
+                    }
+                    val snapshot = session.readDirectory(current, key)
+                    try {
+                        for (entry in snapshot.entries.asReversed()) {
+                            val child = entry.childDirectoryId ?: continue
+                            if (!visited.add(child)) {
+                                throw VaultFailure.IntegrityFailed("A vault folder was encountered twice")
+                            }
+                            pending.add(trail + VaultDirectoryLocation(child, entry.name) to entry.protectedKey.copyOf())
+                        }
+                    } finally {
+                        snapshot.clearProtectedKeys()
+                    }
+                } finally {
+                    key.fill(0)
+                }
+            }
+            throw VaultFailure.InvalidPath("Folder is unavailable")
+        } finally {
+            while (pending.isNotEmpty()) pending.removeLast().second.fill(0)
+        }
+    }
 
     override suspend fun folderTotals(ref: VaultNodeRef): Result<VaultFolderTotals> = withSession(ref.vaultId) { session ->
         val (parent, snapshot, entry) = resolveStableEntry(session, ref)
@@ -199,13 +245,14 @@ internal class DefaultVaultRepository @Inject constructor(
         val comparator = Comparator<VaultSearchHit> { left, right -> nodeComparator.compare(left.metadata, right.metadata) }
         // Keep only the prefix needed for this page while ranking matches across the whole tree.
         val matches = PriorityQueue(comparator.reversed())
-        var generation = 0L
+        var generation = 1L
         try {
             while (frames.isNotEmpty()) {
                 val frame = frames.removeLast()
                 try {
                     val snapshot = session.readDirectory(frame.directoryId, frame.key)
-                    generation = maxOf(generation, snapshot.generation)
+                    generation = 31L * generation + frame.directoryId.hashCode()
+                    generation = 31L * generation + snapshot.generation
                     try {
                         for (entry in snapshot.entries) {
                             currentCoroutineContext().ensureActive()
@@ -267,7 +314,17 @@ internal class DefaultVaultRepository @Inject constructor(
         parentId: DirectoryId,
         name: String,
         mimeType: String?
+    ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, mimeType, 0L)
+
+    override suspend fun createSyntheticFile(
+        vaultId: VaultId, parentId: DirectoryId, name: String, size: Long
+    ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, "application/octet-stream", size)
+
+    private suspend fun createFile(
+        vaultId: VaultId, parentId: DirectoryId, name: String, mimeType: String?, size: Long
     ): Result<VaultNodeMetadata> = mutate(vaultId) { session ->
+        require(size >= 0L)
+        val coroutine = currentCoroutineContext()
         val parent = session.resolveDirectory(parentId)
         val snapshot = session.readDirectory(parent)
         val contentKey = VaultCryptography.randomBytes(32)
@@ -276,6 +333,26 @@ internal class DefaultVaultRepository @Inject constructor(
         try {
             val normalized = normalizeMutationName(name)
             ensureNameAvailable(snapshot, normalized)
+            val source = object : InputStream() {
+                private var remaining = size
+
+                override fun read(): Int {
+                    coroutine.ensureActive()
+                    if (remaining == 0L) return -1
+                    remaining--
+                    return Random.nextInt(256)
+                }
+
+                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+                    coroutine.ensureActive()
+                    if (length == 0) return 0
+                    if (remaining == 0L) return -1
+                    val count = minOf(length.toLong(), remaining).toInt()
+                    Random.nextBytes(buffer, offset, offset + count)
+                    remaining -= count
+                    return count
+                }
+            }
             fileCodec.writeObject(
                 session.directory,
                 objectPath,
@@ -283,7 +360,7 @@ internal class DefaultVaultRepository @Inject constructor(
                 objectId,
                 1L,
                 contentKey,
-                ByteArrayInputStream(ByteArray(0))
+                source
             )
             val entry = VaultManifestEntry(
                 NodeId.random(),
@@ -291,7 +368,7 @@ internal class DefaultVaultRepository @Inject constructor(
                 VaultNodeKind.FILE,
                 1L,
                 System.currentTimeMillis(),
-                0L,
+                size,
                 mimeType,
                 objectId,
                 null,

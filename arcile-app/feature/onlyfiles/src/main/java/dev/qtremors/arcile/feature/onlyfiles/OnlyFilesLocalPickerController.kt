@@ -61,7 +61,9 @@ internal class OnlyFilesLocalPickerController(
             val result = destinations.parent(current.path, volumes)
             ensureActive()
             result.fold(
-                onSuccess = { parent -> if (parent == null) showRoots(picker.mode) else loadDirectory(parent.path) },
+                onSuccess = { parent ->
+                    if (parent == null) showRoots(picker.mode, picker.selectedPaths) else loadDirectory(parent.path)
+                },
                 onFailure = showError
             )
         }
@@ -84,14 +86,14 @@ internal class OnlyFilesLocalPickerController(
         )
     }
 
-    private suspend fun showRoots(mode: OnlyFilesLocalPickerMode) {
+    private suspend fun showRoots(mode: OnlyFilesLocalPickerMode, selectedPaths: Set<String> = emptySet()) {
         val roots = volumes.mapNotNull { volume ->
             destinations.resolve(volume.path, volumes).getOrNull()?.let { directory ->
                 FileModel(directory.name, directory.path, isDirectory = true)
             }
         }
         kotlinx.coroutines.currentCoroutineContext().ensureActive()
-        state.update { it.copy(localPicker = OnlyFilesLocalPickerState(mode, entries = roots)) }
+        state.update { it.copy(localPicker = OnlyFilesLocalPickerState(mode, entries = roots, selectedPaths = selectedPaths)) }
     }
 
     private fun load(path: String) = loadPicker { loadDirectory(path) }
@@ -113,7 +115,9 @@ internal class OnlyFilesLocalPickerController(
         kotlinx.coroutines.currentCoroutineContext().ensureActive()
         entriesResult.fold(
             onSuccess = { entries -> state.update {
-                it.copy(localPicker = OnlyFilesLocalPickerState(previous.mode, current, entries.sortedWith(
+                    val visibleEntries = if (previous.mode == OnlyFilesLocalPickerMode.IMPORT_FILES) entries
+                        else entries.filter(FileModel::isDirectory)
+                    it.copy(localPicker = OnlyFilesLocalPickerState(previous.mode, current, visibleEntries.sortedWith(
                     compareByDescending<FileModel> { file -> file.isDirectory }.thenBy { file -> file.name.lowercase() }
                 ), previous.selectedPaths))
             } },

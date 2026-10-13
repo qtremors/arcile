@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
@@ -53,6 +54,17 @@ class DefaultVaultSecurityPreferences @Inject constructor(
             folderViewOptions = preferences.asMap().mapNotNull { (key, value) ->
                 if (!key.name.startsWith(FOLDER_PREFIX) || value !is String) return@mapNotNull null
                 decodeFolderViewOptions(value)?.let { key.name.removePrefix(FOLDER_PREFIX) to it }
+            }.toMap(),
+            lastDirectories = preferences.asMap().mapNotNull { (key, value) ->
+                val vault = decodeVaultKey(key.name, LAST_DIRECTORY_PREFIX) ?: return@mapNotNull null
+                val directory = (value as? String)?.let(::decodeDirectory) ?: return@mapNotNull null
+                vault to directory
+            }.toMap(),
+            pinnedDirectories = preferences.asMap().mapNotNull { (key, value) ->
+                val vault = decodeVaultKey(key.name, PINNED_DIRECTORIES_PREFIX) ?: return@mapNotNull null
+                val ids = (value as? Set<*>)?.mapNotNull { (it as? String)?.let(::decodeDirectory) }
+                    ?: return@mapNotNull null
+                vault to ids.toSet()
             }.toMap()
         )
     }.stateIn(scope, SharingStarted.Eagerly, VaultSecuritySettings())
@@ -84,6 +96,28 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         store.edit { it[stringPreferencesKey(FOLDER_PREFIX + vaultFolderViewKey(vaultId, directoryId))] = encoded }
     }
 
+    override suspend fun setLastDirectory(vaultId: VaultId, directoryId: DirectoryId) {
+        store.edit { it[stringPreferencesKey(LAST_DIRECTORY_PREFIX + vaultId.value)] = directoryId.value }
+    }
+
+    override suspend fun resetFolderViewOptions(vaultId: VaultId, directoryId: DirectoryId) {
+        val key = stringPreferencesKey(FOLDER_PREFIX + vaultFolderViewKey(vaultId, directoryId))
+        store.edit { it.remove(key) }
+    }
+
+    override suspend fun setDirectoryPinned(vaultId: VaultId, directoryId: DirectoryId, pinned: Boolean) {
+        val key = stringSetPreferencesKey(PINNED_DIRECTORIES_PREFIX + vaultId.value)
+        store.edit {
+            val current = it[key].orEmpty()
+            it[key] = if (pinned) current + directoryId.value else current - directoryId.value
+        }
+    }
+
+    private fun decodeVaultKey(name: String, prefix: String): VaultId? =
+        name.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.let { runCatching { VaultId.of(it) }.getOrNull() }
+
+    private fun decodeDirectory(value: String): DirectoryId? = runCatching { DirectoryId.of(value) }.getOrNull()
+
     private fun decodeFolderViewOptions(encoded: String): VaultFolderViewOptions? {
         val fields = encoded.split(',')
         if (fields.size != 8) return null
@@ -112,6 +146,8 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         val SHOW_HIDDEN_FILES = booleanPreferencesKey("browse_show_hidden_files")
         val FOLDERS_FIRST = booleanPreferencesKey("browse_folders_first")
         const val FOLDER_PREFIX = "browse_folder/"
+        const val LAST_DIRECTORY_PREFIX = "browse_last_directory/"
+        const val PINNED_DIRECTORIES_PREFIX = "browse_pinned_directories/"
         val LIST_ZOOM = floatPreferencesKey("browse_list_zoom")
         val GRID_SIZE = floatPreferencesKey("browse_grid_size")
     }

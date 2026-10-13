@@ -5,7 +5,9 @@ import kotlinx.coroutines.flow.StateFlow
 data class VaultSecuritySettings(
     val screenshotProtectionEnabled: Boolean = true,
     val viewOptions: VaultViewOptions = VaultViewOptions(),
-    val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap()
+    val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
+    val lastDirectories: Map<VaultId, DirectoryId> = emptyMap(),
+    val pinnedDirectories: Map<VaultId, Set<DirectoryId>> = emptyMap()
 )
 
 data class VaultFolderViewOptions(val options: VaultViewOptions, val applyToSubfolders: Boolean)
@@ -33,6 +35,9 @@ interface VaultSecurityPreferences {
         directoryId: DirectoryId,
         options: VaultFolderViewOptions
     )
+    suspend fun setLastDirectory(vaultId: VaultId, directoryId: DirectoryId)
+    suspend fun setDirectoryPinned(vaultId: VaultId, directoryId: DirectoryId, pinned: Boolean)
+    suspend fun resetFolderViewOptions(vaultId: VaultId, directoryId: DirectoryId)
 }
 
 data class VaultThumbnailCacheStats(val encryptedFileCount: Int, val encryptedBytes: Long)

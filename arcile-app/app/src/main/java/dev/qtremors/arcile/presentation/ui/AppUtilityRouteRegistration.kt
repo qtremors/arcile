@@ -41,7 +41,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                 }
             },
             onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
-            onNavigateToOnlyFiles = { navController.navigate(AppRoutes.OnlyFiles) }
+            onNavigateToOnlyFiles = { navController.navigate(AppRoutes.OnlyFiles()) }
         )
     }
     registerOnlyFilesRoute(

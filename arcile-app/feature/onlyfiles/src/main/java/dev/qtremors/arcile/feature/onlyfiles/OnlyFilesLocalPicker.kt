@@ -91,8 +91,11 @@ internal fun OnlyFilesLocalPickerDialog(
             }
         },
         confirmButton = {
-            val enabled = !state.isLoading && if (selectingFiles) state.selectedPaths.isNotEmpty()
-            else state.current?.canSave == true
+            val enabled = !state.isLoading && when (state.mode) {
+                OnlyFilesLocalPickerMode.IMPORT_FILES -> state.selectedPaths.isNotEmpty()
+                OnlyFilesLocalPickerMode.IMPORT_FOLDER -> state.current != null
+                else -> state.current?.canSave == true
+            }
             Button(
                 onClick = onChoose,
                 enabled = enabled,

@@ -34,6 +34,7 @@ internal fun VaultSelectionToolbar(
     onOpenWith: () -> Unit,
     onExport: () -> Unit,
     onMoveOut: () -> Unit,
+    onReveal: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     val single = nodes.singleOrNull()
@@ -68,6 +69,9 @@ internal fun VaultSelectionToolbar(
                         item(UiR.string.share, Icons.Default.Share, onShare)
                     }
                     item(UiR.string.properties_title, Icons.Default.Info) { viewModel.showProperties(nodes) }
+                    if (onReveal != null) {
+                        item(R.string.onlyfiles_reveal_in_folder, Icons.AutoMirrored.Filled.OpenInNew, onReveal)
+                    }
                     if (nodes.all { it.ref.capabilities.canExport }) {
                         item(R.string.onlyfiles_export, Icons.Default.UploadFile, onExport)
                         if (nodes.all { it.ref.capabilities.canDeletePermanently }) {

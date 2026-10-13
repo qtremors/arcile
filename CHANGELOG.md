@@ -1,10 +1,20 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.3
+> **Version:** 2.2.4
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.4] - 2026-11-04
+
+### Changed
+- OnlyFiles restores the last folder after unlock, supports pinned folders, and lets you choose a search folder and reveal results in their parent.
+- Added the shared scrollbar, folder view reset, random file creation, and ZIP folder browsing.
+
+### Fixed
+- Copy and cut survive switching between unlocked vaults. Import keeps selections across storage roots and accepts read-only source folders.
+- Open viewers refresh after rename or text save. Search restarts when vault contents change between pages.
 
 ## [2.2.3] - 2026-11-04
 

@@ -65,7 +65,7 @@ internal fun OnlyFilesClipboardToolbar(
     viewModel: OnlyFilesViewModel,
     modifier: Modifier = Modifier
 ) {
-    val clipboard = state.clipboard
+    val clipboard = state.clipboard.takeIf { state.selectedVaultId != null }
     val progress = state.transferProgress
     if (clipboard == null && progress == null) return
 
@@ -138,7 +138,8 @@ internal fun OnlyFilesMainContent(
     onShowCreateVault: () -> Unit
 ) {
     val context = LocalContext.current
-    val hasFloatingToolbar = state.selectedNodeIds.isNotEmpty() || state.clipboard != null || state.transferProgress != null
+    val hasFloatingToolbar = state.selectedNodeIds.isNotEmpty() ||
+        (state.selectedVaultId != null && state.clipboard != null) || state.transferProgress != null
     val toolbarPadding = if (hasFloatingToolbar) MaterialTheme.spacing.toolbarBottomGap else 0.dp
     Box(Modifier.fillMaxSize().padding(contentPadding).padding(bottom = toolbarPadding)) {
         if (state.selectedVault == null) {
@@ -223,6 +224,9 @@ internal fun OnlyFilesMainContent(
                         onToggleSelection = viewModel::toggleSelection,
                         onSelectRange = viewModel::selectRange,
                         onLoadMore = viewModel::loadNextPage,
+                        onRevealFinished = { found ->
+                            viewModel.finishReveal(context.getString(R.string.onlyfiles_reveal_unavailable).takeUnless { found })
+                        },
                         onGridSizeFinalized = viewModel::setGridCellSize,
                         onImportFiles = onImportFiles,
                         onImportFolder = onImportFolder

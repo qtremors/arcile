@@ -15,6 +15,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,6 +59,7 @@ import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material.icons.outlined.VisibilityOff
 import dev.qtremors.arcile.core.ui.dialogs.CreateFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
+import dev.qtremors.arcile.core.ui.dialogs.CreateSyntheticFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LoadingIndicator
@@ -75,6 +77,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -132,11 +135,12 @@ import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import java.text.DateFormat
 import kotlinx.coroutines.flow.collect
 
-internal enum class CreateItemKind { FOLDER, FILE }
+internal enum class CreateItemKind { FOLDER, FILE, SYNTHETIC }
 internal enum class ExternalAction { SHARE, OPEN_WITH, INSTALL_APK }
 
 @Composable
 internal fun OnlyFilesRoute(
+    entry: OnlyFilesEntry? = null,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
@@ -144,6 +148,7 @@ internal fun OnlyFilesRoute(
     val state by viewModel.state.collectAsStateWithLifecycle()
     VaultSecureWindowEffect(state.selectedVaultId != null && state.screenshotProtectionEnabled)
     OnlyFilesScreen(
+        entry = entry,
         state = state,
         viewModel = viewModel,
         onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
@@ -157,6 +162,7 @@ internal fun OnlyFilesRoute(
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun OnlyFilesScreen(
+    entry: OnlyFilesEntry?,
     state: OnlyFilesUiState,
     viewModel: OnlyFilesViewModel,
     onNavigateBack: () -> Unit,
@@ -188,14 +194,16 @@ private fun OnlyFilesScreen(
         when {
             state.viewer != null -> viewModel.navigateUp()
             state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
+            state.locationPicker != null -> viewModel.closeLocationPicker()
             state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
-            state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
+            fabExpanded -> fabExpanded = false
             showSearch -> {
                 showSearch = false
                 viewModel.clearSearch()
             }
             state.hasSearch -> viewModel.clearSearch()
+            state.selectedNodeIds.isNotEmpty() -> viewModel.clearSelection()
             state.selectedVault != null -> viewModel.navigateUp()
             else -> onNavigateBack()
         }
@@ -231,6 +239,12 @@ private fun OnlyFilesScreen(
     }
 
     val unlockVault = pendingUnlockVault(unlockVaultId, state.selectedVaultId, state.vaults)
+    val entryVault = state.vaults.firstOrNull { it.id == entry?.vaultId }
+    LaunchedEffect(entry, entryVault) {
+        if (entry != null && entryVault != null && !viewModel.openEntry(entry, entryVault)) {
+            unlockVaultId = entryVault.id
+        }
+    }
     LaunchedEffect(unlockVaultId, state.selectedVaultId, state.vaults) {
         if (unlockVaultId != null && unlockVault == null) unlockVaultId = null
     }
@@ -260,8 +274,22 @@ private fun OnlyFilesScreen(
                         onClose = { showSearch = false; viewModel.clearSearch() },
                         onFilterClick = { showSearchFilters = true },
                         placeholder = stringResource(R.string.onlyfiles_search),
-                        filtersActive = state.searchFilters.hasActiveFilters || !state.recursiveSearch
+                        filtersActive = state.searchFilters.hasActiveFilters || !state.recursiveSearch || state.searchScope != null
                     )
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val scopeLabel = state.searchScope?.lastOrNull()?.name?.ifBlank { state.selectedVault?.name.orEmpty() }
+                        ExpressiveFilterChip(
+                            selected = scopeLabel != null,
+                            onClick = viewModel::openSearchScope,
+                            label = {
+                                Text(scopeLabel ?: stringResource(R.string.onlyfiles_search_scope), maxLines = 1)
+                            },
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (scopeLabel != null) TextButton(onClick = viewModel::clearSearchScope) {
+                            Text(stringResource(R.string.onlyfiles_clear_scope))
+                        }
+                    }
                     if (state.searchFilters.hasActiveFilters) {
                         ActiveFiltersRow(state.searchFilters, viewModel::updateSearchFilters)
                     }
@@ -270,10 +298,17 @@ private fun OnlyFilesScreen(
                 val vault = state.selectedVault
                 val selected = state.selectedNodes
                 val lockAllLabel = stringResource(R.string.onlyfiles_lock_all)
+                val loadedOnlyMessage = stringResource(R.string.onlyfiles_selection_loaded_only)
                 val haptics = rememberArcileHaptics()
                 val vaultOverflow: (@Composable (Boolean, () -> Unit) -> Unit)? = if (vault == null) null else {
                     { expanded, dismiss ->
-                        VaultActionsMenu(expanded, vault, viewModel, state.viewOptions.showHiddenFiles, dismiss)
+                        VaultActionsMenu(
+                            expanded, vault, viewModel, state.viewOptions.showHiddenFiles,
+                            state.currentDirectory?.id,
+                            state.currentDirectory?.id?.let { it in state.pinnedDirectoryIds } == true,
+                            state.hasExactFolderView,
+                            dismiss
+                        )
                     }
                 }
                 ArcileTopBar(
@@ -303,11 +338,11 @@ private fun OnlyFilesScreen(
                             when (action) {
                                 TopBarAction.SelectAll -> {
                                     haptics.selectionChanged()
-                                    viewModel.selectAll()
+                                    viewModel.selectAll(loadedOnlyMessage)
                                 }
                                 TopBarAction.InvertSelection -> {
                                     haptics.selectionChanged()
-                                    viewModel.invertSelection()
+                                    viewModel.invertSelection(loadedOnlyMessage)
                                 }
                                 else -> Unit
                             }
@@ -320,7 +355,7 @@ private fun OnlyFilesScreen(
         },
         floatingActionButton = {
             if (state.selectedNodeIds.isEmpty() && !showSearch &&
-                state.clipboard == null && state.transferProgress == null
+                (state.selectedVaultId == null || state.clipboard == null) && state.transferProgress == null
             ) ExpandableFabMenu(
                 isExpanded = fabExpanded,
                 onToggleExpand = { fabExpanded = !fabExpanded },
@@ -347,6 +382,9 @@ private fun OnlyFilesScreen(
                         }),
                         FabMenuItem(stringResource(R.string.onlyfiles_new_item), Icons.Default.Description, onClick = {
                             fabExpanded = false; createItem = CreateItemKind.FILE
+                        }),
+                        FabMenuItem(stringResource(dev.qtremors.arcile.core.ui.R.string.title_create_synthetic_file), Icons.Default.Description, onClick = {
+                            fabExpanded = false; createItem = CreateItemKind.SYNTHETIC
                         })
                     )
                 }
@@ -367,6 +405,15 @@ private fun OnlyFilesScreen(
                 onUnlockRequired = { unlockVaultId = it },
                 onShowCreateVault = { showCreateVault = true }
             )
+            if (fabExpanded) {
+                Box(
+                    Modifier.fillMaxSize().clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { fabExpanded = false }
+                    )
+                )
+            }
             val toolbarModifier = Modifier.align(Alignment.BottomCenter)
                 .consumeWindowInsets(padding)
                 .padding(bottom = padding.calculateBottomPadding())
@@ -385,6 +432,9 @@ private fun OnlyFilesScreen(
                     onOpenWith = { externalRequest = ExternalAction.OPEN_WITH to selected },
                     onExport = { boundaryRequest = selected to false },
                     onMoveOut = { boundaryRequest = selected to true },
+                    onReveal = selected.singleOrNull()?.takeIf { state.hasSearch }?.let { node ->
+                        { showSearch = false; viewModel.revealInParent(node) }
+                    },
                     modifier = toolbarModifier
                 )
             } else {
@@ -421,6 +471,10 @@ private fun OnlyFilesScreen(
                 onConfirm = { name -> createItem = null; viewModel.createEmptyFile(name) },
                 existingNames = existingNames,
                 destinationPath = destination
+            )
+            CreateItemKind.SYNTHETIC -> CreateSyntheticFileDialog(
+                onDismiss = { createItem = null },
+                onConfirm = { name, size -> createItem = null; viewModel.createSyntheticFile(name, size) }
             )
             null -> Unit
         }
@@ -485,6 +539,7 @@ private fun OnlyFilesScreen(
             onDismiss = viewModel::dismissProperties
         )
     }
+    state.locationPicker?.let { OnlyFilesLocationSheet(it, state.selectedVault?.name.orEmpty(), viewModel) }
     if (state.selectedVaultId != null) {
         state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
     }

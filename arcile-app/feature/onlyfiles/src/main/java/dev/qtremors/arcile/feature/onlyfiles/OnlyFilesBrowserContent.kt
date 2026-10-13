@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -56,6 +57,9 @@ import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.ui.lists.pinchToResizeGrid
+import dev.qtremors.arcile.core.ui.scrollbar.ArcileFastScrollbar
+import dev.qtremors.arcile.core.ui.scrollbar.LazyGridScrollbarState
+import dev.qtremors.arcile.core.ui.scrollbar.LazyListScrollbarState
 import androidx.compose.foundation.layout.size
 import dev.qtremors.arcile.core.ui.EmptyState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
@@ -83,6 +87,7 @@ internal fun VaultBrowser(
     onToggleSelection: (String) -> Unit,
     onSelectRange: (List<String>) -> Unit,
     onLoadMore: () -> Unit,
+    onRevealFinished: (Boolean) -> Unit,
     onGridSizeFinalized: (Float) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit
@@ -96,11 +101,27 @@ internal fun VaultBrowser(
         state.searchHits.associate { it.metadata.ref.nodeId to it.parentNames.joinToString(" / ") }
     }
     val directoryId = state.currentDirectory?.id
-    val scroll = remember(listingScroll, directoryId, state.searchQuery, state.searchFilters, state.recursiveSearch) {
+    val searchDirectoryId = state.searchScope?.lastOrNull()?.id ?: directoryId
+    val scroll = remember(listingScroll, directoryId, searchDirectoryId, state.searchQuery, state.searchFilters, state.recursiveSearch) {
         when {
             directoryId == null -> VaultDirectoryScroll()
             !state.hasSearch -> listingScroll.forDirectory(directoryId)
-            else -> listingScroll.forSearch(directoryId, state.searchQuery, state.searchFilters, state.recursiveSearch)
+            else -> listingScroll.forSearch(requireNotNull(searchDirectoryId), state.searchQuery, state.searchFilters, state.recursiveSearch)
+        }
+    }
+    val revealIndex = displayedNodes.indexOfFirst { it.ref.nodeId.value == state.revealNodeId }
+    val revealPath = models.getOrNull(revealIndex)?.reference
+    LaunchedEffect(state.revealNodeId, revealIndex, state.isListing, state.nextPageToken, state.viewOptions.grid, scroll) {
+        if (state.revealNodeId == null || state.hasSearch || state.isListing) return@LaunchedEffect
+        when {
+            revealIndex >= 0 -> {
+                if (state.viewOptions.grid) scroll.grid.scrollToItem(revealIndex)
+                else scroll.list.scrollToItem(revealIndex)
+                kotlinx.coroutines.delay(1600L)
+                onRevealFinished(true)
+            }
+            state.nextPageToken != null -> onLoadMore()
+            else -> onRevealFinished(false)
         }
     }
     val totalsByPath = remember(state.mountGeneration, state.listingRevision, scroll) {
@@ -144,8 +165,12 @@ internal fun VaultBrowser(
                 modifier = Modifier.fillMaxSize().padding(24.dp),
                 variant = if (state.hasSearch) EmptyStateVariant.Search else EmptyStateVariant.Folder,
                 icon = if (state.hasSearch) null else Icons.Outlined.FolderOpen,
-                title = stringResource(if (state.hasSearch) R.string.onlyfiles_no_results else R.string.onlyfiles_empty_folder),
-                description = "",
+                title = stringResource(if (state.hasSearch) dev.qtremors.arcile.core.ui.R.string.no_results_found else R.string.onlyfiles_empty_folder),
+                description = when {
+                    !state.hasSearch -> ""
+                    state.searchQuery.isBlank() -> stringResource(dev.qtremors.arcile.core.ui.R.string.no_results_for_filters)
+                    else -> stringResource(dev.qtremors.arcile.core.ui.R.string.no_results_description, state.searchQuery)
+                },
                 action = if (!state.hasSearch) {
                     {
                         Column(
@@ -190,13 +215,15 @@ internal fun VaultBrowser(
         val open: (String) -> Unit = { path -> byOpaquePath[path]?.let(onOpen) }
         val toggle: (String) -> Unit = { path -> byOpaquePath[path]?.ref?.nodeId?.value?.let(onToggleSelection) }
         val range: (List<String>) -> Unit = { paths -> onSelectRange(paths.mapNotNull { byOpaquePath[it]?.ref?.nodeId?.value }) }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
         if (!state.viewOptions.grid) {
             FileList(
                 files = models, selectedFiles = selectedPaths, onNavigateTo = open, onOpenFile = open,
-                onToggleSelection = toggle, onSelectMultiple = range, modifier = Modifier.weight(1f),
+                onToggleSelection = toggle, onSelectMultiple = range, modifier = Modifier.fillMaxSize(),
                 listState = scroll.list,
                 folderStatsByPath = folderStats,
-                presentation = presentation
+                presentation = presentation,
+                highlightedPath = revealPath
             )
         } else {
             var cellSize by remember(state.viewOptions.gridMinCellSize) {
@@ -215,14 +242,24 @@ internal fun VaultBrowser(
             FileGrid(
                 files = models, selectedFiles = selectedPaths, onNavigateTo = open, onOpenFile = open,
                 onToggleSelection = toggle, onSelectMultiple = range,
-                modifier = Modifier.weight(1f).pinchToResizeGrid(
+                modifier = Modifier.fillMaxSize().pinchToResizeGrid(
                     currentCellSize, updateCellSize, finalizeCellSize, horizontalPaddingDp = 32f
                 ),
                 gridState = scroll.grid,
                 folderStatsByPath = folderStats,
                 presentation = presentation,
-                minCellSize = cellSize.dp
+                minCellSize = cellSize.dp,
+                highlightedPath = revealPath
             )
+        }
+        val scrollbar = remember(scroll, state.viewOptions.grid) {
+            if (state.viewOptions.grid) LazyGridScrollbarState(scroll.grid) else LazyListScrollbarState(scroll.list)
+        }
+        ArcileFastScrollbar(
+            scrollbarState = scrollbar,
+            labelForIndex = { models.getOrNull(it)?.name.orEmpty() },
+            modifier = Modifier.align(Alignment.CenterEnd).fillMaxHeight()
+        )
         }
         val hasMore = if (state.hasSearch) state.searchNextPageToken != null else state.nextPageToken != null
         if (hasMore) TextButton(onClick = onLoadMore, modifier = Modifier.align(Alignment.CenterHorizontally)) {

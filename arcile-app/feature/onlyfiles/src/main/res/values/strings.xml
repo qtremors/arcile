@@ -1,4 +1,17 @@
 <resources>
+    <string name="onlyfiles_search_scope">Search folder</string>
+    <string name="onlyfiles_clear_scope">Clear scope</string>
+    <string name="onlyfiles_search_here">Search here</string>
+    <string name="onlyfiles_pinned_folders">Pinned folders</string>
+    <string name="onlyfiles_pin_folder">Pin this folder</string>
+    <string name="onlyfiles_unpin_folder">Unpin this folder</string>
+    <string name="onlyfiles_no_subfolders">No subfolders</string>
+    <string name="onlyfiles_no_pinned_folders">No pinned folders</string>
+    <string name="onlyfiles_retry_folder_list">Retry loading folders</string>
+    <string name="onlyfiles_reveal_in_folder">Show in folder</string>
+    <string name="onlyfiles_reveal_unavailable">This item is unavailable in the folder listing.</string>
+    <string name="onlyfiles_reset_folder_view">Reset folder view settings</string>
+    <string name="onlyfiles_selection_loaded_only">Selection applies to loaded items. Load more to include other items.</string>
     <string name="onlyfiles_title">OnlyFiles</string>
     <string name="onlyfiles_create">Create vault</string>
     <string name="onlyfiles_empty">Create your first encrypted vault.</string>

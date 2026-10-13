@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -84,6 +85,11 @@ internal fun ViewerScreen(
     var confirmDelete by remember(node.ref.nodeId) { mutableStateOf(false) }
     var externalAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
     var showRename by remember(node.ref.nodeId) { mutableStateOf(false) }
+    var archiveFolder by remember(node.ref.nodeId, node.revision) { mutableStateOf(emptyList<String>()) }
+    val navigateBack = {
+        if (archiveFolder.isEmpty()) onBack() else archiveFolder = archiveFolder.dropLast(1)
+    }
+    BackHandler(enabled = archiveFolder.isNotEmpty(), onBack = navigateBack)
     val sharedFile = remember(node) { node.toSharedFileModel() }
     val allowedActions = remember(sharedFile.nodeRef.capabilities) {
         ViewerActionPolicy.resolveAllowedActions(
@@ -138,7 +144,7 @@ internal fun ViewerScreen(
         Box(modifier.fillMaxSize().background(Color.Black)) {
             key(node.ref, node.revision) {
                 when {
-                    node.extension == "zip" -> VaultZipPreview(node, viewModel::openReader)
+                    node.extension == "zip" -> VaultZipPreview(node, viewModel::openReader, archiveFolder) { archiveFolder = it }
                     node.extension in dev.qtremors.arcile.core.storage.domain.FileCategories.APKs.extensions ->
                         Column(
                             Modifier.align(Alignment.Center).padding(24.dp),
@@ -185,7 +191,7 @@ internal fun ViewerScreen(
                         .size(48.dp)
                         .clip(CircleShape)
                         .background(Color.Black.copy(alpha = 0.5f))
-                        .bounceClickable { onBack() },
+                        .bounceClickable { navigateBack() },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(

@@ -88,40 +88,20 @@
 
 ### OnlyFiles
 
-- [ ] **REL-0004 - Enable Cross-Vault Copy and Cut**
-  - **Location:** OnlyFilesViewModel.kt and OnlyFilesTransferController.kt.
-  - **Current:** Leaving the source vault clears the clipboard before selecting a destination vault.
-  - **Change:** Keep unlocked source references during a destination switch and clear them when source access locks.
-
-- [ ] **REL-0005 - Refresh the Open Viewer After Edits**
-  - **Location:** OnlyFilesBrowserController.kt and OnlyFilesViewModel.kt.
-  - **Current:** Rename and text save refresh the listing while the open viewer retains old metadata.
-  - **Change:** Update the open item and media queue after successful mutations.
-
-- [ ] **REL-0006 - Preserve Import Picker Selection and Read Access**
-  - **Location:** OnlyFilesLocalPickerController.kt and OnlyFilesLocalPicker.kt.
-  - **Current:** Returning to storage roots clears selected files. Folder import requires write access.
-  - **Change:** Keep selected files across volumes and allow readable import folders.
-
-- [ ] **PERF-0001 - Keep Vault Search Pages Consistent and Responsive**
+- [ ] **PERF-0001 - Measure and Improve Large-Vault Search Paging**
   - **Location:** OnlyFilesBrowserController.kt and DefaultVaultRepository.kt.
-  - **Current:** Recursive pages rescan the tree and can mix offsets after mutations.
-  - **Change:** Invalidate changed result sets and measure paging on large vaults.
+  - **Current:** Sorted search pages rescan the tree.
+  - **Change:** Measure paging on large vaults and reuse scan results where safe.
 
-- [ ] **UI-0002 - Match Browser Navigation and Listing Interactions**
-  - **Location:** OnlyFilesScreen.kt and OnlyFilesBrowserContent.kt.
-  - **Current:** Scrollbar, FAB dismissal, Back precedence, and search empty-state details differ.
-  - **Change:** Reuse the corresponding Browser behavior.
-
-- [ ] **UI-0004 - Add Vault Search Scope and File Reveal**
+- [ ] **UI-0004 - Extend Vault Selection Across Pages**
   - **Location:** OnlyFilesBrowserController.kt and OnlyFilesViewModel.kt.
-  - **Current:** Scope is limited to the active folder and optional descendants.
-  - **Change:** Add a vault folder scope picker, reveal-in-parent, and explicit selection scope across pages.
+  - **Current:** Select All and Invert apply to loaded rows and show a scope notice when more results exist.
+  - **Change:** Support selecting all results without requiring users to load each page.
 
-- [ ] **UI-0007 - Add Vault Shortcuts and Location Restore**
+- [ ] **UI-0007 - Add Vault Workspace Tabs**
   - **Location:** OnlyFilesNavigation.kt and OnlyFilesState.kt.
-  - **Current:** Vaults have no workspace shortcuts, Quick Access, or authenticated restore.
-  - **Change:** Support vault-scoped shortcuts and location restore after unlock.
+  - **Current:** Pinned folders and authenticated last-folder restore are available.
+  - **Change:** Add vault-scoped workspace tabs with independent navigation and scroll state.
 
 - [ ] **UI-0008 - Add Vault Batch Rename**
   - **Location:** VaultSelectionToolbar.kt and DefaultVaultRepository.kt.
@@ -133,10 +113,10 @@
   - **Current:** OnlyFiles uses separate routing and lacks forced types, open preferences, and plugin dispatch.
   - **Change:** Share classification and route through vault-capable readers.
 
-- [ ] **UI-0010 - Browse, Extract, and Create Vault Archives**
+- [ ] **UI-0010 - Extract and Create Vault Archives**
   - **Location:** OnlyFilesZipPreview.kt and BrowserArchiveController.kt.
-  - **Current:** ZIP is a read-only names preview.
-  - **Change:** Add folder navigation, selected extraction, archive creation, and supported password flows.
+  - **Current:** ZIP folders can be browsed.
+  - **Change:** Add selected extraction, archive creation, and supported password flows.
 
 - [ ] **REL-0007 - Add Encrypted Trash and Operation Recovery**
   - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.

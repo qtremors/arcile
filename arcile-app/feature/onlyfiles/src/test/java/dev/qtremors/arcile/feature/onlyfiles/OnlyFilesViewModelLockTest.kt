@@ -102,6 +102,45 @@ class OnlyFilesViewModelLockTest {
             assertTrue(state.nodes.isEmpty())
         }
 
+    @Test
+    fun `clipboard survives a vault switch and clears when its source locks`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val sourceId = VaultId.of("source")
+            val destinationId = VaultId.of("destination")
+            val source = VaultSummary(sourceId, "Source", VaultLocationKind.APP_PRIVATE, 0L, true)
+            val destination = VaultSummary(destinationId, "Destination", VaultLocationKind.APP_PRIVATE, 0L, true)
+            val unlockedIds = MutableStateFlow(setOf(sourceId, destinationId))
+            val repository = repository().also {
+                every { it.vaults } returns MutableStateFlow(listOf(source, destination))
+                every { it.unlockedVaultIds } returns unlockedIds
+            }
+            val node = VaultNodeMetadata(
+                VaultNodeRef(sourceId, NodeId.of("photo"), DirectoryId.Root, VaultNodeCapabilities()),
+                "photo.jpg", VaultNodeKind.FILE, 1L, 0L, 1L
+            )
+            val fileSystem = mockk<VaultFileSystem> {
+                coEvery { listDirectory(sourceId, DirectoryId.Root, any()) } returns
+                    Result.success(VaultPage(listOf(node), null, 1L))
+                coEvery { listDirectory(destinationId, DirectoryId.Root, any()) } returns
+                    Result.success(VaultPage(emptyList(), null, 1L))
+            }
+            val viewModel = viewModel(repository, fileSystem)
+            assertTrue(viewModel.openVault(source))
+            advanceUntilIdle()
+            viewModel.copy(listOf(node))
+            assertTrue(viewModel.navigateUp())
+            assertNull(viewModel.state.value.selectedVaultId)
+            assertEquals(listOf(node.ref), viewModel.state.value.clipboard?.sources)
+            assertTrue(viewModel.openVault(destination))
+            advanceUntilIdle()
+            assertEquals(listOf(node.ref), viewModel.state.value.clipboard?.sources)
+
+            unlockedIds.value = setOf(destinationId)
+            advanceUntilIdle()
+            assertNull(viewModel.state.value.clipboard)
+            assertEquals(destinationId, viewModel.state.value.selectedVaultId)
+        }
+
     private fun repository() = mockk<VaultRepository>(relaxed = true) {
         every { vaults } returns MutableStateFlow(emptyList())
         every { unlockedVaultIds } returns MutableStateFlow(emptySet())

@@ -6,8 +6,25 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
+import dev.qtremors.arcile.core.vault.domain.NodeId
+import dev.qtremors.arcile.core.vault.domain.VaultId
+
+internal data class OnlyFilesEntry(val vaultId: VaultId, val directoryId: DirectoryId, val focusNodeId: String?)
+
+internal fun AppRoutes.OnlyFiles.toVaultEntry(): OnlyFilesEntry? {
+    val vault = vaultId ?: return null
+    return runCatching {
+        OnlyFilesEntry(
+            VaultId.of(vault),
+            directoryId?.let(DirectoryId::of) ?: DirectoryId.Root,
+            focusNodeId?.let { NodeId.of(it).value }
+        )
+    }.getOrNull()
+}
 
 fun NavGraphBuilder.registerOnlyFilesRoute(
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -22,7 +39,11 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
         exitTransition = exitTransition,
         popEnterTransition = popEnterTransition,
         popExitTransition = popExitTransition
-    ) {
-        OnlyFilesRoute(onNavigateBack = onNavigateBack, onPlayVideo = onPlayVideo)
+    ) { backStack ->
+        OnlyFilesRoute(
+            entry = backStack.toRoute<AppRoutes.OnlyFiles>().toVaultEntry(),
+            onNavigateBack = onNavigateBack,
+            onPlayVideo = onPlayVideo
+        )
     }
 }

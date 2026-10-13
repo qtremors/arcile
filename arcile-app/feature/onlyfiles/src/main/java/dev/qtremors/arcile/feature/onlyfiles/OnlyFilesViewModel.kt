@@ -66,6 +66,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
     private var exitInProgress = false
+    private var pendingEntry: OnlyFilesEntry? = null
+    private var consumedEntry: OnlyFilesEntry? = null
 
     private val folderPicker by lazy {
         OnlyFilesFolderPickerController(
@@ -75,6 +77,12 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
     private val browser by lazy {
         OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError, ::runBusy)
+    }
+    private val locations by lazy {
+        OnlyFilesLocationController(
+            fileSystem, securityPreferences, _state, viewModelScope, ::reload,
+            { browser.updateSearch(_state.value.searchQuery, debounceMillis = 0L) }, ::showError
+        )
     }
     private val transfers by lazy {
         OnlyFilesTransferController(transferCoordinator, _state, viewModelScope, ::reload)
@@ -133,7 +141,12 @@ internal class OnlyFilesViewModel @Inject constructor(
         viewModelScope.launch { repository.refreshVaults() }
         viewModelScope.launch {
             securityPreferences.settings.collect { settings ->
-                _state.update { it.copy(screenshotProtectionEnabled = settings.screenshotProtectionEnabled) }
+                _state.update {
+                    it.copy(
+                        screenshotProtectionEnabled = settings.screenshotProtectionEnabled,
+                        pinnedDirectoryIds = it.selectedVaultId?.let(settings.pinnedDirectories::get).orEmpty()
+                    )
+                }
                 browser.applyViewOptions(settings)
             }
         }
@@ -177,31 +190,25 @@ internal class OnlyFilesViewModel @Inject constructor(
         return true
     }
 
+    fun openEntry(entry: OnlyFilesEntry, vault: VaultSummary): Boolean {
+        if (entry == consumedEntry) return true
+        pendingEntry = entry
+        return openVault(vault)
+    }
+
     fun open(node: VaultNodeMetadata) {
         if (node.isDirectory) {
             val directoryId = node.ref.directoryId ?: return showError(IllegalStateException("Folder identity is missing"))
-            _state.update {
-                val hit = it.searchHits.firstOrNull { hit -> hit.metadata.ref == node.ref }
-                val ancestors = hit?.parentDirectoryIds.orEmpty().zip(hit?.parentNames.orEmpty())
-                val stack = it.directoryStack.toMutableList()
-                var path = stack.lastOrNull()?.path ?: VaultPath.Root
-                for ((id, name) in ancestors) {
-                    path = path.resolve(name)
-                    stack += VaultDirectoryCrumb(id, name, path)
-                }
-                it.copy(
-                    directoryStack = stack + VaultDirectoryCrumb(
-                        directoryId, node.name, path.resolve(node.name)
-                    ),
-                    nodes = emptyList(),
-                    viewer = null,
-                    searchQuery = "",
-                    searchFilters = SearchFilters(),
-                    searchHits = emptyList(),
-                    selectedNodeIds = emptySet()
-                )
+            val snapshot = _state.value
+            val hit = snapshot.searchHits.firstOrNull { it.metadata.ref == node.ref }
+            val stack = (if (hit != null) snapshot.searchScope ?: snapshot.directoryStack else snapshot.directoryStack)
+                .toMutableList()
+            var path = stack.lastOrNull()?.path ?: VaultPath.Root
+            for ((id, name) in hit?.parentDirectoryIds.orEmpty().zip(hit?.parentNames.orEmpty())) {
+                path = path.resolve(name)
+                stack += VaultDirectoryCrumb(id, name, path)
             }
-            reload()
+            locations.changeDirectory(stack + VaultDirectoryCrumb(directoryId, node.name, path.resolve(node.name)))
         } else {
             _state.update {
                 it.copy(
@@ -222,7 +229,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         }
         if (current.directoryStack.size <= 1) {
             if (current.selectedVaultId != null) {
-                clearSensitiveUiState()
+                clearSensitiveUiState(keepClipboard = current.transferMountGeneration == null)
                 return true
             }
             return false
@@ -235,17 +242,28 @@ internal class OnlyFilesViewModel @Inject constructor(
         val stack = _state.value.directoryStack
         val index = stack.indexOfFirst { it.id.value == id }
         if (index !in 0 until stack.lastIndex) return
-        _state.update {
-            it.copy(
-                directoryStack = stack.take(index + 1),
-                nodes = emptyList(),
-                searchQuery = "",
-                searchFilters = SearchFilters(),
-                searchHits = emptyList(),
-                selectedNodeIds = emptySet()
-            )
-        }
-        reload()
+        locations.changeDirectory(stack.take(index + 1))
+    }
+
+    fun revealInParent(node: VaultNodeMetadata) = locations.navigate(node.ref.parentId, node.ref.nodeId.value)
+
+    fun finishReveal(unavailableMessage: String? = null) = _state.update {
+        it.copy(revealNodeId = null, message = unavailableMessage ?: it.message)
+    }
+    fun openSearchScope() = locations.openScopePicker()
+    fun clearSearchScope() = locations.clearScope()
+    fun openPinnedFolders() = locations.openPinnedFolders()
+    fun toggleFolderPin(directory: DirectoryId) = locations.togglePin(directory)
+    fun resetFolderView() = locations.resetCurrentFolderView()
+    fun openLocationFolder(folder: VaultNodeMetadata) = locations.openPickerFolder(folder)
+    fun navigateLocationPicker(id: DirectoryId) = locations.pickerToDirectory(id)
+    fun loadMoreLocationFolders() = locations.loadMoreFolders()
+    fun retryLocationPicker() = locations.retryPicker()
+    fun applySearchScope() = locations.applyScope()
+    fun closeLocationPicker() = locations.closePicker()
+    fun openPinnedFolder(id: DirectoryId) {
+        locations.closePicker()
+        locations.navigate(id)
     }
 
     fun showViewerImage(ref: VaultNodeRef) {
@@ -285,7 +303,10 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     fun updateSearch(query: String) = browser.updateSearch(query)
     fun updateSearchFilters(filters: SearchFilters) = browser.updateSearch(_state.value.searchQuery, filters, 0L)
-    fun clearSearch() = browser.updateSearch("", SearchFilters(), 0L)
+    fun clearSearch() {
+        _state.update { it.copy(searchScope = null) }
+        browser.updateSearch("", SearchFilters(), 0L)
+    }
     fun setGridCellSize(size: Float) {
         val snapshot = _state.value
         setFolderViewOptions(snapshot.viewOptions.copy(gridMinCellSize = size), snapshot.viewOptionsApplyToSubfolders)
@@ -302,15 +323,24 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun selectRange(opaqueIds: List<String>) = _state.update { it.copy(selectedNodeIds = it.selectedNodeIds + opaqueIds) }
-    fun selectAll() = _state.update { it.copy(selectedNodeIds = it.displayedNodes.map { node -> node.ref.nodeId.value }.toSet()) }
-    fun invertSelection() = _state.update { state ->
+    fun selectAll(loadedOnlyMessage: String) = _state.update {
+        it.copy(
+            selectedNodeIds = it.displayedNodes.map { node -> node.ref.nodeId.value }.toSet(),
+            message = loadedOnlyMessage.takeIf { _ -> it.hasMoreRows } ?: it.message
+        )
+    }
+    fun invertSelection(loadedOnlyMessage: String) = _state.update { state ->
         val all = state.displayedNodes.map { it.ref.nodeId.value }.toSet()
-        state.copy(selectedNodeIds = all - state.selectedNodeIds)
+        state.copy(
+            selectedNodeIds = all - state.selectedNodeIds,
+            message = loadedOnlyMessage.takeIf { state.hasMoreRows } ?: state.message
+        )
     }
     fun clearSelection() = _state.update { it.copy(selectedNodeIds = emptySet()) }
 
     fun createFolder(name: String) = browser.createFolder(name)
     fun createEmptyFile(name: String) = browser.createEmptyFile(name)
+    fun createSyntheticFile(name: String, size: Long) = browser.createSyntheticFile(name, size)
     fun rename(node: VaultNodeMetadata, name: String) = browser.rename(node, name)
     fun delete(nodes: List<VaultNodeMetadata>) = browser.delete(nodes)
 
@@ -443,6 +473,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
 
     suspend fun saveVaultText(ref: VaultNodeRef, revision: Long, text: String): Result<VaultNodeMetadata> {
+        val mount = _state.value.mountGeneration
         val bytes = text.encodeToByteArray()
         val result = try {
             if (bytes.size > MAX_VAULT_EDITOR_BYTES) {
@@ -453,13 +484,22 @@ internal class OnlyFilesViewModel @Inject constructor(
         } finally {
             bytes.fill(0)
         }
-        if (result.isSuccess) withContext(Dispatchers.Main.immediate) {
-            if (_state.value.selectedVaultId == ref.vaultId) browser.refresh()
+        result.getOrNull()?.let { saved ->
+            withContext(Dispatchers.Main.immediate) {
+                if (_state.value.mountGeneration == mount && _state.value.selectedVaultId == ref.vaultId) {
+                    _state.update { it.withUpdatedViewerNode(saved) }
+                    browser.refresh()
+                }
+            }
         }
         return result
     }
 
     private fun selectVault(vaultId: VaultId) {
+        val requested = pendingEntry?.takeIf { it.vaultId == vaultId }
+        pendingEntry = null
+        if (requested != null) consumedEntry = requested
+        val settings = securityPreferences.settings.value
         _state.update {
             it.copy(
                 selectedVaultId = vaultId,
@@ -469,23 +509,31 @@ internal class OnlyFilesViewModel @Inject constructor(
                 searchHits = emptyList(),
                 searchQuery = "",
                 searchFilters = SearchFilters(),
+                searchScope = null,
+                revealNodeId = null,
+                revealHiddenNodeId = null,
+                pinnedDirectoryIds = settings.pinnedDirectories[vaultId].orEmpty(),
                 selectedNodeIds = emptySet(),
                 viewer = null,
                 viewerQueue = emptyList()
             )
         }
-        reload()
+        if (requested != null) locations.navigate(requested.directoryId, requested.focusNodeId)
+        else locations.restore(settings.lastDirectories[vaultId])
     }
 
     private fun reload() = browser.reload()
 
-    private fun clearSensitiveUiState() {
+    private fun clearSensitiveUiState(keepClipboard: Boolean = false) {
         transfers.clear()
         boundary.clear()
-        dismissVaultSession()
+        dismissVaultSession(keepClipboard)
     }
 
-    private fun dismissVaultSession() {
+    private fun dismissVaultSession(keepClipboard: Boolean = false) {
+        pendingEntry = null
+        locations.cancelNavigation()
+        locations.closePicker()
         browser.cancel()
         localPicker.cancel()
         boundary.cancelSelection()
@@ -501,10 +549,16 @@ internal class OnlyFilesViewModel @Inject constructor(
                 searchNextPageToken = null,
                 searchQuery = "",
                 searchFilters = SearchFilters(),
+                searchScope = null,
+                revealNodeId = null,
+                revealHiddenNodeId = null,
+                pinnedDirectoryIds = emptySet(),
                 isSearching = false,
                 isListing = false,
                 selectedNodeIds = emptySet(),
-                clipboard = null,
+                clipboard = it.clipboard?.takeIf { clipboard ->
+                    keepClipboard && clipboard.sources.all { ref -> ref.vaultId in repository.unlockedVaultIds.value }
+                },
                 pasteQueueNames = emptyList(),
                 viewer = null,
                 viewerQueue = emptyList(),

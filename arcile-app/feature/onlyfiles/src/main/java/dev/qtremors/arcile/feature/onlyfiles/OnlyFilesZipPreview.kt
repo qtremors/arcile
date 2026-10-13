@@ -6,19 +6,24 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
+import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
+import dev.qtremors.arcile.core.ui.Breadcrumbs
+import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
@@ -36,48 +41,98 @@ import org.apache.commons.compress.archivers.zip.ZipFile
 @Composable
 internal fun VaultZipPreview(
     node: VaultNodeMetadata,
-    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
+    folder: List<String>,
+    onOpenFolder: (List<String>) -> Unit
 ) {
-    val contents by produceState<Result<List<String>>?>(null, node.ref, node.revision) {
+    val contents by produceState<Result<List<VaultZipEntry>>?>(null, node.ref, node.revision) {
         value = withContext(Dispatchers.IO) {
             val coroutineContext = currentCoroutineContext()
             runCatching {
                 openReader(node.ref).getOrThrow().use { reader ->
                     VaultZipDirectoryChannel(reader) { coroutineContext.ensureActive() }.use { channel ->
                         ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
-                            zip.entries.asSequence().take(MAX_PREVIEW_ENTRIES + 1).map { it.name }.toList()
+                            zip.entries.asSequence().take(MAX_PREVIEW_ENTRIES + 1).map {
+                                VaultZipEntry(it.name, it.isDirectory, it.size)
+                            }.toList()
                         }
                     }
                 }
             }
         }
     }
-    val names = contents?.getOrNull()
+    val entries = contents?.getOrNull()
+    val tree = remember(entries) { entries?.let { VaultZipTree(it.take(MAX_PREVIEW_ENTRIES)) } }
     Box(
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 72.dp),
         contentAlignment = Alignment.Center
     ) {
         when {
             contents == null -> CircularProgressIndicator()
-            names == null -> Text(stringResource(R.string.onlyfiles_zip_unavailable), color = Color.White)
-            names.isEmpty() -> Text(stringResource(R.string.onlyfiles_zip_empty), color = Color.White)
-            else -> Column(Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                if (names.size > MAX_PREVIEW_ENTRIES) {
-                    Text(
-                        stringResource(R.string.onlyfiles_zip_truncated, MAX_PREVIEW_ENTRIES),
-                        color = Color.White,
-                        modifier = Modifier.padding(vertical = 8.dp)
-                    )
-                }
-                LazyColumn {
-                    items(names.take(MAX_PREVIEW_ENTRIES)) { name ->
-                        Text(
-                            name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.White,
-                            modifier = Modifier.padding(vertical = 8.dp)
+            tree == null || entries == null -> Text(stringResource(R.string.onlyfiles_zip_unavailable), color = Color.White)
+            else -> ZipFolderListing(node, tree, folder, entries.size > MAX_PREVIEW_ENTRIES, onOpenFolder)
+        }
+    }
+}
+
+@Composable
+private fun ZipFolderListing(
+    archive: VaultNodeMetadata,
+    tree: VaultZipTree,
+    folder: List<String>,
+    truncated: Boolean,
+    onOpenFolder: (List<String>) -> Unit
+) {
+    val items = remember(tree, folder) { tree.list(folder) }
+    val models = remember(items, archive.ref) {
+        items.mapIndexed { index, item ->
+            val ref = StorageNodeRef.vault(
+                archive.ref.vaultId.value, "${archive.ref.nodeId.value}:zip:$index",
+                StorageNodeCapabilities(canRead = false, canWrite = false, canDelete = false, canArchive = false)
+            )
+            FileModel(
+                name = item.name,
+                reference = ref.displayPath.absolutePath,
+                size = item.size,
+                isDirectory = item.isDirectory,
+                extension = if (item.isDirectory) "" else item.name.substringAfterLast('.', "").lowercase(),
+                nodeRef = ref
+            )
+        }
+    }
+    val directories = remember(items, models) {
+        models.zip(items).filter { it.second.isDirectory }.associate { it.first.reference to it.second }
+    }
+    Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(Modifier.fillMaxSize()) {
+            Breadcrumbs(
+                rootLabel = archive.name,
+                rootKey = "0",
+                segments = folder.mapIndexed { index, name -> name to (index + 1).toString() },
+                onSegmentClick = { onOpenFolder(folder.take(it.toInt())) }
+            )
+            if (truncated) Text(
+                stringResource(R.string.onlyfiles_zip_truncated, MAX_PREVIEW_ENTRIES),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+            if (items.isEmpty()) {
+                Text(stringResource(R.string.onlyfiles_zip_empty), modifier = Modifier.padding(16.dp))
+            } else {
+                val folderLabel = stringResource(R.string.onlyfiles_folder)
+                androidx.compose.runtime.key(folder) {
+                    FileList(
+                        files = models,
+                        selectedFiles = emptySet(),
+                        onNavigateTo = { path -> directories[path]?.let { onOpenFolder(it.path) } },
+                        onOpenFile = {},
+                        onToggleSelection = {},
+                        onSelectMultiple = {},
+                        modifier = Modifier.weight(1f),
+                        presentation = dev.qtremors.arcile.core.ui.lists.FileItemPresentation(
+                            showThumbnails = false,
+                            contextLabel = { folderLabel.takeIf { _ -> it.isDirectory } }
                         )
-                    }
+                    )
                 }
             }
         }

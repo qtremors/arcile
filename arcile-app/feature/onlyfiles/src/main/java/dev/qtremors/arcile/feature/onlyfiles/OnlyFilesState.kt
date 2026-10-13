@@ -45,6 +45,11 @@ internal data class OnlyFilesUiState(
     val searchNextPageToken: String? = null,
     val searchQuery: String = "",
     val searchFilters: SearchFilters = SearchFilters(),
+    val searchScope: List<VaultDirectoryCrumb>? = null,
+    val revealNodeId: String? = null,
+    val revealHiddenNodeId: String? = null,
+    val locationPicker: OnlyFilesLocationPickerState? = null,
+    val pinnedDirectoryIds: Set<DirectoryId> = emptySet(),
     val isSearching: Boolean = false,
     val isListing: Boolean = false,
     val defaultViewOptions: VaultViewOptions = VaultViewOptions(),
@@ -76,6 +81,12 @@ internal data class OnlyFilesUiState(
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }
     val currentDirectory: VaultDirectoryCrumb? get() = directoryStack.lastOrNull()
+    val hasExactFolderView: Boolean
+        get() {
+            val vault = selectedVaultId ?: return false
+            val directory = currentDirectory ?: return false
+            return vaultFolderViewKey(vault, directory.id) in folderViewOptions
+        }
     private val activeFolderOptions: VaultFolderViewOptions?
         get() {
             val vault = selectedVaultId ?: return null
@@ -94,23 +105,34 @@ internal data class OnlyFilesUiState(
     val recursiveSearch: Boolean get() = viewOptions.recursiveSearch
     val sortField: VaultSortField get() = viewOptions.sortField
     val sortDirection: VaultSortDirection get() = viewOptions.sortDirection
-    val hasSearch: Boolean get() = searchQuery.isNotBlank() || searchFilters.hasActiveFilters
+    val hasSearch: Boolean get() = searchQuery.isNotBlank() || searchFilters.hasActiveFilters || searchScope != null
     val isLoadingRows: Boolean get() = if (hasSearch) isSearching else isListing
+    val hasMoreRows: Boolean get() = if (hasSearch) searchNextPageToken != null else nextPageToken != null
     val displayedNodes: List<VaultNodeMetadata>
         get() = if (hasSearch) searchHits.map(VaultSearchHit::metadata) else nodes
     val selectedNodes: List<VaultNodeMetadata>
         get() = displayedNodes.filter { it.ref.nodeId.value in selectedNodeIds }
 
+    fun withUpdatedViewerNode(updated: VaultNodeMetadata): OnlyFilesUiState {
+        if (viewer?.ref != updated.ref && viewerQueue.none { it.ref == updated.ref }) return this
+        return copy(
+            viewer = if (viewer?.ref == updated.ref) updated else viewer,
+            viewerQueue = viewerQueue.map { if (it.ref == updated.ref) updated else it }
+        )
+    }
+
     fun propertiesLocation(items: List<VaultNodeMetadata>): String {
         val vaultName = selectedVault?.name.orEmpty()
         val first = items.firstOrNull() ?: return vaultName
         if (items.any { it.ref.parentId != first.ref.parentId }) return vaultName
+        val resultRoot = searchScope ?: directoryStack
         val ancestors = when {
             first.ref.parentId == currentDirectory?.id -> emptyList()
             else -> searchHits.firstOrNull { it.metadata.ref.parentId == first.ref.parentId }?.parentNames
                 ?: return vaultName
         }
-        return (listOf(vaultName) + directoryStack.drop(1).map(VaultDirectoryCrumb::name) + ancestors)
+        val stack = if (first.ref.parentId == currentDirectory?.id) directoryStack else resultRoot
+        return (listOf(vaultName) + stack.drop(1).map(VaultDirectoryCrumb::name) + ancestors)
             .joinToString(" / ")
     }
 }
