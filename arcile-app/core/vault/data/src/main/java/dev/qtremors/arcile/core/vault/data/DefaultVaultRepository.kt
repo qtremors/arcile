@@ -8,7 +8,7 @@ import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
 import dev.qtremors.arcile.core.vault.domain.*
 import java.io.ByteArrayInputStream
-import java.io.InputStream
+import java.io.OutputStream
 import java.util.ArrayDeque
 import java.util.PriorityQueue
 import java.util.UUID
@@ -314,16 +314,57 @@ internal class DefaultVaultRepository @Inject constructor(
         parentId: DirectoryId,
         name: String,
         mimeType: String?
-    ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, mimeType, 0L)
+    ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, mimeType) {}
 
     override suspend fun createSyntheticFile(
         vaultId: VaultId, parentId: DirectoryId, name: String, size: Long
-    ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, "application/octet-stream", size)
+    ): Result<VaultNodeMetadata> {
+        if (size < 0L) return Result.failure(IllegalArgumentException("Synthetic file size must be non-negative"))
+        val coroutine = currentCoroutineContext()
+        return createFile(vaultId, parentId, name, "application/octet-stream") { output ->
+            val buffer = ByteArray(16 * 1024)
+            var remaining = size
+            try {
+                while (remaining > 0L) {
+                    coroutine.ensureActive()
+                    val count = minOf(buffer.size.toLong(), remaining).toInt()
+                    Random.nextBytes(buffer, 0, count)
+                    output.write(buffer, 0, count)
+                    remaining -= count
+                }
+            } finally {
+                buffer.fill(0)
+            }
+        }
+    }
+
+    override suspend fun createZip(
+        vaultId: VaultId, parentId: DirectoryId, name: String, writeZip: (OutputStream) -> Unit
+    ): Result<VaultNodeMetadata> =
+        createFile(vaultId, parentId, name, "application/zip", VAULT_ARCHIVE_MAX_BYTES, writeZip)
+
+    override suspend fun extractArchive(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        name: String,
+        sources: List<VaultArchiveSource>,
+        keepBoth: Boolean,
+        onProgress: (VaultArchiveProgress) -> Unit
+    ): Result<VaultNodeMetadata> = mutate(vaultId) { session ->
+        val coroutine = currentCoroutineContext()
+        VaultArchiveWriter(fileCodec, directoryCodec, transactionManager).extract(
+            session, parentId, name, sources, keepBoth, { coroutine.ensureActive() }, onProgress
+        )
+    }
 
     private suspend fun createFile(
-        vaultId: VaultId, parentId: DirectoryId, name: String, mimeType: String?, size: Long
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        name: String,
+        mimeType: String?,
+        byteLimit: Long = Long.MAX_VALUE,
+        writeContents: (OutputStream) -> Unit
     ): Result<VaultNodeMetadata> = mutate(vaultId) { session ->
-        require(size >= 0L)
         val coroutine = currentCoroutineContext()
         val parent = session.resolveDirectory(parentId)
         val snapshot = session.readDirectory(parent)
@@ -333,34 +374,18 @@ internal class DefaultVaultRepository @Inject constructor(
         try {
             val normalized = normalizeMutationName(name)
             ensureNameAvailable(snapshot, normalized)
-            val source = object : InputStream() {
-                private var remaining = size
-
-                override fun read(): Int {
-                    coroutine.ensureActive()
-                    if (remaining == 0L) return -1
-                    remaining--
-                    return Random.nextInt(256)
-                }
-
-                override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-                    coroutine.ensureActive()
-                    if (length == 0) return 0
-                    if (remaining == 0L) return -1
-                    val count = minOf(length.toLong(), remaining).toInt()
-                    Random.nextBytes(buffer, offset, offset + count)
-                    remaining -= count
-                    return count
-                }
-            }
-            fileCodec.writeObject(
+            val result = fileCodec.writeGeneratedObject(
                 session.directory,
                 objectPath,
                 session.id,
                 objectId,
                 1L,
                 contentKey,
-                source
+                onBytesWritten = { size ->
+                    coroutine.ensureActive()
+                    if (size > byteLimit) throw VaultFailure.Unavailable("Archive exceeds the vault size limit")
+                },
+                writeContent = writeContents
             )
             val entry = VaultManifestEntry(
                 NodeId.random(),
@@ -368,11 +393,11 @@ internal class DefaultVaultRepository @Inject constructor(
                 VaultNodeKind.FILE,
                 1L,
                 System.currentTimeMillis(),
-                size,
+                result.sizeBytes,
                 mimeType,
                 objectId,
                 null,
-                contentKey.copyOf()
+                contentKey
             )
             val prepared = directoryCodec.prepare(
                 session.id,
@@ -381,6 +406,7 @@ internal class DefaultVaultRepository @Inject constructor(
                 snapshot.generation + 1L,
                 snapshot.entries + entry
             )
+            coroutine.ensureActive()
             transactionManager.commit(
                 session.directory,
                 session.id,

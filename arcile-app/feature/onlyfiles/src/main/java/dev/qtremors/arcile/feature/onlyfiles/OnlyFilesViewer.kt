@@ -78,6 +78,7 @@ internal fun ViewerScreen(
     imageQueue: List<VaultNodeMetadata>,
     location: String,
     viewModel: OnlyFilesViewModel,
+    archiveOperationActive: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -86,6 +87,7 @@ internal fun ViewerScreen(
     var externalAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
     var showRename by remember(node.ref.nodeId) { mutableStateOf(false) }
     var archiveFolder by remember(node.ref.nodeId, node.revision) { mutableStateOf(emptyList<String>()) }
+    var archiveSelection by remember(node.ref.nodeId, node.revision) { mutableStateOf<VaultZipSelection?>(null) }
     val navigateBack = {
         if (archiveFolder.isEmpty()) onBack() else archiveFolder = archiveFolder.dropLast(1)
     }
@@ -144,7 +146,11 @@ internal fun ViewerScreen(
         Box(modifier.fillMaxSize().background(Color.Black)) {
             key(node.ref, node.revision) {
                 when {
-                    node.extension == "zip" -> VaultZipPreview(node, viewModel::openReader, archiveFolder) { archiveFolder = it }
+                    node.extension == "zip" -> VaultZipPreview(
+                        node, viewModel::openReader, archiveFolder, archiveOperationActive,
+                        onOpenFolder = { archiveFolder = it },
+                        onExtract = { archiveSelection = it }
+                    )
                     node.extension in dev.qtremors.arcile.core.storage.domain.FileCategories.APKs.extensions ->
                         Column(
                             Modifier.align(Alignment.Center).padding(24.dp),
@@ -228,6 +234,12 @@ internal fun ViewerScreen(
     }
 
     if (showInfo) VaultPropertiesDialog(listOf(node), location, viewModel::folderTotals) { showInfo = false }
+    archiveSelection?.let { selection ->
+        VaultExtractZipDialog(node, selection, onDismiss = { archiveSelection = null }) { request, choose ->
+            archiveSelection = null
+            viewModel.requestZipExtraction(request, choose)
+        }
+    }
     if (confirmDelete) VaultDeleteConfirmation(listOf(node), onDismiss = { confirmDelete = false }) {
         confirmDelete = false
         viewModel.delete(listOf(node))

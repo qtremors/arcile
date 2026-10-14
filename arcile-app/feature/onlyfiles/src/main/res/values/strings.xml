@@ -1,4 +1,24 @@
 <resources>
+    <string name="onlyfiles_create_zip">Create ZIP</string>
+    <string name="onlyfiles_creating_zip">Creating ZIP</string>
+    <string name="onlyfiles_zip_created">ZIP created</string>
+    <string name="onlyfiles_extract_zip">Extract ZIP</string>
+    <string name="onlyfiles_extract_here">Extract here</string>
+    <string name="onlyfiles_extracting_zip">Extracting ZIP</string>
+    <string name="onlyfiles_zip_extracted">ZIP extracted</string>
+    <string name="onlyfiles_extract_zip_description">Entries will be extracted into a new encrypted folder.</string>
+    <string name="onlyfiles_extract_keep_both">Use a new name if the folder exists</string>
+    <string name="onlyfiles_select_zip_items">Select all</string>
+    <string name="onlyfiles_clear_zip_selection">Clear selection</string>
+    <string name="onlyfiles_zip_compression">Compression</string>
+    <string name="onlyfiles_zip_store">Store</string>
+    <string name="onlyfiles_zip_fast">Fast</string>
+    <string name="onlyfiles_zip_balanced">Balanced</string>
+    <string name="onlyfiles_zip_maximum">Maximum</string>
+    <plurals name="onlyfiles_extract_zip_selected">
+        <item quantity="one">Extract %d item</item>
+        <item quantity="other">Extract %d items</item>
+    </plurals>
     <string name="onlyfiles_search_scope">Search folder</string>
     <string name="onlyfiles_clear_scope">Clear scope</string>
     <string name="onlyfiles_search_here">Search here</string>

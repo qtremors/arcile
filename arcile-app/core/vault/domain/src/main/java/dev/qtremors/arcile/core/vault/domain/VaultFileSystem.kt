@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.vault.domain
 
-interface VaultFileSystem {
+interface VaultFileSystem : VaultArchiveOperations {
     suspend fun listDirectory(
         vaultId: VaultId,
         directoryId: DirectoryId,

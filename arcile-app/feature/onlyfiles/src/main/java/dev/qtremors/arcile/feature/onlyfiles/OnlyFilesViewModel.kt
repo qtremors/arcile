@@ -68,6 +68,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     private var exitInProgress = false
     private var pendingEntry: OnlyFilesEntry? = null
     private var consumedEntry: OnlyFilesEntry? = null
+    private var pendingExtraction: VaultZipExtraction? = null
 
     private val folderPicker by lazy {
         OnlyFilesFolderPickerController(
@@ -77,6 +78,9 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
     private val browser by lazy {
         OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError, ::runBusy)
+    }
+    private val archives by lazy {
+        OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError)
     }
     private val locations by lazy {
         OnlyFilesLocationController(
@@ -245,7 +249,11 @@ internal class OnlyFilesViewModel @Inject constructor(
         locations.changeDirectory(stack.take(index + 1))
     }
 
-    fun revealInParent(node: VaultNodeMetadata) = locations.navigate(node.ref.parentId, node.ref.nodeId.value)
+    fun revealInParent(node: VaultNodeMetadata) {
+        if (_state.value.selectedVaultId == node.ref.vaultId) {
+            locations.navigate(node.ref.parentId, node.ref.nodeId.value)
+        }
+    }
 
     fun finishReveal(unavailableMessage: String? = null) = _state.update {
         it.copy(revealNodeId = null, message = unavailableMessage ?: it.message)
@@ -260,11 +268,41 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun loadMoreLocationFolders() = locations.loadMoreFolders()
     fun retryLocationPicker() = locations.retryPicker()
     fun applySearchScope() = locations.applyScope()
-    fun closeLocationPicker() = locations.closePicker()
+    fun closeLocationPicker() {
+        pendingExtraction = null
+        locations.closePicker()
+    }
     fun openPinnedFolder(id: DirectoryId) {
         locations.closePicker()
         locations.navigate(id)
     }
+
+    fun createZip(nodes: List<VaultNodeMetadata>, name: String, compression: Int, successMessage: String) =
+        archives.create(nodes, name, compression, successMessage)
+
+    fun requestZipExtraction(request: VaultZipExtraction, chooseDestination: Boolean) {
+        if (_state.value.busy || _state.value.selectedVaultId != request.node.ref.vaultId) return
+        if (chooseDestination) {
+            pendingExtraction = request
+            locations.openArchiveDestination()
+        } else {
+            extractZip(request, request.node.ref.parentId)
+        }
+    }
+
+    fun chooseArchiveDestination() {
+        val picker = _state.value.locationPicker ?: return
+        if (picker.mode != OnlyFilesLocationMode.ARCHIVE_DESTINATION) return
+        val directory = picker.stack.lastOrNull()?.id ?: return
+        val request = pendingExtraction ?: return
+        closeLocationPicker()
+        extractZip(request, directory)
+    }
+
+    fun cancelArchiveOperation() = archives.cancel()
+
+    private fun extractZip(request: VaultZipExtraction, parent: DirectoryId) =
+        archives.extract(request.node, parent, request.selection, request.name, request.successMessage, request.keepBoth)
 
     fun showViewerImage(ref: VaultNodeRef) {
         _state.update { current ->
@@ -468,7 +506,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun finishImportSelection(sourceUris: List<String>) = imports.finishSelection(sourceUris)
     fun cancelImportSelection() = imports.cancelSelection()
     fun cancelImport(vaultId: VaultId) = imports.cancel(vaultId)
-    fun clearMessage() = _state.update { it.copy(message = null) }
+    fun clearMessage() = _state.update { it.copy(message = null, completedArchive = null) }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader> = fileSystem.openReader(ref)
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
 
@@ -532,6 +570,8 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     private fun dismissVaultSession(keepClipboard: Boolean = false) {
         pendingEntry = null
+        pendingExtraction = null
+        archives.cancel()
         locations.cancelNavigation()
         locations.closePicker()
         browser.cancel()
@@ -566,7 +606,9 @@ internal class OnlyFilesViewModel @Inject constructor(
                 pendingConflict = null,
                 healthReport = null,
                 message = null,
-                batchProgress = null
+                batchProgress = null,
+                archiveProgress = null,
+                completedArchive = null
             )
         }
     }

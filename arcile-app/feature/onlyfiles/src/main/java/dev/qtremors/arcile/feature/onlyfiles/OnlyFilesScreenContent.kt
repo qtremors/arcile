@@ -139,7 +139,8 @@ internal fun OnlyFilesMainContent(
 ) {
     val context = LocalContext.current
     val hasFloatingToolbar = state.selectedNodeIds.isNotEmpty() ||
-        (state.selectedVaultId != null && state.clipboard != null) || state.transferProgress != null
+        (state.selectedVaultId != null && state.clipboard != null) || state.transferProgress != null ||
+        state.archiveProgress != null
     val toolbarPadding = if (hasFloatingToolbar) MaterialTheme.spacing.toolbarBottomGap else 0.dp
     Box(Modifier.fillMaxSize().padding(contentPadding).padding(bottom = toolbarPadding)) {
         if (state.selectedVault == null) {
@@ -234,7 +235,7 @@ internal fun OnlyFilesMainContent(
                 }
             }
         }
-        if (state.busy && state.transferProgress == null && state.pendingConflict == null) {
+        if (state.busy && state.transferProgress == null && state.pendingConflict == null && state.archiveProgress == null) {
             Surface(
                 color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f),
                 modifier = Modifier.fillMaxSize()

@@ -7,6 +7,8 @@ import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
+import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
+import dev.qtremors.arcile.core.vault.domain.VaultArchiveProgress
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
@@ -228,6 +230,97 @@ class DefaultVaultRepositoryTest {
         repository.lock(vaultId)
         assertTrue(repository.directoryTrail(vaultId, nestedId).exceptionOrNull() is VaultFailure.Locked)
         scope.cancel()
+    }
+
+    @Test
+    fun `vault ZIP output and extracted folders publish only after their data is complete`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Archives", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val contents = "private archive payload".encodeToByteArray()
+            val crc = java.util.zip.CRC32().apply { update(contents) }.value
+            val archive = repository.createZip(vault, root, "packed.zip") { output ->
+                java.util.zip.ZipOutputStream(output).use { zip ->
+                    zip.putNextEntry(java.util.zip.ZipEntry("docs/note.txt"))
+                    zip.write(contents)
+                    zip.closeEntry()
+                }
+            }.getOrThrow()
+            assertEquals("application/zip", archive.mimeType)
+            val zipBytes = ByteArray(archive.sizeBytes.toInt())
+            repository.openReader(archive.ref).getOrThrow().use { reader ->
+                assertEquals(zipBytes.size, reader.readAt(0, zipBytes, 0, zipBytes.size))
+            }
+            java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(zipBytes)).use { zip ->
+                assertEquals("docs/note.txt", zip.nextEntry.name)
+                assertTrue(contents.contentEquals(zip.readBytes()))
+                assertEquals(null, zip.nextEntry)
+            }
+
+            val progress = mutableListOf<VaultArchiveProgress>()
+            val file = VaultArchiveSource.File(listOf("docs", "note.txt"), contents.size.toLong(), crc) {
+                java.io.ByteArrayInputStream(contents)
+            }
+            val directory = repository.extractArchive(
+                vault, root, "Extracted", listOf(file, VaultArchiveSource.Folder(listOf("empty"))),
+                onProgress = progress::add
+            ).getOrThrow()
+            val extractionId = requireNotNull(directory.ref.directoryId)
+            val children = repository.listDirectory(vault, extractionId).getOrThrow().items
+            assertEquals(listOf("docs", "empty"), children.map { it.name })
+            val extracted = repository.listDirectory(vault, requireNotNull(children.first().ref.directoryId))
+                .getOrThrow().items.single()
+            repository.openReader(extracted.ref).getOrThrow().use { reader ->
+                val actual = ByteArray(contents.size)
+                assertEquals(actual.size, reader.readAt(0, actual, 0, actual.size))
+                assertTrue(contents.contentEquals(actual))
+            }
+            assertEquals(1, progress.last().completed)
+
+            val corrupt = file.copy(path = listOf("bad.txt"), crc32 = crc xor 1L)
+            assertTrue(repository.extractArchive(vault, root, "Broken", listOf(file, corrupt)) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Invalid", listOf(file.copy(path = listOf("..", "bad")))) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Duplicate", listOf(file, file)) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Extracted", listOf(file)) {}.isFailure)
+            assertTrue(repository.createZip(vault, root, "broken.zip") { output ->
+                output.write(contents)
+                error("Interrupted ZIP")
+            }.isFailure)
+            assertEquals(listOf("Extracted", "packed.zip"), repository.listDirectory(vault, root).getOrThrow().items.map { it.name })
+            val kept = repository.extractArchive(vault, root, "Extracted", listOf(file), keepBoth = true) {}.getOrThrow()
+            assertEquals("Extracted (1)", kept.name)
+            val unused = repository.extractArchive(vault, root, "Another", listOf(file), keepBoth = true) {}.getOrThrow()
+            assertEquals("Another", unused.name)
+            val short = file.copy(path = listOf("short.txt"), sizeBytes = contents.size.toLong() + 1L)
+            val overlong = file.copy(path = listOf("overlong.txt"), sizeBytes = contents.size.toLong() - 1L)
+            assertTrue(repository.extractArchive(vault, root, "Short", listOf(file, short)) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Overlong", listOf(file, overlong)) {}.isFailure)
+            val tooLarge = file.copy(
+                path = listOf("too-large.txt"),
+                sizeBytes = dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES + 1L,
+                open = { error("An oversized entry must be rejected before it is opened") }
+            )
+            assertTrue(repository.extractArchive(vault, root, "Too large", listOf(tooLarge)) {}.isFailure)
+            val conflict = listOf(file.copy(path = listOf("item")), file.copy(path = listOf("item", "child.txt")))
+            assertTrue(repository.extractArchive(vault, root, "Conflict", conflict) {}.isFailure)
+            val cancelled = file.copy(path = listOf("cancelled.txt"), open = { throw kotlinx.coroutines.CancellationException() })
+            val cancellation = runCatching {
+                repository.extractArchive(vault, root, "Cancelled", listOf(file, cancelled)) {}.getOrThrow()
+            }
+            assertTrue(cancellation.exceptionOrNull() is kotlinx.coroutines.CancellationException)
+            assertEquals(
+                listOf("Another", "Extracted", "Extracted (1)", "packed.zip"),
+                repository.listDirectory(vault, root).getOrThrow().items.map { it.name }
+            )
+            assertTrue(repository.verify(vault, VaultHealthMode.FULL).getOrThrow().isHealthy)
+        } finally {
+            scope.cancel()
+        }
     }
 
     @Test

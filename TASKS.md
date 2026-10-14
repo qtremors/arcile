@@ -113,10 +113,10 @@
   - **Current:** OnlyFiles uses separate routing and lacks forced types, open preferences, and plugin dispatch.
   - **Change:** Share classification and route through vault-capable readers.
 
-- [ ] **UI-0010 - Extract and Create Vault Archives**
-  - **Location:** OnlyFilesZipPreview.kt and BrowserArchiveController.kt.
-  - **Current:** ZIP folders can be browsed.
-  - **Change:** Add selected extraction, archive creation, and supported password flows.
+- [ ] **UI-0010 - Support More Vault Archive Formats and Passwords**
+  - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
+  - **Current:** Vault ZIP creation and extraction support unencrypted ZIP archives.
+  - **Change:** Add password-protected ZIP and other supported archive formats without plaintext staging.
 
 - [ ] **REL-0007 - Add Encrypted Trash and Operation Recovery**
   - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.

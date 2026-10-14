@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-internal enum class OnlyFilesLocationMode { SEARCH_SCOPE, PINNED }
+internal enum class OnlyFilesLocationMode { SEARCH_SCOPE, PINNED, ARCHIVE_DESTINATION }
 
 internal data class OnlyFilesLocationPickerState(
     val mode: OnlyFilesLocationMode,
@@ -109,6 +109,12 @@ internal class OnlyFilesLocationController(
         loadPicker(OnlyFilesLocationPickerState(OnlyFilesLocationMode.SEARCH_SCOPE, stack))
     }
 
+    fun openArchiveDestination() {
+        val stack = state.value.directoryStack
+        if (stack.isEmpty()) return
+        loadPicker(OnlyFilesLocationPickerState(OnlyFilesLocationMode.ARCHIVE_DESTINATION, stack))
+    }
+
     fun openPinnedFolders() {
         closePicker()
         val snapshot = state.value
@@ -139,7 +145,7 @@ internal class OnlyFilesLocationController(
 
     fun openPickerFolder(folder: VaultNodeMetadata) {
         val picker = state.value.locationPicker ?: return
-        if (picker.mode != OnlyFilesLocationMode.SEARCH_SCOPE) return
+        if (picker.mode == OnlyFilesLocationMode.PINNED) return
         val id = folder.ref.directoryId ?: return
         val path = picker.stack.last().path.resolve(folder.name)
         loadPicker(picker.copy(

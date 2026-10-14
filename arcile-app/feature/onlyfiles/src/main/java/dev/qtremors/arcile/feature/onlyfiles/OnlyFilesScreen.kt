@@ -75,6 +75,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -181,6 +182,7 @@ private fun OnlyFilesScreen(
     var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
     var externalRequest by remember(state.mountGeneration) { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
     var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
+    var createZipNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var fabExpanded by remember(state.mountGeneration) { mutableStateOf(false) }
     var showSearch by remember(state.mountGeneration) { mutableStateOf(state.hasSearch) }
     var showSearchFilters by remember(state.mountGeneration) { mutableStateOf(false) }
@@ -227,14 +229,21 @@ private fun OnlyFilesScreen(
         }
     }
 
-    LaunchedEffect(snackbarHost, state.message) {
+    val revealLabel = stringResource(R.string.onlyfiles_reveal_in_folder)
+    LaunchedEffect(snackbarHost, state.message, state.completedArchive) {
         state.message?.let { message ->
-            snackbarHost.showSnackbar(
+            val output = state.completedArchive
+            val result = snackbarHost.showSnackbar(
                 message = message,
+                actionLabel = revealLabel.takeIf { output != null },
                 withDismissAction = true,
-                duration = SnackbarDuration.Short
+                duration = if (output != null) SnackbarDuration.Long else SnackbarDuration.Short
             )
             viewModel.clearMessage()
+            if (output != null && result == SnackbarResult.ActionPerformed) {
+                showSearch = false
+                viewModel.revealInParent(output)
+            }
         }
     }
 
@@ -253,9 +262,13 @@ private fun OnlyFilesScreen(
         Box(Modifier.fillMaxSize()) {
             androidx.compose.runtime.key(state.mountGeneration) {
                 ViewerScreen(
-                    node, state.viewerQueue, state.propertiesLocation(listOf(node)), viewModel,
+                    node, state.viewerQueue, state.propertiesLocation(listOf(node)), viewModel, state.archiveProgress != null,
                     { navigateBackThroughState() }, predictiveBackModifier
                 )
+            }
+            state.locationPicker?.let { OnlyFilesLocationSheet(it, state.selectedVault?.name.orEmpty(), viewModel) }
+            state.archiveProgress?.let {
+                OnlyFilesArchiveToolbar(it, viewModel::cancelArchiveOperation, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
             }
             ArcileSnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
         }
@@ -355,7 +368,8 @@ private fun OnlyFilesScreen(
         },
         floatingActionButton = {
             if (state.selectedNodeIds.isEmpty() && !showSearch &&
-                (state.selectedVaultId == null || state.clipboard == null) && state.transferProgress == null
+                (state.selectedVaultId == null || state.clipboard == null) &&
+                state.transferProgress == null && state.archiveProgress == null
             ) ExpandableFabMenu(
                 isExpanded = fabExpanded,
                 onToggleExpand = { fabExpanded = !fabExpanded },
@@ -417,7 +431,10 @@ private fun OnlyFilesScreen(
             val toolbarModifier = Modifier.align(Alignment.BottomCenter)
                 .consumeWindowInsets(padding)
                 .padding(bottom = padding.calculateBottomPadding())
-            if (state.selectedNodeIds.isNotEmpty()) {
+            val archiveProgress = state.archiveProgress
+            if (archiveProgress != null) {
+                OnlyFilesArchiveToolbar(archiveProgress, viewModel::cancelArchiveOperation, toolbarModifier)
+            } else if (state.selectedNodeIds.isNotEmpty()) {
                 val selected = state.selectedNodes
                 VaultSelectionToolbar(
                     nodes = selected,
@@ -434,6 +451,9 @@ private fun OnlyFilesScreen(
                     onMoveOut = { boundaryRequest = selected to true },
                     onReveal = selected.singleOrNull()?.takeIf { state.hasSearch }?.let { node ->
                         { showSearch = false; viewModel.revealInParent(node) }
+                    },
+                    onCreateZip = { createZipNodes = selected }.takeIf {
+                        !state.busy && selected.isNotEmpty() && selected.all { node -> node.ref.capabilities.canRead }
                     },
                     modifier = toolbarModifier
                 )
@@ -540,6 +560,16 @@ private fun OnlyFilesScreen(
         )
     }
     state.locationPicker?.let { OnlyFilesLocationSheet(it, state.selectedVault?.name.orEmpty(), viewModel) }
+    if (createZipNodes.isNotEmpty()) {
+        VaultCreateZipDialog(
+            createZipNodes, state.nodes.mapTo(mutableSetOf(), VaultNodeMetadata::name),
+            onDismiss = { createZipNodes = emptyList() }
+        ) { name, compression, success ->
+            val nodes = createZipNodes
+            createZipNodes = emptyList()
+            viewModel.createZip(nodes, name, compression, success)
+        }
+    }
     if (state.selectedVaultId != null) {
         state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
     }

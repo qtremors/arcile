@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.4
+> **Version:** 2.2.5
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.5] - 2026-11-04
+
+### Changed
+- OnlyFiles creates ZIPs from selected files and folders directly in the vault.
+- Extract an entire ZIP, its current folder, or selected entries into an encrypted folder. Choose the destination, keep both folders on a name conflict, or cancel before extraction finishes.
 
 ## [2.2.4] - 2026-11-04
 

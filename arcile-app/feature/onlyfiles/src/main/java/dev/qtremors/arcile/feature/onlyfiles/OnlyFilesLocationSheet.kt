@@ -36,16 +36,22 @@ internal fun OnlyFilesLocationSheet(
     viewModel: OnlyFilesViewModel
 ) {
     val pickingScope = picker.mode == OnlyFilesLocationMode.SEARCH_SCOPE
+    val pickingDestination = picker.mode == OnlyFilesLocationMode.ARCHIVE_DESTINATION
+    val browsingFolders = pickingScope || pickingDestination
     ArcileActionSheet(onDismissRequest = viewModel::closeLocationPicker) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
-                stringResource(if (pickingScope) R.string.onlyfiles_search_scope else R.string.onlyfiles_pinned_folders),
+                stringResource(when (picker.mode) {
+                    OnlyFilesLocationMode.SEARCH_SCOPE -> R.string.onlyfiles_search_scope
+                    OnlyFilesLocationMode.ARCHIVE_DESTINATION -> R.string.onlyfiles_choose_destination
+                    OnlyFilesLocationMode.PINNED -> R.string.onlyfiles_pinned_folders
+                }),
                 style = MaterialTheme.typography.titleLarge
             )
-            if (pickingScope) {
+            if (browsingFolders) {
                 Breadcrumbs(
                     rootLabel = vaultName,
                     rootKey = DirectoryId.Root.value,
@@ -60,7 +66,7 @@ internal fun OnlyFilesLocationSheet(
                     Text(stringResource(R.string.onlyfiles_retry_folder_list))
                 }
             } else if (picker.folders.isEmpty() && picker.shortcuts.isEmpty()) {
-                Text(stringResource(if (pickingScope) R.string.onlyfiles_no_subfolders else R.string.onlyfiles_no_pinned_folders))
+                Text(stringResource(if (browsingFolders) R.string.onlyfiles_no_subfolders else R.string.onlyfiles_no_pinned_folders))
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                 items(picker.folders, key = { it.ref.nodeId.value }) { folder ->
@@ -84,6 +90,9 @@ internal fun OnlyFilesLocationSheet(
             }
             if (pickingScope) Button(onClick = viewModel::applySearchScope, enabled = !picker.loading) {
                 Text(stringResource(R.string.onlyfiles_search_here))
+            }
+            if (pickingDestination) Button(onClick = viewModel::chooseArchiveDestination, enabled = !picker.loading) {
+                Text(stringResource(R.string.onlyfiles_extract_here))
             }
         }
     }

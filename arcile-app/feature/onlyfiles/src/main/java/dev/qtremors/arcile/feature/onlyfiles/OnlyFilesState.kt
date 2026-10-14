@@ -77,6 +77,8 @@ internal data class OnlyFilesUiState(
     val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
     val batchProgress: OnlyFilesBatchProgress? = null,
+    val archiveProgress: OnlyFilesArchiveProgress? = null,
+    val completedArchive: VaultNodeMetadata? = null,
     val message: String? = null
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }

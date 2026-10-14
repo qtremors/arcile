@@ -2,22 +2,30 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
@@ -43,7 +51,9 @@ internal fun VaultZipPreview(
     node: VaultNodeMetadata,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
     folder: List<String>,
-    onOpenFolder: (List<String>) -> Unit
+    operationActive: Boolean,
+    onOpenFolder: (List<String>) -> Unit,
+    onExtract: (VaultZipSelection) -> Unit
 ) {
     val contents by produceState<Result<List<VaultZipEntry>>?>(null, node.ref, node.revision) {
         value = withContext(Dispatchers.IO) {
@@ -70,7 +80,9 @@ internal fun VaultZipPreview(
         when {
             contents == null -> CircularProgressIndicator()
             tree == null || entries == null -> Text(stringResource(R.string.onlyfiles_zip_unavailable), color = Color.White)
-            else -> ZipFolderListing(node, tree, folder, entries.size > MAX_PREVIEW_ENTRIES, onOpenFolder)
+            else -> ZipFolderListing(
+                node, tree, folder, entries.size > MAX_PREVIEW_ENTRIES, operationActive, onOpenFolder, onExtract
+            )
         }
     }
 }
@@ -81,7 +93,9 @@ private fun ZipFolderListing(
     tree: VaultZipTree,
     folder: List<String>,
     truncated: Boolean,
-    onOpenFolder: (List<String>) -> Unit
+    operationActive: Boolean,
+    onOpenFolder: (List<String>) -> Unit,
+    onExtract: (VaultZipSelection) -> Unit
 ) {
     val items = remember(tree, folder) { tree.list(folder) }
     val models = remember(items, archive.ref) {
@@ -100,8 +114,13 @@ private fun ZipFolderListing(
             )
         }
     }
-    val directories = remember(items, models) {
-        models.zip(items).filter { it.second.isDirectory }.associate { it.first.reference to it.second }
+    val byReference = remember(items, models) {
+        models.zip(items).associate { it.first.reference to it.second }
+    }
+    var selected by remember(archive.ref, folder) { mutableStateOf(emptySet<String>()) }
+    fun toggle(reference: String) {
+        if (operationActive) return
+        selected = if (reference in selected) selected - reference else selected + reference
     }
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize()) {
@@ -122,11 +141,13 @@ private fun ZipFolderListing(
                 androidx.compose.runtime.key(folder) {
                     FileList(
                         files = models,
-                        selectedFiles = emptySet(),
-                        onNavigateTo = { path -> directories[path]?.let { onOpenFolder(it.path) } },
-                        onOpenFile = {},
-                        onToggleSelection = {},
-                        onSelectMultiple = {},
+                        selectedFiles = selected,
+                        onNavigateTo = { reference ->
+                            if (!operationActive) byReference[reference]?.takeIf { it.isDirectory }?.let { onOpenFolder(it.path) }
+                        },
+                        onOpenFile = ::toggle,
+                        onToggleSelection = ::toggle,
+                        onSelectMultiple = { if (!operationActive) selected = selected + it },
                         modifier = Modifier.weight(1f),
                         presentation = dev.qtremors.arcile.core.ui.lists.FileItemPresentation(
                             showThumbnails = false,
@@ -134,18 +155,45 @@ private fun ZipFolderListing(
                         )
                     )
                 }
+                if (!operationActive) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = {
+                            selected = if (selected.size == models.size) emptySet()
+                            else models.mapTo(linkedSetOf(), FileModel::reference)
+                        }) {
+                            Text(stringResource(if (selected.size == models.size) {
+                                R.string.onlyfiles_clear_zip_selection
+                            } else R.string.onlyfiles_select_zip_items))
+                        }
+                        FilledTonalButton(
+                            enabled = !truncated,
+                            onClick = {
+                                val paths = selected.mapNotNull { byReference[it]?.path }.toSet()
+                                onExtract(VaultZipSelection(folder, paths))
+                            }
+                        ) {
+                            Text(if (selected.isEmpty()) stringResource(R.string.onlyfiles_extract_zip)
+                            else pluralStringResource(R.plurals.onlyfiles_extract_zip_selected, selected.size, selected.size))
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-private class VaultZipDirectoryChannel(
+internal class VaultZipDirectoryChannel(
     private val reader: VaultSeekableReader,
+    readBudget: Long = MAX_DIRECTORY_BYTES,
     private val checkActive: () -> Unit
 ) : SeekableByteChannel {
     private var open = true
     private var offset = 0L
-    private var remainingBudget = MAX_DIRECTORY_BYTES
+    private var remainingBudget = readBudget
     private val buffer = ByteArray(8192)
 
     override fun read(dst: ByteBuffer): Int {
@@ -154,7 +202,7 @@ private class VaultZipDirectoryChannel(
         if (!dst.hasRemaining()) return 0
         if (offset >= reader.sizeBytes) return -1
         if (remainingBudget <= 0) throw IOException("ZIP directory exceeds the preview limit")
-        val count = minOf(dst.remaining(), buffer.size, remainingBudget, (reader.sizeBytes - offset).coerceAtMost(buffer.size.toLong()).toInt())
+        val count = minOf(dst.remaining().toLong(), buffer.size.toLong(), remainingBudget, reader.sizeBytes - offset).toInt()
         val read = reader.readAt(offset, buffer, 0, count)
         if (read <= 0) throw IOException("ZIP directory is incomplete")
         dst.put(buffer, 0, read)
@@ -182,4 +230,4 @@ private class VaultZipDirectoryChannel(
 }
 
 private const val MAX_PREVIEW_ENTRIES = 1_000
-private const val MAX_DIRECTORY_BYTES = 2 * 1024 * 1024
+private const val MAX_DIRECTORY_BYTES = 2L * 1024 * 1024

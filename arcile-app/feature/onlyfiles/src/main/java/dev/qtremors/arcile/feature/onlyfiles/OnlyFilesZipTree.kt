@@ -18,7 +18,7 @@ internal class VaultZipTree(entries: List<VaultZipEntry>) {
 
     init {
         for (entry in entries) {
-            val segments = entry.safeSegments() ?: continue
+            val segments = safeZipSegments(entry.name) ?: continue
             var parent = emptyList<String>()
             for ((index, name) in segments.withIndex()) {
                 val directory = index < segments.lastIndex || entry.isDirectory
@@ -39,7 +39,7 @@ internal class VaultZipTree(entries: List<VaultZipEntry>) {
         )
 }
 
-private fun VaultZipEntry.safeSegments(): List<String>? {
+internal fun safeZipSegments(name: String): List<String>? {
     if (name.startsWith('/') || '\\' in name || '\u0000' in name) return null
     val segments = name.trimEnd('/').split('/')
     if (segments.size > 64 || segments.first().contains(':')) return null
