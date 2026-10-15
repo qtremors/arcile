@@ -1,4 +1,5 @@
 <resources>
+    <string name="onlyfiles_batch_rename_unavailable">Couldn’t prepare batch rename.</string>
     <string name="onlyfiles_create_zip">Create ZIP</string>
     <string name="onlyfiles_creating_zip">Creating ZIP</string>
     <string name="onlyfiles_zip_created">ZIP created</string>
@@ -31,7 +32,7 @@
     <string name="onlyfiles_reveal_in_folder">Show in folder</string>
     <string name="onlyfiles_reveal_unavailable">This item is unavailable in the folder listing.</string>
     <string name="onlyfiles_reset_folder_view">Reset folder view settings</string>
-    <string name="onlyfiles_selection_loaded_only">Selection applies to loaded items. Load more to include other items.</string>
+    <string name="onlyfiles_selecting_rows">Selecting across pages…</string>
     <string name="onlyfiles_title">OnlyFiles</string>
     <string name="onlyfiles_create">Create vault</string>
     <string name="onlyfiles_empty">Create your first encrypted vault.</string>

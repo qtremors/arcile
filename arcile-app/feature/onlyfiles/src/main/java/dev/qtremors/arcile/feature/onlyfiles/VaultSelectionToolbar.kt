@@ -33,6 +33,7 @@ internal fun VaultSelectionToolbar(
     onDelete: () -> Unit,
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
+    onOpenAs: () -> Unit,
     onExport: () -> Unit,
     onMoveOut: () -> Unit,
     onReveal: (() -> Unit)?,
@@ -48,7 +49,7 @@ internal fun VaultSelectionToolbar(
             onCopy = { viewModel.copy(nodes) }.takeIf { nodes.all { it.ref.capabilities.canCopy } },
             onCut = { viewModel.move(nodes) }.takeIf { nodes.all { it.ref.capabilities.canMove } },
             onDelete = onDelete.takeIf { nodes.all { it.ref.capabilities.canDeletePermanently } },
-            onRename = onRename.takeIf { single?.ref?.capabilities?.canRename == true }
+            onRename = onRename.takeIf { nodes.isNotEmpty() && nodes.all { it.ref.capabilities.canRename } }
         ),
         moreContent = {
             Box {
@@ -65,6 +66,7 @@ internal fun VaultSelectionToolbar(
                         add(content)
                     }
                     if (single?.isDirectory == false && single.ref.capabilities.canOpenWith) {
+                        item(UiR.string.open_as, Icons.AutoMirrored.Filled.OpenInNew, onOpenAs)
                         item(UiR.string.viewer_open_with, Icons.AutoMirrored.Filled.OpenInNew, onOpenWith)
                     }
                     if (nodes.any { !it.isDirectory && it.ref.capabilities.canShare }) {

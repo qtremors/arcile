@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.5
+> **Version:** 2.2.6
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.6] - 2026-11-04
+
+### Changed
+- OnlyFiles Select All and Invert include results across pages. Rename multiple items with Browser's live preview.
+- Open As and saved open preferences use the Android chooser after vault consent.
+- Properties shows recursive selection totals and private image metadata. The image viewer shows resolution.
 
 ## [2.2.5] - 2026-11-04
 

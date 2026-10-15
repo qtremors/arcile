@@ -16,6 +16,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultCreationRequest
 import dev.qtremors.arcile.core.vault.domain.VaultLocation
+import dev.qtremors.arcile.core.vault.domain.VaultRenameItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -230,6 +231,113 @@ class DefaultVaultRepositoryTest {
         repository.lock(vaultId)
         assertTrue(repository.directoryTrail(vaultId, nestedId).exceptionOrNull() is VaultFailure.Locked)
         scope.cancel()
+    }
+
+    @Test
+    fun `vault batch rename publishes swaps across folders and preserves opaque references`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Rename", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Folder").getOrThrow()
+            val child = requireNotNull(folder.ref.directoryId)
+            val first = repository.createEmptyFile(vault, root, "alpha.txt").getOrThrow()
+            val second = repository.createEmptyFile(vault, root, "beta.txt").getOrThrow()
+            val other = repository.createEmptyFile(vault, child, "ALPHA.txt").getOrThrow()
+            val occupied = repository.createEmptyFile(vault, child, "Résumé.txt").getOrThrow()
+            val changes = listOf(
+                VaultRenameItem(first.ref, first.name, second.name),
+                VaultRenameItem(second.ref, second.name, first.name),
+                VaultRenameItem(other.ref, other.name, "alpha.txt")
+            )
+
+            val siblings = repository.batchRenameSiblingNames(changes).getOrThrow()
+            assertEquals(setOf(folder.name), siblings[root])
+            assertEquals(setOf(occupied.name), siblings[child])
+
+            val invalid = changes.dropLast(1) + changes.last().copy(newName = "re\u0301sume\u0301.txt")
+            assertTrue(repository.batchRename(invalid).exceptionOrNull() is VaultFailure.NameConflict)
+            assertEquals(first.name, repository.metadata(first.ref).getOrThrow().name)
+            assertEquals(second.name, repository.metadata(second.ref).getOrThrow().name)
+            assertEquals(other.name, repository.metadata(other.ref).getOrThrow().name)
+
+            val renamed = repository.batchRename(changes).getOrThrow()
+            assertEquals(changes.map(VaultRenameItem::ref), renamed.map { it.ref })
+            assertEquals(changes.map(VaultRenameItem::newName), renamed.map { it.name })
+            assertEquals(listOf(first.revision, second.revision, other.revision), renamed.map { it.revision })
+            assertTrue(repository.batchRename(changes).isFailure)
+            assertTrue(repository.batchRenameSiblingNames(changes).isFailure)
+
+            repository.lock(vault)
+            assertTrue(repository.batchRename(changes).exceptionOrNull() is VaultFailure.Locked)
+            repository.unlock(vault, "password".toCharArray()).getOrThrow()
+            assertEquals(listOf("Folder", "alpha.txt", "beta.txt"), repository.listDirectory(vault, root)
+                .getOrThrow().items.map { it.name })
+            assertEquals(listOf("alpha.txt", "Résumé.txt"), repository.listDirectory(vault, child)
+                .getOrThrow().items.map { it.name })
+            repository.openReader(first.ref).getOrThrow().use { assertEquals(0L, it.sizeBytes) }
+
+            val renamedFolder = repository.batchRename(listOf(VaultRenameItem(folder.ref, folder.name, "Cafe\u0301")))
+                .getOrThrow().single()
+            assertEquals(folder.ref, renamedFolder.ref)
+            assertEquals("Café", renamedFolder.name)
+            assertEquals("Café", repository.directoryTrail(vault, child).getOrThrow().last().name)
+            assertEquals("alpha.txt", repository.metadata(other.ref).getOrThrow().name)
+
+            val invalidPath = VaultRenameItem(renamedFolder.ref, renamedFolder.name, "../elsewhere")
+            assertTrue(repository.batchRename(listOf(invalidPath)).exceptionOrNull() is VaultFailure.InvalidName)
+            assertEquals("Café", repository.metadata(folder.ref).getOrThrow().name)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault complete selection matches filters and counts overlapping folders and files once`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Selection", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Folder").getOrThrow()
+            val folderId = requireNotNull(folder.ref.directoryId)
+            val child = repository.createDirectory(vault, folderId, "Child").getOrThrow()
+            val childId = requireNotNull(child.ref.directoryId)
+            val first = repository.createSyntheticFile(vault, childId, "one.txt", 5).getOrThrow()
+            val second = repository.createSyntheticFile(vault, folderId, "two.txt", 7).getOrThrow()
+            repository.createSyntheticFile(vault, folderId, ".hidden.txt", 9).getOrThrow()
+            val direct = repository.createSyntheticFile(vault, root, "root.txt", 2).getOrThrow()
+            repository.createEmptyFile(vault, folderId, "other.bin").getOrThrow()
+
+            val listOptions = VaultListOptions(pageSize = 1, showHiddenFiles = false)
+            assertEquals(1, repository.listDirectory(vault, folderId, listOptions).getOrThrow().items.size)
+            val listing = repository.selectDirectoryRows(vault, folderId, listOptions.copy(pageToken = "1")).getOrThrow()
+            assertEquals(listOf("Child", "other.bin", "two.txt"), listing.items.map { it.name })
+            assertEquals(null, listing.nextPageToken)
+
+            val query = VaultSearchQuery(".txt", recursive = true, pageSize = 1, includeHidden = false) {
+                it.ref.nodeId != direct.ref.nodeId
+            }
+            assertEquals("1", repository.search(vault, root, query).getOrThrow().nextPageToken)
+            val results = repository.selectSearchRows(vault, root, query.copy(pageToken = "1")).getOrThrow()
+            assertEquals(listOf(first.ref, second.ref), results.items.map { it.metadata.ref })
+            assertEquals(null, results.nextPageToken)
+            assertEquals(listOf("Folder", "Child"), results.items.first().parentNames)
+
+            val overlapping = listOf(first.ref, child.ref, folder.ref, direct.ref, folder.ref)
+            val totals = VaultFolderTotals(fileCount = 5, totalBytes = 23, folderCount = 2)
+            assertEquals(totals, repository.selectionTotals(overlapping).getOrThrow())
+            assertEquals(totals, repository.selectionTotals(overlapping.reversed()).getOrThrow())
+        } finally {
+            scope.cancel()
+        }
     }
 
     @Test

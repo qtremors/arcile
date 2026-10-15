@@ -76,6 +76,7 @@ internal data class OnlyFilesUiState(
     val showSettingsSheet: Boolean = false,
     val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
+    val isSelectingRows: Boolean = false,
     val batchProgress: OnlyFilesBatchProgress? = null,
     val archiveProgress: OnlyFilesArchiveProgress? = null,
     val completedArchive: VaultNodeMetadata? = null,

@@ -53,19 +53,20 @@ fun PropertiesDialog(
     properties: PropertiesUiModel?,
     isLoading: Boolean,
     onDismiss: () -> Unit,
-    readLocalImageMetadata: Boolean = true
+    readLocalImageMetadata: Boolean = true,
+    sourceImageMetadata: VisualMediaMetadata? = null
 ) {
     val context = LocalContext.current
-    var imageMetadata by remember(properties?.pathSummary, properties?.isSingleItem) {
+    var localImageMetadata by remember(properties?.pathSummary, properties?.isSingleItem) {
         mutableStateOf<VisualMediaMetadata?>(null)
     }
     val shouldLoadImageMetadata = readLocalImageMetadata && properties?.isSingleImageProperty() == true
 
     LaunchedEffect(properties?.pathSummary, shouldLoadImageMetadata) {
-        imageMetadata = null
+        localImageMetadata = null
         val model = properties ?: return@LaunchedEffect
         if (!shouldLoadImageMetadata) return@LaunchedEffect
-        imageMetadata = withContext(Dispatchers.IO) {
+        localImageMetadata = withContext(Dispatchers.IO) {
             runCatching {
                 SharedImageMetadataReader.readMetadata(
                     context = context,
@@ -75,6 +76,7 @@ fun PropertiesDialog(
             }.getOrNull()
         }
     }
+    val imageMetadata = sourceImageMetadata ?: localImageMetadata
 
     Dialog(
         onDismissRequest = onDismiss,

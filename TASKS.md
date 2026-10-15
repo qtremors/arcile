@@ -93,25 +93,15 @@
   - **Current:** Sorted search pages rescan the tree.
   - **Change:** Measure paging on large vaults and reuse scan results where safe.
 
-- [ ] **UI-0004 - Extend Vault Selection Across Pages**
-  - **Location:** OnlyFilesBrowserController.kt and OnlyFilesViewModel.kt.
-  - **Current:** Select All and Invert apply to loaded rows and show a scope notice when more results exist.
-  - **Change:** Support selecting all results without requiring users to load each page.
-
 - [ ] **UI-0007 - Add Vault Workspace Tabs**
   - **Location:** OnlyFilesNavigation.kt and OnlyFilesState.kt.
   - **Current:** Pinned folders and authenticated last-folder restore are available.
   - **Change:** Add vault-scoped workspace tabs with independent navigation and scroll state.
 
-- [ ] **UI-0008 - Add Vault Batch Rename**
-  - **Location:** VaultSelectionToolbar.kt and DefaultVaultRepository.kt.
-  - **Current:** Only single-item rename is available.
-  - **Change:** Share the batch dialog and handle collisions in the encrypted backend.
-
-- [ ] **UI-0009 - Add Private Open As and File Routing**
+- [ ] **UI-0009 - Share File Routing and Support Vault-Compatible Plugins**
   - **Location:** OnlyFilesFormatting.kt and AppFileOpenResolver.kt.
-  - **Current:** OnlyFiles uses separate routing and lacks forced types, open preferences, and plugin dispatch.
-  - **Change:** Share classification and route through vault-capable readers.
+  - **Current:** OnlyFiles shares Open As and saved open preferences. Built-in viewer dispatch is separate and plugin routing is unavailable.
+  - **Change:** Share viewer dispatch decisions and route compatible plugins through scoped vault access.
 
 - [ ] **UI-0010 - Support More Vault Archive Formats and Passwords**
   - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
@@ -128,15 +118,25 @@
   - **Current:** Conflict review is sequential and picker chrome is separate.
   - **Change:** Share the interaction where compatible with vault transfer decisions.
 
-- [ ] **UI-0012 - Complete Vault Properties and Media Actions**
-  - **Location:** OnlyFilesDialogs.kt, OnlyFilesViewer.kt, and OnlyFilesAudioPreview.kt.
-  - **Current:** Multi-folder totals, private EXIF, video actions and metadata, and audio player controls are incomplete.
-  - **Change:** Wire the shared presentation to vault-capable sources.
+- [ ] **UI-0012 - Complete Vault Media Actions**
+  - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.
+  - **Current:** The image queue ends at loaded results and lacks favorites and viewer selection. Video actions and metadata and shared audio-player controls are incomplete.
+  - **Change:** Wire the remaining shared viewer actions and queues to vault-capable sources.
 
 - [ ] **UI-0013 - Support Split Package Installation from Vaults**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesExternalAccessController.kt.
   - **Current:** Only plain APKs use the installer route.
   - **Change:** Add bundle handling with explicit external consent.
+
+- [ ] **UI-0014 - Send Browser Selections to OnlyFiles**
+  - **Location:** BrowserWorkflowToolbars.kt and OnlyFilesImportController.kt.
+  - **Current:** Import starts inside OnlyFiles.
+  - **Change:** Add a Browser selection action that opens an authenticated vault destination and the existing import flow.
+
+- [ ] **UI-0015 - Remove Stale Vault Folder Preferences**
+  - **Location:** DefaultVaultSecurityPreferences.kt and OnlyFilesLocationController.kt.
+  - **Current:** Individual folders can reset their view, but deleted folders can leave stored settings behind.
+  - **Change:** Remove preferences for confirmed deleted folder IDs and provide a vault-level reset.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
+import dev.qtremors.arcile.core.ui.dialogs.OpenAsDialog
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserUiState

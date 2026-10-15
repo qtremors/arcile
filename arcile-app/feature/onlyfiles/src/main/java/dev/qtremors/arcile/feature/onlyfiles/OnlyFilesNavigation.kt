@@ -8,6 +8,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import androidx.navigation.toRoute
 import dev.qtremors.arcile.navigation.AppRoutes
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
@@ -27,6 +28,7 @@ internal fun AppRoutes.OnlyFiles.toVaultEntry(): OnlyFilesEntry? {
 }
 
 fun NavGraphBuilder.registerOnlyFilesRoute(
+    getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     enterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     exitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
@@ -41,6 +43,7 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
         popExitTransition = popExitTransition
     ) { backStack ->
         OnlyFilesRoute(
+            getFileOpenBehaviors = getFileOpenBehaviors,
             entry = backStack.toRoute<AppRoutes.OnlyFiles>().toVaultEntry(),
             onNavigateBack = onNavigateBack,
             onPlayVideo = onPlayVideo

@@ -81,7 +81,8 @@ fun BatchRenameDialog(
     existingFolderNames: Set<String> = emptySet(),
     searchHistory: List<String> = emptyList(),
     onSaveFindQuery: (String) -> Unit = {},
-    onRemoveHistoryItem: (String) -> Unit = {}
+    onRemoveHistoryItem: (String) -> Unit = {},
+    evaluatePreview: ((List<FileModel>, BatchRenameRule) -> List<BatchRenameItem>)? = null
 ) {
     var findQuery by remember { mutableStateOf("") }
     var replacement by remember { mutableStateOf("") }
@@ -113,8 +114,8 @@ fun BatchRenameDialog(
         )
     }
 
-    val previewItems = remember(files, rule, existingFolderNames) {
-        BatchRenameEngine.evaluate(files, rule, existingFolderNames)
+    val previewItems = remember(files, rule, existingFolderNames, evaluatePreview) {
+        evaluatePreview?.invoke(files, rule) ?: BatchRenameEngine.evaluate(files, rule, existingFolderNames)
     }
 
     val hasChanges = remember(previewItems) { previewItems.any { it.isChanged } }

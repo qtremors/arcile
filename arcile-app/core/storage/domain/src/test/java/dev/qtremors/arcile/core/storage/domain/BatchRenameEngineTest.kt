@@ -138,4 +138,48 @@ class BatchRenameEngineTest {
         assertEquals(BatchRenameError.INVALID_CHARACTERS, results[0].error)
         assertFalse(results[0].isValid)
     }
+
+    @Test
+    fun `grouped preview allows matching names in separate folders but checks canonical collisions within each`() {
+        val first = FileModel(name = "photo.txt", reference = "/one/photo.txt")
+        val second = FileModel(name = "photo.txt", reference = "/two/photo.txt")
+        val rule = BatchRenameRule(findQuery = "photo", replacement = "portrait")
+        val results = BatchRenameEngine.evaluateByFolder(
+            files = listOf(first, second),
+            rule = rule,
+            folderKey = { it.reference.substringBeforeLast('/') },
+            unselectedNamesByFolder = mapOf("/two" to setOf("PORTRAIT.TXT")),
+            nameKey = { it.lowercase(java.util.Locale.ROOT) }
+        )
+
+        assertEquals(listOf("portrait.txt", "portrait.txt"), results.map { it.proposedName })
+        assertEquals(listOf(null, BatchRenameError.EXISTS_ON_DISK), results.map { it.error })
+    }
+
+    @Test
+    fun `grouped preview preserves enumeration order across folders and reports invalid provider names`() {
+        val files = listOf(
+            FileModel(name = "one", reference = "/first/one"),
+            FileModel(name = "two", reference = "/second/two")
+        )
+        val result = BatchRenameEngine.evaluateByFolder(
+            files = files,
+            rule = BatchRenameRule(enumeration = EnumerationConfig(enabled = true)),
+            folderKey = { it.reference.substringBeforeLast('/') },
+            unselectedNamesByFolder = emptyMap(),
+            nameKey = { it.takeIf { proposed -> proposed.length <= 6 } }
+        )
+
+        assertEquals(listOf("one_01", "two_02"), result.map { it.proposedName })
+        assertTrue(result.all { it.isValid })
+        val invalid = BatchRenameEngine.evaluateByFolder(
+            files = files,
+            rule = BatchRenameRule(findQuery = "one", replacement = "."),
+            folderKey = { it.reference.substringBeforeLast('/') },
+            unselectedNamesByFolder = emptyMap(),
+            nameKey = { it.takeUnless { proposed -> proposed == "." } }
+        )
+        assertEquals(BatchRenameError.INVALID_CHARACTERS, invalid.first().error)
+        assertTrue(invalid.last().isValid)
+    }
 }

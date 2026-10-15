@@ -6,6 +6,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultRenameItem
+import dev.qtremors.arcile.core.vault.domain.VaultSearchHit
 import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
 import dev.qtremors.arcile.core.vault.domain.VaultSecuritySettings
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +27,7 @@ internal class OnlyFilesBrowserController(
 ) {
     private var searchJob: Job? = null
     private var directoryJob: Job? = null
+    private var selectionJob: Job? = null
     private var directoryGeneration: Long? = null
     private var searchGeneration: Long? = null
 
@@ -32,6 +35,7 @@ internal class OnlyFilesBrowserController(
 
     fun loadNextPage() {
         val snapshot = state.value
+        if (snapshot.isSelectingRows) return
         if (!snapshot.hasSearch) loadDirectoryPage(snapshot.nextPageToken, true)
         else scheduleSearchPage(snapshot.searchNextPageToken, true)
     }
@@ -54,6 +58,7 @@ internal class OnlyFilesBrowserController(
         filters: SearchFilters = state.value.searchFilters,
         debounceMillis: Long = 250L
     ) {
+        cancelSelection()
         searchJob?.cancel()
         searchGeneration = null
         state.update {
@@ -67,6 +72,7 @@ internal class OnlyFilesBrowserController(
 
 
     fun reload() {
+        cancelSelection()
         directoryJob?.cancel()
         searchJob?.cancel()
         directoryGeneration = null
@@ -82,6 +88,7 @@ internal class OnlyFilesBrowserController(
     }
 
     fun cancel() {
+        cancelSelection()
         searchJob?.cancel()
         searchJob = null
         directoryJob?.cancel()
@@ -89,6 +96,82 @@ internal class OnlyFilesBrowserController(
         directoryGeneration = null
         searchGeneration = null
     }
+
+    fun cancelSelection() {
+        selectionJob?.cancel()
+        selectionJob = null
+        state.update { if (it.isSelectingRows) it.copy(isSelectingRows = false) else it }
+    }
+
+    fun selectRows(invert: Boolean) {
+        val snapshot = state.value
+        if (snapshot.busy || snapshot.isSelectingRows || snapshot.isLoadingRows && !snapshot.hasMoreRows) return
+        if (!snapshot.hasMoreRows) {
+            state.update { it.copy(selectedNodeIds = selectionOf(it.displayedNodes, snapshot, invert)) }
+            return
+        }
+        val vault = snapshot.selectedVaultId ?: return
+        val directory = snapshot.currentDirectory?.id ?: return
+        if (snapshot.hasSearch) {
+            searchJob?.cancel()
+            state.update { it.copy(isSelectingRows = true, isSearching = false) }
+        } else {
+            directoryJob?.cancel()
+            state.update { it.copy(isSelectingRows = true, isListing = false) }
+        }
+        selectionJob = scope.launch {
+            val result = if (snapshot.hasSearch) {
+                val searchDirectory = snapshot.searchScope?.lastOrNull()?.id ?: directory
+                fileSystem.selectSearchRows(vault, searchDirectory, snapshot.searchOptions(null)).map { page ->
+                    SelectionRows(page.items.map(VaultSearchHit::metadata), page.items, page.generation)
+                }
+            } else {
+                fileSystem.selectDirectoryRows(vault, directory, snapshot.listOptions(null)).map { page ->
+                    SelectionRows(page.items, emptyList(), page.generation)
+                }
+            }
+            ensureActive()
+            if (state.value.mountGeneration != snapshot.mountGeneration) return@launch
+            result.fold(
+                onSuccess = { rows ->
+                    state.update { current ->
+                        val selection = selectionOf(rows.nodes, snapshot, invert)
+                        if (snapshot.hasSearch) {
+                            searchGeneration = rows.generation
+                            current.copy(
+                                searchHits = rows.hits, searchNextPageToken = null,
+                                selectedNodeIds = selection, isSelectingRows = false
+                            )
+                        } else {
+                            directoryGeneration = rows.generation
+                            current.copy(
+                                nodes = rows.nodes, nextPageToken = null,
+                                selectedNodeIds = selection, isSelectingRows = false
+                            )
+                        }
+                    }
+                },
+                onFailure = {
+                    state.update { current -> current.copy(isSelectingRows = false) }
+                    showError(it)
+                }
+            )
+        }
+    }
+
+    private fun selectionOf(
+        nodes: List<VaultNodeMetadata>,
+        snapshot: OnlyFilesUiState,
+        invert: Boolean
+    ): Set<String> = nodes.mapTo(mutableSetOf()) { it.ref.nodeId.value }.let { ids ->
+        if (invert) ids - snapshot.selectedNodeIds else ids
+    }
+
+    private data class SelectionRows(
+        val nodes: List<VaultNodeMetadata>,
+        val hits: List<VaultSearchHit>,
+        val generation: Long
+    )
 
     fun createFolder(name: String) = currentMutation { vaultId, directoryId ->
         fileSystem.createDirectory(vaultId, directoryId, name)
@@ -113,6 +196,23 @@ internal class OnlyFilesBrowserController(
             },
             onFailure = showError
         )
+    }
+
+    fun batchRename(items: List<VaultRenameItem>) = runBusy {
+        val mount = state.value.mountGeneration
+        val result = fileSystem.batchRename(items)
+        if (state.value.mountGeneration == mount) {
+            result.fold(
+                onSuccess = { updated ->
+                    state.update { current ->
+                        updated.fold(current) { next, node -> next.withUpdatedViewerNode(node) }
+                            .copy(selectedNodeIds = emptySet())
+                    }
+                    reload()
+                },
+                onFailure = showError
+            )
+        }
     }
 
     fun delete(nodes: List<VaultNodeMetadata>) = runBusy {
@@ -175,12 +275,7 @@ internal class OnlyFilesBrowserController(
         directoryJob = scope.launch {
             val result = fileSystem.listDirectory(
                 vaultId, directoryId,
-                VaultListOptions(
-                    snapshot.sortField, snapshot.sortDirection, PAGE_SIZE, pageToken,
-                    showHiddenFiles = snapshot.viewOptions.showHiddenFiles,
-                    foldersFirst = snapshot.viewOptions.foldersFirst,
-                    revealHiddenNodeId = snapshot.revealHiddenNodeId
-                )
+                snapshot.listOptions(pageToken)
             )
             ensureActive()
             result.fold(
@@ -214,7 +309,6 @@ internal class OnlyFilesBrowserController(
         val vaultId = snapshot.selectedVaultId ?: return
         val directoryId = (snapshot.searchScope?.lastOrNull() ?: snapshot.currentDirectory)?.id ?: return
         val query = snapshot.searchQuery.trim()
-        val filters = snapshot.searchFilters
         if (!snapshot.hasSearch || snapshot.isSearching || append && pageToken == null) return
         searchJob?.cancel()
         state.update { it.copy(isSearching = true) }
@@ -222,14 +316,7 @@ internal class OnlyFilesBrowserController(
             if (debounceMillis > 0L) delay(debounceMillis)
             val result = fileSystem.search(
                 vaultId, directoryId,
-                VaultSearchQuery(
-                    query, snapshot.recursiveSearch, PAGE_SIZE, pageToken, filters.includeHidden,
-                    sortField = snapshot.sortField,
-                    direction = snapshot.sortDirection,
-                    foldersFirst = snapshot.viewOptions.foldersFirst
-                ) { node ->
-                    !filters.hasActiveFilters || node.toSharedFileModel().matchesSearchFilters(filters)
-                }
+                snapshot.searchOptions(pageToken)
             )
             ensureActive()
             result.fold(
@@ -266,5 +353,17 @@ internal class OnlyFilesBrowserController(
         }
     }
 
-    private companion object { const val PAGE_SIZE = 256 }
+    private fun OnlyFilesUiState.listOptions(pageToken: String?) = VaultListOptions(
+        sortField, sortDirection, pageToken = pageToken,
+        showHiddenFiles = viewOptions.showHiddenFiles,
+        foldersFirst = viewOptions.foldersFirst,
+        revealHiddenNodeId = revealHiddenNodeId
+    )
+
+    private fun OnlyFilesUiState.searchOptions(pageToken: String?) = VaultSearchQuery(
+        searchQuery.trim(), recursiveSearch, pageToken = pageToken, includeHidden = searchFilters.includeHidden,
+        sortField = sortField, direction = sortDirection, foldersFirst = viewOptions.foldersFirst
+    ) { node ->
+        !searchFilters.hasActiveFilters || node.toSharedFileModel().matchesSearchFilters(searchFilters)
+    }
 }

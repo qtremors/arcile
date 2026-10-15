@@ -49,7 +49,8 @@ internal class DefaultVaultRepository @Inject constructor(
     internal suspend fun listDirectory(
         session: VaultSessionRecord,
         directoryId: DirectoryId,
-        options: VaultListOptions
+        options: VaultListOptions,
+        pageSize: Int = options.pageSize
     ): VaultPage<VaultNodeMetadata> {
         val directory = session.resolveDirectory(directoryId)
         return try {
@@ -79,7 +80,7 @@ internal class DefaultVaultRepository @Inject constructor(
                     .sortedWith(vaultListingComparator(options.sortField, options.direction, options.foldersFirst, fileCounts))
                     .let { sorted ->
                         val offset = options.pageToken.toPageOffset(sorted.size)
-                        val items = sorted.drop(offset).take(options.pageSize)
+                        val items = sorted.drop(offset).take(pageSize)
                         VaultPage(
                             items,
                             (offset + items.size).takeIf { it < sorted.size }?.toString(),
@@ -168,11 +169,50 @@ internal class DefaultVaultRepository @Inject constructor(
 
     private class FolderScanBudget(var directories: Int = 128, var entries: Int = 8192)
 
+    override suspend fun selectionTotals(refs: List<VaultNodeRef>): Result<VaultFolderTotals> {
+        val vault = refs.firstOrNull()?.vaultId ?: return Result.success(VaultFolderTotals(0, 0))
+        return mutate(vault) { session ->
+            if (refs.any { it.vaultId != vault }) throw VaultFailure.StaleRegistration()
+            val budget = FolderScanBudget()
+            val folders = mutableSetOf<DirectoryId>()
+            val files = mutableSetOf<NodeId>()
+            var totalBytes = 0L
+            for ((parentId, siblings) in refs.groupBy(VaultNodeRef::parentId)) {
+                currentCoroutineContext().ensureActive()
+                val parent = session.resolveDirectory(parentId)
+                try {
+                    val snapshot = session.readDirectory(parent)
+                    try {
+                        val entries = snapshot.entries.associateBy(VaultManifestEntry::nodeId)
+                        for (ref in siblings) {
+                            currentCoroutineContext().ensureActive()
+                            val entry = entries[ref.nodeId] ?: throw VaultFailure.NodeNotFound(ref.nodeId)
+                            val child = entry.childDirectoryId
+                            if (child == null) {
+                                if (files.add(entry.nodeId)) totalBytes = Math.addExact(totalBytes, entry.sizeBytes)
+                            } else if (child !in folders) {
+                                val totals = scanFolder(session, child, entry.protectedKey, budget, folders, files)
+                                totalBytes = Math.addExact(totalBytes, totals.totalBytes)
+                            }
+                        }
+                    } finally {
+                        snapshot.clearProtectedKeys()
+                    }
+                } finally {
+                    parent.key.fill(0)
+                }
+            }
+            VaultFolderTotals(files.size.toLong(), totalBytes, folders.size)
+        }
+    }
+
     private suspend fun scanFolder(
         session: VaultSessionRecord,
         root: DirectoryId,
         rootKey: ByteArray,
-        budget: FolderScanBudget
+        budget: FolderScanBudget,
+        seenFolders: MutableSet<DirectoryId>? = null,
+        seenFiles: MutableSet<NodeId>? = null
     ): VaultFolderTotals {
         val pending = ArrayDeque<Pair<DirectoryId, ByteArray>>()
         pending.add(root to rootKey.copyOf())
@@ -185,8 +225,9 @@ internal class DefaultVaultRepository @Inject constructor(
                 coroutine.ensureActive()
                 val (id, key) = pending.removeFirst()
                 try {
-                    if (budget.directories-- <= 0) throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
                     if (!visited.add(id)) throw VaultFailure.IntegrityFailed("A vault folder was encountered twice")
+                    if (seenFolders?.add(id) == false) continue
+                    if (budget.directories-- <= 0) throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
                     val directory = session.readDirectory(id, key)
                     try {
                         budget.entries -= directory.entries.size
@@ -194,12 +235,14 @@ internal class DefaultVaultRepository @Inject constructor(
                         for (child in directory.entries) {
                             val childId = child.childDirectoryId
                             if (childId != null) {
+                                if (childId in visited) throw VaultFailure.IntegrityFailed("A vault folder was encountered twice")
+                                if (seenFolders?.contains(childId) == true) continue
                                 if (pending.size >= budget.directories) {
                                     budget.directories = 0
                                     throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
                                 }
                                 pending.add(childId to child.protectedKey.copyOf())
-                            } else {
+                            } else if (seenFiles?.add(child.nodeId) != false) {
                                 fileCount++
                                 totalBytes = Math.addExact(totalBytes, child.sizeBytes)
                             }
@@ -233,12 +276,46 @@ internal class DefaultVaultRepository @Inject constructor(
         directoryId: DirectoryId,
         query: VaultSearchQuery
     ): Result<VaultPage<VaultSearchHit>> = withSession(vaultId) { session ->
+        search(session, directoryId, query)
+    }
+
+    override suspend fun selectDirectoryRows(
+        vaultId: VaultId,
+        directoryId: DirectoryId,
+        options: VaultListOptions
+    ): Result<VaultPage<VaultNodeMetadata>> = mutate(vaultId) { session ->
+        listDirectory(session, directoryId, options.copy(pageToken = null), VAULT_SELECT_ROWS_LIMIT)
+            .requireCompleteSelection()
+    }
+
+    override suspend fun selectSearchRows(
+        vaultId: VaultId,
+        directoryId: DirectoryId,
+        query: VaultSearchQuery
+    ): Result<VaultPage<VaultSearchHit>> = mutate(vaultId) { session ->
+        search(session, directoryId, query.copy(pageToken = null), VAULT_SELECT_ROWS_LIMIT)
+            .requireCompleteSelection()
+    }
+
+    private fun <T> VaultPage<T>.requireCompleteSelection(): VaultPage<T> {
+        if (nextPageToken != null) {
+            throw VaultFailure.Unavailable("Narrow the listing to select up to $VAULT_SELECT_ROWS_LIMIT items at once")
+        }
+        return this
+    }
+
+    private suspend fun search(
+        session: VaultSessionRecord,
+        directoryId: DirectoryId,
+        query: VaultSearchQuery,
+        pageSize: Int = query.pageSize
+    ): VaultPage<VaultSearchHit> {
         val requestedOffset = query.pageToken.toPageOffset(Int.MAX_VALUE)
         val start = session.resolveDirectory(directoryId)
         val frames = ArrayDeque<SearchFrame>()
         frames += SearchFrame(start.id, start.key, emptyList())
         val visited = mutableSetOf(start.id)
-        val limit = (requestedOffset.toLong() + query.pageSize + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        val limit = (requestedOffset.toLong() + pageSize + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val fileCounts = mutableMapOf<NodeId, Long>()
         val budget = FolderScanBudget()
         val nodeComparator = vaultListingComparator(query.sortField, query.direction, query.foldersFirst, fileCounts)
@@ -297,8 +374,8 @@ internal class DefaultVaultRepository @Inject constructor(
             while (frames.isNotEmpty()) frames.removeLast().key.fill(0)
         }
         val page = matches.sortedWith(comparator).drop(requestedOffset)
-        val items = page.take(query.pageSize)
-        VaultPage(items, (requestedOffset + items.size).takeIf { page.size > items.size }?.toString(), generation)
+        val items = page.take(pageSize)
+        return VaultPage(items, (requestedOffset + items.size).takeIf { page.size > items.size }?.toString(), generation)
     }
 
     override suspend fun createDirectory(
@@ -463,6 +540,16 @@ internal class DefaultVaultRepository @Inject constructor(
                 snapshot.clearProtectedKeys()
                 parent.key.fill(0)
             }
+        }
+
+    override suspend fun batchRenameSiblingNames(items: List<VaultRenameItem>): Result<Map<DirectoryId, Set<String>>> =
+        if (items.isEmpty()) Result.success(emptyMap())
+        else mutate(items.first().ref.vaultId) { session -> VaultBatchRenamer(session).siblingNames(items) }
+
+    override suspend fun batchRename(items: List<VaultRenameItem>): Result<List<VaultNodeMetadata>> =
+        if (items.isEmpty()) Result.success(emptyList())
+        else mutate(items.first().ref.vaultId) { session ->
+            VaultBatchRenamer(session).rename(items, directoryCodec, transactionManager)
         }
 
     override suspend fun deletePermanently(ref: VaultNodeRef): Result<Unit> =

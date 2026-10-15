@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
+
 import androidx.compose.ui.platform.LocalContext
 
 import android.content.ClipData
@@ -62,6 +64,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
+import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.ui.FileViewOptionsSheet
@@ -166,18 +170,21 @@ internal fun VaultViewOptionsSheet(
 internal fun VaultPropertiesDialog(
     nodes: List<VaultNodeMetadata>,
     location: String,
-    loadFolderTotals: suspend (VaultNodeRef) -> Result<VaultFolderTotals>,
+    loadSelectionTotals: suspend (List<VaultNodeRef>) -> Result<VaultFolderTotals>,
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
     onDismiss: () -> Unit
 ) {
     val single = nodes.singleOrNull()
-    val folder = single?.takeIf(VaultNodeMetadata::isDirectory)
-    var totals by remember(folder) { mutableStateOf<VaultFolderTotals?>(null) }
-    var isLoading by remember(folder) { mutableStateOf(folder != null) }
-    LaunchedEffect(folder) {
-        if (folder != null) {
-            totals = loadFolderTotals(folder.ref).getOrNull()
+    val hasFolders = nodes.any(VaultNodeMetadata::isDirectory)
+    var totals by remember(nodes) { mutableStateOf<VaultFolderTotals?>(null) }
+    var isLoading by remember(nodes) { mutableStateOf(hasFolders) }
+    var imageMetadata by remember(single) { mutableStateOf<VisualMediaMetadata?>(null) }
+    LaunchedEffect(nodes) {
+        if (hasFolders) {
+            totals = loadSelectionTotals(nodes.map(VaultNodeMetadata::ref)).getOrNull()
             isLoading = false
         }
+        if (single?.isViewableImage() == true) imageMetadata = readVaultImageMetadata(single, openReader)
     }
     val title = single?.name ?: pluralStringResource(UiR.plurals.clipboard_item_count, nodes.size, nodes.size)
     val folderTotals = totals
@@ -188,8 +195,9 @@ internal fun VaultPropertiesDialog(
             title = title,
             pathSummary = location,
             itemCount = nodes.size,
-            fileCount = nodes.size - folderCount,
-            folderCount = folderTotals?.folderCount ?: folderCount,
+            fileCount = folderTotals?.fileCount?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: nodes.size - folderCount,
+            folderCount = folderTotals?.folderCount?.let { if (single?.isDirectory == true) it - 1 else it }
+                ?: folderCount,
             totalBytes = folderTotals?.totalBytes ?: nodes.sumOf(VaultNodeMetadata::sizeBytes),
             newestModifiedAt = modified.maxOrNull(),
             oldestModifiedAt = modified.minOrNull(),
@@ -209,7 +217,8 @@ internal fun VaultPropertiesDialog(
         properties = properties.takeUnless { isLoading },
         isLoading = isLoading,
         onDismiss = onDismiss,
-        readLocalImageMetadata = false
+        readLocalImageMetadata = false,
+        sourceImageMetadata = imageMetadata
     )
 }
 
@@ -320,11 +329,12 @@ internal fun VaultExternalAccessDialogs(
     action: ExternalAction,
     nodes: List<VaultNodeMetadata>,
     viewModel: OnlyFilesViewModel,
+    openAs: FileOpenAsType? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val errorMessage = stringResource(R.string.onlyfiles_external_launch_failed)
-    var compatibilityCopy by remember(action, nodes) { mutableStateOf(false) }
+    var compatibilityCopy by remember(action, nodes, openAs) { mutableStateOf(false) }
     val title = when {
         compatibilityCopy -> R.string.onlyfiles_compatibility_copy
         action == ExternalAction.SHARE -> R.string.onlyfiles_share
@@ -342,7 +352,7 @@ internal fun VaultExternalAccessDialogs(
             Button(onClick = {
                 onDismiss()
                 val launch: (List<VaultExternalGrant>) -> Unit = { grants ->
-                    runCatching { launchExternalIntent(context, action, grants) }.onFailure {
+                    runCatching { launchExternalIntent(context, action, grants, openAs) }.onFailure {
                         viewModel.revokeExternalAccess(grants)
                         viewModel.reportExternalLaunchFailure(errorMessage)
                     }
@@ -367,21 +377,37 @@ internal fun VaultExternalAccessDialogs(
     )
 }
 
-private fun launchExternalIntent(context: Context, action: ExternalAction, grants: List<VaultExternalGrant>) {
+private fun launchExternalIntent(
+    context: Context,
+    action: ExternalAction,
+    grants: List<VaultExternalGrant>,
+    openAs: FileOpenAsType?
+) {
+    val intent = buildVaultExternalIntent(context, action, grants, openAs)
+    context.startActivity(if (action == ExternalAction.INSTALL_APK) intent
+    else Intent.createChooser(intent, grants.first().displayName))
+}
+
+internal fun buildVaultExternalIntent(
+    context: Context,
+    action: ExternalAction,
+    grants: List<VaultExternalGrant>,
+    openAs: FileOpenAsType? = null
+): Intent {
     require(grants.isNotEmpty())
     val uris = ArrayList(grants.map { it.contentUri.toUri() })
     val intent = when {
         action == ExternalAction.INSTALL_APK -> Intent(Intent.ACTION_VIEW)
             .setDataAndType(uris.single(), "application/vnd.android.package-archive")
-        action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW).setDataAndType(uris.single(), grants.single().mimeType)
+        action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uris.single(), openAs?.mimeType ?: grants.single().mimeType)
         grants.size == 1 -> Intent(Intent.ACTION_SEND).setType(grants.single().mimeType).putExtra(Intent.EXTRA_STREAM, uris.single())
         else -> Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
     }.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     intent.clipData = ClipData.newUri(context.contentResolver, grants.first().displayName, uris.first()).apply {
         uris.drop(1).forEach { addItem(ClipData.Item(it)) }
     }
-    context.startActivity(if (action == ExternalAction.INSTALL_APK) intent
-    else Intent.createChooser(intent, grants.first().displayName))
+    return intent
 }
 
 @Composable

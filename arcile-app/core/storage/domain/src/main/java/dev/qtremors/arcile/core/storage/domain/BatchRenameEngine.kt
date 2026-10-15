@@ -82,23 +82,40 @@ object BatchRenameEngine {
         files: List<FileModel>,
         rule: BatchRenameRule,
         existingFolderNames: Set<String> = emptySet()
+    ): List<BatchRenameItem> = evaluateByFolder(
+        files = files,
+        rule = rule,
+        folderKey = { "" },
+        unselectedNamesByFolder = mapOf("" to (existingFolderNames - files.map { it.name }.toSet()))
+    )
+
+    fun evaluateByFolder(
+        files: List<FileModel>,
+        rule: BatchRenameRule,
+        folderKey: (FileModel) -> String,
+        unselectedNamesByFolder: Map<String, Set<String>>,
+        nameKey: (String) -> String? = { it }
     ): List<BatchRenameItem> {
         val results = mutableListOf<BatchRenameItem>()
-        val batchProposedNames = mutableSetOf<String>()
-        val unrenamedOriginalNames = files.map { it.name }.toSet()
-        val effectiveExistingNames = existingFolderNames - unrenamedOriginalNames
+        val batchNamesByFolder = mutableMapOf<String, MutableSet<String>>()
+        val existingKeysByFolder = unselectedNamesByFolder.mapValues { (_, names) ->
+            names.mapNotNullTo(mutableSetOf(), nameKey)
+        }
 
         files.forEachIndexed { index, file ->
-            val originalName = file.name
+            val folder = folderKey(file)
+            val batchNames = batchNamesByFolder.getOrPut(folder) { mutableSetOf() }
             val proposedName = applyRule(file, rule, index)
+            val proposedKey = nameKey(proposedName)
             val error = validateProposedName(
                 proposedName = proposedName,
-                batchNames = batchProposedNames,
-                existingFolderNames = effectiveExistingNames
+                proposedKey = proposedKey,
+                batchNames = batchNames,
+                existingFolderNames = existingKeysByFolder[folder].orEmpty()
             )
 
             if (error == null) {
-                batchProposedNames.add(proposedName)
+                batchNames.add(requireNotNull(proposedKey))
             }
 
             results.add(
@@ -194,14 +211,17 @@ object BatchRenameEngine {
 
     private fun validateProposedName(
         proposedName: String,
+        proposedKey: String?,
         batchNames: Set<String>,
         existingFolderNames: Set<String>
     ): BatchRenameError? {
         val trimmed = proposedName.trim()
         if (trimmed.isEmpty()) return BatchRenameError.EMPTY_NAME
-        if (FORBIDDEN_CHARS_REGEX.containsMatchIn(proposedName)) return BatchRenameError.INVALID_CHARACTERS
-        if (batchNames.contains(proposedName)) return BatchRenameError.DUPLICATE_IN_BATCH
-        if (existingFolderNames.contains(proposedName)) return BatchRenameError.EXISTS_ON_DISK
+        if (proposedKey == null || FORBIDDEN_CHARS_REGEX.containsMatchIn(proposedName)) {
+            return BatchRenameError.INVALID_CHARACTERS
+        }
+        if (batchNames.contains(proposedKey)) return BatchRenameError.DUPLICATE_IN_BATCH
+        if (existingFolderNames.contains(proposedKey)) return BatchRenameError.EXISTS_ON_DISK
         return null
     }
 }

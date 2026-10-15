@@ -55,6 +55,7 @@ import dev.qtremors.arcile.core.ui.theme.spacing
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.vault.domain.VaultTransferAction
 
@@ -131,6 +132,8 @@ internal fun OnlyFilesMainContent(
     contentPadding: PaddingValues,
     onListingWidthChanged: (Int) -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
+    onOpenExternally: (VaultNodeMetadata) -> Unit,
     onDirectoryOpened: () -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
@@ -207,7 +210,9 @@ internal fun OnlyFilesMainContent(
                         loadFolderTotals = viewModel::folderTotals,
                         onOpen = { node ->
                             val vaultId = state.selectedVaultId
-                            if (node.isViewableVideo() && vaultId != null) {
+                            if (node.prefersExternalOpen(getFileOpenBehaviors())) {
+                                onOpenExternally(node)
+                            } else if (node.isViewableVideo() && vaultId != null) {
                                 onPlayVideo(
                                     createVaultVideoPlaybackSession(
                                         state.displayedNodes,

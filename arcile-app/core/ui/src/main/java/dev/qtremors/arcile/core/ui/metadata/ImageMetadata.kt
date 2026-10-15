@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import androidx.exifinterface.media.ExifInterface
 import java.io.File
+import java.io.InputStream
 import java.util.Locale
 
 data class ImageMetadataUpdate(
@@ -30,6 +31,30 @@ sealed interface ImageMetadataWriteResult {
 }
 
 object SharedImageMetadataReader {
+    fun readStreamMetadata(
+        reference: String,
+        size: Long,
+        mimeType: String?,
+        openStream: () -> InputStream
+    ): VisualMediaMetadata {
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        openStream().use { BitmapFactory.decodeStream(it, null, options) }
+        val exif = try {
+            openStream().use(::ExifInterface)
+        } catch (_: java.io.IOException) {
+            null
+        }
+        return metadataFrom(
+            reference = reference,
+            size = size,
+            mimeType = mimeType,
+            width = options.outWidth.coerceAtLeast(0),
+            height = options.outHeight.coerceAtLeast(0),
+            exif = exif,
+            isEditable = false
+        )
+    }
+
     fun readMetadata(context: Context, reference: String, mimeType: String? = null): VisualMediaMetadata {
         val uri = runCatching { reference.toUri() }.getOrNull()
         return if (uri?.scheme == "content") {
@@ -140,7 +165,7 @@ object SharedImageMetadataReader {
         isEditable: Boolean
     ): VisualMediaMetadata {
         val megapixel = if (width > 0 && height > 0) {
-            Math.round((width * height).toDouble() / 1_000_000.0 * 100.0) / 100.0
+            Math.round(width.toDouble() * height / 1_000_000.0 * 100.0) / 100.0
         } else {
             0.0
         }

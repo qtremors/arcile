@@ -1,6 +1,8 @@
 package dev.qtremors.arcile.presentation.ui
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.navigation.NavHostController
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
@@ -34,6 +36,7 @@ fun AppNavigationGraph(
         onFeedback = onFeedback
     )
     val transitions = appNavigationTransitions(LocalReducedMotionEnabled.current)
+    val latestFileOpenBehaviors by rememberUpdatedState(fileOpenBehaviors)
 
     AppPluginPromptDialog(
         prompt = actions.pluginPrompt,
@@ -70,6 +73,7 @@ fun AppNavigationGraph(
             actions = actions,
             transitions = transitions,
             currentUiPreferences = currentUiPreferences,
+            getFileOpenBehaviors = { latestFileOpenBehaviors },
             onThemeChange = onThemeChange,
             onRestartApp = onRestartApp,
             onFeedback = onFeedback

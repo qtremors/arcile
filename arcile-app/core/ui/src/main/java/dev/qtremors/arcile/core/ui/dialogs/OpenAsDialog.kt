@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.feature.browser.ui
+package dev.qtremors.arcile.core.ui.dialogs
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,10 +11,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 
 @Composable
-internal fun OpenAsDialog(
+fun OpenAsDialog(
     onSelect: (FileOpenAsType) -> Unit,
     onDismiss: () -> Unit
 ) {

@@ -33,6 +33,7 @@ import dev.qtremors.arcile.core.ui.security.SensitiveMemory
 import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
 import dev.qtremors.arcile.core.vault.domain.VaultFolderViewOptions
 import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
+import dev.qtremors.arcile.core.vault.domain.VaultRenameItem
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
 import javax.inject.Inject
@@ -355,31 +356,32 @@ internal class OnlyFilesViewModel @Inject constructor(
         setDefaultViewOptions(options.copy(showHiddenFiles = !options.showHiddenFiles))
     }
 
-    fun toggleSelection(nodeId: String) = _state.update { state ->
-        val selected = state.selectedNodeIds
-        state.copy(selectedNodeIds = if (nodeId in selected) selected - nodeId else selected + nodeId)
+    fun toggleSelection(nodeId: String) {
+        browser.cancelSelection()
+        _state.update { state ->
+            val selected = state.selectedNodeIds
+            state.copy(selectedNodeIds = if (nodeId in selected) selected - nodeId else selected + nodeId)
+        }
     }
 
-    fun selectRange(opaqueIds: List<String>) = _state.update { it.copy(selectedNodeIds = it.selectedNodeIds + opaqueIds) }
-    fun selectAll(loadedOnlyMessage: String) = _state.update {
-        it.copy(
-            selectedNodeIds = it.displayedNodes.map { node -> node.ref.nodeId.value }.toSet(),
-            message = loadedOnlyMessage.takeIf { _ -> it.hasMoreRows } ?: it.message
-        )
+    fun selectRange(opaqueIds: List<String>) {
+        browser.cancelSelection()
+        _state.update { it.copy(selectedNodeIds = it.selectedNodeIds + opaqueIds) }
     }
-    fun invertSelection(loadedOnlyMessage: String) = _state.update { state ->
-        val all = state.displayedNodes.map { it.ref.nodeId.value }.toSet()
-        state.copy(
-            selectedNodeIds = all - state.selectedNodeIds,
-            message = loadedOnlyMessage.takeIf { state.hasMoreRows } ?: state.message
-        )
+    fun selectAll() = browser.selectRows(invert = false)
+    fun invertSelection() = browser.selectRows(invert = true)
+    fun cancelSelection() = browser.cancelSelection()
+    fun clearSelection() {
+        browser.cancelSelection()
+        _state.update { it.copy(selectedNodeIds = emptySet()) }
     }
-    fun clearSelection() = _state.update { it.copy(selectedNodeIds = emptySet()) }
 
     fun createFolder(name: String) = browser.createFolder(name)
     fun createEmptyFile(name: String) = browser.createEmptyFile(name)
     fun createSyntheticFile(name: String, size: Long) = browser.createSyntheticFile(name, size)
     fun rename(node: VaultNodeMetadata, name: String) = browser.rename(node, name)
+    fun batchRename(items: List<VaultRenameItem>) = browser.batchRename(items)
+    suspend fun batchRenameSiblingNames(items: List<VaultRenameItem>) = fileSystem.batchRenameSiblingNames(items)
     fun delete(nodes: List<VaultNodeMetadata>) = browser.delete(nodes)
 
     fun showProperties(nodes: List<VaultNodeMetadata>) = _state.update { it.copy(properties = nodes) }
@@ -424,12 +426,25 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun issueExternalAccess(
         nodes: List<VaultNodeMetadata>,
         onReady: (List<VaultExternalGrant>) -> Unit
-    ) = externalAccess.issue(nodes, plaintextFallback = false, onReady)
+    ) = issueVaultHandoff(nodes, plaintextFallback = false, onReady)
 
     fun issuePlaintextFallbackAccess(
         nodes: List<VaultNodeMetadata>,
         onReady: (List<VaultExternalGrant>) -> Unit
-    ) = externalAccess.issue(nodes, plaintextFallback = true, onReady)
+    ) = issueVaultHandoff(nodes, plaintextFallback = true, onReady)
+
+    private fun issueVaultHandoff(
+        nodes: List<VaultNodeMetadata>,
+        plaintextFallback: Boolean,
+        onReady: (List<VaultExternalGrant>) -> Unit
+    ) {
+        val current = _state.value
+        val vault = current.selectedVaultId ?: return
+        if (nodes.any { it.ref.vaultId != vault }) return
+        externalAccess.issue(nodes, plaintextFallback, isCurrentMount = {
+            _state.value.mountGeneration == current.mountGeneration && vault in repository.unlockedVaultIds.value
+        }, onReady)
+    }
 
     fun revokeExternalAccess(grants: List<VaultExternalGrant>) {
         externalAccess.revoke(grants)
@@ -509,6 +524,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun clearMessage() = _state.update { it.copy(message = null, completedArchive = null) }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader> = fileSystem.openReader(ref)
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
+    suspend fun selectionTotals(refs: List<VaultNodeRef>) = fileSystem.selectionTotals(refs)
 
     suspend fun saveVaultText(ref: VaultNodeRef, revision: Long, text: String): Result<VaultNodeMetadata> {
         val mount = _state.value.mountGeneration

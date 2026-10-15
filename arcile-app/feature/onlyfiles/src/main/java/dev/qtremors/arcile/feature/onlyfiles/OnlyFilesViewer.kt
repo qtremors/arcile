@@ -233,7 +233,9 @@ internal fun ViewerScreen(
         }
     }
 
-    if (showInfo) VaultPropertiesDialog(listOf(node), location, viewModel::folderTotals) { showInfo = false }
+    if (showInfo) {
+        VaultPropertiesDialog(listOf(node), location, viewModel::selectionTotals, viewModel::openReader) { showInfo = false }
+    }
     archiveSelection?.let { selection ->
         VaultExtractZipDialog(node, selection, onDismiss = { archiveSelection = null }) { request, choose ->
             archiveSelection = null
@@ -283,6 +285,10 @@ private fun VaultImagePager(
     val file = remember(node) { node.toSharedFileModel() }
     val context = LocalContext.current
     val pageScale = files.getOrNull(pager.currentPage)?.reference?.let(scales::get) ?: 1f
+    var resolution by remember(node.ref, node.revision) { mutableStateOf("") }
+    LaunchedEffect(node.ref, node.revision) {
+        resolution = readVaultImageResolution(node.ref, viewModel::openReader).orEmpty()
+    }
     LaunchedEffect(pager, nodes) {
         snapshotFlow { pager.settledPage }.collect { page ->
             nodes.getOrNull(page)?.let { viewModel.showViewerImage(it.ref) }
@@ -321,7 +327,7 @@ private fun VaultImagePager(
             dateText = remember(node.modifiedAtMillis) {
                 DateFormat.getDateTimeInstance().format(node.modifiedAtMillis)
             },
-            resolutionText = "",
+            resolutionText = resolution,
             sizeText = formatBytes(context, node.sizeBytes),
             marqueeEnabled = LocalMarqueeFilenames.current,
             modifier = Modifier.align(Alignment.TopCenter)

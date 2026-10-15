@@ -9,6 +9,8 @@ import androidx.compose.material.icons.outlined.Description
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.ArcileOpenExtensions
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
+import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 
 internal fun nodeIcon(node: VaultNodeMetadata) = when {
@@ -33,5 +35,13 @@ internal fun VaultNodeMetadata.isViewableText(): Boolean =
     extension.lowercase() in ArcileOpenExtensions.text || mimeType?.startsWith("text/", ignoreCase = true) == true
 
 private fun VaultNodeMetadata.category() = FileCategories.getCategoryForFile(extension, mimeType)
+
+internal fun VaultNodeMetadata.prefersExternalOpen(behaviors: Map<String, FileOpenBehavior>): Boolean =
+    !isDirectory && ref.capabilities.canOpenWith &&
+        FileOpenPreferences.effectiveBehavior(
+            behaviors = behaviors,
+            extension = FileOpenPreferences.extensionForPath(name, extension),
+            category = category()
+        ) == FileOpenBehavior.EXTERNAL
 
 internal fun formatBytes(context: Context, bytes: Long): String = formatFileSize(context, bytes)

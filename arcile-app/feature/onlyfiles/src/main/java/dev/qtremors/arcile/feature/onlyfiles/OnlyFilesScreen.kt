@@ -61,6 +61,8 @@ import dev.qtremors.arcile.core.ui.dialogs.CreateFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.CreateFolderDialog
 import dev.qtremors.arcile.core.ui.dialogs.CreateSyntheticFileDialog
 import dev.qtremors.arcile.core.ui.dialogs.RenameDialog
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.OpenAsDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
@@ -99,6 +101,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.ui.lists.FileGrid
@@ -138,10 +142,16 @@ import kotlinx.coroutines.flow.collect
 
 internal enum class CreateItemKind { FOLDER, FILE, SYNTHETIC }
 internal enum class ExternalAction { SHARE, OPEN_WITH, INSTALL_APK }
+private data class ExternalRequest(
+    val action: ExternalAction,
+    val nodes: List<VaultNodeMetadata>,
+    val openAs: FileOpenAsType? = null
+)
 
 @Composable
 internal fun OnlyFilesRoute(
     entry: OnlyFilesEntry? = null,
+    getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
@@ -152,6 +162,7 @@ internal fun OnlyFilesRoute(
         entry = entry,
         state = state,
         viewModel = viewModel,
+        getFileOpenBehaviors = getFileOpenBehaviors,
         onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
         onPlayVideo = onPlayVideo,
         onImportFiles = viewModel::beginLocalFileImport,
@@ -166,6 +177,7 @@ private fun OnlyFilesScreen(
     entry: OnlyFilesEntry?,
     state: OnlyFilesUiState,
     viewModel: OnlyFilesViewModel,
+    getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     onImportFiles: () -> Unit,
@@ -178,9 +190,11 @@ private fun OnlyFilesScreen(
     var unlockVaultId by remember { mutableStateOf<VaultId?>(null) }
     var createItem by remember(state.mountGeneration) { mutableStateOf<CreateItemKind?>(null) }
     var renameNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
+    var batchRenameNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var deleteNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
-    var externalRequest by remember(state.mountGeneration) { mutableStateOf<Pair<ExternalAction, List<VaultNodeMetadata>>?>(null) }
+    var externalRequest by remember(state.mountGeneration) { mutableStateOf<ExternalRequest?>(null) }
+    var openAsNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
     var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
     var createZipNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var fabExpanded by remember(state.mountGeneration) { mutableStateOf(false) }
@@ -311,7 +325,6 @@ private fun OnlyFilesScreen(
                 val vault = state.selectedVault
                 val selected = state.selectedNodes
                 val lockAllLabel = stringResource(R.string.onlyfiles_lock_all)
-                val loadedOnlyMessage = stringResource(R.string.onlyfiles_selection_loaded_only)
                 val haptics = rememberArcileHaptics()
                 val vaultOverflow: (@Composable (Boolean, () -> Unit) -> Unit)? = if (vault == null) null else {
                     { expanded, dismiss ->
@@ -351,11 +364,11 @@ private fun OnlyFilesScreen(
                             when (action) {
                                 TopBarAction.SelectAll -> {
                                     haptics.selectionChanged()
-                                    viewModel.selectAll(loadedOnlyMessage)
+                                    viewModel.selectAll()
                                 }
                                 TopBarAction.InvertSelection -> {
                                     haptics.selectionChanged()
-                                    viewModel.invertSelection(loadedOnlyMessage)
+                                    viewModel.invertSelection()
                                 }
                                 else -> Unit
                             }
@@ -413,6 +426,8 @@ private fun OnlyFilesScreen(
                 listingScroll = listingScroll,
                 contentPadding = padding,
                 onPlayVideo = onPlayVideo,
+                getFileOpenBehaviors = getFileOpenBehaviors,
+                onOpenExternally = { node -> externalRequest = ExternalRequest(ExternalAction.OPEN_WITH, listOf(node)) },
                 onDirectoryOpened = { showSearch = false },
                 onImportFiles = onImportFiles,
                 onImportFolder = onImportFolder,
@@ -439,14 +454,18 @@ private fun OnlyFilesScreen(
                 VaultSelectionToolbar(
                     nodes = selected,
                     viewModel = viewModel,
-                    onRename = { renameNode = selected.singleOrNull() },
+                    onRename = {
+                        if (selected.size == 1) renameNode = selected.single()
+                        else if (selected.size > 1) batchRenameNodes = selected
+                    },
                     onDelete = { deleteNodes = selected },
                     onShare = {
-                        externalRequest = ExternalAction.SHARE to selected.filter {
+                        externalRequest = ExternalRequest(ExternalAction.SHARE, selected.filter {
                             !it.isDirectory && it.ref.capabilities.canShare
-                        }
+                        })
                     },
-                    onOpenWith = { externalRequest = ExternalAction.OPEN_WITH to selected },
+                    onOpenWith = { externalRequest = ExternalRequest(ExternalAction.OPEN_WITH, selected) },
+                    onOpenAs = { openAsNode = selected.singleOrNull() },
                     onExport = { boundaryRequest = selected to false },
                     onMoveOut = { boundaryRequest = selected to true },
                     onReveal = selected.singleOrNull()?.takeIf { state.hasSearch }?.let { node ->
@@ -509,6 +528,29 @@ private fun OnlyFilesScreen(
             )
         }
     }
+    if (state.isSelectingRows) {
+        AlertDialog(
+            onDismissRequest = viewModel::cancelSelection,
+            title = { Text(stringResource(R.string.onlyfiles_selecting_rows)) },
+            text = { LinearProgressIndicator(Modifier.fillMaxWidth()) },
+            confirmButton = {
+                TextButton(onClick = viewModel::cancelSelection) {
+                    Text(stringResource(R.string.onlyfiles_cancel))
+                }
+            }
+        )
+    }
+    if (batchRenameNodes.isNotEmpty()) {
+        OnlyFilesBatchRenameDialog(
+            nodes = batchRenameNodes,
+            loadSiblingNames = viewModel::batchRenameSiblingNames,
+            onDismiss = { batchRenameNodes = emptyList() },
+            onRename = {
+                batchRenameNodes = emptyList()
+                viewModel.batchRename(it)
+            }
+        )
+    }
     if (deleteNodes.isNotEmpty()) {
         VaultDeleteConfirmation(deleteNodes, onDismiss = { deleteNodes = emptyList() }) {
             val nodes = deleteNodes
@@ -555,7 +597,8 @@ private fun OnlyFilesScreen(
         VaultPropertiesDialog(
             nodes = state.properties,
             location = state.propertiesLocation(state.properties),
-            loadFolderTotals = viewModel::folderTotals,
+            loadSelectionTotals = viewModel::selectionTotals,
+            openReader = viewModel::openReader,
             onDismiss = viewModel::dismissProperties
         )
     }
@@ -574,8 +617,17 @@ private fun OnlyFilesScreen(
         state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
     }
     state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
-    externalRequest?.let { (action, nodes) ->
-        VaultExternalAccessDialogs(action, nodes, viewModel) { externalRequest = null }
+    openAsNode?.let { node ->
+        OpenAsDialog(
+            onSelect = { type ->
+                openAsNode = null
+                externalRequest = ExternalRequest(ExternalAction.OPEN_WITH, listOf(node), type)
+            },
+            onDismiss = { openAsNode = null }
+        )
+    }
+    externalRequest?.let { (action, nodes, openAs) ->
+        VaultExternalAccessDialogs(action, nodes, viewModel, openAs) { externalRequest = null }
     }
     boundaryRequest?.let { (nodes, move) ->
         BoundaryTransferDialog(

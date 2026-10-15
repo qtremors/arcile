@@ -259,7 +259,7 @@ internal class VaultTransactionManager(
         private const val MAX_MARKER_BYTES = MAX_MARKER_PLAINTEXT_BYTES + 1024
         private const val MIN_MARKER_BYTES = 8 + 4 + 12 + 4 + 16
         private const val MAX_ROOT_BYTES = 8 * 1024 * 1024
-        private const val MAX_PUBLICATIONS = 32
+        const val MAX_PUBLICATIONS = 32
         private const val MAX_OBJECTS_PER_TRANSACTION = 100_000
     }
 }
