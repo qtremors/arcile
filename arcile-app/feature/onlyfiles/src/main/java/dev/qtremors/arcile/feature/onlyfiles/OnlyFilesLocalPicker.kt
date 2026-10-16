@@ -1,26 +1,38 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
-import androidx.compose.material.icons.outlined.Folder
-import androidx.compose.material3.*
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.DialogProperties
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationDirectory
-import dev.qtremors.arcile.core.ui.ExpressiveSwitch
-import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
+import dev.qtremors.arcile.core.ui.lists.StorageLocationRow
+import dev.qtremors.arcile.core.ui.R as UiR
 
 internal enum class OnlyFilesLocalPickerMode { IMPORT_FILES, IMPORT_FOLDER, EXPORT, MOVE_OUT }
 
@@ -30,9 +42,14 @@ internal data class OnlyFilesLocalPickerState(
     val entries: List<FileModel> = emptyList(),
     val selectedPaths: Set<String> = emptySet(),
     val isLoading: Boolean = false
-)
+) {
+    val canChoose: Boolean get() = !isLoading && when (mode) {
+        OnlyFilesLocalPickerMode.IMPORT_FILES -> selectedPaths.isNotEmpty()
+        OnlyFilesLocalPickerMode.IMPORT_FOLDER -> current != null
+        OnlyFilesLocalPickerMode.EXPORT, OnlyFilesLocalPickerMode.MOVE_OUT -> current?.canSave == true
+    }
+}
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun OnlyFilesLocalPickerDialog(
     state: OnlyFilesLocalPickerState,
@@ -42,16 +59,52 @@ internal fun OnlyFilesLocalPickerDialog(
     onChoose: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val selectingFiles = state.mode == OnlyFilesLocalPickerMode.IMPORT_FILES
+    val label = when (state.mode) {
+        OnlyFilesLocalPickerMode.IMPORT_FILES -> R.string.onlyfiles_import_files
+        OnlyFilesLocalPickerMode.IMPORT_FOLDER -> R.string.onlyfiles_import_folder
+        OnlyFilesLocalPickerMode.EXPORT, OnlyFilesLocalPickerMode.MOVE_OUT -> R.string.onlyfiles_choose_destination
+    }
+    OnlyFilesStoragePicker(
+        current = state.current,
+        files = state.entries,
+        loading = state.isLoading,
+        canChoose = state.canChoose,
+        confirmLabel = label,
+        onOpenDirectory = onOpenDirectory,
+        onUp = onUp,
+        onChoose = onChoose,
+        onDismiss = onDismiss,
+        selectedPaths = state.selectedPaths.takeIf { state.mode == OnlyFilesLocalPickerMode.IMPORT_FILES },
+        onToggleFile = onToggleFile
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+internal fun OnlyFilesStoragePicker(
+    current: SaveDestinationDirectory?,
+    files: List<FileModel>,
+    loading: Boolean,
+    canChoose: Boolean,
+    confirmLabel: Int,
+    onOpenDirectory: (String) -> Unit,
+    onUp: () -> Unit,
+    onChoose: () -> Unit,
+    onDismiss: () -> Unit,
+    selectedPaths: Set<String>? = null,
+    onToggleFile: (String) -> Unit = {}
+) {
+    val atRoots = current == null
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = if (atRoots) onDismiss else onUp,
+        properties = DialogProperties(dismissOnClickOutside = atRoots),
         title = {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (state.current != null) IconButton(onClick = onUp) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.onlyfiles_back))
+                if (!atRoots) IconButton(onClick = onUp) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(UiR.string.back))
                 }
                 Text(
-                    state.current?.name ?: stringResource(R.string.onlyfiles_storage_locations),
+                    current?.name ?: stringResource(R.string.onlyfiles_storage_locations),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -59,64 +112,39 @@ internal fun OnlyFilesLocalPickerDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                state.current?.let { Text(it.path, maxLines = 2, overflow = TextOverflow.Ellipsis) }
-                if (state.isLoading) Box(Modifier.fillMaxWidth().padding(32.dp), Alignment.Center) {
-                    LoadingIndicator()
-                } else LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
-                    items(state.entries, key = FileModel::reference) { file ->
-                        val itemClick: () -> Unit = {
-                            if (file.isDirectory) onOpenDirectory(file.reference)
-                            else if (selectingFiles) onToggleFile(file.reference)
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(MaterialTheme.shapes.medium)
-                                .bounceClickable { itemClick() }
-                                .padding(vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(if (file.isDirectory) Icons.Outlined.Folder else Icons.AutoMirrored.Outlined.InsertDriveFile, null)
-                            Text(file.name, Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            if (selectingFiles && !file.isDirectory) {
-                                ExpressiveSwitch(
-                                    checked = file.reference in state.selectedPaths,
-                                    onCheckedChange = { onToggleFile(file.reference) }
-                                )
-                            }
+                current?.let {
+                    Text(it.path, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                }
+                val count = selectedPaths?.size ?: 0
+                if (count > 0) Text(pluralStringResource(UiR.plurals.clipboard_item_count, count, count))
+                if (loading) {
+                    Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) { LoadingIndicator() }
+                } else if (files.isEmpty()) {
+                    Text(stringResource(if (atRoots) R.string.onlyfiles_no_storage else R.string.onlyfiles_empty_folder))
+                } else key(current?.path) {
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
+                        items(files, key = FileModel::reference) { file ->
+                            StorageLocationRow(
+                                name = file.name,
+                                isDirectory = file.isDirectory,
+                                path = file.reference.takeIf { atRoots },
+                                isVolume = atRoots,
+                                selected = selectedPaths?.let { file.reference in it }.takeUnless { file.isDirectory },
+                                onClick = {
+                                    if (file.isDirectory) onOpenDirectory(file.reference)
+                                    else onToggleFile(file.reference)
+                                }
+                            )
                         }
                     }
                 }
             }
         },
         confirmButton = {
-            val enabled = !state.isLoading && when (state.mode) {
-                OnlyFilesLocalPickerMode.IMPORT_FILES -> state.selectedPaths.isNotEmpty()
-                OnlyFilesLocalPickerMode.IMPORT_FOLDER -> state.current != null
-                else -> state.current?.canSave == true
-            }
-            Button(
-                onClick = onChoose,
-                enabled = enabled,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(enabled = enabled) { onChoose() }
-            ) {
-                Text(stringResource(
-                    if (state.mode == OnlyFilesLocalPickerMode.IMPORT_FILES ||
-                        state.mode == OnlyFilesLocalPickerMode.IMPORT_FOLDER
-                    ) R.string.onlyfiles_import_files else R.string.onlyfiles_choose_destination
-                ))
-            }
+            Button(onClick = onChoose, enabled = canChoose) { Text(stringResource(confirmLabel)) }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDismiss() }
-            ) {
-                Text(stringResource(R.string.onlyfiles_cancel))
-            }
+            TextButton(onClick = onDismiss) { Text(stringResource(UiR.string.cancel)) }
         }
     )
 }

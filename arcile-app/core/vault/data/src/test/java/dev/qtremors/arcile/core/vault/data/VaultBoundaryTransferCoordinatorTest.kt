@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
+import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
@@ -76,6 +77,85 @@ class VaultBoundaryTransferCoordinatorTest {
         assertTrue(fileSystem.deleted.isEmpty())
         assertTrue(destination.listFiles().orEmpty().isEmpty())
         destination.deleteRecursively()
+    }
+
+    @Test
+    fun `partial move out preserves the entire source folder when a child is skipped`() = runTest {
+        val destination = Files.createTempDirectory("arcile-partial-export").toFile()
+        try {
+            val folder = destination.resolve("Folder").also { it.mkdir() }
+            val child = folder.resolve("Level-1").also { it.mkdir() }
+            val existing = child.resolve("existing.txt").also { it.writeText("existing data") }
+            val fileSystem = DeepDirectoryFileSystem(depth = 2)
+            val sessions = RecordingSessionManager()
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(fileSystem, sessions)
+            val resolver = object : VaultConflictResolver {
+                override suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> {
+                    assertEquals("Folder", conflicts.single().sourceName)
+                    assertTrue(conflicts.single().canMerge)
+                    assertTrue(existing.isFile)
+                    return mapOf(conflicts.single() to VaultConflictDecision.MERGE_DIRECTORIES)
+                }
+
+                override suspend fun decide(conflict: VaultConflict): VaultConflictDecision {
+                    assertEquals("Level-1", conflict.sourceName)
+                    return VaultConflictDecision.SKIP
+                }
+            }
+
+            val result = coordinator.exportToDestination(
+                coordinator.prepareExport(listOf(fileSystem.root.ref)).getOrThrow(),
+                destination.absolutePath, true, resolver, VaultCancellationSignal { false }
+            )
+
+            assertEquals(VaultItemOutcome.PARTIAL, result.items.single().outcome)
+            assertTrue(fileSystem.deleted.isEmpty())
+            assertEquals("existing data", existing.readText())
+            assertFalse(child.resolve("Level-2").exists())
+            assertEquals(1, sessions.closed)
+            assertEquals(listOf("Folder"), destination.listFiles().orEmpty().map(File::getName))
+        } finally {
+            destination.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `an external destination change after review requires a fresh decision`() = runTest {
+        val destination = Files.createTempDirectory("arcile-changed-export").toFile()
+        try {
+            val previous = destination.resolve("Folder").also { it.mkdir() }
+            val fileSystem = DeepDirectoryFileSystem(depth = 0)
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(fileSystem, RecordingSessionManager())
+            var reviewed = false
+            val resolver = object : VaultConflictResolver {
+                override suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> {
+                    assertTrue(conflicts.single().destinationIsDirectory)
+                    assertTrue(previous.delete())
+                    previous.writeText("replacement added after review")
+                    reviewed = true
+                    return mapOf(conflicts.single() to VaultConflictDecision.REPLACE)
+                }
+
+                override suspend fun decide(conflict: VaultConflict): VaultConflictDecision {
+                    assertTrue(reviewed)
+                    assertFalse(conflict.destinationIsDirectory)
+                    assertTrue(conflict.destinationSize > 0)
+                    return VaultConflictDecision.SKIP
+                }
+            }
+
+            val result = coordinator.exportToDestination(
+                coordinator.prepareExport(listOf(fileSystem.root.ref)).getOrThrow(),
+                destination.absolutePath, true, resolver, VaultCancellationSignal { false }
+            )
+
+            assertTrue(reviewed)
+            assertEquals(VaultItemOutcome.SKIPPED, result.items.single().outcome)
+            assertEquals("replacement added after review", previous.readText())
+            assertTrue(fileSystem.deleted.isEmpty())
+        } finally {
+            destination.deleteRecursively()
+        }
     }
 
     @Test

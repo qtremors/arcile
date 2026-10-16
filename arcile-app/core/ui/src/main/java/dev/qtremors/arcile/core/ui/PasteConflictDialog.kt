@@ -75,13 +75,40 @@ fun PasteConflictDialog(
     conflicts: List<FileConflict>,
     onResolve: (Map<String, ConflictResolution>) -> Unit,
     onDismiss: () -> Unit
+) = FileConflictReviewDialog(
+    conflicts = conflicts,
+    actions = {
+        listOf(
+            FileConflictReviewAction(
+                ConflictResolution.REPLACE,
+                if (it.sourceFile.isDirectory) R.string.action_merge else R.string.action_replace
+            ),
+            FileConflictReviewAction(ConflictResolution.KEEP_BOTH, R.string.action_keep_both),
+            FileConflictReviewAction(ConflictResolution.SKIP, R.string.action_skip)
+        )
+    },
+    onResolve = onResolve,
+    onDismiss = onDismiss
+)
+
+data class FileConflictReviewAction<D>(val decision: D, val label: Int, val secondary: Boolean = false)
+
+@Composable
+fun <D : Any> FileConflictReviewDialog(
+    conflicts: List<FileConflict>,
+    actions: (FileConflict) -> List<FileConflictReviewAction<D>>,
+    onResolve: (Map<String, D>) -> Unit,
+    onDismiss: () -> Unit,
+    onApplyToFuture: ((D) -> Unit)? = null,
+    canApplyTogether: (FileConflict, FileConflict, D) -> Boolean = { _, _, _ -> true },
+    cancelLabel: Int = R.string.action_cancel_paste
 ) {
     val haptics = rememberArcileHaptics()
-    val resolutions = remember { mutableMapOf<String, ConflictResolution>() }
+    val resolutions = remember(conflicts) { mutableMapOf<String, D>() }
     val formatter = rememberDateFormatter("MMM dd, yyyy · HH:mm")
 
-    var currentIndex by remember { mutableIntStateOf(0) }
-    var applyToAll by remember { mutableStateOf(false) }
+    var currentIndex by remember(conflicts) { mutableIntStateOf(0) }
+    var applyToAll by remember(conflicts) { mutableStateOf(false) }
 
     if (currentIndex >= conflicts.size) {
         return
@@ -89,6 +116,7 @@ fun PasteConflictDialog(
 
     val currentConflict = conflicts[currentIndex]
     val isLastConflict = currentIndex == conflicts.size - 1
+    val availableActions = actions(currentConflict)
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -165,7 +193,7 @@ fun PasteConflictDialog(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Fixed Footer
-                    if (!isLastConflict) {
+                    if (!isLastConflict || onApplyToFuture != null) {
                         val toggleApplyToAllClick = {
                             haptics.selectionChanged()
                             applyToAll = !applyToAll
@@ -196,20 +224,26 @@ fun PasteConflictDialog(
                     }
 
                     // Action Buttons in fixed footer
-                    val handleAction: (ConflictResolution) -> Unit = { resolution ->
+                    val handleAction: (D) -> Unit = { resolution ->
                         haptics.selectionChanged()
+                        resolutions[currentConflict.sourcePath] = resolution
                         if (applyToAll) {
-                            for (i in currentIndex until conflicts.size) {
-                                resolutions[conflicts[i].sourcePath] = resolution
+                            onApplyToFuture?.invoke(resolution)
+                            for (candidate in conflicts.drop(currentIndex + 1)) {
+                                if (canApplyTogether(currentConflict, candidate, resolution) &&
+                                    actions(candidate).any { it.decision == resolution }
+                                ) {
+                                    resolutions[candidate.sourcePath] = resolution
+                                }
                             }
-                            onResolve(resolutions)
-                        } else {
-                            resolutions[currentConflict.sourcePath] = resolution
-                            if (isLastConflict) {
-                                onResolve(resolutions)
-                            } else {
-                                currentIndex++
-                            }
+                        }
+                        val next = (currentIndex + 1 until conflicts.size).firstOrNull {
+                            conflicts[it].sourcePath !in resolutions
+                        }
+                        if (next == null) onResolve(resolutions.toMap())
+                        else {
+                            currentIndex = next
+                            applyToAll = false
                         }
                     }
 
@@ -218,50 +252,18 @@ fun PasteConflictDialog(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        val onReplaceClick = { handleAction(ConflictResolution.REPLACE) }
-                        Button(
-                            onClick = onReplaceClick,
-                            shape = ExpressiveShapes.medium,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                text = if (currentConflict.sourceFile.isDirectory) {
-                                    stringResource(R.string.action_merge)
-                                } else {
-                                    stringResource(R.string.action_replace)
-                                },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                        availableActions.filterNot { it.secondary }.forEachIndexed { index, action ->
+                            ConflictDecisionButton(
+                                index, action.label, Modifier.weight(1f)
+                            ) { handleAction(action.decision) }
                         }
-
-                        val onKeepBothClick = { handleAction(ConflictResolution.KEEP_BOTH) }
-                        FilledTonalButton(
-                            onClick = onKeepBothClick,
-                            shape = ExpressiveShapes.medium,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+                    }
+                    availableActions.filter { it.secondary }.forEach { action ->
+                        TextButton(
+                            onClick = { handleAction(action.decision) },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = stringResource(R.string.action_keep_both),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        val onSkipClick = { handleAction(ConflictResolution.SKIP) }
-                        OutlinedButton(
-                            onClick = onSkipClick,
-                            shape = ExpressiveShapes.medium,
-                            modifier = Modifier.weight(1f),
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.action_skip),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                            Text(stringResource(action.label), color = MaterialTheme.colorScheme.error)
                         }
                     }
 
@@ -275,10 +277,23 @@ fun PasteConflictDialog(
                             .fillMaxWidth()
                             .bounceClickable(onClick = onCancelPasteClick)
                     ) {
-                        Text(stringResource(R.string.action_cancel_paste), color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(cancelLabel), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ConflictDecisionButton(index: Int, label: Int, modifier: Modifier, onClick: () -> Unit) {
+    val padding = PaddingValues(horizontal = 4.dp, vertical = 10.dp)
+    val content: @Composable () -> Unit = {
+        Text(stringResource(label), maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+    when (index) {
+        0 -> Button(onClick, modifier, shape = ExpressiveShapes.medium, contentPadding = padding) { content() }
+        1 -> FilledTonalButton(onClick, modifier, shape = ExpressiveShapes.medium, contentPadding = padding) { content() }
+        else -> OutlinedButton(onClick, modifier, shape = ExpressiveShapes.medium, contentPadding = padding) { content() }
     }
 }

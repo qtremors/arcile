@@ -10,7 +10,6 @@ import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
-import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
@@ -124,7 +123,6 @@ internal class OnlyFilesViewModel @Inject constructor(
                 if (activeVault != null && vaults.none { it.id == activeVault && it.isUnlocked }) {
                     GlobalVideoPlaybackSessions.removeSecurityScope(vaultSecurityScope(activeVault))
                     dismissVaultSession()
-                    resolveConflict(VaultConflictDecision.SKIP, true)
                 }
                 _state.update { current ->
                     current.copy(
@@ -406,8 +404,9 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     fun paste() = transfers.paste()
     fun cancelTransfer() { transfers.cancel(); boundary.cancel() }
-    fun resolveConflict(decision: VaultConflictDecision, applyToAll: Boolean) {
-        transfers.resolveConflict(decision, applyToAll); boundary.resolve(decision, applyToAll)
+    fun resolveConflict(id: Long, response: VaultConflictResponse) {
+        transfers.conflictReview.resolve(id, response)
+        boundary.conflictReview.resolve(id, response)
     }
     fun beginExportSelection(nodes: List<VaultNodeMetadata>): Boolean = boundary.prepare(nodes)
     fun finishExportSelection(destinationPath: String?, move: Boolean) {
@@ -627,6 +626,8 @@ internal class OnlyFilesViewModel @Inject constructor(
                 completedArchive = null
             )
         }
+        transfers.conflictReview.dismiss()
+        boundary.conflictReview.dismiss()
     }
 
     private fun updateTransferProgress(progress: VaultTransferProgress) {

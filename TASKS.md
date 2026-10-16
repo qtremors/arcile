@@ -113,10 +113,10 @@
   - **Current:** Vault deletion is permanent and operation recovery lacks user-facing controls.
   - **Change:** Add trash, restore, undo, and interrupted-operation actions using encrypted storage.
 
-- [ ] **UI-0011 - Share Conflict and Picker Interactions**
-  - **Location:** OnlyFilesDialogs.kt and OnlyFilesLocalPicker.kt.
-  - **Current:** Conflict review is sequential and picker chrome is separate.
-  - **Change:** Share the interaction where compatible with vault transfer decisions.
+- [ ] **UI-0011 - Resume Partial Vault Transfers**
+  - **Location:** OnlyFilesTransferController.kt and DefaultVaultBoundaryTransferCoordinator.kt.
+  - **Current:** A partially merged folder is still retried as a top-level item.
+  - **Change:** Resume at unresolved children and preserve prior successful copies and conflict decisions where safe.
 
 - [ ] **UI-0012 - Complete Vault Media Actions**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.

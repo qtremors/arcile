@@ -27,14 +27,14 @@ internal abstract class VaultTransferLayer(
     ): VaultBatchResult {
         val vaultId = sources.firstOrNull()?.vaultId ?: return VaultBatchResult(emptyList())
         require(sources.all { it.vaultId == vaultId })
-        return runTransfer(VaultTransferAction.COPY, sources, listOf(vaultId), cancellation) {
-                sessionsById, source ->
+        return runTransfer(VaultTransferAction.COPY, sources, listOf(vaultId), vaultId, destination, conflicts, cancellation) {
+                sessionsById, source, resolver ->
             transferEngine.copyOne(
                 requireNotNull(sessionsById[source.vaultId]),
                 source,
                 requireNotNull(sessionsById[vaultId]),
                 destination,
-                conflicts,
+                resolver,
                 cancellation
             )
         }
@@ -48,13 +48,13 @@ internal abstract class VaultTransferLayer(
     ): VaultBatchResult {
         val vaultId = sources.firstOrNull()?.vaultId ?: return VaultBatchResult(emptyList())
         require(sources.all { it.vaultId == vaultId })
-        return runTransfer(VaultTransferAction.MOVE, sources, listOf(vaultId), cancellation) {
-                sessionsById, source ->
+        return runTransfer(VaultTransferAction.MOVE, sources, listOf(vaultId), vaultId, destination, conflicts, cancellation) {
+                sessionsById, source, resolver ->
             transferEngine.moveOneWithinVault(
                 requireNotNull(sessionsById[vaultId]),
                 source,
                 destination,
-                conflicts,
+                resolver,
                 cancellation
             )
         }
@@ -74,14 +74,17 @@ internal abstract class VaultTransferLayer(
             if (move) VaultTransferAction.MOVE else VaultTransferAction.COPY,
             sources,
             vaultIds,
+            destinationVault,
+            destination,
+            conflicts,
             cancellation
-        ) { sessionsById, source ->
+        ) { sessionsById, source, resolver ->
             transferEngine.copyOne(
                 requireNotNull(sessionsById[source.vaultId]),
                 source,
                 requireNotNull(sessionsById[destinationVault]),
                 destination,
-                conflicts,
+                resolver,
                 cancellation,
                 moveSource = move
             )
@@ -92,8 +95,11 @@ internal abstract class VaultTransferLayer(
         action: VaultTransferAction,
         sources: List<VaultNodeRef>,
         vaultIds: List<VaultId>,
+        destinationVault: VaultId,
+        destination: DirectoryId,
+        conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal,
-        operation: suspend (Map<VaultId, VaultSessionRecord>, VaultNodeRef) -> VaultItemResult
+        operation: suspend (Map<VaultId, VaultSessionRecord>, VaultNodeRef, VaultConflictResolver) -> VaultItemResult
     ): VaultBatchResult = withContext(dispatchers.io) {
         transferMutex.withLock {
             val operationSessions = mutableMapOf<VaultId, VaultSessionRecord>()
@@ -107,6 +113,18 @@ internal abstract class VaultTransferLayer(
                     session.mutationMutex.lock()
                     locked += session.mutationMutex
                 }
+                val knownConflicts = if (cancellation.isCancelled()) emptyList() else {
+                    try {
+                        transferEngine.topLevelConflicts(
+                            operationSessions, sources, destinationVault, destination,
+                            move = action == VaultTransferAction.MOVE, cancellation
+                        )
+                    } catch (_: VaultFailure) {
+                        // Individual transfers report an unreadable source or destination.
+                        emptyList()
+                    }
+                }
+                val resolver = conflicts.reviewed(knownConflicts, cancellation)
                 val results = mutableListOf<VaultItemResult>()
                 for ((index, source) in sources.withIndex()) {
                     if (cancellation.isCancelled()) {
@@ -124,7 +142,7 @@ internal abstract class VaultTransferLayer(
                         VaultTransferProgress(action, null, index, sources.size, 0L, null)
                     )
                     val result = try {
-                        operation(operationSessions, source)
+                        operation(operationSessions, source, resolver)
                     } catch (error: Throwable) {
                         if (error is CancellationException) throw error
                         VaultItemResult(

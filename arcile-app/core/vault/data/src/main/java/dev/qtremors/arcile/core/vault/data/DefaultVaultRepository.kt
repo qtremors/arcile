@@ -607,7 +607,9 @@ internal class DefaultVaultRepository @Inject constructor(
     }
 
     internal suspend fun deletePermanently(session: VaultSessionRecord, ref: VaultNodeRef) =
-        session.mutationMutex.withLock {
+        session.mutationMutex.withLock { deleteWithMutationLockHeld(session, ref) }
+
+    internal fun deleteWithMutationLockHeld(session: VaultSessionRecord, ref: VaultNodeRef) {
         val (parent, snapshot, existing) = resolveStableEntry(session, ref)
         try {
             val obsolete = collectObsoleteSubtree(session, existing)

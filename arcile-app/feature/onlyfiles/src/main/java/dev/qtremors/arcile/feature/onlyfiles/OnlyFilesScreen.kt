@@ -127,7 +127,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.graphicsLayer
-import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
@@ -209,7 +208,7 @@ private fun OnlyFilesScreen(
     val navigateBackThroughState = {
         when {
             state.viewer != null -> viewModel.navigateUp()
-            state.pendingConflict != null -> viewModel.resolveConflict(VaultConflictDecision.SKIP, false)
+            state.pendingConflict != null -> viewModel.cancelTransfer()
             state.locationPicker != null -> viewModel.closeLocationPicker()
             state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
@@ -614,7 +613,9 @@ private fun OnlyFilesScreen(
         }
     }
     if (state.selectedVaultId != null) {
-        state.pendingConflict?.let { prompt -> ConflictDialog(prompt, viewModel::resolveConflict) }
+        state.pendingConflict?.let { prompt ->
+            VaultConflictDialog(prompt, viewModel::resolveConflict, viewModel::cancelTransfer)
+        }
     }
     state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
     openAsNode?.let { node ->

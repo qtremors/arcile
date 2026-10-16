@@ -2,15 +2,12 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
-import dev.qtremors.arcile.core.vault.domain.VaultConflict
-import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
-import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultTransferCoordinator
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
@@ -23,8 +20,7 @@ internal class OnlyFilesTransferController(
     private val reload: () -> Unit
 ) {
     private var cancelled: AtomicBoolean? = null
-    private var conflictRequestId = 0L
-    private var conflictAnswer: CompletableDeferred<Pair<VaultConflictDecision, Boolean>>? = null
+    val conflictReview = OnlyFilesConflictReview(state)
 
     fun setClipboard(action: VaultClipboardAction, nodes: List<VaultNodeMetadata>) {
         val refs = nodes.map(VaultNodeMetadata::ref).distinctBy(VaultNodeRef::nodeId)
@@ -54,12 +50,7 @@ internal class OnlyFilesTransferController(
                         .takeIf { current.mountGeneration == snapshot.mountGeneration }.orEmpty()
                 )
             }
-            var applyDecision: VaultConflictDecision? = null
-            val conflicts = VaultConflictResolver { conflict ->
-                    applyDecision ?: awaitConflict(conflict, snapshot.mountGeneration).also { answer ->
-                    if (answer.second) applyDecision = answer.first
-                }.first
-            }
+            val conflicts = conflictReview.resolver(snapshot.mountGeneration, exporting = false, signal::get)
             val cancellation = VaultCancellationSignal(signal::get)
             val move = clipboard.action == VaultClipboardAction.MOVE
             val result = try {
@@ -69,10 +60,18 @@ internal class OnlyFilesTransferController(
                 } else {
                     coordinator.transferAcrossVaults(clipboard.sources, destinationVault, destination, move, conflicts, cancellation)
                 }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                state.update {
+                    if (it.mountGeneration == snapshot.mountGeneration) {
+                        it.copy(message = error.message ?: "Vault paste failed")
+                    } else it
+                }
+                return@launch
             } finally {
                 cancelled = null
-                conflictAnswer?.cancel()
-                conflictAnswer = null
+                conflictReview.dismiss()
                 state.update {
                     it.copy(
                         busy = false, pendingConflict = null, transferProgress = null,
@@ -86,28 +85,12 @@ internal class OnlyFilesTransferController(
 
     fun cancel() {
         cancelled?.set(true)
-        conflictAnswer?.complete(VaultConflictDecision.SKIP to true)
-    }
-
-    fun resolveConflict(decision: VaultConflictDecision, applyToAll: Boolean) {
-        conflictAnswer?.complete(decision to applyToAll)
+        conflictReview.dismiss()
     }
 
     fun clear() {
         cancelled?.set(true)
-        conflictAnswer?.cancel()
-        conflictAnswer = null
-    }
-
-    private suspend fun awaitConflict(conflict: VaultConflict, mountGeneration: Long): Pair<VaultConflictDecision, Boolean> {
-        if (state.value.mountGeneration != mountGeneration) return VaultConflictDecision.SKIP to true
-        val answer = CompletableDeferred<Pair<VaultConflictDecision, Boolean>>()
-        conflictAnswer = answer
-        state.update { it.copy(pendingConflict = VaultConflictPrompt(++conflictRequestId, conflict)) }
-        return answer.await().also {
-            conflictAnswer = null
-            state.update { current -> current.copy(pendingConflict = null) }
-        }
+        conflictReview.dismiss()
     }
 
     private fun complete(result: VaultBatchResult, submittedClipboard: VaultClipboard, mountGeneration: Long) {

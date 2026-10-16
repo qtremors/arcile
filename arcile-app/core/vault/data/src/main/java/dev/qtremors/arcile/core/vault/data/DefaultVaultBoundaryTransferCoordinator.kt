@@ -22,11 +22,15 @@ import java.security.MessageDigest
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.sync.Mutex
@@ -83,7 +87,13 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
             val unique = prepared.sources
             try {
                 val destination = File(destinationPath)
-                exportToLocalDirectory(session, unique, destination, move, conflicts, cancellation)
+                when (session) {
+                    is BoundaryAccessSession.Repository -> session.value.mutationMutex.withLock {
+                        exportToLocalDirectory(session, unique, destination, move, conflicts, cancellation)
+                    }
+                    is BoundaryAccessSession.Legacy ->
+                        exportToLocalDirectory(session, unique, destination, move, conflicts, cancellation)
+                }
             } finally {
                 prepared.closeSession(session)
             }
@@ -98,31 +108,56 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult {
-        if (!destination.isDirectory || !destination.canWrite()) {
+        if (!destination.inspectDestination().isDirectory || !destination.canWrite()) {
             throw VaultFailure.Unavailable("The Arcile destination is not writable")
         }
-        val results = mutableListOf<VaultItemResult>()
-        sources.forEachIndexed { index, ref ->
-            val source = runCatching { metadata(session, ref) }.getOrElse {
-                results += failed(ref, ref.nodeId.value, it); return@forEachIndexed
+        val prepared = sources.map { ref ->
+            ref to try {
+                if (cancellation.isCancelled()) Result.failure(VaultFailure.Cancelled())
+                else Result.success(metadata(session, ref))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
             }
-            updates.tryEmit(VaultTransferProgress(
-                if (move) VaultTransferAction.MOVE else VaultTransferAction.EXPORT,
-                source.name, index, sources.size, 0L, source.sizeBytes.takeIf { !source.isDirectory }
-            ))
+        }
+        val destinationEntries = destination.readLocalChildren()
+        val resolver = conflicts.reviewed(prepared.mapNotNull { (_, result) ->
+            val source = result.getOrNull() ?: return@mapNotNull null
+            val existing = destinationEntries.findLocalChild(source.name) ?: return@mapNotNull null
+            try {
+                existing.inspectDestination().conflictWith(source)
+            } catch (_: Exception) {
+                // A changed or unsupported entry is validated again before that item is copied.
+                null
+            }
+        }, cancellation)
+        val results = mutableListOf<VaultItemResult>()
+        val totalBytes = if (prepared.all { it.second.getOrNull()?.isDirectory == false }) {
+            prepared.sumOf { it.second.getOrThrow().sizeBytes }
+        } else null
+        val progress = ExportProgress(
+            if (move) VaultTransferAction.MOVE else VaultTransferAction.EXPORT, sources.size, totalBytes
+        )
+        prepared.forEachIndexed { index, (ref, metadata) ->
             try {
                 cancellation.throwIfCancelled()
-                val outcome = exportLocalTopLevel(session, source, destination, conflicts, cancellation)
+                val source = metadata.getOrThrow()
+                progress.start(index, source.name)
+                val outcome = exportLocalTopLevel(session, source, destination, resolver, cancellation, progress::advance)
                 if (outcome == VaultItemOutcome.COMPLETED && move) deletePermanently(session, ref)
                 results += item(ref, source.name, outcome)
+                progress.finish(index + 1)
             } catch (error: VaultFailure.Cancelled) {
-                results += item(ref, source.name, VaultItemOutcome.ROLLED_BACK, error)
+                results += item(ref, metadata.getOrNull()?.name.orEmpty(), VaultItemOutcome.ROLLED_BACK, error)
                 sources.drop(index + 1).forEach {
                     results += item(it, it.nodeId.value, VaultItemOutcome.SKIPPED, VaultFailure.Cancelled())
                 }
                 return VaultBatchResult(results)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
             } catch (error: Throwable) {
-                results += failed(ref, source.name, error)
+                results += failed(ref, metadata.getOrNull()?.name.orEmpty(), error)
             }
         }
         return VaultBatchResult(results)
@@ -133,34 +168,41 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         source: VaultNodeMetadata,
         parent: File,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        onBytes: (Int) -> Unit
     ): VaultItemOutcome {
-        val existing = parent.listFiles()?.firstOrNull { it.name.equals(source.name, true) }
+        val existing = parent.readLocalChildren().findLocalChild(source.name)?.inspectDestination()
         val decision = existing?.let {
-            conflicts.decide(VaultConflict(source.name, it.name, source.isDirectory, it.isDirectory))
+            conflicts.decide(it.conflictWith(source))
         }
         if (decision == VaultConflictDecision.SKIP) return VaultItemOutcome.SKIPPED
         if (decision == VaultConflictDecision.MERGE_DIRECTORIES &&
-            (!source.isDirectory || existing.isDirectory != true)
+            (!source.isDirectory || !existing.isDirectory)
         ) throw VaultFailure.NameConflict(source.name)
         val finalName = if (decision == VaultConflictDecision.KEEP_BOTH) uniqueLocalName(parent, source.name) else source.name
         val staging = File(parent, ".arcile-${UUID.randomUUID()}.tmp")
         try {
-            if (source.isDirectory) {
+            val partial = if (source.isDirectory) {
                 check(staging.mkdir()) { "Unable to stage exported folder" }
                 if (decision == VaultConflictDecision.MERGE_DIRECTORIES) {
-                    copyLocalDirectory(requireNotNull(existing), staging, cancellation)
+                    copyLocalDirectory(requireNotNull(existing).file, staging, cancellation)
                 }
-                exportVaultDirectoryLocal(session, source, staging, conflicts, cancellation)
+                exportVaultDirectoryLocal(session, source, staging, conflicts, cancellation, onBytes)
             } else {
-                exportLocalFile(session, source, staging, cancellation)
+                exportLocalFile(session, source, staging, cancellation, onBytes)
+                false
             }
+            cancellation.throwIfCancelled()
             publishLocal(staging, File(parent, finalName), existing?.takeIf {
                 decision == VaultConflictDecision.REPLACE || decision == VaultConflictDecision.MERGE_DIRECTORIES
             })
-            return VaultItemOutcome.COMPLETED
+            return if (partial) VaultItemOutcome.PARTIAL else VaultItemOutcome.COMPLETED
         } catch (error: Throwable) {
-            staging.deleteRecursively()
+            try {
+                staging.deleteLocalTree()
+            } catch (cleanup: Exception) {
+                error.addSuppressed(cleanup)
+            }
             throw error
         }
     }
@@ -170,8 +212,10 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         root: VaultNodeMetadata,
         rootDestination: File,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
-    ) {
+        cancellation: VaultCancellationSignal,
+        onBytes: (Int) -> Unit
+    ): Boolean {
+        var skipped = false
         val pending = ArrayDeque<Pair<VaultNodeMetadata, File>>()
         pending += root to rootDestination
         while (pending.isNotEmpty()) {
@@ -182,25 +226,30 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 val page = listDirectory(session, directory.ref.vaultId, id, VaultListOptions(pageToken = token))
                 page.items.forEach { child ->
                     cancellation.throwIfCancelled()
-                    val existing = destination.listFiles()?.firstOrNull { it.name.equals(child.name, true) }
+                    val existing = destination.readLocalChildren().findLocalChild(child.name)?.inspectDestination()
                     val decision = existing?.let {
-                        conflicts.decide(VaultConflict(child.name, it.name, child.isDirectory, it.isDirectory))
+                        conflicts.decide(it.conflictWith(child))
                     }
-                    if (decision == VaultConflictDecision.SKIP) return@forEach
+                    if (decision == VaultConflictDecision.SKIP) {
+                        skipped = true
+                        return@forEach
+                    }
                     val name = if (decision == VaultConflictDecision.KEEP_BOTH) uniqueLocalName(destination, child.name) else child.name
                     if (child.isDirectory) {
-                        if (decision == VaultConflictDecision.MERGE_DIRECTORIES && existing.isDirectory != true) {
+                        if (decision == VaultConflictDecision.MERGE_DIRECTORIES && !existing.isDirectory) {
                             throw VaultFailure.NameConflict(child.name)
                         }
-                        if (decision == VaultConflictDecision.REPLACE) existing.deleteRecursively()
-                        val target = if (decision == VaultConflictDecision.MERGE_DIRECTORIES) requireNotNull(existing)
+                        if (decision == VaultConflictDecision.REPLACE) {
+                            requireNotNull(existing).file.deleteLocalTree()
+                        }
+                        val target = if (decision == VaultConflictDecision.MERGE_DIRECTORIES) requireNotNull(existing).file
                         else File(destination, name).also { check(it.mkdir()) { "Unable to create exported folder" } }
                         pending += child to target
                     } else {
                         if (decision == VaultConflictDecision.MERGE_DIRECTORIES) throw VaultFailure.NameConflict(child.name)
                         val temporary = File(destination, ".arcile-${UUID.randomUUID()}.tmp")
                         try {
-                            exportLocalFile(session, child, temporary, cancellation)
+                            exportLocalFile(session, child, temporary, cancellation, onBytes)
                             publishLocal(temporary, File(destination, name), existing?.takeIf { decision == VaultConflictDecision.REPLACE })
                         } finally {
                             temporary.delete()
@@ -210,26 +259,35 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 token = page.nextPageToken
             } while (token != null)
         }
+        return skipped
     }
 
     private fun exportLocalFile(
         session: BoundaryAccessSession,
         source: VaultNodeMetadata,
         destination: File,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        onBytes: (Int) -> Unit
     ) {
         val expected = MessageDigest.getInstance("SHA-256")
         openReader(session, source.ref).use { reader ->
             FileOutputStream(destination).use { output ->
                 val buffer = ByteArray(BUFFER_SIZE)
                 var position = 0L
-                while (position < reader.sizeBytes) {
-                    cancellation.throwIfCancelled()
-                    val count = reader.readAt(position, buffer, 0, minOf(buffer.size.toLong(), reader.sizeBytes - position).toInt())
-                    if (count <= 0) throw VaultFailure.SourceChanged()
-                    output.write(buffer, 0, count); expected.update(buffer, 0, count); position += count
+                try {
+                    while (position < reader.sizeBytes) {
+                        cancellation.throwIfCancelled()
+                        val count = reader.readAt(position, buffer, 0, minOf(buffer.size.toLong(), reader.sizeBytes - position).toInt())
+                        if (count <= 0) throw VaultFailure.SourceChanged()
+                        output.write(buffer, 0, count)
+                        expected.update(buffer, 0, count)
+                        position += count
+                        onBytes(count)
+                    }
+                    output.fd.sync()
+                } finally {
+                    buffer.fill(0)
                 }
-                buffer.fill(0); output.fd.sync()
             }
         }
         val actual = MessageDigest.getInstance("SHA-256")
@@ -250,27 +308,51 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         pending += source to destination
         while (pending.isNotEmpty()) {
             val (from, to) = pending.removeLast()
+            if (!from.inspectDestination().isDirectory) throw VaultFailure.ConcurrentMutation()
             from.listFiles()?.forEach { child ->
                 cancellation.throwIfCancelled()
                 val target = File(to, child.name)
-                if (child.isDirectory) { check(target.mkdir()); pending += child to target }
-                else child.inputStream().use { input -> target.outputStream().use(input::copyTo) }
+                if (child.inspectDestination().isDirectory) {
+                    check(target.mkdir())
+                    pending += child to target
+                } else {
+                    Files.newInputStream(child.toPath(), LinkOption.NOFOLLOW_LINKS).use { input ->
+                        target.outputStream().use(input::copyTo)
+                    }
+                }
             } ?: throw VaultFailure.Unavailable("Unable to read existing destination")
         }
     }
 
-    private fun publishLocal(staging: File, destination: File, replacing: File?) {
+    private fun publishLocal(staging: File, destination: File, replacing: LocalDestinationEntry?) {
+        val parent = requireNotNull(destination.parentFile)
+        if (!parent.inspectDestination().isDirectory) throw VaultFailure.ConcurrentMutation()
+        val current = parent.readLocalChildren().findLocalChild(destination.name)
         if (replacing == null) {
-            if (!staging.renameTo(destination)) throw VaultFailure.Unavailable("Unable to publish exported item")
+            if (current != null) throw VaultFailure.ConcurrentMutation()
+            Files.move(staging.toPath(), destination.toPath())
             return
         }
-        val backup = File(replacing.parentFile, ".arcile-backup-${UUID.randomUUID()}.tmp")
-        if (!replacing.renameTo(backup)) throw VaultFailure.Unavailable("Unable to stage existing destination")
-        if (!staging.renameTo(destination)) {
-            backup.renameTo(replacing)
-            throw VaultFailure.Unavailable("Unable to publish replacement")
+        if (current?.inspectDestination() != replacing) throw VaultFailure.ConcurrentMutation()
+        val backup = File(parent, ".arcile-backup-${UUID.randomUUID()}.tmp")
+        Files.move(replacing.file.toPath(), backup.toPath())
+        try {
+            Files.move(staging.toPath(), destination.toPath())
+        } catch (error: Exception) {
+            try {
+                Files.move(backup.toPath(), replacing.file.toPath())
+            } catch (restore: Exception) {
+                error.addSuppressed(restore)
+            }
+            throw error
         }
-        if (!backup.deleteRecursively()) throw VaultFailure.Unavailable("Unable to remove replaced destination")
+        backup.deleteLocalTree()
+    }
+
+    private fun File.deleteLocalTree() {
+        val root = toPath()
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) return
+        Files.walk(root).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::delete) }
     }
 
     private fun uniqueLocalName(parent: File, name: String): String {
@@ -309,8 +391,81 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
 
     private suspend fun deletePermanently(session: BoundaryAccessSession, ref: VaultNodeRef) {
         when (session) {
-            is BoundaryAccessSession.Repository -> requireNotNull(repository).deletePermanently(session.value, ref)
+            is BoundaryAccessSession.Repository -> requireNotNull(repository).deleteWithMutationLockHeld(session.value, ref)
             is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).deletePermanently(ref).getOrThrow()
+        }
+    }
+
+    private fun File.readLocalChildren(): Array<File> =
+        listFiles() ?: throw VaultFailure.Unavailable("Unable to read export destination")
+
+    private fun Array<File>.findLocalChild(name: String): File? =
+        firstOrNull { it.name == name } ?: firstOrNull { it.name.equals(name, ignoreCase = true) }
+
+    private fun File.inspectDestination(): LocalDestinationEntry {
+        val attributes = Files.readAttributes(toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        if (attributes.isSymbolicLink) throw VaultFailure.SymlinkRejected(name)
+        if (!attributes.isRegularFile && !attributes.isDirectory) {
+            throw VaultFailure.Unavailable("The export destination contains an unsupported item")
+        }
+        return LocalDestinationEntry(
+            this, attributes.isDirectory, attributes.size(), attributes.lastModifiedTime().toMillis(),
+            attributes.creationTime().toMillis(), attributes.fileKey()?.toString()
+        )
+    }
+
+    private data class LocalDestinationEntry(
+        val file: File,
+        val isDirectory: Boolean,
+        val size: Long,
+        val modifiedAt: Long,
+        val createdAt: Long,
+        val fileKey: String?
+    ) {
+        fun conflictWith(source: VaultNodeMetadata) = VaultConflict(
+            sourceName = source.name,
+            destinationName = file.name,
+            sourceIsDirectory = source.isDirectory,
+            destinationIsDirectory = isDirectory,
+            sourceIdentity = "${source.ref.vaultId.value}:${source.ref.nodeId.value}:${source.revision}",
+            destinationIdentity = "$file:$fileKey:$createdAt",
+            sourceSize = source.sizeBytes,
+            destinationSize = if (isDirectory) 0L else size,
+            sourceModifiedAt = source.modifiedAtMillis,
+            destinationModifiedAt = modifiedAt
+        )
+    }
+
+    private inner class ExportProgress(
+        private val action: VaultTransferAction,
+        private val totalItems: Int,
+        private val totalBytes: Long?
+    ) {
+        private val startedAt = System.currentTimeMillis()
+        private var lastUpdate = System.nanoTime()
+        private var completed = 0
+        private var name: String? = null
+        private var bytes = 0L
+
+        fun start(index: Int, sourceName: String) {
+            completed = index
+            name = sourceName
+            emit()
+        }
+
+        fun advance(count: Int) {
+            bytes += count
+            if (System.nanoTime() - lastUpdate >= 100_000_000L) emit()
+        }
+
+        fun finish(count: Int) {
+            completed = count
+            emit()
+        }
+
+        private fun emit() {
+            lastUpdate = System.nanoTime()
+            updates.tryEmit(VaultTransferProgress(action, name, completed, totalItems, bytes, totalBytes, startedAt))
         }
     }
 

@@ -1,4 +1,6 @@
 <resources>
+    <string name="onlyfiles_replace_folder">Replace folder</string>
+    <string name="onlyfiles_no_storage">No storage locations are available.</string>
     <string name="onlyfiles_batch_rename_unavailable">Couldn’t prepare batch rename.</string>
     <string name="onlyfiles_create_zip">Create ZIP</string>
     <string name="onlyfiles_creating_zip">Creating ZIP</string>
@@ -157,13 +159,6 @@
     <string name="onlyfiles_property_items">Items: %1$d</string>
     <string name="onlyfiles_property_size">Logical size: %1$s</string>
     <string name="onlyfiles_unknown_type">Unknown type</string>
-    <string name="onlyfiles_conflict">Name conflict</string>
-    <string name="onlyfiles_conflict_message">An item named “%1$s” already exists.</string>
-    <string name="onlyfiles_apply_all">Use this decision for the remaining conflicts</string>
-    <string name="onlyfiles_merge">Merge</string>
-    <string name="onlyfiles_keep_both">Keep both</string>
-    <string name="onlyfiles_replace">Replace</string>
-    <string name="onlyfiles_skip">Skip</string>
     <string name="onlyfiles_health_result">Vault health</string>
     <string name="onlyfiles_health_ok">No integrity problems were found.</string>
     <string name="onlyfiles_health_problems">The health check found problems.</string>

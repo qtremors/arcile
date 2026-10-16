@@ -110,6 +110,9 @@ internal fun OnlyFilesClipboardToolbar(
             completedItems = progress.completedTopLevelItems,
             onCancel = viewModel::cancelTransfer,
             onDismissRequest = { showDetails = false },
+            bytesProcessed = progress.bytesTransferred.takeIf { progress.startedAtMillis != null },
+            totalBytes = totalBytes,
+            startTimeMillis = progress.startedAtMillis,
             queueNames = queue,
             currentQueueIndex = progress.completedTopLevelItems.takeIf { it in queue.indices } ?: -1
         )

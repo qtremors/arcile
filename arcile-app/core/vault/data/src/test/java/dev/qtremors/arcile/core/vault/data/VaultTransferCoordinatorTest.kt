@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
+import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
@@ -82,6 +83,78 @@ class VaultTransferCoordinatorTest {
         assertTrue(names(repository, vault, sourceId).isEmpty())
         assertEquals(3, names(repository, vault, destinationId).size)
         scope.cancel()
+    }
+
+    @Test
+    fun `known paste conflicts are reviewed together before any selected item is written`() = runTest {
+        val (repository, scope) = repository()
+        try {
+            val vault = repository.createAppPrivateVault("Review", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val from = repository.createDirectory(vault, root, "Source").getOrThrow().ref.directoryId!!
+            val to = repository.createDirectory(vault, root, "Destination").getOrThrow().ref.directoryId!!
+            val incoming = listOf("plain.txt", "one.txt", "two.txt").map {
+                repository.createEmptyFile(vault, from, it).getOrThrow()
+            }
+            repository.createEmptyFile(vault, to, "ONE.txt").getOrThrow()
+            repository.createEmptyFile(vault, to, "two.txt").getOrThrow()
+            var reviews = 0
+            val resolver = object : VaultConflictResolver {
+                override suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> {
+                    reviews++
+                    assertEquals(listOf("one.txt", "two.txt"), conflicts.map(VaultConflict::sourceName))
+                    assertEquals(listOf("ONE.txt", "two.txt"), conflicts.map(VaultConflict::destinationName))
+                    assertEquals(listOf("ONE.txt", "two.txt"), names(repository, vault, to))
+                    assertEquals(2, conflicts.map(VaultConflict::sourceIdentity).distinct().size)
+                    return mapOf(conflicts[0] to VaultConflictDecision.KEEP_BOTH, conflicts[1] to VaultConflictDecision.SKIP)
+                }
+
+                override suspend fun decide(conflict: VaultConflict): VaultConflictDecision =
+                    error("A reviewed conflict should not prompt twice")
+            }
+
+            val result = repository.copyWithinVault(incoming.map { it.ref }, to, resolver, neverCancelled)
+
+            assertEquals(1, reviews)
+            assertEquals(listOf(VaultItemOutcome.COMPLETED, VaultItemOutcome.COMPLETED, VaultItemOutcome.SKIPPED),
+                result.items.map { it.outcome })
+            assertEquals(setOf("ONE.txt", "one (1).txt", "plain.txt", "two.txt"), names(repository, vault, to).toSet())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `cancelling during paste review leaves both the source and the destination unchanged`() = runTest {
+        val (repository, scope) = repository()
+        try {
+            val vault = repository.createAppPrivateVault("Cancel", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val from = repository.createDirectory(vault, root, "Source").getOrThrow().ref.directoryId!!
+            val to = repository.createDirectory(vault, root, "Destination").getOrThrow().ref.directoryId!!
+            val collision = repository.createEmptyFile(vault, from, "collision.txt").getOrThrow()
+            val other = repository.createEmptyFile(vault, from, "other.txt").getOrThrow()
+            val original = repository.createEmptyFile(vault, to, "collision.txt").getOrThrow()
+            var cancelled = false
+            val resolver = object : VaultConflictResolver {
+                override suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> {
+                    cancelled = true
+                    return conflicts.associateWith { VaultConflictDecision.REPLACE }
+                }
+
+                override suspend fun decide(conflict: VaultConflict): VaultConflictDecision = error("Transfer is cancelled")
+            }
+
+            val result = repository.moveWithinVault(
+                listOf(other.ref, collision.ref), to, resolver, VaultCancellationSignal { cancelled }
+            )
+
+            assertEquals(2, result.rolledBack.size)
+            assertEquals(listOf("collision.txt", "other.txt"), names(repository, vault, from))
+            assertEquals(listOf(original.ref), repository.listDirectory(vault, to).getOrThrow().items.map { it.ref })
+        } finally {
+            scope.cancel()
+        }
     }
 
     @Test

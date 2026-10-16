@@ -34,6 +34,9 @@ internal class OnlyFilesLocalPickerController(
     fun openDirectory(path: String) = load(path)
     fun toggleFile(path: String) = state.update { current ->
         val picker = current.localPicker ?: return@update current
+        if (picker.isLoading || picker.mode != OnlyFilesLocalPickerMode.IMPORT_FILES ||
+            picker.entries.none { it.reference == path && !it.isDirectory }
+        ) return@update current
         val selected = picker.selectedPaths.toMutableSet()
         if (!selected.add(path)) selected.remove(path)
         current.copy(localPicker = picker.copy(selectedPaths = selected))
@@ -41,6 +44,7 @@ internal class OnlyFilesLocalPickerController(
 
     fun choose() {
         val picker = state.value.localPicker ?: return
+        if (!picker.canChoose || state.value.busy) return
         request?.cancel()
         state.update { it.copy(localPicker = null) }
         when (picker.mode) {
@@ -104,20 +108,24 @@ internal class OnlyFilesLocalPickerController(
         val result = destinations.resolve(path, volumes)
         kotlinx.coroutines.currentCoroutineContext().ensureActive()
         val current = result.getOrElse {
-            state.update { it.copy(localPicker = previous) }
+            state.update { it.copy(localPicker = previous.copy(isLoading = false)) }
             showError(it)
             return
         } ?: run {
-            state.update { it.copy(localPicker = previous) }
+            state.update { it.copy(localPicker = previous.copy(isLoading = false)) }
             return
         }
-        val entriesResult = browser.listFiles(path)
+        val entriesResult = if (previous.mode == OnlyFilesLocalPickerMode.IMPORT_FILES) {
+            browser.listFiles(current.path)
+        } else {
+            destinations.children(current.path, volumes).map { children ->
+                children.map { FileModel(it.name, it.path, isDirectory = true) }
+            }
+        }
         kotlinx.coroutines.currentCoroutineContext().ensureActive()
         entriesResult.fold(
             onSuccess = { entries -> state.update {
-                    val visibleEntries = if (previous.mode == OnlyFilesLocalPickerMode.IMPORT_FILES) entries
-                        else entries.filter(FileModel::isDirectory)
-                    it.copy(localPicker = OnlyFilesLocalPickerState(previous.mode, current, visibleEntries.sortedWith(
+                    it.copy(localPicker = OnlyFilesLocalPickerState(previous.mode, current, entries.sortedWith(
                     compareByDescending<FileModel> { file -> file.isDirectory }.thenBy { file -> file.name.lowercase() }
                 ), previous.selectedPaths))
             } },

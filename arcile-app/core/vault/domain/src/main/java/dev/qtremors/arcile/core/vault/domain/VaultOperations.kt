@@ -63,14 +63,25 @@ enum class VaultConflictDecision { KEEP_BOTH, REPLACE, SKIP, MERGE_DIRECTORIES }
 
 fun interface VaultConflictResolver {
     suspend fun decide(conflict: VaultConflict): VaultConflictDecision
+
+    /** Review known conflicts before writing. Unreviewed or changed conflicts still use [decide]. */
+    suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> = emptyMap()
 }
 
 data class VaultConflict(
     val sourceName: String,
     val destinationName: String,
     val sourceIsDirectory: Boolean,
-    val destinationIsDirectory: Boolean
-)
+    val destinationIsDirectory: Boolean,
+    val sourceIdentity: String? = null,
+    val destinationIdentity: String? = null,
+    val sourceSize: Long = 0,
+    val destinationSize: Long = 0,
+    val sourceModifiedAt: Long = 0,
+    val destinationModifiedAt: Long = 0
+) {
+    val canMerge: Boolean get() = sourceIsDirectory && destinationIsDirectory
+}
 
 enum class VaultTransferAction { COPY, MOVE, IMPORT, EXPORT, SHARE, OPEN_WITH }
 enum class VaultItemOutcome { COMPLETED, PARTIAL, SKIPPED, FAILED, ROLLED_BACK }
@@ -96,7 +107,8 @@ data class VaultTransferProgress(
     val completedTopLevelItems: Int,
     val totalTopLevelItems: Int,
     val bytesTransferred: Long,
-    val totalBytes: Long?
+    val totalBytes: Long?,
+    val startedAtMillis: Long? = null
 )
 
 fun interface VaultCancellationSignal {

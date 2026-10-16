@@ -26,7 +26,12 @@ internal data class VaultClipboard(
     val sources: List<VaultNodeRef>,
     val displayNodes: List<VaultNodeMetadata> = emptyList()
 )
-internal data class VaultConflictPrompt(val requestId: Long, val conflict: VaultConflict)
+internal data class VaultConflictPrompt(
+    val requestId: Long,
+    val conflicts: List<VaultConflict>,
+    val allowFuture: Boolean,
+    val exporting: Boolean
+)
 internal data class OnlyFilesBatchProgress(
     val completedItems: Int,
     val totalItems: Int,

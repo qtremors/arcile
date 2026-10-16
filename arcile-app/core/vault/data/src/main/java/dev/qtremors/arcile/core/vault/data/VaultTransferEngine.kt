@@ -13,6 +13,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultItemResult
+import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultName
 import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
@@ -26,6 +27,58 @@ internal class VaultTransferEngine(
     private val fileCodec: VaultFileCodec,
     private val transactions: VaultTransactionManager
 ) {
+    fun topLevelConflicts(
+        sessions: Map<VaultId, VaultSessionRecord>,
+        sources: List<VaultNodeRef>,
+        destinationVault: VaultId,
+        destinationId: DirectoryId,
+        move: Boolean,
+        cancellation: VaultCancellationSignal
+    ): List<VaultConflict> {
+        val destination = sessions.getValue(destinationVault)
+        val directory = destination.resolveDirectory(destinationId)
+        try {
+            val snapshot = destination.readDirectory(directory)
+            try {
+                val existing = snapshot.entries.associateBy { VaultName.of(it.name).comparisonKey }
+                if (existing.isEmpty()) return emptyList()
+                val conflicts = mutableMapOf<VaultNodeRef, VaultConflict>()
+                val groups = sources.groupBy { it.vaultId to it.parentId }
+                for ((location, siblings) in groups) {
+                    if (cancellation.isCancelled()) return emptyList()
+                    if (move && location.first == destinationVault && location.second == destinationId) continue
+                    val source = sessions.getValue(location.first)
+                    val parent = try {
+                        source.resolveDirectory(location.second)
+                    } catch (_: VaultFailure.InvalidPath) {
+                        continue
+                    }
+                    try {
+                        val entries = source.readDirectory(parent)
+                        try {
+                            val byId = entries.entries.associateBy(VaultManifestEntry::nodeId)
+                            for (ref in siblings) {
+                                if (cancellation.isCancelled()) return emptyList()
+                                val entry = byId[ref.nodeId] ?: continue
+                                val match = existing[VaultName.of(entry.name).comparisonKey] ?: continue
+                                conflicts[ref] = match.conflictWith(entry)
+                            }
+                        } finally {
+                            entries.clearProtectedKeys()
+                        }
+                    } finally {
+                        parent.key.fill(0)
+                    }
+                }
+                return sources.mapNotNull(conflicts::get)
+            } finally {
+                snapshot.clearProtectedKeys()
+            }
+        } finally {
+            directory.key.fill(0)
+        }
+    }
+
     fun deleteOne(session: VaultSessionRecord, ref: VaultNodeRef) {
         val resolved = resolve(session, ref)
         try {

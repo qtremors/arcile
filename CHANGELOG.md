@@ -1,10 +1,19 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.6
+> **Version:** 2.2.7
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.7] - 2026-11-04
+
+### Changed
+- OnlyFiles paste and export use Browser's comparison dialog to review known conflicts before transferring.
+- Import, export, and portable vault setup share storage picker rows. Export details show byte progress, speed, and ETA when available.
+
+### Fixed
+- Move Out keeps the source folder in the vault when any child is skipped.
 
 ## [2.2.6] - 2026-11-04
 

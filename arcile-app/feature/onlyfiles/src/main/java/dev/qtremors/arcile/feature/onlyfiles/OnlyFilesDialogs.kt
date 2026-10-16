@@ -60,7 +60,6 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Switch
-import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
@@ -219,56 +218,6 @@ internal fun VaultPropertiesDialog(
         onDismiss = onDismiss,
         readLocalImageMetadata = false,
         sourceImageMetadata = imageMetadata
-    )
-}
-
-@Composable
-internal fun ConflictDialog(prompt: VaultConflictPrompt, onDecision: (VaultConflictDecision, Boolean) -> Unit) {
-    var applyAll by remember(prompt.requestId) { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = { onDecision(VaultConflictDecision.SKIP, false) },
-        title = { Text(stringResource(R.string.onlyfiles_conflict)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(stringResource(R.string.onlyfiles_conflict_message, prompt.conflict.destinationName))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
-                    .bounceClickable { applyAll = !applyAll }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(stringResource(R.string.onlyfiles_apply_all), style = MaterialTheme.typography.bodyMedium)
-                ExpressiveSwitch(checked = applyAll, onCheckedChange = { applyAll = it })
-            }
-        } },
-        confirmButton = { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (prompt.conflict.sourceIsDirectory && prompt.conflict.destinationIsDirectory) {
-                TextButton(
-                    onClick = { onDecision(VaultConflictDecision.MERGE_DIRECTORIES, applyAll) },
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.MERGE_DIRECTORIES, applyAll) }
-                ) { Text(stringResource(R.string.onlyfiles_merge)) }
-            }
-            TextButton(
-                onClick = { onDecision(VaultConflictDecision.KEEP_BOTH, applyAll) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.KEEP_BOTH, applyAll) }
-            ) { Text(stringResource(R.string.onlyfiles_keep_both)) }
-            Button(
-                onClick = { onDecision(VaultConflictDecision.REPLACE, applyAll) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.REPLACE, applyAll) }
-            ) { Text(stringResource(R.string.onlyfiles_replace)) }
-        } },
-        dismissButton = {
-            TextButton(
-                onClick = { onDecision(VaultConflictDecision.SKIP, applyAll) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.SKIP, applyAll) }
-            ) { Text(stringResource(R.string.onlyfiles_skip)) }
-        }
     )
 }
 
