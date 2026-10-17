@@ -51,6 +51,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultLocationKind
 import dev.qtremors.arcile.core.vault.domain.VaultPasswordPolicy
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
+import androidx.compose.material.icons.filled.Tab
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
@@ -69,6 +70,7 @@ internal fun VaultActionsMenu(
     directoryId: dev.qtremors.arcile.core.vault.domain.DirectoryId?,
     directoryPinned: Boolean,
     hasExactFolderView: Boolean,
+    workspaceTabsEnabled: Boolean,
     onDismiss: () -> Unit
 ) {
     var changePassword by remember { mutableStateOf(false) }
@@ -79,12 +81,20 @@ internal fun VaultActionsMenu(
     val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
 
-    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView) {
+    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView, workspaceTabsEnabled) {
         mutableListOf<@Composable () -> Unit>().apply {
             add {
                 dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
                     closeAnd(viewModel::toggleHiddenFiles)
                 }
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_workspace_tabs)) },
+                    leadingIcon = { Icon(Icons.Default.Tab, contentDescription = null) },
+                    isSelected = workspaceTabsEnabled,
+                    onClick = { closeAnd { viewModel.setWorkspaceTabsEnabled(!workspaceTabsEnabled) } }
+                )
             }
             add {
                 ArcileDropdownMenuItem(

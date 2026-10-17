@@ -42,6 +42,8 @@ internal data class OnlyFilesUiState(
     val vaults: List<VaultSummary> = emptyList(),
     val selectedVaultId: VaultId? = null,
     val mountGeneration: Long = 0L,
+    val workspaceTabsEnabled: Boolean = false,
+    val workspace: VaultWorkspace = VaultWorkspace(),
     val directoryStack: List<VaultDirectoryCrumb> = emptyList(),
     val nodes: List<VaultNodeMetadata> = emptyList(),
     val nextPageToken: String? = null,

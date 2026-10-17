@@ -84,4 +84,37 @@ class VaultSecurityPreferencesTest {
 
         scope.cancel()
     }
+
+    @Test
+    fun `workspace settings store ordered opaque IDs independently for each vault`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val preferences = DefaultVaultSecurityPreferences(context, scope)
+        val first = VaultId.of("workspace-first")
+        val second = VaultId.of("workspace-second")
+        val location = DirectoryId.of("opaque,id")
+        val ordered = listOf(location, DirectoryId.Root, location)
+        try {
+            preferences.setWorkspaceTabsEnabled(true)
+            preferences.setPinnedWorkspaceTabs(first, ordered)
+            preferences.setPinnedWorkspaceTabs(second, listOf(DirectoryId.Root))
+            val reloaded = DefaultVaultSecurityPreferences(context, scope)
+            val restored = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { reloaded.settings.first { first in it.pinnedWorkspaceTabs && second in it.pinnedWorkspaceTabs } }
+            }
+            assertTrue(restored.workspaceTabsEnabled)
+            assertEquals(ordered, restored.pinnedWorkspaceTabs[first])
+            assertEquals(listOf(DirectoryId.Root), restored.pinnedWorkspaceTabs[second])
+            assertFalse(first in restored.pinnedDirectories)
+
+            preferences.setWorkspaceTabsEnabled(false)
+            preferences.setPinnedWorkspaceTabs(first, emptyList())
+            val hidden = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { reloaded.settings.first { !it.workspaceTabsEnabled && second in it.pinnedWorkspaceTabs && first !in it.pinnedWorkspaceTabs } }
+            }
+            assertEquals(listOf(DirectoryId.Root), hidden.pinnedWorkspaceTabs[second])
+        } finally {
+            scope.cancel()
+        }
+    }
 }

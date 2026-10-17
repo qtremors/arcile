@@ -39,6 +39,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -100,14 +101,31 @@ internal fun VaultBrowser(
     val parents = remember(state.searchHits) {
         state.searchHits.associate { it.metadata.ref.nodeId to it.parentNames.joinToString(" / ") }
     }
-    val directoryId = state.currentDirectory?.id
-    val searchDirectoryId = state.searchScope?.lastOrNull()?.id ?: directoryId
-    val scroll = remember(listingScroll, directoryId, searchDirectoryId, state.searchQuery, state.searchFilters, state.recursiveSearch) {
-        when {
-            directoryId == null -> VaultDirectoryScroll()
-            !state.hasSearch -> listingScroll.forDirectory(directoryId)
-            else -> listingScroll.forSearch(requireNotNull(searchDirectoryId), state.searchQuery, state.searchFilters, state.recursiveSearch)
+    val scroll = remember(
+        listingScroll, state.currentDirectory?.id, state.searchScope?.lastOrNull()?.id,
+        state.searchQuery, state.searchFilters, state.recursiveSearch
+    ) {
+        listingScroll.forState(state)
+    }
+    val pendingViewport = scroll.pendingViewport.value
+    val nextToken = if (state.hasSearch) state.searchNextPageToken else state.nextPageToken
+    LaunchedEffect(scroll, pendingViewport, displayedNodes, state.isLoadingRows, nextToken, state.revealNodeId) {
+        val viewport = pendingViewport ?: return@LaunchedEffect
+        if (state.isLoadingRows) return@LaunchedEffect
+        if (state.revealNodeId == null && viewport.grid == state.viewOptions.grid) {
+            val index = viewport.restoreIndex(displayedNodes, nextToken != null && nextToken != scroll.requestedToken)
+            if (index == null) {
+                scroll.requestedToken = nextToken
+                onLoadMore()
+                return@LaunchedEffect
+            }
+            if (displayedNodes.isNotEmpty()) {
+                if (viewport.grid) scroll.grid.scrollToItem(index, viewport.offset)
+                else scroll.list.scrollToItem(index, viewport.offset)
+            }
         }
+        scroll.pendingViewport.value = null
+        scroll.requestedToken = null
     }
     val revealIndex = displayedNodes.indexOfFirst { it.ref.nodeId.value == state.revealNodeId }
     val revealPath = models.getOrNull(revealIndex)?.reference
@@ -279,6 +297,29 @@ internal fun VaultBrowser(
 internal class VaultDirectoryScroll {
     val list = LazyListState()
     val grid = LazyGridState()
+    val pendingViewport = mutableStateOf<VaultViewport?>(null)
+    var requestedToken: String? = null
+}
+
+internal data class VaultViewport(val index: Int, val offset: Int, val nodeId: String?, val grid: Boolean) {
+    fun restoreIndex(nodes: List<VaultNodeMetadata>, canLoadMore: Boolean): Int? {
+        if (nodeId != null) {
+            val anchor = nodes.indexOfFirst { it.ref.nodeId.value == nodeId }
+            if (anchor >= 0) return anchor
+        }
+        if (index >= nodes.size && canLoadMore) return null
+        return index.coerceAtMost(nodes.lastIndex.coerceAtLeast(0))
+    }
+}
+
+internal class VaultWorkspaceScroll {
+    private val byTab = mutableMapOf<Int, VaultListingScroll>()
+
+    fun forTab(id: Int): VaultListingScroll = byTab.getOrPut(id) { VaultListingScroll() }
+
+    fun retain(tabs: List<VaultWorkspaceTab>) {
+        byTab.keys.retainAll(tabs.map(VaultWorkspaceTab::id).toSet())
+    }
 }
 
 internal class VaultListingScroll {
@@ -292,6 +333,26 @@ internal class VaultListingScroll {
     private val directories = LinkedHashMap<DirectoryId, VaultDirectoryScroll>(32, 0.75f, true)
     private var searchKey: SearchKey? = null
     private var searchScroll = VaultDirectoryScroll()
+
+    fun forState(state: OnlyFilesUiState): VaultDirectoryScroll {
+        val directory = state.currentDirectory?.id ?: return VaultDirectoryScroll()
+        if (!state.hasSearch) return forDirectory(directory)
+        val searchDirectory = state.searchScope?.lastOrNull()?.id ?: directory
+        return forSearch(searchDirectory, state.searchQuery, state.searchFilters, state.recursiveSearch)
+    }
+
+    fun capture(state: OnlyFilesUiState) {
+        val nodes = state.displayedNodes
+        if (nodes.isEmpty() || state.currentDirectory == null) return
+        val scroll = forState(state)
+        if (scroll.pendingViewport.value != null) return
+        val grid = state.viewOptions.grid
+        val index = if (grid) scroll.grid.firstVisibleItemIndex else scroll.list.firstVisibleItemIndex
+        val offset = if (grid) scroll.grid.firstVisibleItemScrollOffset else scroll.list.firstVisibleItemScrollOffset
+        if (index == 0 && offset == 0) return
+        scroll.pendingViewport.value = VaultViewport(index, offset, nodes.getOrNull(index)?.ref?.nodeId?.value, grid)
+        scroll.requestedToken = null
+    }
 
     fun forDirectory(id: DirectoryId): VaultDirectoryScroll = directories[id] ?: VaultDirectoryScroll().also {
         directories[id] = it

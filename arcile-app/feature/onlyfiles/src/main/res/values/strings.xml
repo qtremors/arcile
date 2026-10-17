@@ -1,4 +1,5 @@
 <resources>
+    <string name="onlyfiles_workspace_tabs">Workspace tabs</string>
     <string name="onlyfiles_replace_folder">Replace folder</string>
     <string name="onlyfiles_no_storage">No storage locations are available.</string>
     <string name="onlyfiles_batch_rename_unavailable">Couldn’t prepare batch rename.</string>

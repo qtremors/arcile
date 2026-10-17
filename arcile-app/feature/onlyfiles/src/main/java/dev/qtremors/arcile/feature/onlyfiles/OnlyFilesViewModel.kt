@@ -82,10 +82,19 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val archives by lazy {
         OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError)
     }
-    private val locations by lazy {
+    private val locations: OnlyFilesLocationController by lazy {
         OnlyFilesLocationController(
             fileSystem, securityPreferences, _state, viewModelScope, ::reload,
-            { browser.updateSearch(_state.value.searchQuery, debounceMillis = 0L) }, ::showError
+            { browser.updateSearch(_state.value.searchQuery, debounceMillis = 0L) }, ::showError,
+            { workspace.onDirectoryChanged() }
+        )
+    }
+    private val workspace: OnlyFilesWorkspaceController by lazy {
+        OnlyFilesWorkspaceController(
+            fileSystem, securityPreferences, _state, viewModelScope,
+            stopListing = { locations.cancelNavigation(); locations.closePicker(); browser.cancel() },
+            reload = ::reload,
+            showError = ::showError
         )
     }
     private val transfers by lazy {
@@ -147,10 +156,12 @@ internal class OnlyFilesViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         screenshotProtectionEnabled = settings.screenshotProtectionEnabled,
-                        pinnedDirectoryIds = it.selectedVaultId?.let(settings.pinnedDirectories::get).orEmpty()
+                        pinnedDirectoryIds = it.selectedVaultId?.let(settings.pinnedDirectories::get).orEmpty(),
+                        workspaceTabsEnabled = settings.workspaceTabsEnabled
                     )
                 }
                 browser.applyViewOptions(settings)
+                workspace.restorePins(_state.value.selectedVaultId?.let(settings.pinnedWorkspaceTabs::get).orEmpty())
             }
         }
     }
@@ -226,6 +237,10 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     fun navigateUp(): Boolean {
         val current = _state.value
+        if (current.workspace.switching) {
+            workspace.cancelSwitch()
+            return true
+        }
         if (current.viewer != null) {
             _state.update { it.copy(viewer = null, viewerQueue = emptyList()) }
             return true
@@ -260,6 +275,14 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun openSearchScope() = locations.openScopePicker()
     fun clearSearchScope() = locations.clearScope()
     fun openPinnedFolders() = locations.openPinnedFolders()
+    fun setWorkspaceTabsEnabled(enabled: Boolean) = workspace.setEnabled(enabled)
+    fun addWorkspaceTab() = workspace.addTab()
+    fun duplicateWorkspaceTab(id: Int) = workspace.duplicateTab(id)
+    fun selectWorkspaceTab(id: Int) = workspace.selectTab(id)
+    fun pinWorkspaceTab(id: Int, pinned: Boolean) = workspace.setPinned(id, pinned)
+    fun moveWorkspaceTab(id: Int, offset: Int) = workspace.moveTab(id, offset)
+    fun closeWorkspaceTab(id: Int) = workspace.closeTab(id)
+    fun closeOtherWorkspaceTabs(id: Int) = workspace.closeOtherTabs(id)
     fun toggleFolderPin(directory: DirectoryId) = locations.togglePin(directory)
     fun resetFolderView() = locations.resetCurrentFolderView()
     fun openLocationFolder(folder: VaultNodeMetadata) = locations.openPickerFolder(folder)
@@ -549,6 +572,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     private fun selectVault(vaultId: VaultId) {
+        workspace.clear()
         val requested = pendingEntry?.takeIf { it.vaultId == vaultId }
         pendingEntry = null
         if (requested != null) consumedEntry = requested
@@ -557,6 +581,8 @@ internal class OnlyFilesViewModel @Inject constructor(
             it.copy(
                 selectedVaultId = vaultId,
                 mountGeneration = it.mountGeneration + 1L,
+                workspace = VaultWorkspace.mounted(),
+                workspaceTabsEnabled = settings.workspaceTabsEnabled,
                 directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "", VaultPath.Root)),
                 nodes = emptyList(),
                 searchHits = emptyList(),
@@ -573,6 +599,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         }
         if (requested != null) locations.navigate(requested.directoryId, requested.focusNodeId)
         else locations.restore(settings.lastDirectories[vaultId])
+        workspace.restorePins(settings.pinnedWorkspaceTabs[vaultId].orEmpty())
     }
 
     private fun reload() = browser.reload()
@@ -587,6 +614,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         pendingEntry = null
         pendingExtraction = null
         archives.cancel()
+        workspace.clear()
         locations.cancelNavigation()
         locations.closePicker()
         browser.cancel()
@@ -597,6 +625,7 @@ internal class OnlyFilesViewModel @Inject constructor(
             it.copy(
                 selectedVaultId = null,
                 mountGeneration = it.mountGeneration + 1L,
+                workspace = VaultWorkspace(),
                 directoryStack = emptyList(),
                 nodes = emptyList(),
                 nextPageToken = null,

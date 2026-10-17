@@ -20,6 +20,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultFolderViewOptions
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.vaultFolderViewKey
+import dev.qtremors.arcile.core.vault.domain.VAULT_MAX_WORKSPACE_TABS
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
@@ -65,6 +66,14 @@ class DefaultVaultSecurityPreferences @Inject constructor(
                 val ids = (value as? Set<*>)?.mapNotNull { (it as? String)?.let(::decodeDirectory) }
                     ?: return@mapNotNull null
                 vault to ids.toSet()
+            }.toMap(),
+            workspaceTabsEnabled = preferences[WORKSPACE_TABS_ENABLED] ?: false,
+            pinnedWorkspaceTabs = preferences.asMap().mapNotNull { (key, value) ->
+                val vault = decodeVaultKey(key.name, PINNED_WORKSPACE_PREFIX) ?: return@mapNotNull null
+                val ids = (value as? String)?.split('/')
+                    ?.mapNotNull(::decodeDirectory)?.take(VAULT_MAX_WORKSPACE_TABS - 1)
+                    ?: return@mapNotNull null
+                vault to ids
             }.toMap()
         )
     }.stateIn(scope, SharingStarted.Eagerly, VaultSecuritySettings())
@@ -113,6 +122,19 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         }
     }
 
+    override suspend fun setWorkspaceTabsEnabled(enabled: Boolean) {
+        store.edit { it[WORKSPACE_TABS_ENABLED] = enabled }
+    }
+
+    override suspend fun setPinnedWorkspaceTabs(vaultId: VaultId, directories: List<DirectoryId>) {
+        require(directories.size < VAULT_MAX_WORKSPACE_TABS)
+        val key = stringPreferencesKey(PINNED_WORKSPACE_PREFIX + vaultId.value)
+        store.edit {
+            if (directories.isEmpty()) it.remove(key)
+            else it[key] = directories.joinToString("/") { directory -> directory.value }
+        }
+    }
+
     private fun decodeVaultKey(name: String, prefix: String): VaultId? =
         name.takeIf { it.startsWith(prefix) }?.removePrefix(prefix)?.let { runCatching { VaultId.of(it) }.getOrNull() }
 
@@ -148,6 +170,8 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         const val FOLDER_PREFIX = "browse_folder/"
         const val LAST_DIRECTORY_PREFIX = "browse_last_directory/"
         const val PINNED_DIRECTORIES_PREFIX = "browse_pinned_directories/"
+        const val PINNED_WORKSPACE_PREFIX = "browse_pinned_workspace/"
+        val WORKSPACE_TABS_ENABLED = booleanPreferencesKey("browse_workspace_enabled")
         val LIST_ZOOM = floatPreferencesKey("browse_list_zoom")
         val GRID_SIZE = floatPreferencesKey("browse_grid_size")
     }

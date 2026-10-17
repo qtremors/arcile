@@ -96,7 +96,9 @@ internal fun OnlyFilesClipboardToolbar(
         subtitle = subtitle,
         icon = if (isMove) Icons.Default.ContentCut else Icons.Default.ContentCopy,
         onStatusClick = { showDetails = true },
-        onPaste = (viewModel::paste).takeIf { progress == null && !state.busy && state.selectedVaultId != null },
+        onPaste = (viewModel::paste).takeIf {
+            progress == null && !state.busy && !state.workspace.switching && state.selectedVaultId != null
+        },
         onCancel = if (progress == null) viewModel::clearClipboard else viewModel::cancelTransfer,
         modifier = modifier,
         progress = transferFraction
@@ -149,7 +151,9 @@ internal fun OnlyFilesMainContent(
         state.archiveProgress != null
     val toolbarPadding = if (hasFloatingToolbar) MaterialTheme.spacing.toolbarBottomGap else 0.dp
     Box(Modifier.fillMaxSize().padding(contentPadding).padding(bottom = toolbarPadding)) {
-        if (state.selectedVault == null) {
+        if (state.workspace.switching) {
+            LoadingIndicator(Modifier.align(Alignment.Center))
+        } else if (state.selectedVault == null) {
             VaultList(
                 vaults = state.vaults,
                 imports = state.activeImports,

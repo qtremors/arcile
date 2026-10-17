@@ -184,7 +184,10 @@ private fun OnlyFilesScreen(
     onBoundaryTransfer: (List<VaultNodeMetadata>, Boolean) -> Unit
 ) {
     val snackbarHost = remember(state.mountGeneration) { SnackbarHostState() }
-    val listingScroll = remember(state.mountGeneration) { VaultListingScroll() }
+    val workspaceScroll = remember(state.mountGeneration) { VaultWorkspaceScroll() }
+    val activeTabId = state.workspace.activeTabId
+    val listingScroll = remember(workspaceScroll, activeTabId) { workspaceScroll.forTab(activeTabId) }
+    LaunchedEffect(workspaceScroll, state.workspace.tabs) { workspaceScroll.retain(state.workspace.tabs) }
     var showCreateVault by remember { mutableStateOf(false) }
     var unlockVaultId by remember { mutableStateOf<VaultId?>(null) }
     var createItem by remember(state.mountGeneration) { mutableStateOf<CreateItemKind?>(null) }
@@ -197,7 +200,7 @@ private fun OnlyFilesScreen(
     var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
     var createZipNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var fabExpanded by remember(state.mountGeneration) { mutableStateOf(false) }
-    var showSearch by remember(state.mountGeneration) { mutableStateOf(state.hasSearch) }
+    var showSearch by remember(state.mountGeneration, activeTabId) { mutableStateOf(state.hasSearch) }
     var showSearchFilters by remember(state.mountGeneration) { mutableStateOf(false) }
     var listingWidth by remember(state.mountGeneration) { mutableStateOf<Dp?>(null) }
     val density = LocalDensity.current
@@ -212,6 +215,7 @@ private fun OnlyFilesScreen(
             state.locationPicker != null -> viewModel.closeLocationPicker()
             state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
+            state.workspace.switching -> viewModel.navigateUp()
             fabExpanded -> fabExpanded = false
             showSearch -> {
                 showSearch = false
@@ -291,8 +295,8 @@ private fun OnlyFilesScreen(
     ArcileScreenScaffold(
         modifier = predictiveBackModifier.arcileTopAppBarNestedScroll(scrollBehavior),
         snackbarHost = { ArcileSnackbarHost(snackbarHost) },
-        topBar = {
-            if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty()) {
+        topBar = { Column {
+            if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty() && !state.workspace.switching) {
                 Column {
                     SearchTopBar(
                         query = state.searchQuery,
@@ -332,6 +336,7 @@ private fun OnlyFilesScreen(
                             state.currentDirectory?.id,
                             state.currentDirectory?.id?.let { it in state.pinnedDirectoryIds } == true,
                             state.hasExactFolderView,
+                            state.workspaceTabsEnabled,
                             dismiss
                         )
                     }
@@ -347,8 +352,8 @@ private fun OnlyFilesScreen(
                     options = ArcileTopBarOptions(
                         showBackArrow = true,
                         showSettingsIcon = vault == null,
-                        showSearchAction = vault != null,
-                        showSortAction = vault != null,
+                        showSearchAction = vault != null && !state.workspace.switching,
+                        showSortAction = vault != null && !state.workspace.switching,
                         showNewFolderAction = false
                     ),
                     menuActions = if (vault == null && state.vaults.any(VaultSummary::isUnlocked)) {
@@ -377,9 +382,10 @@ private fun OnlyFilesScreen(
                     )
                 )
             }
-        },
+            OnlyFilesWorkspaceTabs(state, listingScroll, viewModel)
+        } },
         floatingActionButton = {
-            if (state.selectedNodeIds.isEmpty() && !showSearch &&
+            if (state.selectedNodeIds.isEmpty() && !showSearch && !state.workspace.switching &&
                 (state.selectedVaultId == null || state.clipboard == null) &&
                 state.transferProgress == null && state.archiveProgress == null
             ) ExpandableFabMenu(

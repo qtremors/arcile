@@ -93,11 +93,6 @@
   - **Current:** Sorted search pages rescan the tree.
   - **Change:** Measure paging on large vaults and reuse scan results where safe.
 
-- [ ] **UI-0007 - Add Vault Workspace Tabs**
-  - **Location:** OnlyFilesNavigation.kt and OnlyFilesState.kt.
-  - **Current:** Pinned folders and authenticated last-folder restore are available.
-  - **Change:** Add vault-scoped workspace tabs with independent navigation and scroll state.
-
 - [ ] **UI-0009 - Share File Routing and Support Vault-Compatible Plugins**
   - **Location:** OnlyFilesFormatting.kt and AppFileOpenResolver.kt.
   - **Current:** OnlyFiles shares Open As and saved open preferences. Built-in viewer dispatch is separate and plugin routing is unavailable.

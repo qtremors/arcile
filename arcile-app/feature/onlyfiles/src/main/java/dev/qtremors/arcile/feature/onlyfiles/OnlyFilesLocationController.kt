@@ -38,7 +38,8 @@ internal class OnlyFilesLocationController(
     private val scope: CoroutineScope,
     private val reload: () -> Unit,
     private val refreshSearch: () -> Unit,
-    private val showError: (Throwable) -> Unit
+    private val showError: (Throwable) -> Unit,
+    private val onLocationChanged: () -> Unit = {}
 ) {
     private var pickerJob: Job? = null
     private var navigationJob: Job? = null
@@ -83,6 +84,7 @@ internal class OnlyFilesLocationController(
             )
         }
         rememberDirectory(vault, directory.id)
+        onLocationChanged()
         reload()
     }
 
@@ -248,7 +250,7 @@ internal class OnlyFilesLocationController(
     }
 }
 
-private fun List<VaultDirectoryLocation>.toCrumbs(): List<VaultDirectoryCrumb> {
+internal fun List<VaultDirectoryLocation>.toCrumbs(): List<VaultDirectoryCrumb> {
     var path = VaultPath.Root
     return map { location ->
         if (location.id != DirectoryId.Root) path = path.resolve(location.name)

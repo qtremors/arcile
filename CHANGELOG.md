@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.7
+> **Version:** 2.2.8
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.8] - 2026-11-04
+
+### Changed
+- Enable Workspace tabs in OnlyFiles to keep separate folders, searches, and scroll positions open in a vault.
+- OnlyFiles uses Browser's tab controls. Pinned tabs reopen after unlock. Searches and scroll positions clear when you leave the vault.
 
 ## [2.2.7] - 2026-11-04
 
