@@ -16,7 +16,8 @@ internal class OnlyFilesAdministrationController(
     private val scope: CoroutineScope,
     private val runBusy: ((suspend () -> Unit) -> Unit),
     private val showError: (Throwable) -> Unit,
-    private val selectVault: (VaultId) -> Unit
+    private val selectVault: (VaultId) -> Unit,
+    private val onVaultRemoved: suspend (VaultId) -> Unit = {}
 ) {
     fun changePassword(current: String, replacement: String, weakConfirmed: Boolean) {
         val vaultId = state.value.selectedVaultId ?: return
@@ -72,7 +73,7 @@ internal class OnlyFilesAdministrationController(
         val vaultId = state.value.selectedVaultId ?: return
         runBusy {
             catalog.removeRegistration(vaultId).fold(
-                onSuccess = { clearSelection("Vault removed from Arcile") }, onFailure = showError
+                onSuccess = { onVaultRemoved(vaultId); clearSelection(vaultId, "Vault removed from Arcile") }, onFailure = showError
             )
         }
     }
@@ -81,13 +82,14 @@ internal class OnlyFilesAdministrationController(
         val vaultId = state.value.selectedVaultId ?: return
         runBusy {
             catalog.deletePermanently(vaultId, confirmation).fold(
-                onSuccess = { clearSelection("Vault data permanently deleted") }, onFailure = showError
+                onSuccess = { onVaultRemoved(vaultId); clearSelection(vaultId, "Vault data permanently deleted") }, onFailure = showError
             )
         }
     }
 
-    private fun clearSelection(message: String) {
+    private fun clearSelection(vaultId: VaultId, message: String) {
         state.update {
+            if (it.selectedVaultId != null && it.selectedVaultId != vaultId) return@update it
             it.copy(
                 selectedVaultId = null, directoryStack = emptyList(), nodes = emptyList(), searchHits = emptyList(),
                 selectedNodeIds = emptySet(), clipboard = null, viewer = null, message = message

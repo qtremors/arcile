@@ -32,7 +32,8 @@ internal data class BrowserSelectionIntents(
     val onSelectAll: (List<String>) -> Unit,
     val onPinToQuickAccess: (String, String) -> Unit,
     val onOpenSelectedWith: (String) -> Unit = {},
-    val onOpenSelectedAs: (String, FileOpenAsType) -> Unit = { _, _ -> }
+    val onOpenSelectedAs: (String, FileOpenAsType) -> Unit = { _, _ -> },
+    val onSendToOnlyFiles: (List<String>) -> Unit = {}
 )
 
 @Stable

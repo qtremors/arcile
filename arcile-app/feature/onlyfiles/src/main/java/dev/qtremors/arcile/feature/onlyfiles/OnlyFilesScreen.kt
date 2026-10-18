@@ -73,6 +73,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
@@ -150,12 +151,16 @@ private data class ExternalRequest(
 @Composable
 internal fun OnlyFilesRoute(
     entry: OnlyFilesEntry? = null,
+    importRequestId: String? = null,
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(importRequestId) {
+        importRequestId?.let(viewModel::acceptBrowserImport)
+    }
     VaultSecureWindowEffect(state.selectedVaultId != null && state.screenshotProtectionEnabled)
     OnlyFilesScreen(
         entry = entry,
@@ -195,6 +200,7 @@ private fun OnlyFilesScreen(
     var batchRenameNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var deleteNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
+    var vaultDetails by remember(state.mountGeneration) { mutableStateOf<VaultDetails?>(null) }
     var externalRequest by remember(state.mountGeneration) { mutableStateOf<ExternalRequest?>(null) }
     var openAsNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
     var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
@@ -337,13 +343,16 @@ private fun OnlyFilesScreen(
                             state.currentDirectory?.id?.let { it in state.pinnedDirectoryIds } == true,
                             state.hasExactFolderView,
                             state.workspaceTabsEnabled,
+                            { vaultDetails = it },
                             dismiss
                         )
                     }
                 }
                 ArcileTopBar(
                     title = state.currentDirectory?.name?.takeIf(String::isNotBlank)
-                        ?: vault?.name ?: stringResource(R.string.onlyfiles_title),
+                        ?: vault?.name ?: stringResource(
+                            if (state.browserImportCount > 0) R.string.onlyfiles_choose_import_vault else R.string.onlyfiles_title
+                        ),
                     selectionCount = selected.size,
                     selectedSize = selected.takeIf { it.isNotEmpty() }?.let {
                         formatBytes(LocalContext.current, it.sumOf(VaultNodeMetadata::sizeBytes))
@@ -405,6 +414,9 @@ private fun OnlyFilesScreen(
                     listOf(
                         FabMenuItem(stringResource(R.string.onlyfiles_import_files), Icons.Default.UploadFile, onClick = {
                             fabExpanded = false; onImportFiles()
+                        }),
+                        FabMenuItem(stringResource(R.string.onlyfiles_move_into_vault), Icons.Default.UploadFile, onClick = {
+                            fabExpanded = false; viewModel.beginLocalMoveIntoVault()
                         }),
                         FabMenuItem(stringResource(R.string.onlyfiles_import_folder), Icons.Outlined.FolderOpen, onClick = {
                             fabExpanded = false; onImportFolder()
@@ -624,6 +636,31 @@ private fun OnlyFilesScreen(
         }
     }
     state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
+    val vaultId = state.selectedVaultId
+    if (vaultId != null) {
+        when (vaultDetails) {
+            VaultDetails.STORAGE -> VaultStorageUsageDialog(vaultId, viewModel::vaultStorageUsage) { vaultDetails = null }
+            VaultDetails.EXTERNAL_ACCESS -> VaultExternalGrantsDialog(vaultId, state.mountGeneration, viewModel) { vaultDetails = null }
+            null -> Unit
+        }
+    }
+    if (vaultId != null && state.pendingMoveIntoVault.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { viewModel.resolveLocalMoveIntoVault(false) },
+            title = { Text(stringResource(R.string.onlyfiles_move_into_vault)) },
+            text = { Text(stringResource(R.string.onlyfiles_move_into_vault_confirm)) },
+            confirmButton = {
+                Button(onClick = { viewModel.resolveLocalMoveIntoVault(true) }) {
+                    Text(stringResource(R.string.onlyfiles_move_into_vault))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.resolveLocalMoveIntoVault(false) }) {
+                    Text(stringResource(R.string.onlyfiles_cancel))
+                }
+            }
+        )
+    }
     openAsNode?.let { node ->
         OpenAsDialog(
             onSelect = { type ->

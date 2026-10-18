@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.2.8 | **Last Updated:** 2026-11-04
+**Version:** 2.2.9 | **Last Updated:** 2026-11-04
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -761,8 +761,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 228 |
-| **Version Name** | `2.2.8` |
+| **Version Code** | 229 |
+| **Version Name** | `2.2.9` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.8.2 |
 | **Gradle JVM** | JDK 21 |
@@ -916,7 +916,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.2.8-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.2.9-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -945,11 +945,11 @@ The normal APK release commands and application ID remain unchanged. To generate
 ./gradlew :app:bundleRelease -Parcile.play=true
 ```
 
-The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.2.8.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
+The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.2.9.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.2.8-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.2.8.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.2.9-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.2.9.apk`
 
 ---
 

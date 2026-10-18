@@ -47,7 +47,13 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         return Result.success(ImportReservation(vaultId, destination, token, repository))
     }
 
-    override fun startImport(reservation: VaultImportReservation, sourceUris: List<String>): Boolean {
+    override fun startImport(reservation: VaultImportReservation, sourceUris: List<String>): Boolean =
+        start(reservation, sourceUris, move = false)
+
+    override fun startMoveImport(reservation: VaultImportReservation, localPaths: List<String>): Boolean =
+        start(reservation, localPaths, move = true)
+
+    private fun start(reservation: VaultImportReservation, sourceUris: List<String>, move: Boolean): Boolean {
         val prepared = reservation as? ImportReservation ?: run {
             reservation.close()
             return false
@@ -69,6 +75,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
             putExtra(VaultImportService.EXTRA_DESTINATION, destination.value)
             putExtra(VaultImportService.EXTRA_RESERVATION_TOKEN, token)
             putStringArrayListExtra(VaultImportService.EXTRA_SOURCE_URIS, ArrayList(sourceUris))
+            putExtra(VaultImportService.EXTRA_MOVE, move)
         }
         return try {
             ContextCompat.startForegroundService(context, intent)
@@ -115,10 +122,11 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         destination: VaultPath,
         sourceUris: List<String>,
         token: String,
+        move: Boolean,
         onNotificationProgress: (VaultImportProgress) -> Unit
     ) {
         val result = try {
-            repository.importUris(token, destination, sourceUris) {
+            repository.importUris(token, destination, sourceUris, move) {
                 completedItems, totalItems, copiedBytes, totalBytes, currentName ->
                 val progress = VaultImportProgress(
                     completedItems = completedItems,

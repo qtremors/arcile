@@ -64,7 +64,8 @@ internal class DefaultVaultExternalAccessManager @Inject constructor(
             metadata.name,
             metadata.mimeType ?: "application/octet-stream",
             metadata.sizeBytes,
-            expires
+            expires,
+            ref.vaultId
         )
         grants[token] = GrantRecord(public, ref, session)
         updateNotification()
@@ -76,6 +77,10 @@ internal class DefaultVaultExternalAccessManager @Inject constructor(
         return (grants.values.map(GrantRecord::public) + fallbacks.values.map(FallbackRecord::public))
             .sortedBy(VaultExternalGrant::expiresAtMillis)
     }
+
+    override fun activeGrants(vaultId: dev.qtremors.arcile.core.vault.domain.VaultId): List<VaultExternalGrant> =
+        if (vaultId in repository.unlockedVaultIds.value) super<VaultExternalAccessManager>.activeGrants(vaultId)
+        else emptyList()
 
     override suspend fun issuePlaintextFallback(
         ref: VaultNodeRef,
@@ -127,7 +132,8 @@ internal class DefaultVaultExternalAccessManager @Inject constructor(
                 displayName = staged.target.displayName,
                 mimeType = staged.target.mimeType,
                 sizeBytes = staged.target.sizeBytes,
-                expiresAtMillis = streamGrant.expiresAtMillis
+                expiresAtMillis = streamGrant.expiresAtMillis,
+                vaultId = ref.vaultId
             )
             val record = FallbackRecord(public, staged.id)
             fallbacks[token] = record

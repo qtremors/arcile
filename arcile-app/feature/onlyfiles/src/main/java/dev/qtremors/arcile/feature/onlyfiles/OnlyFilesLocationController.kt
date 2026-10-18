@@ -18,7 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-internal enum class OnlyFilesLocationMode { SEARCH_SCOPE, PINNED, ARCHIVE_DESTINATION }
+internal enum class OnlyFilesLocationMode { SEARCH_SCOPE, PINNED, ARCHIVE_DESTINATION, IMPORT_DESTINATION }
 
 internal data class OnlyFilesLocationPickerState(
     val mode: OnlyFilesLocationMode,
@@ -115,6 +115,11 @@ internal class OnlyFilesLocationController(
         val stack = state.value.directoryStack
         if (stack.isEmpty()) return
         loadPicker(OnlyFilesLocationPickerState(OnlyFilesLocationMode.ARCHIVE_DESTINATION, stack))
+    }
+
+    fun openImportDestination() {
+        val root = state.value.directoryStack.firstOrNull() ?: return
+        loadPicker(OnlyFilesLocationPickerState(OnlyFilesLocationMode.IMPORT_DESTINATION, listOf(root)))
     }
 
     fun openPinnedFolders() {

@@ -33,7 +33,14 @@ internal class OnlyFilesImportController(
                     is VaultImportEvent.Failed -> state.update { it.copy(message = event.message) }
                     is VaultImportEvent.Partial -> finish(
                         event.vaultId,
-                        "Imported ${event.result.completed.size}; ${event.result.failed.size} failed"
+                        buildString {
+                            append("Completed: ${event.result.completed.size}")
+                            if (event.result.partial.isNotEmpty()) {
+                                append(". ${event.result.partial.size} copied with originals kept")
+                            }
+                            val failed = event.result.failed.size + event.result.rolledBack.size
+                            if (failed > 0) append(". $failed failed")
+                        }
                     )
                     is VaultImportEvent.Started,
                     is VaultImportEvent.Progress -> Unit
@@ -42,13 +49,13 @@ internal class OnlyFilesImportController(
         }
     }
 
-    fun begin(): Boolean {
+    fun begin(destination: VaultPath? = null): Boolean {
         cancelSelection()
         val snapshot = state.value
         val id = snapshot.selectedVaultId ?: return false
         val prepared = coordinator.prepareImport(
             id,
-            snapshot.currentDirectory?.path ?: VaultPath.Root
+            destination ?: snapshot.currentDirectory?.path ?: VaultPath.Root
         ).getOrElse {
             showError(it)
             return false
@@ -57,14 +64,16 @@ internal class OnlyFilesImportController(
         return true
     }
 
-    fun finishSelection(sourceUris: List<String>) {
+    fun finishSelection(sourceUris: List<String>, move: Boolean = false) {
         val prepared = reservation
         reservation = null
         if (sourceUris.isEmpty() || prepared == null) {
             prepared?.close()
             return
         }
-        if (!coordinator.startImport(prepared, sourceUris)) {
+        val started = if (move) coordinator.startMoveImport(prepared, sourceUris)
+        else coordinator.startImport(prepared, sourceUris)
+        if (!started) {
             prepared.close()
             state.update { it.copy(message = "Another import is already running") }
         }

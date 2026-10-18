@@ -156,6 +156,8 @@ internal fun OnlyFilesMainContent(
         } else if (state.selectedVault == null) {
             VaultList(
                 vaults = state.vaults,
+                pinnedVaults = state.pinnedVaultIds,
+                onPinVault = viewModel::setVaultPinned,
                 imports = state.activeImports,
                 biometricVaultIds = state.biometricVaultIds,
                 onOpen = { if (!viewModel.openVault(it)) onUnlockRequired(it.id) },

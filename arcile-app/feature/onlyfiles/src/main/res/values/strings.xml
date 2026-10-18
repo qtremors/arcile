@@ -1,4 +1,25 @@
 <resources>
+    <string name="onlyfiles_choose_import_vault">Choose a vault</string>
+    <string name="onlyfiles_choose_import_destination">Choose an import folder</string>
+    <string name="onlyfiles_import_here">Import here</string>
+    <string name="onlyfiles_reset_vault_folder_views">Reset vault folder views</string>
+    <string name="onlyfiles_reset_vault_folder_views_message">Remove this vault’s saved folder layouts and sort overrides.</string>
+    <string name="onlyfiles_move_into_vault">Move files into vault</string>
+    <string name="onlyfiles_move_into_vault_confirm">After verifying each encrypted copy, Arcile permanently removes its original from regular storage.</string>
+    <string name="onlyfiles_vault_storage_usage">Vault storage</string>
+    <string name="onlyfiles_vault_storage_unavailable">Storage size unavailable</string>
+    <string name="onlyfiles_vault_storage_bytes">On disk: %1$s</string>
+    <string name="onlyfiles_vault_storage_at_least">On disk: at least %1$s</string>
+    <string name="onlyfiles_vault_storage_folder_sizes">Largest top-level folders by file size</string>
+    <string name="onlyfiles_vault_storage_partial">Measured %1$d of %2$d folders.</string>
+    <string name="onlyfiles_vault_external_access">External access</string>
+    <string name="onlyfiles_vault_no_grants">No active external access for this vault.</string>
+    <string name="onlyfiles_vault_grant_expires">Expires %1$s</string>
+    <string name="onlyfiles_vault_revoke_grant">Revoke</string>
+    <string name="onlyfiles_pin_vault">Pin vault</string>
+    <string name="onlyfiles_unpin_vault">Unpin vault</string>
+    <string name="onlyfiles_pinned_vault">Pinned vault</string>
+    <string name="onlyfiles_vault_actions">Actions for %1$s</string>
     <string name="onlyfiles_workspace_tabs">Workspace tabs</string>
     <string name="onlyfiles_replace_folder">Replace folder</string>
     <string name="onlyfiles_no_storage">No storage locations are available.</string>

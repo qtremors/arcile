@@ -85,7 +85,8 @@ internal abstract class VaultRepositoryFoundation(
 
     protected fun collectObsoleteSubtree(
         session: VaultSessionRecord,
-        root: VaultManifestEntry
+        root: VaultManifestEntry,
+        onDirectory: (DirectoryId) -> Unit = {}
     ): Set<String> {
         if (root.kind == VaultNodeKind.FILE) return setOf(requireNotNull(root.objectId).shardedPath())
         val obsolete = mutableSetOf<String>()
@@ -96,6 +97,7 @@ internal abstract class VaultRepositoryFoundation(
             try {
                 val snapshot = session.readDirectory(directoryId, key)
                 try {
+                    onDirectory(directoryId)
                     obsolete += snapshot.pageObjectIds.map(VaultObjectId::shardedPath)
                     obsolete += VaultDirectoryManifestCodec.rootSlot(directoryId, 0L)
                     obsolete += VaultDirectoryManifestCodec.rootSlot(directoryId, 1L)

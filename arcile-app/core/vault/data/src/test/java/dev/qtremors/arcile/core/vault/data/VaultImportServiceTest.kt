@@ -41,10 +41,25 @@ class VaultImportServiceTest {
     }
 
     @Test
+    fun `only an explicit move request reaches the service as destructive`() {
+        val received = java.util.concurrent.LinkedBlockingQueue<Boolean>()
+        service.executeImport = { _, _, _, _, move, _ -> received.add(move) }
+
+        controller.withIntent(startIntent("copy-vault")).startCommand(0, 1)
+        assertEquals(false, received.poll(2, TimeUnit.SECONDS))
+        val move = startIntent("move-vault").apply {
+            putExtra(VaultImportService.EXTRA_MOVE, true)
+            putStringArrayListExtra(VaultImportService.EXTRA_SOURCE_URIS, arrayListOf("/storage/local/file.txt"))
+        }
+        controller.withIntent(move).startCommand(0, 2)
+        assertEquals(true, received.poll(2, TimeUnit.SECONDS))
+    }
+
+    @Test
     fun `completed import removes its progress notification`() {
         val started = CountDownLatch(1)
         val finish = CountDownLatch(1)
-        service.executeImport = { _, _, _, _, onProgress ->
+        service.executeImport = { _, _, _, _, _, onProgress ->
             onProgress(progress(completedItems = 1, totalItems = 2))
             started.countDown()
             finish.await(2, TimeUnit.SECONDS)
@@ -64,7 +79,7 @@ class VaultImportServiceTest {
         val secondStarted = CountDownLatch(1)
         val finishFirst = CountDownLatch(1)
         val finishSecond = CountDownLatch(1)
-        service.executeImport = { vaultId, _, _, _, onProgress ->
+        service.executeImport = { vaultId, _, _, _, _, onProgress ->
             onProgress(progress(completedItems = 1, totalItems = 2))
             if (vaultId.value == "vault-one") {
                 firstStarted.countDown()
@@ -92,7 +107,7 @@ class VaultImportServiceTest {
         val started = CountDownLatch(1)
         val finish = CountDownLatch(1)
         val progressCallback = AtomicReference<(VaultImportProgress) -> Unit>()
-        service.executeImport = { _, _, _, _, onProgress ->
+        service.executeImport = { _, _, _, _, _, onProgress ->
             progressCallback.set(onProgress)
             onProgress(progress(completedItems = 1, totalItems = 2))
             started.countDown()
@@ -119,7 +134,7 @@ class VaultImportServiceTest {
     @Config(sdk = [35])
     fun `foreground timeout fails imports and removes their notifications`() {
         val started = CountDownLatch(1)
-        service.executeImport = { _, _, _, _, _ ->
+        service.executeImport = { _, _, _, _, _, _ ->
             started.countDown()
             awaitCancellation()
         }

@@ -38,6 +38,7 @@ internal fun NavGraphBuilder.registerMainRoute(
                     )
                     is BrowserDestination.OpenFileWith -> actions.openFileWith(destination.path)
                     is BrowserDestination.OpenFileAs -> actions.openFileAs(destination.path, destination.type)
+                    is BrowserDestination.SendToOnlyFiles -> actions.sendToOnlyFiles(destination.paths)
                     BrowserDestination.ExitToHome -> Unit
                 }
             },

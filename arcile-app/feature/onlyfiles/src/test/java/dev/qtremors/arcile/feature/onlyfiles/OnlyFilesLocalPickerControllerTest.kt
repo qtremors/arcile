@@ -79,6 +79,29 @@ class OnlyFilesLocalPickerControllerTest {
     }
 
     @Test
+    fun `move picker selects files and hands them off for confirmation instead of importing immediately`() = runTest {
+        val fixture = Fixture(this)
+        val folder = FileModel("Folder", "/storage/one/Folder", isDirectory = true)
+        val file = FileModel("note.txt", "/storage/one/note.txt")
+        coEvery { fixture.browser.listFiles("/storage/one") } returns Result.success(listOf(folder, file))
+        fixture.controller.openMoveIn()
+        advanceUntilIdle()
+        fixture.controller.openDirectory("/storage/one")
+        advanceUntilIdle()
+        assertEquals(OnlyFilesLocalPickerMode.MOVE_FILES_IN, fixture.picker.mode)
+
+        fixture.controller.toggleFile(folder.reference)
+        assertFalse(fixture.picker.canChoose)
+        fixture.controller.toggleFile(file.reference)
+        fixture.controller.choose()
+
+        assertEquals(listOf(listOf(file.reference)), fixture.moves)
+        assertTrue(fixture.imports.isEmpty())
+        assertTrue(fixture.exports.isEmpty())
+        assertNull(fixture.state.value.localPicker)
+    }
+
+    @Test
     fun `a folder selection cannot be confirmed while destination validation is pending`() = runTest {
         val fixture = Fixture(this)
         val pending = CompletableDeferred<Result<List<SaveDestinationDirectory>>>()
@@ -102,6 +125,7 @@ class OnlyFilesLocalPickerControllerTest {
         val picker get() = requireNotNull(state.value.localPicker)
         val imports = mutableListOf<List<String>>()
         val exports = mutableListOf<Pair<String, Boolean>>()
+        val moves = mutableListOf<List<String>>()
         val browser = mockk<FileBrowserRepository>()
         private val roots = listOf(
             SaveDestinationDirectory("/storage/one", "Storage one", canSave = true),
@@ -119,7 +143,7 @@ class OnlyFilesLocalPickerControllerTest {
         }
         val controller = OnlyFilesLocalPickerController(
             browser, destinations, volumes, state, scope,
-            { throw it }, { imports += it }, { _, path, move -> exports += path to move }
+            { throw it }, { imports += it }, { _, path, move -> exports += path to move }, { moves += it }
         )
     }
 }

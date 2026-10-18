@@ -14,6 +14,8 @@ interface VaultFileSystem : VaultArchiveOperations {
         Result.failure(VaultFailure.Unavailable("Folder totals are unavailable"))
     suspend fun selectionTotals(refs: List<VaultNodeRef>): Result<VaultFolderTotals> =
         Result.failure(VaultFailure.Unavailable("Selection totals are unavailable"))
+    suspend fun storageUsage(vaultId: VaultId): Result<VaultStorageUsage> =
+        Result.failure(VaultFailure.Unavailable("Vault storage usage is unavailable"))
 
     suspend fun search(
         vaultId: VaultId,
@@ -62,6 +64,8 @@ interface VaultFileSystem : VaultArchiveOperations {
         content: ByteArray
     ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("File editing is unavailable"))
     suspend fun deletePermanently(ref: VaultNodeRef): Result<Unit>
+    suspend fun deleteAndReportFolders(ref: VaultNodeRef): Result<Set<DirectoryId>> =
+        deletePermanently(ref).map { setOfNotNull(ref.directoryId) }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader>
 }
 
@@ -73,6 +77,16 @@ const val VAULT_SELECT_ROWS_LIMIT = 5_000
 data class VaultDirectoryLocation(val id: DirectoryId, val name: String)
 
 data class VaultFolderTotals(val fileCount: Long, val totalBytes: Long, val folderCount: Int = 0)
+
+data class VaultFolderUsage(val id: DirectoryId, val name: String, val totalBytes: Long)
+
+data class VaultStorageUsage(
+    val storedBytes: Long?,
+    val storedBytesPartial: Boolean,
+    val largestFolders: List<VaultFolderUsage>,
+    val folderCount: Int,
+    val foldersMeasured: Int
+)
 
 data class VaultSearchHit(
     val metadata: VaultNodeMetadata,

@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
+import androidx.compose.material.icons.filled.Lock
 import dev.qtremors.arcile.core.ui.dialogs.OpenAsDialog
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.R
@@ -205,6 +206,7 @@ internal fun BrowserSelectionToolbar(
                     selectionIntents.onShareSelected,
                     selectionIntents.onOpenSelectedWith,
                     selectionIntents.onOpenSelectedAs,
+                    selectionIntents.onSendToOnlyFiles,
                     state.selectedFiles,
                     isArchiveSelection
                 ) {
@@ -216,6 +218,18 @@ internal fun BrowserSelectionToolbar(
                                 onClick = {
                                     showSelectionMenu = false
                                     dialogVisibility.showCreateArchiveDialog = true
+                                }
+                            )
+                        }
+                        if (!isArchiveSelection && state.selectedFiles.isNotEmpty() &&
+                            state.selectedFiles.all { it.startsWith('/') }
+                        ) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.send_to_onlyfiles)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    selectionIntents.onSendToOnlyFiles(state.selectedFiles.toList())
                                 }
                             )
                         }

@@ -86,6 +86,60 @@ class VaultSecurityPreferencesTest {
     }
 
     @Test
+    fun `vault pins and folder preference cleanup remain isolated by vault ID`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        val preferences = DefaultVaultSecurityPreferences(context, scope)
+        val first = VaultId.of("cleanup")
+        val second = VaultId.of("cleanup-sibling")
+        val folder = DirectoryId.of("same-folder-id")
+        val retained = DirectoryId.of("retained")
+        val layout = VaultFolderViewOptions(VaultViewOptions(grid = true), applyToSubfolders = true)
+        try {
+            for (vault in listOf(first, second)) {
+                preferences.setVaultPinned(vault, true)
+                preferences.setFolderViewOptions(vault, folder, layout)
+                preferences.setFolderViewOptions(vault, retained, layout)
+                preferences.setDirectoryPinned(vault, folder, true)
+                preferences.setLastDirectory(vault, folder)
+                preferences.setPinnedWorkspaceTabs(vault, listOf(folder, retained, folder))
+            }
+            val persisted = DefaultVaultSecurityPreferences(context, scope)
+            val initialized = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { persisted.settings.first { first in it.pinnedWorkspaceTabs && second in it.pinnedWorkspaceTabs } }
+            }
+            assertTrue(initialized.pinnedVaults.containsAll(setOf(first, second)))
+            preferences.removeDirectoryPreferences(first, setOf(folder))
+            val cleaned = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { persisted.settings.first { it.pinnedWorkspaceTabs[first] == listOf(retained) } }
+            }
+            assertFalse(vaultFolderViewKey(first, folder) in cleaned.folderViewOptions)
+            assertEquals(layout, cleaned.folderViewOptions[vaultFolderViewKey(first, retained)])
+            assertEquals(layout, cleaned.folderViewOptions[vaultFolderViewKey(second, folder)])
+            assertFalse(first in cleaned.lastDirectories)
+            assertEquals(folder, cleaned.lastDirectories[second])
+            assertTrue(cleaned.pinnedDirectories[first].isNullOrEmpty())
+            assertEquals(setOf(folder), cleaned.pinnedDirectories[second])
+
+            preferences.resetVaultFolderViews(second)
+            val reset = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { persisted.settings.first { vaultFolderViewKey(second, retained) !in it.folderViewOptions } }
+            }
+            assertEquals(layout, reset.folderViewOptions[vaultFolderViewKey(first, retained)])
+            assertEquals(listOf(folder, retained, folder), reset.pinnedWorkspaceTabs[second])
+            preferences.removeVaultPreferences(first)
+            val removed = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { persisted.settings.first { first !in it.pinnedVaults } }
+            }
+            assertFalse(first in removed.pinnedWorkspaceTabs)
+            assertFalse(vaultFolderViewKey(first, retained) in removed.folderViewOptions)
+            assertTrue(second in removed.pinnedVaults)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `workspace settings store ordered opaque IDs independently for each vault`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))

@@ -341,6 +341,98 @@ class DefaultVaultRepositoryTest {
     }
 
     @Test
+    fun `vault management moves a verified local file and leaves unsupported sources in place`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        val temporary = java.nio.file.Files.createTempDirectory("vault-move").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Moves", "password".toCharArray()).getOrThrow()
+            val original = temporary.resolve("note.txt").also { it.writeText("verify this content") }
+            val directory = temporary.resolve("Folder").also { assertTrue(it.mkdir()) }
+            val directoryChild = directory.resolve("keep.txt").also { it.writeText("keep this") }
+            val token = requireNotNull(repository.reserveImport(vault))
+
+            val result = repository.importUris(token, VaultPath.Root, listOf(directory.path, original.path), move = true) {
+                _, _, _, _, _ -> Unit
+            }.getOrThrow()
+
+            assertEquals(1, result.completed.size)
+            assertEquals(1, result.rolledBack.size)
+            assertFalse(original.exists())
+            assertEquals("keep this", directoryChild.readText())
+            val node = repository.listDirectory(vault, VaultSessionRecord.ROOT_DIRECTORY_ID).getOrThrow().items.single()
+            assertEquals("note.txt", node.name)
+            val contents = ByteArray(node.sizeBytes.toInt())
+            repository.openReader(node.ref).getOrThrow().use {
+                assertEquals(contents.size, it.readAt(0, contents, 0, contents.size))
+            }
+            assertEquals("verify this content", contents.decodeToString())
+
+            val changed = temporary.resolve("changed.txt").also { it.writeText("keep the local original") }
+            val oldModifiedAt = java.nio.file.Files.getLastModifiedTime(changed.toPath())
+            var touched = false
+            val secondToken = requireNotNull(repository.reserveImport(vault))
+            val partiallyMoved = repository.importUris(
+                secondToken, VaultPath.Root, listOf(changed.path), move = true
+            ) { completed, _, bytes, _, _ ->
+                if (completed == 0 && bytes > 0L && !touched) {
+                    java.nio.file.Files.setLastModifiedTime(
+                        changed.toPath(),
+                        java.nio.file.attribute.FileTime.fromMillis(oldModifiedAt.toMillis() - 60_000L)
+                    )
+                    touched = true
+                }
+            }.getOrThrow()
+            assertTrue(touched)
+            assertEquals(1, partiallyMoved.partial.size)
+            assertTrue(partiallyMoved.partial.single().failure is VaultFailure.SourceChanged)
+            assertEquals("keep the local original", changed.readText())
+            assertEquals(setOf("note.txt", "changed.txt"), repository.listDirectory(vault, VaultSessionRecord.ROOT_DIRECTORY_ID)
+                .getOrThrow().items.map { it.name }.toSet())
+        } finally {
+            temporary.deleteRecursively()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault management reports stored bytes and only returns folder IDs after deletion`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Usage", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val large = repository.createDirectory(vault, root, "Larger").getOrThrow()
+            val small = repository.createDirectory(vault, root, "Smaller").getOrThrow()
+            val largeId = requireNotNull(large.ref.directoryId)
+            val child = repository.createDirectory(vault, largeId, "Nested").getOrThrow()
+            val childId = requireNotNull(child.ref.directoryId)
+            repository.createSyntheticFile(vault, childId, "child.bin", 13).getOrThrow()
+            repository.createSyntheticFile(vault, largeId, "file.bin", 7).getOrThrow()
+            repository.createSyntheticFile(vault, requireNotNull(small.ref.directoryId), "small.bin", 3).getOrThrow()
+
+            val usage = repository.storageUsage(vault).getOrThrow()
+            assertTrue(requireNotNull(usage.storedBytes) > 23L)
+            assertFalse(usage.storedBytesPartial)
+            assertEquals(2, usage.foldersMeasured)
+            assertEquals(listOf("Larger" to 20L, "Smaller" to 3L), usage.largestFolders.map { it.name to it.totalBytes })
+            assertEquals(setOf(largeId, childId), repository.deleteAndReportFolders(large.ref).getOrThrow())
+            assertTrue(repository.deleteAndReportFolders(large.ref).isFailure)
+            assertEquals(listOf("Smaller"), repository.storageUsage(vault).getOrThrow().largestFolders.map { it.name })
+            repository.lock(vault)
+            assertTrue(repository.storageUsage(vault).exceptionOrNull() is VaultFailure.Locked)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `vault ZIP output and extracted folders publish only after their data is complete`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val scope = CoroutineScope(SupervisorJob() + dispatcher)

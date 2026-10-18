@@ -7,6 +7,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -40,9 +42,54 @@ class OnlyFilesAdministrationControllerTest {
         assertFalse(vaultId in state.value.biometricVaultIds)
     }
 
+    @Test
+    fun `permanently deleting a vault requests cleanup for that vault only`() = runTest {
+        val removed = VaultId.of("delete-me")
+        val other = VaultId.of("keep-me")
+        val state = MutableStateFlow(OnlyFilesUiState(
+            selectedVaultId = removed,
+            pinnedVaultIds = setOf(removed, other),
+            searchQuery = "private search"
+        ))
+        val cleaned = mutableListOf<VaultId>()
+        val controller = controller(state, TestSessions(enrolled = false)) { id ->
+            cleaned += id
+            state.value = state.value.copy(
+                searchQuery = "",
+                pinnedVaultIds = state.value.pinnedVaultIds - id
+            )
+        }
+
+        controller.deleteVault("delete-me")
+        advanceUntilIdle()
+
+        assertEquals(listOf(removed), cleaned)
+        assertNull(state.value.selectedVaultId)
+        assertEquals("", state.value.searchQuery)
+        assertEquals(setOf(other), state.value.pinnedVaultIds)
+    }
+
+    @Test
+    fun `finishing vault removal does not clear a different vault opened during cleanup`() = runTest {
+        val removed = VaultId.of("old")
+        val next = VaultId.of("new")
+        val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = removed))
+        val controller = controller(state, TestSessions(enrolled = false)) { id ->
+            assertEquals(removed, id)
+            state.value = state.value.copy(selectedVaultId = next, searchQuery = "current")
+        }
+
+        controller.removeRegistration()
+        advanceUntilIdle()
+
+        assertEquals(next, state.value.selectedVaultId)
+        assertEquals("current", state.value.searchQuery)
+    }
+
     private fun kotlinx.coroutines.CoroutineScope.controller(
         state: MutableStateFlow<OnlyFilesUiState>,
-        sessions: TestSessions
+        sessions: TestSessions,
+        onVaultRemoved: suspend (VaultId) -> Unit = {}
     ) = OnlyFilesAdministrationController(
         catalog = TestCatalog,
         sessions = sessions,
@@ -50,7 +97,8 @@ class OnlyFilesAdministrationControllerTest {
         scope = this,
         runBusy = { block -> launch { block() } },
         showError = { throw AssertionError(it) },
-        selectVault = {}
+        selectVault = {},
+        onVaultRemoved = onVaultRemoved
     )
 
     private class TestSessions(var enrolled: Boolean) : VaultSessionManager {

@@ -37,7 +37,8 @@ internal fun OnlyFilesLocationSheet(
 ) {
     val pickingScope = picker.mode == OnlyFilesLocationMode.SEARCH_SCOPE
     val pickingDestination = picker.mode == OnlyFilesLocationMode.ARCHIVE_DESTINATION
-    val browsingFolders = pickingScope || pickingDestination
+    val importing = picker.mode == OnlyFilesLocationMode.IMPORT_DESTINATION
+    val browsingFolders = pickingScope || pickingDestination || importing
     ArcileActionSheet(onDismissRequest = viewModel::closeLocationPicker) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -47,6 +48,7 @@ internal fun OnlyFilesLocationSheet(
                 stringResource(when (picker.mode) {
                     OnlyFilesLocationMode.SEARCH_SCOPE -> R.string.onlyfiles_search_scope
                     OnlyFilesLocationMode.ARCHIVE_DESTINATION -> R.string.onlyfiles_choose_destination
+                    OnlyFilesLocationMode.IMPORT_DESTINATION -> R.string.onlyfiles_choose_import_destination
                     OnlyFilesLocationMode.PINNED -> R.string.onlyfiles_pinned_folders
                 }),
                 style = MaterialTheme.typography.titleLarge
@@ -93,6 +95,9 @@ internal fun OnlyFilesLocationSheet(
             }
             if (pickingDestination) Button(onClick = viewModel::chooseArchiveDestination, enabled = !picker.loading) {
                 Text(stringResource(R.string.onlyfiles_extract_here))
+            }
+            if (importing) Button(onClick = viewModel::chooseBrowserImportDestination, enabled = !picker.loading && !picker.failed) {
+                Text(stringResource(R.string.onlyfiles_import_here))
             }
         }
     }

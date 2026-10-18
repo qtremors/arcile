@@ -9,7 +9,8 @@ data class VaultSecuritySettings(
     val lastDirectories: Map<VaultId, DirectoryId> = emptyMap(),
     val pinnedDirectories: Map<VaultId, Set<DirectoryId>> = emptyMap(),
     val workspaceTabsEnabled: Boolean = false,
-    val pinnedWorkspaceTabs: Map<VaultId, List<DirectoryId>> = emptyMap()
+    val pinnedWorkspaceTabs: Map<VaultId, List<DirectoryId>> = emptyMap(),
+    val pinnedVaults: Set<VaultId> = emptySet()
 )
 
 const val VAULT_MAX_WORKSPACE_TABS = 8
@@ -44,6 +45,10 @@ interface VaultSecurityPreferences {
     suspend fun resetFolderViewOptions(vaultId: VaultId, directoryId: DirectoryId)
     suspend fun setWorkspaceTabsEnabled(enabled: Boolean)
     suspend fun setPinnedWorkspaceTabs(vaultId: VaultId, directories: List<DirectoryId>)
+    suspend fun setVaultPinned(vaultId: VaultId, pinned: Boolean)
+    suspend fun resetVaultFolderViews(vaultId: VaultId)
+    suspend fun removeDirectoryPreferences(vaultId: VaultId, deleted: Set<DirectoryId>)
+    suspend fun removeVaultPreferences(vaultId: VaultId)
 }
 
 data class VaultThumbnailCacheStats(val encryptedFileCount: Int, val encryptedBytes: Long)

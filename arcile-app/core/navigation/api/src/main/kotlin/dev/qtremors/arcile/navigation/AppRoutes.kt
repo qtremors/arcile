@@ -43,7 +43,8 @@ object AppRoutes {
     @Serializable data class OnlyFiles(
         val vaultId: String? = null,
         val directoryId: String? = null,
-        val focusNodeId: String? = null
+        val focusNodeId: String? = null,
+        val importRequestId: String? = null
     )
     @Serializable object Settings
     @Serializable object Plugins

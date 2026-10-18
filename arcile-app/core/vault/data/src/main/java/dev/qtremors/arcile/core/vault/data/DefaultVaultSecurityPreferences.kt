@@ -74,7 +74,10 @@ class DefaultVaultSecurityPreferences @Inject constructor(
                     ?.mapNotNull(::decodeDirectory)?.take(VAULT_MAX_WORKSPACE_TABS - 1)
                     ?: return@mapNotNull null
                 vault to ids
-            }.toMap()
+            }.toMap(),
+            pinnedVaults = preferences[PINNED_VAULTS].orEmpty().mapNotNullTo(mutableSetOf()) {
+                runCatching { VaultId.of(it) }.getOrNull()
+            }
         )
     }.stateIn(scope, SharingStarted.Eagerly, VaultSecuritySettings())
 
@@ -126,6 +129,51 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         store.edit { it[WORKSPACE_TABS_ENABLED] = enabled }
     }
 
+    override suspend fun setVaultPinned(vaultId: VaultId, pinned: Boolean) {
+        store.edit {
+            val current = it[PINNED_VAULTS].orEmpty()
+            val updated = if (pinned) current + vaultId.value else current - vaultId.value
+            if (updated.isEmpty()) it.remove(PINNED_VAULTS) else it[PINNED_VAULTS] = updated
+        }
+    }
+
+    override suspend fun resetVaultFolderViews(vaultId: VaultId) {
+        store.edit { preferences ->
+            val prefix = FOLDER_PREFIX + vaultId.value + "/"
+            preferences.asMap().keys.filter { it.name.startsWith(prefix) }.forEach { preferences.remove(it) }
+        }
+    }
+
+    override suspend fun removeDirectoryPreferences(vaultId: VaultId, deleted: Set<DirectoryId>) {
+        if (deleted.isEmpty()) return
+        val values = deleted.mapTo(mutableSetOf()) { it.value }
+        store.edit { preferences ->
+            deleted.forEach {
+                preferences.remove(stringPreferencesKey(FOLDER_PREFIX + vaultFolderViewKey(vaultId, it)))
+            }
+            val last = stringPreferencesKey(LAST_DIRECTORY_PREFIX + vaultId.value)
+            if (preferences[last] in values) preferences.remove(last)
+            val pins = stringSetPreferencesKey(PINNED_DIRECTORIES_PREFIX + vaultId.value)
+            val remainingPins = preferences[pins].orEmpty() - values
+            if (remainingPins.isEmpty()) preferences.remove(pins) else preferences[pins] = remainingPins
+            val workspace = stringPreferencesKey(PINNED_WORKSPACE_PREFIX + vaultId.value)
+            val remainingTabs = preferences[workspace]?.split('/')?.filterNot { it in values }.orEmpty()
+            if (remainingTabs.isEmpty()) preferences.remove(workspace) else preferences[workspace] = remainingTabs.joinToString("/")
+        }
+    }
+
+    override suspend fun removeVaultPreferences(vaultId: VaultId) {
+        store.edit { preferences ->
+            val prefix = FOLDER_PREFIX + vaultId.value + "/"
+            preferences.asMap().keys.filter { it.name.startsWith(prefix) }.forEach { preferences.remove(it) }
+            preferences.remove(stringPreferencesKey(LAST_DIRECTORY_PREFIX + vaultId.value))
+            preferences.remove(stringPreferencesKey(PINNED_WORKSPACE_PREFIX + vaultId.value))
+            preferences.remove(stringSetPreferencesKey(PINNED_DIRECTORIES_PREFIX + vaultId.value))
+            val pins = preferences[PINNED_VAULTS].orEmpty() - vaultId.value
+            if (pins.isEmpty()) preferences.remove(PINNED_VAULTS) else preferences[PINNED_VAULTS] = pins
+        }
+    }
+
     override suspend fun setPinnedWorkspaceTabs(vaultId: VaultId, directories: List<DirectoryId>) {
         require(directories.size < VAULT_MAX_WORKSPACE_TABS)
         val key = stringPreferencesKey(PINNED_WORKSPACE_PREFIX + vaultId.value)
@@ -172,6 +220,7 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         const val PINNED_DIRECTORIES_PREFIX = "browse_pinned_directories/"
         const val PINNED_WORKSPACE_PREFIX = "browse_pinned_workspace/"
         val WORKSPACE_TABS_ENABLED = booleanPreferencesKey("browse_workspace_enabled")
+        val PINNED_VAULTS = stringSetPreferencesKey("browse_pinned_vaults")
         val LIST_ZOOM = floatPreferencesKey("browse_list_zoom")
         val GRID_SIZE = floatPreferencesKey("browse_grid_size")
     }

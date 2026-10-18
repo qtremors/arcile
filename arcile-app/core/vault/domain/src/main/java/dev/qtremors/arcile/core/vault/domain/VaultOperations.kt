@@ -213,7 +213,8 @@ data class VaultExternalGrant(
     val displayName: String,
     val mimeType: String,
     val sizeBytes: Long,
-    val expiresAtMillis: Long
+    val expiresAtMillis: Long,
+    val vaultId: VaultId? = null
 )
 
 data class VaultGrantedContent(
@@ -230,6 +231,7 @@ interface VaultExternalAccessManager {
         lifetimeMillis: Long = 10 * 60 * 1000L
     ): Result<VaultExternalGrant>
     fun activeGrants(): List<VaultExternalGrant>
+    fun activeGrants(vaultId: VaultId): List<VaultExternalGrant> = activeGrants().filter { it.vaultId == vaultId }
     fun revoke(token: String): Boolean
     fun revokeAll()
     fun describe(token: String): Result<VaultExternalGrant>

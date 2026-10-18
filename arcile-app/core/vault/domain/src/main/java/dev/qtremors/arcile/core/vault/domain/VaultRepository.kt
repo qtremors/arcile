@@ -42,5 +42,6 @@ interface VaultImportCoordinator {
         destination: VaultPath
     ): Result<VaultImportReservation>
     fun startImport(reservation: VaultImportReservation, sourceUris: List<String>): Boolean
+    fun startMoveImport(reservation: VaultImportReservation, localPaths: List<String>): Boolean = false
     fun cancelImport(vaultId: VaultId)
 }

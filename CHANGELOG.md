@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.8
+> **Version:** 2.2.9
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.2.9] - 2026-11-04
+
+### Changed
+- Pin vaults to keep them at the top of the OnlyFiles list.
+- Send local Browser selections to an unlocked vault folder, or move local files from OnlyFiles after verifying their encrypted copies.
+- See vault storage use and revoke individual external access grants from the vault menu.
+- Reset a vault’s folder views together. Permanently deleting folders clears their saved layouts and shortcuts.
 
 ## [2.2.8] - 2026-11-04
 

@@ -42,9 +42,11 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
         popEnterTransition = popEnterTransition,
         popExitTransition = popExitTransition
     ) { backStack ->
+        val route = backStack.toRoute<AppRoutes.OnlyFiles>()
         OnlyFilesRoute(
             getFileOpenBehaviors = getFileOpenBehaviors,
-            entry = backStack.toRoute<AppRoutes.OnlyFiles>().toVaultEntry(),
+            entry = route.toVaultEntry(),
+            importRequestId = route.importRequestId,
             onNavigateBack = onNavigateBack,
             onPlayVideo = onPlayVideo
         )

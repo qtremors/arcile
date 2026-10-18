@@ -90,6 +90,7 @@ sealed interface BrowserDestination {
     ) : BrowserDestination
     data class OpenFileWith(val path: String) : BrowserDestination
     data class OpenFileAs(val path: String, val type: FileOpenAsType) : BrowserDestination
+    data class SendToOnlyFiles(val paths: List<String>) : BrowserDestination
 }
 
 data class BrowserWorkspaceOptions(
@@ -290,6 +291,7 @@ fun BrowserRoute(
             onOpenSelectedAs = { path, type ->
                 onDestination(BrowserDestination.OpenFileAs(path, type))
             },
+            onSendToOnlyFiles = { paths -> onDestination(BrowserDestination.SendToOnlyFiles(paths)) },
             onOpenProperties = viewModel::openPropertiesForSelection,
             onDismissProperties = viewModel::dismissProperties,
             onInvertSelection = viewModel::invertSelection,

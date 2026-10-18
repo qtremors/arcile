@@ -36,9 +36,9 @@ class VaultImportService : Service() {
     private var foregroundVaultId: String? = null
     private var latestStartId = 0
     internal var executeImport:
-        suspend (VaultId, VaultPath, List<String>, String, (VaultImportProgress) -> Unit) -> Unit =
-        { vaultId, destination, sourceUris, token, onProgress ->
-            coordinator.execute(vaultId, destination, sourceUris, token, onProgress)
+        suspend (VaultId, VaultPath, List<String>, String, Boolean, (VaultImportProgress) -> Unit) -> Unit =
+        { vaultId, destination, sourceUris, token, move, onProgress ->
+            coordinator.execute(vaultId, destination, sourceUris, token, move, onProgress)
         }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -77,12 +77,13 @@ class VaultImportService : Service() {
         val destination = VaultPath.of(intent.getStringExtra(EXTRA_DESTINATION).orEmpty())
         val token = intent.getStringExtra(EXTRA_RESERVATION_TOKEN) ?: return finishRejectedStart(startId, vaultId)
         val sourceUris = intent.getStringArrayListExtra(EXTRA_SOURCE_URIS)?.toList().orEmpty()
+        val move = intent.getBooleanExtra(EXTRA_MOVE, false)
         val notificationId = notificationId(vaultId)
         val initialNotification = buildNotification(vaultId, null)
         lateinit var importJob: Job
         importJob = serviceScope.launch(start = CoroutineStart.LAZY) {
             try {
-                executeImport(vaultId, destination, sourceUris, token) { progress ->
+                executeImport(vaultId, destination, sourceUris, token, move) { progress ->
                     updateImportNotification(vaultId, importJob, progress)
                 }
             } finally {
@@ -288,6 +289,7 @@ class VaultImportService : Service() {
         const val EXTRA_DESTINATION = "vault_destination"
         const val EXTRA_RESERVATION_TOKEN = "vault_import_token"
         const val EXTRA_SOURCE_URIS = "vault_source_uris"
+        const val EXTRA_MOVE = "vault_import_move"
         private const val CHANNEL_ID = "onlyfiles_imports"
         private const val PREFS_NOTIFICATIONS = "onlyfiles_import_notifications"
         private const val PREF_ACTIVE_VAULT_IDS = "active_vault_ids"

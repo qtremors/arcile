@@ -18,13 +18,15 @@ internal class OnlyFilesLocalPickerController(
     private val scope: CoroutineScope,
     private val showError: (Throwable) -> Unit,
     private val import: (List<String>) -> Unit,
-    private val export: (List<VaultNodeMetadata>, String, Boolean) -> Unit
+    private val export: (List<VaultNodeMetadata>, String, Boolean) -> Unit,
+    private val moveIn: (List<String>) -> Unit = {}
 ) {
     private var volumes = emptyList<StorageVolume>()
     private var exportNodes = emptyList<VaultNodeMetadata>()
     private var request: Job? = null
 
     fun openImportFiles() = open(OnlyFilesLocalPickerMode.IMPORT_FILES)
+    fun openMoveIn() = open(OnlyFilesLocalPickerMode.MOVE_FILES_IN)
     fun openImportFolder() = open(OnlyFilesLocalPickerMode.IMPORT_FOLDER)
     fun openExport(nodes: List<VaultNodeMetadata>, move: Boolean) {
         exportNodes = nodes
@@ -34,7 +36,7 @@ internal class OnlyFilesLocalPickerController(
     fun openDirectory(path: String) = load(path)
     fun toggleFile(path: String) = state.update { current ->
         val picker = current.localPicker ?: return@update current
-        if (picker.isLoading || picker.mode != OnlyFilesLocalPickerMode.IMPORT_FILES ||
+        if (picker.isLoading || !picker.mode.selectsFiles ||
             picker.entries.none { it.reference == path && !it.isDirectory }
         ) return@update current
         val selected = picker.selectedPaths.toMutableSet()
@@ -49,6 +51,7 @@ internal class OnlyFilesLocalPickerController(
         state.update { it.copy(localPicker = null) }
         when (picker.mode) {
             OnlyFilesLocalPickerMode.IMPORT_FILES -> import(picker.selectedPaths.toList())
+            OnlyFilesLocalPickerMode.MOVE_FILES_IN -> moveIn(picker.selectedPaths.toList())
             OnlyFilesLocalPickerMode.IMPORT_FOLDER -> picker.current?.path?.let { import(listOf(it)) }
             OnlyFilesLocalPickerMode.EXPORT,
             OnlyFilesLocalPickerMode.MOVE_OUT -> picker.current?.path?.let {
@@ -115,7 +118,7 @@ internal class OnlyFilesLocalPickerController(
             state.update { it.copy(localPicker = previous.copy(isLoading = false)) }
             return
         }
-        val entriesResult = if (previous.mode == OnlyFilesLocalPickerMode.IMPORT_FILES) {
+        val entriesResult = if (previous.mode.selectsFiles) {
             browser.listFiles(current.path)
         } else {
             destinations.children(current.path, volumes).map { children ->

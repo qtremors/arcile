@@ -23,7 +23,8 @@ internal class OnlyFilesBrowserController(
     private val state: MutableStateFlow<OnlyFilesUiState>,
     private val scope: CoroutineScope,
     private val showError: (Throwable) -> Unit,
-    private val runBusy: ((suspend () -> Unit) -> Unit)
+    private val runBusy: ((suspend () -> Unit) -> Unit),
+    private val onFoldersDeleted: suspend (VaultId, Set<dev.qtremors.arcile.core.vault.domain.DirectoryId>) -> Unit = { _, _ -> }
 ) {
     private var searchJob: Job? = null
     private var directoryJob: Job? = null
@@ -219,6 +220,7 @@ internal class OnlyFilesBrowserController(
         val mountGeneration = state.value.mountGeneration
         val distinctNodes = nodes.distinctBy { it.ref.nodeId }
         val deletedIds = mutableSetOf<String>()
+        val deletedFolders = mutableMapOf<VaultId, MutableSet<dev.qtremors.arcile.core.vault.domain.DirectoryId>>()
         var failed = 0
         state.update {
             it.copy(
@@ -235,7 +237,13 @@ internal class OnlyFilesBrowserController(
                     )
                 )
             }
-            fileSystem.deletePermanently(node.ref).fold({ deletedIds += node.ref.nodeId.value }, { failed++ })
+            fileSystem.deleteAndReportFolders(node.ref).fold(
+                onSuccess = { folders ->
+                    deletedIds += node.ref.nodeId.value
+                    if (folders.isNotEmpty()) deletedFolders.getOrPut(node.ref.vaultId) { mutableSetOf() }.addAll(folders)
+                },
+                onFailure = { failed++ }
+            )
             state.update {
                 if (it.mountGeneration != mountGeneration) it else it.copy(
                     batchProgress = OnlyFilesBatchProgress(
@@ -246,6 +254,7 @@ internal class OnlyFilesBrowserController(
                 )
             }
         }
+        for ((vault, folders) in deletedFolders) onFoldersDeleted(vault, folders)
         val completed = deletedIds.size
         state.update {
             if (it.mountGeneration != mountGeneration) it else it.copy(

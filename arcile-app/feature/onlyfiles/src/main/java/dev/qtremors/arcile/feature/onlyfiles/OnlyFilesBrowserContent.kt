@@ -1,5 +1,10 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material3.IconButton
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -395,14 +400,18 @@ internal fun VaultNodeMetadata.toSharedFileModel(): FileModel {
 @Composable
 internal fun VaultList(
     vaults: List<VaultSummary>,
+    pinnedVaults: Set<VaultId>,
+    onPinVault: (VaultId, Boolean) -> Unit,
     imports: Map<VaultId, VaultImportState>,
     biometricVaultIds: Set<VaultId>,
     onOpen: (VaultSummary) -> Unit,
     onUnlockBiometric: (VaultSummary) -> Unit,
     onCancelImport: (VaultId) -> Unit
 ) {
+    val ordered = remember(vaults, pinnedVaults) { vaults.sortedByDescending { it.id in pinnedVaults } }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(vaults, key = { it.id.value }) { vault ->
+        items(ordered, key = { it.id.value }) { vault ->
+            val pinned = vault.id in pinnedVaults
             Surface(
                 modifier = Modifier.fillMaxWidth().bounceClickable { onOpen(vault) },
                 shape = MaterialTheme.shapes.storageCard,
@@ -439,6 +448,10 @@ internal fun VaultList(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                        if (pinned) Icon(
+                            Icons.Default.PushPin, stringResource(R.string.onlyfiles_pinned_vault),
+                            Modifier.size(16.dp)
+                        )
                         if (biometricEnrolled && !vault.isUnlocked) {
                             Box(
                                 modifier = Modifier
@@ -456,6 +469,7 @@ internal fun VaultList(
                                 )
                             }
                         }
+                        VaultCardMenu(vault, pinned, onPinVault)
                     }
                     imports[vault.id]?.let { import ->
                         Spacer(Modifier.height(12.dp))
@@ -477,5 +491,25 @@ internal fun VaultList(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VaultCardMenu(vault: VaultSummary, pinned: Boolean, onPinVault: (VaultId, Boolean) -> Unit) {
+    val expanded = remember(vault.id) { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded.value = true }) {
+            Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_vault_actions, vault.name))
+        }
+        ArcileDropdownMenu(expanded.value, onDismissRequest = { expanded.value = false }, items = listOf({
+            ArcileDropdownMenuItem(
+                text = { Text(stringResource(if (pinned) R.string.onlyfiles_unpin_vault else R.string.onlyfiles_pin_vault)) },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                onClick = {
+                    expanded.value = false
+                    onPinVault(vault.id, !pinned)
+                }
+            )
+        }))
     }
 }

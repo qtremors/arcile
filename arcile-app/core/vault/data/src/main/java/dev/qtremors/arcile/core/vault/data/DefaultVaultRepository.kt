@@ -5,10 +5,14 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
+import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
 import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
 import dev.qtremors.arcile.core.vault.domain.*
 import java.io.ByteArrayInputStream
 import java.io.OutputStream
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.ArrayDeque
 import java.util.PriorityQueue
 import java.util.UUID
@@ -168,6 +172,58 @@ internal class DefaultVaultRepository @Inject constructor(
     }
 
     private class FolderScanBudget(var directories: Int = 128, var entries: Int = 8192)
+
+    override suspend fun storageUsage(vaultId: VaultId): Result<VaultStorageUsage> = mutate(vaultId) { session ->
+        val coroutine = currentCoroutineContext()
+        val physical = (session.directory as? FileVaultDirectory)?.directory?.toPath()?.let { root ->
+            Files.walk(root).use { stream ->
+                val paths = stream.iterator()
+                var bytes = 0L
+                var visited = 0
+                while (paths.hasNext() && visited < 100_000) {
+                    coroutine.ensureActive()
+                    val attributes = Files.readAttributes(
+                        paths.next(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS
+                    )
+                    if (attributes.isRegularFile) bytes = Math.addExact(bytes, attributes.size())
+                    visited++
+                }
+                bytes to paths.hasNext()
+            }
+        }
+        val root = session.root()
+        try {
+            val snapshot = session.readDirectory(root)
+            try {
+                val folders = snapshot.entries.filter { it.childDirectoryId != null }
+                val budget = FolderScanBudget()
+                val measured = folders.mapNotNull { entry ->
+                    coroutine.ensureActive()
+                    val id = requireNotNull(entry.childDirectoryId)
+                    val bytes = try {
+                        if (budget.directories <= 0 || budget.entries <= 0) null
+                        else scanFolder(session, id, entry.protectedKey, budget).totalBytes
+                    } catch (_: VaultFailure.Unavailable) {
+                        null
+                    }
+                    bytes?.let { VaultFolderUsage(id, entry.name, it) }
+                }
+                VaultStorageUsage(
+                    storedBytes = physical?.first,
+                    storedBytesPartial = physical?.second == true,
+                    largestFolders = measured.sortedWith(
+                        compareByDescending<VaultFolderUsage> { it.totalBytes }.thenBy { it.name }
+                    ).take(10),
+                    folderCount = folders.size,
+                    foldersMeasured = measured.size
+                )
+            } finally {
+                snapshot.clearProtectedKeys()
+            }
+        } finally {
+            root.key.fill(0)
+        }
+    }
 
     override suspend fun selectionTotals(refs: List<VaultNodeRef>): Result<VaultFolderTotals> {
         val vault = refs.firstOrNull()?.vaultId ?: return Result.success(VaultFolderTotals(0, 0))
@@ -609,10 +665,19 @@ internal class DefaultVaultRepository @Inject constructor(
     internal suspend fun deletePermanently(session: VaultSessionRecord, ref: VaultNodeRef) =
         session.mutationMutex.withLock { deleteWithMutationLockHeld(session, ref) }
 
-    internal fun deleteWithMutationLockHeld(session: VaultSessionRecord, ref: VaultNodeRef) {
+    override suspend fun deleteAndReportFolders(ref: VaultNodeRef): Result<Set<DirectoryId>> =
+        mutate(ref.vaultId) { session ->
+            buildSet { deleteWithMutationLockHeld(session, ref) { add(it) } }
+        }
+
+    internal fun deleteWithMutationLockHeld(
+        session: VaultSessionRecord,
+        ref: VaultNodeRef,
+        onDirectory: (DirectoryId) -> Unit = {}
+    ) {
         val (parent, snapshot, existing) = resolveStableEntry(session, ref)
         try {
-            val obsolete = collectObsoleteSubtree(session, existing)
+            val obsolete = collectObsoleteSubtree(session, existing, onDirectory)
             val prepared = directoryCodec.prepare(
                 session.id,
                 parent.id,
@@ -739,6 +804,7 @@ internal class DefaultVaultRepository @Inject constructor(
         token: String,
         destination: VaultPath,
         sourceUris: List<String>,
+        move: Boolean = false,
         onProgress: (Int, Int, Long, Long?, String?) -> Unit
     ): Result<VaultBatchResult> = withContext(dispatchers.io) {
         val operationSession = importReservations[token]
@@ -746,7 +812,12 @@ internal class DefaultVaultRepository @Inject constructor(
                 VaultFailure.ImportUnavailable("Import session expired")
             )
         try {
-            Result.success(importEngine.import(operationSession, destination, sourceUris, onProgress))
+            val protectedRoots = if (move) {
+                (locations.values.mapNotNull { (it.access as? FileVaultDirectory)?.directory } +
+                    listOfNotNull((operationSession.directory as? FileVaultDirectory)?.directory))
+                    .map { it.canonicalFile.toPath() }
+            } else emptyList()
+            Result.success(importEngine.import(operationSession, destination, sourceUris, move, protectedRoots, onProgress))
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             Result.failure(error)

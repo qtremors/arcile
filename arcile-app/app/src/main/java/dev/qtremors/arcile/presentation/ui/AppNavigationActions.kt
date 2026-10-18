@@ -134,6 +134,10 @@ internal class AppNavigationActions(
         }
     }
 
+    fun sendToOnlyFiles(paths: List<String>) {
+        dev.qtremors.arcile.feature.onlyfiles.createOnlyFilesImportRoute(paths)?.let { navController.navigate(it) }
+    }
+
     fun openAudioPlayer(
         track: AudioTrack,
         queue: List<AudioTrack>,

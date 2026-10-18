@@ -69,6 +69,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     private var pendingEntry: OnlyFilesEntry? = null
     private var consumedEntry: OnlyFilesEntry? = null
     private var pendingExtraction: VaultZipExtraction? = null
+    private var lastBrowserImportRequest: String? = null
+    private var browserImportPaths: List<String> = emptyList()
 
     private val folderPicker by lazy {
         OnlyFilesFolderPickerController(
@@ -77,7 +79,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         )
     }
     private val browser by lazy {
-        OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError, ::runBusy)
+        OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError, ::runBusy, ::onFoldersDeleted)
     }
     private val archives by lazy {
         OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError)
@@ -102,7 +104,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
     private val administration by lazy {
         OnlyFilesAdministrationController(
-            catalog, sessionManager, _state, viewModelScope, ::runBusy, ::showError, ::selectVault
+            catalog, sessionManager, _state, viewModelScope, ::runBusy, ::showError, ::selectVault, ::onVaultRemoved
         )
     }
     private val boundary by lazy {
@@ -117,7 +119,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val localPicker by lazy {
         OnlyFilesLocalPickerController(
             localFileBrowser, destinationBrowser, volumeRepository, _state, viewModelScope,
-            ::showError, ::importLocalPaths, ::exportLocal
+            ::showError, ::importLocalPaths, ::exportLocal,
+            moveIn = { paths -> _state.update { it.copy(pendingMoveIntoVault = paths) } }
         )
     }
 
@@ -157,6 +160,7 @@ internal class OnlyFilesViewModel @Inject constructor(
                     it.copy(
                         screenshotProtectionEnabled = settings.screenshotProtectionEnabled,
                         pinnedDirectoryIds = it.selectedVaultId?.let(settings.pinnedDirectories::get).orEmpty(),
+                        pinnedVaultIds = settings.pinnedVaults,
                         workspaceTabsEnabled = settings.workspaceTabsEnabled
                     )
                 }
@@ -179,6 +183,36 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun openVaultFolder(path: String) = folderPicker.openPath(path)
     fun navigateVaultFolderUp() = folderPicker.navigateUp()
     fun beginLocalFileImport() = localPicker.openImportFiles()
+    fun acceptBrowserImport(requestId: String) {
+        if (lastBrowserImportRequest == requestId) return
+        lastBrowserImportRequest = requestId
+        browserImportPaths = OnlyFilesBrowserImports.take(requestId).orEmpty()
+        _state.update {
+            it.copy(
+                browserImportCount = browserImportPaths.size,
+                message = if (browserImportPaths.isEmpty()) "Select the files in Browser again to send them to OnlyFiles."
+                else it.message
+            )
+        }
+    }
+
+    fun chooseBrowserImportDestination() {
+        val picker = _state.value.locationPicker ?: return
+        if (picker.mode != OnlyFilesLocationMode.IMPORT_DESTINATION || picker.loading || picker.failed) return
+        val path = picker.stack.lastOrNull()?.path ?: return
+        val sources = browserImportPaths
+        if (sources.isEmpty() || !imports.begin(path)) return
+        closeLocationPicker()
+        imports.finishSelection(sources)
+    }
+
+    fun beginLocalMoveIntoVault() = localPicker.openMoveIn()
+
+    fun resolveLocalMoveIntoVault(confirmed: Boolean) {
+        val pending = _state.value.pendingMoveIntoVault
+        _state.update { it.copy(pendingMoveIntoVault = emptyList()) }
+        if (confirmed && pending.isNotEmpty() && imports.begin()) imports.finishSelection(pending, move = true)
+    }
     fun beginLocalFolderImport() = localPicker.openImportFolder()
     fun beginLocalExport(nodes: List<VaultNodeMetadata>, move: Boolean) = localPicker.openExport(nodes, move)
     fun openLocalPickerDirectory(path: String) = localPicker.openDirectory(path)
@@ -275,6 +309,51 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun openSearchScope() = locations.openScopePicker()
     fun clearSearchScope() = locations.clearScope()
     fun openPinnedFolders() = locations.openPinnedFolders()
+    fun resetVaultFolderViews() {
+        val vault = _state.value.selectedVaultId ?: return
+        viewModelScope.launch {
+            try {
+                securityPreferences.resetVaultFolderViews(vault)
+            } catch (error: java.io.IOException) {
+                showError(error)
+            }
+        }
+    }
+
+    private suspend fun onFoldersDeleted(vault: VaultId, folders: Set<DirectoryId>) {
+        _state.update { current ->
+            if (current.selectedVaultId != vault) return@update current
+            val workspace = current.workspace.capture(current)
+            val tabs = workspace.tabs.map { tab ->
+                if (tab.pinned && tab.location.directory.id in folders) tab.copy(pinned = false) else tab
+            }
+            current.copy(workspace = workspace.copy(tabs = tabs.sortedBy { if (it.primary) 0 else if (it.pinned) 1 else 2 }))
+        }
+        try {
+            securityPreferences.removeDirectoryPreferences(vault, folders)
+        } catch (_: java.io.IOException) {
+            // The files are already deleted. Stale shortcuts are checked when next opened.
+        }
+    }
+
+    private suspend fun onVaultRemoved(vault: VaultId) {
+        if (_state.value.selectedVaultId == vault) dismissVaultSession()
+        try {
+            securityPreferences.removeVaultPreferences(vault)
+        } catch (_: java.io.IOException) {
+            // The vault operation already completed.
+        }
+    }
+    fun setVaultPinned(id: VaultId, pinned: Boolean) {
+        if (_state.value.vaults.none { it.id == id }) return
+        viewModelScope.launch {
+            try {
+                securityPreferences.setVaultPinned(id, pinned)
+            } catch (error: java.io.IOException) {
+                showError(error)
+            }
+        }
+    }
     fun setWorkspaceTabsEnabled(enabled: Boolean) = workspace.setEnabled(enabled)
     fun addWorkspaceTab() = workspace.addTab()
     fun duplicateWorkspaceTab(id: Int) = workspace.duplicateTab(id)
@@ -291,8 +370,14 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun retryLocationPicker() = locations.retryPicker()
     fun applySearchScope() = locations.applyScope()
     fun closeLocationPicker() {
+        if (_state.value.locationPicker?.mode == OnlyFilesLocationMode.IMPORT_DESTINATION) clearBrowserImport()
         pendingExtraction = null
         locations.closePicker()
+    }
+
+    private fun clearBrowserImport() {
+        browserImportPaths = emptyList()
+        _state.update { it.copy(browserImportCount = 0) }
     }
     fun openPinnedFolder(id: DirectoryId) {
         locations.closePicker()
@@ -472,6 +557,26 @@ internal class OnlyFilesViewModel @Inject constructor(
         externalAccess.revoke(grants)
     }
 
+    suspend fun vaultExternalGrants(vault: VaultId, mount: Long): List<VaultExternalGrant> {
+        if (!isCurrentVault(vault, mount)) return emptyList()
+        val grants = withContext(Dispatchers.IO) { externalAccessManager.activeGrants(vault) }
+        return grants.takeIf { isCurrentVault(vault, mount) }.orEmpty()
+    }
+
+    suspend fun revokeVaultExternalGrant(vault: VaultId, mount: Long, token: String) {
+        withContext(Dispatchers.IO) {
+            if (isCurrentVault(vault, mount) && externalAccessManager.activeGrants(vault).any { it.token == token }) {
+                externalAccessManager.revoke(token)
+            }
+        }
+    }
+
+    private fun isCurrentVault(vault: VaultId, mount: Long): Boolean = _state.value.let {
+        it.selectedVaultId == vault && it.mountGeneration == mount && vault in repository.unlockedVaultIds.value
+    }
+
+    suspend fun vaultStorageUsage(vault: VaultId) = fileSystem.storageUsage(vault)
+
     fun reportExternalLaunchFailure(message: String) {
         _state.update { it.copy(message = message) }
     }
@@ -597,7 +702,10 @@ internal class OnlyFilesViewModel @Inject constructor(
                 viewerQueue = emptyList()
             )
         }
-        if (requested != null) locations.navigate(requested.directoryId, requested.focusNodeId)
+        if (browserImportPaths.isNotEmpty()) {
+            reload()
+            locations.openImportDestination()
+        } else if (requested != null) locations.navigate(requested.directoryId, requested.focusNodeId)
         else locations.restore(settings.lastDirectories[vaultId])
         workspace.restorePins(settings.pinnedWorkspaceTabs[vaultId].orEmpty())
     }
@@ -613,6 +721,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     private fun dismissVaultSession(keepClipboard: Boolean = false) {
         pendingEntry = null
         pendingExtraction = null
+        clearBrowserImport()
         archives.cancel()
         workspace.clear()
         locations.cancelNavigation()
@@ -624,6 +733,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         _state.update {
             it.copy(
                 selectedVaultId = null,
+                pendingMoveIntoVault = emptyList(),
                 mountGeneration = it.mountGeneration + 1L,
                 workspace = VaultWorkspace(),
                 directoryStack = emptyList(),

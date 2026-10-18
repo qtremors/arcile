@@ -71,6 +71,7 @@ internal fun VaultActionsMenu(
     directoryPinned: Boolean,
     hasExactFolderView: Boolean,
     workspaceTabsEnabled: Boolean,
+    onVaultDetails: (VaultDetails) -> Unit,
     onDismiss: () -> Unit
 ) {
     var changePassword by remember { mutableStateOf(false) }
@@ -78,10 +79,11 @@ internal fun VaultActionsMenu(
     var confirmRemoveBiometric by remember { mutableStateOf(false) }
     var confirmRemoveRegistration by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var confirmResetViews by remember { mutableStateOf(false) }
     val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
 
-    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView, workspaceTabsEnabled) {
+    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView, workspaceTabsEnabled, onVaultDetails) {
         mutableListOf<@Composable () -> Unit>().apply {
             add {
                 dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
@@ -112,6 +114,24 @@ internal fun VaultActionsMenu(
                 ArcileDropdownMenuItem(
                     text = { Text(stringResource(R.string.onlyfiles_reset_folder_view)) },
                     onClick = { closeAnd(viewModel::resetFolderView) }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_reset_vault_folder_views)) },
+                    onClick = { closeAnd { confirmResetViews = true } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_vault_storage_usage)) },
+                    onClick = { closeAnd { onVaultDetails(VaultDetails.STORAGE) } }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_vault_external_access)) },
+                    onClick = { closeAnd { onVaultDetails(VaultDetails.EXTERNAL_ACCESS) } }
                 )
             }
             add {
@@ -206,6 +226,19 @@ internal fun VaultActionsMenu(
         items = menuActions
     )
 
+    if (confirmResetViews) dev.qtremors.arcile.core.ui.dialogs.AlertDialog(
+        onDismissRequest = { confirmResetViews = false },
+        title = { Text(stringResource(R.string.onlyfiles_reset_vault_folder_views)) },
+        text = { Text(stringResource(R.string.onlyfiles_reset_vault_folder_views_message)) },
+        confirmButton = {
+            Button(onClick = { confirmResetViews = false; viewModel.resetVaultFolderViews() }) {
+                Text(stringResource(R.string.onlyfiles_reset_vault_folder_views))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { confirmResetViews = false }) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        }
+    )
     if (changePassword) ChangeVaultPasswordDialog(
         { changePassword = false }
     ) { current, replacement, confirmed ->

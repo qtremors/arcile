@@ -34,7 +34,11 @@ import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import dev.qtremors.arcile.core.ui.lists.StorageLocationRow
 import dev.qtremors.arcile.core.ui.R as UiR
 
-internal enum class OnlyFilesLocalPickerMode { IMPORT_FILES, IMPORT_FOLDER, EXPORT, MOVE_OUT }
+internal enum class OnlyFilesLocalPickerMode {
+    IMPORT_FILES, MOVE_FILES_IN, IMPORT_FOLDER, EXPORT, MOVE_OUT;
+
+    val selectsFiles: Boolean get() = this == IMPORT_FILES || this == MOVE_FILES_IN
+}
 
 internal data class OnlyFilesLocalPickerState(
     val mode: OnlyFilesLocalPickerMode,
@@ -44,7 +48,7 @@ internal data class OnlyFilesLocalPickerState(
     val isLoading: Boolean = false
 ) {
     val canChoose: Boolean get() = !isLoading && when (mode) {
-        OnlyFilesLocalPickerMode.IMPORT_FILES -> selectedPaths.isNotEmpty()
+        OnlyFilesLocalPickerMode.IMPORT_FILES, OnlyFilesLocalPickerMode.MOVE_FILES_IN -> selectedPaths.isNotEmpty()
         OnlyFilesLocalPickerMode.IMPORT_FOLDER -> current != null
         OnlyFilesLocalPickerMode.EXPORT, OnlyFilesLocalPickerMode.MOVE_OUT -> current?.canSave == true
     }
@@ -61,6 +65,7 @@ internal fun OnlyFilesLocalPickerDialog(
 ) {
     val label = when (state.mode) {
         OnlyFilesLocalPickerMode.IMPORT_FILES -> R.string.onlyfiles_import_files
+        OnlyFilesLocalPickerMode.MOVE_FILES_IN -> R.string.onlyfiles_move_into_vault
         OnlyFilesLocalPickerMode.IMPORT_FOLDER -> R.string.onlyfiles_import_folder
         OnlyFilesLocalPickerMode.EXPORT, OnlyFilesLocalPickerMode.MOVE_OUT -> R.string.onlyfiles_choose_destination
     }
@@ -74,7 +79,7 @@ internal fun OnlyFilesLocalPickerDialog(
         onUp = onUp,
         onChoose = onChoose,
         onDismiss = onDismiss,
-        selectedPaths = state.selectedPaths.takeIf { state.mode == OnlyFilesLocalPickerMode.IMPORT_FILES },
+        selectedPaths = state.selectedPaths.takeIf { state.mode.selectsFiles },
         onToggleFile = onToggleFile
     )
 }
