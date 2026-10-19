@@ -74,8 +74,6 @@ class OnlyFilesFormattingTest {
         }
         val normal = buildVaultExternalIntent(context, ExternalAction.OPEN_WITH, listOf(grant))
         assertEquals(grant.mimeType, normal.type)
-        val installer = buildVaultExternalIntent(context, ExternalAction.INSTALL_APK, listOf(grant))
-        assertEquals("application/vnd.android.package-archive", installer.type)
     }
 
     @Test

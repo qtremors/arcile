@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferReservation
@@ -41,16 +43,19 @@ import kotlinx.coroutines.withContext
 class DefaultVaultBoundaryTransferCoordinator private constructor(
     private val repository: DefaultVaultRepository?,
     private val legacyFileSystem: VaultFileSystem?,
-    private val legacySessions: VaultSessionManager?
+    private val legacySessions: VaultSessionManager?,
+    private val trashRepository: TrashRepository?
 ) : VaultBoundaryTransferCoordinator {
     @Inject internal constructor(
-        repository: DefaultVaultRepository
-    ) : this(repository, null, null)
+        repository: DefaultVaultRepository,
+        trashRepository: TrashRepository
+    ) : this(repository, null, null, trashRepository)
 
     internal constructor(
         fileSystem: VaultFileSystem,
-        sessions: VaultSessionManager
-    ) : this(null, fileSystem, sessions)
+        sessions: VaultSessionManager,
+        trashRepository: TrashRepository? = null
+    ) : this(null, fileSystem, sessions, trashRepository)
     private val mutex = Mutex()
     private val updates = MutableSharedFlow<VaultTransferProgress>(extraBufferCapacity = 32)
     override val progress: Flow<VaultTransferProgress> = updates
@@ -100,6 +105,83 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         }
     }
 
+    override suspend fun moveToMainTrash(
+        reservation: VaultBoundaryTransferReservation,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val trash = trashRepository ?: throw VaultFailure.Unavailable("Main Trash is unavailable")
+            val prepared = reservation as? BoundaryReservation
+                ?: throw VaultFailure.Unavailable("Trash export session is invalid")
+            val session = prepared.consume()
+            try {
+                when (session) {
+                    is BoundaryAccessSession.Repository -> session.value.mutationMutex.withLock {
+                        moveToTrash(session, prepared.sources, trash, cancellation)
+                    }
+                    is BoundaryAccessSession.Legacy -> moveToTrash(session, prepared.sources, trash, cancellation)
+                }
+            } finally {
+                prepared.closeSession(session)
+            }
+        }
+    }
+
+    private suspend fun moveToTrash(
+        session: BoundaryAccessSession,
+        sources: List<VaultNodeRef>,
+        trash: TrashRepository,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        val progress = ExportProgress(VaultTransferAction.MOVE, sources.size, null)
+        val results = sources.mapIndexed { index, ref ->
+            var name = ""
+            var accepted = false
+            var removed = emptySet<DirectoryId>()
+            try {
+                cancellation.throwIfCancelled()
+                val source = metadata(session, ref)
+                name = source.name
+                progress.start(index, name)
+                trash.acceptExternalItem(
+                    displayName = name,
+                    writePayload = { path ->
+                        val payload = File(path)
+                        cancellation.throwIfCancelled()
+                        if (source.isDirectory) {
+                            check(payload.mkdir()) { "Unable to prepare folder for Trash" }
+                            val partial = exportVaultDirectoryLocal(
+                                session, source, payload, VaultConflictResolver { VaultConflictDecision.SKIP },
+                                cancellation, progress::advance
+                            )
+                            check(!partial) { "Unable to export the complete folder to Trash" }
+                        } else exportLocalFile(session, source, payload, cancellation, progress::advance)
+                        cancellation.throwIfCancelled()
+                    },
+                    afterPublished = {
+                        accepted = true
+                        cancellation.throwIfCancelled()
+                        removed = deletePermanently(session, ref)
+                    }
+                ).getOrThrow()
+                check(accepted) { "Main Trash did not publish the item" }
+                item(ref, name, VaultItemOutcome.COMPLETED).copy(removedFolders = removed)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                val failure = failed(ref, name, error)
+                when {
+                    accepted -> failure.copy(outcome = VaultItemOutcome.PARTIAL, removedFolders = removed)
+                    error is VaultFailure.Cancelled -> failure.copy(outcome = VaultItemOutcome.ROLLED_BACK)
+                    else -> failure
+                }
+            } finally {
+                progress.finish(index + 1)
+            }
+        }
+        return VaultBatchResult(results)
+    }
+
     private suspend fun exportToLocalDirectory(
         session: BoundaryAccessSession,
         sources: List<VaultNodeRef>,
@@ -145,8 +227,9 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 val source = metadata.getOrThrow()
                 progress.start(index, source.name)
                 val outcome = exportLocalTopLevel(session, source, destination, resolver, cancellation, progress::advance)
-                if (outcome == VaultItemOutcome.COMPLETED && move) deletePermanently(session, ref)
-                results += item(ref, source.name, outcome)
+                val removed = if (outcome == VaultItemOutcome.COMPLETED && move) deletePermanently(session, ref)
+                else emptySet()
+                results += item(ref, source.name, outcome).copy(removedFolders = removed)
                 progress.finish(index + 1)
             } catch (error: VaultFailure.Cancelled) {
                 results += item(ref, metadata.getOrNull()?.name.orEmpty(), VaultItemOutcome.ROLLED_BACK, error)
@@ -389,12 +472,13 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).openReader(ref).getOrThrow()
     }
 
-    private suspend fun deletePermanently(session: BoundaryAccessSession, ref: VaultNodeRef) {
+    private suspend fun deletePermanently(session: BoundaryAccessSession, ref: VaultNodeRef): Set<DirectoryId> =
         when (session) {
-            is BoundaryAccessSession.Repository -> requireNotNull(repository).deleteWithMutationLockHeld(session.value, ref)
-            is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).deletePermanently(ref).getOrThrow()
+            is BoundaryAccessSession.Repository -> buildSet {
+                requireNotNull(repository).deleteWithMutationLockHeld(session.value, ref) { add(it) }
+            }
+            is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).deleteAndReportFolders(ref).getOrThrow()
         }
-    }
 
     private fun File.readLocalChildren(): Array<File> =
         listFiles() ?: throw VaultFailure.Unavailable("Unable to read export destination")

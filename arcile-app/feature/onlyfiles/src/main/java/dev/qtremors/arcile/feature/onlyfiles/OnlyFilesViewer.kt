@@ -56,6 +56,7 @@ import androidx.media3.common.util.UnstableApi
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
@@ -80,11 +81,13 @@ internal fun ViewerScreen(
     viewModel: OnlyFilesViewModel,
     archiveOperationActive: Boolean,
     onBack: () -> Unit,
+    packageInstaller: @Composable (VaultExternalGrant, () -> Unit) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showInfo by remember(node.ref.nodeId) { mutableStateOf(false) }
     var confirmDelete by remember(node.ref.nodeId) { mutableStateOf(false) }
     var externalAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
+    var installRequested by remember(node.ref) { mutableStateOf(false) }
     var showRename by remember(node.ref.nodeId) { mutableStateOf(false) }
     var archiveFolder by remember(node.ref.nodeId, node.revision) { mutableStateOf(emptyList<String>()) }
     var archiveSelection by remember(node.ref.nodeId, node.revision) { mutableStateOf<VaultZipSelection?>(null) }
@@ -158,13 +161,8 @@ internal fun ViewerScreen(
                         ) {
                             Text(stringResource(R.string.onlyfiles_android_package), color = Color.White)
                             if (ViewerFileAction.OpenWith in allowedActions) {
-                                Button(onClick = {
-                                    externalAction = if (node.extension == "apk") ExternalAction.INSTALL_APK
-                                    else ExternalAction.OPEN_WITH
-                                }) {
-                                    Text(stringResource(if (node.extension == "apk") {
-                                        R.string.onlyfiles_open_installer
-                                    } else R.string.onlyfiles_open_with))
+                                Button(onClick = { installRequested = true }) {
+                                    Text(stringResource(R.string.onlyfiles_open_installer))
                                 }
                             }
                         }
@@ -235,6 +233,11 @@ internal fun ViewerScreen(
 
     if (showInfo) {
         VaultPropertiesDialog(listOf(node), location, viewModel::selectionTotals, viewModel::openReader) { showInfo = false }
+    }
+    if (installRequested) {
+        key(node.ref, node.revision) {
+            VaultPackageInstaller(node, viewModel, packageInstaller, onDismiss = { installRequested = false })
+        }
     }
     archiveSelection?.let { selection ->
         VaultExtractZipDialog(node, selection, onDismiss = { archiveSelection = null }) { request, choose ->

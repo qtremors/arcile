@@ -141,7 +141,7 @@ import java.text.DateFormat
 import kotlinx.coroutines.flow.collect
 
 internal enum class CreateItemKind { FOLDER, FILE, SYNTHETIC }
-internal enum class ExternalAction { SHARE, OPEN_WITH, INSTALL_APK }
+internal enum class ExternalAction { SHARE, OPEN_WITH }
 private data class ExternalRequest(
     val action: ExternalAction,
     val nodes: List<VaultNodeMetadata>,
@@ -155,6 +155,7 @@ internal fun OnlyFilesRoute(
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    packageInstaller: @Composable (dev.qtremors.arcile.core.vault.domain.VaultExternalGrant, () -> Unit) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -169,6 +170,7 @@ internal fun OnlyFilesRoute(
         getFileOpenBehaviors = getFileOpenBehaviors,
         onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
         onPlayVideo = onPlayVideo,
+        packageInstaller = packageInstaller,
         onImportFiles = viewModel::beginLocalFileImport,
         onImportFolder = viewModel::beginLocalFolderImport,
         onBoundaryTransfer = viewModel::beginLocalExport
@@ -184,6 +186,7 @@ private fun OnlyFilesScreen(
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    packageInstaller: @Composable (dev.qtremors.arcile.core.vault.domain.VaultExternalGrant, () -> Unit) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
     onBoundaryTransfer: (List<VaultNodeMetadata>, Boolean) -> Unit
@@ -199,6 +202,7 @@ private fun OnlyFilesScreen(
     var renameNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
     var batchRenameNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var deleteNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
+    var trashNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
     var vaultDetails by remember(state.mountGeneration) { mutableStateOf<VaultDetails?>(null) }
     var externalRequest by remember(state.mountGeneration) { mutableStateOf<ExternalRequest?>(null) }
@@ -286,7 +290,7 @@ private fun OnlyFilesScreen(
             androidx.compose.runtime.key(state.mountGeneration) {
                 ViewerScreen(
                     node, state.viewerQueue, state.propertiesLocation(listOf(node)), viewModel, state.archiveProgress != null,
-                    { navigateBackThroughState() }, predictiveBackModifier
+                    { navigateBackThroughState() }, packageInstaller, predictiveBackModifier
                 )
             }
             state.locationPicker?.let { OnlyFilesLocationSheet(it, state.selectedVault?.name.orEmpty(), viewModel) }
@@ -408,6 +412,9 @@ private fun OnlyFilesScreen(
                         }),
                         FabMenuItem(stringResource(R.string.onlyfiles_add_existing), Icons.Outlined.FolderOpen, onClick = {
                             fabExpanded = false; viewModel.beginAttachVault()
+                        }),
+                        FabMenuItem(stringResource(R.string.onlyfiles_restore_backup), Icons.Outlined.FolderOpen, onClick = {
+                            fabExpanded = false; viewModel.beginRestoreBackup()
                         })
                     )
                 } else {
@@ -485,6 +492,7 @@ private fun OnlyFilesScreen(
                     onOpenAs = { openAsNode = selected.singleOrNull() },
                     onExport = { boundaryRequest = selected to false },
                     onMoveOut = { boundaryRequest = selected to true },
+                    onMoveToTrash = { trashNodes = selected },
                     onReveal = selected.singleOrNull()?.takeIf { state.hasSearch }?.let { node ->
                         { showSearch = false; viewModel.revealInParent(node) }
                     },
@@ -575,6 +583,16 @@ private fun OnlyFilesScreen(
             viewModel.delete(nodes)
         }
     }
+    if (trashNodes.isNotEmpty()) {
+        VaultMoveToTrashDialog(
+            onDismiss = { trashNodes = emptyList() },
+            onMove = {
+                val nodes = trashNodes
+                trashNodes = emptyList()
+                viewModel.moveVaultItemsToTrash(nodes)
+            }
+        )
+    }
     if (showSearchFilters) {
         var recursive by remember { mutableStateOf(state.recursiveSearch) }
         CompositionLocalProvider(LocalSaveableStateRegistry provides null) {
@@ -635,7 +653,10 @@ private fun OnlyFilesScreen(
             VaultConflictDialog(prompt, viewModel::resolveConflict, viewModel::cancelTransfer)
         }
     }
-    state.healthReport?.let { HealthDialog(it, viewModel::dismissHealthReport) }
+    state.healthReport?.let {
+        HealthDialog(it, state.busy, viewModel::dismissHealthReport, viewModel::recoverVaultTransactions)
+    }
+    OnlyFilesBackupDialogs(state, viewModel)
     val vaultId = state.selectedVaultId
     if (vaultId != null) {
         when (vaultDetails) {

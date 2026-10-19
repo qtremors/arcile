@@ -72,6 +72,12 @@ object PackageInstallerEngine {
     }
 
     @Synchronized
+    fun releaseTarget(key: String): ApkPackageDetails? {
+        if (targetKey != key) return null
+        return preparedDetails.also { resetState() }
+    }
+
+    @Synchronized
     private fun observeSessions(context: Context) {
         if (observedInstaller != null) return
         val installer = context.applicationContext.packageManager.packageInstaller

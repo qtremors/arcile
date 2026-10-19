@@ -27,6 +27,37 @@ internal class VaultTransferEngine(
     private val fileCodec: VaultFileCodec,
     private val transactions: VaultTransactionManager
 ) {
+    // The caller owns the new directory and publishes it only after full verification.
+    suspend fun copyToUnpublishedVault(
+        source: VaultSessionRecord,
+        destination: VaultSessionRecord,
+        cancellation: VaultCancellationSignal
+    ) {
+        val sourceRoot = source.root()
+        val destinationRoot = destination.root()
+        try {
+            val snapshot = source.readDirectory(sourceRoot)
+            try {
+                CloneContext(
+                    destination, VaultConflictResolver { VaultConflictDecision.SKIP },
+                    cancellation, unpublishedDestination = true
+                ).use { context ->
+                    context.copyDirectoryEntries(snapshot.entries, source) { entries ->
+                        val manifest = directoryCodec.prepare(
+                            destination.id, destinationRoot.id, destinationRoot.key, 1L, entries
+                        )
+                        directoryCodec.publish(destination.directory, manifest)
+                    }
+                }
+            } finally {
+                snapshot.clearProtectedKeys()
+            }
+        } finally {
+            sourceRoot.key.fill(0)
+            destinationRoot.key.fill(0)
+        }
+    }
+
     fun topLevelConflicts(
         sessions: Map<VaultId, VaultSessionRecord>,
         sources: List<VaultNodeRef>,
@@ -158,13 +189,15 @@ internal class VaultTransferEngine(
                     next.forEach { it.protectedKey.fill(0) }
                 }
                 context.commit(obsolete)
+                val removedSourceFolders = mutableSetOf<DirectoryId>()
                 if (moveSource) {
                     cancellation.throwIfCancelled()
                     val sourcePrepared = mutableListOf<VaultPreparedDirectory>()
                     try {
                         val sourceObsolete = prepareMovedSource(
                             source, resolved, context.skippedSourceNodes,
-                            context.retainedSourceDirectories, sourcePrepared
+                            context.retainedSourceDirectories, sourcePrepared,
+                            onDirectoryRemoved = { removedSourceFolders.add(it) }
                         )
                         if (sourcePrepared.isNotEmpty()) {
                             transactions.commit(
@@ -176,7 +209,7 @@ internal class VaultTransferEngine(
                         sourcePrepared.forEach { it.directoryKey.fill(0) }
                     }
                 }
-                return result(ref, resolved.entry, context.outcome())
+                return result(ref, resolved.entry, context.outcome()).copy(removedFolders = removedSourceFolders)
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
                 throw error
@@ -242,16 +275,21 @@ internal class VaultTransferEngine(
                 } finally {
                     destinationEntries.forEach { it.protectedKey.fill(0) }
                 }
+                val removedFolders = mutableSetOf<DirectoryId>()
+                val recordRemovedFolder: (DirectoryId) -> Unit = { removedFolders.add(it) }
                 val obsolete = buildSet {
-                    if (existing != null && decision != VaultConflictDecision.KEEP_BOTH) addAll(collectObsolete(session, existing))
+                    if (existing != null && decision != VaultConflictDecision.KEEP_BOTH) {
+                        addAll(collectObsolete(session, existing, recordRemovedFolder))
+                    }
                     addAll(prepareMovedSource(
                         session, resolved, context.skippedSourceNodes,
                         context.retainedSourceDirectories, context.prepared,
-                        deleteObjects = useClone
+                        deleteObjects = useClone,
+                        onDirectoryRemoved = recordRemovedFolder
                     ))
                 }
                 context.commit(obsolete)
-                return result(ref, resolved.entry, context.outcome())
+                return result(ref, resolved.entry, context.outcome()).copy(removedFolders = removedFolders)
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
                 throw error
@@ -268,7 +306,8 @@ internal class VaultTransferEngine(
     private inner class CloneContext(
         private val destination: VaultSessionRecord,
         private val conflicts: VaultConflictResolver,
-        private val cancellation: VaultCancellationSignal
+        private val cancellation: VaultCancellationSignal,
+        private val unpublishedDestination: Boolean = false
     ) : AutoCloseable {
         val prepared = mutableListOf<VaultPreparedDirectory>()
         val newObjects = linkedSetOf<String>()
@@ -318,7 +357,7 @@ internal class VaultTransferEngine(
                         ReaderInputStream(reader, cancellation)
                     )
                 }
-                newObjects += path
+                if (!unpublishedDestination) newObjects += path
                 return VaultManifestEntry(
                     NodeId.random(), name, VaultNodeKind.FILE, 1L,
                     entry.modifiedAtMillis, entry.sizeBytes, entry.mimeType,
@@ -339,14 +378,10 @@ internal class VaultTransferEngine(
             val childId = DirectoryId.random()
             val childKey = VaultCryptography.randomBytes(32)
             try {
-                val children = snapshot.entries.map { cloneEntry(it, source) }
-                try {
-                    prepared += VaultPreparedDirectory(
-                        directoryCodec.prepare(destination.id, childId, childKey, 0L, children),
-                        childKey.copyOf()
-                    )
-                } finally {
-                    children.forEach { it.protectedKey.fill(0) }
+                copyDirectoryEntries(snapshot.entries, source) { children ->
+                    val manifest = directoryCodec.prepare(destination.id, childId, childKey, 0L, children)
+                    if (unpublishedDestination) directoryCodec.publish(destination.directory, manifest)
+                    else prepared += VaultPreparedDirectory(manifest, childKey.copyOf())
                 }
                 return VaultManifestEntry(
                     NodeId.random(), name, VaultNodeKind.DIRECTORY, 1L,
@@ -355,6 +390,21 @@ internal class VaultTransferEngine(
             } finally {
                 snapshot.clearProtectedKeys()
                 childKey.fill(0)
+            }
+        }
+
+        suspend fun copyDirectoryEntries(
+            entries: List<VaultManifestEntry>,
+            source: VaultSessionRecord,
+            publish: (List<VaultManifestEntry>) -> Unit
+        ) {
+            val children = ArrayList<VaultManifestEntry>(entries.size)
+            try {
+                entries.forEach { children.add(cloneEntry(it, source)) }
+                cancellation.throwIfCancelled()
+                publish(children)
+            } finally {
+                children.forEach { it.protectedKey.fill(0) }
             }
         }
 
@@ -467,13 +517,14 @@ internal class VaultTransferEngine(
         skippedNodes: Set<NodeId>,
         retainedDirectories: Set<NodeId>,
         prepared: MutableList<VaultPreparedDirectory>,
-        deleteObjects: Boolean = true
+        deleteObjects: Boolean = true,
+        onDirectoryRemoved: (DirectoryId) -> Unit = {}
     ): Set<String> {
         val obsolete = mutableSetOf<String>()
         fun retain(entry: VaultManifestEntry): Boolean {
             if (entry.nodeId in skippedNodes) return true
             if (entry.nodeId !in retainedDirectories) {
-                if (deleteObjects) obsolete += collectObsolete(session, entry)
+                if (deleteObjects) obsolete += collectObsolete(session, entry, onDirectoryRemoved)
                 return false
             }
             val id = requireNotNull(entry.childDirectoryId)
@@ -519,7 +570,11 @@ internal class VaultTransferEngine(
         return ResolvedTransferEntry(parent, snapshot, entry)
     }
 
-    private fun collectObsolete(session: VaultSessionRecord, root: VaultManifestEntry): Set<String> {
+    private fun collectObsolete(
+        session: VaultSessionRecord,
+        root: VaultManifestEntry,
+        onDirectory: (DirectoryId) -> Unit = {}
+    ): Set<String> {
         if (root.kind == VaultNodeKind.FILE) return setOf(requireNotNull(root.objectId).shardedPath())
         val obsolete = mutableSetOf<String>()
         val queue = ArrayDeque<Pair<DirectoryId, ByteArray>>()
@@ -529,6 +584,7 @@ internal class VaultTransferEngine(
             try {
                 val snapshot = session.readDirectory(id, key)
                 try {
+                    onDirectory(id)
                     obsolete += snapshot.pageObjectIds.map(VaultObjectId::shardedPath)
                     obsolete += VaultDirectoryManifestCodec.rootSlot(id, 0L)
                     obsolete += VaultDirectoryManifestCodec.rootSlot(id, 1L)

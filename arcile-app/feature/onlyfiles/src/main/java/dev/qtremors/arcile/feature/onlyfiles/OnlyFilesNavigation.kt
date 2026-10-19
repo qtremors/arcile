@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.onlyfiles
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.AnimatedContentTransitionScope
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
@@ -12,6 +13,7 @@ import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
+import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultId
 
 internal data class OnlyFilesEntry(val vaultId: VaultId, val directoryId: DirectoryId, val focusNodeId: String?)
@@ -34,7 +36,8 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
     popEnterTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> EnterTransition,
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
-    onPlayVideo: (VideoPlaybackSession) -> Unit
+    onPlayVideo: (VideoPlaybackSession) -> Unit,
+    packageInstaller: @Composable (VaultExternalGrant, () -> Unit) -> Unit
 ) {
     composable<AppRoutes.OnlyFiles>(
         enterTransition = enterTransition,
@@ -48,7 +51,8 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
             entry = route.toVaultEntry(),
             importRequestId = route.importRequestId,
             onNavigateBack = onNavigateBack,
-            onPlayVideo = onPlayVideo
+            onPlayVideo = onPlayVideo,
+            packageInstaller = packageInstaller
         )
     }
 }

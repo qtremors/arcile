@@ -25,6 +25,12 @@ class DefaultTrashRepository(
         onProgress: ((FileOperationProgress) -> Unit)?
     ): Result<Unit> = trashManager.moveToTrash(paths, onProgress)
 
+    override suspend fun acceptExternalItem(
+        displayName: String,
+        writePayload: suspend (String) -> Unit,
+        afterPublished: suspend () -> Unit
+    ): Result<Unit> = trashManager.acceptExternalItem(displayName, writePayload, afterPublished)
+
     override suspend fun restoreFromTrash(
         trashIds: List<String>,
         destinationPath: String?

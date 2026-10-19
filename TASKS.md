@@ -105,13 +105,8 @@
 
 - [ ] **REL-0007 - Recover Interrupted Vault Operations**
   - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.
-  - **Current:** Vault operation recovery lacks user-facing controls.
-  - **Change:** Offer recovery for interrupted imports, exports, and vault transfers.
-
-- [ ] **UI-0016 - Move Vault Items to Main Trash**
-  - **Location:** OnlyFilesTransferController.kt and the shared Trash workflow.
-  - **Current:** Vault items can be permanently deleted.
-  - **Change:** Offer a separate Move to Trash action with explicit decryption consent. Verify each item in main Trash before removing its vault original, and ask for a destination on restore.
+  - **Current:** The vault health report can finish committed transactions. Recovery of unfinished operation queues remains manual.
+  - **Change:** Offer cross-process recovery for interrupted import, export, and vault transfer queues.
 
 - [ ] **UI-0011 - Resume Partial Vault Transfers**
   - **Location:** OnlyFilesTransferController.kt and DefaultVaultBoundaryTransferCoordinator.kt.
@@ -123,25 +118,10 @@
   - **Current:** The image queue ends at loaded results and viewer selection is unavailable. Video actions and metadata and shared audio-player controls are incomplete.
   - **Change:** Wire the remaining shared viewer actions and queues to vault-capable sources.
 
-- [ ] **UI-0013 - Support Split Package Installation from Vaults**
-  - **Location:** OnlyFilesViewer.kt and OnlyFilesExternalAccessController.kt.
-  - **Current:** Only plain APKs use the installer route.
-  - **Change:** Add bundle handling with explicit external consent.
-
-- [ ] **UI-0015 - Remove Stale Folder Preferences After Transfers**
-  - **Location:** OnlyFilesTransferController.kt and DefaultVaultBoundaryTransferCoordinator.kt.
-  - **Current:** Permanent deletion clears preferences for removed folders. Move Out and cross-vault moves can leave stale folder IDs.
-  - **Change:** Clear preferences for source folders that a transfer has removed.
-
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.
   - **Current:** On-device parity and lock behavior still need verification.
   - **Change:** Compare gestures, thumbnails, document editing, install, transfer, and lock with matched fixtures.
-
-- [ ] **REL-0008 - Create and Restore Verified Vault Backups**
-  - **Location:** VaultCatalogLayer.kt and the OnlyFiles vault menu.
-  - **Current:** Portable vaults can be created and attached.
-  - **Change:** Export an authenticated encrypted snapshot and restore it as a separate vault.
 
 ## Media and Documents
 

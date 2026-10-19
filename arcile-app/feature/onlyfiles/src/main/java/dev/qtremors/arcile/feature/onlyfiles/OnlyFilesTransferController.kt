@@ -1,7 +1,9 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
+import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
@@ -17,7 +19,8 @@ internal class OnlyFilesTransferController(
     private val coordinator: VaultTransferCoordinator,
     private val state: MutableStateFlow<OnlyFilesUiState>,
     private val scope: CoroutineScope,
-    private val reload: () -> Unit
+    private val reload: () -> Unit,
+    private val onFoldersDeleted: suspend (VaultId, Set<DirectoryId>) -> Unit = { _, _ -> }
 ) {
     private var cancelled: AtomicBoolean? = null
     val conflictReview = OnlyFilesConflictReview(state)
@@ -93,7 +96,15 @@ internal class OnlyFilesTransferController(
         conflictReview.dismiss()
     }
 
-    private fun complete(result: VaultBatchResult, submittedClipboard: VaultClipboard, mountGeneration: Long) {
+    private suspend fun complete(result: VaultBatchResult, submittedClipboard: VaultClipboard, mountGeneration: Long) {
+        val sourceVaults = submittedClipboard.sources.associate { it.backendIdentity to it.vaultId }
+        val removedByVault = mutableMapOf<VaultId, MutableSet<DirectoryId>>()
+        for (item in result.items) {
+            if (item.removedFolders.isEmpty()) continue
+            val vault = sourceVaults[item.sourceIdentity] ?: continue
+            removedByVault.getOrPut(vault) { mutableSetOf() }.addAll(item.removedFolders)
+        }
+        for ((vault, folders) in removedByVault) onFoldersDeleted(vault, folders)
         val completedIds = result.completed.mapTo(mutableSetOf()) { it.sourceIdentity }
         val completed = completedIds.size
         val partial = result.items.count { it.outcome == VaultItemOutcome.PARTIAL }

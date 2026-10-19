@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.2.9
+> **Version:** 2.3.0
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.3.0] - 2026-11-04
+
+### Changed
+- Move vault items to main Trash after confirming decryption. Arcile verifies the Trash copy before removing the vault original, and restore asks for a destination.
+- Create verified encrypted backups and restore them as separate vaults.
+- Open APKs and split packages from OnlyFiles in Arcile’s shared installer after granting temporary access.
+- Recover committed transactions from the vault health report. Moves clear saved views for source folders they remove.
 
 ## [2.2.9] - 2026-11-04
 

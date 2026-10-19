@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveProgress
@@ -50,6 +51,69 @@ class DefaultVaultRepositoryTest {
     @After
     fun tearDown() {
         File(context.noBackupFilesDir, ROOT_DIRECTORY).deleteRecursively()
+    }
+
+    @Test
+    fun `encrypted backup restores as a separate verified vault and rejects corruption`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        val directory = java.nio.file.Files.createTempDirectory("onlyfiles-backup").toFile()
+        val password = "Backup-Password-7"
+        try {
+            val source = repository.createAppPrivateVault("Original", "original password".toCharArray()).getOrThrow()
+            val folder = repository.createDirectory(source, DirectoryId.Root, "Confidential").getOrThrow()
+            val folderId = requireNotNull(folder.ref.directoryId)
+            val note = repository.createEmptyFile(source, folderId, "private.md", "text/markdown").getOrThrow()
+            val original = "This is a private note".encodeToByteArray()
+            val saved = repository.replaceFileContents(note.ref, note.revision, original).getOrThrow()
+
+            val creationSecret = password.toCharArray()
+            val backup = File(repository.createBackup(source, directory.path, "Snapshot", creationSecret, false).getOrThrow())
+            assertTrue(creationSecret.all { it == '\u0000' })
+            assertEquals("Snapshot.onlyfiles-backup", backup.name)
+            assertEquals(listOf(source), repository.list().map { it.id })
+            assertFalse(backup.walkTopDown().any { it.name == note.name || it.name == folder.name })
+            assertTrue(backup.walkTopDown().filter { it.isFile }.none { original.contentEquals(it.readBytes()) })
+            assertTrue(repository.createBackup(source, directory.path, "Snapshot", password.toCharArray(), false).isFailure)
+
+            repository.replaceFileContents(saved.ref, saved.revision, "later edit".encodeToByteArray()).getOrThrow()
+            val wrongSecret = "wrong password".toCharArray()
+            assertTrue(repository.restoreBackup(backup.path, "Wrong", wrongSecret).isFailure)
+            assertTrue(wrongSecret.all { it == '\u0000' })
+            assertEquals(listOf(source), repository.list().map { it.id })
+
+            val restorationSecret = password.toCharArray()
+            val restored = repository.restoreBackup(backup.path, "Restored", restorationSecret).getOrThrow()
+            assertTrue(restorationSecret.all { it == '\u0000' })
+            assertTrue(restored != source)
+            assertFalse(restored in repository.unlockedVaultIds.value)
+            repository.unlock(restored, password.toCharArray()).getOrThrow()
+            val restoredFolder = repository.listDirectory(restored, DirectoryId.Root, VaultListOptions())
+                .getOrThrow().items.single()
+            assertEquals("Confidential", restoredFolder.name)
+            val restoredNote = repository.listDirectory(
+                restored, requireNotNull(restoredFolder.ref.directoryId), VaultListOptions()
+            ).getOrThrow().items.single()
+            assertEquals(note.name, restoredNote.name)
+            assertEquals(note.mimeType, restoredNote.mimeType)
+            repository.openReader(restoredNote.ref).getOrThrow().use { reader ->
+                val contents = ByteArray(original.size)
+                assertEquals(original.size, reader.readAt(0, contents, 0, contents.size))
+                assertTrue(contents.contentEquals(original))
+            }
+            assertTrue(repository.verify(restored, VaultHealthMode.FULL).getOrThrow().isHealthy)
+            File(backup, OBJECTS_DIRECTORY).walkTopDown().first { it.isFile }.writeBytes(byteArrayOf(0))
+            assertTrue(repository.restoreBackup(backup.path, "Corrupt", password.toCharArray()).isFailure)
+            assertEquals(setOf(source, restored), repository.list().map { it.id }.toSet())
+            val appStorage = File(context.noBackupFilesDir, ROOT_DIRECTORY)
+            assertTrue(appStorage.listFiles().orEmpty().none { it.name.startsWith(STAGING_PREFIX) })
+        } finally {
+            scope.cancel()
+            directory.deleteRecursively()
+        }
     }
 
     @Test

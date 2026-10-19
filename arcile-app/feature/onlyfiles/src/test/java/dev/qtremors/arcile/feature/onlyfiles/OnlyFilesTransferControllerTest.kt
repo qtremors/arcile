@@ -49,6 +49,36 @@ class OnlyFilesTransferControllerTest {
     }
 
     @Test
+    fun `partial cross vault move clears only removed folders from the source vault`() = runTest {
+        val source = VaultId.of("source")
+        val destination = VaultId.of("destination")
+        val retained = DirectoryId.of("retained")
+        val removed = DirectoryId.of("removed")
+        val ref = VaultNodeRef(source, NodeId.of("folder"), DirectoryId.Root, VaultNodeCapabilities(), retained)
+        val clipboard = VaultClipboard(VaultClipboardAction.MOVE, listOf(ref))
+        val state = MutableStateFlow(OnlyFilesUiState(
+            selectedVaultId = destination,
+            directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "Destination", VaultPath.Root)),
+            clipboard = clipboard
+        ))
+        val coordinator = mockk<VaultTransferCoordinator>()
+        coEvery { coordinator.transferAcrossVaults(listOf(ref), destination, DirectoryId.Root, true, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(
+                ref.backendIdentity, "Folder", VaultItemOutcome.PARTIAL, removedFolders = setOf(removed)
+            )))
+        val cleaned = mutableListOf<Pair<VaultId, Set<DirectoryId>>>()
+        val controller = OnlyFilesTransferController(coordinator, state, this, {}) { vault, folders ->
+            cleaned += vault to folders
+        }
+
+        controller.paste()
+        advanceUntilIdle()
+
+        assertEquals(listOf(source to setOf(removed)), cleaned)
+        assertEquals(clipboard, state.value.clipboard)
+    }
+
+    @Test
     fun `successful copy consumes its clipboard`() = runTest {
         val vaultId = VaultId.of("vault")
         val ref = VaultNodeRef(vaultId, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities())

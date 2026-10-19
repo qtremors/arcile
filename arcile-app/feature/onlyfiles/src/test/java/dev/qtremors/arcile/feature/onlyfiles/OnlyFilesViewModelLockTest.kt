@@ -170,6 +170,7 @@ class OnlyFilesViewModelLockTest {
             importCoordinator = importCoordinator,
             externalAccessManager = mockk<VaultExternalAccessManager>(relaxed = true),
             healthService = mockk<VaultHealthService>(relaxed = true),
+            backupService = mockk(relaxed = true),
             destinationBrowser = mockk<SaveDestinationBrowser>(relaxed = true),
             localFileBrowser = mockk<FileBrowserRepository>(relaxed = true),
             volumeRepository = mockk<VolumeRepository>(relaxed = true),

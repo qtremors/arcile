@@ -34,7 +34,8 @@ import kotlinx.coroutines.withContext
 @Composable
 internal fun AppApkInstallerDialog(
     target: AppFileOpenResolution.InstallApk?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    cleanupWhenDisposed: Boolean = false
 ) {
     if (target == null) return
 
@@ -44,20 +45,35 @@ internal fun AppApkInstallerDialog(
     var details by remember(target) { mutableStateOf<ApkPackageDetails?>(null) }
     val currentDetails by rememberUpdatedState(details)
     val currentInstallState by rememberUpdatedState(installState)
+    val targetKey = "${target.path}|${target.contentUri}|${target.splitPaths}"
 
     LaunchedEffect(target) {
-        val targetKey = "${target.path}|${target.contentUri}|${target.splitPaths}"
         PackageInstallerEngine.prepareTarget(targetKey)
-        details = PackageInstallerEngine.preparedDetails(targetKey) ?: withContext(Dispatchers.IO) {
-            target.contentUri?.let { contentUri ->
-                ApkPackageParser.parseContentUri(
-                    context = context,
-                    contentUri = contentUri,
-                    displayName = target.displayName ?: target.path.substringAfterLast('/')
-                )
-            } ?: ApkPackageParser.parse(context, target.path, target.splitPaths)
+        var pending: ApkPackageDetails? = null
+        try {
+            details = PackageInstallerEngine.preparedDetails(targetKey) ?: withContext(Dispatchers.IO) {
+                val contentUri = target.contentUri
+                val parsed = if (contentUri != null) {
+                    ApkPackageParser.parseContentUri(
+                        context = context,
+                        contentUri = contentUri,
+                        displayName = target.displayName ?: target.path.substringAfterLast('/')
+                    )
+                } else ApkPackageParser.parse(context, target.path, target.splitPaths)
+                parsed.also { pending = it }
+            }
+            PackageInstallerEngine.rememberPreparedDetails(targetKey, details)
+            pending = null
+        } finally {
+            ApkPackageParser.cleanupStaging(context, pending)
         }
-        PackageInstallerEngine.rememberPreparedDetails(targetKey, details)
+    }
+
+    if (cleanupWhenDisposed) DisposableEffect(targetKey) {
+        onDispose {
+            val released = PackageInstallerEngine.releaseTarget(targetKey)
+            ApkPackageParser.cleanupStaging(context, released ?: currentDetails)
+        }
     }
 
     // Auto-detect permission grant when returning from Android Settings
@@ -81,8 +97,10 @@ internal fun AppApkInstallerDialog(
     }
 
     val handleDismiss = {
-        PackageInstallerEngine.resetState()
-        ApkPackageParser.cleanupStaging(context, details)
+        if (!cleanupWhenDisposed) {
+            PackageInstallerEngine.resetState()
+            ApkPackageParser.cleanupStaging(context, details)
+        }
         onDismiss()
     }
 

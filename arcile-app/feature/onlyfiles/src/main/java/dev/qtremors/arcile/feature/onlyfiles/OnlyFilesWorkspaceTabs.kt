@@ -18,11 +18,24 @@ internal fun OnlyFilesWorkspaceTabs(
     state: OnlyFilesUiState,
     listingScroll: VaultListingScroll,
     viewModel: OnlyFilesViewModel
-) = key(state.mountGeneration) {
-    val vault = state.selectedVault ?: return@key
-    if (!state.workspaceTabsEnabled) return@key
+) {
+    val vault = state.selectedVault ?: return
+    if (!state.workspaceTabsEnabled) return
     val workspace = state.workspace.capture(state)
-    if (workspace.tabs.isEmpty()) return@key
+    if (workspace.tabs.isEmpty()) return
+    key(state.mountGeneration) {
+        WorkspaceTabsContent(state, workspace, vault.name, listingScroll, viewModel)
+    }
+}
+
+@Composable
+private fun WorkspaceTabsContent(
+    state: OnlyFilesUiState,
+    workspace: VaultWorkspace,
+    vaultName: String,
+    listingScroll: VaultListingScroll,
+    viewModel: OnlyFilesViewModel
+) {
     val canAdd = workspace.tabs.size < VAULT_MAX_WORKSPACE_TABS
     val enabled = !workspace.switching && !workspace.restoringPins && !state.busy && !state.isSelectingRows
     val scroll = remember(
@@ -43,7 +56,7 @@ internal fun OnlyFilesWorkspaceTabs(
             tabs = workspace.tabs.map { tab ->
                 WorkspaceTabPresentation(
                     tab.id,
-                    tab.location.directory.name.ifBlank { vault.name },
+                    tab.location.directory.name.ifBlank { vaultName },
                     Icons.Default.Home.takeIf { tab.primary }
                 )
             },

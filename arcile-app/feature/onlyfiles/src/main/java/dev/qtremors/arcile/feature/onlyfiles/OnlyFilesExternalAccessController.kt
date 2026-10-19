@@ -15,10 +15,11 @@ internal class OnlyFilesExternalAccessController(
         nodes: List<VaultNodeMetadata>,
         plaintextFallback: Boolean,
         isCurrentMount: () -> Boolean,
-        onReady: (List<VaultExternalGrant>) -> Unit
+        onReady: (List<VaultExternalGrant>) -> Unit,
+        onFailure: () -> Unit = {}
     ) {
         val files = nodes.filterNot(VaultNodeMetadata::isDirectory)
-        if (files.isEmpty()) return
+        if (files.isEmpty()) return onFailure()
         scope.launch {
             val issued = mutableListOf<VaultExternalGrant>()
             var delivered = false
@@ -41,7 +42,10 @@ internal class OnlyFilesExternalAccessController(
                     delivered = true
                 }
             } finally {
-                if (!delivered) revoke(issued)
+                if (!delivered) {
+                    revoke(issued)
+                    onFailure()
+                }
             }
         }
     }

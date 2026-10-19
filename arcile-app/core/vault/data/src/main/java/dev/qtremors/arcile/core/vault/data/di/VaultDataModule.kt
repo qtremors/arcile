@@ -9,6 +9,7 @@ import dev.qtremors.arcile.core.vault.data.DefaultVaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultHealthService
+import dev.qtremors.arcile.core.vault.domain.VaultBackupService
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultCatalog
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
@@ -37,6 +38,10 @@ internal abstract class VaultDataModule {
     @Binds
     @Singleton
     internal abstract fun bindVaultHealthService(implementation: DefaultVaultRepository): VaultHealthService
+
+    @Binds
+    @Singleton
+    internal abstract fun bindVaultBackupService(implementation: DefaultVaultRepository): VaultBackupService
 
     @Binds
     @Singleton

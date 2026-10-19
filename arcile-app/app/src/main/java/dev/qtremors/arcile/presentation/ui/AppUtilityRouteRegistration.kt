@@ -55,6 +55,15 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
         onNavigateBack = { navController.popBackStack() },
         onPlayVideo = { session ->
             navController.navigate(AppRoutes.VideoViewer(GlobalVideoPlaybackSessions.register(session)))
+        },
+        packageInstaller = { grant, dismiss ->
+            AppApkInstallerDialog(
+                target = AppFileOpenResolution.InstallApk(
+                    path = grant.displayName, contentUri = grant.contentUri, displayName = grant.displayName
+                ),
+                onDismiss = dismiss,
+                cleanupWhenDisposed = true
+            )
         }
     )
     registerActivityLogRoute(

@@ -37,8 +37,10 @@ internal class DefaultVaultRepository @Inject constructor(
     VaultFileSystem {
     init {
         applicationScope.launch(dispatchers.io) {
-            cleanupInterruptedArtifacts(vaultRoot)
-            refreshVaults()
+            lifecycleMutex.withLock {
+                cleanupInterruptedArtifacts(vaultRoot)
+                refreshVaults()
+            }
         }
     }
 

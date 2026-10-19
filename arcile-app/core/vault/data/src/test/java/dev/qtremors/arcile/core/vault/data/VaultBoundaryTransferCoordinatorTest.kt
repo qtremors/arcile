@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
@@ -25,6 +26,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultUnlockOptions
 import java.io.File
 import java.nio.file.Files
+import io.mockk.coEvery
+import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -32,6 +35,61 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class VaultBoundaryTransferCoordinatorTest {
+    @Test
+    fun `vault folder is still intact when main trash rejects publication`() = runTest {
+        val staging = Files.createTempDirectory("arcile-vault-trash").toFile()
+        try {
+            val fileSystem = DeepDirectoryFileSystem(depth = 3)
+            val sessions = RecordingSessionManager()
+            val trash = mockk<TrashRepository>()
+            coEvery { trash.acceptExternalItem("Folder", any(), any()) } coAnswers {
+                secondArg<suspend (String) -> Unit>()(File(staging, "item").path)
+                assertTrue(File(staging, "item/Level-1/Level-2/Level-3").isDirectory)
+                assertTrue(fileSystem.deleted.isEmpty())
+                Result.failure(java.io.IOException("Main Trash is full"))
+            }
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(fileSystem, sessions, trash)
+            val reservation = coordinator.prepareExport(listOf(fileSystem.root.ref)).getOrThrow()
+
+            val result = coordinator.moveToMainTrash(reservation, VaultCancellationSignal { false })
+
+            assertEquals(VaultItemOutcome.FAILED, result.items.single().outcome)
+            assertTrue(fileSystem.deleted.isEmpty())
+            assertTrue(reservation.isClosed)
+            assertEquals(1, sessions.closed)
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `trash cancellation after publication leaves both copies and reports partial completion`() = runTest {
+        val staging = Files.createTempDirectory("arcile-cancelled-trash").toFile()
+        try {
+            val fileSystem = DeepDirectoryFileSystem(depth = 0)
+            val sessions = RecordingSessionManager()
+            val trash = mockk<TrashRepository>()
+            var cancelled = false
+            coEvery { trash.acceptExternalItem("Folder", any(), any()) } coAnswers {
+                secondArg<suspend (String) -> Unit>()(File(staging, "published").path)
+                cancelled = true
+                runCatching { thirdArg<suspend () -> Unit>()() }
+            }
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(fileSystem, sessions, trash)
+            val reservation = coordinator.prepareExport(listOf(fileSystem.root.ref)).getOrThrow()
+
+            val result = coordinator.moveToMainTrash(reservation, VaultCancellationSignal { cancelled })
+
+            assertEquals(VaultItemOutcome.PARTIAL, result.items.single().outcome)
+            assertTrue(File(staging, "published").isDirectory)
+            assertTrue(fileSystem.deleted.isEmpty())
+            assertTrue(reservation.isClosed)
+            assertEquals(1, sessions.closed)
+        } finally {
+            staging.deleteRecursively()
+        }
+    }
+
     @Test
     fun `nested directory export is iterative and a move deletes only after publication`() = runTest {
         val destination = Files.createTempDirectory("arcile-deep-export").toFile()

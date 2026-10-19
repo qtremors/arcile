@@ -130,6 +130,12 @@ internal fun VaultActionsMenu(
             }
             add {
                 ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_create_backup)) },
+                    onClick = { closeAnd(viewModel::beginVaultBackup) }
+                )
+            }
+            add {
+                ArcileDropdownMenuItem(
                     text = { Text(stringResource(R.string.onlyfiles_vault_external_access)) },
                     onClick = { closeAnd { onVaultDetails(VaultDetails.EXTERNAL_ACCESS) } }
                 )

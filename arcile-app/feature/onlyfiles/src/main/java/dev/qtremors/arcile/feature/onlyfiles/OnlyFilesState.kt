@@ -77,6 +77,8 @@ internal data class OnlyFilesUiState(
     val folderPicker: VaultFolderPickerState? = null,
     val localPicker: OnlyFilesLocalPickerState? = null,
     val pendingMoveIntoVault: List<String> = emptyList(),
+    val backupRequest: VaultBackupRequest? = null,
+    val backupInProgress: VaultBackupMode? = null,
     val browserImportCount: Int = 0,
     val screenshotProtectionEnabled: Boolean = true,
     val encryptedThumbnailFiles: Int = 0,

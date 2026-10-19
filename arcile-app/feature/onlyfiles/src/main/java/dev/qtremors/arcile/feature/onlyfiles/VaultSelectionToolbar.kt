@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderZip
@@ -36,6 +37,7 @@ internal fun VaultSelectionToolbar(
     onOpenAs: () -> Unit,
     onExport: () -> Unit,
     onMoveOut: () -> Unit,
+    onMoveToTrash: () -> Unit,
     onReveal: (() -> Unit)?,
     onCreateZip: (() -> Unit)?,
     modifier: Modifier = Modifier
@@ -81,6 +83,7 @@ internal fun VaultSelectionToolbar(
                         item(R.string.onlyfiles_export, Icons.Default.UploadFile, onExport)
                         if (nodes.all { it.ref.capabilities.canDeletePermanently }) {
                             item(R.string.onlyfiles_move_out, Icons.AutoMirrored.Filled.OpenInNew, onMoveOut)
+                            item(R.string.onlyfiles_move_to_main_trash, Icons.Default.DeleteOutline, onMoveToTrash)
                         }
                     }
                 }

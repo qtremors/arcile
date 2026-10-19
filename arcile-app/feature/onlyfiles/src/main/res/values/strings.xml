@@ -1,4 +1,17 @@
 <resources>
+    <string name="onlyfiles_move_to_main_trash">Move to main Trash</string>
+    <string name="onlyfiles_recover_transaction">Recover transaction</string>
+    <string name="onlyfiles_create_backup">Create encrypted backup</string>
+    <string name="onlyfiles_restore_backup">Restore vault backup</string>
+    <string name="onlyfiles_choose_backup_destination">Use this backup destination</string>
+    <string name="onlyfiles_choose_backup_source">Use this backup folder</string>
+    <string name="onlyfiles_creating_backup">Creating and verifying backup</string>
+    <string name="onlyfiles_restoring_backup">Restoring and verifying vault</string>
+    <string name="onlyfiles_backup_description">Arcile creates a separate encrypted folder. Keep its password to restore the backup.</string>
+    <string name="onlyfiles_restore_backup_description">Enter the backup password. Arcile restores a separate vault in app storage, using that password.</string>
+    <string name="onlyfiles_backup_weak_password">Use this password even though it is weak</string>
+    <string name="onlyfiles_install_vault_package_message">Arcile temporarily decrypts this package in app storage so Android can inspect and install it.</string>
+    <string name="onlyfiles_move_to_main_trash_message">Arcile decrypts these items into its main Trash. They remain accessible when the vault is locked. Restore asks you to choose a folder.</string>
     <string name="onlyfiles_choose_import_vault">Choose a vault</string>
     <string name="onlyfiles_choose_import_destination">Choose an import folder</string>
     <string name="onlyfiles_import_here">Import here</string>

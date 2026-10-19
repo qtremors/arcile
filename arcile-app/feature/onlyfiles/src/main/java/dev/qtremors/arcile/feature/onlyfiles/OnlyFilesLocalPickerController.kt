@@ -19,7 +19,8 @@ internal class OnlyFilesLocalPickerController(
     private val showError: (Throwable) -> Unit,
     private val import: (List<String>) -> Unit,
     private val export: (List<VaultNodeMetadata>, String, Boolean) -> Unit,
-    private val moveIn: (List<String>) -> Unit = {}
+    private val moveIn: (List<String>) -> Unit = {},
+    private val chooseBackupFolder: (String, VaultBackupMode) -> Unit = { _, _ -> }
 ) {
     private var volumes = emptyList<StorageVolume>()
     private var exportNodes = emptyList<VaultNodeMetadata>()
@@ -28,6 +29,8 @@ internal class OnlyFilesLocalPickerController(
     fun openImportFiles() = open(OnlyFilesLocalPickerMode.IMPORT_FILES)
     fun openMoveIn() = open(OnlyFilesLocalPickerMode.MOVE_FILES_IN)
     fun openImportFolder() = open(OnlyFilesLocalPickerMode.IMPORT_FOLDER)
+    fun openBackupDestination() = open(OnlyFilesLocalPickerMode.BACKUP_DESTINATION)
+    fun openBackupSource() = open(OnlyFilesLocalPickerMode.BACKUP_SOURCE)
     fun openExport(nodes: List<VaultNodeMetadata>, move: Boolean) {
         exportNodes = nodes
         open(if (move) OnlyFilesLocalPickerMode.MOVE_OUT else OnlyFilesLocalPickerMode.EXPORT)
@@ -57,6 +60,8 @@ internal class OnlyFilesLocalPickerController(
             OnlyFilesLocalPickerMode.MOVE_OUT -> picker.current?.path?.let {
                 export(exportNodes, it, picker.mode == OnlyFilesLocalPickerMode.MOVE_OUT)
             }
+            OnlyFilesLocalPickerMode.BACKUP_DESTINATION -> picker.current?.path?.let { chooseBackupFolder(it, VaultBackupMode.CREATE) }
+            OnlyFilesLocalPickerMode.BACKUP_SOURCE -> picker.current?.path?.let { chooseBackupFolder(it, VaultBackupMode.RESTORE) }
         }
         exportNodes = emptyList()
     }
@@ -83,7 +88,7 @@ internal class OnlyFilesLocalPickerController(
     }
 
     private fun open(mode: OnlyFilesLocalPickerMode) = loadPicker {
-        if (state.value.selectedVaultId == null) return@loadPicker
+        if (state.value.busy || (state.value.selectedVaultId == null && mode != OnlyFilesLocalPickerMode.BACKUP_SOURCE)) return@loadPicker
         state.update { it.copy(localPicker = OnlyFilesLocalPickerState(mode, isLoading = true)) }
         val result = volumeRepository.getStorageVolumes()
         ensureActive()

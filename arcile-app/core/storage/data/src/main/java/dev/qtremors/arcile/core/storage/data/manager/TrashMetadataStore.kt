@@ -46,6 +46,14 @@ internal class TrashMetadataStore {
         metadataFile.writeText(json.encodeToString(entity), Charsets.UTF_8)
     }
 
+    fun isExternalStageRecord(file: File, id: String): Boolean {
+        if (file.length() !in 1..65_536L) return false
+        val entity = runCatching {
+            json.decodeFromString<TrashMetadataEntity>(file.readText(Charsets.UTF_8))
+        }.getOrNull() ?: return false
+        return entity.id == id && entity.originalPath.isEmpty() && !entity.displayName.isNullOrBlank()
+    }
+
     fun read(metadataFile: File, trashDirectory: File): TrashMetadataReadResult {
         val id = metadataFile.nameWithoutExtension
         val trashedFile = File(trashDirectory, id)

@@ -42,6 +42,20 @@ class PackageInstallerEngineTest {
     }
 
     @Test
+    fun `releasing a vault installer target cannot reset a newer install`() {
+        PackageInstallerEngine.prepareTarget("vault")
+        PackageInstallerEngine.prepareTarget("browser")
+        PackageInstallerEngine.onUserConfirmationRequested(42)
+        val waiting = PackageInstallerEngine.installState.value
+
+        PackageInstallerEngine.releaseTarget("vault")
+        assertEquals(waiting, PackageInstallerEngine.installState.value)
+
+        PackageInstallerEngine.releaseTarget("browser")
+        assertEquals(ApkInstallState.Idle, PackageInstallerEngine.installState.value)
+    }
+
+    @Test
     fun `cancelled confirmation reports cancellation`() {
         PackageInstallerEngine.onUserConfirmationRequested(42)
         PackageInstallerEngine.onInstallationResult(42, PackageInstaller.STATUS_FAILURE_ABORTED, null, null)

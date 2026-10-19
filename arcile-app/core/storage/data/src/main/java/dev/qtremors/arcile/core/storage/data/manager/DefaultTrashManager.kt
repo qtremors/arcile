@@ -23,9 +23,16 @@ import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.ensureActive
 import java.io.File
+import java.io.FileOutputStream
 import java.io.IOException
 import java.util.UUID
+import java.nio.file.FileAlreadyExistsException
+import java.nio.file.Files
+import java.nio.file.LinkOption
 import dev.qtremors.arcile.core.storage.data.MutationTreeSnapshot
 import dev.qtremors.arcile.core.storage.domain.RestoredTrashItem
 import dev.qtremors.arcile.core.storage.domain.PartialTrashRestoreException
@@ -56,6 +63,122 @@ class DefaultTrashManager(
 ) : TrashManager {
     private val metadataStore = TrashMetadataStore()
     private val restoreUndo = linkedMapOf<String, Pair<String, MutationTreeSnapshot>>()
+    private val externalTrashMutex = Mutex()
+
+    override suspend fun acceptExternalItem(
+        displayName: String,
+        writePayload: suspend (String) -> Unit,
+        afterPublished: suspend () -> Unit
+    ): Result<Unit> = externalTrashMutex.withLock {
+        withContext(dispatchers.io) {
+            runCatchingPreservingCancellation {
+                require(isSafeExternalName(displayName)) { "Invalid Trash item name" }
+                val volume = trashEnabledVolumes(volumeProvider.currentVolumes())
+                    .sortedByDescending(StorageVolume::isPrimary).firstOrNull()
+                    ?: throw IOException("Main Trash is unavailable")
+                val managed = File(volume.path, ".arcile")
+                val trash = File(managed, ".trash")
+                val metadata = File(managed, ".metadata")
+                val stagingRoot = File(metadata, EXTERNAL_TRASH_STAGING)
+                requireManagedTrashDirectory(volume, trash)
+                requireManagedTrashDirectory(volume, metadata)
+                requireManagedTrashDirectory(volume, stagingRoot)
+                File(trash, ".nomedia").createNewFile()
+                File(stagingRoot, ".nomedia").createNewFile()
+                recoverExternalTrashStaging(volume)
+                val id = UUID.randomUUID().toString()
+                val stage = Files.createDirectory(File(stagingRoot, id).toPath()).toFile()
+                val stagedPayload = File(stage, "payload")
+                val stagedMetadata = File(stage, "metadata.json")
+                val publishedPayload = File(trash, id)
+                val publishedMetadata = File(metadata, "$id.json")
+                var published = false
+                var moved = false
+                try {
+                    writePayload(stagedPayload.absolutePath)
+                    ensureActive()
+                    val snapshot = MutationTreeSnapshot.capture(stagedPayload, undoFileKey)
+                    metadataStore.write(stagedMetadata, TrashMetadataEntity(
+                        id = id, originalPath = "", displayName = displayName,
+                        deletionTime = System.currentTimeMillis(), sourceVolumeId = volume.id,
+                        sourceStorageKind = volume.kind.name
+                    ))
+                    FileOutputStream(stagedMetadata, true).use { it.fd.sync() }
+                    Files.move(stagedPayload.toPath(), publishedPayload.toPath())
+                    moved = true
+                    if (!snapshot.matches(publishedPayload, undoFileKey, requireIdentity = false)) {
+                        throw IOException("Trash payload could not be verified")
+                    }
+                    ensureActive()
+                    Files.move(stagedMetadata.toPath(), publishedMetadata.toPath())
+                    published = true
+                    afterPublished()
+                } finally {
+                    cleanExternalTrashStage(stage, publishedPayload.takeIf { !published && moved })
+                }
+            }
+        }
+    }
+
+    private fun recoverExternalTrashStaging(volume: StorageVolume) {
+        val metadata = File(File(volume.path, ".arcile"), ".metadata")
+        val stages = File(metadata, EXTERNAL_TRASH_STAGING)
+        if (!Files.exists(stages.toPath(), LinkOption.NOFOLLOW_LINKS)) return
+        requireManagedTrashDirectory(volume, stages)
+        val trash = File(File(volume.path, ".arcile"), ".trash")
+        requireManagedTrashDirectory(volume, trash)
+        for (stage in stages.listFiles().orEmpty()) {
+            val id = stage.name
+            if (runCatching { UUID.fromString(id).toString() }.getOrNull() != id) continue
+            if (!Files.isDirectory(stage.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
+            val stagedMetadata = File(stage, "metadata.json")
+            val payloadWasMoved = Files.isRegularFile(stagedMetadata.toPath(), LinkOption.NOFOLLOW_LINKS) &&
+                metadataStore.isExternalStageRecord(stagedMetadata, id) &&
+                !Files.exists(File(stage, "payload").toPath(), LinkOption.NOFOLLOW_LINKS)
+            val sidecar = File(metadata, "$id.json")
+            val unpublished = payloadWasMoved && !Files.exists(sidecar.toPath(), LinkOption.NOFOLLOW_LINKS)
+            cleanExternalTrashStage(stage, File(trash, id).takeIf { unpublished })
+        }
+    }
+
+    private fun requireManagedTrashDirectory(volume: StorageVolume, directory: File) {
+        val root = File(volume.path).canonicalFile.toPath()
+        val configured = File(volume.path).absoluteFile.toPath().normalize()
+        val relative = configured.relativize(directory.absoluteFile.toPath().normalize())
+        require(relative.nameCount > 0 && relative.getName(0).toString() == ".arcile")
+        var current = root
+        for (part in relative) {
+            current = current.resolve(part)
+            if (!Files.exists(current, LinkOption.NOFOLLOW_LINKS)) {
+                try {
+                    Files.createDirectory(current)
+                } catch (_: FileAlreadyExistsException) {
+                    // Another Trash operation may have created the directory.
+                }
+            }
+            if (!Files.isDirectory(current, LinkOption.NOFOLLOW_LINKS)) throw IOException("Main Trash path is invalid")
+        }
+    }
+
+    private fun cleanExternalTrashStage(stage: File, unpublishedPayload: File?) {
+        try {
+            unpublishedPayload?.let(::deleteExternalTrashTree)
+            deleteExternalTrashTree(stage)
+        } catch (error: IOException) {
+            AppLogger.e("TrashManager", "Failed to clean up a vault Trash staging item", error)
+        }
+    }
+
+    private fun deleteExternalTrashTree(file: File) {
+        val root = file.toPath()
+        if (!Files.exists(root, LinkOption.NOFOLLOW_LINKS)) return
+        Files.walk(root).use { paths -> paths.sorted(Comparator.reverseOrder()).forEach(Files::delete) }
+    }
+
+    private fun isSafeExternalName(name: String): Boolean =
+        name.isNotBlank() && name != "." && name != ".." && name.none { it == '/' || it == '\\' || it == '\u0000' }
+
+    private companion object { const val EXTERNAL_TRASH_STAGING = ".vault-staging" }
 
     private suspend fun finalizeMutation(vararg paths: String) {
         mutationFinalizer.finalize(*paths)
@@ -182,7 +305,10 @@ class DefaultTrashManager(
             onFailure = { Result.failure((it as? PartialTrashRestoreException)?.cause ?: it) }
         )
 
-    override suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): Result<List<RestoredTrashItem>> = withContext(dispatchers.io) {
+    override suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): Result<List<RestoredTrashItem>> =
+        externalTrashMutex.withLock { restoreUnlocked(trashIds, destinationPath) }
+
+    private suspend fun restoreUnlocked(trashIds: List<String>, destinationPath: String?): Result<List<RestoredTrashItem>> = withContext(dispatchers.io) {
         val restored = mutableListOf<RestoredTrashItem>()
         val scannedPaths = mutableListOf<String>()
         suspend fun failure(error: Throwable): Result<List<RestoredTrashItem>> {
@@ -223,11 +349,8 @@ class DefaultTrashManager(
                 )?.entity
                 val originalPath = entity?.originalPath.orEmpty()
 
-                val originalFileContext = if (entity != null) {
-                    File(originalPath)
-                } else {
-                    File("Recovered Item ($id)")
-                }
+                val originalFileContext = if (originalPath.isNotBlank()) File(originalPath)
+                else File(entity?.displayName?.takeIf(::isSafeExternalName) ?: "Recovered Item ($id)")
                 var targetFile = if (destinationPath != null) {
                     File(destinationPath, originalFileContext.name)
                 } else {
@@ -235,7 +358,7 @@ class DefaultTrashManager(
                 }
 
                 if (destinationPath == null) {
-                    if (entity == null) {
+                    if (entity == null || originalPath.isBlank()) {
                         idsRequiringDestination.add("legacy:$id")
                         continue
                     }
@@ -317,7 +440,9 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun emptyTrash(): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun emptyTrash(): Result<Unit> = externalTrashMutex.withLock { emptyTrashUnlocked() }
+
+    private suspend fun emptyTrashUnlocked(): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val changedPaths = mutableListOf<String>()
@@ -348,12 +473,15 @@ class DefaultTrashManager(
         }
     }
 
-    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = withContext(dispatchers.io) {
+    override suspend fun getTrashFiles(): Result<List<TrashMetadata>> = externalTrashMutex.withLock { getTrashFilesUnlocked() }
+
+    private suspend fun getTrashFilesUnlocked(): Result<List<TrashMetadata>> = withContext(dispatchers.io) {
         try {
             val list = mutableListOf<TrashMetadata>()
             val volumes = volumeProvider.currentVolumes()
 
             for (volume in trashEnabledVolumes(volumes)) {
+                recoverExternalTrashStaging(volume)
                 val trashDir = metadataStore.trashDirectory(volume)
                 val trashMetadataDir = metadataStore.metadataDirectory(volume)
 
@@ -373,7 +501,8 @@ class DefaultTrashManager(
                                     val sourceVolKindStr = entity.sourceStorageKind ?: volume.kind.name
                                     val sourceVolKind = dev.qtremors.arcile.core.storage.domain.StorageKind.entries.find { it.name == sourceVolKindStr } ?: volume.kind
                                     val trashedFile = File(trashDir, id)
-                                    val originalFileContext = File(originalPath)
+                                    val originalFileContext = if (originalPath.isNotBlank()) File(originalPath)
+                                    else File(entity.displayName?.takeIf(::isSafeExternalName) ?: "Recovered Item ($id)")
                                     val spoofedModel = FileModel(
                                         name = originalFileContext.name,
                                         reference = trashedFile.absolutePath,
@@ -462,7 +591,10 @@ class DefaultTrashManager(
             .sumOf { it.length() }
     }
 
-    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> = withContext(dispatchers.io) {
+    override suspend fun deletePermanentlyFromTrash(trashIds: List<String>): Result<Unit> =
+        externalTrashMutex.withLock { deleteTrashUnlocked(trashIds) }
+
+    private suspend fun deleteTrashUnlocked(trashIds: List<String>): Result<Unit> = withContext(dispatchers.io) {
         try {
             val volumes = volumeProvider.currentVolumes()
             val changedPaths = mutableListOf<String>()

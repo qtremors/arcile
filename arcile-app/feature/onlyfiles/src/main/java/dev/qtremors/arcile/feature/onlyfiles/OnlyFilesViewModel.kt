@@ -28,6 +28,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultCatalog
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
+import dev.qtremors.arcile.core.vault.domain.VaultBackupService
 import dev.qtremors.arcile.core.ui.security.SensitiveMemory
 import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
 import dev.qtremors.arcile.core.vault.domain.VaultFolderViewOptions
@@ -54,6 +55,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val importCoordinator: VaultImportCoordinator,
     private val externalAccessManager: VaultExternalAccessManager,
     private val healthService: VaultHealthService,
+    private val backupService: VaultBackupService,
     private val destinationBrowser: SaveDestinationBrowser,
     private val localFileBrowser: FileBrowserRepository,
     private val volumeRepository: VolumeRepository,
@@ -100,7 +102,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         )
     }
     private val transfers by lazy {
-        OnlyFilesTransferController(transferCoordinator, _state, viewModelScope, ::reload)
+        OnlyFilesTransferController(transferCoordinator, _state, viewModelScope, ::reload, ::onFoldersDeleted)
     }
     private val administration by lazy {
         OnlyFilesAdministrationController(
@@ -108,11 +110,12 @@ internal class OnlyFilesViewModel @Inject constructor(
         )
     }
     private val boundary by lazy {
-        OnlyFilesBoundaryController(boundaryTransferCoordinator, _state, viewModelScope, ::reload)
+        OnlyFilesBoundaryController(boundaryTransferCoordinator, _state, viewModelScope, ::reload, ::onFoldersDeleted)
     }
     private val externalAccess by lazy {
         OnlyFilesExternalAccessController(externalAccessManager, viewModelScope, ::showError)
     }
+    private val backups = OnlyFilesBackupController(backupService, _state, viewModelScope, ::showError)
     private val imports = OnlyFilesImportController(
         importCoordinator, _state, viewModelScope, ::showError, ::reload
     )
@@ -120,7 +123,8 @@ internal class OnlyFilesViewModel @Inject constructor(
         OnlyFilesLocalPickerController(
             localFileBrowser, destinationBrowser, volumeRepository, _state, viewModelScope,
             ::showError, ::importLocalPaths, ::exportLocal,
-            moveIn = { paths -> _state.update { it.copy(pendingMoveIntoVault = paths) } }
+            moveIn = { paths -> _state.update { it.copy(pendingMoveIntoVault = paths) } },
+            chooseBackupFolder = backups::chooseFolder
         )
     }
 
@@ -530,6 +534,12 @@ internal class OnlyFilesViewModel @Inject constructor(
         if (boundary.prepare(nodes)) boundary.start(destinationPath, move)
     }
 
+    fun moveVaultItemsToTrash(nodes: List<VaultNodeMetadata>) {
+        val vault = _state.value.selectedVaultId ?: return
+        if (nodes.isEmpty() || nodes.any { it.ref.vaultId != vault || !it.ref.capabilities.canExport || !it.ref.capabilities.canDeletePermanently }) return
+        if (boundary.prepare(nodes)) boundary.startTrash()
+    }
+
     fun issueExternalAccess(
         nodes: List<VaultNodeMetadata>,
         onReady: (List<VaultExternalGrant>) -> Unit
@@ -540,17 +550,26 @@ internal class OnlyFilesViewModel @Inject constructor(
         onReady: (List<VaultExternalGrant>) -> Unit
     ) = issueVaultHandoff(nodes, plaintextFallback = true, onReady)
 
+    fun issuePackageAccess(
+        node: VaultNodeMetadata,
+        onReady: (VaultExternalGrant) -> Unit,
+        onFailure: () -> Unit
+    ) = issueVaultHandoff(
+        listOf(node), plaintextFallback = false, onReady = { onReady(it.single()) }, onFailure = onFailure
+    )
+
     private fun issueVaultHandoff(
         nodes: List<VaultNodeMetadata>,
         plaintextFallback: Boolean,
-        onReady: (List<VaultExternalGrant>) -> Unit
+        onReady: (List<VaultExternalGrant>) -> Unit,
+        onFailure: () -> Unit = {}
     ) {
         val current = _state.value
-        val vault = current.selectedVaultId ?: return
-        if (nodes.any { it.ref.vaultId != vault }) return
+        val vault = current.selectedVaultId
+        if (vault == null || nodes.any { it.ref.vaultId != vault }) return onFailure()
         externalAccess.issue(nodes, plaintextFallback, isCurrentMount = {
             _state.value.mountGeneration == current.mountGeneration && vault in repository.unlockedVaultIds.value
-        }, onReady)
+        }, onReady, onFailure)
     }
 
     fun revokeExternalAccess(grants: List<VaultExternalGrant>) {
@@ -597,6 +616,36 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun dismissHealthReport() = _state.update { it.copy(healthReport = null) }
+
+    fun beginVaultBackup() = localPicker.openBackupDestination()
+    fun beginRestoreBackup() = localPicker.openBackupSource()
+    fun dismissBackupRequest() = backups.dismiss()
+    fun submitBackup(label: String, password: String, weakConfirmed: Boolean) = backups.submit(label, password, weakConfirmed)
+    fun cancelBackup() = backups.cancel()
+
+    fun recoverVaultTransactions() {
+        val mount = _state.value
+        val id = mount.selectedVaultId ?: return
+        if (mount.healthReport?.issues?.none { it.code == "pending_transaction" } != false) return
+        runBusy {
+            healthService.recoverTransactions(id).fold(
+                onSuccess = {
+                    if (_state.value.mountGeneration == mount.mountGeneration) {
+                        reload()
+                        healthService.verify(id, VaultHealthMode.QUICK).fold(
+                            onSuccess = { report ->
+                                _state.update {
+                                    if (it.mountGeneration == mount.mountGeneration) it.copy(healthReport = report) else it
+                                }
+                            },
+                            onFailure = ::showError
+                        )
+                    }
+                },
+                onFailure = ::showError
+            )
+        }
+    }
 
     fun changePassword(current: String, replacement: String, weakConfirmed: Boolean) =
         administration.changePassword(current, replacement, weakConfirmed)
@@ -728,6 +777,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         locations.closePicker()
         browser.cancel()
         localPicker.cancel()
+        backups.cancel()
         boundary.cancelSelection()
         cancelImportSelection()
         _state.update {

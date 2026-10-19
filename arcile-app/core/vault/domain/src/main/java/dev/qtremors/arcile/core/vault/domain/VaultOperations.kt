@@ -90,7 +90,8 @@ data class VaultItemResult(
     val sourceIdentity: String,
     val displayName: String,
     val outcome: VaultItemOutcome,
-    val failure: VaultFailure? = null
+    val failure: VaultFailure? = null,
+    val removedFolders: Set<DirectoryId> = emptySet()
 )
 
 data class VaultBatchResult(val items: List<VaultItemResult>) {
@@ -172,6 +173,11 @@ interface VaultBoundaryTransferCoordinator {
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult
+
+    suspend fun moveToMainTrash(
+        reservation: VaultBoundaryTransferReservation,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = throw VaultFailure.Unavailable("Main Trash is unavailable")
 }
 
 interface VaultBoundaryTransferReservation : Closeable {

@@ -19,6 +19,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -53,9 +54,9 @@ class OnlyFilesExternalAccessControllerTest {
         val controller = OnlyFilesExternalAccessController(manager, this) { throw it }
         var mounted = true
 
-        controller.issue(listOf(file), plaintextFallback = true, isCurrentMount = { mounted }) {
+        controller.issue(listOf(file), plaintextFallback = true, isCurrentMount = { mounted }, onReady = {
             error("A locked mount must never launch a chooser")
-        }
+        })
         runCurrent()
         mounted = false
         pending.complete(Result.success(grant))
@@ -76,14 +77,16 @@ class OnlyFilesExternalAccessControllerTest {
             every { revoke(firstGrant.token) } returns true
         }
         val errors = mutableListOf<Throwable>()
+        var failed = false
         val controller = OnlyFilesExternalAccessController(manager, this) { errors += it }
 
-        controller.issue(listOf(first, second), plaintextFallback = false, isCurrentMount = { true }) {
+        controller.issue(listOf(first, second), plaintextFallback = false, isCurrentMount = { true }, onReady = {
             error("A partial handoff must never launch a chooser")
-        }
+        }, onFailure = { failed = true })
         advanceUntilIdle()
 
         assertEquals(listOf(failure), errors)
+        assertTrue(failed)
         verify(exactly = 1) { manager.revoke(firstGrant.token) }
     }
 

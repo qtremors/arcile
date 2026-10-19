@@ -222,7 +222,13 @@ internal fun VaultPropertiesDialog(
 }
 
 @Composable
-internal fun HealthDialog(report: VaultHealthReport, onDismiss: () -> Unit) {
+internal fun HealthDialog(
+    report: VaultHealthReport,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onRecover: () -> Unit
+) {
+    val needsRecovery = report.issues.any { it.code == "pending_transaction" }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_health_result)) },
         text = { Column {
@@ -232,12 +238,40 @@ internal fun HealthDialog(report: VaultHealthReport, onDismiss: () -> Unit) {
         } },
         confirmButton = {
             TextButton(
+                onClick = if (needsRecovery) onRecover else onDismiss,
+                enabled = !busy,
+                shape = ExpressiveShapes.medium,
+            ) {
+                Text(stringResource(if (needsRecovery) R.string.onlyfiles_recover_transaction else R.string.onlyfiles_close))
+            }
+        },
+        dismissButton = {
+            if (needsRecovery) TextButton(onClick = onDismiss, enabled = !busy, shape = ExpressiveShapes.medium) {
+                Text(stringResource(R.string.onlyfiles_close))
+            }
+        }
+    )
+}
+
+@Composable
+internal fun VaultMoveToTrashDialog(onDismiss: () -> Unit, onMove: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.onlyfiles_move_to_main_trash)) },
+        text = { Text(stringResource(R.string.onlyfiles_move_to_main_trash_message)) },
+        confirmButton = {
+            Button(
+                onClick = onMove,
+                shape = ExpressiveShapes.medium,
+                modifier = Modifier.bounceClickable(onClick = onMove)
+            ) { Text(stringResource(R.string.onlyfiles_move_to_main_trash)) }
+        },
+        dismissButton = {
+            TextButton(
                 onClick = onDismiss,
                 shape = ExpressiveShapes.medium,
                 modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.onlyfiles_close))
-            }
+            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
         }
     )
 }
@@ -287,7 +321,6 @@ internal fun VaultExternalAccessDialogs(
     val title = when {
         compatibilityCopy -> R.string.onlyfiles_compatibility_copy
         action == ExternalAction.SHARE -> R.string.onlyfiles_share
-        action == ExternalAction.INSTALL_APK -> R.string.onlyfiles_open_installer
         else -> R.string.onlyfiles_open_with
     }
     AlertDialog(
@@ -333,8 +366,7 @@ private fun launchExternalIntent(
     openAs: FileOpenAsType?
 ) {
     val intent = buildVaultExternalIntent(context, action, grants, openAs)
-    context.startActivity(if (action == ExternalAction.INSTALL_APK) intent
-    else Intent.createChooser(intent, grants.first().displayName))
+    context.startActivity(Intent.createChooser(intent, grants.first().displayName))
 }
 
 internal fun buildVaultExternalIntent(
@@ -346,8 +378,6 @@ internal fun buildVaultExternalIntent(
     require(grants.isNotEmpty())
     val uris = ArrayList(grants.map { it.contentUri.toUri() })
     val intent = when {
-        action == ExternalAction.INSTALL_APK -> Intent(Intent.ACTION_VIEW)
-            .setDataAndType(uris.single(), "application/vnd.android.package-archive")
         action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW)
             .setDataAndType(uris.single(), openAs?.mimeType ?: grants.single().mimeType)
         grants.size == 1 -> Intent(Intent.ACTION_SEND).setType(grants.single().mimeType).putExtra(Intent.EXTRA_STREAM, uris.single())
