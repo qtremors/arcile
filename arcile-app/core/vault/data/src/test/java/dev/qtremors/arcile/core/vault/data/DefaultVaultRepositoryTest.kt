@@ -5,6 +5,14 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
+import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
+import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryManifestCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultHeaderCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
+import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
+import dev.qtremors.arcile.core.vault.domain.NodeId
+import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
@@ -355,6 +363,108 @@ class DefaultVaultRepositoryTest {
             val invalidPath = VaultRenameItem(renamedFolder.ref, renamedFolder.name, "../elsewhere")
             assertTrue(repository.batchRename(listOf(invalidPath)).exceptionOrNull() is VaultFailure.InvalidName)
             assertEquals("Café", repository.metadata(folder.ref).getOrThrow().name)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault search scans a large ranked manifest once for its first four pages`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Search", "password".toCharArray()).getOrThrow()
+            val access = FileVaultDirectory(File(context.noBackupFilesDir, "$ROOT_DIRECTORY/${vault.value}"))
+            val password = "password".toCharArray()
+            val header = try {
+                VaultHeaderCodec().open(access, password).getOrThrow()
+            } finally {
+                password.fill('\u0000')
+            }
+            val rootKey = VaultCryptography.deriveDomainKey(header.masterKey, vault, VaultKeyDomain.ROOT_DIRECTORY)
+            // This fixture only needs encrypted manifests. Search never opens the file payloads.
+            val total = 1_140
+            val entries = (0 until total).map { index ->
+                VaultManifestEntry(
+                    NodeId.of("node-$index"), "item-${index.toString().padStart(4, '0')}.txt",
+                    VaultNodeKind.FILE, 1L, 0L, 0L, "text/plain",
+                    VaultObjectId.fromRandomBytes(java.nio.ByteBuffer.allocate(32).putInt(index).array()),
+                    null, VaultCryptography.randomBytes(32)
+                )
+            }
+            try {
+                val codec = VaultDirectoryManifestCodec()
+                codec.publish(access, codec.prepare(vault, DirectoryId.Root, rootKey, 1L, entries))
+            } finally {
+                rootKey.fill(0)
+                header.masterKey.fill(0)
+                entries.forEach { it.protectedKey.fill(0) }
+            }
+            var visits = 0
+            val query = VaultSearchQuery("item-", recursive = true, reusePageWindow = true) {
+                visits++
+                true
+            }
+            var token: String? = null
+            repeat(4) { pageIndex ->
+                val page = repository.search(vault, DirectoryId.Root, query.copy(pageToken = token)).getOrThrow()
+                assertEquals(256, page.items.size)
+                assertEquals("node-${pageIndex * 256}", page.items.first().metadata.ref.nodeId.value)
+                token = page.nextPageToken
+            }
+            assertEquals(total, visits)
+            val tail = repository.search(vault, DirectoryId.Root, query.copy(pageToken = token)).getOrThrow()
+            assertEquals(total - 1_024, tail.items.size)
+            assertEquals(null, tail.nextPageToken)
+            assertEquals(total * 2, visits)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault search reuses a ranked window until a descendant mutation publishes`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Search", "password".toCharArray()).getOrThrow()
+            val root = DirectoryId.Root
+            val folder = repository.createDirectory(vault, root, "Nested").getOrThrow()
+            val child = requireNotNull(folder.ref.directoryId)
+            repeat(9) { index -> repository.createEmptyFile(vault, child, "item-$index.txt").getOrThrow() }
+            var visits = 0
+            val query = VaultSearchQuery("item-", recursive = true, pageSize = 2, reusePageWindow = true) {
+                visits++
+                true
+            }
+            val first = repository.search(vault, root, query).getOrThrow()
+            assertEquals(listOf("item-0.txt", "item-1.txt"), first.items.map { it.metadata.name })
+            assertEquals(9, visits)
+            var token = first.nextPageToken
+            for (page in 1..3) {
+                val next = repository.search(vault, root, query.copy(pageToken = token)).getOrThrow()
+                assertEquals(first.generation, next.generation)
+                assertEquals(listOf("item-${page * 2}.txt", "item-${page * 2 + 1}.txt"), next.items.map { it.metadata.name })
+                token = next.nextPageToken
+            }
+            assertEquals(9, visits)
+            val finalPage = repository.search(vault, root, query.copy(pageToken = token)).getOrThrow()
+            assertEquals(listOf("item-8.txt"), finalPage.items.map { it.metadata.name })
+            assertEquals(null, finalPage.nextPageToken)
+            assertEquals(18, visits)
+
+            repository.search(vault, root, query).getOrThrow()
+            repository.createEmptyFile(vault, child, "item-00.txt").getOrThrow()
+            val changed = repository.search(vault, root, query.copy(pageToken = first.nextPageToken)).getOrThrow()
+            assertTrue(first.generation != changed.generation)
+            assertEquals(listOf("item-1.txt", "item-2.txt"), changed.items.map { it.metadata.name })
+            assertEquals(37, visits)
         } finally {
             scope.cancel()
         }

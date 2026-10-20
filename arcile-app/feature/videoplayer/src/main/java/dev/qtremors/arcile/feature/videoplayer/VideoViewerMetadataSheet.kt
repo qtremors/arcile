@@ -88,6 +88,7 @@ internal fun VideoMetadataSheet(
     file: FileModel,
     metadata: VideoFileMetadata?,
     durationMs: Long,
+    showReference: Boolean = true,
     onDismiss: () -> Unit
 ) {
     val labels = MediaMetadataDetailLabels(
@@ -105,7 +106,7 @@ internal fun VideoMetadataSheet(
     val durationLabel = stringResource(R.string.video_gallery_metadata_duration)
     val context = androidx.compose.ui.platform.LocalContext.current
 
-    val rows = remember(context, file, metadata, durationMs, labels, durationLabel) {
+    val rows = remember(context, file, metadata, durationMs, labels, durationLabel, showReference) {
         buildVideoMetadataRows(
             context,
             file,
@@ -113,7 +114,8 @@ internal fun VideoMetadataSheet(
             labels,
             durationMs.takeIf { it > 0L },
             null,
-            durationLabel
+            durationLabel,
+            showReference
         )
     }
 

@@ -1,30 +1,19 @@
 package dev.qtremors.arcile.feature.audio
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
@@ -33,21 +22,15 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Lyrics
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,18 +38,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
+import dev.qtremors.arcile.core.ui.audio.AudioTransportControls
 
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.ContentCopy
@@ -341,123 +321,19 @@ internal fun AudioPlaybackControls(
     onPrevious: () -> Unit,
     onNext: () -> Unit
 ) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxWidth()
-            .widthIn(max = 420.dp)
-    ) {
-        val compact = maxWidth < 300.dp
-        val buttonHeight = 68.dp
-        val spacing = 8.dp
-        val centerColor = MaterialTheme.colorScheme.primary
-        val centerContentColor = MaterialTheme.colorScheme.onPrimary
-        val previousInteraction = remember { MutableInteractionSource() }
-        val playInteraction = remember { MutableInteractionSource() }
-        val nextInteraction = remember { MutableInteractionSource() }
-        val previousPressed by previousInteraction.collectIsPressedAsState()
-        val playPressed by playInteraction.collectIsPressedAsState()
-        val nextPressed by nextInteraction.collectIsPressedAsState()
-        val previousWeight by animateFloatAsState(
-            targetValue = if (previousPressed) 0.65f else if (playPressed) 0.35f else 0.45f,
-            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-            label = "previous button width"
-        )
-        val playWeight by animateFloatAsState(
-            targetValue = if (playPressed) 1.9f else if (previousPressed || nextPressed) 1.1f else 1.3f,
-            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-            label = "play button width"
-        )
-        val nextWeight by animateFloatAsState(
-            targetValue = if (nextPressed) 0.65f else if (playPressed) 0.35f else 0.45f,
-            animationSpec = spring(dampingRatio = 0.6f, stiffness = 500f),
-            label = "next button width"
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(
-                space = spacing,
-                alignment = Alignment.CenterHorizontally
-            ),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            AudioTransportButton(
-                icon = Icons.Default.SkipPrevious,
-                contentDescription = stringResource(R.string.audio_previous),
-                modifier = Modifier.weight(previousWeight).height(buttonHeight),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                interactionSource = previousInteraction,
-                onClick = onPrevious,
-                iconSize = if (compact) 28.dp else 32.dp
-            )
-            AudioTransportButton(
-                icon = if (playback.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                contentDescription = stringResource(
-                    if (playback.isPlaying) R.string.audio_pause else R.string.audio_play
-                ),
-                modifier = Modifier.weight(playWeight).height(buttonHeight),
-                iconSize = if (compact) 28.dp else 32.dp,
-                visualizerPlaying = playback.isPlaying && visualizerEnabled,
-                containerColor = centerColor,
-                contentColor = centerContentColor,
-                interactionSource = playInteraction,
-                onClick = onTogglePlayback
-            )
-            AudioTransportButton(
-                icon = Icons.Default.SkipNext,
-                contentDescription = stringResource(R.string.audio_next),
-                modifier = Modifier.weight(nextWeight).height(buttonHeight),
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                interactionSource = nextInteraction,
-                onClick = onNext,
-                iconSize = if (compact) 28.dp else 32.dp
-            )
-        }
-    }
-}
-
-@Composable
-private fun AudioTransportButton(
-    icon: ImageVector,
-    contentDescription: String,
-    modifier: Modifier,
-    containerColor: Color,
-    contentColor: Color,
-    interactionSource: MutableInteractionSource,
-    onClick: () -> Unit,
-    iconSize: Dp = 28.dp,
-    visualizerPlaying: Boolean = false
-) {
-    val reducedMotion = LocalReducedMotionEnabled.current
-    Surface(
-        onClick = onClick,
-        interactionSource = interactionSource,
-        shape = CircleShape,
-        color = containerColor,
-        contentColor = contentColor,
-        modifier = modifier.semantics { this.contentDescription = contentDescription }
-    ) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            if (visualizerPlaying && !reducedMotion) {
-                PlaybackButtonSpectrum(Modifier.fillMaxWidth(0.84f).height(54.dp))
-            } else {
-                AnimatedContent(
-                    targetState = icon,
-                    transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.75f)) togetherWith
-                        (fadeOut() + scaleOut(targetScale = 0.75f)) },
-                    label = "transport icon"
-                ) { displayedIcon ->
-                    Icon(
-                        imageVector = displayedIcon,
-                        contentDescription = null,
-                        modifier = Modifier.size(iconSize)
-                    )
-                }
-            }
-        }
-    }
+    val showSpectrum = visualizerEnabled && !LocalReducedMotionEnabled.current
+    AudioTransportControls(
+        isPlaying = playback.isPlaying,
+        previousLabel = stringResource(R.string.audio_previous),
+        playPauseLabel = stringResource(if (playback.isPlaying) R.string.audio_pause else R.string.audio_play),
+        nextLabel = stringResource(R.string.audio_next),
+        onPrevious = onPrevious,
+        onTogglePlayback = onTogglePlayback,
+        onNext = onNext,
+        playingContent = if (showSpectrum) {
+            { PlaybackButtonSpectrum(Modifier.fillMaxWidth(0.84f).height(54.dp)) }
+        } else null
+    )
 }
 
 @Composable

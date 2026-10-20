@@ -95,6 +95,22 @@ class PluginManager(private val context: Context) {
         }.getOrElse(PluginLaunchResult::Failed)
     }
 
+    fun launchPlugin(
+        plugin: PluginMetadata,
+        contentUri: Uri,
+        mimeType: String,
+        displayName: String
+    ): PluginLaunchResult {
+        if (plugin.compatibility != PluginCompatibility.COMPATIBLE) return PluginLaunchResult.Incompatible(plugin)
+        return runCatching {
+            require(contentUri.scheme == "content")
+            check(plugin in getInstalledPlugins()) { "The selected plugin changed before launch" }
+            val baseIntent = Intent(Intent.ACTION_VIEW).setDataAndType(contentUri, mimeType)
+            context.startActivity(buildPluginLaunchIntent(plugin, baseIntent, displayName))
+            PluginLaunchResult.Launched
+        }.getOrElse(PluginLaunchResult::Failed)
+    }
+
     private fun rankedCandidates(mimeType: String?, extension: String?): List<PluginMetadata> {
         val normalizedMime = mimeType?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
         return rankPlugins(getInstalledPlugins(), normalizedMime, extension)

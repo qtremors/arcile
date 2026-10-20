@@ -8,6 +8,7 @@ import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -18,6 +19,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.ui.ClipboardToolbar
@@ -36,7 +41,8 @@ internal data class VaultZipExtraction(
     val selection: VaultZipSelection,
     val name: String,
     val keepBoth: Boolean,
-    val successMessage: String
+    val successMessage: String,
+    val password: CharArray? = null
 )
 
 @Composable
@@ -44,15 +50,20 @@ internal fun VaultCreateZipDialog(
     nodes: List<VaultNodeMetadata>,
     existingNames: Set<String>,
     onDismiss: () -> Unit,
-    onCreate: (String, Int, String) -> Unit
+    onCreate: (String, Int, String, CharArray?) -> Unit
 ) {
     var name by remember(nodes) {
         mutableStateOf(nodes.singleOrNull()?.name?.substringBeforeLast('.').orEmpty())
     }
     var level by remember { mutableStateOf(ArchiveCompressionLevel.DEFAULT) }
+    var usePassword by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var revealPassword by remember { mutableStateOf(false) }
     val output = if (name.trim().endsWith(".zip", ignoreCase = true)) name.trim() else name.trim() + ".zip"
     val validation = validateFileName(output, existingNames)
-    val canCreate = name.isNotBlank() && validation.isValid
+    val canCreate = name.isNotBlank() && validation.isValid &&
+        (!usePassword || (password.isNotEmpty() && password == confirmPassword))
     val success = stringResource(R.string.onlyfiles_zip_created)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -82,6 +93,37 @@ internal fun VaultCreateZipDialog(
                         ArchiveCompressionLevel.MAXIMUM -> R.string.onlyfiles_zip_maximum
                     }))
                 }
+                androidx.compose.foundation.layout.Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                ) {
+                    ExpressiveSwitch(checked = usePassword, onCheckedChange = {
+                        usePassword = it
+                        if (!it) {
+                            password = ""
+                            confirmPassword = ""
+                            revealPassword = false
+                        }
+                    })
+                    Text(stringResource(R.string.onlyfiles_zip_password_protection))
+                }
+                if (usePassword) {
+                    PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword })
+                    val mismatch = confirmPassword.isNotEmpty() && confirmPassword != password
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it },
+                        label = { Text(stringResource(R.string.onlyfiles_confirm_password)) },
+                        singleLine = true,
+                        isError = mismatch,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        visualTransformation = if (revealPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (mismatch) {
+                        Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
+                    }
+                }
             }
         },
         confirmButton = {
@@ -94,7 +136,8 @@ internal fun VaultCreateZipDialog(
                         ArchiveCompressionLevel.DEFAULT -> Deflater.DEFAULT_COMPRESSION
                         ArchiveCompressionLevel.MAXIMUM -> Deflater.BEST_COMPRESSION
                     }
-                    onCreate(validation.sanitizedName, compression, success)
+                    val secret = if (usePassword) password.toCharArray() else null
+                    onCreate(validation.sanitizedName, compression, success, secret)
                 }
             ) { Text(stringResource(R.string.onlyfiles_create_zip)) }
         },
@@ -112,10 +155,14 @@ internal fun VaultExtractZipDialog(
     val defaultName = selection.folder.lastOrNull() ?: node.name.substringBeforeLast('.')
     var name by remember(defaultName) { mutableStateOf(defaultName) }
     var keepBoth by remember { mutableStateOf(false) }
+    var password by remember { mutableStateOf("") }
+    var revealPassword by remember { mutableStateOf(false) }
     val validation = validateFileName(name)
     val success = stringResource(R.string.onlyfiles_zip_extracted)
+    val canExtract = validation.isValid && (!selection.requiresPassword || password.isNotEmpty())
     fun extract(choose: Boolean) {
-        onExtract(VaultZipExtraction(node, selection, validation.sanitizedName, keepBoth, success), choose)
+        val secret = if (selection.requiresPassword) password.toCharArray() else null
+        onExtract(VaultZipExtraction(node, selection, validation.sanitizedName, keepBoth, success, secret), choose)
     }
 
     AlertDialog(
@@ -130,6 +177,9 @@ internal fun VaultExtractZipDialog(
                     label = stringResource(R.string.onlyfiles_new_folder),
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (selection.requiresPassword) {
+                    PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword })
+                }
                 androidx.compose.foundation.layout.Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
@@ -140,13 +190,13 @@ internal fun VaultExtractZipDialog(
             }
         },
         confirmButton = {
-            FilledTonalButton(enabled = validation.isValid, onClick = { extract(false) }) {
+            FilledTonalButton(enabled = canExtract, onClick = { extract(false) }) {
                 Text(stringResource(R.string.onlyfiles_extract_here))
             }
         },
         dismissButton = {
             Column {
-                TextButton(enabled = validation.isValid, onClick = { extract(true) }) {
+                TextButton(enabled = canExtract, onClick = { extract(true) }) {
                     Text(stringResource(R.string.onlyfiles_choose_destination))
                 }
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }

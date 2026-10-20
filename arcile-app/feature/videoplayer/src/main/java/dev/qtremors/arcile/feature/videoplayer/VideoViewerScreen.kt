@@ -141,7 +141,8 @@ internal fun VideoViewerScreen(
 
     val haptics = rememberArcileHaptics()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
-    val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
+    val showMetadataSheet = (!readOnly || session.items.any { it.readMetadata != null }) &&
+        state.viewerMetadataPath != null
 
     var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }

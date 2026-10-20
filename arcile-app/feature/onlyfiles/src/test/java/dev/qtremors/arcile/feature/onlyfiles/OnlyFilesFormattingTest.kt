@@ -4,6 +4,7 @@ import android.content.Intent
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.storage.domain.VaultThumbnailRequest
 import dev.qtremors.arcile.core.storage.domain.FileCategories
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
@@ -32,6 +33,14 @@ class OnlyFilesFormattingTest {
         assertTrue(node("movie.mkv", null).isViewableVideo())
         assertFalse(node("notes.txt", "text/plain").isViewableImage())
         assertFalse(node("notes.txt", "text/plain").isViewableVideo())
+    }
+
+    @Test
+    fun `vault routing keeps APK bundles and supported archives out of MIME-only viewers`() {
+        assertEquals(BuiltInFileOpen.PACKAGE, node("bundle.xapk", "application/zip").builtInOpen())
+        assertEquals(BuiltInFileOpen.ARCHIVE, node("files.7Z", "application/octet-stream").builtInOpen())
+        assertEquals(BuiltInFileOpen.EXTERNAL, node("backup.tar.gz", "application/gzip").builtInOpen())
+        assertEquals(BuiltInFileOpen.TEXT, node("README", "text/plain").builtInOpen())
     }
 
     @Test

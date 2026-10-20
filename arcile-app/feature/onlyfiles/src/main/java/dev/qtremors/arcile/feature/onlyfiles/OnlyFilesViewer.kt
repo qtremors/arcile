@@ -57,6 +57,7 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
@@ -76,7 +77,9 @@ import java.text.DateFormat
 @Composable
 internal fun ViewerScreen(
     node: VaultNodeMetadata,
-    imageQueue: List<VaultNodeMetadata>,
+    mediaQueue: List<VaultNodeMetadata>,
+    imageSelection: Set<String>?,
+    nextMediaPage: String?,
     location: String,
     viewModel: OnlyFilesViewModel,
     archiveOperationActive: Boolean,
@@ -115,17 +118,20 @@ internal fun ViewerScreen(
         }
     }
 
-    if (node.isViewableImage()) {
+    val openKind = remember(node) { node.builtInOpen() }
+    if (openKind == BuiltInFileOpen.IMAGE) {
         VaultImagePager(
             node = node,
-            queue = imageQueue,
+            queue = mediaQueue,
+            selectedNodeIds = imageSelection,
+            nextPageToken = nextMediaPage,
             allowedActions = allowedActions,
             viewModel = viewModel,
             onBack = onBack,
             onAction = onAction,
             modifier = modifier
         )
-    } else if (node.isViewablePdf()) {
+    } else if (openKind == BuiltInFileOpen.PDF) {
         key(node.ref, node.revision) {
             VaultPdfPreview(
                 node = node,
@@ -136,7 +142,7 @@ internal fun ViewerScreen(
                 modifier = modifier
             )
         }
-    } else if (node.isViewableText()) {
+    } else if (openKind == BuiltInFileOpen.TEXT) {
         key(node.ref) {
             VaultTextEditor(
                 node, viewModel, onBack,
@@ -148,13 +154,13 @@ internal fun ViewerScreen(
     } else {
         Box(modifier.fillMaxSize().background(Color.Black)) {
             key(node.ref, node.revision) {
-                when {
-                    node.extension == "zip" -> VaultZipPreview(
+                when (openKind) {
+                    BuiltInFileOpen.ARCHIVE -> VaultArchivePreview(
                         node, viewModel::openReader, archiveFolder, archiveOperationActive,
                         onOpenFolder = { archiveFolder = it },
                         onExtract = { archiveSelection = it }
                     )
-                    node.extension in dev.qtremors.arcile.core.storage.domain.FileCategories.APKs.extensions ->
+                    BuiltInFileOpen.PACKAGE ->
                         Column(
                             Modifier.align(Alignment.Center).padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
@@ -166,7 +172,18 @@ internal fun ViewerScreen(
                                 }
                             }
                         }
-                    node.isViewableAudio() -> VaultAudioPreview(node, viewModel::openReader, Modifier.align(Alignment.Center))
+                    BuiltInFileOpen.AUDIO -> {
+                        val position = mediaQueue.indexOfFirst { it.ref == node.ref }
+                        LaunchedEffect(node.ref, mediaQueue.size, nextMediaPage) {
+                            if (position >= mediaQueue.lastIndex - 1 && nextMediaPage != null) viewModel.loadNextPage()
+                        }
+                        VaultAudioPreview(
+                            node, viewModel::openReader,
+                            onPrevious = if (position > 0) ({ viewModel.stepViewerAudio(-1) }) else null,
+                            onNext = if (position in 0 until mediaQueue.lastIndex) ({ viewModel.stepViewerAudio(1) }) else null,
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
                     else -> Column(
                         Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -269,6 +286,8 @@ internal fun ViewerScreen(
 private fun VaultImagePager(
     node: VaultNodeMetadata,
     queue: List<VaultNodeMetadata>,
+    selectedNodeIds: Set<String>?,
+    nextPageToken: String?,
     allowedActions: Set<ViewerFileAction>,
     viewModel: OnlyFilesViewModel,
     onBack: () -> Unit,
@@ -295,6 +314,13 @@ private fun VaultImagePager(
     LaunchedEffect(pager, nodes) {
         snapshotFlow { pager.settledPage }.collect { page ->
             nodes.getOrNull(page)?.let { viewModel.showViewerImage(it.ref) }
+        }
+    }
+    LaunchedEffect(pager, nodes.size, nextPageToken) {
+        if (nextPageToken != null) {
+            snapshotFlow { pager.settledPage }.collect { page ->
+                if (page >= nodes.lastIndex - 1) viewModel.loadNextPage()
+            }
         }
     }
 
@@ -341,8 +367,10 @@ private fun VaultImagePager(
             currentPage = pager.currentPage,
             currentFile = file,
             favoriteFiles = emptySet(),
-            selectedFiles = emptySet(),
-            selectionModeEnabled = false,
+            selectedFiles = if (selectedNodeIds == null) emptySet() else nodesByReference.keys.filterTo(mutableSetOf()) {
+                nodesByReference.getValue(it).ref.nodeId.value in selectedNodeIds
+            },
+            selectionModeEnabled = selectedNodeIds != null,
             readOnly = false,
             viewerActions = allowedActions,
             onViewerAction = { if (!pager.isScrollInProgress) onAction(it) },
@@ -351,7 +379,11 @@ private fun VaultImagePager(
                 onToggleFavorite = {},
                 onRotate = { reference -> rotations[reference] = (rotations[reference] ?: 0f) + 90f },
                 onDelete = { if (!pager.isScrollInProgress) onAction(ViewerFileAction.Delete) },
-                onToggleSelection = {},
+                onToggleSelection = { reference ->
+                    if (!pager.isScrollInProgress) {
+                        nodesByReference[reference]?.let { viewModel.toggleSelection(it.ref.nodeId.value) }
+                    }
+                },
                 onShowMetadata = { if (!pager.isScrollInProgress) onAction(ViewerFileAction.Properties) }
             ),
             showFavorite = false,
@@ -405,7 +437,8 @@ internal fun createVaultVideoPlaybackSession(
     vaultId: VaultId,
     selectedNode: VaultNodeMetadata,
     screenshotProtectionEnabled: Boolean,
-    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
+    interaction: OnlyFilesVideoInteraction? = null
 ) : VideoPlaybackSession {
     val queue = nodes.filter(VaultNodeMetadata::isViewableVideo).takeIf { selectedNode in it }
         ?: listOf(selectedNode)
@@ -420,7 +453,14 @@ internal fun createVaultVideoPlaybackSession(
                     .setMediaId(sharedFile.reference)
                     .setMimeType(node.mimeType)
                     .build(),
-                title = node.name
+                title = node.name,
+                onShare = interaction?.takeIf { node.ref.capabilities.canShare }?.let {
+                    { it.request(ExternalAction.SHARE, node) }
+                },
+                onOpenWith = interaction?.takeIf { node.ref.capabilities.canOpenWith }?.let {
+                    { it.request(ExternalAction.OPEN_WITH, node) }
+                },
+                readMetadata = { readVaultVideoMetadata(node, sharedFile, openReader) }
             )
         },
         startIndex = queue.indexOf(selectedNode).coerceAtLeast(0),
@@ -430,7 +470,10 @@ internal fun createVaultVideoPlaybackSession(
         securityScopeId = vaultSecurityScope(vaultId),
         files = sharedFiles,
         screenshotProtectionEnabled = screenshotProtectionEnabled,
-        thumbnailData = { file, size -> nodesByReference[file.reference]?.thumbnailRequest(size) }
+        thumbnailData = { file, size -> nodesByReference[file.reference]?.thumbnailRequest(size) },
+        sourceHost = if (interaction == null) null else { onClosed, content ->
+            interaction.Host(onClosed, content)
+        }
     )
 }
 

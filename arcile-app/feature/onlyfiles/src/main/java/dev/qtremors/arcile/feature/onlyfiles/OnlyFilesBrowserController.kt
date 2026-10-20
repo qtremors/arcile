@@ -31,6 +31,7 @@ internal class OnlyFilesBrowserController(
     private var selectionJob: Job? = null
     private var directoryGeneration: Long? = null
     private var searchGeneration: Long? = null
+    private var searchMatcher: Pair<SearchFilters, (VaultNodeMetadata) -> Boolean>? = null
 
     fun refresh() = reload()
 
@@ -302,7 +303,7 @@ internal class OnlyFilesBrowserController(
                         current.copy(
                             nodes = combined, nextPageToken = page.nextPageToken,
                             selectedNodeIds = selection, isListing = false
-                        )
+                        ).withCurrentMediaQueue()
                     }
                 },
                 onFailure = { error ->
@@ -348,7 +349,7 @@ internal class OnlyFilesBrowserController(
                                     combined.map { it.metadata.ref.nodeId.value }.toSet()
                                 ),
                                 isSearching = false
-                            )
+                            ).withCurrentMediaQueue()
                         }
                     }
                 },
@@ -369,10 +370,20 @@ internal class OnlyFilesBrowserController(
         revealHiddenNodeId = revealHiddenNodeId
     )
 
-    private fun OnlyFilesUiState.searchOptions(pageToken: String?) = VaultSearchQuery(
-        searchQuery.trim(), recursiveSearch, pageToken = pageToken, includeHidden = searchFilters.includeHidden,
-        sortField = sortField, direction = sortDirection, foldersFirst = viewOptions.foldersFirst
-    ) { node ->
-        !searchFilters.hasActiveFilters || node.toSharedFileModel().matchesSearchFilters(searchFilters)
+    private fun OnlyFilesUiState.searchOptions(pageToken: String?): VaultSearchQuery {
+        val filters = searchFilters
+        val matcher = if (!filters.hasActiveFilters) null else {
+            val cached = searchMatcher
+            if (cached?.first == filters) cached.second else {
+                val predicate: (VaultNodeMetadata) -> Boolean = { it.toSharedFileModel().matchesSearchFilters(filters) }
+                searchMatcher = filters to predicate
+                predicate
+            }
+        }
+        return VaultSearchQuery(
+            searchQuery.trim(), recursiveSearch, pageToken = pageToken, includeHidden = filters.includeHidden,
+            sortField = sortField, direction = sortDirection, foldersFirst = viewOptions.foldersFirst,
+            reusePageWindow = true, matches = matcher
+        )
     }
 }

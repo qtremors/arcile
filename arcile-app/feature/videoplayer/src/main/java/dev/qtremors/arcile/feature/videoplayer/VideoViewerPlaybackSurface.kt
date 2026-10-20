@@ -468,8 +468,8 @@ internal fun VideoViewerPlaybackSurface(
             val viewerActionController = rememberViewerActionController(
                 currentFile = actionFile,
                 sourceScope = when {
-                    readOnly -> ViewerSourceScope.ManagedTrash
                     session.securityScopeId != null -> ViewerSourceScope.Vault
+                    readOnly -> ViewerSourceScope.ManagedTrash
                     isArchiveEntry -> ViewerSourceScope.ArchiveEntry
                     else -> ViewerSourceScope.Normal
                 },
@@ -483,14 +483,14 @@ internal fun VideoViewerPlaybackSurface(
                 }
             }
             val currentPath = currentFile?.reference
-            LaunchedEffect(currentPath, state.isRefreshing, readOnly) {
+            val metadataSource = currentPlaybackItem?.readMetadata
+            val canShowCurrentMetadata = !readOnly || metadataSource != null
+            LaunchedEffect(currentPath, state.isRefreshing, readOnly, metadataSource) {
                 val file = currentFile ?: return@LaunchedEffect
-                if (!readOnly && !state.isRefreshing && metadataCache[file.reference] == null) {
-                    metadataCache.putBounded(
-                        file.reference,
-                        viewModel.readVideoMetadata(file.reference, file.mimeType),
-                        64
-                    )
+                if (canShowCurrentMetadata && !state.isRefreshing && metadataCache[file.reference] == null) {
+                    val metadata = if (metadataSource != null) metadataSource()
+                    else viewModel.readVideoMetadata(file.reference, file.mimeType)
+                    if (metadata != null) metadataCache.putBounded(file.reference, metadata, 64)
                 }
             }
 
@@ -518,34 +518,16 @@ internal fun VideoViewerPlaybackSurface(
             ) { page ->
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
+                    val canShowMetadata = !readOnly || playbackItemResolver.resolve(file, page).readMetadata != null
                     val verticalPagerState = rememberPagerState(
-                        initialPage = if (!readOnly && state.viewerMetadataPath == file.reference) 1 else 0,
-                        pageCount = { if (readOnly) 1 else 2 }
+                        initialPage = if (canShowMetadata && state.viewerMetadataPath == file.reference) 1 else 0,
+                        pageCount = { if (canShowMetadata) 2 else 1 }
                     )
 
                     val isCurrentPage = settledPage == page
-                    var metadata by remember(file.reference) {
-                        mutableStateOf<VideoFileMetadata?>(metadataCache[file.reference])
-                    }
-                    LaunchedEffect(
-                        file.reference,
-                        state.isRefreshing,
-                        showMetadataSheet,
-                        isCurrentPage,
-                        readOnly
-                    ) {
-                        if (!readOnly && !state.isRefreshing && showMetadataSheet && isCurrentPage) {
-                            val data = metadataCache[file.reference]
-                                ?: viewModel.readVideoMetadata(file.reference, file.mimeType).also {
-                                    metadataCache.putBounded(file.reference, it, 64)
-                                }
-                            metadata = data
-                        }
-                    }
-
                     LaunchedEffect(showMetadataSheet, isCurrentPage) {
                         if (isCurrentPage) {
-                            val shouldShowMetadata = state.viewerMetadataPath == file.reference
+                            val shouldShowMetadata = canShowMetadata && state.viewerMetadataPath == file.reference
                             if (shouldShowMetadata && verticalPagerState.currentPage == 0) {
                                 verticalPagerState.animateScrollToPage(
                                     1,
@@ -572,7 +554,7 @@ internal fun VideoViewerPlaybackSurface(
                     VerticalPager(
                         state = verticalPagerState,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = !readOnly && verticalPagerState.currentPage == 1,
+                        userScrollEnabled = canShowMetadata && verticalPagerState.currentPage == 1,
                         beyondViewportPageCount = 1,
                         flingBehavior = PagerDefaults.flingBehavior(
                             state = verticalPagerState,
@@ -604,7 +586,7 @@ internal fun VideoViewerPlaybackSurface(
                                 },
                                 onToggleMetadata = { visible ->
                                     if (visible) {
-                                        viewModel.setViewerMetadataVisible(file.reference, visible = true)
+                                        if (canShowMetadata) viewModel.setViewerMetadataVisible(file.reference, visible = true)
                                     } else {
                                         if (state.viewerMetadataPath == file.reference) {
                                             viewModel.setViewerMetadataVisible(null, visible = false)
@@ -631,8 +613,9 @@ internal fun VideoViewerPlaybackSurface(
                             ) {
                                 VideoMetadataSheet(
                                     file = file,
-                                    metadata = metadata,
+                                    metadata = metadataCache[file.reference],
                                     durationMs = if (isCurrentPage) playbackDuration else 0L,
+                                    showReference = session.securityScopeId == null,
                                     onDismiss = { viewModel.setViewerMetadataVisible(null, visible = false) }
                                 )
                             }
@@ -727,6 +710,7 @@ internal fun VideoViewerPlaybackSurface(
                 selectedFiles = state.selectedFiles,
                 selectionModeEnabled = selectionModeEnabled,
                 readOnly = readOnly,
+                canShowMetadata = canShowCurrentMetadata,
                 isPlaying = isPlaying,
                 playbackPosition = playbackPosition,
                 playbackDuration = playbackDuration,
@@ -743,7 +727,7 @@ internal fun VideoViewerPlaybackSurface(
                             currentPlaybackItem?.onOpenWith?.invoke()
                                 ?: viewerActionController.onAction(action)
                         }
-                        ViewerFileAction.Properties -> currentFile?.let {
+                        ViewerFileAction.Properties -> currentFile?.takeIf { canShowCurrentMetadata }?.let {
                             viewModel.setViewerMetadataVisible(it.reference, visible = true)
                         }
                         else -> viewerActionController.onAction(action)

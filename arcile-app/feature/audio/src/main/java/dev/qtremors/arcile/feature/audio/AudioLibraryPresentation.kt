@@ -242,17 +242,8 @@ private fun buildCollections(
     }
 }
 
-internal fun formatAudioDuration(durationMs: Long): String {
-    val totalSeconds = (durationMs.coerceAtLeast(0L) / 1_000L)
-    val hours = totalSeconds / 3_600L
-    val minutes = (totalSeconds % 3_600L) / 60L
-    val seconds = totalSeconds % 60L
-    return if (hours > 0L) {
-        "%d:%02d:%02d".format(Locale.ROOT, hours, minutes, seconds)
-    } else {
-        "%d:%02d".format(Locale.ROOT, minutes, seconds)
-    }
-}
+internal fun formatAudioDuration(durationMs: Long): String =
+    dev.qtremors.arcile.core.ui.audio.formatAudioDuration(durationMs)
 
 private fun dev.qtremors.arcile.core.storage.domain.FileModel.parentPath(): String =
     reference.replace('\\', '/').substringBeforeLast('/', "")

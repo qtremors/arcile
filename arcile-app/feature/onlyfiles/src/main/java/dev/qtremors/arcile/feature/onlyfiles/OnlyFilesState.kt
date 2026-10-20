@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
@@ -66,6 +67,7 @@ internal data class OnlyFilesUiState(
     val clipboard: VaultClipboard? = null,
     val viewer: VaultNodeMetadata? = null,
     val viewerQueue: List<VaultNodeMetadata> = emptyList(),
+    val viewerSelectionEnabled: Boolean = false,
     val properties: List<VaultNodeMetadata> = emptyList(),
     val pendingConflict: VaultConflictPrompt? = null,
     val transferProgress: VaultTransferProgress? = null,
@@ -123,6 +125,7 @@ internal data class OnlyFilesUiState(
     val hasSearch: Boolean get() = searchQuery.isNotBlank() || searchFilters.hasActiveFilters || searchScope != null
     val isLoadingRows: Boolean get() = if (hasSearch) isSearching else isListing
     val hasMoreRows: Boolean get() = if (hasSearch) searchNextPageToken != null else nextPageToken != null
+    val viewerNextPageToken: String? get() = if (hasSearch) searchNextPageToken else nextPageToken
     val displayedNodes: List<VaultNodeMetadata>
         get() = if (hasSearch) searchHits.map(VaultSearchHit::metadata) else nodes
     val selectedNodes: List<VaultNodeMetadata>
@@ -134,6 +137,15 @@ internal data class OnlyFilesUiState(
             viewer = if (viewer?.ref == updated.ref) updated else viewer,
             viewerQueue = viewerQueue.map { if (it.ref == updated.ref) updated else it }
         )
+    }
+
+    fun withCurrentMediaQueue(): OnlyFilesUiState {
+        val node = viewer ?: return this
+        val kind = node.builtInOpen()
+        if (kind != BuiltInFileOpen.IMAGE && kind != BuiltInFileOpen.AUDIO) return this
+        val queue = displayedNodes.filter { it.builtInOpen() == kind }
+        val refreshed = queue.firstOrNull { it.ref == node.ref }
+        return copy(viewer = refreshed ?: node, viewerQueue = if (refreshed != null) queue else listOf(node) + queue)
     }
 
     fun propertiesLocation(items: List<VaultNodeMetadata>): String {

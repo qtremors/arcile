@@ -1,8 +1,7 @@
 package dev.qtremors.arcile.presentation.ui
 
 import android.webkit.MimeTypeMap
-import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.ArcileOpenExtensions
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
@@ -56,14 +55,10 @@ internal class AppFileOpenResolver(
         extension: String,
         surroundingFiles: List<FileModel>
     ): AppFileOpenResolution {
-        val archiveFormat = ArchiveFormat.fromPath(path)
-        return when {
-            extension in FileCategories.APKs.extensions -> AppFileOpenResolution.InstallApk(
-                path = path
-            )
-            archiveFormat?.canBrowse == true -> AppFileOpenResolution.BrowseArchive(path)
-            archiveFormat != null -> AppFileOpenResolution.External(path, forceChooser = true)
-            extension in FileCategories.Images.extensions -> AppFileOpenResolution.ViewImage(
+        return when (BuiltInFileOpen.resolve(path, extension)) {
+            BuiltInFileOpen.PACKAGE -> AppFileOpenResolution.InstallApk(path)
+            BuiltInFileOpen.ARCHIVE -> AppFileOpenResolution.BrowseArchive(path)
+            BuiltInFileOpen.IMAGE -> AppFileOpenResolution.ViewImage(
                 path = path,
                 contextPaths = surroundingFiles.asSequence()
                     .filterNot(FileModel::isDirectory)
@@ -74,7 +69,7 @@ internal class AppFileOpenResolver(
                     .distinct()
                     .toList()
             )
-            extension in FileCategories.Videos.extensions -> AppFileOpenResolution.ViewVideo(
+            BuiltInFileOpen.VIDEO -> AppFileOpenResolution.ViewVideo(
                 path = path,
                 contextPaths = surroundingFiles.asSequence()
                     .filterNot(FileModel::isDirectory)
@@ -85,10 +80,10 @@ internal class AppFileOpenResolver(
                     .distinct()
                     .toList()
             )
-            extension in FileCategories.Audio.extensions -> AppFileOpenResolution.ViewAudio(path)
-            extension == "pdf" -> AppFileOpenResolution.ViewPdf(path)
-            extension in ArcileOpenExtensions.text -> AppFileOpenResolution.EditText(path)
-            else -> AppFileOpenResolution.External(path, forceChooser = true)
+            BuiltInFileOpen.AUDIO -> AppFileOpenResolution.ViewAudio(path)
+            BuiltInFileOpen.PDF -> AppFileOpenResolution.ViewPdf(path)
+            BuiltInFileOpen.TEXT -> AppFileOpenResolution.EditText(path)
+            BuiltInFileOpen.EXTERNAL -> AppFileOpenResolution.External(path, forceChooser = true)
         }
     }
 }

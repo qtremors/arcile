@@ -88,20 +88,15 @@
 
 ### OnlyFiles
 
-- [ ] **PERF-0001 - Measure and Improve Large-Vault Search Paging**
+- [ ] **PERF-0001 - Improve Portable and Deep Vault Search Paging**
   - **Location:** OnlyFilesBrowserController.kt and DefaultVaultRepository.kt.
-  - **Current:** Sorted search pages rescan the tree.
-  - **Change:** Measure paging on large vaults and reuse scan results where safe.
+  - **Current:** App-private vaults reuse four ranked pages per scan. Portable vaults rescan each page, and deeper windows still rank earlier results.
+  - **Change:** Measure deep paging and avoid ranking earlier results again where the vault generation can be verified.
 
-- [ ] **UI-0009 - Share File Routing and Support Vault-Compatible Plugins**
-  - **Location:** OnlyFilesFormatting.kt and AppFileOpenResolver.kt.
-  - **Current:** OnlyFiles shares Open As and saved open preferences. Built-in viewer dispatch is separate and plugin routing is unavailable.
-  - **Change:** Share viewer dispatch decisions and route compatible plugins through scoped vault access.
-
-- [ ] **UI-0010 - Support More Vault Archive Formats and Passwords**
+- [ ] **UI-0010 - Share the Browser Archive Engine with OnlyFiles**
   - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
-  - **Current:** Vault ZIP creation and extraction support unencrypted ZIP archives.
-  - **Change:** Add password-protected ZIP and other supported archive formats without plaintext staging.
+  - **Current:** OnlyFiles handles password-protected ZIP creation and extraction and unencrypted 7z browsing and extraction.
+  - **Change:** Share Browser and OnlyFiles archive readers and validation behind filesystem and vault stream adapters. Extend format coverage through the shared engine.
 
 - [ ] **REL-0007 - Recover Interrupted Vault Operations**
   - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.
@@ -115,8 +110,8 @@
 
 - [ ] **UI-0012 - Complete Vault Media Actions**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.
-  - **Current:** The image queue ends at loaded results and viewer selection is unavailable. Video actions and metadata and shared audio-player controls are incomplete.
-  - **Change:** Wire the remaining shared viewer actions and queues to vault-capable sources.
+  - **Current:** Images page and carry selection back to OnlyFiles. Vault videos have metadata, Share, and Open With. Vault audio uses the shared seek and transport controls.
+  - **Change:** Add vault-capable video mutation actions and longer video queues. Complete audio tag and queue actions that apply to protected files.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

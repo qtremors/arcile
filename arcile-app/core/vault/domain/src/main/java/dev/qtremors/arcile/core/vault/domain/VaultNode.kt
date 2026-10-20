@@ -71,6 +71,8 @@ data class VaultSearchQuery(
     val sortField: VaultSortField = VaultSortField.NAME,
     val direction: VaultSortDirection = VaultSortDirection.ASCENDING,
     val foldersFirst: Boolean = true,
+    // Callers opting in must keep the same stable predicate for the life of the query.
+    val reusePageWindow: Boolean = false,
     val matches: ((VaultNodeMetadata) -> Boolean)? = null
 ) {
     init {

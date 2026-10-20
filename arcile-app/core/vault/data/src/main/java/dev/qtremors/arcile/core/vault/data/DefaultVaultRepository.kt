@@ -333,8 +333,36 @@ internal class DefaultVaultRepository @Inject constructor(
         vaultId: VaultId,
         directoryId: DirectoryId,
         query: VaultSearchQuery
-    ): Result<VaultPage<VaultSearchHit>> = withSession(vaultId) { session ->
-        search(session, directoryId, query)
+    ): Result<VaultPage<VaultSearchHit>> = mutate(vaultId) { session ->
+        if (!query.reusePageWindow || locations[vaultId.value]?.kind != VaultLocationKind.APP_PRIVATE ||
+            transactionManager.hasPendingCommit(session.directory)
+        ) {
+            session.updateSearchWindow(null)
+            search(session, directoryId, query)
+        } else {
+            searchWindowed(session, directoryId, query)
+        }
+    }
+
+    private suspend fun searchWindowed(
+        session: VaultSessionRecord,
+        directoryId: DirectoryId,
+        query: VaultSearchQuery
+    ): VaultPage<VaultSearchHit> {
+        val offset = query.pageToken.toPageOffset(Int.MAX_VALUE)
+        val key = query.copy(pageToken = null)
+        val publication = transactionManager.publicationGeneration
+        val cached = session.currentSearchWindow()
+        if (query.pageToken != null && cached?.directoryId == directoryId && cached.query == key &&
+            cached.publicationGeneration == publication
+        ) {
+            cached.page(offset)?.let { return it }
+        }
+
+        val ranked = search(session, directoryId, query, pageSize = query.pageSize * 4)
+        val window = VaultSearchWindow(directoryId, key, publication, offset, ranked)
+        session.updateSearchWindow(window.takeIf { ranked.items.size > query.pageSize })
+        return window.page(offset) ?: ranked
     }
 
     override suspend fun selectDirectoryRows(

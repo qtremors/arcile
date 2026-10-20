@@ -1,4 +1,8 @@
 <resources>
+    <string name="onlyfiles_open_in_plugin">Open in %1$s</string>
+    <string name="onlyfiles_preview_selected_images">Preview selected images</string>
+    <string name="onlyfiles_audio_previous">Previous track</string>
+    <string name="onlyfiles_audio_next">Next track</string>
     <string name="onlyfiles_move_to_main_trash">Move to main Trash</string>
     <string name="onlyfiles_recover_transaction">Recover transaction</string>
     <string name="onlyfiles_create_backup">Create encrypted backup</string>
@@ -40,15 +44,16 @@
     <string name="onlyfiles_create_zip">Create ZIP</string>
     <string name="onlyfiles_creating_zip">Creating ZIP</string>
     <string name="onlyfiles_zip_created">ZIP created</string>
-    <string name="onlyfiles_extract_zip">Extract ZIP</string>
+    <string name="onlyfiles_extract_zip">Extract archive</string>
     <string name="onlyfiles_extract_here">Extract here</string>
-    <string name="onlyfiles_extracting_zip">Extracting ZIP</string>
-    <string name="onlyfiles_zip_extracted">ZIP extracted</string>
+    <string name="onlyfiles_extracting_zip">Extracting archive</string>
+    <string name="onlyfiles_zip_extracted">Archive extracted</string>
     <string name="onlyfiles_extract_zip_description">Entries will be extracted into a new encrypted folder.</string>
     <string name="onlyfiles_extract_keep_both">Use a new name if the folder exists</string>
     <string name="onlyfiles_select_zip_items">Select all</string>
     <string name="onlyfiles_clear_zip_selection">Clear selection</string>
     <string name="onlyfiles_zip_compression">Compression</string>
+    <string name="onlyfiles_zip_password_protection">Protect ZIP with a password</string>
     <string name="onlyfiles_zip_store">Store</string>
     <string name="onlyfiles_zip_fast">Fast</string>
     <string name="onlyfiles_zip_balanced">Balanced</string>
@@ -119,8 +124,8 @@
     <string name="onlyfiles_sort_size">Size</string>
     <string name="onlyfiles_sort_type">Type</string>
     <string name="onlyfiles_preview_unavailable">This file can’t be previewed.</string>
-    <string name="onlyfiles_zip_unavailable">The ZIP contents are unavailable or exceed the preview limit.</string>
-    <string name="onlyfiles_zip_empty">This ZIP archive is empty.</string>
+    <string name="onlyfiles_zip_unavailable">The archive contents are unavailable or exceed the preview limit.</string>
+    <string name="onlyfiles_zip_empty">This archive is empty.</string>
     <string name="onlyfiles_zip_truncated">Showing the first %1$d entries.</string>
     <string name="onlyfiles_android_package">Android package</string>
     <string name="onlyfiles_open_installer">Open installer</string>

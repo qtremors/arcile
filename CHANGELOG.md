@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.0
+> **Version:** 2.3.1
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.3.1] - 2026-11-04
+
+### Changed
+- OnlyFiles and Browser share built-in file routing. Compatible installed plugins open vault files with temporary read access after confirmation.
+- App-private vault search reuses ranked results across pages while the vault is unlocked.
+- Create and extract password-protected ZIPs, and browse and extract unencrypted 7z archives inside vaults.
+- Browse more images while swiping and carry viewer selection back to the listing. Vault audio uses the shared seek and transport controls, and vault video supports metadata, Share, and Open With.
 
 ## [2.3.0] - 2026-11-04
 

@@ -7,7 +7,8 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.outlined.Description
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import dev.qtremors.arcile.core.storage.domain.ArcileOpenExtensions
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
@@ -20,19 +21,14 @@ internal fun nodeIcon(node: VaultNodeMetadata) = when {
     else -> Icons.Outlined.Description
 }
 
-internal fun VaultNodeMetadata.isViewableImage(): Boolean =
-    category() == FileCategories.Images || extension.equals("avif", ignoreCase = true)
+internal fun VaultNodeMetadata.builtInOpen(): BuiltInFileOpen =
+    if (isDirectory) BuiltInFileOpen.EXTERNAL else BuiltInFileOpen.resolve(
+        name, extension, mimeType ?: "image/avif".takeIf { extension.equals("avif", ignoreCase = true) }
+    ) { it == ArchiveFormat.ZIP || it == ArchiveFormat.SEVEN_Z }
 
-internal fun VaultNodeMetadata.isViewableVideo(): Boolean =
-    category() == FileCategories.Videos
-
-internal fun VaultNodeMetadata.isViewableAudio(): Boolean = category() == FileCategories.Audio
-
-internal fun VaultNodeMetadata.isViewablePdf(): Boolean =
-    mimeType.equals("application/pdf", ignoreCase = true) || extension.equals("pdf", ignoreCase = true)
-
-internal fun VaultNodeMetadata.isViewableText(): Boolean =
-    extension.lowercase() in ArcileOpenExtensions.text || mimeType?.startsWith("text/", ignoreCase = true) == true
+internal fun VaultNodeMetadata.isViewableImage(): Boolean = builtInOpen() == BuiltInFileOpen.IMAGE
+internal fun VaultNodeMetadata.isViewableVideo(): Boolean = builtInOpen() == BuiltInFileOpen.VIDEO
+internal fun VaultNodeMetadata.isViewableText(): Boolean = builtInOpen() == BuiltInFileOpen.TEXT
 
 private fun VaultNodeMetadata.category() = FileCategories.getCategoryForFile(extension, mimeType)
 

@@ -57,6 +57,8 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.apache.commons.compress)
+    implementation(libs.tukaani.xz)
+    implementation(libs.zip4j)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

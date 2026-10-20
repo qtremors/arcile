@@ -47,6 +47,7 @@ import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
 import dev.qtremors.arcile.core.ui.R as UiR
 import dev.qtremors.arcile.core.ui.dialogs.ClipboardContentsDialog
 import dev.qtremors.arcile.core.storage.domain.ClipboardOperation
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
 import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
@@ -139,6 +140,7 @@ internal fun OnlyFilesMainContent(
     onPlayVideo: (VideoPlaybackSession) -> Unit,
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onOpenExternally: (VaultNodeMetadata) -> Unit,
+    onOpenPlugin: (VaultNodeMetadata) -> Boolean,
     onDirectoryOpened: () -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
@@ -219,21 +221,26 @@ internal fun OnlyFilesMainContent(
                         loadFolderTotals = viewModel::folderTotals,
                         onOpen = { node ->
                             val vaultId = state.selectedVaultId
-                            if (node.prefersExternalOpen(getFileOpenBehaviors())) {
-                                onOpenExternally(node)
-                            } else if (node.isViewableVideo() && vaultId != null) {
-                                onPlayVideo(
-                                    createVaultVideoPlaybackSession(
-                                        state.displayedNodes,
-                                        vaultId,
-                                        node,
-                                        state.screenshotProtectionEnabled,
-                                        viewModel::openReader
+                            val canOpenWith = !node.isDirectory && node.ref.capabilities.canOpenWith
+                            when {
+                                node.prefersExternalOpen(getFileOpenBehaviors()) -> onOpenExternally(node)
+                                canOpenWith && onOpenPlugin(node) -> Unit
+                                node.isViewableVideo() && vaultId != null -> onPlayVideo(
+                                        createVaultVideoPlaybackSession(
+                                            state.displayedNodes,
+                                            vaultId,
+                                            node,
+                                            state.screenshotProtectionEnabled,
+                                            viewModel::openReader,
+                                            OnlyFilesVideoInteraction(viewModel, vaultId, state.mountGeneration)
+                                        )
                                     )
-                                )
-                            } else {
-                                if (node.isDirectory) onDirectoryOpened()
-                                viewModel.open(node)
+                                canOpenWith && node.builtInOpen() == BuiltInFileOpen.EXTERNAL ->
+                                    onOpenExternally(node)
+                                else -> {
+                                    if (node.isDirectory) onDirectoryOpened()
+                                    viewModel.open(node)
+                                }
                             }
                         },
                         onToggleSelection = viewModel::toggleSelection,

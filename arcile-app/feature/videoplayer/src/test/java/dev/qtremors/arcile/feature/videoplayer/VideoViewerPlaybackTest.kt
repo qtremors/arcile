@@ -65,6 +65,25 @@ class VideoViewerPlaybackTest {
     }
 
     @Test
+    fun `protected metadata and actions resolve by media ID with an opaque playback URI`() {
+        val file = videoFile("vault://workspace/item.mp4")
+        val item = VideoPlaybackItem(
+            mediaItem = MediaItem.Builder().setUri("onlyfiles://playback/opaque").setMediaId(file.reference).build(),
+            title = file.name,
+            onShare = {},
+            onOpenWith = {},
+            readMetadata = { null }
+        )
+        val resolver = VideoPlaybackItemResolver(VideoPlaybackSession(items = listOf(item), securityScopeId = "vault"))
+
+        assertEquals(item, resolver.resolve(file, fallbackIndex = 0))
+        val sibling = resolver.resolve(videoFile("vault://workspace/other.mp4"), fallbackIndex = 0)
+        assertNull(sibling.readMetadata)
+        assertNull(sibling.onShare)
+        assertNull(sibling.onOpenWith)
+    }
+
+    @Test
     fun `reordered gallery files retain their matching session media item`() {
         val first = videoFile("/movies/first.mp4")
         val second = videoFile("/movies/second.mp4")

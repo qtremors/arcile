@@ -37,6 +37,7 @@ internal class VaultSessionRecord(
 ) {
     var holdCount: Int = 0
     var lockRequested: Boolean = false
+    private var searchWindow: VaultSearchWindow? = null
     private val directoryKeys = ConcurrentHashMap<String, ByteArray>()
     private val activeReaders = ConcurrentHashMap.newKeySet<Closeable>()
 
@@ -159,12 +160,21 @@ internal class VaultSessionRecord(
     }
 
     fun destroy() {
-        synchronized(this) { lockRequested = true }
+        synchronized(this) {
+            lockRequested = true
+            searchWindow = null
+        }
         activeReaders.toList().forEach { runCatching { it.close() } }
         activeReaders.clear()
         masterSecret.fill(0)
         directoryKeys.values.forEach { it.fill(0) }
         directoryKeys.clear()
+    }
+
+    fun currentSearchWindow(): VaultSearchWindow? = synchronized(this) { searchWindow }
+
+    fun updateSearchWindow(window: VaultSearchWindow?) = synchronized(this) {
+        if (!lockRequested) searchWindow = window
     }
 
     fun registerReader(reader: Closeable): Boolean = synchronized(this) {

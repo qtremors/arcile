@@ -34,6 +34,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
+import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
+import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnlyFilesArchiveControllerTest {
@@ -74,6 +77,42 @@ class OnlyFilesArchiveControllerTest {
         assertEquals(1, reloads)
         assertEquals("Extracted", state.value.message)
         assertEquals("Result", state.value.completedArchive?.name)
+    }
+
+    @Test
+    fun `7z extraction opens selected entries in archive order across interleaved folders`() = runTest {
+        val channel = SeekableInMemoryByteChannel()
+        val payload = SevenZOutputFile(channel).use { archive ->
+            for ((name, text) in listOf("docs/one.txt" to "one", "unselected.txt" to "skip", "docs/two.txt" to "two")) {
+                archive.putArchiveEntry(SevenZArchiveEntry().apply { this.name = name })
+                archive.write(text.encodeToByteArray())
+                archive.closeArchiveEntry()
+            }
+            archive.finish()
+            channel.array().copyOf(channel.size().toInt())
+        }
+        val source = file("source.7z", payload.size.toLong())
+        val fs = mockk<VaultFileSystem>()
+        val reader = MemoryReader(payload)
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        val extracted = linkedMapOf<List<String>, String>()
+        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+            val entries = arg<List<VaultArchiveSource>>(3)
+            for (entry in entries.filterIsInstance<VaultArchiveSource.File>()) {
+                extracted[entry.path] = entry.open().use { it.readBytes().decodeToString() }
+            }
+            Result.success(folder("Result"))
+        }
+        val state = mounted()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
+
+        controller.extract(source, root, VaultZipSelection(listOf("docs"), emptySet()), "Result", "Extracted")
+        state.first { !it.busy }
+
+        assertEquals(listOf(listOf("one.txt"), listOf("two.txt")), extracted.keys.toList())
+        assertEquals(listOf("one", "two"), extracted.values.toList())
+        assertTrue(reader.closed)
+        assertEquals("Extracted", state.value.message)
     }
 
     @Test
@@ -125,6 +164,71 @@ class OnlyFilesArchiveControllerTest {
             assertNull(zip.nextEntry)
         }
         assertEquals("Created", state.value.message)
+    }
+
+    @Test
+    fun `password ZIP creation and selected extraction stream authenticated bytes`() = runTest {
+        val fs = mockk<VaultFileSystem>()
+        val state = mounted()
+        val original = "encrypted archive payload".encodeToByteArray()
+        val input = file("secret.txt", original.size.toLong())
+        every { fs.openReader(input.ref) } answers { Result.success(MemoryReader(original)) }
+        val output = ByteArrayOutputStream()
+        coEvery { fs.createZip(vault, root, "secret.zip", any()) } coAnswers {
+            arg<(OutputStream) -> Unit>(3)(output)
+            Result.success(file("secret.zip", output.size().toLong()))
+        }
+        val errors = mutableListOf<Throwable>()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { errors.add(it) })
+        val password = "Zip-Password-7"
+        val creationSecret = password.toCharArray()
+        controller.create(listOf(input), "secret.zip", 1, "Created", creationSecret)
+        advanceUntilIdle()
+        assertTrue(errors.isEmpty())
+        assertTrue(creationSecret.all { it == '\u0000' })
+        val archiveBytes = output.toByteArray()
+        assertFalse(archiveBytes.decodeToString().contains(original.decodeToString()))
+        val archive = file("secret.zip", archiveBytes.size.toLong())
+        every { fs.openReader(archive.ref) } answers { Result.success(MemoryReader(archiveBytes)) }
+        var extracted: ByteArray? = null
+        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+            val item = arg<List<VaultArchiveSource>>(3).single() as VaultArchiveSource.File
+            assertEquals(listOf("secret.txt"), item.path)
+            extracted = item.open().use { it.readBytes() }
+            Result.success(folder("Result"))
+        }
+        val selection = VaultZipSelection(emptyList(), setOf(listOf("secret.txt")), requiresPassword = true)
+        val wrong = "wrong-password".toCharArray()
+        controller.extract(archive, root, selection, "Result", "Extracted", password = wrong)
+        state.first { !it.busy }
+        assertNull(extracted)
+        assertTrue(errors.single().message.orEmpty().contains("password", ignoreCase = true))
+        assertTrue(wrong.all { it == '\u0000' })
+
+        val correct = password.toCharArray()
+        controller.extract(archive, root, selection, "Result", "Extracted", password = correct)
+        state.first { !it.busy }
+        assertEquals(errors.map(Throwable::message).joinToString(), "Extracted", state.value.message)
+        assertTrue(original.contentEquals(extracted))
+        assertTrue(correct.all { it == '\u0000' })
+
+        val damaged = archiveBytes.copyOf()
+        val tagByte = org.apache.commons.compress.archivers.zip.ZipFile.builder()
+            .setSeekableByteChannel(SeekableInMemoryByteChannel(damaged)).get().use { zip ->
+                val entry = zip.entries.nextElement()
+                (entry.dataOffset + entry.compressedSize - 1L).toInt()
+            }
+        damaged[tagByte] = (damaged[tagByte].toInt() xor 1).toByte()
+        every { fs.openReader(archive.ref) } answers { Result.success(MemoryReader(damaged)) }
+        extracted = null
+        val damagedSecret = password.toCharArray()
+        controller.extract(archive, root, selection, "Result", "Extracted", password = damagedSecret)
+        state.first { !it.busy }
+
+        assertEquals(2, errors.size)
+        assertNull(extracted)
+        assertNull(state.value.completedArchive)
+        assertTrue(damagedSecret.all { it == '\u0000' })
     }
 
     @Test

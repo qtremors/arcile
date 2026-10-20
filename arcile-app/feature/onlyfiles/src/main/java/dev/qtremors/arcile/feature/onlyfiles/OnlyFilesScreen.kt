@@ -145,7 +145,8 @@ internal enum class ExternalAction { SHARE, OPEN_WITH }
 private data class ExternalRequest(
     val action: ExternalAction,
     val nodes: List<VaultNodeMetadata>,
-    val openAs: FileOpenAsType? = null
+    val openAs: FileOpenAsType? = null,
+    val plugin: VaultPluginViewer? = null
 )
 
 @Composable
@@ -155,6 +156,7 @@ internal fun OnlyFilesRoute(
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    findPlugin: (VaultNodeMetadata) -> VaultPluginViewer?,
     packageInstaller: @Composable (dev.qtremors.arcile.core.vault.domain.VaultExternalGrant, () -> Unit) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
 ) {
@@ -170,6 +172,7 @@ internal fun OnlyFilesRoute(
         getFileOpenBehaviors = getFileOpenBehaviors,
         onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
         onPlayVideo = onPlayVideo,
+        findPlugin = findPlugin,
         packageInstaller = packageInstaller,
         onImportFiles = viewModel::beginLocalFileImport,
         onImportFolder = viewModel::beginLocalFolderImport,
@@ -186,6 +189,7 @@ private fun OnlyFilesScreen(
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    findPlugin: (VaultNodeMetadata) -> VaultPluginViewer?,
     packageInstaller: @Composable (dev.qtremors.arcile.core.vault.domain.VaultExternalGrant, () -> Unit) -> Unit,
     onImportFiles: () -> Unit,
     onImportFolder: () -> Unit,
@@ -220,9 +224,9 @@ private fun OnlyFilesScreen(
 
     val navigateBackThroughState = {
         when {
-            state.viewer != null -> viewModel.navigateUp()
             state.pendingConflict != null -> viewModel.cancelTransfer()
             state.locationPicker != null -> viewModel.closeLocationPicker()
+            state.viewer != null -> viewModel.navigateUp()
             state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
             state.workspace.switching -> viewModel.navigateUp()
@@ -289,8 +293,16 @@ private fun OnlyFilesScreen(
         Box(Modifier.fillMaxSize()) {
             androidx.compose.runtime.key(state.mountGeneration) {
                 ViewerScreen(
-                    node, state.viewerQueue, state.propertiesLocation(listOf(node)), viewModel, state.archiveProgress != null,
-                    { navigateBackThroughState() }, packageInstaller, predictiveBackModifier
+                    node = node,
+                    mediaQueue = state.viewerQueue,
+                    imageSelection = state.selectedNodeIds.takeIf { state.viewerSelectionEnabled },
+                    nextMediaPage = state.viewerNextPageToken,
+                    location = state.propertiesLocation(listOf(node)),
+                    viewModel = viewModel,
+                    archiveOperationActive = state.archiveProgress != null,
+                    onBack = { navigateBackThroughState() },
+                    packageInstaller = packageInstaller,
+                    modifier = predictiveBackModifier
                 )
             }
             state.locationPicker?.let { OnlyFilesLocationSheet(it, state.selectedVault?.name.orEmpty(), viewModel) }
@@ -452,6 +464,13 @@ private fun OnlyFilesScreen(
                 onPlayVideo = onPlayVideo,
                 getFileOpenBehaviors = getFileOpenBehaviors,
                 onOpenExternally = { node -> externalRequest = ExternalRequest(ExternalAction.OPEN_WITH, listOf(node)) },
+                onOpenPlugin = { node ->
+                    val plugin = findPlugin(node)
+                    if (plugin != null) {
+                        externalRequest = ExternalRequest(ExternalAction.OPEN_WITH, listOf(node), plugin = plugin)
+                    }
+                    plugin != null
+                },
                 onDirectoryOpened = { showSearch = false },
                 onImportFiles = onImportFiles,
                 onImportFolder = onImportFolder,
@@ -490,6 +509,9 @@ private fun OnlyFilesScreen(
                     },
                     onOpenWith = { externalRequest = ExternalRequest(ExternalAction.OPEN_WITH, selected) },
                     onOpenAs = { openAsNode = selected.singleOrNull() },
+                    onPreviewImages = selected.firstOrNull()?.takeIf {
+                        selected.all(VaultNodeMetadata::isViewableImage)
+                    }?.let { image -> { viewModel.open(image, keepSelection = true) } },
                     onExport = { boundaryRequest = selected to false },
                     onMoveOut = { boundaryRequest = selected to true },
                     onMoveToTrash = { trashNodes = selected },
@@ -642,10 +664,10 @@ private fun OnlyFilesScreen(
         VaultCreateZipDialog(
             createZipNodes, state.nodes.mapTo(mutableSetOf(), VaultNodeMetadata::name),
             onDismiss = { createZipNodes = emptyList() }
-        ) { name, compression, success ->
+        ) { name, compression, success, password ->
             val nodes = createZipNodes
             createZipNodes = emptyList()
-            viewModel.createZip(nodes, name, compression, success)
+            viewModel.createZip(nodes, name, compression, success, password)
         }
     }
     if (state.selectedVaultId != null) {
@@ -691,8 +713,8 @@ private fun OnlyFilesScreen(
             onDismiss = { openAsNode = null }
         )
     }
-    externalRequest?.let { (action, nodes, openAs) ->
-        VaultExternalAccessDialogs(action, nodes, viewModel, openAs) { externalRequest = null }
+    externalRequest?.let { (action, nodes, openAs, plugin) ->
+        VaultExternalAccessDialogs(action, nodes, viewModel, openAs, plugin) { externalRequest = null }
     }
     boundaryRequest?.let { (nodes, move) ->
         BoundaryTransferDialog(

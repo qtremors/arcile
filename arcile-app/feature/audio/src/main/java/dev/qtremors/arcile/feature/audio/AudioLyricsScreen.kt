@@ -3,6 +3,7 @@
 package dev.qtremors.arcile.feature.audio
 
 import androidx.compose.animation.animateColorAsState
+import dev.qtremors.arcile.core.ui.audio.AudioPlaybackProgress
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box

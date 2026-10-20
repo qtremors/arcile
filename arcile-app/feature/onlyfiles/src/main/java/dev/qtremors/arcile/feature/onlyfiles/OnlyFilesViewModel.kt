@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -248,7 +249,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         return openVault(vault)
     }
 
-    fun open(node: VaultNodeMetadata) {
+    fun open(node: VaultNodeMetadata, keepSelection: Boolean = false) {
         if (node.isDirectory) {
             val directoryId = node.ref.directoryId ?: return showError(IllegalStateException("Folder identity is missing"))
             val snapshot = _state.value
@@ -265,10 +266,10 @@ internal class OnlyFilesViewModel @Inject constructor(
             _state.update {
                 it.copy(
                     viewer = node,
-                    viewerQueue = if (node.isViewableImage()) it.displayedNodes.filter(VaultNodeMetadata::isViewableImage)
-                    else emptyList(),
-                    selectedNodeIds = emptySet()
-                )
+                    viewerQueue = emptyList(),
+                    viewerSelectionEnabled = keepSelection,
+                    selectedNodeIds = if (keepSelection) it.selectedNodeIds else emptySet()
+                ).withCurrentMediaQueue()
             }
         }
     }
@@ -280,7 +281,7 @@ internal class OnlyFilesViewModel @Inject constructor(
             return true
         }
         if (current.viewer != null) {
-            _state.update { it.copy(viewer = null, viewerQueue = emptyList()) }
+            _state.update { it.copy(viewer = null, viewerQueue = emptyList(), viewerSelectionEnabled = false) }
             return true
         }
         if (current.directoryStack.size <= 1) {
@@ -375,7 +376,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun applySearchScope() = locations.applyScope()
     fun closeLocationPicker() {
         if (_state.value.locationPicker?.mode == OnlyFilesLocationMode.IMPORT_DESTINATION) clearBrowserImport()
-        pendingExtraction = null
+        clearPendingExtraction()
         locations.closePicker()
     }
 
@@ -388,12 +389,16 @@ internal class OnlyFilesViewModel @Inject constructor(
         locations.navigate(id)
     }
 
-    fun createZip(nodes: List<VaultNodeMetadata>, name: String, compression: Int, successMessage: String) =
-        archives.create(nodes, name, compression, successMessage)
+    fun createZip(nodes: List<VaultNodeMetadata>, name: String, compression: Int, successMessage: String, password: CharArray?) =
+        archives.create(nodes, name, compression, successMessage, password)
 
     fun requestZipExtraction(request: VaultZipExtraction, chooseDestination: Boolean) {
-        if (_state.value.busy || _state.value.selectedVaultId != request.node.ref.vaultId) return
+        if (_state.value.busy || _state.value.selectedVaultId != request.node.ref.vaultId) {
+            request.password?.fill('\u0000')
+            return
+        }
         if (chooseDestination) {
+            clearPendingExtraction()
             pendingExtraction = request
             locations.openArchiveDestination()
         } else {
@@ -406,20 +411,38 @@ internal class OnlyFilesViewModel @Inject constructor(
         if (picker.mode != OnlyFilesLocationMode.ARCHIVE_DESTINATION) return
         val directory = picker.stack.lastOrNull()?.id ?: return
         val request = pendingExtraction ?: return
+        pendingExtraction = null
         closeLocationPicker()
         extractZip(request, directory)
     }
 
     fun cancelArchiveOperation() = archives.cancel()
 
+    private fun clearPendingExtraction() {
+        pendingExtraction?.password?.fill('\u0000')
+        pendingExtraction = null
+    }
+
     private fun extractZip(request: VaultZipExtraction, parent: DirectoryId) =
-        archives.extract(request.node, parent, request.selection, request.name, request.successMessage, request.keepBoth)
+        archives.extract(
+            request.node, parent, request.selection, request.name, request.successMessage, request.keepBoth, request.password
+        )
 
     fun showViewerImage(ref: VaultNodeRef) {
         _state.update { current ->
             if (current.viewer?.isViewableImage() != true) return@update current
             val image = current.viewerQueue.firstOrNull { it.ref == ref } ?: return@update current
             current.copy(viewer = image)
+        }
+    }
+
+    fun stepViewerAudio(offset: Int) {
+        _state.update { current ->
+            val track = current.viewer ?: return@update current
+            if (track.builtInOpen() != BuiltInFileOpen.AUDIO) return@update current
+            val index = current.viewerQueue.indexOfFirst { it.ref == track.ref }
+            val next = current.viewerQueue.getOrNull(index + offset) ?: return@update current
+            current.copy(viewer = next)
         }
     }
 
@@ -748,7 +771,8 @@ internal class OnlyFilesViewModel @Inject constructor(
                 pinnedDirectoryIds = settings.pinnedDirectories[vaultId].orEmpty(),
                 selectedNodeIds = emptySet(),
                 viewer = null,
-                viewerQueue = emptyList()
+                viewerQueue = emptyList(),
+                viewerSelectionEnabled = false
             )
         }
         if (browserImportPaths.isNotEmpty()) {
@@ -769,7 +793,7 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     private fun dismissVaultSession(keepClipboard: Boolean = false) {
         pendingEntry = null
-        pendingExtraction = null
+        clearPendingExtraction()
         clearBrowserImport()
         archives.cancel()
         workspace.clear()
@@ -806,6 +830,7 @@ internal class OnlyFilesViewModel @Inject constructor(
                 pasteQueueNames = emptyList(),
                 viewer = null,
                 viewerQueue = emptyList(),
+                viewerSelectionEnabled = false,
                 properties = emptyList(),
                 pendingConflict = null,
                 healthReport = null,
@@ -895,6 +920,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        clearPendingExtraction()
         transfers.clear()
         boundary.clear()
         cancelImportSelection()

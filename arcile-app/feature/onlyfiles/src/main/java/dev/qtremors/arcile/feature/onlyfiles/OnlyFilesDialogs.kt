@@ -313,11 +313,12 @@ internal fun VaultExternalAccessDialogs(
     nodes: List<VaultNodeMetadata>,
     viewModel: OnlyFilesViewModel,
     openAs: FileOpenAsType? = null,
+    plugin: VaultPluginViewer? = null,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val errorMessage = stringResource(R.string.onlyfiles_external_launch_failed)
-    var compatibilityCopy by remember(action, nodes, openAs) { mutableStateOf(false) }
+    var compatibilityCopy by remember(action, nodes, openAs, plugin) { mutableStateOf(false) }
     val title = when {
         compatibilityCopy -> R.string.onlyfiles_compatibility_copy
         action == ExternalAction.SHARE -> R.string.onlyfiles_share
@@ -325,7 +326,10 @@ internal fun VaultExternalAccessDialogs(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(title)) },
+        title = {
+            Text(if (plugin == null) stringResource(title)
+            else stringResource(R.string.onlyfiles_open_in_plugin, plugin.name))
+        },
         text = {
             Text(stringResource(if (compatibilityCopy) R.string.onlyfiles_compatibility_copy_warning
             else R.string.onlyfiles_external_warning))
@@ -334,7 +338,10 @@ internal fun VaultExternalAccessDialogs(
             Button(onClick = {
                 onDismiss()
                 val launch: (List<VaultExternalGrant>) -> Unit = { grants ->
-                    runCatching { launchExternalIntent(context, action, grants, openAs) }.onFailure {
+                    runCatching {
+                        if (plugin == null) launchExternalIntent(context, action, grants, openAs)
+                        else check(plugin.launch(grants.single()))
+                    }.onFailure {
                         viewModel.revokeExternalAccess(grants)
                         viewModel.reportExternalLaunchFailure(errorMessage)
                     }
@@ -348,7 +355,7 @@ internal fun VaultExternalAccessDialogs(
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!compatibilityCopy) {
+                if (!compatibilityCopy && plugin == null) {
                     TextButton(onClick = { compatibilityCopy = true }) {
                         Text(stringResource(R.string.onlyfiles_compatibility_copy))
                     }

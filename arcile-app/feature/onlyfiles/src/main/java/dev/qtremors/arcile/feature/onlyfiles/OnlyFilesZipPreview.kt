@@ -45,9 +45,10 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import org.apache.commons.compress.archivers.zip.ZipFile
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 
 @Composable
-internal fun VaultZipPreview(
+internal fun VaultArchivePreview(
     node: VaultNodeMetadata,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
     folder: List<String>,
@@ -61,10 +62,18 @@ internal fun VaultZipPreview(
             runCatching {
                 openReader(node.ref).getOrThrow().use { reader ->
                     VaultZipDirectoryChannel(reader) { coroutineContext.ensureActive() }.use { channel ->
-                        ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
-                            zip.entries.asSequence().take(MAX_PREVIEW_ENTRIES + 1).map {
-                                VaultZipEntry(it.name, it.isDirectory, it.size)
-                            }.toList()
+                        if (ArchiveFormat.fromPath(node.name) == ArchiveFormat.SEVEN_Z) {
+                            openVaultSevenZ(channel).use { archive ->
+                                archive.entries.take(MAX_PREVIEW_ENTRIES + 1).map {
+                                    VaultZipEntry(it.name.orEmpty(), it.isDirectory, it.size)
+                                }
+                            }
+                        } else {
+                            ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
+                                zip.entries.asSequence().take(MAX_PREVIEW_ENTRIES + 1).map {
+                                    VaultZipEntry(it.name, it.isDirectory, it.size, it.generalPurposeBit.usesEncryption())
+                                }.toList()
+                            }
                         }
                     }
                 }
@@ -173,7 +182,8 @@ private fun ZipFolderListing(
                             enabled = !truncated,
                             onClick = {
                                 val paths = selected.mapNotNull { byReference[it]?.path }.toSet()
-                                onExtract(VaultZipSelection(folder, paths))
+                                val selection = VaultZipSelection(folder, paths)
+                                onExtract(selection.copy(requiresPassword = tree.requiresPassword(selection)))
                             }
                         ) {
                             Text(if (selected.isEmpty()) stringResource(R.string.onlyfiles_extract_zip)

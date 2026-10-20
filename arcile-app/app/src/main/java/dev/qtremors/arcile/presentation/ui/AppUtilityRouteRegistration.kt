@@ -53,6 +53,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
+        findPlugin = actions::findVaultPlugin,
         onPlayVideo = { session ->
             navController.navigate(AppRoutes.VideoViewer(GlobalVideoPlaybackSessions.register(session)))
         },

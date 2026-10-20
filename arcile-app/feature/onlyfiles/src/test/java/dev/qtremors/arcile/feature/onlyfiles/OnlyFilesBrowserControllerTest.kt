@@ -31,6 +31,36 @@ class OnlyFilesBrowserControllerTest {
     private val root = DirectoryId.Root
 
     @Test
+    fun `loading another page grows the active image queue and preserves the selected image`() = runTest {
+        val first = node("first.png")
+        val text = node("middle.txt")
+        val last = node("last.png")
+        val state = listing(first)
+        state.value = state.value.copy(
+            viewer = first, viewerQueue = listOf(first), viewerSelectionEnabled = true,
+            selectedNodeIds = setOf(first.ref.nodeId.value)
+        )
+        val fs = mockk<VaultFileSystem> {
+            coEvery { listDirectory(vault, root, match { it.pageToken == null }) } returns
+                Result.success(VaultPage(listOf(first, text), "2", 7L))
+            coEvery { listDirectory(vault, root, match { it.pageToken == "2" }) } returns
+                Result.success(VaultPage(listOf(last), null, 7L))
+        }
+        val controller = OnlyFilesBrowserController(fs, state, this, { throw it }, { error("Unexpected mutation") })
+
+        controller.reload()
+        advanceUntilIdle()
+        controller.loadNextPage()
+        advanceUntilIdle()
+
+        assertEquals(first, state.value.viewer)
+        assertEquals(listOf(first, last), state.value.viewerQueue)
+        assertEquals(listOf(first), state.value.selectedNodes)
+        assertTrue(state.value.viewerSelectionEnabled)
+        assertFalse(state.value.hasMoreRows)
+    }
+
+    @Test
     fun `load more restarts a search when its result generation changes`() = runTest {
         val vault = VaultId.of("vault")
         val directory = DirectoryId.Root

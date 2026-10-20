@@ -230,7 +230,8 @@ internal fun VideoViewerBottomChrome(
     actions: VideoViewerChromeActions,
     modifier: Modifier = Modifier,
     showThumbnails: Boolean = true,
-    thumbnailData: ((FileModel, Int) -> SensitiveThumbnailRequest?)? = null
+    thumbnailData: ((FileModel, Int) -> SensitiveThumbnailRequest?)? = null,
+    canShowMetadata: Boolean = !readOnly
 ) {
     val coroutineScope = rememberCoroutineScope()
     val haptics = rememberArcileHaptics()
@@ -620,7 +621,7 @@ internal fun VideoViewerBottomChrome(
                     currentFile = currentFile,
                     allowedActions = viewerActions,
                     onAction = onViewerAction,
-                    onShowMetadata = if (!readOnly && currentFile != null) {
+                    onShowMetadata = if (canShowMetadata && currentFile != null) {
                         { actions.onShowMetadata(currentFile.reference) }
                     } else {
                         null

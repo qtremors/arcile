@@ -7,6 +7,7 @@ import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,6 +36,7 @@ internal fun VaultSelectionToolbar(
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
     onOpenAs: () -> Unit,
+    onPreviewImages: (() -> Unit)?,
     onExport: () -> Unit,
     onMoveOut: () -> Unit,
     onMoveToTrash: () -> Unit,
@@ -73,6 +75,9 @@ internal fun VaultSelectionToolbar(
                     }
                     if (nodes.any { !it.isDirectory && it.ref.capabilities.canShare }) {
                         item(UiR.string.share, Icons.Default.Share, onShare)
+                    }
+                    if (onPreviewImages != null) {
+                        item(R.string.onlyfiles_preview_selected_images, Icons.Default.Image, onPreviewImages)
                     }
                     item(UiR.string.properties_title, Icons.Default.Info) { viewModel.showProperties(nodes) }
                     if (onReveal != null) {

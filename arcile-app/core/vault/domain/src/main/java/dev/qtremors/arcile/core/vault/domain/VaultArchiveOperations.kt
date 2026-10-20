@@ -12,7 +12,8 @@ sealed interface VaultArchiveSource {
     data class File(
         override val path: List<String>,
         val sizeBytes: Long,
-        val crc32: Long,
+        /** A per-entry checksum, when the archive format provides one for this stream. */
+        val crc32: Long?,
         val open: () -> InputStream
     ) : VaultArchiveSource
 }

@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -90,15 +91,19 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                 }
             }
 
-            VideoViewerScreen(
-                session = session,
-                viewModel = viewModel,
-                selectionModeEnabled = session.initialSelectedPaths.isNotEmpty() && !readOnly,
-                readOnly = readOnly,
-                onNavigateBack = navigateBack,
-                onShareFile = { file -> onShareFile(file, session.managedTrash) },
-                onOpenWith = { file -> onOpenFileWith(file, session.managedTrash) }
-            )
+            val viewer: @Composable () -> Unit = {
+                VideoViewerScreen(
+                    session = session,
+                    viewModel = viewModel,
+                    selectionModeEnabled = session.initialSelectedPaths.isNotEmpty() && !readOnly,
+                    readOnly = readOnly,
+                    onNavigateBack = navigateBack,
+                    onShareFile = { file -> onShareFile(file, session.managedTrash) },
+                    onOpenWith = { file -> onOpenFileWith(file, session.managedTrash) }
+                )
+            }
+            val sourceHost = session.sourceHost
+            if (sourceHost == null) viewer() else sourceHost(navigateBack, viewer)
         }
     }
 }

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
@@ -20,15 +21,34 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.lingala.zip4j.io.outputstream.ZipOutputStream
+import net.lingala.zip4j.model.ZipParameters
+import net.lingala.zip4j.model.enums.AesKeyStrength
+import net.lingala.zip4j.model.enums.CompressionLevel
+import net.lingala.zip4j.model.enums.CompressionMethod
+import net.lingala.zip4j.model.enums.EncryptionMethod
 import org.apache.commons.compress.archivers.zip.ZipFile
-import java.util.zip.ZipEntry
-import java.util.zip.ZipOutputStream
+import java.util.zip.Deflater
+import java.nio.channels.SeekableByteChannel
 
-internal data class VaultZipSelection(val folder: List<String>, val selected: Set<List<String>>) {
+internal data class VaultZipSelection(
+    val folder: List<String>,
+    val selected: Set<List<String>>,
+    val requiresPassword: Boolean = false
+) {
     fun relativePath(segments: List<String>): List<String>? {
         if (segments.size <= folder.size || segments.take(folder.size) != folder) return null
         if (selected.isNotEmpty() && selected.none { segments.take(it.size) == it }) return null
         return segments.drop(folder.size)
+    }
+
+    fun safeRelativePath(name: String): List<String>? {
+        val segments = safeZipSegments(name)
+        if (segments != null) return relativePath(segments)
+        if (folder.isEmpty() && selected.isEmpty()) {
+            throw VaultFailure.InvalidPath("Archive contains an unsafe entry path")
+        }
+        return null
     }
 }
 
@@ -45,24 +65,40 @@ internal class OnlyFilesArchiveController(
 ) {
     private var operation: Job? = null
 
-    fun create(nodes: List<VaultNodeMetadata>, name: String, level: Int, successMessage: String) {
+    fun create(
+        nodes: List<VaultNodeMetadata>, name: String, level: Int, successMessage: String, password: CharArray? = null
+    ) {
         val snapshot = state.value
-        val vault = snapshot.selectedVaultId ?: return
-        val parent = snapshot.currentDirectory?.id ?: return
-        if (nodes.isEmpty() || nodes.any { it.ref.vaultId != vault || !it.ref.capabilities.canRead }) return
-        runArchive(VaultArchiveAction.CREATE, successMessage) { progress ->
+        val vault = snapshot.selectedVaultId
+        val parent = snapshot.currentDirectory?.id
+        if (vault == null || parent == null || nodes.isEmpty() ||
+            nodes.any { it.ref.vaultId != vault || !it.ref.capabilities.canRead }
+        ) {
+            password?.fill('\u0000')
+            return
+        }
+        runArchive(VaultArchiveAction.CREATE, successMessage, password) { progress ->
             val items = planZip(nodes)
             val coroutine = currentCoroutineContext()
             fileSystem.createZip(vault, parent, name) { output ->
-                ZipOutputStream(output).use { zip ->
-                    zip.setLevel(level)
+                ZipOutputStream(output, password).use { zip ->
                     val buffer = ByteArray(32 * 1024)
                     try {
                         items.forEachIndexed { index, item ->
                             coroutine.ensureActive()
                             progress(VaultArchiveProgress(index, items.size, item.node.name))
-                            val entry = ZipEntry(item.path)
-                            entry.time = item.node.modifiedAtMillis
+                            val entry = ZipParameters().apply {
+                                fileNameInZip = item.path
+                                lastModifiedFileTime = item.node.modifiedAtMillis
+                                entrySize = item.node.sizeBytes
+                                compressionMethod = CompressionMethod.DEFLATE
+                                compressionLevel = level.toZipCompressionLevel()
+                                if (password != null && !item.node.isDirectory) {
+                                    isEncryptFiles = true
+                                    encryptionMethod = EncryptionMethod.AES
+                                    aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
+                                }
+                            }
                             zip.putNextEntry(entry)
                             if (!item.node.isDirectory) {
                                 fileSystem.openReader(item.node.ref).getOrThrow().use { reader ->
@@ -96,41 +132,63 @@ internal class OnlyFilesArchiveController(
         selection: VaultZipSelection,
         name: String,
         successMessage: String,
-        keepBoth: Boolean = false
+        keepBoth: Boolean = false,
+        password: CharArray? = null
     ) {
-        if (state.value.selectedVaultId != node.ref.vaultId || !node.ref.capabilities.canRead) return
-        runArchive(VaultArchiveAction.EXTRACT, successMessage) { progress ->
+        val format = ArchiveFormat.fromPath(node.name)
+        if (state.value.selectedVaultId != node.ref.vaultId || !node.ref.capabilities.canRead ||
+            (format != ArchiveFormat.ZIP && format != ArchiveFormat.SEVEN_Z)
+        ) {
+            password?.fill('\u0000')
+            return
+        }
+        runArchive(VaultArchiveAction.EXTRACT, successMessage, password) { progress ->
             withContext(Dispatchers.IO) {
                 val coroutine = currentCoroutineContext()
                 fileSystem.openReader(node.ref).getOrThrow().use { reader ->
                     if (reader.sizeBytes > VAULT_ARCHIVE_MAX_BYTES) {
-                        throw VaultFailure.Unavailable("ZIP exceeds the vault archive size limit")
+                        throw VaultFailure.Unavailable("Archive exceeds the vault archive size limit")
                     }
                     VaultZipDirectoryChannel(reader, VAULT_ARCHIVE_MAX_BYTES * 2) { coroutine.ensureActive() }.use { channel ->
-                        ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
-                            val entries = zip.entries.asSequence().take(VAULT_ARCHIVE_MAX_ENTRIES + 1).toList()
-                            if (entries.size > VAULT_ARCHIVE_MAX_ENTRIES) {
-                                throw VaultFailure.Unavailable("ZIP has too many entries")
-                            }
-                            val sources = entries.mapNotNull { entry ->
-                                val segments = safeZipSegments(entry.name)
-                                if (segments == null) {
-                                    if (selection.folder.isEmpty() && selection.selected.isEmpty()) {
-                                        throw VaultFailure.InvalidPath("ZIP contains an unsafe entry path")
-                                    }
-                                    return@mapNotNull null
-                                }
-                                val relative = selection.relativePath(segments) ?: return@mapNotNull null
-                                if (entry.isUnixSymlink || !zip.canReadEntryData(entry)) {
-                                    throw VaultFailure.Unavailable("ZIP contains an unsupported or encrypted entry")
-                                }
-                                if (entry.isDirectory) VaultArchiveSource.Folder(relative)
-                                else VaultArchiveSource.File(relative, entry.size, entry.crc) { zip.getInputStream(entry) }
-                            }
+                        suspend fun publish(sources: List<VaultArchiveSource>): VaultNodeMetadata =
                             fileSystem.extractArchive(node.ref.vaultId, parent, name, sources, keepBoth, progress).getOrThrow()
+                        if (format == ArchiveFormat.SEVEN_Z) {
+                            openVaultSevenZ(channel).use { archive ->
+                                publish(archive.vaultArchiveSources(selection) { coroutine.ensureActive() })
+                            }
+                        } else {
+                            ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
+                                publish(zip.vaultSources(channel, selection, password))
+                            }
                         }
                     }
                 }
+            }
+        }
+    }
+
+    private fun ZipFile.vaultSources(
+        channel: SeekableByteChannel,
+        selection: VaultZipSelection,
+        password: CharArray?
+    ): List<VaultArchiveSource> {
+        val indexed = entries.asSequence().take(VAULT_ARCHIVE_MAX_ENTRIES + 1).toList()
+        if (indexed.size > VAULT_ARCHIVE_MAX_ENTRIES) throw VaultFailure.Unavailable("ZIP has too many entries")
+        return indexed.mapNotNull { entry ->
+            val relative = selection.safeRelativePath(entry.name) ?: return@mapNotNull null
+            val encrypted = entry.generalPurposeBit.usesEncryption()
+            if (entry.isUnixSymlink || (!encrypted && !canReadEntryData(entry))) {
+                throw VaultFailure.Unavailable("ZIP contains an unsupported entry")
+            }
+            when {
+                entry.isDirectory -> VaultArchiveSource.Folder(relative)
+                encrypted -> {
+                    val secret = password ?: throw VaultFailure.Unavailable("This ZIP needs a password")
+                    VaultArchiveSource.File(relative, entry.size, crc32 = null) {
+                        openEncryptedVaultZipEntry(channel, entry, secret)
+                    }
+                }
+                else -> VaultArchiveSource.File(relative, entry.size, entry.crc) { getInputStream(entry) }
             }
         }
     }
@@ -142,10 +200,14 @@ internal class OnlyFilesArchiveController(
     private fun runArchive(
         action: VaultArchiveAction,
         successMessage: String,
+        password: CharArray?,
         execute: suspend ((VaultArchiveProgress) -> Unit) -> VaultNodeMetadata
     ) {
         val snapshot = state.value
-        if (snapshot.selectedVaultId == null || snapshot.busy || operation != null) return
+        if (snapshot.selectedVaultId == null || snapshot.busy || operation != null) {
+            password?.fill('\u0000')
+            return
+        }
         val mount = snapshot.mountGeneration
         state.update {
             it.copy(busy = true, message = null, completedArchive = null, archiveProgress = OnlyFilesArchiveProgress(action, null))
@@ -172,6 +234,7 @@ internal class OnlyFilesArchiveController(
         }
         operation = job
         job.invokeOnCompletion {
+            password?.fill('\u0000')
             if (operation === job) {
                 operation = null
                 state.update { it.copy(busy = false, archiveProgress = null) }
@@ -214,4 +277,11 @@ internal class OnlyFilesArchiveController(
     }
 
     private data class ZipSource(val node: VaultNodeMetadata, val path: String)
+}
+
+private fun Int.toZipCompressionLevel(): CompressionLevel = when (this) {
+    Deflater.NO_COMPRESSION -> CompressionLevel.NO_COMPRESSION
+    Deflater.BEST_SPEED -> CompressionLevel.FASTEST
+    Deflater.BEST_COMPRESSION -> CompressionLevel.ULTRA
+    else -> CompressionLevel.NORMAL
 }

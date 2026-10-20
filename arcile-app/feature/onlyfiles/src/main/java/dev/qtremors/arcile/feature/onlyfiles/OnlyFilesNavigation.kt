@@ -14,9 +14,12 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultId
 
 internal data class OnlyFilesEntry(val vaultId: VaultId, val directoryId: DirectoryId, val focusNodeId: String?)
+
+class VaultPluginViewer(val name: String, val launch: (VaultExternalGrant) -> Boolean)
 
 internal fun AppRoutes.OnlyFiles.toVaultEntry(): OnlyFilesEntry? {
     val vault = vaultId ?: return null
@@ -37,6 +40,7 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    findPlugin: (VaultNodeMetadata) -> VaultPluginViewer?,
     packageInstaller: @Composable (VaultExternalGrant, () -> Unit) -> Unit
 ) {
     composable<AppRoutes.OnlyFiles>(
@@ -52,6 +56,7 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
             importRequestId = route.importRequestId,
             onNavigateBack = onNavigateBack,
             onPlayVideo = onPlayVideo,
+            findPlugin = findPlugin,
             packageInstaller = packageInstaller
         )
     }

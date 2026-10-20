@@ -48,7 +48,9 @@ internal class VaultArchiveWriter(
                 val rootName = if (keepBoth && exists) uniqueName(requested, snapshot.entries) else requested
                 ensureNameAvailable(snapshot, rootName)
                 val writer = ArchiveTreeWriter(session, prepared, newObjects, privateKeys, plan.fileCount, checkActive, onProgress)
-                val root = writer.writeFolder(rootName, plan.root)
+                // Solid archives expose entry streams in archive order. Build the folder manifests afterward.
+                val writtenFiles = plan.files.associateWith(writer::writeFile)
+                val root = writer.writeFolder(rootName, plan.root, writtenFiles)
                 prepared += VaultPreparedDirectory(
                     directories.prepare(
                         session.id, parent.id, parent.key, snapshot.generation + 1L, snapshot.entries + root
@@ -84,14 +86,18 @@ internal class VaultArchiveWriter(
     ) {
         private var completed = 0
 
-        fun writeFolder(name: String, folder: ArchivePlanFolder): VaultManifestEntry {
+        fun writeFolder(
+            name: String,
+            folder: ArchivePlanFolder,
+            writtenFiles: Map<ArchivePlanFile, VaultManifestEntry>
+        ): VaultManifestEntry {
             checkActive()
             val id = DirectoryId.random()
             val key = newKey()
             val entries = folder.children.values.map { entry ->
                 when (entry) {
-                    is ArchivePlanFolder -> writeFolder(entry.name, entry)
-                    is ArchivePlanFile -> writeFile(entry)
+                    is ArchivePlanFolder -> writeFolder(entry.name, entry, writtenFiles)
+                    is ArchivePlanFile -> writtenFiles.getValue(entry)
                 }
             }
             prepared += VaultPreparedDirectory(
@@ -104,7 +110,7 @@ internal class VaultArchiveWriter(
             )
         }
 
-        private fun writeFile(entry: ArchivePlanFile): VaultManifestEntry {
+        fun writeFile(entry: ArchivePlanFile): VaultManifestEntry {
             checkActive()
             val source = entry.source
             val id = VaultObjectId.fromRandomBytes(VaultCryptography.randomBytes(32))
@@ -143,8 +149,8 @@ private data class ArchivePlanFile(
 
 private class ArchiveExtractionPlan(sources: List<VaultArchiveSource>) {
     val root = ArchivePlanFolder("")
-    var fileCount = 0
-        private set
+    val files = mutableListOf<ArchivePlanFile>()
+    val fileCount: Int get() = files.size
     private var folderCount = 1
     private var totalBytes = 0L
 
@@ -171,10 +177,14 @@ private class ArchiveExtractionPlan(sources: List<VaultArchiveSource>) {
                 if (source.sizeBytes < 0 || source.sizeBytes > VAULT_ARCHIVE_MAX_BYTES - totalBytes) {
                     throw VaultFailure.Unavailable("Archive exceeds the vault extraction size limit")
                 }
-                if (source.crc32 !in 0..0xFFFFFFFFL) throw VaultFailure.InvalidPath("Archive checksum is unavailable")
+                val crc = source.crc32
+                if (crc != null && crc !in 0..0xFFFFFFFFL) {
+                    throw VaultFailure.InvalidPath("Archive checksum is invalid")
+                }
                 totalBytes += source.sizeBytes
-                parent.children[name.comparisonKey] = ArchivePlanFile(name.value, source)
-                fileCount++
+                val file = ArchivePlanFile(name.value, source)
+                parent.children[name.comparisonKey] = file
+                files += file
             } else {
                 parent = when (existing) {
                     is ArchivePlanFolder -> existing
@@ -194,7 +204,7 @@ private class ArchiveExtractionPlan(sources: List<VaultArchiveSource>) {
 private class CheckedArchiveStream(
     input: InputStream,
     private val expectedBytes: Long,
-    private val expectedCrc: Long,
+    private val expectedCrc: Long?,
     private val checkActive: () -> Unit
 ) : FilterInputStream(input) {
     private val checksum = CRC32()
@@ -205,7 +215,7 @@ private class CheckedArchiveStream(
         val value = super.read()
         if (value < 0) verifyEnd() else {
             addSize(1)
-            checksum.update(value)
+            if (expectedCrc != null) checksum.update(value)
         }
         return value
     }
@@ -215,7 +225,7 @@ private class CheckedArchiveStream(
         val count = super.read(buffer, offset, length)
         if (count < 0) verifyEnd() else if (count > 0) {
             addSize(count)
-            checksum.update(buffer, offset, count)
+            if (expectedCrc != null) checksum.update(buffer, offset, count)
         }
         return count
     }
@@ -226,7 +236,7 @@ private class CheckedArchiveStream(
     }
 
     private fun verifyEnd() {
-        if (total != expectedBytes || checksum.value != expectedCrc) {
+        if (total != expectedBytes || (expectedCrc != null && checksum.value != expectedCrc)) {
             throw VaultFailure.IntegrityFailed("Archive entry failed its size or checksum check")
         }
     }

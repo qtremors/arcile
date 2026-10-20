@@ -3,7 +3,8 @@ package dev.qtremors.arcile.feature.onlyfiles
 internal data class VaultZipEntry(
     val name: String,
     val isDirectory: Boolean,
-    val size: Long = 0L
+    val size: Long = 0L,
+    val encrypted: Boolean = false
 )
 
 internal data class VaultZipItem(
@@ -15,10 +16,12 @@ internal data class VaultZipItem(
 
 internal class VaultZipTree(entries: List<VaultZipEntry>) {
     private val children = mutableMapOf<List<String>, MutableMap<String, VaultZipItem>>()
+    private val encryptedPaths = mutableListOf<List<String>>()
 
     init {
         for (entry in entries) {
             val segments = safeZipSegments(entry.name) ?: continue
+            if (entry.encrypted && !entry.isDirectory) encryptedPaths += segments
             var parent = emptyList<String>()
             for ((index, name) in segments.withIndex()) {
                 val directory = index < segments.lastIndex || entry.isDirectory
@@ -32,6 +35,9 @@ internal class VaultZipTree(entries: List<VaultZipEntry>) {
             }
         }
     }
+
+    fun requiresPassword(selection: VaultZipSelection): Boolean =
+        encryptedPaths.any { selection.relativePath(it) != null }
 
     fun list(path: List<String>): List<VaultZipItem> =
         children[path]?.values.orEmpty().sortedWith(
