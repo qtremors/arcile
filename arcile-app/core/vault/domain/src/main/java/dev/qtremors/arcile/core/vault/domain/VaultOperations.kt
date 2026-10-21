@@ -86,12 +86,31 @@ data class VaultConflict(
 enum class VaultTransferAction { COPY, MOVE, IMPORT, EXPORT, SHARE, OPEN_WITH }
 enum class VaultItemOutcome { COMPLETED, PARTIAL, SKIPPED, FAILED, ROLLED_BACK }
 
+/** An in-memory continuation of a folder merge. Both vaults must still be unlocked to use it. */
+interface VaultMergeRetry {
+    val source: VaultNodeRef
+    val destinationVault: VaultId
+    val destinationDirectory: DirectoryId
+    val move: Boolean
+    val remainingCount: Int
+}
+
+/** A one-session continuation for a folder already published outside the vault. */
+interface VaultExportRetry {
+    val source: VaultNodeRef
+    val displayName: String
+    val move: Boolean
+    val remainingCount: Int
+}
+
 data class VaultItemResult(
     val sourceIdentity: String,
     val displayName: String,
     val outcome: VaultItemOutcome,
     val failure: VaultFailure? = null,
-    val removedFolders: Set<DirectoryId> = emptySet()
+    val removedFolders: Set<DirectoryId> = emptySet(),
+    val mergeRetry: VaultMergeRetry? = null,
+    val exportRetry: VaultExportRetry? = null
 )
 
 data class VaultBatchResult(val items: List<VaultItemResult>) {
@@ -161,6 +180,12 @@ interface VaultTransferCoordinator {
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult
+
+    suspend fun resumeMerge(
+        retry: VaultMergeRetry,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultItemResult = throw VaultFailure.Unavailable("Resuming this vault merge is unavailable")
 }
 
 interface VaultBoundaryTransferCoordinator {
@@ -178,6 +203,12 @@ interface VaultBoundaryTransferCoordinator {
         reservation: VaultBoundaryTransferReservation,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult = throw VaultFailure.Unavailable("Main Trash is unavailable")
+
+    suspend fun resumeExport(
+        retry: VaultExportRetry,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultItemResult = throw VaultFailure.Unavailable("Resuming this export is unavailable")
 }
 
 interface VaultBoundaryTransferReservation : Closeable {

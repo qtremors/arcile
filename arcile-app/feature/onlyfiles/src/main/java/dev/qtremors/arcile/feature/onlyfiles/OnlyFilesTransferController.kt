@@ -3,6 +3,8 @@ package dev.qtremors.arcile.feature.onlyfiles
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
+import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultItemResult
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
@@ -44,25 +46,44 @@ internal class OnlyFilesTransferController(
         val destination = snapshot.currentDirectory?.id ?: return
         if (snapshot.busy || cancelled != null || clipboard.sources.isEmpty()) return
         val signal = AtomicBoolean(false)
+        val retries = clipboard.retriesAt(destinationVault, destination)
+        val retryIds = retries.mapTo(mutableSetOf()) { it.source.backendIdentity }
+        val freshSources = clipboard.sources.filterNot { it.backendIdentity in retryIds }
         cancelled = signal
         scope.launch {
             state.update { current ->
                 current.copy(
                     busy = true, message = null, transferMountGeneration = snapshot.mountGeneration,
                     pasteQueueNames = clipboard.displayNodes.map(VaultNodeMetadata::name)
-                        .takeIf { current.mountGeneration == snapshot.mountGeneration }.orEmpty()
+                        .takeIf { retries.isEmpty() && current.mountGeneration == snapshot.mountGeneration }.orEmpty()
                 )
             }
             val conflicts = conflictReview.resolver(snapshot.mountGeneration, exporting = false, signal::get)
             val cancellation = VaultCancellationSignal(signal::get)
             val move = clipboard.action == VaultClipboardAction.MOVE
-            val result = try {
-                if (clipboard.sources.all { it.vaultId == destinationVault }) {
-                    if (move) coordinator.moveWithinVault(clipboard.sources, destination, conflicts, cancellation)
-                    else coordinator.copyWithinVault(clipboard.sources, destination, conflicts, cancellation)
-                } else {
-                    coordinator.transferAcrossVaults(clipboard.sources, destinationVault, destination, move, conflicts, cancellation)
+            try {
+                val fresh = when {
+                    freshSources.isEmpty() -> emptyList()
+                    freshSources.all { it.vaultId == destinationVault } -> {
+                        if (move) coordinator.moveWithinVault(freshSources, destination, conflicts, cancellation).items
+                        else coordinator.copyWithinVault(freshSources, destination, conflicts, cancellation).items
+                    }
+                    else -> coordinator.transferAcrossVaults(freshSources, destinationVault, destination, move, conflicts, cancellation).items
                 }
+                val resumed = retries.map { retry ->
+                    try {
+                        coordinator.resumeMerge(retry, conflicts, cancellation)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (error: Exception) {
+                        VaultItemResult(
+                            retry.source.backendIdentity, "", VaultItemOutcome.PARTIAL,
+                            error as? VaultFailure ?: VaultFailure.Unavailable("The vault merge could not be resumed", error),
+                            mergeRetry = retry
+                        )
+                    }
+                }
+                complete(VaultBatchResult(fresh + resumed), clipboard, snapshot.mountGeneration)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -71,7 +92,6 @@ internal class OnlyFilesTransferController(
                         it.copy(message = error.message ?: "Vault paste failed")
                     } else it
                 }
-                return@launch
             } finally {
                 cancelled = null
                 conflictReview.dismiss()
@@ -82,7 +102,6 @@ internal class OnlyFilesTransferController(
                     )
                 }
             }
-            complete(result, clipboard, snapshot.mountGeneration)
         }
     }
 
@@ -110,18 +129,29 @@ internal class OnlyFilesTransferController(
         val partial = result.items.count { it.outcome == VaultItemOutcome.PARTIAL }
         val skipped = result.items.count { it.outcome == VaultItemOutcome.SKIPPED }
         val failed = result.items.count { it.outcome == VaultItemOutcome.FAILED || it.outcome == VaultItemOutcome.ROLLED_BACK }
+        val retryFailure = result.partial.firstNotNullOfOrNull { it.failure?.message }
         state.update {
             if (it.mountGeneration != mountGeneration) return@update it
             val remainingClipboard = if (it.clipboard === submittedClipboard) {
+                val retries = submittedClipboard.mergeRetries.toMutableMap()
+                for (item in result.items) {
+                    val retry = item.mergeRetry
+                    if (retry != null) retries[item.sourceIdentity] = retry
+                    else if (item.outcome == VaultItemOutcome.COMPLETED || item.outcome == VaultItemOutcome.PARTIAL) {
+                        retries.remove(item.sourceIdentity)
+                    }
+                }
                 submittedClipboard.copy(
                     sources = submittedClipboard.sources.filterNot { ref -> ref.backendIdentity in completedIds },
-                    displayNodes = submittedClipboard.displayNodes.filterNot { node -> node.ref.backendIdentity in completedIds }
+                    displayNodes = submittedClipboard.displayNodes.filterNot { node -> node.ref.backendIdentity in completedIds },
+                    mergeRetries = retries
                 ).takeIf { clipboard -> clipboard.sources.isNotEmpty() }
             } else it.clipboard
             it.copy(
                 clipboard = remainingClipboard,
                 message = if (partial > 0) {
-                    "$completed completed, $partial partially completed, $skipped skipped, $failed failed. Skipped files remain at the source."
+                    val summary = "$completed completed, $partial partially completed, $skipped skipped, $failed failed."
+                    "$summary ${retryFailure ?: "Skipped files remain at the source."}"
                 } else {
                     "$completed completed, $skipped skipped, $failed failed"
                 }

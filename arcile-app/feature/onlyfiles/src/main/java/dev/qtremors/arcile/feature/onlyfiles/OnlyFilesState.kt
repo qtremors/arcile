@@ -4,9 +4,11 @@ import dev.qtremors.arcile.core.storage.domain.SearchFilters
 import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultConflict
+import dev.qtremors.arcile.core.vault.domain.VaultExportRetry
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportState
+import dev.qtremors.arcile.core.vault.domain.VaultMergeRetry
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultPath
@@ -25,8 +27,13 @@ internal data class VaultDirectoryCrumb(val id: DirectoryId, val name: String, v
 internal data class VaultClipboard(
     val action: VaultClipboardAction,
     val sources: List<VaultNodeRef>,
-    val displayNodes: List<VaultNodeMetadata> = emptyList()
-)
+    val displayNodes: List<VaultNodeMetadata> = emptyList(),
+    val mergeRetries: Map<String, VaultMergeRetry> = emptyMap()
+) {
+    fun retriesAt(vault: VaultId?, directory: DirectoryId?): List<VaultMergeRetry> =
+        sources.mapNotNull { mergeRetries[it.backendIdentity] }
+            .filter { it.destinationVault == vault && it.destinationDirectory == directory }
+}
 internal data class VaultConflictPrompt(
     val requestId: Long,
     val conflicts: List<VaultConflict>,
@@ -65,6 +72,7 @@ internal data class OnlyFilesUiState(
     val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
     val selectedNodeIds: Set<String> = emptySet(),
     val clipboard: VaultClipboard? = null,
+    val exportRetries: List<VaultExportRetry> = emptyList(),
     val viewer: VaultNodeMetadata? = null,
     val viewerQueue: List<VaultNodeMetadata> = emptyList(),
     val viewerSelectionEnabled: Boolean = false,

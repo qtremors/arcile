@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.1
+> **Version:** 2.3.2
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.3.2] - 2026-11-04
+
+### Changed
+- Resume partial OnlyFiles pastes and exports from the files that were skipped. Successful copies stay in place.
+- Resuming Move Out verifies earlier exports before removing the encrypted original.
 
 ## [2.3.1] - 2026-11-04
 

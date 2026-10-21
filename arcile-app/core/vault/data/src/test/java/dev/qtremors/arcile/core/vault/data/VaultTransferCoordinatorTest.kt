@@ -3,15 +3,19 @@ package dev.qtremors.arcile.core.vault.data
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
+import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
+import io.mockk.mockk
 import java.io.File
+import java.nio.file.Files
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -21,6 +25,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -225,6 +230,255 @@ class VaultTransferCoordinatorTest {
         scope.cancel()
     }
 
+    @Test
+    fun `copy retry skips already copied files and leaves the source intact`() = runTest {
+        val (repository, scope) = repository()
+        try {
+            val vault = repository.createAppPrivateVault("Retry copy", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val from = repository.createDirectory(vault, root, "From").getOrThrow().ref.directoryId!!
+            val to = repository.createDirectory(vault, root, "To").getOrThrow().ref.directoryId!!
+            val source = repository.createDirectory(vault, from, "Folder").getOrThrow()
+            val sourceId = source.ref.directoryId!!
+            val target = repository.createDirectory(vault, to, "Folder").getOrThrow().ref.directoryId!!
+            repository.createEmptyFile(vault, sourceId, "already.txt").getOrThrow()
+            repository.createEmptyFile(vault, sourceId, "collision.txt").getOrThrow()
+            repository.createEmptyFile(vault, target, "collision.txt").getOrThrow()
+
+            val first = repository.copyWithinVault(listOf(source.ref), to, mergeFoldersSkipFiles, neverCancelled)
+            val partial = first.partial.single()
+            val retry = requireNotNull(partial.mergeRetry)
+            assertEquals(1, retry.remainingCount)
+            val targetId = repository.listDirectory(vault, to).getOrThrow().items.single().ref.directoryId!!
+            val copied = repository.listDirectory(vault, targetId).getOrThrow().items.single { it.name == "already.txt" }
+
+            val cancelled = repository.resumeMerge(retry, decision(VaultConflictDecision.REPLACE), VaultCancellationSignal { true })
+            assertEquals(VaultItemOutcome.PARTIAL, cancelled.outcome)
+            assertEquals(retry, cancelled.mergeRetry)
+
+            val result = repository.resumeMerge(retry, VaultConflictResolver { conflict ->
+                assertEquals("collision.txt", conflict.sourceName)
+                VaultConflictDecision.KEEP_BOTH
+            }, neverCancelled)
+
+            assertEquals(VaultItemOutcome.COMPLETED, result.outcome)
+            assertNull(result.mergeRetry)
+            val final = repository.listDirectory(vault, targetId).getOrThrow().items
+            assertEquals(setOf("already.txt", "collision.txt", "collision (1).txt"), final.map { it.name }.toSet())
+            assertEquals(copied, final.single { it.name == "already.txt" })
+            assertEquals(listOf("already.txt", "collision.txt"), names(repository, vault, sourceId))
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `cross vault move retry prunes empty source folders and preserves unrelated siblings`() = runTest {
+        val (repository, scope) = repository()
+        try {
+            val sourceVault = repository.createAppPrivateVault("Retry source", "password".toCharArray()).getOrThrow()
+            val targetVault = repository.createAppPrivateVault("Retry target", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val source = repository.createDirectory(sourceVault, root, "Folder").getOrThrow()
+            val sourceId = source.ref.directoryId!!
+            val targetId = repository.createDirectory(targetVault, root, "Folder").getOrThrow().ref.directoryId!!
+            val sourceNested = repository.createDirectory(sourceVault, sourceId, "Nested").getOrThrow().ref.directoryId!!
+            val targetNested = repository.createDirectory(targetVault, targetId, "Nested").getOrThrow().ref.directoryId!!
+            repository.createEmptyFile(sourceVault, sourceId, "moved.txt").getOrThrow()
+            repository.createEmptyFile(sourceVault, sourceNested, "collision.txt").getOrThrow()
+            repository.createEmptyFile(targetVault, targetNested, "collision.txt").getOrThrow()
+
+            val first = repository.transferAcrossVaults(
+                listOf(source.ref), targetVault, root, move = true, mergeFoldersSkipFiles, neverCancelled
+            )
+            val retry = requireNotNull(first.partial.single().mergeRetry)
+            assertEquals(listOf("Nested"), names(repository, sourceVault, sourceId))
+            val newFile = repository.createEmptyFile(sourceVault, sourceId, "created later.txt").getOrThrow()
+
+            val result = repository.resumeMerge(retry, decision(VaultConflictDecision.REPLACE), neverCancelled)
+
+            assertEquals(VaultItemOutcome.COMPLETED, result.outcome)
+            assertEquals(setOf(sourceNested), result.removedFolders)
+            assertEquals(listOf(newFile), repository.listDirectory(sourceVault, sourceId).getOrThrow().items)
+            val target = repository.listDirectory(targetVault, root).getOrThrow().items.single().ref.directoryId!!
+            assertEquals(listOf("Nested", "moved.txt"), names(repository, targetVault, target))
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `move retry refuses a replacement destination folder`() = runTest {
+        val (repository, scope) = repository()
+        try {
+            val vault = repository.createAppPrivateVault("Retry destination", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val from = repository.createDirectory(vault, root, "From").getOrThrow().ref.directoryId!!
+            val to = repository.createDirectory(vault, root, "To").getOrThrow().ref.directoryId!!
+            val source = repository.createDirectory(vault, from, "Folder").getOrThrow()
+            val target = repository.createDirectory(vault, to, "Folder").getOrThrow()
+            repository.createEmptyFile(vault, source.ref.directoryId!!, "conflict").getOrThrow()
+            repository.createEmptyFile(vault, target.ref.directoryId!!, "conflict").getOrThrow()
+            val first = repository.moveWithinVault(listOf(source.ref), to, mergeFoldersSkipFiles, neverCancelled)
+            val retry = requireNotNull(first.partial.single().mergeRetry)
+            val published = repository.listDirectory(vault, to).getOrThrow().items.single()
+            repository.deletePermanently(published.ref).getOrThrow()
+            val replacement = repository.createDirectory(vault, to, "Folder").getOrThrow()
+
+            val result = repository.resumeMerge(retry, decision(VaultConflictDecision.REPLACE), neverCancelled)
+
+            assertEquals(VaultItemOutcome.PARTIAL, result.outcome)
+            assertTrue(result.failure is VaultFailure.NodeNotFound)
+            assertEquals(listOf("conflict"), names(repository, vault, source.ref.directoryId!!))
+            assertTrue(names(repository, vault, replacement.ref.directoryId!!).isEmpty())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `retry can narrow a skipped subtree again and reserve sibling names during keep both`() = runTest {
+        val (repository, scope) = repository()
+        try {
+            val vault = repository.createAppPrivateVault("Nested retry", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val from = repository.createDirectory(vault, root, "From").getOrThrow().ref.directoryId!!
+            val to = repository.createDirectory(vault, root, "To").getOrThrow().ref.directoryId!!
+            val source = repository.createDirectory(vault, from, "Folder").getOrThrow()
+            val target = repository.createDirectory(vault, to, "Folder").getOrThrow()
+            val sourceInner = repository.createDirectory(vault, source.ref.directoryId!!, "Inner").getOrThrow().ref.directoryId!!
+            val targetInner = repository.createDirectory(vault, target.ref.directoryId!!, "Inner").getOrThrow().ref.directoryId!!
+            for (name in listOf("dup.txt", "name.txt", "name (2).txt")) {
+                repository.createEmptyFile(vault, sourceInner, name).getOrThrow()
+            }
+            for (name in listOf("dup.txt", "name.txt", "name (1).txt")) {
+                repository.createEmptyFile(vault, targetInner, name).getOrThrow()
+            }
+            val first = repository.moveWithinVault(listOf(source.ref), to, VaultConflictResolver {
+                if (it.sourceName == "Folder") VaultConflictDecision.MERGE_DIRECTORIES else VaultConflictDecision.SKIP
+            }, neverCancelled)
+            val retry = requireNotNull(first.partial.single().mergeRetry)
+
+            val second = repository.resumeMerge(retry, VaultConflictResolver {
+                when (it.sourceName) {
+                    "Inner" -> VaultConflictDecision.MERGE_DIRECTORIES
+                    "name.txt" -> VaultConflictDecision.KEEP_BOTH
+                    "dup.txt" -> VaultConflictDecision.SKIP
+                    else -> error("Unexpected conflict for ${it.sourceName}")
+                }
+            }, neverCancelled)
+            val narrower = requireNotNull(second.mergeRetry)
+            assertEquals(1, narrower.remainingCount)
+            assertEquals(listOf("dup.txt"), names(repository, vault, sourceInner))
+            val outputRoot = repository.listDirectory(vault, to).getOrThrow().items.single().ref.directoryId!!
+            val outputInner = repository.listDirectory(vault, outputRoot).getOrThrow().items.single().ref.directoryId!!
+            val published = repository.listDirectory(vault, outputInner).getOrThrow().items.filterNot { it.name == "dup.txt" }
+            assertEquals(setOf("name.txt", "name (1).txt", "name (2).txt", "name (3).txt"), published.map { it.name }.toSet())
+
+            val final = repository.resumeMerge(narrower, VaultConflictResolver {
+                assertEquals("dup.txt", it.sourceName)
+                VaultConflictDecision.REPLACE
+            }, neverCancelled)
+
+            assertEquals(VaultItemOutcome.COMPLETED, final.outcome)
+            assertEquals(setOf(source.ref.directoryId!!, sourceInner), final.removedFolders)
+            assertTrue(names(repository, vault, from).isEmpty())
+            assertEquals(published, repository.listDirectory(vault, outputInner).getOrThrow().items.filterNot { it.name == "dup.txt" })
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `move out retry verifies earlier copies before deleting the vault original`() = runTest {
+        val (repository, scope) = repository()
+        val destination = Files.createTempDirectory("arcile-resume-export").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Export retry", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Folder").getOrThrow()
+            val folderId = folder.ref.directoryId!!
+            val original = repository.createEmptyFile(vault, folderId, "already.txt").getOrThrow()
+            repository.replaceFileContents(original.ref, original.revision, "original".encodeToByteArray()).getOrThrow()
+            repository.createEmptyFile(vault, folderId, "collision.txt").getOrThrow()
+            val output = File(destination, "Folder").also { assertTrue(it.mkdir()) }
+            val collision = File(output, "collision.txt").also { it.writeText("local file") }
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val reservation = coordinator.prepareExport(listOf(folder.ref)).getOrThrow()
+
+            val initial = coordinator.exportToDestination(
+                reservation, destination.absolutePath, move = true, mergeFoldersSkipFiles, neverCancelled
+            )
+            val retry = requireNotNull(initial.partial.single().exportRetry)
+            assertEquals(1, retry.remainingCount)
+            val copied = File(output, "already.txt")
+            assertEquals("original", copied.readText())
+            copied.writeText("tampered")
+
+            val blocked = coordinator.resumeExport(retry, decision(VaultConflictDecision.KEEP_BOTH), neverCancelled)
+            assertEquals(VaultItemOutcome.PARTIAL, blocked.outcome)
+            assertTrue(blocked.failure is VaultFailure.IntegrityFailed)
+            assertEquals(listOf("Folder"), names(repository, vault, root))
+            assertEquals("local file", collision.readText())
+
+            copied.writeText("original")
+            val resumed = coordinator.resumeExport(requireNotNull(blocked.exportRetry), VaultConflictResolver { conflict ->
+                assertEquals("collision.txt", conflict.sourceName)
+                VaultConflictDecision.KEEP_BOTH
+            }, neverCancelled)
+
+            assertEquals(VaultItemOutcome.COMPLETED, resumed.outcome)
+            assertNull(resumed.exportRetry)
+            assertTrue(names(repository, vault, root).isEmpty())
+            assertEquals("original", copied.readText())
+            assertEquals("local file", collision.readText())
+            assertTrue(File(output, "collision (1).txt").isFile)
+        } finally {
+            scope.cancel()
+            destination.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `copy out retry refuses an unrelated replacement directory and can resume once restored`() = runTest {
+        val (repository, scope) = repository()
+        val destination = Files.createTempDirectory("arcile-resume-copy-out").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Copy out retry", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Folder").getOrThrow()
+            val inner = repository.createDirectory(vault, folder.ref.directoryId!!, "Inner").getOrThrow().ref.directoryId!!
+            repository.createEmptyFile(vault, inner, "collision.txt").getOrThrow()
+            val output = File(destination, "Folder/Inner").also { assertTrue(it.mkdirs()) }
+            File(output, "collision.txt").writeText("local file")
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val reservation = coordinator.prepareExport(listOf(folder.ref)).getOrThrow()
+            val initial = coordinator.exportToDestination(
+                reservation, destination.absolutePath, move = false, mergeFoldersSkipFiles, neverCancelled
+            )
+            val retry = requireNotNull(initial.partial.single().exportRetry)
+            val renamed = File(destination, "Original")
+            Files.move(output.toPath(), renamed.toPath())
+            assertTrue(output.mkdir())
+
+            val blocked = coordinator.resumeExport(retry, decision(VaultConflictDecision.REPLACE), neverCancelled)
+            assertEquals(VaultItemOutcome.PARTIAL, blocked.outcome)
+            assertTrue(blocked.failure is VaultFailure.ConcurrentMutation)
+            assertTrue(output.listFiles().orEmpty().isEmpty())
+            assertTrue(output.delete())
+            Files.move(renamed.toPath(), output.toPath())
+
+            val resumed = coordinator.resumeExport(requireNotNull(blocked.exportRetry), decision(VaultConflictDecision.KEEP_BOTH), neverCancelled)
+            assertEquals(VaultItemOutcome.COMPLETED, resumed.outcome)
+            assertEquals("local file", File(output, "collision.txt").readText())
+            assertTrue(File(output, "collision (1).txt").isFile)
+            assertEquals(listOf("collision.txt"), names(repository, vault, inner))
+        } finally {
+            scope.cancel()
+            destination.deleteRecursively()
+        }
+    }
+
     private fun repository(): Pair<DefaultVaultRepository, CoroutineScope> {
         val dispatcher = UnconfinedTestDispatcher()
         val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -256,5 +510,9 @@ class VaultTransferCoordinatorTest {
 
     private companion object {
         val neverCancelled = VaultCancellationSignal { false }
+        val mergeFoldersSkipFiles = VaultConflictResolver {
+            if (it.sourceIsDirectory && it.destinationIsDirectory) VaultConflictDecision.MERGE_DIRECTORIES
+            else VaultConflictDecision.SKIP
+        }
     }
 }

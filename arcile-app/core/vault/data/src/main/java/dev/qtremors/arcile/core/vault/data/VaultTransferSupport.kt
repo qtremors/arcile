@@ -81,8 +81,10 @@ internal suspend fun VaultConflictResolver.reviewed(
     }
 }
 
-internal fun uniqueName(name: String, entries: List<VaultManifestEntry>): String {
-    val names = entries.mapTo(mutableSetOf()) { VaultName.of(it.name).comparisonKey }
+internal fun uniqueName(name: String, entries: List<VaultManifestEntry>): String =
+    uniqueName(name, entries.mapTo(hashSetOf()) { VaultName.of(it.name).comparisonKey })
+
+internal fun uniqueName(name: String, names: Set<String>): String {
     val dot = name.lastIndexOf('.').takeIf { it > 0 }
     val stem = if (dot == null) name else name.substring(0, dot)
     val extension = if (dot == null) "" else name.substring(dot)

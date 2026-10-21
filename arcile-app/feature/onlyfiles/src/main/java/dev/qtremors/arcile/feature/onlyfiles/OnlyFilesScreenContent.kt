@@ -74,7 +74,9 @@ internal fun OnlyFilesClipboardToolbar(
     var showDetails by remember(state.mountGeneration, progress != null) { mutableStateOf(false) }
     val context = LocalContext.current
     val count = progress?.totalTopLevelItems ?: clipboard?.sources?.size ?: 0
-    val title = pluralStringResource(
+    val canResume = progress == null && clipboard?.retriesAt(state.selectedVaultId, state.currentDirectory?.id)
+        .orEmpty().isNotEmpty()
+    val title = if (canResume) stringResource(R.string.onlyfiles_resume_paste) else pluralStringResource(
         if (progress == null) UiR.plurals.clipboard_items_ready_to_paste else UiR.plurals.clipboard_item_count,
         count, count
     )

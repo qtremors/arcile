@@ -16,6 +16,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultItemResult
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultName
 import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
+import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
@@ -163,7 +164,9 @@ internal class VaultTransferEngine(
                     decision == VaultConflictDecision.MERGE_DIRECTORIES &&
                     existing.kind == VaultNodeKind.DIRECTORY && resolved.entry.kind == VaultNodeKind.DIRECTORY
                 ) {
-                    context.cloneMergedDirectory(existing, destination, resolved.entry, source, replacementName)
+                    context.cloneMergedDirectory(
+                        existing, destination, resolved.entry, source, replacementName, ref.parentId, destinationId
+                    )
                 } else {
                     context.cloneEntry(resolved.entry, source, replacementName)
                 }
@@ -191,7 +194,7 @@ internal class VaultTransferEngine(
                 context.commit(obsolete)
                 val removedSourceFolders = mutableSetOf<DirectoryId>()
                 if (moveSource) {
-                    cancellation.throwIfCancelled()
+                    // Finish this item's move after the destination has been committed.
                     val sourcePrepared = mutableListOf<VaultPreparedDirectory>()
                     try {
                         val sourceObsolete = prepareMovedSource(
@@ -209,7 +212,10 @@ internal class VaultTransferEngine(
                         sourcePrepared.forEach { it.directoryKey.fill(0) }
                     }
                 }
-                return result(ref, resolved.entry, context.outcome()).copy(removedFolders = removedSourceFolders)
+                return result(ref, resolved.entry, context.outcome()).copy(
+                    removedFolders = removedSourceFolders,
+                    mergeRetry = context.retry(ref, destinationId, moveSource, resolved.entry.name)
+                )
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
                 throw error
@@ -249,7 +255,8 @@ internal class VaultTransferEngine(
                     existing.kind == VaultNodeKind.DIRECTORY && resolved.entry.kind == VaultNodeKind.DIRECTORY
                 val moved = when {
                     useClone -> context.cloneMergedDirectory(
-                        requireNotNull(existing), session, resolved.entry, session, resolved.entry.name
+                        requireNotNull(existing), session, resolved.entry, session, resolved.entry.name,
+                        ref.parentId, destinationId
                     )
                     decision == VaultConflictDecision.KEEP_BOTH -> resolved.entry.copy(
                         name = uniqueName(resolved.entry.name, destinationSnapshot.entries),
@@ -289,7 +296,10 @@ internal class VaultTransferEngine(
                     ))
                 }
                 context.commit(obsolete)
-                return result(ref, resolved.entry, context.outcome()).copy(removedFolders = removedFolders)
+                return result(ref, resolved.entry, context.outcome()).copy(
+                    removedFolders = removedFolders,
+                    mergeRetry = context.retry(ref, destinationId, true, resolved.entry.name)
+                )
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
                 throw error
@@ -303,6 +313,133 @@ internal class VaultTransferEngine(
         }
     }
 
+    suspend fun resumeMerge(
+        retry: PendingVaultMerge,
+        source: VaultSessionRecord,
+        destination: VaultSessionRecord,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal,
+        onProgress: suspend (Int, String?) -> Unit
+    ): VaultItemResult {
+        val remaining = retry.children.toMutableList()
+        val cleanup = retry.cleanupPaths.toMutableSet()
+        val removed = linkedSetOf<DirectoryId>()
+        var failure: VaultFailure? = null
+        try {
+            val knownConflicts = retry.children.mapNotNull { child ->
+                cancellation.throwIfCancelled()
+                retryConflict(retry, child, source, destination)
+            }
+            val resolver = conflicts.reviewed(knownConflicts, cancellation)
+            for ((index, child) in retry.children.withIndex()) {
+                cancellation.throwIfCancelled()
+                onProgress(index, child.sourceName)
+                val result = if (retry.move && source.id == destination.id) {
+                    moveOneWithinVault(source, child.source, child.destination, resolver, cancellation)
+                } else {
+                    copyOne(source, child.source, destination, child.destination, resolver, cancellation, retry.move)
+                }
+                removed += result.removedFolders
+                if (result.outcome == VaultItemOutcome.COMPLETED) {
+                    remaining.remove(child)
+                } else if (result.outcome == VaultItemOutcome.PARTIAL) {
+                    val nested = requireNotNull(result.mergeRetry as? PendingVaultMerge)
+                    remaining.remove(child)
+                    remaining += nested.children.map(child::nest)
+                    cleanup += nested.cleanupPaths.map { child.sourceFolders + it }
+                }
+                onProgress(index + 1, null)
+            }
+            if (remaining.isEmpty() && retry.move) {
+                pruneEmptyMergeFolders(retry.copy(cleanupPaths = cleanup), source, removed, cancellation)
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            failure = error as? VaultFailure ?: VaultFailure.Unavailable("The vault merge could not be resumed", error)
+        }
+        val pending = if (remaining.isEmpty() && failure == null) null
+        else retry.copy(children = remaining, cleanupPaths = cleanup)
+        return VaultItemResult(
+            retry.source.backendIdentity, retry.displayName,
+            if (pending == null) VaultItemOutcome.COMPLETED else VaultItemOutcome.PARTIAL,
+            failure, removed, pending
+        )
+    }
+
+    private fun retryConflict(
+        retry: PendingVaultMerge,
+        child: DeferredVaultChild,
+        source: VaultSessionRecord,
+        destination: VaultSessionRecord
+    ): VaultConflict? {
+        require(child.sourceFolders.first().backendIdentity == retry.source.backendIdentity)
+        require(child.source.parentId == child.sourceFolders.last().directoryId)
+        validateFolderChain(source, retry.source.parentId, child.sourceFolders)
+        validateFolderChain(destination, retry.destinationDirectory, child.destinationFolders)
+        return resolve(source, child.source).use { resolved ->
+            if (resolved.entry.revision != child.sourceRevision || resolved.entry.name != child.sourceName) {
+                throw VaultFailure.SourceChanged()
+            }
+            val parent = destination.resolveDirectory(child.destination)
+            try {
+                val snapshot = destination.readDirectory(parent)
+                try {
+                    findByName(snapshot.entries, resolved.entry.name)?.conflictWith(resolved.entry)
+                } finally {
+                    snapshot.clearProtectedKeys()
+                }
+            } finally {
+                parent.key.fill(0)
+            }
+        }
+    }
+
+    private fun pruneEmptyMergeFolders(
+        retry: PendingVaultMerge,
+        source: VaultSessionRecord,
+        removed: MutableSet<DirectoryId>,
+        cancellation: VaultCancellationSignal
+    ) {
+        val paths = retry.cleanupPaths.flatMap { path -> path.indices.map { path.take(it + 1) } }
+            .distinct().sortedByDescending(List<VaultNodeRef>::size)
+        for (path in paths) {
+            cancellation.throwIfCancelled()
+            val ref = path.last()
+            val id = requireNotNull(ref.directoryId)
+            try {
+                validateFolderChain(source, retry.source.parentId, path.dropLast(1))
+                val empty = resolve(source, ref).use { folder ->
+                    if (folder.entry.childDirectoryId != id) throw VaultFailure.ConcurrentMutation()
+                    val snapshot = source.readDirectory(id, folder.entry.protectedKey)
+                    try {
+                        snapshot.entries.isEmpty()
+                    } finally {
+                        snapshot.clearProtectedKeys()
+                    }
+                }
+                if (empty) {
+                    deleteOne(source, ref)
+                    removed += id
+                }
+            } catch (_: VaultFailure.NodeNotFound) {
+                // The original folder was removed separately. Never prune a replacement.
+            }
+        }
+    }
+
+    private fun validateFolderChain(session: VaultSessionRecord, root: DirectoryId, path: List<VaultNodeRef>) {
+        var parent = root
+        for (ref in path) {
+            if (ref.parentId != parent) throw VaultFailure.ConcurrentMutation()
+            parent = resolve(session, ref).use { folder ->
+                val id = folder.entry.childDirectoryId
+                if (id == null || id != ref.directoryId) throw VaultFailure.ConcurrentMutation()
+                id
+            }
+        }
+    }
+
     private inner class CloneContext(
         private val destination: VaultSessionRecord,
         private val conflicts: VaultConflictResolver,
@@ -313,9 +450,20 @@ internal class VaultTransferEngine(
         val newObjects = linkedSetOf<String>()
         val skippedSourceNodes = mutableSetOf<NodeId>()
         val retainedSourceDirectories = mutableSetOf<NodeId>()
+        private val deferred = mutableListOf<DeferredVaultChild>()
+        private val sourceFolders = mutableListOf<VaultNodeRef>()
+        private val destinationFolders = mutableListOf<VaultNodeRef>()
         private var committed = false
 
         fun outcome() = if (skippedSourceNodes.isEmpty()) VaultItemOutcome.COMPLETED else VaultItemOutcome.PARTIAL
+
+        fun retry(source: VaultNodeRef, parent: DirectoryId, move: Boolean, name: String): PendingVaultMerge? {
+            if (deferred.isEmpty()) return null
+            return PendingVaultMerge(
+                source, destination.id, parent, move, name, deferred.toList(),
+                if (move) deferred.mapTo(linkedSetOf()) { it.sourceFolders } else emptySet()
+            )
+        }
 
         suspend fun cloneEntry(
             entry: VaultManifestEntry,
@@ -413,7 +561,9 @@ internal class VaultTransferEngine(
             existingSession: VaultSessionRecord,
             source: VaultManifestEntry,
             sourceSession: VaultSessionRecord,
-            name: String
+            name: String,
+            sourceParent: DirectoryId,
+            destinationParent: DirectoryId
         ): VaultManifestEntry {
             cancellation.throwIfCancelled()
             val skippedBefore = skippedSourceNodes.size
@@ -424,10 +574,19 @@ internal class VaultTransferEngine(
                 requireNotNull(source.childDirectoryId), source.protectedKey
             )
             val childId = DirectoryId.random()
+            val childNodeId = NodeId.random()
             val childKey = VaultCryptography.randomBytes(32)
+            val sourceFolder = source.toMetadata(sourceSession.id, sourceParent).ref
+            sourceFolders += sourceFolder
+            destinationFolders += VaultNodeRef(
+                destination.id, childNodeId, destinationParent, VaultNodeCapabilities(), childId
+            )
             try {
                 val output = mutableListOf<VaultManifestEntry>()
                 val consumedSource = mutableSetOf<NodeId>()
+                val reservedNames = hashSetOf<String>()
+                for (entry in existingSnapshot.entries) reservedNames += VaultName.of(entry.name).comparisonKey
+                for (entry in sourceSnapshot.entries) reservedNames += VaultName.of(entry.name).comparisonKey
                 for (destinationEntry in existingSnapshot.entries) {
                     val sourceEntry = findByName(sourceSnapshot.entries, destinationEntry.name)
                     if (sourceEntry == null) {
@@ -438,23 +597,27 @@ internal class VaultTransferEngine(
                     when (val decision = conflicts.decide(destinationEntry.conflictWith(sourceEntry))) {
                         VaultConflictDecision.SKIP -> {
                             skippedSourceNodes += sourceEntry.nodeId
+                            deferred += DeferredVaultChild(
+                                sourceFolders.toList(), destinationFolders.toList(),
+                                sourceEntry.toMetadata(sourceSession.id, requireNotNull(sourceFolder.directoryId)).ref,
+                                sourceEntry.revision, sourceEntry.name
+                            )
                             output += cloneEntry(destinationEntry, existingSession)
                         }
                         VaultConflictDecision.REPLACE -> output += cloneEntry(sourceEntry, sourceSession)
                         VaultConflictDecision.KEEP_BOTH -> {
                             output += cloneEntry(destinationEntry, existingSession)
-                            output += cloneEntry(
-                                sourceEntry,
-                                sourceSession,
-                                uniqueName(sourceEntry.name, output)
-                            )
+                            val newName = uniqueName(sourceEntry.name, reservedNames)
+                            reservedNames += VaultName.of(newName).comparisonKey
+                            output += cloneEntry(sourceEntry, sourceSession, newName)
                         }
                         VaultConflictDecision.MERGE_DIRECTORIES -> if (
                             destinationEntry.kind == VaultNodeKind.DIRECTORY &&
                             sourceEntry.kind == VaultNodeKind.DIRECTORY
                         ) {
                             output += cloneMergedDirectory(
-                                destinationEntry, existingSession, sourceEntry, sourceSession, destinationEntry.name
+                                destinationEntry, existingSession, sourceEntry, sourceSession, destinationEntry.name,
+                                requireNotNull(sourceFolder.directoryId), childId
                             )
                         } else {
                             output += cloneEntry(sourceEntry, sourceSession)
@@ -474,11 +637,13 @@ internal class VaultTransferEngine(
                 }
                 if (skippedSourceNodes.size > skippedBefore) retainedSourceDirectories += source.nodeId
                 return VaultManifestEntry(
-                    NodeId.random(), name, VaultNodeKind.DIRECTORY, 1L,
+                    childNodeId, name, VaultNodeKind.DIRECTORY, 1L,
                     maxOf(existing.modifiedAtMillis, source.modifiedAtMillis),
                     0L, null, null, childId, childKey.copyOf()
                 )
             } finally {
+                sourceFolders.removeAt(sourceFolders.lastIndex)
+                destinationFolders.removeAt(destinationFolders.lastIndex)
                 existingSnapshot.clearProtectedKeys()
                 sourceSnapshot.clearProtectedKeys()
                 childKey.fill(0)
@@ -486,6 +651,7 @@ internal class VaultTransferEngine(
         }
 
         fun commit(obsolete: Set<String>) {
+            cancellation.throwIfCancelled()
             transactions.commit(
                 destination.directory,
                 destination.id,

@@ -71,6 +71,7 @@ internal fun VaultActionsMenu(
     directoryPinned: Boolean,
     hasExactFolderView: Boolean,
     workspaceTabsEnabled: Boolean,
+    hasExportRetry: Boolean,
     onVaultDetails: (VaultDetails) -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -83,8 +84,14 @@ internal fun VaultActionsMenu(
     val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
 
-    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView, workspaceTabsEnabled, onVaultDetails) {
+    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView, workspaceTabsEnabled, hasExportRetry, onVaultDetails) {
         mutableListOf<@Composable () -> Unit>().apply {
+            if (hasExportRetry) add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_resume_partial_export)) },
+                    onClick = { closeAnd(viewModel::resumeLocalExport) }
+                )
+            }
             add {
                 dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
                     closeAnd(viewModel::toggleHiddenFiles)

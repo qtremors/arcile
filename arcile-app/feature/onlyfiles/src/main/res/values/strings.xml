@@ -1,4 +1,5 @@
 <resources>
+    <string name="onlyfiles_resume_paste">Resume partial paste</string>
     <string name="onlyfiles_open_in_plugin">Open in %1$s</string>
     <string name="onlyfiles_preview_selected_images">Preview selected images</string>
     <string name="onlyfiles_audio_previous">Previous track</string>
@@ -203,4 +204,5 @@
     <string name="onlyfiles_health_ok">No integrity problems were found.</string>
     <string name="onlyfiles_health_problems">The health check found problems.</string>
     <string name="onlyfiles_health_counts">Objects: %1$d · chunks: %2$d · issues: %3$d</string>
+    <string name="onlyfiles_resume_partial_export">Resume partial export</string>
 </resources>

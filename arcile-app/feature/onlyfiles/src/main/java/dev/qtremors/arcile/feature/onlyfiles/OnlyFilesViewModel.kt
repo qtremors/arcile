@@ -146,7 +146,9 @@ internal class OnlyFilesViewModel @Inject constructor(
                         vaults = vaults,
                         biometricVaultIds = biometricVaultIds,
                         clipboard = current.clipboard?.takeIf { clipboard ->
-                            vaults.any { it.id == clipboard.sources.firstOrNull()?.vaultId && it.isUnlocked }
+                            val unlocked = repository.unlockedVaultIds.value
+                            clipboard.sources.all { it.vaultId in unlocked } &&
+                                clipboard.mergeRetries.values.all { it.destinationVault in unlocked }
                         }
                     )
                 }
@@ -532,7 +534,8 @@ internal class OnlyFilesViewModel @Inject constructor(
             val remaining = clipboard.sources - removed.ref
             current.copy(clipboard = clipboard.copy(
                 sources = remaining,
-                displayNodes = clipboard.displayNodes - removed
+                displayNodes = clipboard.displayNodes - removed,
+                mergeRetries = clipboard.mergeRetries - removed.ref.backendIdentity
             ).takeIf { remaining.isNotEmpty() })
         }
     }
@@ -544,6 +547,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         boundary.conflictReview.resolve(id, response)
     }
     fun beginExportSelection(nodes: List<VaultNodeMetadata>): Boolean = boundary.prepare(nodes)
+    fun resumeLocalExport() = boundary.resume()
     fun finishExportSelection(destinationPath: String?, move: Boolean) {
         if (destinationPath == null) boundary.cancelSelection()
         else boundary.start(destinationPath, move)
@@ -758,6 +762,7 @@ internal class OnlyFilesViewModel @Inject constructor(
             it.copy(
                 selectedVaultId = vaultId,
                 mountGeneration = it.mountGeneration + 1L,
+                exportRetries = it.exportRetries.filter { retry -> retry.source.vaultId == vaultId },
                 workspace = VaultWorkspace.mounted(),
                 workspaceTabsEnabled = settings.workspaceTabsEnabled,
                 directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "", VaultPath.Root)),
@@ -828,6 +833,7 @@ internal class OnlyFilesViewModel @Inject constructor(
                     keepClipboard && clipboard.sources.all { ref -> ref.vaultId in repository.unlockedVaultIds.value }
                 },
                 pasteQueueNames = emptyList(),
+                exportRetries = emptyList(),
                 viewer = null,
                 viewerQueue = emptyList(),
                 viewerSelectionEnabled = false,

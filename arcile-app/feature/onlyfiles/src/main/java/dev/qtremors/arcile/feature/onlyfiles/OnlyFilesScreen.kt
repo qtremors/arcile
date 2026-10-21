@@ -359,6 +359,7 @@ private fun OnlyFilesScreen(
                             state.currentDirectory?.id?.let { it in state.pinnedDirectoryIds } == true,
                             state.hasExactFolderView,
                             state.workspaceTabsEnabled,
+                            state.exportRetries.isNotEmpty() && !state.busy,
                             { vaultDetails = it },
                             dismiss
                         )

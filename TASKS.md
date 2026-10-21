@@ -76,10 +76,10 @@
   - **Current:** Background handling invokes lockAll; persisted vault security settings currently contain screenshot protection only.
   - **Change:** Add an explicit lock policy retaining current defaults. Define background retention, screen-off, exit, process-death, and grant behavior without persisting unlocked keys.
 
-- [ ] **FEAT-0016 - Send Browser Selections Directly into OnlyFiles**
-  - **Location:** `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesTransferController.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserClipboardController.kt`.
-  - **Current:** OnlyFiles already imports local files/folders and has its own clipboard; inspected Browser sources lack a vault-selection action.
-  - **Change:** Choose/unlock a vault from Browser and reuse boundary transfers. Distinguish copy/move and use typed clipboard references. Preserve verified vault transaction and transfer recovery safeguards.
+- [ ] **FEAT-0016 - Move Browser Selections Directly into OnlyFiles**
+  - **Location:** BrowserWorkflowToolbars.kt and OnlyFilesViewModel.kt.
+  - **Current:** Send to OnlyFiles copies Browser selections. OnlyFiles has a separate verified Move Into Vault flow.
+  - **Change:** Add an explicit move choice to the Browser handoff and use the verified import path before removing local originals.
 
 - [ ] **FEAT-0017 - Schedule Settings Backups and Discover Restore Candidates**
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/backup/PreferencesBackupManager.kt`; `arcile-app/feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/OnboardingRoute.kt`.
@@ -100,13 +100,8 @@
 
 - [ ] **REL-0007 - Recover Interrupted Vault Operations**
   - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.
-  - **Current:** The vault health report can finish committed transactions. Recovery of unfinished operation queues remains manual.
+  - **Current:** The vault health report can finish committed transactions, and partial pastes and exports can resume during the active session. Unfinished queues still need cross-process recovery.
   - **Change:** Offer cross-process recovery for interrupted import, export, and vault transfer queues.
-
-- [ ] **UI-0011 - Resume Partial Vault Transfers**
-  - **Location:** OnlyFilesTransferController.kt and DefaultVaultBoundaryTransferCoordinator.kt.
-  - **Current:** A partially merged folder is still retried as a top-level item.
-  - **Change:** Resume at unresolved children and preserve prior successful copies and conflict decisions where safe.
 
 - [ ] **UI-0012 - Complete Vault Media Actions**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.

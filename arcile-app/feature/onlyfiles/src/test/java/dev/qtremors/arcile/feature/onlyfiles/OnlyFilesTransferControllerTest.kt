@@ -2,6 +2,7 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.vault.domain.*
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.mockk
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -133,5 +134,54 @@ class OnlyFilesTransferControllerTest {
 
         assertEquals(listOf(skipped), state.value.clipboard?.sources)
         assertEquals(listOf(nodes.last()), state.value.clipboard?.displayNodes)
+    }
+
+    @Test
+    fun `paste resumes a partial merge only at its recorded destination`() = runTest {
+        val vault = VaultId.of("vault")
+        val destination = DirectoryId.of("destination")
+        val other = DirectoryId.of("other")
+        val ref = VaultNodeRef(
+            vault, NodeId.of("folder"), DirectoryId.Root, VaultNodeCapabilities(), DirectoryId.of("source")
+        )
+        val clipboard = VaultClipboard(VaultClipboardAction.COPY, listOf(ref))
+        val retry = object : VaultMergeRetry {
+            override val source = ref
+            override val destinationVault = vault
+            override val destinationDirectory = destination
+            override val move = false
+            override val remainingCount = 1
+        }
+        val state = MutableStateFlow(OnlyFilesUiState(
+            selectedVaultId = vault,
+            directoryStack = listOf(VaultDirectoryCrumb(destination, "Destination", VaultPath.of("/Destination"))),
+            clipboard = clipboard
+        ))
+        val coordinator = mockk<VaultTransferCoordinator>()
+        coEvery { coordinator.copyWithinVault(listOf(ref), destination, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, "Folder", VaultItemOutcome.PARTIAL, mergeRetry = retry)))
+        coEvery { coordinator.copyWithinVault(listOf(ref), other, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, "Folder", VaultItemOutcome.SKIPPED)))
+        coEvery { coordinator.resumeMerge(retry, any(), any()) } returns
+            VaultItemResult(ref.backendIdentity, "Folder", VaultItemOutcome.COMPLETED)
+        val controller = OnlyFilesTransferController(coordinator, state, this, {})
+
+        controller.paste()
+        advanceUntilIdle()
+        assertEquals(listOf(retry), state.value.clipboard?.retriesAt(vault, destination))
+
+        val firstStack = state.value.directoryStack
+        state.update { it.copy(directoryStack = listOf(VaultDirectoryCrumb(other, "Other", VaultPath.of("/Other")))) }
+        controller.paste()
+        advanceUntilIdle()
+        assertEquals(listOf(retry), state.value.clipboard?.retriesAt(vault, destination))
+        coVerify(exactly = 0) { coordinator.resumeMerge(any(), any(), any()) }
+
+        state.update { it.copy(directoryStack = firstStack) }
+        controller.paste()
+        advanceUntilIdle()
+        assertNull(state.value.clipboard)
+        coVerify(exactly = 1) { coordinator.copyWithinVault(listOf(ref), destination, any(), any()) }
+        coVerify(exactly = 1) { coordinator.resumeMerge(retry, any(), any()) }
     }
 }
