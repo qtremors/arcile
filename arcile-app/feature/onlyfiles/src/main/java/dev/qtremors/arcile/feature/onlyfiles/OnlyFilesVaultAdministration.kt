@@ -93,6 +93,12 @@ internal fun VaultActionsMenu(
                 )
             }
             add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_interrupted_transfers)) },
+                    onClick = { closeAnd(viewModel::openRecovery) }
+                )
+            }
+            add {
                 dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
                     closeAnd(viewModel::toggleHiddenFiles)
                 }

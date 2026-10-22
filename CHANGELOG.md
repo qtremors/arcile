@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.2
+> **Version:** 2.3.3
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.3.3] - 2026-11-04
+
+### Added
+- Resume queued items from interrupted imports, exports, and vault pastes after unlocking OnlyFiles.
+- Recovery skips the item that was in progress. Recovered moves copy the remaining items and keep their originals.
 
 ## [2.3.2] - 2026-11-04
 

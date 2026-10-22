@@ -679,6 +679,9 @@ private fun OnlyFilesScreen(
     state.healthReport?.let {
         HealthDialog(it, state.busy, viewModel::dismissHealthReport, viewModel::recoverVaultTransactions)
     }
+    state.recovery?.let { recovery ->
+        OnlyFilesRecoveryDialog(recovery, viewModel::resumeRecovery, viewModel::discardRecovery, viewModel::closeRecovery)
+    }
     OnlyFilesBackupDialogs(state, viewModel)
     val vaultId = state.selectedVaultId
     if (vaultId != null) {

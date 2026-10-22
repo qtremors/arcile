@@ -9,17 +9,21 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.attribute.BasicFileAttributes
+import kotlinx.serialization.Serializable
 
 internal data class DeferredExportChild(val node: VaultNodeMetadata, val parent: List<String>)
 
 internal data class PublishedExportFile(val relativePath: List<String>, val size: Long, val digest: String)
 
-internal data class ExportFolderIdentity(val fileKey: String?, val createdAt: Long) {
+@Serializable
+internal data class ExportFolderIdentity(val fileKey: String?, val createdAt: Long?) {
     companion object {
         fun read(folder: File): ExportFolderIdentity {
             val attributes = Files.readAttributes(folder.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
             if (!attributes.isDirectory) throw VaultFailure.ConcurrentMutation()
-            return ExportFolderIdentity(attributes.fileKey()?.toString(), attributes.creationTime().toMillis())
+            val key = attributes.fileKey()?.toString()
+            // Android can report the current modification time when birth time is unavailable.
+            return ExportFolderIdentity(key, if (key == null) attributes.creationTime().toMillis() else null)
         }
     }
 }

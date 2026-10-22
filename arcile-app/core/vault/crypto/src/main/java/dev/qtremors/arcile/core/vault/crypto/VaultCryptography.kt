@@ -66,6 +66,7 @@ enum class VaultKeyDomain(val label: String) {
     ROOT_DIRECTORY("root-directory-key"),
     HEADER_AUTHENTICATION("public-header-authentication"),
     TRANSACTION("transaction-journal"),
+    OPERATION_QUEUE("operation-queue"),
     THUMBNAILS("encrypted-thumbnail-cache"),
     BIOMETRIC_ENVELOPE("biometric-convenience-envelope")
 }

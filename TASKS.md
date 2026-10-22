@@ -98,10 +98,10 @@
   - **Current:** OnlyFiles handles password-protected ZIP creation and extraction and unencrypted 7z browsing and extraction.
   - **Change:** Share Browser and OnlyFiles archive readers and validation behind filesystem and vault stream adapters. Extend format coverage through the shared engine.
 
-- [ ] **REL-0007 - Recover Interrupted Vault Operations**
-  - **Location:** OnlyFilesTransferController.kt and VaultHealthLayer.kt.
-  - **Current:** The vault health report can finish committed transactions, and partial pastes and exports can resume during the active session. Unfinished queues still need cross-process recovery.
-  - **Change:** Offer cross-process recovery for interrupted import, export, and vault transfer queues.
+- [ ] **REL-0007 - Reconcile Items Interrupted Mid-Transfer**
+  - **Location:** VaultOperationJournal.kt, DefaultVaultBoundaryTransferCoordinator.kt, and VaultTransferEngine.kt.
+  - **Current:** After restart, OnlyFiles can resume unstarted queue items. The item that was in progress needs manual review, and partial folder retries are limited to the active session.
+  - **Change:** Reconcile staged and published outputs after interruption, including export staging files. Persist verified folder checkpoints so retry can target unfinished children.
 
 - [ ] **UI-0012 - Complete Vault Media Actions**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.

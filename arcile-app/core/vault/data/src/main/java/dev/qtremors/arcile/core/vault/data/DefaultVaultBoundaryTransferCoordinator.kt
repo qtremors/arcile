@@ -18,6 +18,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultLeasePurpose
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryQueue
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultTransferAction
 import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
@@ -82,7 +84,50 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult = withExportSession(reservation) { session, sources ->
-        exportToLocalDirectory(session, sources, File(destinationPath), move, conflicts, cancellation)
+        val destination = File(destinationPath)
+        validateLocalDestination(destination)
+        val actual = session as? BoundaryAccessSession.Repository
+        if (actual == null) {
+            exportToLocalDirectory(session, sources, destination, move, conflicts, cancellation)
+        } else {
+            val canonical = destination.canonicalFile
+            val plan = VaultQueuePlan(
+                VaultRecoveryKind.EXPORT, canonical.path, move, nodes = sources.map(QueuedVaultNode::from),
+                localDestinationIdentity = ExportFolderIdentity.read(canonical)
+            )
+            requireNotNull(repository).operationJournal.start(actual.value, plan).use { queue ->
+                val result = exportToLocalDirectory(session, sources, canonical, move, conflicts, cancellation, queue)
+                queue.finishQueue()
+                result
+            }
+        }
+    }
+
+    internal suspend fun resumeInterruptedExport(
+        recovery: VaultRecoveryQueue,
+        plan: VaultQueuePlan,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        val destination = File(plan.destination)
+        validateLocalDestination(destination)
+        if (destination.canonicalFile != destination || ExportFolderIdentity.read(destination) != plan.localDestinationIdentity) {
+            throw VaultFailure.Unavailable("The original export destination changed")
+        }
+        val sources = plan.nodes.map(QueuedVaultNode::ref)
+        return prepareExport(sources).getOrThrow().use { reservation ->
+            withExportSession(reservation) { session, _ ->
+                check(session is BoundaryAccessSession.Repository)
+                requireNotNull(repository).operationJournal.resume(session.value, recovery.id, VaultRecoveryKind.EXPORT).use { queue ->
+                    val pending = queue.plan.nodes.drop(queue.startIndex).map(QueuedVaultNode::ref)
+                    val result = exportToLocalDirectory(
+                        session, pending, destination, move = false, conflicts, cancellation, queue
+                    )
+                    queue.finishQueue()
+                    result
+                }
+            }
+        }
     }
 
     override suspend fun resumeExport(
@@ -202,11 +247,11 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         destination: File,
         move: Boolean,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        queue: VaultQueueRun? = null
     ): VaultBatchResult {
-        if (!destination.inspectDestination().isDirectory || !destination.canWrite()) {
-            throw VaultFailure.Unavailable("The Arcile destination is not writable")
-        }
+        validateLocalDestination(destination)
+        val start = queue?.startIndex ?: 0
         val prepared = sources.map { ref ->
             ref to try {
                 if (cancellation.isCancelled()) Result.failure(VaultFailure.Cancelled())
@@ -236,11 +281,24 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
             if (move) VaultTransferAction.MOVE else VaultTransferAction.EXPORT, sources.size, totalBytes
         )
         prepared.forEachIndexed { index, (ref, metadata) ->
+            if (cancellation.isCancelled()) {
+                results += item(ref, metadata.getOrNull()?.name.orEmpty(), VaultItemOutcome.ROLLED_BACK, VaultFailure.Cancelled())
+                sources.drop(index + 1).forEach {
+                    results += item(it, it.nodeId.value, VaultItemOutcome.SKIPPED, VaultFailure.Cancelled())
+                }
+                return VaultBatchResult(results)
+            }
+            queue?.beginItem(start + index)
             try {
                 cancellation.throwIfCancelled()
                 val source = metadata.getOrThrow()
                 progress.start(index, source.name)
-                val exported = exportLocalTopLevel(session, source, destination, resolver, cancellation, move, progress::advance)
+                val exported = exportLocalTopLevel(session, source, destination, resolver, cancellation, move, progress::advance) {
+                    val expected = queue?.plan?.localDestinationIdentity
+                    if (expected != null && (destination.canonicalFile != destination || ExportFolderIdentity.read(destination) != expected)) {
+                        throw VaultFailure.ConcurrentMutation()
+                    }
+                }
                 val removed = if (exported.outcome == VaultItemOutcome.COMPLETED && move) deletePermanently(session, ref)
                 else emptySet()
                 val retryUnavailable = if (exported.outcome == VaultItemOutcome.PARTIAL && exported.snapshot == null) {
@@ -252,6 +310,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 )
                 progress.finish(index + 1)
             } catch (error: VaultFailure.Cancelled) {
+                queue?.finishItem(start + index)
                 results += item(ref, metadata.getOrNull()?.name.orEmpty(), VaultItemOutcome.ROLLED_BACK, error)
                 sources.drop(index + 1).forEach {
                     results += item(it, it.nodeId.value, VaultItemOutcome.SKIPPED, VaultFailure.Cancelled())
@@ -262,8 +321,15 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
             } catch (error: Throwable) {
                 results += failed(ref, metadata.getOrNull()?.name.orEmpty(), error)
             }
+            queue?.finishItem(start + index)
         }
         return VaultBatchResult(results)
+    }
+
+    private fun validateLocalDestination(destination: File) {
+        if (!destination.inspectDestination().isDirectory || !destination.canWrite()) {
+            throw VaultFailure.Unavailable("The Arcile destination is not writable")
+        }
     }
 
     private suspend fun resumeLocalExport(

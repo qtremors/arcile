@@ -73,6 +73,7 @@ internal data class OnlyFilesUiState(
     val selectedNodeIds: Set<String> = emptySet(),
     val clipboard: VaultClipboard? = null,
     val exportRetries: List<VaultExportRetry> = emptyList(),
+    val recovery: OnlyFilesRecoveryState? = null,
     val viewer: VaultNodeMetadata? = null,
     val viewerQueue: List<VaultNodeMetadata> = emptyList(),
     val viewerSelectionEnabled: Boolean = false,

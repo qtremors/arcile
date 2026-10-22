@@ -178,7 +178,10 @@ class OnlyFilesViewModelLockTest {
             catalog = mockk<VaultCatalog>(relaxed = true),
             sessionManager = mockk<VaultSessionManager>(relaxed = true),
             boundaryTransferCoordinator = boundaryCoordinator,
-            vaultThumbnailCache = mockk<VaultThumbnailCache>(relaxed = true)
+            vaultThumbnailCache = mockk<VaultThumbnailCache>(relaxed = true),
+            operationRecovery = mockk {
+                coEvery { list(any()) } returns Result.success(emptyList())
+            }
         )
     }
 }

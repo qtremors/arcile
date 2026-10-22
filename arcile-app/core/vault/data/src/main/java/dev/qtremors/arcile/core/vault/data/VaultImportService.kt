@@ -61,7 +61,7 @@ class VaultImportService : Service() {
                         removeImportNotificationLocked(vaultId)
                         job to latestStartId.takeIf { jobs.isEmpty() }
                     }
-                    cancelledJob?.cancel(CancellationException("Import cancelled"))
+                    cancelledJob?.cancel(UserCancelledVaultImport())
                     stopStartId?.let(::stopSelfResult)
                 }
                 return START_NOT_STICKY

@@ -205,4 +205,19 @@
     <string name="onlyfiles_health_problems">The health check found problems.</string>
     <string name="onlyfiles_health_counts">Objects: %1$d · chunks: %2$d · issues: %3$d</string>
     <string name="onlyfiles_resume_partial_export">Resume partial export</string>
+    <string name="onlyfiles_interrupted_transfers">Interrupted transfers</string>
+    <string name="onlyfiles_recovery_empty">No interrupted transfers for this vault.</string>
+    <string name="onlyfiles_recovery_import">Import into vault</string>
+    <string name="onlyfiles_recovery_export">Export from vault</string>
+    <string name="onlyfiles_recovery_paste">Vault paste</string>
+    <string name="onlyfiles_recovery_unreadable">Recovery information unavailable</string>
+    <string name="onlyfiles_recovery_counts">%1$d processed · %2$d remaining</string>
+    <string name="onlyfiles_recovery_uncertain">Item %1$d was in progress. Resume skips it. Check the source and destination before retrying that item.</string>
+    <string name="onlyfiles_recovery_move">Resume as copy keeps the remaining originals.</string>
+    <string name="onlyfiles_recovery_unlock_source">Unlock the source vault and reopen this list to resume.</string>
+    <string name="onlyfiles_recovery_resume_copy">Resume as copy</string>
+    <string name="onlyfiles_recovery_resume">Resume</string>
+    <string name="onlyfiles_recovery_discard">Discard queue</string>
+    <string name="onlyfiles_recovery_discard_description">Remove this recovery record? Existing files and copies stay in place.</string>
+    <string name="onlyfiles_recovery_close">Close</string>
 </resources>

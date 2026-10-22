@@ -835,9 +835,10 @@ internal class DefaultVaultRepository @Inject constructor(
         destination: VaultPath,
         sourceUris: List<String>,
         move: Boolean = false,
+        recoveryId: String? = null,
         onProgress: (Int, Int, Long, Long?, String?) -> Unit
     ): Result<VaultBatchResult> = withContext(dispatchers.io) {
-        val operationSession = importReservations[token]
+        val operationSession = importReservations.remove(token)
             ?: return@withContext Result.failure(
                 VaultFailure.ImportUnavailable("Import session expired")
             )
@@ -847,12 +848,21 @@ internal class DefaultVaultRepository @Inject constructor(
                     listOfNotNull((operationSession.directory as? FileVaultDirectory)?.directory))
                     .map { it.canonicalFile.toPath() }
             } else emptyList()
-            Result.success(importEngine.import(operationSession, destination, sourceUris, move, protectedRoots, onProgress))
+            Result.success(importEngine.import(operationSession, destination, sourceUris, move, protectedRoots, recoveryId, onProgress))
         } catch (error: Throwable) {
             if (error is CancellationException) throw error
             Result.failure(error)
         } finally {
-            releaseImportReservation(token)
+            operationSession.destroy()
         }
     }
+
+    internal suspend fun listInterruptedOperations(vault: VaultId): Result<List<VaultRecoveryQueue>> =
+        withSession(vault) { operationJournal.list(it, unlockedVaultIds.value) }
+
+    internal suspend fun interruptedPlan(queue: VaultRecoveryQueue): Result<VaultQueuePlan> =
+        withSession(queue.vaultId) { operationJournal.plan(it, queue.id) }
+
+    internal suspend fun discardInterruptedOperation(queue: VaultRecoveryQueue): Result<Unit> =
+        withSession(queue.vaultId) { operationJournal.discard(it, queue.id) }
 }

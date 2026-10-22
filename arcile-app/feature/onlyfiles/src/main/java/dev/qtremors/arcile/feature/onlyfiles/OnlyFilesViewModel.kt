@@ -20,6 +20,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultOperationRecovery
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryQueue
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
@@ -64,7 +66,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val catalog: VaultCatalog,
     private val sessionManager: VaultSessionManager,
     private val boundaryTransferCoordinator: VaultBoundaryTransferCoordinator,
-    private val vaultThumbnailCache: VaultThumbnailCache
+    private val vaultThumbnailCache: VaultThumbnailCache,
+    operationRecovery: VaultOperationRecovery
 ) : ViewModel() {
     private val _state = MutableStateFlow(OnlyFilesUiState())
     val state: StateFlow<OnlyFilesUiState> = _state.asStateFlow()
@@ -113,6 +116,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val boundary by lazy {
         OnlyFilesBoundaryController(boundaryTransferCoordinator, _state, viewModelScope, ::reload, ::onFoldersDeleted)
     }
+    private val recovery = OnlyFilesRecoveryController(operationRecovery, _state, viewModelScope, ::reload)
     private val externalAccess by lazy {
         OnlyFilesExternalAccessController(externalAccessManager, viewModelScope, ::showError)
     }
@@ -541,11 +545,16 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     fun paste() = transfers.paste()
-    fun cancelTransfer() { transfers.cancel(); boundary.cancel() }
+    fun cancelTransfer() { transfers.cancel(); boundary.cancel(); recovery.cancel() }
     fun resolveConflict(id: Long, response: VaultConflictResponse) {
         transfers.conflictReview.resolve(id, response)
         boundary.conflictReview.resolve(id, response)
+        recovery.conflictReview.resolve(id, response)
     }
+    fun openRecovery() = recovery.open()
+    fun closeRecovery() = recovery.close()
+    fun discardRecovery(queue: VaultRecoveryQueue) = recovery.discard(queue)
+    fun resumeRecovery(queue: VaultRecoveryQueue) = recovery.resume(queue)
     fun beginExportSelection(nodes: List<VaultNodeMetadata>): Boolean = boundary.prepare(nodes)
     fun resumeLocalExport() = boundary.resume()
     fun finishExportSelection(destinationPath: String?, move: Boolean) {
@@ -754,6 +763,8 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     private fun selectVault(vaultId: VaultId) {
         workspace.clear()
+        recovery.cancel()
+        recovery.close()
         val requested = pendingEntry?.takeIf { it.vaultId == vaultId }
         pendingEntry = null
         if (requested != null) consumedEntry = requested
@@ -786,6 +797,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         } else if (requested != null) locations.navigate(requested.directoryId, requested.focusNodeId)
         else locations.restore(settings.lastDirectories[vaultId])
         workspace.restorePins(settings.pinnedWorkspaceTabs[vaultId].orEmpty())
+        recovery.notifyAfterUnlock()
     }
 
     private fun reload() = browser.reload()
@@ -797,6 +809,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     private fun dismissVaultSession(keepClipboard: Boolean = false) {
+        recovery.cancel()
+        recovery.close()
         pendingEntry = null
         clearPendingExtraction()
         clearBrowserImport()

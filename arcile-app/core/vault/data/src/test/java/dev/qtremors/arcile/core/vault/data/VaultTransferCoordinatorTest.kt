@@ -13,9 +13,12 @@ import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
+import dev.qtremors.arcile.core.vault.domain.VaultPath
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
 import io.mockk.mockk
 import java.io.File
 import java.nio.file.Files
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -476,6 +479,233 @@ class VaultTransferCoordinatorTest {
         } finally {
             scope.cancel()
             destination.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `recovered cross vault move copies only untouched items after both vaults unlock`() = runTest {
+        val (before, beforeScope) = repository()
+        val (after, afterScope) = try {
+            val source = before.createAppPrivateVault("Interrupted source", "password".toCharArray()).getOrThrow()
+            val target = before.createAppPrivateVault("Interrupted target", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val sourceNodes = listOf("uncertain.txt", "remaining.txt").map {
+                before.createEmptyFile(source, root, it).getOrThrow()
+            }
+            val sentinel = before.createEmptyFile(target, root, "sentinel.txt").getOrThrow()
+            val session = before.createBoundarySession(listOf(sentinel.ref))
+            try {
+                before.operationJournal.start(session, VaultQueuePlan(
+                    VaultRecoveryKind.PASTE, root.value, move = true, nodes = sourceNodes.map { QueuedVaultNode.from(it.ref) }
+                )).use { it.beginItem(0) }
+            } finally {
+                session.destroy()
+            }
+            before.lockAll()
+            val (restarted, scope) = repository()
+            try {
+                assertTrue(restarted.listInterruptedOperations(target).isFailure)
+                restarted.unlock(target, "password".toCharArray()).getOrThrow()
+                val blocked = restarted.listInterruptedOperations(target).getOrThrow().single()
+                assertEquals(setOf(source), blocked.lockedSourceVaults)
+                restarted.unlock(source, "password".toCharArray()).getOrThrow()
+                val ready = restarted.listInterruptedOperations(target).getOrThrow().single()
+                assertTrue(ready.lockedSourceVaults.isEmpty())
+                val plan = restarted.interruptedPlan(ready).getOrThrow()
+
+                val result = restarted.resumeInterruptedPaste(ready, plan, decision(VaultConflictDecision.SKIP), neverCancelled)
+
+                assertEquals(1, result.completed.size)
+                assertEquals(listOf("remaining.txt", "sentinel.txt"), names(restarted, target, root))
+                assertEquals(listOf("remaining.txt", "uncertain.txt"), names(restarted, source, root))
+                assertTrue(restarted.listInterruptedOperations(target).getOrThrow().isEmpty())
+            } catch (error: Throwable) {
+                scope.cancel()
+                throw error
+            }
+            restarted to scope
+        } finally {
+            beforeScope.cancel()
+        }
+        after.lockAll()
+        afterScope.cancel()
+    }
+
+    @Test
+    fun `recovered import uses the recorded directory identity and preserves local originals`() = runTest {
+        val (repository, scope) = repository()
+        val local = Files.createTempDirectory("arcile-recovery-import").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Interrupted import", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Original name").getOrThrow()
+            val id = folder.ref.directoryId!!
+            val uncertain = File(local, "uncertain.txt").also { it.writeText("might have been imported") }
+            val ready = File(local, "remaining.txt").also { it.writeText("still local") }
+            val session = repository.createBoundarySession(listOf(folder.ref))
+            try {
+                repository.operationJournal.start(session, VaultQueuePlan(
+                    VaultRecoveryKind.IMPORT, id.value, move = true, localSources = listOf(uncertain.path, ready.path)
+                )).use { it.beginItem(0) }
+            } finally {
+                session.destroy()
+            }
+            repository.rename(folder.ref, "Renamed").getOrThrow()
+            val queue = repository.listInterruptedOperations(vault).getOrThrow().single()
+            val token = requireNotNull(repository.reserveImport(vault))
+
+            val result = repository.importUris(token, VaultPath.Root, emptyList(), recoveryId = queue.id) { _, _, _, _, _ -> }
+                .getOrThrow()
+
+            assertEquals(1, result.completed.size)
+            assertEquals(listOf("remaining.txt"), names(repository, vault, id))
+            assertTrue(uncertain.isFile)
+            assertEquals("still local", ready.readText())
+            assertTrue(repository.listInterruptedOperations(vault).getOrThrow().isEmpty())
+        } finally {
+            scope.cancel()
+            local.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `import interruption preserves the queue while an explicit cancellation discards it`() = runTest {
+        val (repository, scope) = repository()
+        val local = Files.createTempDirectory("arcile-recovery-stop-import").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Stopped import", "password".toCharArray()).getOrThrow()
+            val sources = listOf("uncertain.txt", "remaining.txt").map { name ->
+                File(local, name).also { it.writeText(name) }.path
+            }
+            val interruptedToken = requireNotNull(repository.reserveImport(vault))
+            val interruption = runCatching {
+                repository.importUris(interruptedToken, VaultPath.Root, sources) { _, _, _, _, _ ->
+                    throw CancellationException("Service stopped")
+                }
+            }
+            assertTrue(interruption.exceptionOrNull() is CancellationException)
+            val pending = repository.listInterruptedOperations(vault).getOrThrow().single()
+            assertTrue(pending.hasUncertainItem)
+            assertEquals(1, pending.remainingItems)
+            repository.discardInterruptedOperation(pending).getOrThrow()
+
+            val cancelledToken = requireNotNull(repository.reserveImport(vault))
+            val cancelled = runCatching {
+                repository.importUris(cancelledToken, VaultPath.Root, sources) { _, _, _, _, _ ->
+                    throw UserCancelledVaultImport()
+                }
+            }
+            assertTrue(cancelled.exceptionOrNull() is UserCancelledVaultImport)
+            assertTrue(repository.listInterruptedOperations(vault).getOrThrow().isEmpty())
+            assertTrue(sources.all { File(it).isFile })
+        } finally {
+            scope.cancel()
+            local.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `interrupted export records completed items and only resumes after the interrupted item`() = runTest {
+        val (repository, scope) = repository()
+        val output = Files.createTempDirectory("arcile-recovery-export-stop").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Export interruption", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val nodes = listOf("finished.txt", "conflict.txt", "remaining.txt").map {
+                repository.createEmptyFile(vault, root, it).getOrThrow()
+            }
+            val collision = File(output, "conflict.txt").also { it.writeText("local original") }
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val reservation = coordinator.prepareExport(nodes.map { it.ref }).getOrThrow()
+            val stop = object : VaultConflictResolver {
+                override suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> =
+                    emptyMap()
+
+                override suspend fun decide(conflict: VaultConflict): VaultConflictDecision {
+                    assertEquals("conflict.txt", conflict.sourceName)
+                    throw CancellationException("Process stopped during the conflict")
+                }
+            }
+
+            val interrupted = runCatching {
+                coordinator.exportToDestination(reservation, output.path, move = false, stop, neverCancelled)
+            }
+            assertTrue(interrupted.exceptionOrNull() is CancellationException)
+            val queue = repository.listInterruptedOperations(vault).getOrThrow().single()
+            assertEquals(1, queue.settledItems)
+            assertEquals(1, queue.remainingItems)
+            assertTrue(queue.hasUncertainItem)
+            val finished = File(output, "finished.txt")
+            assertTrue(finished.isFile)
+            finished.writeText("existing export kept")
+
+            val result = coordinator.resumeInterruptedExport(
+                queue, repository.interruptedPlan(queue).getOrThrow(), decision(VaultConflictDecision.REPLACE), neverCancelled
+            )
+
+            assertEquals(listOf("remaining.txt"), result.completed.map { it.displayName })
+            assertEquals("existing export kept", finished.readText())
+            assertEquals("local original", collision.readText())
+            assertTrue(File(output, "remaining.txt").isFile)
+            assertTrue(repository.listInterruptedOperations(vault).getOrThrow().isEmpty())
+        } finally {
+            scope.cancel()
+            output.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun `recovered export refuses replacement of the recorded destination and retains originals`() = runTest {
+        val (repository, scope) = repository()
+        val local = Files.createTempDirectory("arcile-recovery-export").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Interrupted export", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val nodes = listOf("settled.txt", "uncertain.txt", "remaining.txt").map {
+                repository.createEmptyFile(vault, root, it).getOrThrow()
+            }
+            val output = File(local, "Output").canonicalFile.also { assertTrue(it.mkdir()) }
+            val plan = VaultQueuePlan(
+                VaultRecoveryKind.EXPORT, output.path, move = true, nodes = nodes.map { QueuedVaultNode.from(it.ref) },
+                localDestinationIdentity = ExportFolderIdentity.read(output)
+            )
+            val session = repository.createBoundarySession(nodes.map { it.ref })
+            try {
+                repository.operationJournal.start(session, plan).use {
+                    it.beginItem(0)
+                    it.finishItem(0)
+                    it.beginItem(1)
+                }
+            } finally {
+                session.destroy()
+            }
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val queue = repository.listInterruptedOperations(vault).getOrThrow().single()
+            val previous = File(local, "Previous")
+            Files.move(output.toPath(), previous.toPath())
+            assertTrue(output.mkdir())
+
+            val blocked = runCatching {
+                coordinator.resumeInterruptedExport(queue, plan, decision(VaultConflictDecision.SKIP), neverCancelled)
+            }
+            assertTrue(blocked.isFailure)
+            assertTrue(output.listFiles().orEmpty().isEmpty())
+            assertEquals(queue, repository.listInterruptedOperations(vault).getOrThrow().single())
+            assertTrue(output.delete())
+            Files.move(previous.toPath(), output.toPath())
+            File(output, "settled.txt").writeText("already exported")
+
+            val result = coordinator.resumeInterruptedExport(queue, plan, decision(VaultConflictDecision.REPLACE), neverCancelled)
+
+            assertEquals(1, result.completed.size)
+            assertEquals("already exported", File(output, "settled.txt").readText())
+            assertTrue(File(output, "remaining.txt").isFile)
+            assertTrue(!File(output, "uncertain.txt").exists())
+            assertEquals(listOf("remaining.txt", "settled.txt", "uncertain.txt"), names(repository, vault, root))
+            assertTrue(repository.listInterruptedOperations(vault).getOrThrow().isEmpty())
+        } finally {
+            scope.cancel()
+            local.deleteRecursively()
         }
     }
 

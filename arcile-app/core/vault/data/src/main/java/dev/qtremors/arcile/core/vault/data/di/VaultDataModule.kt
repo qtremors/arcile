@@ -5,6 +5,8 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.vault.data.DefaultVaultImportCoordinator
+import dev.qtremors.arcile.core.vault.data.DefaultVaultOperationRecovery
+import dev.qtremors.arcile.core.vault.domain.VaultOperationRecovery
 import dev.qtremors.arcile.core.vault.data.DefaultVaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
@@ -34,6 +36,9 @@ internal abstract class VaultDataModule {
     @Binds
     @Singleton
     internal abstract fun bindVaultImportCoordinator(implementation: DefaultVaultImportCoordinator): VaultImportCoordinator
+
+    @Binds
+    internal abstract fun bindVaultOperationRecovery(implementation: DefaultVaultOperationRecovery): VaultOperationRecovery
 
     @Binds
     @Singleton

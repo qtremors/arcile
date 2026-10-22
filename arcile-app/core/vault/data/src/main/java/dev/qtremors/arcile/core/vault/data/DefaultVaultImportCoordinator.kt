@@ -29,7 +29,9 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val repository: DefaultVaultRepository
 ) : VaultImportCoordinator {
-    private val tokens = ConcurrentHashMap<String, String>()
+    private data class ImportRequest(val token: String, val recoveryId: String?)
+
+    private val requests = ConcurrentHashMap<String, ImportRequest>()
     private val _activeImports = MutableStateFlow<Map<VaultId, VaultImportState>>(emptyMap())
     override val activeImports: StateFlow<Map<VaultId, VaultImportState>> = _activeImports.asStateFlow()
     private val _events = MutableSharedFlow<VaultImportEvent>(extraBufferCapacity = 32)
@@ -53,19 +55,30 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
     override fun startMoveImport(reservation: VaultImportReservation, localPaths: List<String>): Boolean =
         start(reservation, localPaths, move = true)
 
-    private fun start(reservation: VaultImportReservation, sourceUris: List<String>, move: Boolean): Boolean {
+    internal fun startRecoveredImport(vault: VaultId, queueId: String): Boolean {
+        val prepared = prepareImport(vault, VaultPath.Root).getOrThrow()
+        return start(prepared, emptyList(), move = false, recoveryId = queueId)
+    }
+
+    @Synchronized
+    private fun start(
+        reservation: VaultImportReservation,
+        sourceUris: List<String>,
+        move: Boolean,
+        recoveryId: String? = null
+    ): Boolean {
         val prepared = reservation as? ImportReservation ?: run {
             reservation.close()
             return false
         }
-        if (sourceUris.isEmpty() || _activeImports.value.isNotEmpty()) {
+        if ((sourceUris.isEmpty() && recoveryId == null) || _activeImports.value.isNotEmpty()) {
             prepared.close()
             return false
         }
         val token = prepared.consume() ?: return false
         val vaultId = prepared.vaultId
         val destination = prepared.destination
-        tokens[vaultId.value] = token
+        requests[vaultId.value] = ImportRequest(token, recoveryId)
         _activeImports.update { it + (vaultId to VaultImportState(vaultId)) }
         _events.tryEmit(VaultImportEvent.Started(vaultId))
 
@@ -81,7 +94,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
             ContextCompat.startForegroundService(context, intent)
             true
         } catch (error: Throwable) {
-            tokens.remove(vaultId.value)
+            requests.remove(vaultId.value)
             repository.releaseImportReservation(token)
             _activeImports.update { it - vaultId }
             _events.tryEmit(VaultImportEvent.Failed(vaultId, error.message ?: "Unable to start import"))
@@ -108,7 +121,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
     override fun cancelImport(vaultId: VaultId) {
         if (!_activeImports.value.containsKey(vaultId)) return
         _activeImports.update { current ->
-            current + (vaultId to requireNotNull(current[vaultId]).copy(isCancelling = true))
+            current[vaultId]?.let { current + (vaultId to it.copy(isCancelling = true)) } ?: current
         }
         val intent = Intent(context, VaultImportService::class.java).apply {
             action = VaultImportService.ACTION_CANCEL
@@ -125,9 +138,11 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         move: Boolean,
         onNotificationProgress: (VaultImportProgress) -> Unit
     ) {
+        val request = requests[vaultId.value]?.takeIf { it.token == token } ?: return
         val result = try {
-            repository.importUris(token, destination, sourceUris, move) {
+            repository.importUris(token, destination, sourceUris, move, request.recoveryId) {
                 completedItems, totalItems, copiedBytes, totalBytes, currentName ->
+                if (requests[vaultId.value] !== request) return@importUris
                 val progress = VaultImportProgress(
                     completedItems = completedItems,
                     totalItems = totalItems,
@@ -136,15 +151,19 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
                     currentName = currentName
                 )
                 _activeImports.update { current ->
-                    current + (vaultId to VaultImportState(vaultId, progress))
+                    val active = current[vaultId]
+                    if (active == null || requests[vaultId.value] !== request) current
+                    else current + (vaultId to active.copy(progress = progress))
                 }
                 _events.tryEmit(VaultImportEvent.Progress(vaultId, progress))
                 onNotificationProgress(progress)
             }
         } catch (error: CancellationException) {
             Result.failure(error)
+        } finally {
+            repository.releaseImportReservation(token)
         }
-        if (!tokens.remove(vaultId.value, token)) return
+        if (!requests.remove(vaultId.value, request)) return
         _activeImports.update { it - vaultId }
         result.fold(
             onSuccess = { batch ->
@@ -166,7 +185,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
 
     internal fun onServiceTimeout(vaultIds: List<VaultId>, message: String) {
         vaultIds.forEach { vaultId ->
-            tokens.remove(vaultId.value)?.let(repository::releaseImportReservation)
+            requests.remove(vaultId.value)?.token?.let(repository::releaseImportReservation)
             _activeImports.update { it - vaultId }
             _events.tryEmit(VaultImportEvent.Failed(vaultId, message))
         }
