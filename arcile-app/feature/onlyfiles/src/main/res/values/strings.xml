@@ -126,6 +126,10 @@
     <string name="onlyfiles_sort_type">Type</string>
     <string name="onlyfiles_preview_unavailable">This file can’t be previewed.</string>
     <string name="onlyfiles_zip_unavailable">The archive contents are unavailable or exceed the preview limit.</string>
+    <string name="onlyfiles_archive_password_required">Enter the archive password to view its contents.</string>
+    <string name="onlyfiles_archive_password_retry">The archive could not be opened. Check the password and try again.</string>
+    <string name="onlyfiles_archive_open">Open archive</string>
+    <string name="onlyfiles_archive_filename_encoding">Filename encoding · %1$s</string>
     <string name="onlyfiles_zip_empty">This archive is empty.</string>
     <string name="onlyfiles_zip_truncated">Showing the first %1$d entries.</string>
     <string name="onlyfiles_android_package">Android package</string>

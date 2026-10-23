@@ -7,7 +7,6 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.outlined.Description
 import dev.qtremors.arcile.core.presentation.formatFileSize
-import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
@@ -24,7 +23,7 @@ internal fun nodeIcon(node: VaultNodeMetadata) = when {
 internal fun VaultNodeMetadata.builtInOpen(): BuiltInFileOpen =
     if (isDirectory) BuiltInFileOpen.EXTERNAL else BuiltInFileOpen.resolve(
         name, extension, mimeType ?: "image/avif".takeIf { extension.equals("avif", ignoreCase = true) }
-    ) { it == ArchiveFormat.ZIP || it == ArchiveFormat.SEVEN_Z }
+    )
 
 internal fun VaultNodeMetadata.isViewableImage(): Boolean = builtInOpen() == BuiltInFileOpen.IMAGE
 internal fun VaultNodeMetadata.isViewableVideo(): Boolean = builtInOpen() == BuiltInFileOpen.VIDEO

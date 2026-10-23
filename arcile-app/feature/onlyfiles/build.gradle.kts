@@ -37,6 +37,7 @@ dependencies {
     implementation(project(":core:navigation:api"))
     implementation(project(":core:presentation"))
     implementation(project(":core:storage:domain"))
+    implementation(project(":core:archive"))
     implementation(project(":core:vault:domain"))
     implementation(project(":core:ui"))
 
@@ -56,11 +57,11 @@ dependencies {
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.apache.commons.compress)
-    implementation(libs.tukaani.xz)
     implementation(libs.zip4j)
 
     testImplementation(libs.junit)
+    testImplementation(libs.apache.commons.compress)
+    testImplementation(libs.tukaani.xz)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
     testImplementation(project(":core:testing"))

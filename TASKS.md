@@ -93,11 +93,6 @@
   - **Current:** App-private vaults reuse four ranked pages per scan. Portable vaults rescan each page, and deeper windows still rank earlier results.
   - **Change:** Measure deep paging and avoid ranking earlier results again where the vault generation can be verified.
 
-- [ ] **UI-0010 - Share the Browser Archive Engine with OnlyFiles**
-  - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
-  - **Current:** OnlyFiles handles password-protected ZIP creation and extraction and unencrypted 7z browsing and extraction.
-  - **Change:** Share Browser and OnlyFiles archive readers and validation behind filesystem and vault stream adapters. Extend format coverage through the shared engine.
-
 - [ ] **REL-0007 - Reconcile Items Interrupted Mid-Transfer**
   - **Location:** VaultOperationJournal.kt, DefaultVaultBoundaryTransferCoordinator.kt, and VaultTransferEngine.kt.
   - **Current:** After restart, OnlyFiles can resume unstarted queue items. The item that was in progress needs manual review, and partial folder retries are limited to the active session.
@@ -111,7 +106,7 @@
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.
   - **Current:** On-device parity and lock behavior still need verification.
-  - **Change:** Compare gestures, thumbnails, document editing, install, transfer, and lock with matched fixtures.
+  - **Change:** Compare gestures, thumbnails, document editing, install, transfer, archive browsing and extraction, and lock with matched fixtures.
 
 ## Media and Documents
 

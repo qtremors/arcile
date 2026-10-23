@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.3
+> **Version:** 2.3.4
 > **Last Updated:** 2026-11-04
 
 ---
+
+## [2.3.4] - 2026-11-04
+
+### Changed
+- Browser and OnlyFiles share archive readers and extraction checks.
+- Browse and extract TAR, GZIP, BZIP2, and XZ archives inside OnlyFiles, including compressed TAR variants.
+- Open password-protected 7z archives and choose ZIP filename encoding inside OnlyFiles.
 
 ## [2.3.3] - 2026-11-04
 

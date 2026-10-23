@@ -1,11 +1,11 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveProgress
-import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
@@ -13,28 +13,25 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.lingala.zip4j.io.outputstream.ZipOutputStream
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.AesKeyStrength
 import net.lingala.zip4j.model.enums.CompressionLevel
 import net.lingala.zip4j.model.enums.CompressionMethod
 import net.lingala.zip4j.model.enums.EncryptionMethod
-import org.apache.commons.compress.archivers.zip.ZipFile
 import java.util.zip.Deflater
-import java.nio.channels.SeekableByteChannel
 
 internal data class VaultZipSelection(
     val folder: List<String>,
     val selected: Set<List<String>>,
-    val requiresPassword: Boolean = false
+    val requiresPassword: Boolean = false,
+    val encoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
 ) {
     fun relativePath(segments: List<String>): List<String>? {
         if (segments.size <= folder.size || segments.take(folder.size) != folder) return null
@@ -42,14 +39,6 @@ internal data class VaultZipSelection(
         return segments.drop(folder.size)
     }
 
-    fun safeRelativePath(name: String): List<String>? {
-        val segments = safeZipSegments(name)
-        if (segments != null) return relativePath(segments)
-        if (folder.isEmpty() && selected.isEmpty()) {
-            throw VaultFailure.InvalidPath("Archive contains an unsafe entry path")
-        }
-        return null
-    }
 }
 
 internal enum class VaultArchiveAction { CREATE, EXTRACT }
@@ -137,58 +126,16 @@ internal class OnlyFilesArchiveController(
     ) {
         val format = ArchiveFormat.fromPath(node.name)
         if (state.value.selectedVaultId != node.ref.vaultId || !node.ref.capabilities.canRead ||
-            (format != ArchiveFormat.ZIP && format != ArchiveFormat.SEVEN_Z)
+            format?.canBrowse != true
         ) {
             password?.fill('\u0000')
             return
         }
         runArchive(VaultArchiveAction.EXTRACT, successMessage, password) { progress ->
-            withContext(Dispatchers.IO) {
-                val coroutine = currentCoroutineContext()
-                fileSystem.openReader(node.ref).getOrThrow().use { reader ->
-                    if (reader.sizeBytes > VAULT_ARCHIVE_MAX_BYTES) {
-                        throw VaultFailure.Unavailable("Archive exceeds the vault archive size limit")
-                    }
-                    VaultZipDirectoryChannel(reader, VAULT_ARCHIVE_MAX_BYTES * 2) { coroutine.ensureActive() }.use { channel ->
-                        suspend fun publish(sources: List<VaultArchiveSource>): VaultNodeMetadata =
-                            fileSystem.extractArchive(node.ref.vaultId, parent, name, sources, keepBoth, progress).getOrThrow()
-                        if (format == ArchiveFormat.SEVEN_Z) {
-                            openVaultSevenZ(channel).use { archive ->
-                                publish(archive.vaultArchiveSources(selection) { coroutine.ensureActive() })
-                            }
-                        } else {
-                            ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
-                                publish(zip.vaultSources(channel, selection, password))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun ZipFile.vaultSources(
-        channel: SeekableByteChannel,
-        selection: VaultZipSelection,
-        password: CharArray?
-    ): List<VaultArchiveSource> {
-        val indexed = entries.asSequence().take(VAULT_ARCHIVE_MAX_ENTRIES + 1).toList()
-        if (indexed.size > VAULT_ARCHIVE_MAX_ENTRIES) throw VaultFailure.Unavailable("ZIP has too many entries")
-        return indexed.mapNotNull { entry ->
-            val relative = selection.safeRelativePath(entry.name) ?: return@mapNotNull null
-            val encrypted = entry.generalPurposeBit.usesEncryption()
-            if (entry.isUnixSymlink || (!encrypted && !canReadEntryData(entry))) {
-                throw VaultFailure.Unavailable("ZIP contains an unsupported entry")
-            }
-            when {
-                entry.isDirectory -> VaultArchiveSource.Folder(relative)
-                encrypted -> {
-                    val secret = password ?: throw VaultFailure.Unavailable("This ZIP needs a password")
-                    VaultArchiveSource.File(relative, entry.size, crc32 = null) {
-                        openEncryptedVaultZipEntry(channel, entry, secret)
-                    }
-                }
-                else -> VaultArchiveSource.File(relative, entry.size, entry.crc) { getInputStream(entry) }
+            readVaultArchive(node, fileSystem::openReader, password, selection.encoding) { archive ->
+                fileSystem.extractArchive(
+                    node.ref.vaultId, parent, name, archive.vaultSources(selection), keepBoth, progress
+                ).getOrThrow()
             }
         }
     }

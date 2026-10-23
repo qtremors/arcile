@@ -1,133 +1,25 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
-import android.annotation.SuppressLint
+import dev.qtremors.arcile.core.archive.isSingleStreamCompression
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
-import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
-import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.io.File
-import java.io.InputStream
 import java.io.OutputStream
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
 import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorOutputStream
-import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream
 import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
-import org.apache.commons.compress.compressors.xz.XZCompressorInputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 
 internal class TarAndCompressedStreamHandler(
     private val safetyPolicy: ArchiveSafetyPolicy,
     private val validateMutationPath: (File) -> Result<Unit>
 ) {
-    suspend fun listEntries(
-        archive: File,
-        format: ArchiveFormat,
-        skipUnsafeEntries: Boolean = true
-    ): List<ArchiveEntryModel> {
-        if (format.isSingleStreamCompression) {
-            val outputName = archive.singleStreamOutputName(format)
-            val expandedBytes = measureSingleStream(archive, format)
-            ArchiveSafetyTally(safetyPolicy).accept(outputName, expandedBytes, archive.length())
-            return listOf(
-                ArchiveEntryModel(
-                    name = outputName.substringAfterLast('/'),
-                    path = outputName.normalizeEntryName(),
-                    size = expandedBytes,
-                    compressedSize = archive.length().coerceAtLeast(0L),
-                    lastModified = archive.lastModified().takeIf { it > 0L },
-                    isDirectory = false,
-                    canRead = true
-                )
-            )
-        }
-        return tarInput(archive, format).use { tar ->
-            val safety = ArchiveSafetyTally(safetyPolicy)
-            val entries = mutableListOf<ArchiveEntryModel>()
-            while (true) {
-                currentCoroutineContext().ensureActive()
-                val entry = tar.nextEntry ?: break
-                val name = entry.name.normalizeEntryName()
-                if (skipUnsafeEntries) {
-                    if (!safety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) {
-                        continue
-                    }
-                } else {
-                    safety.accept(name, entry.size.coerceAtLeast(0L), null)
-                }
-                entries += ArchiveEntryModel(
-                    name = name.substringAfterLast('/').ifBlank { name.trimEnd('/') },
-                    path = name,
-                    size = entry.size.coerceAtLeast(0L),
-                    compressedSize = null,
-                    lastModified = entry.modTime?.time,
-                    isDirectory = entry.isDirectory,
-                    canRead = true
-                )
-            }
-            entries
-        }
-    }
-
-    suspend fun extract(
-        archive: File,
-        format: ArchiveFormat,
-        destination: File,
-        entryPrefix: String?,
-        resolutions: Map<String, ConflictResolution>,
-        createdOutputs: MutableSet<File>,
-        replacementBackups: MutableMap<File, File>,
-        onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ) {
-        val extractionContext = ArchiveExtractionContext(safetyPolicy, validateMutationPath)
-        if (format.isSingleStreamCompression) {
-            extractSingleStream(archive, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, extractionContext, onProgress)
-            return
-        }
-        val entries = listEntries(archive, format, skipUnsafeEntries = true)
-            .filter { it.path.matchesPrefix(entryPrefix) }
-        val totalBytes = entries.sumOf { it.size }.coerceAtLeast(1L)
-        var copied = 0L
-        var completed = 0
-        val extractionSafety = ArchiveSafetyTally(safetyPolicy)
-        tarInput(archive, format).use { tar ->
-            while (true) {
-                currentCoroutineContext().ensureActive()
-                val entry = tar.nextEntry ?: break
-                val name = entry.name.normalizeEntryName()
-                if (!name.matchesPrefix(entryPrefix)) continue
-                if (!extractionSafety.acceptForExtraction(name, entry.size.coerceAtLeast(0L), null)) continue
-                val target = extractionContext.resolveTarget(destination, name, entry.isDirectory, resolutions)
-                if (target == null) {
-                    completed += 1
-                    onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, name, copied.coerceAtMost(totalBytes), totalBytes))
-                    continue
-                }
-                if (entry.isDirectory) {
-                    prepareDirectoryTarget(target, createdOutputs, replacementBackups)
-                } else {
-                    prepareFileTarget(target, createdOutputs, replacementBackups)
-                    validateMutationPath(target).getOrThrow()
-                    BufferedOutputStream(target.outputStream()).use { output ->
-                        copied += copyWithProgress(tar::read, output::write) {
-                            onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, name, copied + it, totalBytes))
-                        }
-                    }
-                    entry.modTime?.time?.let { target.setLastModified(it) }
-                }
-                completed += 1
-                onProgress?.invoke(BulkFileOperationProgress(completed, entries.size, name, copied.coerceAtMost(totalBytes), totalBytes))
-            }
-        }
-    }
-
     suspend fun create(
         sources: List<File>,
         target: File,
@@ -174,87 +66,8 @@ internal class TarAndCompressedStreamHandler(
         }
     }
 
-    @SuppressLint("UsableSpace")
-    private suspend fun extractSingleStream(
-        archive: File,
-        format: ArchiveFormat,
-        destination: File,
-        entryPrefix: String?,
-        resolutions: Map<String, ConflictResolution>,
-        createdOutputs: MutableSet<File>,
-        replacementBackups: MutableMap<File, File>,
-        extractionContext: ArchiveExtractionContext,
-        onProgress: ((BulkFileOperationProgress) -> Unit)?
-    ) {
-        val outputName = archive.singleStreamOutputName(format)
-        if (!outputName.matchesPrefix(entryPrefix)) return
-        val target = extractionContext.resolveTarget(destination, outputName, directory = false, resolutions) ?: return
-        val expandedBytes = measureSingleStream(archive, format)
-        val usableSpace = destination.usableSpace
-        val availableBytes = usableSpace
-            .takeIf { it > 0L }
-            ?.minus(ARCHIVE_EXTRACTION_FREE_SPACE_RESERVE_BYTES)
-            ?.coerceAtLeast(0L)
-        require(availableBytes == null || expandedBytes <= availableBytes) {
-            "Not enough free space to extract this archive safely"
-        }
-        prepareFileTarget(target, createdOutputs, replacementBackups)
-        validateMutationPath(target).getOrThrow()
-        val limiter = ArchiveExpansionLimiter(safetyPolicy, archive.length(), availableBytes)
-        compressedInput(archive, format).use { input ->
-            BufferedInputStream(input).use { buffered ->
-                BufferedOutputStream(target.outputStream()).use { output ->
-                    copyWithProgress(
-                        read = buffered::read,
-                        write = { buffer, offset, count ->
-                            limiter.accept(count)
-                            output.write(buffer, offset, count)
-                        }
-                    ) { copied ->
-                        onProgress?.invoke(BulkFileOperationProgress(0, 1, outputName, copied, expandedBytes))
-                    }
-                }
-            }
-        }
-        target.setLastModified(archive.lastModified())
-        onProgress?.invoke(BulkFileOperationProgress(1, 1, outputName, limiter.expandedBytes, limiter.expandedBytes))
-    }
-
-    private suspend fun measureSingleStream(archive: File, format: ArchiveFormat): Long {
-        val limiter = ArchiveExpansionLimiter(safetyPolicy, archive.length())
-        compressedInput(archive, format).use { input ->
-            BufferedInputStream(input).use { buffered ->
-                copyWithProgress(
-                    read = buffered::read,
-                    write = { _, _, count -> limiter.accept(count) },
-                    onDelta = {}
-                )
-            }
-        }
-        return limiter.expandedBytes
-    }
-
-    private fun tarInput(archive: File, format: ArchiveFormat): TarArchiveInputStream =
-        TarArchiveInputStream(BufferedInputStream(compressedInput(archive, format)))
-
     private fun tarOutput(target: File, format: ArchiveFormat): TarArchiveOutputStream =
         TarArchiveOutputStream(BufferedOutputStream(compressedOutput(target, format)))
-
-    private fun compressedInput(archive: File, format: ArchiveFormat): InputStream {
-        val input = archive.inputStream()
-        return when (format.compressionKind) {
-            CompressionKind.NONE -> input
-            CompressionKind.GZIP -> GzipCompressorInputStream.builder()
-                .setInputStream(input)
-                .setDecompressConcatenated(true)
-                .get()
-            CompressionKind.BZIP2 -> BZip2CompressorInputStream(input, true)
-            CompressionKind.XZ -> XZCompressorInputStream.builder()
-                .setInputStream(input)
-                .setDecompressConcatenated(true)
-                .get()
-        }
-    }
 
     private fun compressedOutput(target: File, format: ArchiveFormat): OutputStream {
         val output = target.outputStream()
@@ -266,8 +79,7 @@ internal class TarAndCompressedStreamHandler(
         }
     }
 
-    private fun File.singleStreamOutputName(format: ArchiveFormat): String =
-        name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension.ifBlank { "decompressed" } }
+
 }
 
 private enum class CompressionKind {
@@ -293,6 +105,3 @@ private val ArchiveFormat.compressionKind: CompressionKind
         ArchiveFormat.TXZ,
         ArchiveFormat.XZ -> CompressionKind.XZ
     }
-
-private val ArchiveFormat.isSingleStreamCompression: Boolean
-    get() = this == ArchiveFormat.GZIP || this == ArchiveFormat.BZIP2 || this == ArchiveFormat.XZ

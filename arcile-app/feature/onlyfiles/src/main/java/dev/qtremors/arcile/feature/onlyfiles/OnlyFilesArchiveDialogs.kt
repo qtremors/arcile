@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -152,7 +154,10 @@ internal fun VaultExtractZipDialog(
     onDismiss: () -> Unit,
     onExtract: (VaultZipExtraction, Boolean) -> Unit
 ) {
-    val defaultName = selection.folder.lastOrNull() ?: node.name.substringBeforeLast('.')
+    val format = ArchiveFormat.fromPath(node.name)
+    val defaultName = selection.folder.lastOrNull()
+        ?: format?.let { node.name.dropLast(it.extension.length + 1) }?.ifBlank { node.name }
+        ?: node.name
     var name by remember(defaultName) { mutableStateOf(defaultName) }
     var keepBoth by remember { mutableStateOf(false) }
     var password by remember { mutableStateOf("") }
@@ -161,7 +166,7 @@ internal fun VaultExtractZipDialog(
     val success = stringResource(R.string.onlyfiles_zip_extracted)
     val canExtract = validation.isValid && (!selection.requiresPassword || password.isNotEmpty())
     fun extract(choose: Boolean) {
-        val secret = if (selection.requiresPassword) password.toCharArray() else null
+        val secret = password.takeIf { it.isNotEmpty() }?.toCharArray()
         onExtract(VaultZipExtraction(node, selection, validation.sanitizedName, keepBoth, success, secret), choose)
     }
 
@@ -177,7 +182,7 @@ internal fun VaultExtractZipDialog(
                     label = stringResource(R.string.onlyfiles_new_folder),
                     modifier = Modifier.fillMaxWidth()
                 )
-                if (selection.requiresPassword) {
+                if (selection.requiresPassword || format == ArchiveFormat.SEVEN_Z) {
                     PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword })
                 }
                 androidx.compose.foundation.layout.Row(

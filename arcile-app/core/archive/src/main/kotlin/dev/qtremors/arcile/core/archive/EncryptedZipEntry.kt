@@ -1,6 +1,7 @@
-package dev.qtremors.arcile.feature.onlyfiles
+package dev.qtremors.arcile.core.archive
 
-import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import java.io.IOException
+import java.nio.charset.Charset
 import net.lingala.zip4j.exception.ZipException
 import net.lingala.zip4j.io.inputstream.ZipInputStream
 import net.lingala.zip4j.model.FileHeader
@@ -11,21 +12,22 @@ import java.nio.ByteBuffer
 import java.nio.channels.SeekableByteChannel
 
 /** Opens only the selected encrypted entry, with sizes supplied by the central directory. */
-internal fun openEncryptedVaultZipEntry(
+internal fun openEncryptedZipEntry(
     channel: SeekableByteChannel,
     entry: ZipArchiveEntry,
-    password: CharArray
+    password: CharArray,
+    charset: Charset
 ): InputStream {
     val offset = entry.localHeaderOffset
     val compressedSize = entry.compressedSize
     if (entry.diskNumberStart != 0L || offset < 0 || compressedSize < 0 ||
         offset > channel.size() || compressedSize > channel.size() - offset || entry.crc !in 0..0xFFFFFFFFL
     ) {
-        throw VaultFailure.InvalidPath("ZIP entry has an invalid location")
+        throw IOException("ZIP entry has an invalid location")
     }
     channel.position(offset)
     val limit = minOf(channel.size() - offset, compressedSize + MAX_LOCAL_ZIP_HEADER_BYTES)
-    val input = ZipInputStream(ZipEntryRange(channel, limit), password)
+    val input = ZipInputStream(ZipEntryRange(channel, limit), password, charset)
     try {
         val central = FileHeader().apply {
             crc = entry.crc
@@ -35,12 +37,12 @@ internal fun openEncryptedVaultZipEntry(
         }
         val local = input.getNextEntry(central, false)
         if (local == null || !local.isEncrypted || local.isDirectory || local.fileName != entry.name) {
-            throw VaultFailure.IntegrityFailed("ZIP entry headers do not agree")
+            throw IOException("ZIP entry headers do not agree")
         }
         return PasswordCheckedZipStream(input)
     } catch (error: Exception) {
         input.close()
-        throw error.asVaultZipError()
+        throw error.asArchiveZipError()
     }
 }
 
@@ -74,13 +76,13 @@ private class PasswordCheckedZipStream(input: InputStream) : FilterInputStream(i
     private inline fun readChecked(read: () -> Int): Int = try {
         read()
     } catch (error: ZipException) {
-        throw error.asVaultZipError()
+        throw error.asArchiveZipError()
     }
 }
 
-private fun Exception.asVaultZipError(): Exception =
+private fun Exception.asArchiveZipError(): Exception =
     if (this is ZipException && type == ZipException.Type.WRONG_PASSWORD) {
-        VaultFailure.Unavailable("The ZIP password is incorrect", this)
+        ArchivePasswordRequired(this)
     } else this
 
 // Fixed header, maximum 16-bit name and extra lengths, and a ZIP64 data descriptor.

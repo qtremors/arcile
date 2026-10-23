@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.archive.archiveEntrySegments
+
 internal data class VaultZipEntry(
     val name: String,
     val isDirectory: Boolean,
@@ -45,9 +47,4 @@ internal class VaultZipTree(entries: List<VaultZipEntry>) {
         )
 }
 
-internal fun safeZipSegments(name: String): List<String>? {
-    if (name.startsWith('/') || '\\' in name || '\u0000' in name) return null
-    val segments = name.trimEnd('/').split('/')
-    if (segments.size > 64 || segments.first().contains(':')) return null
-    return segments.takeIf { parts -> parts.none { it.isBlank() || it == "." || it == ".." } }
-}
+internal fun safeZipSegments(name: String): List<String>? = archiveEntrySegments(name, allowBackslashes = false)

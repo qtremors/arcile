@@ -10,12 +10,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -27,25 +30,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.archive.ArchivePasswordRequired
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.ui.Breadcrumbs
 import dev.qtremors.arcile.core.ui.lists.FileList
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
-import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.channels.ClosedChannelException
-import java.nio.channels.NonWritableChannelException
-import java.nio.channels.SeekableByteChannel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
-import org.apache.commons.compress.archivers.zip.ZipFile
+import kotlinx.coroutines.CancellationException
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+
+private data class ArchivePreviewListing(val entries: List<VaultZipEntry>, val truncated: Boolean)
 
 @Composable
 internal fun VaultArchivePreview(
@@ -56,42 +55,73 @@ internal fun VaultArchivePreview(
     onOpenFolder: (List<String>) -> Unit,
     onExtract: (VaultZipSelection) -> Unit
 ) {
-    val contents by produceState<Result<List<VaultZipEntry>>?>(null, node.ref, node.revision) {
-        value = withContext(Dispatchers.IO) {
-            val coroutineContext = currentCoroutineContext()
-            runCatching {
-                openReader(node.ref).getOrThrow().use { reader ->
-                    VaultZipDirectoryChannel(reader) { coroutineContext.ensureActive() }.use { channel ->
-                        if (ArchiveFormat.fromPath(node.name) == ArchiveFormat.SEVEN_Z) {
-                            openVaultSevenZ(channel).use { archive ->
-                                archive.entries.take(MAX_PREVIEW_ENTRIES + 1).map {
-                                    VaultZipEntry(it.name.orEmpty(), it.isDirectory, it.size)
-                                }
-                            }
-                        } else {
-                            ZipFile.builder().setSeekableByteChannel(channel).setIgnoreLocalFileHeader(true).get().use { zip ->
-                                zip.entries.asSequence().take(MAX_PREVIEW_ENTRIES + 1).map {
-                                    VaultZipEntry(it.name, it.isDirectory, it.size, it.generalPurposeBit.usesEncryption())
-                                }.toList()
-                            }
-                        }
-                    }
+    val format = ArchiveFormat.fromPath(node.name)
+    var encoding by remember(node.ref, node.revision) { mutableStateOf(ArchiveNameEncoding.UTF_8) }
+    var password by remember(node.ref, node.revision) { mutableStateOf<CharArray?>(null) }
+    val secret = password
+    DisposableEffect(secret) {
+        onDispose { secret?.fill('\u0000') }
+    }
+    val contents by produceState<Result<ArchivePreviewListing>?>(null, node.ref, node.revision, encoding, secret) {
+        value = null
+        value = try {
+            Result.success(readVaultArchive(node, openReader, secret, encoding, preview = true) { archive ->
+                val entries = archive.entries.take(VAULT_ARCHIVE_MAX_ENTRIES).mapNotNull { entry ->
+                    val segments = entry.segments ?: return@mapNotNull null
+                    if (!entry.canRead) return@mapNotNull null
+                    VaultZipEntry(segments.joinToString("/"), entry.isDirectory, entry.size, entry.encrypted)
                 }
-            }
+                ArchivePreviewListing(entries, archive.entries.size > VAULT_ARCHIVE_MAX_ENTRIES)
+            })
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            Result.failure(error)
         }
     }
-    val entries = contents?.getOrNull()
-    val tree = remember(entries) { entries?.let { VaultZipTree(it.take(MAX_PREVIEW_ENTRIES)) } }
+    val listing = contents?.getOrNull()
+    val tree = remember(listing) { listing?.entries?.let(::VaultZipTree) }
     Box(
         Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(top = 72.dp),
         contentAlignment = Alignment.Center
     ) {
         when {
             contents == null -> CircularProgressIndicator()
-            tree == null || entries == null -> Text(stringResource(R.string.onlyfiles_zip_unavailable), color = Color.White)
+            contents?.exceptionOrNull() is ArchivePasswordRequired || (tree == null && secret != null) -> {
+                VaultArchivePasswordPrompt(retry = secret != null) { password = it }
+            }
+            tree == null || listing == null -> Text(stringResource(R.string.onlyfiles_zip_unavailable), color = Color.White)
             else -> ZipFolderListing(
-                node, tree, folder, entries.size > MAX_PREVIEW_ENTRIES, operationActive, onOpenFolder, onExtract
+                node, tree, folder, listing.truncated, operationActive, onOpenFolder,
+                encoding = encoding.takeIf { format == ArchiveFormat.ZIP },
+                onEncodingChange = {
+                    encoding = it
+                    onOpenFolder(emptyList())
+                },
+                onExtract = {
+                    onExtract(it.copy(encoding = encoding, requiresPassword = it.requiresPassword || secret != null))
+                }
             )
+        }
+    }
+}
+
+@Composable
+private fun VaultArchivePasswordPrompt(retry: Boolean, onPassword: (CharArray) -> Unit) {
+    var draft by remember(retry) { mutableStateOf("") }
+    var reveal by remember(retry) { mutableStateOf(false) }
+    Surface(color = MaterialTheme.colorScheme.surface, shape = MaterialTheme.shapes.large) {
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(stringResource(if (retry) R.string.onlyfiles_archive_password_retry else R.string.onlyfiles_archive_password_required))
+            PasswordField(draft, { draft = it }, reveal, { reveal = !reveal })
+            FilledTonalButton(enabled = draft.isNotEmpty(), onClick = {
+                val submitted = draft.toCharArray()
+                draft = ""
+                reveal = false
+                onPassword(submitted)
+            }) {
+                Text(stringResource(R.string.onlyfiles_archive_open))
+            }
         }
     }
 }
@@ -104,6 +134,8 @@ private fun ZipFolderListing(
     truncated: Boolean,
     operationActive: Boolean,
     onOpenFolder: (List<String>) -> Unit,
+    encoding: ArchiveNameEncoding?,
+    onEncodingChange: (ArchiveNameEncoding) -> Unit,
     onExtract: (VaultZipSelection) -> Unit
 ) {
     val items = remember(tree, folder) { tree.list(folder) }
@@ -139,8 +171,9 @@ private fun ZipFolderListing(
                 segments = folder.mapIndexed { index, name -> name to (index + 1).toString() },
                 onSegmentClick = { onOpenFolder(folder.take(it.toInt())) }
             )
+            if (encoding != null) VaultArchiveEncodingMenu(encoding, onEncodingChange)
             if (truncated) Text(
-                stringResource(R.string.onlyfiles_zip_truncated, MAX_PREVIEW_ENTRIES),
+                stringResource(R.string.onlyfiles_zip_truncated, VAULT_ARCHIVE_MAX_ENTRIES),
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
             if (items.isEmpty()) {
@@ -196,48 +229,20 @@ private fun ZipFolderListing(
     }
 }
 
-internal class VaultZipDirectoryChannel(
-    private val reader: VaultSeekableReader,
-    readBudget: Long = MAX_DIRECTORY_BYTES,
-    private val checkActive: () -> Unit
-) : SeekableByteChannel {
-    private var open = true
-    private var offset = 0L
-    private var remainingBudget = readBudget
-    private val buffer = ByteArray(8192)
-
-    override fun read(dst: ByteBuffer): Int {
-        checkActive()
-        if (!open) throw ClosedChannelException()
-        if (!dst.hasRemaining()) return 0
-        if (offset >= reader.sizeBytes) return -1
-        if (remainingBudget <= 0) throw IOException("ZIP directory exceeds the preview limit")
-        val count = minOf(dst.remaining().toLong(), buffer.size.toLong(), remainingBudget, reader.sizeBytes - offset).toInt()
-        val read = reader.readAt(offset, buffer, 0, count)
-        if (read <= 0) throw IOException("ZIP directory is incomplete")
-        dst.put(buffer, 0, read)
-        offset += read
-        remainingBudget -= read
-        return read
+@Composable
+private fun VaultArchiveEncodingMenu(current: ArchiveNameEncoding, onSelect: (ArchiveNameEncoding) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(Modifier.padding(horizontal = 12.dp)) {
+        TextButton(onClick = { expanded = true }) {
+            Text(stringResource(R.string.onlyfiles_archive_filename_encoding, current.displayName))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            ArchiveNameEncoding.entries.forEach { option ->
+                DropdownMenuItem(text = { Text(option.displayName) }, onClick = {
+                    expanded = false
+                    onSelect(option)
+                })
+            }
+        }
     }
-
-    override fun position(): Long = offset
-    override fun position(newPosition: Long): SeekableByteChannel {
-        if (!open) throw ClosedChannelException()
-        require(newPosition >= 0L)
-        offset = newPosition
-        return this
-    }
-
-    override fun size(): Long = reader.sizeBytes
-    override fun isOpen(): Boolean = open
-    override fun close() {
-        open = false
-        buffer.fill(0)
-    }
-    override fun write(src: ByteBuffer): Int = throw NonWritableChannelException()
-    override fun truncate(size: Long): SeekableByteChannel = throw NonWritableChannelException()
 }
-
-private const val MAX_PREVIEW_ENTRIES = 1_000
-private const val MAX_DIRECTORY_BYTES = 2L * 1024 * 1024

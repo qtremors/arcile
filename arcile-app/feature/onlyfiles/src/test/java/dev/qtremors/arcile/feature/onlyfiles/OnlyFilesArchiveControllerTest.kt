@@ -22,6 +22,7 @@ import java.io.OutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import java.util.zip.GZIPOutputStream
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
 import org.apache.commons.compress.archivers.sevenz.SevenZOutputFile
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.tar.TarArchiveOutputStream
 import org.apache.commons.compress.utils.SeekableInMemoryByteChannel
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -113,6 +116,77 @@ class OnlyFilesArchiveControllerTest {
         assertEquals(listOf("one", "two"), extracted.values.toList())
         assertTrue(reader.closed)
         assertEquals("Extracted", state.value.message)
+    }
+
+    @Test
+    fun `vault extraction streams selected tar gzip entries into the encrypted writer`() = runTest {
+        val payload = ByteArrayOutputStream().also { bytes ->
+            TarArchiveOutputStream(GZIPOutputStream(bytes)).use { output ->
+                for ((path, text) in listOf("./docs/one.txt" to "one", "extra.txt" to "skip", "./docs/two.txt" to "two")) {
+                    val body = text.encodeToByteArray()
+                    output.putArchiveEntry(TarArchiveEntry(path).apply { size = body.size.toLong() })
+                    output.write(body)
+                    output.closeArchiveEntry()
+                }
+            }
+        }.toByteArray()
+        val source = file("source.tar.gz", payload.size.toLong())
+        val reader = MemoryReader(payload)
+        val fs = mockk<VaultFileSystem>()
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        val extracted = linkedMapOf<List<String>, String>()
+        coEvery { fs.extractArchive(vault, root, "Result", any(), true, any()) } coAnswers {
+            for (entry in arg<List<VaultArchiveSource>>(3).filterIsInstance<VaultArchiveSource.File>()) {
+                extracted[entry.path] = entry.open().use { it.readBytes().decodeToString() }
+            }
+            Result.success(folder("Result"))
+        }
+        val state = mounted()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
+
+        controller.extract(
+            source, root, VaultZipSelection(listOf("docs"), setOf(listOf("docs", "two.txt"))),
+            "Result", "Extracted", keepBoth = true
+        )
+        state.first { !it.busy }
+
+        assertEquals(mapOf(listOf("two.txt") to "two"), extracted)
+        assertTrue(reader.closed)
+        assertEquals("Extracted", state.value.message)
+    }
+
+    @Test
+    fun `password protected 7z extraction passes decrypted entries only to the vault writer`() = runTest {
+        val password = "secret".toCharArray()
+        val channel = SeekableInMemoryByteChannel()
+        val payload = SevenZOutputFile(channel, password).use { archive ->
+            archive.putArchiveEntry(SevenZArchiveEntry().apply { name = "note.txt" })
+            archive.write("protected text".encodeToByteArray())
+            archive.closeArchiveEntry()
+            archive.finish()
+            channel.array().copyOf(channel.size().toInt())
+        }
+        val source = file("encrypted.7z", payload.size.toLong())
+        val reader = MemoryReader(payload)
+        val fs = mockk<VaultFileSystem>()
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+            val entry = arg<List<VaultArchiveSource>>(3).single() as VaultArchiveSource.File
+            assertEquals(listOf("note.txt"), entry.path)
+            assertEquals("protected text", entry.open().use { it.readBytes().decodeToString() })
+            Result.success(folder("Result"))
+        }
+        val state = mounted()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
+
+        controller.extract(
+            source, root, VaultZipSelection(emptyList(), emptySet()), "Result", "Extracted", password = password
+        )
+        state.first { !it.busy }
+
+        assertEquals("Extracted", state.value.message)
+        assertTrue(password.all { it == '\u0000' })
+        assertTrue(reader.closed)
     }
 
     @Test

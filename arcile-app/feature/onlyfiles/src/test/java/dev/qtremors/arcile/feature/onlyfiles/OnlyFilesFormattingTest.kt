@@ -39,7 +39,7 @@ class OnlyFilesFormattingTest {
     fun `vault routing keeps APK bundles and supported archives out of MIME-only viewers`() {
         assertEquals(BuiltInFileOpen.PACKAGE, node("bundle.xapk", "application/zip").builtInOpen())
         assertEquals(BuiltInFileOpen.ARCHIVE, node("files.7Z", "application/octet-stream").builtInOpen())
-        assertEquals(BuiltInFileOpen.EXTERNAL, node("backup.tar.gz", "application/gzip").builtInOpen())
+        assertEquals(BuiltInFileOpen.ARCHIVE, node("backup.tar.gz", "application/gzip").builtInOpen())
         assertEquals(BuiltInFileOpen.TEXT, node("README", "text/plain").builtInOpen())
     }
 
