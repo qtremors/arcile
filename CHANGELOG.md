@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.4
-> **Last Updated:** 2026-11-04
+> **Version:** 2.3.5
+> **Last Updated:** 2026-11-05
 
 ---
+
+## [2.3.5] - 2026-11-05
+
+### Changed
+- Rename, copy, cut, and delete vault videos from the shared viewer. Load more videos while browsing.
+- Vault audio uses the shared queue sheet with reordering, removal, and continuous playback between tracks.
+- Portable vault search reuses ranked pages and detects changed folders. Deep search pages keep a bounded result window.
 
 ## [2.3.4] - 2026-11-04
 

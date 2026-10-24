@@ -131,6 +131,34 @@ class VideoViewerViewModelTest {
             assertTrue(viewModel.state.value.selectedFiles.isEmpty())
         }
 
+    @Test
+    fun `protected source updates append rename and remove files without saving opaque references`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val handle = SavedStateHandle()
+            val viewModel = createViewModel(handle)
+            val first = "vault:opaque-first"
+            val selected = "vault:opaque-selected"
+            val third = "vault:opaque-third"
+            viewModel.initialize(
+                selected, videoFiles(first, selected), selectedPaths = listOf(first),
+                discoverSiblings = false, persistFileReferences = false
+            )
+            viewModel.protectedPlaybackPath = selected
+            viewModel.protectedPlaybackPosition = 12_345L
+            viewModel.setViewerMetadataVisible(first, true)
+            viewModel.updateSourceFiles(videoFiles(selected, third).map {
+                if (it.reference == selected) it.copy(name = "renamed.mp4") else it
+            })
+
+            assertEquals(listOf(selected, third), viewModel.state.value.files.map { it.reference })
+            assertEquals("renamed.mp4", viewModel.state.value.displayedFiles.first().name)
+            assertTrue(viewModel.state.value.selectedFiles.isEmpty())
+            assertNull(viewModel.state.value.viewerMetadataPath)
+            assertEquals(selected, viewModel.protectedPlaybackPath)
+            assertEquals(12_345L, viewModel.protectedPlaybackPosition)
+            assertTrue(handle.keys().none { key -> handle.get<Any>(key)?.toString()?.contains("vault:") == true })
+        }
+
     private fun createViewModel(
         savedStateHandle: SavedStateHandle = SavedStateHandle(),
         fileBrowserRepository: FileBrowserRepository = mockk(relaxed = true),

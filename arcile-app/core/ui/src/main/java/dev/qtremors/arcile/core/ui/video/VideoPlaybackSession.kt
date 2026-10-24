@@ -6,6 +6,8 @@ import androidx.media3.datasource.DataSource
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SensitiveThumbnailRequest
 import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
 data class VideoPlaybackItem(
@@ -15,6 +17,17 @@ data class VideoPlaybackItem(
     val onOpenWith: (() -> Unit)? = null,
     val readMetadata: (suspend () -> VisualMediaMetadata?)? = null
 )
+
+data class VideoPlaybackSourceUpdate(
+    val items: List<VideoPlaybackItem>,
+    val files: List<FileModel>,
+    val overlayVisible: Boolean = false
+) {
+    init {
+        require(items.size == files.size)
+        require(files.map(FileModel::reference).distinct().size == files.size)
+    }
+}
 
 data class VideoPlaybackSession(
     val items: List<VideoPlaybackItem>,
@@ -32,7 +45,11 @@ data class VideoPlaybackSession(
     /** Optional thumbnail source for protected media whose references are opaque. */
     val thumbnailData: ((FileModel, Int) -> SensitiveThumbnailRequest?)? = null,
     /** Protected sources can gate the viewer and render consent within its route. */
-    val sourceHost: (@Composable (() -> Unit, @Composable () -> Unit) -> Unit)? = null
+    val sourceHost: (@Composable (() -> Unit, @Composable () -> Unit) -> Unit)? = null,
+    val sourceUpdates: StateFlow<VideoPlaybackSourceUpdate>? = null,
+    val onSourceAction: ((FileModel, ViewerFileAction) -> Unit)? = null,
+    val onLoadMore: (() -> Unit)? = null,
+    val sourceOverlayVisible: Boolean = false
 ) {
     init {
         require(items.isNotEmpty())

@@ -230,6 +230,19 @@ internal class VideoViewerViewModel @Inject constructor(
         }
     }
 
+    fun updateSourceFiles(files: List<FileModel>) {
+        if (persistFileReferences || !_state.value.isInitialized) return
+        val unique = files.distinctBy(FileModel::reference).toPersistentList()
+        val references = unique.mapTo(hashSetOf(), FileModel::reference)
+        _state.update {
+            it.copy(
+                files = unique, displayedFiles = unique,
+                selectedFiles = it.selectedFiles.filter { path -> path in references }.toPersistentSet(),
+                viewerMetadataPath = it.viewerMetadataPath?.takeIf { path -> path in references }
+            )
+        }
+    }
+
     fun toggleSelection(path: String) {
         _state.update {
             it.copy(

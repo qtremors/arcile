@@ -698,4 +698,14 @@
     <string name="text_editor_characters">Characters</string>
     <string name="text_editor_file_size">File size</string>
     <string name="file_operation_background_time_limit">Android stopped this operation after its background time limit. Try it again to continue.</string>
+    <string name="audio_clear_queue">Clear</string>
+    <string name="audio_move_down">Move down</string>
+    <string name="audio_move_up">Move up</string>
+    <string name="audio_queue">Queue</string>
+    <plurals name="audio_queue_count"><item quantity="one">%1$d item</item><item quantity="other">%1$d items</item></plurals>
+    <string name="audio_queue_empty">The playback queue is empty.</string>
+    <string name="audio_queue_item_options">Queue item options</string>
+    <string name="audio_remove_from_queue">Remove from queue</string>
+    <string name="audio_save_queue">Save queue</string>
+    <string name="audio_unknown_artist">Unknown artist</string>
 </resources>

@@ -83,6 +83,7 @@ import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionPolicy
 import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
 import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
 import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
@@ -237,7 +238,6 @@ internal fun VideoViewerPlaybackSurface(
                 onCloseRequested = onNavigateBack
             )
             val localPlayer = remember(
-                initialPlaybackItem,
                 session.dataSourceFactory,
                 backgroundPlaybackAllowed
             ) {
@@ -285,7 +285,8 @@ internal fun VideoViewerPlaybackSurface(
                 )
                 return@Box
             }
-            var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }
+            val playbackStateKey = session.sourceUpdates ?: session
+            var resizeModeIndex by rememberSaveable(playbackStateKey) { mutableIntStateOf(0) }
             val resizeModes = remember {
                 intArrayOf(
                     AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -293,7 +294,7 @@ internal fun VideoViewerPlaybackSurface(
                     AspectRatioFrameLayout.RESIZE_MODE_FILL
                 )
             }
-            val playbackPositions = remember(session) { LinkedHashMap<String, Long>() }
+            val playbackPositions = remember(playbackStateKey) { LinkedHashMap<String, Long>() }
             var loadedPath by remember(player) {
                 mutableStateOf(
                     displayedPaths.getOrNull(initialPlaybackPage)
@@ -399,7 +400,7 @@ internal fun VideoViewerPlaybackSurface(
                 }
             }
 
-            val playbackObscured = showMetadataSheet || isDeleteDialogVisible
+            val playbackObscured = showMetadataSheet || isDeleteDialogVisible || session.sourceOverlayVisible
             var resumeAfterOverlay by remember(player) { mutableStateOf(false) }
             LaunchedEffect(playbackObscured, player) {
                 if (playbackObscured) {
@@ -449,17 +450,18 @@ internal fun VideoViewerPlaybackSurface(
             val isArchiveEntry = currentFile?.reference
                 ?.startsWith(ArchiveEntryThumbnailData.VIRTUAL_PREFIX) == true
             val fallbackFileActionsAllowed = session.securityScopeId == null && !isArchiveEntry
+            val sourceActionsAllowed = session.onSourceAction != null && !session.managedTrash
             val canOpenWith = currentPlaybackItem?.onOpenWith != null || fallbackFileActionsAllowed
             val canShare = currentPlaybackItem?.onShare != null || fallbackFileActionsAllowed
             val actionFile = currentFile?.let { file ->
                 val capabilities = file.nodeRef.capabilities.copy(
                     canWrite = fallbackFileActionsAllowed && !readOnly,
-                    canDelete = fallbackFileActionsAllowed && file.nodeRef.capabilities.canDelete,
+                    canDelete = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canDelete,
                     canTrash = fallbackFileActionsAllowed && file.nodeRef.capabilities.canTrash,
                     canArchive = fallbackFileActionsAllowed && file.nodeRef.capabilities.canArchive,
-                    canRename = fallbackFileActionsAllowed && !readOnly && file.nodeRef.capabilities.canRename,
-                    canCopy = fallbackFileActionsAllowed && file.nodeRef.capabilities.canCopy,
-                    canMove = fallbackFileActionsAllowed && !readOnly && file.nodeRef.capabilities.canMove,
+                    canRename = (fallbackFileActionsAllowed && !readOnly || sourceActionsAllowed) && file.nodeRef.capabilities.canRename,
+                    canCopy = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canCopy,
+                    canMove = (fallbackFileActionsAllowed && !readOnly || sourceActionsAllowed) && file.nodeRef.capabilities.canMove,
                     canShare = canShare,
                     canOpenWith = canOpenWith
                 )
@@ -716,7 +718,9 @@ internal fun VideoViewerPlaybackSurface(
                 playbackDuration = playbackDuration,
                 canOpenWith = canOpenWith,
                 canShare = canShare,
-                viewerActions = viewerActionController.state.allowedActions,
+                viewerActions = if (sourceActionsAllowed && actionFile != null) {
+                    ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.Vault, actionFile.nodeRef.capabilities)
+                } else viewerActionController.state.allowedActions,
                 onViewerAction = { action ->
                     when (action) {
                         ViewerFileAction.Share -> {
@@ -730,7 +734,9 @@ internal fun VideoViewerPlaybackSurface(
                         ViewerFileAction.Properties -> currentFile?.takeIf { canShowCurrentMetadata }?.let {
                             viewModel.setViewerMetadataVisible(it.reference, visible = true)
                         }
-                        else -> viewerActionController.onAction(action)
+                        else -> if (sourceActionsAllowed && currentFile != null) {
+                            session.onSourceAction?.invoke(currentFile, action)
+                        } else viewerActionController.onAction(action)
                     }
                 },
                 resizeModeIndex = resizeModeIndex,

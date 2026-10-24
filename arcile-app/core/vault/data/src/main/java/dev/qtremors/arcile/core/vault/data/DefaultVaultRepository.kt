@@ -162,13 +162,18 @@ internal class DefaultVaultRepository @Inject constructor(
     private suspend fun readFileCount(
         session: VaultSessionRecord,
         entry: VaultManifestEntry,
-        budget: FolderScanBudget
+        budget: FolderScanBudget,
+        versions: VaultSearchVersions? = null
     ): Long? {
         val child = entry.childDirectoryId ?: return null
-        if (budget.directories <= 0 || budget.entries <= 0) return null
+        if (budget.directories <= 0 || budget.entries <= 0) {
+            versions?.invalidate()
+            return null
+        }
         return try {
-            scanFolder(session, child, entry.protectedKey, budget).fileCount
+            scanFolder(session, child, entry.protectedKey, budget, versions = versions).fileCount
         } catch (_: VaultFailure) {
+            versions?.invalidate()
             null
         }
     }
@@ -270,7 +275,8 @@ internal class DefaultVaultRepository @Inject constructor(
         rootKey: ByteArray,
         budget: FolderScanBudget,
         seenFolders: MutableSet<DirectoryId>? = null,
-        seenFiles: MutableSet<NodeId>? = null
+        seenFiles: MutableSet<NodeId>? = null,
+        versions: VaultSearchVersions? = null
     ): VaultFolderTotals {
         val pending = ArrayDeque<Pair<DirectoryId, ByteArray>>()
         pending.add(root to rootKey.copyOf())
@@ -286,6 +292,7 @@ internal class DefaultVaultRepository @Inject constructor(
                     if (!visited.add(id)) throw VaultFailure.IntegrityFailed("A vault folder was encountered twice")
                     if (seenFolders?.add(id) == false) continue
                     if (budget.directories-- <= 0) throw VaultFailure.Unavailable("Folder exceeds the size calculation limit")
+                    versions?.capture(session.directory, id)
                     val directory = session.readDirectory(id, key)
                     try {
                         budget.entries -= directory.entries.size
@@ -334,7 +341,7 @@ internal class DefaultVaultRepository @Inject constructor(
         directoryId: DirectoryId,
         query: VaultSearchQuery
     ): Result<VaultPage<VaultSearchHit>> = mutate(vaultId) { session ->
-        if (!query.reusePageWindow || locations[vaultId.value]?.kind != VaultLocationKind.APP_PRIVATE ||
+        if (!query.reusePageWindow ||
             transactionManager.hasPendingCommit(session.directory)
         ) {
             session.updateSearchWindow(null)
@@ -353,15 +360,32 @@ internal class DefaultVaultRepository @Inject constructor(
         val key = query.copy(pageToken = null)
         val publication = transactionManager.publicationGeneration
         val cached = session.currentSearchWindow()
+        var anchor: VaultSearchHit? = null
+        var anchorCount: Long? = null
         if (query.pageToken != null && cached?.directoryId == directoryId && cached.query == key &&
-            cached.publicationGeneration == publication
+            cached.publicationGeneration == publication &&
+            (cached.versions == null || cached.versions.matches(session.directory))
         ) {
             cached.page(offset)?.let { return it }
+            anchor = cached.nextAnchor(offset)
+            anchorCount = cached.anchorFileCount
         }
-
-        val ranked = search(session, directoryId, query, pageSize = query.pageSize * 4)
-        val window = VaultSearchWindow(directoryId, key, publication, offset, ranked)
-        session.updateSearchWindow(window.takeIf { ranked.items.size > query.pageSize })
+        val portable = locations[session.id.value]?.kind != VaultLocationKind.APP_PRIVATE
+        val versions = if (portable) VaultSearchVersions() else null
+        val counts = mutableMapOf<NodeId, Long>()
+        if (anchor != null && anchorCount != null) counts[anchor.metadata.ref.nodeId] = anchorCount
+        val ranked = search(
+            session, directoryId, query, pageSize = query.pageSize * 4,
+            after = anchor, fileCounts = counts, versions = versions
+        )
+        if (versions?.cacheable == true && !versions.matches(session.directory)) throw VaultFailure.ConcurrentMutation()
+        val window = VaultSearchWindow(
+            directoryId, key, publication, offset, ranked, versions,
+            ranked.items.lastOrNull()?.metadata?.ref?.nodeId?.let(counts::get)
+        )
+        session.updateSearchWindow(window.takeIf {
+            ranked.items.size > query.pageSize && versions?.cacheable != false
+        })
         return window.page(offset) ?: ranked
     }
 
@@ -394,15 +418,18 @@ internal class DefaultVaultRepository @Inject constructor(
         session: VaultSessionRecord,
         directoryId: DirectoryId,
         query: VaultSearchQuery,
-        pageSize: Int = query.pageSize
+        pageSize: Int = query.pageSize,
+        after: VaultSearchHit? = null,
+        fileCounts: MutableMap<NodeId, Long> = mutableMapOf(),
+        versions: VaultSearchVersions? = null
     ): VaultPage<VaultSearchHit> {
-        val requestedOffset = query.pageToken.toPageOffset(Int.MAX_VALUE)
+        val absoluteOffset = query.pageToken.toPageOffset(Int.MAX_VALUE)
+        val requestedOffset = if (after == null) absoluteOffset else 0
         val start = session.resolveDirectory(directoryId)
         val frames = ArrayDeque<SearchFrame>()
         frames += SearchFrame(start.id, start.key, emptyList())
         val visited = mutableSetOf(start.id)
         val limit = (requestedOffset.toLong() + pageSize + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-        val fileCounts = mutableMapOf<NodeId, Long>()
         val budget = FolderScanBudget()
         val nodeComparator = vaultListingComparator(query.sortField, query.direction, query.foldersFirst, fileCounts)
         val comparator = Comparator<VaultSearchHit> { left, right -> nodeComparator.compare(left.metadata, right.metadata) }
@@ -413,6 +440,7 @@ internal class DefaultVaultRepository @Inject constructor(
             while (frames.isNotEmpty()) {
                 val frame = frames.removeLast()
                 try {
+                    versions?.capture(session.directory, frame.directoryId)
                     val snapshot = session.readDirectory(frame.directoryId, frame.key)
                     generation = 31L * generation + frame.directoryId.hashCode()
                     generation = 31L * generation + snapshot.generation
@@ -435,16 +463,25 @@ internal class DefaultVaultRepository @Inject constructor(
                                 val metadata = entry.toMetadata(session.id, frame.directoryId)
                                 if (query.matches?.invoke(metadata) == false) continue
                                 if (query.sortField == VaultSortField.FILE_COUNT) {
-                                    readFileCount(session, entry, budget)?.let {
+                                    val count = readFileCount(session, entry, budget, versions)
+                                    generation = 31L * generation + (count ?: -1L)
+                                    count?.let {
                                         fileCounts[metadata.ref.nodeId] = it
                                     }
                                 }
                                 val hit = VaultSearchHit(metadata, frame.parentNames, frame.parentDirectoryIds)
-                                if (matches.size < limit) {
+                                if (after != null && comparator.compare(hit, after) <= 0) {
+                                    if (metadata.ref.nodeId != after.metadata.ref.nodeId) fileCounts.remove(metadata.ref.nodeId)
+                                } else if (matches.size < limit) {
                                     matches.add(hit)
                                 } else if (comparator.compare(hit, matches.peek()) < 0) {
-                                    matches.remove()
+                                    val removed = matches.remove()
+                                    if (removed.metadata.ref.nodeId != after?.metadata?.ref?.nodeId) {
+                                        fileCounts.remove(removed.metadata.ref.nodeId)
+                                    }
                                     matches.add(hit)
+                                } else {
+                                    fileCounts.remove(metadata.ref.nodeId)
                                 }
                             }
                         }
@@ -461,7 +498,7 @@ internal class DefaultVaultRepository @Inject constructor(
         }
         val page = matches.sortedWith(comparator).drop(requestedOffset)
         val items = page.take(pageSize)
-        return VaultPage(items, (requestedOffset + items.size).takeIf { page.size > items.size }?.toString(), generation)
+        return VaultPage(items, (absoluteOffset + items.size).takeIf { page.size > items.size }?.toString(), generation)
     }
 
     override suspend fun createDirectory(

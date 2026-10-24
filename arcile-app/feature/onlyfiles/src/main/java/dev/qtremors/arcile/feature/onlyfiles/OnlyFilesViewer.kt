@@ -153,7 +153,10 @@ internal fun ViewerScreen(
         }
     } else {
         Box(modifier.fillMaxSize().background(Color.Black)) {
-            key(node.ref, node.revision) {
+            key(
+                if (openKind == BuiltInFileOpen.AUDIO) "vault-audio" else node.ref,
+                if (openKind == BuiltInFileOpen.AUDIO) 0L else node.revision
+            ) {
                 when (openKind) {
                     BuiltInFileOpen.ARCHIVE -> VaultArchivePreview(
                         node, viewModel::openReader, archiveFolder, archiveOperationActive,
@@ -178,9 +181,9 @@ internal fun ViewerScreen(
                             if (position >= mediaQueue.lastIndex - 1 && nextMediaPage != null) viewModel.loadNextPage()
                         }
                         VaultAudioPreview(
-                            node, viewModel::openReader,
-                            onPrevious = if (position > 0) ({ viewModel.stepViewerAudio(-1) }) else null,
-                            onNext = if (position in 0 until mediaQueue.lastIndex) ({ viewModel.stepViewerAudio(1) }) else null,
+                            node, mediaQueue, viewModel::openReader,
+                            onTrackChanged = viewModel::showViewerAudio,
+                            onQueueEmpty = onBack,
                             modifier = Modifier.align(Alignment.Center)
                         )
                     }
@@ -440,40 +443,45 @@ internal fun createVaultVideoPlaybackSession(
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
     interaction: OnlyFilesVideoInteraction? = null
 ) : VideoPlaybackSession {
-    val queue = nodes.filter(VaultNodeMetadata::isViewableVideo).takeIf { selectedNode in it }
+    require(selectedNode.ref.vaultId == vaultId)
+    val queue = nodes.filter { it.ref.vaultId == vaultId && it.isViewableVideo() }.takeIf { selectedNode in it }
         ?: listOf(selectedNode)
-    val refsByOpaqueId = queue.associate { it.ref.nodeId.value to it.ref }
-    val sharedFiles = queue.map(VaultNodeMetadata::toSharedFileModel)
-    val nodesByReference = sharedFiles.map { it.reference }.zip(queue).toMap()
+    val liveQueue = OnlyFilesVideoQueue(queue) { node ->
+        val sharedFile = node.toSharedFileModel()
+        VideoPlaybackItem(
+            mediaItem = MediaItem.Builder()
+                .setUri("onlyfiles://playback/${node.ref.nodeId.value}")
+                .setMediaId(sharedFile.reference)
+                .setMimeType(node.mimeType)
+                .build(),
+            title = node.name,
+            onShare = interaction?.takeIf { node.ref.capabilities.canShare }?.let {
+                { it.request(ExternalAction.SHARE, node) }
+            },
+            onOpenWith = interaction?.takeIf { node.ref.capabilities.canOpenWith }?.let {
+                { it.request(ExternalAction.OPEN_WITH, node) }
+            },
+            readMetadata = { readVaultVideoMetadata(node, sharedFile, openReader) }
+        )
+    }
+    interaction?.attach(liveQueue)
+    val initial = liveQueue.sourceUpdates.value
     return VideoPlaybackSession(
-        items = queue.zip(sharedFiles).map { (node, sharedFile) ->
-            VideoPlaybackItem(
-                mediaItem = MediaItem.Builder()
-                    .setUri("onlyfiles://playback/${node.ref.nodeId.value}")
-                    .setMediaId(sharedFile.reference)
-                    .setMimeType(node.mimeType)
-                    .build(),
-                title = node.name,
-                onShare = interaction?.takeIf { node.ref.capabilities.canShare }?.let {
-                    { it.request(ExternalAction.SHARE, node) }
-                },
-                onOpenWith = interaction?.takeIf { node.ref.capabilities.canOpenWith }?.let {
-                    { it.request(ExternalAction.OPEN_WITH, node) }
-                },
-                readMetadata = { readVaultVideoMetadata(node, sharedFile, openReader) }
-            )
-        },
+        items = initial.items,
         startIndex = queue.indexOf(selectedNode).coerceAtLeast(0),
         dataSourceFactory = androidx.media3.datasource.DataSource.Factory {
-            VaultMediaDataSource(refsByOpaqueId, openReader)
+            VaultMediaDataSource(liveQueue.refsByOpaqueId, openReader)
         },
         securityScopeId = vaultSecurityScope(vaultId),
-        files = sharedFiles,
+        files = initial.files,
         screenshotProtectionEnabled = screenshotProtectionEnabled,
-        thumbnailData = { file, size -> nodesByReference[file.reference]?.thumbnailRequest(size) },
+        thumbnailData = { file, size -> liveQueue.node(file.reference)?.thumbnailRequest(size) },
         sourceHost = if (interaction == null) null else { onClosed, content ->
             interaction.Host(onClosed, content)
-        }
+        },
+        sourceUpdates = liveQueue.sourceUpdates,
+        onSourceAction = interaction?.let { it::action },
+        onLoadMore = interaction?.let { it::loadMore }
     )
 }
 

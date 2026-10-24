@@ -88,20 +88,15 @@
 
 ### OnlyFiles
 
-- [ ] **PERF-0001 - Improve Portable and Deep Vault Search Paging**
-  - **Location:** OnlyFilesBrowserController.kt and DefaultVaultRepository.kt.
-  - **Current:** App-private vaults reuse four ranked pages per scan. Portable vaults rescan each page, and deeper windows still rank earlier results.
-  - **Change:** Measure deep paging and avoid ranking earlier results again where the vault generation can be verified.
-
 - [ ] **REL-0007 - Reconcile Items Interrupted Mid-Transfer**
   - **Location:** VaultOperationJournal.kt, DefaultVaultBoundaryTransferCoordinator.kt, and VaultTransferEngine.kt.
   - **Current:** After restart, OnlyFiles can resume unstarted queue items. The item that was in progress needs manual review, and partial folder retries are limited to the active session.
   - **Change:** Reconcile staged and published outputs after interruption, including export staging files. Persist verified folder checkpoints so retry can target unfinished children.
 
-- [ ] **UI-0012 - Complete Vault Media Actions**
+- [ ] **UI-0012 - Complete Vault Audio Tags and Lyrics**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.
-  - **Current:** Images page and carry selection back to OnlyFiles. Vault videos have metadata, Share, and Open With. Vault audio uses the shared seek and transport controls.
-  - **Change:** Add vault-capable video mutation actions and longer video queues. Complete audio tag and queue actions that apply to protected files.
+  - **Current:** Vault audio shares playback and queue controls. The main audio tag editor and lyrics flow still depend on local files and sidecars.
+  - **Change:** Support tag edits and lyrics through vault readers and verified encrypted writes, using the shared audio surfaces.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

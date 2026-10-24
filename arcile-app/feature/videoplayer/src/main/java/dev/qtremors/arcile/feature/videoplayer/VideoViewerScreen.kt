@@ -138,6 +138,10 @@ internal fun VideoViewerScreen(
         }
     }
     val displayedFiles = viewerContext.files
+    LaunchedEffect(state.viewerCurrentPath, displayedFiles.size) {
+        val currentIndex = displayedFiles.indexOfFirst { it.reference == state.viewerCurrentPath }
+        if (currentIndex >= displayedFiles.lastIndex - 1) session.onLoadMore?.invoke()
+    }
 
     val haptics = rememberArcileHaptics()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation

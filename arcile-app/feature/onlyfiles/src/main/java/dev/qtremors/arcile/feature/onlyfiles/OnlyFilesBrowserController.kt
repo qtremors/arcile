@@ -187,12 +187,13 @@ internal class OnlyFilesBrowserController(
         fileSystem.createSyntheticFile(vaultId, directoryId, name, size)
     }
 
-    fun rename(node: VaultNodeMetadata, name: String) = runBusy {
+    fun rename(node: VaultNodeMetadata, name: String, onRenamed: (VaultNodeMetadata) -> Unit = {}) = runBusy {
         val mount = state.value.mountGeneration
         fileSystem.rename(node.ref, name).fold(
             onSuccess = { updated ->
                 if (state.value.mountGeneration == mount) {
                     state.update { it.withUpdatedViewerNode(updated) }
+                    onRenamed(updated)
                     reload()
                 }
             },
@@ -217,7 +218,7 @@ internal class OnlyFilesBrowserController(
         }
     }
 
-    fun delete(nodes: List<VaultNodeMetadata>) = runBusy {
+    fun delete(nodes: List<VaultNodeMetadata>, onDeleted: (Set<String>) -> Unit = {}) = runBusy {
         val mountGeneration = state.value.mountGeneration
         val distinctNodes = nodes.distinctBy { it.ref.nodeId }
         val deletedIds = mutableSetOf<String>()
@@ -266,7 +267,10 @@ internal class OnlyFilesBrowserController(
                 message = if (failed == 0) "$completed item(s) permanently deleted" else "$completed deleted; $failed failed"
             )
         }
-        if (state.value.mountGeneration == mountGeneration) reload()
+        if (state.value.mountGeneration == mountGeneration) {
+            onDeleted(deletedIds)
+            reload()
+        }
     }
 
     private fun currentMutation(block: suspend (VaultId, dev.qtremors.arcile.core.vault.domain.DirectoryId) -> Result<*>) {

@@ -23,6 +23,7 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/build-logic" />
             <option value="$PROJECT_DIR$/core" />
+            <option value="$PROJECT_DIR$/core/archive" />
             <option value="$PROJECT_DIR$/core/navigation" />
             <option value="$PROJECT_DIR$/core/navigation/api" />
             <option value="$PROJECT_DIR$/core/operation" />
@@ -49,8 +50,8 @@
             <option value="$PROJECT_DIR$/feature/audio" />
             <option value="$PROJECT_DIR$/feature/browser" />
             <option value="$PROJECT_DIR$/feature/documents" />
-            <option value="$PROJECT_DIR$/feature/home" />
             <option value="$PROJECT_DIR$/feature/gallery" />
+            <option value="$PROJECT_DIR$/feature/home" />
             <option value="$PROJECT_DIR$/feature/import" />
             <option value="$PROJECT_DIR$/feature/onboarding" />
             <option value="$PROJECT_DIR$/feature/onlyfiles" />

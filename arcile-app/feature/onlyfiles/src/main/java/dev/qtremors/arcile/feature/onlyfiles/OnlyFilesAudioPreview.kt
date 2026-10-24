@@ -8,12 +8,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,25 +38,36 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import dev.qtremors.arcile.core.storage.domain.AudioTrack
+import dev.qtremors.arcile.core.ui.audio.AudioQueueSheet
+import dev.qtremors.arcile.core.ui.R as UiR
 import dev.qtremors.arcile.core.ui.audio.AudioPlaybackProgress
 import dev.qtremors.arcile.core.ui.audio.AudioTransportControls
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import kotlinx.coroutines.delay
+import java.util.concurrent.atomic.AtomicBoolean
 
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 internal fun VaultAudioPreview(
     node: VaultNodeMetadata,
+    queue: List<VaultNodeMetadata>,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
-    onPrevious: (() -> Unit)?,
-    onNext: (() -> Unit)?,
+    onTrackChanged: (VaultNodeRef) -> Unit,
+    onQueueEmpty: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val playbackQueue = remember(node.ref.vaultId) { OnlyFilesAudioQueue(queue.ifEmpty { listOf(node) }) }
+    val tracks by playbackQueue.nodes.collectAsStateWithLifecycle()
+    val latestNode by rememberUpdatedState(node)
+    val latestOnTrackChanged by rememberUpdatedState(onTrackChanged)
+    var currentIndex by remember { mutableStateOf(0) }
+    var showQueue by remember { mutableStateOf(false) }
     var player by remember { mutableStateOf<ExoPlayer?>(null) }
     var failed by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf(false) }
@@ -58,20 +75,30 @@ internal fun VaultAudioPreview(
     var duration by remember { mutableStateOf(0L) }
     var position by remember { mutableStateOf(0L) }
     var seekPosition by remember { mutableStateOf<Float?>(null) }
+    val synchronizingQueue = remember { AtomicBoolean(false) }
 
-    DisposableEffect(node.ref, lifecycle) {
-        val source = ProgressiveMediaSource.Factory(DataSource.Factory {
-            VaultMediaDataSource(mapOf(node.ref.nodeId.value to node.ref), openReader)
-        }).createMediaSource(MediaItem.Builder()
-            .setUri("onlyfiles://playback/${node.ref.nodeId.value}")
-            .setMimeType(node.mimeType)
-            .build())
-        val activePlayer = ExoPlayer.Builder(context).build()
+    LaunchedEffect(queue) { playbackQueue.merge(queue) }
+    DisposableEffect(playbackQueue, lifecycle) {
+        val sourceFactory = DefaultMediaSourceFactory(context).setDataSourceFactory(DataSource.Factory {
+            VaultMediaDataSource(playbackQueue.refs, openReader)
+        })
+        val activePlayer = ExoPlayer.Builder(context).setMediaSourceFactory(sourceFactory).build()
         val listener = object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
                 playing = player.isPlaying
                 ready = player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_ENDED
                 duration = player.duration.coerceAtLeast(0L)
+                currentIndex = player.currentMediaItemIndex
+            }
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                failed = false
+                seekPosition = null
+                position = 0L
+                if (synchronizingQueue.get()) return
+                val target = playbackQueue.nodes.value.firstOrNull {
+                    it.toSharedFileModel().reference == mediaItem?.mediaId
+                } ?: return
+                if (target.ref != latestNode.ref) latestOnTrackChanged(target.ref)
             }
             override fun onPlayerError(error: PlaybackException) { failed = true }
         }
@@ -93,14 +120,37 @@ internal fun VaultAudioPreview(
             true
         )
         activePlayer.setHandleAudioBecomingNoisy(true)
-        activePlayer.setMediaSource(source)
-        activePlayer.prepare()
         lifecycle.addObserver(observer)
         player = activePlayer
         onDispose {
             lifecycle.removeObserver(observer)
             activePlayer.removeListener(listener)
             activePlayer.release()
+            playbackQueue.clear()
+        }
+    }
+    LaunchedEffect(tracks, player) {
+        val activePlayer = player ?: return@LaunchedEffect
+        if (tracks.isEmpty()) {
+            activePlayer.clearMediaItems()
+            onQueueEmpty()
+            return@LaunchedEffect
+        }
+        synchronizingQueue.set(true)
+        try {
+            syncVaultAudioPlaylist(activePlayer, tracks, latestNode.toSharedFileModel().reference)
+        } finally {
+            synchronizingQueue.set(false)
+        }
+        val selected = tracks.firstOrNull { it.toSharedFileModel().reference == activePlayer.currentMediaItem?.mediaId }
+        if (selected != null && selected.ref != latestNode.ref) latestOnTrackChanged(selected.ref)
+        if (activePlayer.playbackState == Player.STATE_IDLE) activePlayer.prepare()
+    }
+    LaunchedEffect(node.ref, player) {
+        val activePlayer = player ?: return@LaunchedEffect
+        val index = playbackQueue.nodes.value.indexOfFirst { it.ref == node.ref }
+        if (index >= 0 && activePlayer.currentMediaItem?.mediaId != node.toSharedFileModel().reference) {
+            activePlayer.seekTo(index, 0L)
         }
     }
     LaunchedEffect(player) {
@@ -116,6 +166,7 @@ internal fun VaultAudioPreview(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        TextButton(onClick = { showQueue = true }) { Text(stringResource(UiR.string.audio_queue)) }
         when {
             failed -> Text(stringResource(R.string.onlyfiles_preview_unavailable), color = Color.White)
             !ready -> CircularProgressIndicator()
@@ -144,7 +195,7 @@ internal fun VaultAudioPreview(
                         previousLabel = stringResource(R.string.onlyfiles_audio_previous),
                         playPauseLabel = stringResource(if (playing) R.string.onlyfiles_audio_pause else R.string.onlyfiles_audio_play),
                         nextLabel = stringResource(R.string.onlyfiles_audio_next),
-                        onPrevious = onPrevious,
+                        onPrevious = if (currentIndex > 0) ({ player?.seekToPreviousMediaItem() }) else null,
                         onTogglePlayback = {
                             player?.let { activePlayer ->
                                 if (playing) activePlayer.pause() else {
@@ -153,10 +204,25 @@ internal fun VaultAudioPreview(
                                 }
                             }
                         },
-                        onNext = onNext
+                        onNext = if (currentIndex in 0 until tracks.lastIndex) ({ player?.seekToNextMediaItem() }) else null
                     )
                 }
             }
         }
     }
+    if (showQueue) {
+        AudioQueueSheet(
+            queue = tracks.map { AudioTrack(it.toSharedFileModel(), it.name.substringBeforeLast('.')) },
+            currentMediaId = player?.currentMediaItem?.mediaId, shuffleEnabled = false,
+            onTrackClick = { reference ->
+                val index = tracks.indexOfFirst { it.toSharedFileModel().reference == reference }
+                if (index >= 0) player?.seekTo(index, 0L)
+                showQueue = false
+            },
+            onMoveTrack = playbackQueue::move, onRemoveTrack = playbackQueue::remove,
+            onClearQueue = playbackQueue::clear, onDismiss = { showQueue = false },
+            artwork = { _, artworkModifier -> Icon(Icons.Default.MusicNote, null, artworkModifier) }
+        )
+    }
+
 }

@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.3.4 | **Last Updated:** 2026-11-04
+**Version:** 2.3.5 | **Last Updated:** 2026-11-05
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -83,7 +83,7 @@ graph TD
 
 | Area | Technology |
 |------|------------|
-| Language and toolchain | Kotlin 2.4.21, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.8.2, Android Gradle Plugin 9.4.1, KSP 2.3.12 |
+| Language and toolchain | Kotlin 2.4.21, Java 21 Gradle daemon, JVM 11 bytecode target, Gradle 9.8.2, Android Gradle Plugin 9.5.0, KSP 2.3.12 |
 | Android platform | compileSdk/targetSdk 37, minSdk 30, AndroidX Core, Lifecycle, Activity, SplashScreen |
 | UI | Jetpack Compose BOM 2026.09.00, Material 3 1.5.0-beta02, Material 3 Adaptive 1.3.0, Graphics Shapes, MaterialKolor 5.0.1 |
 | State and architecture | Feature-owned MVVM, StateFlow, Kotlin Coroutines, immutable collections, Hilt/Dagger |
@@ -761,13 +761,13 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 234 |
-| **Version Name** | `2.3.4` |
+| **Version Code** | 235 |
+| **Version Name** | `2.3.5` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.8.2 |
 | **Gradle JVM** | JDK 21 |
 | **Kotlin Version** | 2.4.21 |
-| **AGP Version** | 9.4.1 |
+| **AGP Version** | 9.5.0 |
 | **Compose BOM** | 2026.09.00 |
 
 ### Manifest Declarations
@@ -916,7 +916,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.3.4-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.3.5-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -945,11 +945,11 @@ The normal APK release commands and application ID remain unchanged. To generate
 ./gradlew :app:bundleRelease -Parcile.play=true
 ```
 
-The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.3.4.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
+The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.3.5.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.3.4-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.3.4.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.3.5-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.3.5.apk`
 
 ---
 

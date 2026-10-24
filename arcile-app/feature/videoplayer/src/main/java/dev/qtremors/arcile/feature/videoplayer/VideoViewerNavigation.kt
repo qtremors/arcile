@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -58,6 +59,13 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                 videoPlaybackInitialPath(session)
             }
             val viewModel = hiltViewModel<VideoViewerViewModel>()
+            val sourceUpdate = session.sourceUpdates?.collectAsStateWithLifecycle()?.value
+            val activeSession = if (sourceUpdate == null || sourceUpdate.items.isEmpty()) session else session.copy(
+                items = sourceUpdate.items,
+                files = sourceUpdate.files,
+                startIndex = sourceUpdate.files.indexOfFirst { it.reference == initialPath }.coerceAtLeast(0),
+                sourceOverlayVisible = sourceUpdate.overlayVisible
+            )
             LaunchedEffect(session, initialPath, contextFiles) {
                 viewModel.initialize(
                     initialPath = initialPath,
@@ -66,6 +74,9 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                     discoverSiblings = session.files == null,
                     persistFileReferences = session.securityScopeId == null
                 )
+            }
+            LaunchedEffect(sourceUpdate?.files) {
+                sourceUpdate?.let { viewModel.updateSourceFiles(it.files) }
             }
 
             var isNavigatingBack by remember { mutableStateOf(false) }
@@ -93,7 +104,7 @@ fun NavGraphBuilder.registerVideoViewerRoute(
 
             val viewer: @Composable () -> Unit = {
                 VideoViewerScreen(
-                    session = session,
+                    session = activeSession,
                     viewModel = viewModel,
                     selectionModeEnabled = session.initialSelectedPaths.isNotEmpty() && !readOnly,
                     readOnly = readOnly,

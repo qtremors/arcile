@@ -452,6 +452,14 @@ internal class OnlyFilesViewModel @Inject constructor(
         }
     }
 
+    fun showViewerAudio(ref: VaultNodeRef) {
+        _state.update { current ->
+            if (current.viewer?.builtInOpen() != BuiltInFileOpen.AUDIO) return@update current
+            val next = current.viewerQueue.firstOrNull { it.ref == ref } ?: return@update current
+            current.copy(viewer = next)
+        }
+    }
+
     fun refresh() = browser.refresh()
     fun loadNextPage() = browser.loadNextPage()
     private fun setDefaultViewOptions(options: VaultViewOptions) = viewModelScope.launch {
@@ -518,10 +526,11 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun createFolder(name: String) = browser.createFolder(name)
     fun createEmptyFile(name: String) = browser.createEmptyFile(name)
     fun createSyntheticFile(name: String, size: Long) = browser.createSyntheticFile(name, size)
-    fun rename(node: VaultNodeMetadata, name: String) = browser.rename(node, name)
+    fun rename(node: VaultNodeMetadata, name: String, onRenamed: (VaultNodeMetadata) -> Unit = {}) =
+        browser.rename(node, name, onRenamed)
     fun batchRename(items: List<VaultRenameItem>) = browser.batchRename(items)
     suspend fun batchRenameSiblingNames(items: List<VaultRenameItem>) = fileSystem.batchRenameSiblingNames(items)
-    fun delete(nodes: List<VaultNodeMetadata>) = browser.delete(nodes)
+    fun delete(nodes: List<VaultNodeMetadata>, onDeleted: (Set<String>) -> Unit = {}) = browser.delete(nodes, onDeleted)
 
     fun showProperties(nodes: List<VaultNodeMetadata>) = _state.update { it.copy(properties = nodes) }
     fun dismissProperties() = _state.update { it.copy(properties = emptyList()) }

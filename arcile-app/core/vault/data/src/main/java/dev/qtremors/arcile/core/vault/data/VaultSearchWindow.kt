@@ -11,8 +11,15 @@ internal class VaultSearchWindow(
     val query: VaultSearchQuery,
     val publicationGeneration: Long,
     private val startOffset: Int,
-    private val ranked: VaultPage<VaultSearchHit>
+    private val ranked: VaultPage<VaultSearchHit>,
+    val versions: VaultSearchVersions? = null,
+    val anchorFileCount: Long? = null
 ) {
+    fun nextAnchor(offset: Int): VaultSearchHit? =
+        ranked.items.lastOrNull()?.takeIf {
+            ranked.nextPageToken != null && offset.toLong() == startOffset.toLong() + ranked.items.size
+        }
+
     fun page(offset: Int): VaultPage<VaultSearchHit>? {
         val local = offset - startOffset
         if (local !in ranked.items.indices) return null
