@@ -306,7 +306,10 @@ private fun OnlyFilesScreen(
                 )
             }
             state.locationPicker?.let { OnlyFilesLocationSheet(it, state.selectedVault?.name.orEmpty(), viewModel) }
-            state.archiveProgress?.let {
+            state.archiveProgress?.takeUnless {
+                node.builtInOpen() == dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen.ARCHIVE &&
+                    it.action == VaultArchiveAction.EXTRACT
+            }?.let {
                 OnlyFilesArchiveToolbar(it, viewModel::cancelArchiveOperation, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
             }
             ArcileSnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
@@ -664,7 +667,8 @@ private fun OnlyFilesScreen(
     if (createZipNodes.isNotEmpty()) {
         VaultCreateZipDialog(
             createZipNodes, state.nodes.mapTo(mutableSetOf(), VaultNodeMetadata::name),
-            onDismiss = { createZipNodes = emptyList() }
+            onDismiss = { createZipNodes = emptyList() },
+            destinationPath = state.directoryStack.joinToString("/") { it.name }
         ) { name, compression, success, password ->
             val nodes = createZipNodes
             createZipNodes = emptyList()

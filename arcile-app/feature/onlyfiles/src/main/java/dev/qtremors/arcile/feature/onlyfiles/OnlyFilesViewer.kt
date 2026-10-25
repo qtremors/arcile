@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.vault.domain.VaultId
@@ -151,6 +152,16 @@ internal fun ViewerScreen(
                 modifier = modifier
             )
         }
+    } else if (openKind == BuiltInFileOpen.ARCHIVE) {
+        val state by viewModel.state.collectAsStateWithLifecycle()
+        VaultArchivePreview(
+            node, viewModel::openReader, archiveFolder, archiveOperationActive,
+            onOpenFolder = { archiveFolder = it },
+            onExtract = { archiveSelection = it },
+            onBack = onBack, allowedActions = allowedActions, onAction = onAction,
+            progress = state.archiveProgress, onCancel = viewModel::cancelArchiveOperation,
+            destination = location
+        )
     } else {
         Box(modifier.fillMaxSize().background(Color.Black)) {
             key(
@@ -158,11 +169,6 @@ internal fun ViewerScreen(
                 if (openKind == BuiltInFileOpen.AUDIO) 0L else node.revision
             ) {
                 when (openKind) {
-                    BuiltInFileOpen.ARCHIVE -> VaultArchivePreview(
-                        node, viewModel::openReader, archiveFolder, archiveOperationActive,
-                        onOpenFolder = { archiveFolder = it },
-                        onExtract = { archiveSelection = it }
-                    )
                     BuiltInFileOpen.PACKAGE ->
                         Column(
                             Modifier.align(Alignment.Center).padding(24.dp),

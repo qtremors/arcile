@@ -93,6 +93,25 @@ class ArchiveViewerViewModelTest {
         assertEquals(ArchiveNameEncoding.WINDOWS_1252, coordinator.startedRequests.single().archiveNameEncoding)
     }
 
+    @Test
+    fun `root breadcrumb returns to the archive root and clears nested selection`() = runTest(mainDispatcherRule.dispatcher) {
+        val path = "/storage/emulated/0/Download/demo.zip"
+        val repository = FakeStorageRepositoryBundle().also {
+            it.archiveRepository.archiveEntriesResultProvider = { _, _, _ ->
+                Result.success(listOf(entry("docs/one.txt"), entry("outside.txt")))
+            }
+            it.archiveRepository.archiveMetadataResultProvider = { _, _, _ -> Result.success(summary(path)) }
+        }
+        val viewModel = viewModel(path, repository, FakeBulkFileOperationCoordinator())
+        advanceUntilIdle()
+        viewModel.openFolder("docs")
+        viewModel.toggleItemSelection("docs/one.txt")
+        viewModel.openFolder("")
+        assertEquals(null, viewModel.state.value.currentPrefix)
+        assertEquals(listOf("docs", "outside.txt"), viewModel.state.value.visibleItems.map { it.path })
+        assertTrue(viewModel.state.value.selectedItems.isEmpty())
+    }
+
     private fun viewModel(
         archivePath: String,
         repository: FakeStorageRepositoryBundle,

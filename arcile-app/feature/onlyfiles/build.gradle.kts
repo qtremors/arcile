@@ -36,6 +36,7 @@ kotlin {
 dependencies {
     implementation(project(":core:navigation:api"))
     implementation(project(":core:presentation"))
+    implementation(project(":core:operation:api"))
     implementation(project(":core:storage:domain"))
     implementation(project(":core:archive"))
     implementation(project(":core:vault:domain"))

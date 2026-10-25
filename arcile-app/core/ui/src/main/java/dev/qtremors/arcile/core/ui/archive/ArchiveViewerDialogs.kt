@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.feature.archive
+package dev.qtremors.arcile.core.ui.archive
 
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.TextFields
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
@@ -54,10 +56,13 @@ internal fun ArchivePasswordDialog(
     onConfirm: (String) -> Unit,
     nameEncoding: ArchiveNameEncoding,
     showEncodingSelector: Boolean,
-    onSelectNameEncoding: (ArchiveNameEncoding) -> Unit
+    onSelectNameEncoding: (ArchiveNameEncoding) -> Unit,
+    privateSession: Boolean = false
 ) {
-    var password by rememberSaveable { mutableStateOf("") }
-    var passwordVisible by rememberSaveable { mutableStateOf(false) }
+    var password by if (privateSession) remember { mutableStateOf("") }
+        else rememberSaveable { mutableStateOf("") }
+    var passwordVisible by if (privateSession) remember { mutableStateOf(false) }
+        else rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.FolderZip, contentDescription = null) },
@@ -70,6 +75,7 @@ internal fun ArchivePasswordDialog(
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().keyboardInputField(),
                     label = { Text(stringResource(R.string.archive_password)) },

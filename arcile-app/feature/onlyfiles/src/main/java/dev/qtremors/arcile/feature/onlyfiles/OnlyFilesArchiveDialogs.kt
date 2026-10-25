@@ -9,8 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,14 +19,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.ui.ClipboardToolbar
-import dev.qtremors.arcile.core.ui.ExpressiveSegmentedRow
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
@@ -52,98 +45,27 @@ internal fun VaultCreateZipDialog(
     nodes: List<VaultNodeMetadata>,
     existingNames: Set<String>,
     onDismiss: () -> Unit,
+    destinationPath: String,
     onCreate: (String, Int, String, CharArray?) -> Unit
 ) {
-    var name by remember(nodes) {
-        mutableStateOf(nodes.singleOrNull()?.name?.substringBeforeLast('.').orEmpty())
-    }
-    var level by remember { mutableStateOf(ArchiveCompressionLevel.DEFAULT) }
-    var usePassword by remember { mutableStateOf(false) }
-    var password by remember { mutableStateOf("") }
-    var confirmPassword by remember { mutableStateOf("") }
-    var revealPassword by remember { mutableStateOf(false) }
-    val output = if (name.trim().endsWith(".zip", ignoreCase = true)) name.trim() else name.trim() + ".zip"
-    val validation = validateFileName(output, existingNames)
-    val canCreate = name.isNotBlank() && validation.isValid &&
-        (!usePassword || (password.isNotEmpty() && password == confirmPassword))
     val success = stringResource(R.string.onlyfiles_zip_created)
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.onlyfiles_create_zip)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                FileNameInput(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = stringResource(R.string.onlyfiles_name),
-                    existingNames = existingNames,
-                    validationValue = output,
-                    showValidationErrors = name.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Text(stringResource(R.string.onlyfiles_zip_compression), style = MaterialTheme.typography.titleSmall)
-                ExpressiveSegmentedRow(
-                    options = ArchiveCompressionLevel.entries,
-                    selectedOption = level,
-                    onOptionSelected = { level = it },
-                    modifier = Modifier.fillMaxWidth()
-                ) { option ->
-                    Text(stringResource(when (option) {
-                        ArchiveCompressionLevel.STORE -> R.string.onlyfiles_zip_store
-                        ArchiveCompressionLevel.FAST -> R.string.onlyfiles_zip_fast
-                        ArchiveCompressionLevel.DEFAULT -> R.string.onlyfiles_zip_balanced
-                        ArchiveCompressionLevel.MAXIMUM -> R.string.onlyfiles_zip_maximum
-                    }))
-                }
-                androidx.compose.foundation.layout.Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    ExpressiveSwitch(checked = usePassword, onCheckedChange = {
-                        usePassword = it
-                        if (!it) {
-                            password = ""
-                            confirmPassword = ""
-                            revealPassword = false
-                        }
-                    })
-                    Text(stringResource(R.string.onlyfiles_zip_password_protection))
-                }
-                if (usePassword) {
-                    PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword })
-                    val mismatch = confirmPassword.isNotEmpty() && confirmPassword != password
-                    OutlinedTextField(
-                        value = confirmPassword,
-                        onValueChange = { confirmPassword = it },
-                        label = { Text(stringResource(R.string.onlyfiles_confirm_password)) },
-                        singleLine = true,
-                        isError = mismatch,
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        visualTransformation = if (revealPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (mismatch) {
-                        Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
-                    }
-                }
+    dev.qtremors.arcile.core.ui.archive.CreateArchiveDialog(
+        defaultName = nodes.singleOrNull()?.name?.substringBeforeLast('.').orEmpty(),
+        selectedCount = nodes.size,
+        destinationPath = destinationPath,
+        existingNames = existingNames,
+        onDismiss = onDismiss,
+        formats = listOf(ArchiveFormat.ZIP),
+        privateSession = true,
+        onConfirm = { name, format, level, password ->
+            val compression = when (level) {
+                ArchiveCompressionLevel.STORE -> Deflater.NO_COMPRESSION
+                ArchiveCompressionLevel.FAST -> Deflater.BEST_SPEED
+                ArchiveCompressionLevel.DEFAULT -> Deflater.DEFAULT_COMPRESSION
+                ArchiveCompressionLevel.MAXIMUM -> Deflater.BEST_COMPRESSION
             }
-        },
-        confirmButton = {
-            FilledTonalButton(
-                enabled = canCreate,
-                onClick = {
-                    val compression = when (level) {
-                        ArchiveCompressionLevel.STORE -> Deflater.NO_COMPRESSION
-                        ArchiveCompressionLevel.FAST -> Deflater.BEST_SPEED
-                        ArchiveCompressionLevel.DEFAULT -> Deflater.DEFAULT_COMPRESSION
-                        ArchiveCompressionLevel.MAXIMUM -> Deflater.BEST_COMPRESSION
-                    }
-                    val secret = if (usePassword) password.toCharArray() else null
-                    onCreate(validation.sanitizedName, compression, success, secret)
-                }
-            ) { Text(stringResource(R.string.onlyfiles_create_zip)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
+            onCreate("$name.${format.extension}", compression, success, password?.toCharArray())
+        }
     )
 }
 

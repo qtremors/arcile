@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.5
+> **Version:** 2.3.6
 > **Last Updated:** 2026-11-05
 
 ---
+
+## [2.3.6] - 2026-11-05
+
+### Changed
+- OnlyFiles uses Browser's archive screen and creation dialog, including in-archive search, selection, and filename encoding.
+- Fixed archive Root navigation, selection Back handling, and file-action menu placement.
+- Archive password fields use password keyboards with autocorrect disabled.
 
 ## [2.3.5] - 2026-11-05
 

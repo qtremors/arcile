@@ -93,15 +93,30 @@
   - **Current:** After restart, OnlyFiles can resume unstarted queue items. The item that was in progress needs manual review, and partial folder retries are limited to the active session.
   - **Change:** Reconcile staged and published outputs after interruption, including export staging files. Persist verified folder checkpoints so retry can target unfinished children.
 
-- [ ] **UI-0012 - Complete Vault Audio Tags and Lyrics**
+- [ ] **UI-0012 - Complete the Shared Vault Audio Experience**
   - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.
-  - **Current:** Vault audio shares playback and queue controls. The main audio tag editor and lyrics flow still depend on local files and sidecars.
-  - **Change:** Support tag edits and lyrics through vault readers and verified encrypted writes, using the shared audio surfaces.
+  - **Current:** Vault audio shares seek, transport, and queue controls, but has a separate player surface with placeholder artwork. Rich metadata, shuffle/repeat, speed/pitch, sleep timer, visualizer, audio editing, tags, and lyrics remain absent.
+  - **Change:** Adapt the existing audio player and editing surfaces to protected readers and verified encrypted writes. Keep vault playback and private metadata within the unlocked session.
+
+- [ ] **FEAT-0033 - Complete Vault Archive Creation and Extraction Options**
+  - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
+  - **Current:** Archive browsing and the creation dialog are shared. OnlyFiles creates ZIPs; Browser also creates 7z and TAR variants. Vault extraction publishes a new folder, while Browser also offers extraction directly into an existing destination.
+  - **Change:** Adapt the existing archive writers and extraction targets to vault readers and encrypted output before enabling their options in shared dialogs. Preserve bounded memory, cancellation, conflicts, and rollback.
+
+- [ ] **UI-0013 - Complete Vault Operation Feedback**
+  - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.
+  - **Current:** Paste, import, and export finish with summary messages. Archive completion supports Reveal; general completion actions and applicable Undo flows remain incomplete.
+  - **Change:** Reuse Browser's completion and destination-reveal controls, with verified Undo for reversible operations and mount-aware feedback.
+
+- [ ] **UI-0014 - Localize Vault Operation Messages**
+  - **Location:** OnlyFiles transfer, import, boundary, and recovery controllers.
+  - **Current:** Several status summaries and error fallbacks are hard-coded English.
+  - **Change:** Use shared wording, string resources, and plurals for operation results and recovery messages.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.
   - **Current:** On-device parity and lock behavior still need verification.
-  - **Change:** Compare gestures, thumbnails, document editing, install, transfer, archive browsing and extraction, and lock with matched fixtures.
+  - **Change:** Compare gestures, thumbnails, large and animated images, document editing, install, transfer, archive browsing and extraction, and lock with matched fixtures. Measure large private and portable vault search and verify feedback for bounded counts and operation limits.
 
 ## Media and Documents
 
