@@ -1,5 +1,6 @@
-package dev.qtremors.arcile.feature.audio
+package dev.qtremors.arcile.core.ui.audio
 
+import dev.qtremors.arcile.core.ui.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Box
@@ -31,8 +32,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.SplitButtonGroup
-import dev.qtremors.arcile.core.ui.ToolbarAction
 
 @Composable
 internal fun AudioPlayerBottomActions(

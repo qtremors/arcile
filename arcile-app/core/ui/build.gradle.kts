@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.exoplayer)
 
     testImplementation(project(":core:testing"))
     testImplementation(project(":core:ui:testing"))

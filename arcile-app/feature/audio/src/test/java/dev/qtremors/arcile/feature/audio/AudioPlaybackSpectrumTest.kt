@@ -8,13 +8,8 @@ import kotlin.math.PI
 import kotlin.math.sin
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.junit.runner.RunWith
-import org.robolectric.RobolectricTestRunner
-import org.robolectric.annotation.Config
 
 @androidx.annotation.OptIn(UnstableApi::class)
-@RunWith(RobolectricTestRunner::class)
-@Config(sdk = [36])
 class AudioPlaybackSpectrumTest {
     @Test
     fun `live PCM frequencies drive separate visualizer bands`() {

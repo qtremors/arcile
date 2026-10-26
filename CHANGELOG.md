@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.6
+> **Version:** 2.3.7
 > **Last Updated:** 2026-11-05
 
 ---
+
+## [2.3.7] - 2026-11-05
+
+### Changed
+- Opening vault audio starts playback in Arcile's full player with cover art, music details, shuffle, repeat, speed/pitch, sleep timer, and visualizer.
+- Vault audio shares playback preferences with Audio. Cover art uses the encrypted thumbnail cache.
 
 ## [2.3.6] - 2026-11-05
 

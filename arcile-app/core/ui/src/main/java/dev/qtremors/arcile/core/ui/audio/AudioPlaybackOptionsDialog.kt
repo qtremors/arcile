@@ -1,5 +1,6 @@
-package dev.qtremors.arcile.feature.audio
+package dev.qtremors.arcile.core.ui.audio
 
+import dev.qtremors.arcile.core.ui.R
 import android.content.Context
 import android.media.AudioManager
 import androidx.compose.foundation.clickable

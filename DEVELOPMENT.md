@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.3.6 | **Last Updated:** 2026-11-05
+**Version:** 2.3.7 | **Last Updated:** 2026-11-05
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -340,6 +340,7 @@ Feature modules must not depend on `feature:videoplayer`; they emit or provide n
 - `AudioCollectionStore` persists playlists in `audio_playlists.json`, migrates earlier preference-backed playlists, and stores the Music only filter. `AudioListeningDatabase` (`arcile_audio.db`) separately owns favorites, play counts, and recent listening history, with migration of existing favorites and a history reset.
 - `AudioPlaybackService` owns the Media3 player and `MediaSession`, keeping playback and Android media controls available while Arcile is backgrounded.
 - `AudioPlaybackController` connects the Compose UI to the service-backed session and publishes queue, position, repeat, shuffle, and playback state.
+- Browser and OnlyFiles share the full player, music details, controls, and preferences in `core:ui`. OnlyFiles binds a local vault-backed player; its queue, metadata, timer, and visualizer belong to the unlocked session. Audio artwork uses the existing encrypted thumbnail cache.
 - Mini and full-player surfaces share transition identities in the app shell. The mini player sits above Audio's five-page navigation and follows its scroll visibility. External audio intents use a full screen player.
 - Queue persistence restores tracks and position paused after relaunch. Queue display and removal follow actual playback order, including shuffle; removing the current track preserves paused state, and removing the final track clears playback.
 - Lyrics support inline and full screen views, timed-line seeking, playback following, LRC offsets, and sidecar editing. Music Details owns tag/artwork editing and listening/file information; tag writes verify their output and retain a recovery copy.
@@ -761,8 +762,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 236 |
-| **Version Name** | `2.3.6` |
+| **Version Code** | 237 |
+| **Version Name** | `2.3.7` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.8.2 |
 | **Gradle JVM** | JDK 21 |
@@ -916,7 +917,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.3.6-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.3.7-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -945,11 +946,11 @@ The normal APK release commands and application ID remain unchanged. To generate
 ./gradlew :app:bundleRelease -Parcile.play=true
 ```
 
-The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.3.6.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
+The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.3.7.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.3.6-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.3.6.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.3.7-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.3.7.apk`
 
 ---
 

@@ -162,12 +162,17 @@ internal fun ViewerScreen(
             progress = state.archiveProgress, onCancel = viewModel::cancelArchiveOperation,
             destination = location
         )
+    } else if (openKind == BuiltInFileOpen.AUDIO) {
+        VaultAudioPreview(
+            node, mediaQueue, viewModel::openReader,
+            onTrackChanged = viewModel::showViewerAudio, onQueueEmpty = onBack,
+            onBack = onBack, allowedActions = allowedActions, onAction = onAction,
+            location = location, nextPageToken = nextMediaPage,
+            onLoadMore = viewModel::loadNextPage, modifier = modifier
+        )
     } else {
         Box(modifier.fillMaxSize().background(Color.Black)) {
-            key(
-                if (openKind == BuiltInFileOpen.AUDIO) "vault-audio" else node.ref,
-                if (openKind == BuiltInFileOpen.AUDIO) 0L else node.revision
-            ) {
+            key(node.ref, node.revision) {
                 when (openKind) {
                     BuiltInFileOpen.PACKAGE ->
                         Column(
@@ -181,18 +186,6 @@ internal fun ViewerScreen(
                                 }
                             }
                         }
-                    BuiltInFileOpen.AUDIO -> {
-                        val position = mediaQueue.indexOfFirst { it.ref == node.ref }
-                        LaunchedEffect(node.ref, mediaQueue.size, nextMediaPage) {
-                            if (position >= mediaQueue.lastIndex - 1 && nextMediaPage != null) viewModel.loadNextPage()
-                        }
-                        VaultAudioPreview(
-                            node, mediaQueue, viewModel::openReader,
-                            onTrackChanged = viewModel::showViewerAudio,
-                            onQueueEmpty = onBack,
-                            modifier = Modifier.align(Alignment.Center)
-                        )
-                    }
                     else -> Column(
                         Modifier.align(Alignment.Center).padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally

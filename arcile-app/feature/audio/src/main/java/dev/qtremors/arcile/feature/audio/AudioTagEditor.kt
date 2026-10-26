@@ -25,7 +25,7 @@ import org.jaudiotagger.tag.images.ArtworkFactory
 
 internal data class AudioLyrics(val plain: String?, val syncedLrc: String?)
 
-internal data class AudioFileDetails(val bitrate: Int?, val sampleRate: Int?, val channels: Int?)
+internal typealias AudioFileDetails = dev.qtremors.arcile.core.ui.audio.AudioFileDetails
 
 internal data class AudioMetadataEdit(
     val title: String,

@@ -93,15 +93,15 @@
   - **Current:** After restart, OnlyFiles can resume unstarted queue items. The item that was in progress needs manual review, and partial folder retries are limited to the active session.
   - **Change:** Reconcile staged and published outputs after interruption, including export staging files. Persist verified folder checkpoints so retry can target unfinished children.
 
-- [ ] **UI-0012 - Complete the Shared Vault Audio Experience**
-  - **Location:** OnlyFilesViewer.kt and OnlyFilesAudioPreview.kt.
-  - **Current:** Vault audio shares seek, transport, and queue controls, but has a separate player surface with placeholder artwork. Rich metadata, shuffle/repeat, speed/pitch, sleep timer, visualizer, audio editing, tags, and lyrics remain absent.
-  - **Change:** Adapt the existing audio player and editing surfaces to protected readers and verified encrypted writes. Keep vault playback and private metadata within the unlocked session.
+- [ ] **UI-0012 - Complete Vault Audio Editing and Lyrics**
+  - **Location:** OnlyFilesAudioMetadata.kt, AudioTagEditor.kt, and the audio editor.
+  - **Current:** Vault audio uses the shared full player, artwork, music details, queue, and playback controls. Audio editing, tag writes, and lyrics still depend on local files and sidecars.
+  - **Change:** Adapt the existing audio and tag editors and lyrics readers to protected sources and verified encrypted writes, including encrypted lyric sidecars. Keep private metadata within the unlocked session.
 
 - [ ] **FEAT-0033 - Complete Vault Archive Creation and Extraction Options**
   - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
-  - **Current:** Archive browsing and the creation dialog are shared. OnlyFiles creates ZIPs; Browser also creates 7z and TAR variants. Vault extraction publishes a new folder, while Browser also offers extraction directly into an existing destination.
-  - **Change:** Adapt the existing archive writers and extraction targets to vault readers and encrypted output before enabling their options in shared dialogs. Preserve bounded memory, cancellation, conflicts, and rollback.
+  - **Current:** Archive browsing and the creation dialog are shared. OnlyFiles creates ZIPs; Browser also creates 7z and TAR variants. Vault extraction publishes a new folder, while Browser also offers extraction directly into an existing destination. Archive creation remains unwired in vault viewer menus.
+  - **Change:** Adapt the existing archive writers and extraction targets to vault readers and encrypted output before enabling their options in shared dialogs. Route viewer archive actions through that workflow. Preserve bounded memory, cancellation, conflicts, and rollback.
 
 - [ ] **UI-0013 - Complete Vault Operation Feedback**
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.

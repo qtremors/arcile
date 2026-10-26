@@ -1,13 +1,11 @@
-package dev.qtremors.arcile.feature.audio
+package dev.qtremors.arcile.core.ui.audio
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -31,10 +29,8 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -42,6 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
@@ -91,7 +88,7 @@ internal fun AudioPlayerTopBar(
     track: AudioTrack,
     onCollapse: () -> Unit,
     lyricsVisible: Boolean,
-    onShowLyrics: () -> Unit,
+    onShowLyrics: (() -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -125,7 +122,7 @@ internal fun AudioPlayerTopBar(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        IconButton(onClick = onShowLyrics) {
+        if (onShowLyrics != null) IconButton(onClick = onShowLyrics) {
             Icon(if (lyricsVisible) Icons.Default.Album else Icons.Default.Lyrics,
                 contentDescription = stringResource(
                     if (lyricsVisible) R.string.audio_show_artwork else R.string.audio_lyrics
@@ -139,13 +136,13 @@ internal fun AudioPlayerMoreMenu(
     showMenu: Boolean,
     onDismissMenu: () -> Unit,
     visualizerEnabled: Boolean,
-    onToggleVisualizer: () -> Unit,
+    onToggleVisualizer: (() -> Unit)?,
     onShowPlaybackSettings: () -> Unit,
     onShowSleepTimer: () -> Unit,
-    onEdit: () -> Unit,
-    onEditTags: () -> Unit,
-    onShowLyrics: () -> Unit,
-    onOpenWith: () -> Unit,
+    onEdit: (() -> Unit)?,
+    onEditTags: (() -> Unit)?,
+    onShowLyrics: (() -> Unit)?,
+    onOpenWith: (() -> Unit)?,
     onShare: (() -> Unit)? = null,
     onCopy: (() -> Unit)? = null,
     onCut: (() -> Unit)? = null,
@@ -169,7 +166,7 @@ internal fun AudioPlayerMoreMenu(
                         onClick = { onDismissMenu(); onShowSleepTimer() }
                     )
                 }
-                add {
+                if (onToggleVisualizer != null) add {
                     ArcileDropdownMenuItem(
                         text = stringResource(
                             if (visualizerEnabled) R.string.audio_visualizer_off
@@ -182,7 +179,7 @@ internal fun AudioPlayerMoreMenu(
                         }
                     )
                 }
-                add {
+                if (onEdit != null) add {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.audio_edit),
                         leadingIcon = {
@@ -194,21 +191,21 @@ internal fun AudioPlayerMoreMenu(
                         }
                     )
                 }
-                add {
+                if (onEditTags != null) add {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.audio_edit_tags),
                         leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                         onClick = { onDismissMenu(); onEditTags() }
                     )
                 }
-                add {
+                if (onShowLyrics != null) add {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.audio_lyrics),
                         leadingIcon = { Icon(Icons.Default.MusicNote, contentDescription = null) },
                         onClick = { onDismissMenu(); onShowLyrics() }
                     )
                 }
-                add {
+                if (onOpenWith != null) add {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.audio_open_with),
                         leadingIcon = {
@@ -316,12 +313,12 @@ internal fun AudioPlayerMoreMenu(
 @Composable
 internal fun AudioPlaybackControls(
     playback: AudioPlaybackState,
-    visualizerEnabled: Boolean,
+    spectrumLevels: List<Float>?,
     onTogglePlayback: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit
 ) {
-    val showSpectrum = visualizerEnabled && !LocalReducedMotionEnabled.current
+    val showSpectrum = spectrumLevels != null && !LocalReducedMotionEnabled.current
     AudioTransportControls(
         isPlaying = playback.isPlaying,
         previousLabel = stringResource(R.string.audio_previous),
@@ -331,15 +328,14 @@ internal fun AudioPlaybackControls(
         onTogglePlayback = onTogglePlayback,
         onNext = onNext,
         playingContent = if (showSpectrum) {
-            { PlaybackButtonSpectrum(Modifier.fillMaxWidth(0.84f).height(54.dp)) }
+            { PlaybackButtonSpectrum(spectrumLevels.orEmpty(), Modifier.fillMaxWidth(0.84f).height(54.dp)) }
         } else null
     )
 }
 
 @Composable
-private fun PlaybackButtonSpectrum(modifier: Modifier = Modifier) {
+private fun PlaybackButtonSpectrum(levels: List<Float>, modifier: Modifier = Modifier) {
     val color = LocalContentColor.current
-    val levels by AudioPlaybackSpectrum.levels.collectAsStateWithLifecycle()
     val animatedLevels = levels.mapIndexed { index, level ->
         animateFloatAsState(
             targetValue = level,
@@ -349,6 +345,7 @@ private fun PlaybackButtonSpectrum(modifier: Modifier = Modifier) {
     }
 
     Canvas(modifier) {
+        if (animatedLevels.size < 2) return@Canvas
         val slotWidth = size.width / animatedLevels.size
         val barWidth = slotWidth * 0.52f
         val bassPulse = maxOf(animatedLevels[0], animatedLevels[1])
