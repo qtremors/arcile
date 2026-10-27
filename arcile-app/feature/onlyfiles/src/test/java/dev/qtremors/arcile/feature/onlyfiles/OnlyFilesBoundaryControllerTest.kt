@@ -106,6 +106,73 @@ class OnlyFilesBoundaryControllerTest {
         assertEquals(listOf(retry), state.value.exportRetries)
     }
 
+    @Test
+    fun `export completion points to the selected local destination`() = runTest {
+        val vault = VaultId.of("vault")
+        val ref = VaultNodeRef(vault, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities())
+        val node = VaultNodeMetadata(ref, "private.txt", VaultNodeKind.FILE, 1, 0, 0)
+        val reservation = TestReservation(listOf(ref))
+        val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = vault, mountGeneration = 4))
+        val coordinator = mockk<VaultBoundaryTransferCoordinator>()
+        every { coordinator.prepareExport(listOf(ref)) } returns Result.success(reservation)
+        coEvery { coordinator.exportToDestination(reservation, "/storage/Exports", false, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, node.name, VaultItemOutcome.COMPLETED)))
+        val controller = OnlyFilesBoundaryController(coordinator, state, this, {})
+
+        assertTrue(controller.prepare(listOf(node)))
+        controller.start("/storage/Exports", move = false)
+        advanceUntilIdle()
+
+        assertEquals(OnlyFilesOperationDestination.LocalDirectory("/storage/Exports"), state.value.operationFeedback?.destination)
+        assertTrue(reservation.isClosed)
+    }
+
+    @Test
+    fun `export reservation retained across lock cannot publish an action on a new mount`() = runTest {
+        val vault = VaultId.of("vault")
+        val ref = VaultNodeRef(vault, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities())
+        val node = VaultNodeMetadata(ref, "private.txt", VaultNodeKind.FILE, 1, 0, 0)
+        val reservation = TestReservation(listOf(ref))
+        val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = vault, mountGeneration = 4))
+        val coordinator = mockk<VaultBoundaryTransferCoordinator>()
+        every { coordinator.prepareExport(listOf(ref)) } returns Result.success(reservation)
+        coEvery { coordinator.exportToDestination(reservation, any(), false, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, node.name, VaultItemOutcome.COMPLETED)))
+        val controller = OnlyFilesBoundaryController(coordinator, state, this, {})
+
+        assertTrue(controller.prepare(listOf(node)))
+        state.value = OnlyFilesUiState(selectedVaultId = vault, mountGeneration = 6)
+        controller.start("/storage/Exports", move = false)
+        advanceUntilIdle()
+
+        assertEquals(null, state.value.operationFeedback)
+        assertTrue(reservation.isClosed)
+    }
+
+    @Test
+    fun `partial move to Trash offers inspection without claiming the originals were removed`() = runTest {
+        val vault = VaultId.of("vault")
+        val ref = VaultNodeRef(vault, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities())
+        val node = VaultNodeMetadata(ref, "private.txt", VaultNodeKind.FILE, 1, 0, 0)
+        val reservation = TestReservation(listOf(ref))
+        val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = vault, mountGeneration = 4))
+        val coordinator = mockk<VaultBoundaryTransferCoordinator>()
+        every { coordinator.prepareExport(listOf(ref)) } returns Result.success(reservation)
+        coEvery { coordinator.moveToMainTrash(reservation, any()) } returns
+            VaultBatchResult(listOf(VaultItemResult(ref.backendIdentity, node.name, VaultItemOutcome.PARTIAL)))
+        val controller = OnlyFilesBoundaryController(coordinator, state, this, {})
+
+        assertTrue(controller.prepare(listOf(node)))
+        controller.startTrash()
+        advanceUntilIdle()
+
+        assertEquals(OnlyFilesOperationDestination.MainTrash, state.value.operationFeedback?.destination)
+        assertEquals(
+            dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.onlyfiles_trash_result, listOf(0, 1, 0, 0)),
+            state.value.operationFeedback?.message
+        )
+    }
+
     private fun exportRetry(vault: VaultId, name: String): VaultExportRetry = object : VaultExportRetry {
         override val source = VaultNodeRef(vault, NodeId.of(name), DirectoryId.Root, VaultNodeCapabilities(), DirectoryId.of(name))
         override val displayName = name

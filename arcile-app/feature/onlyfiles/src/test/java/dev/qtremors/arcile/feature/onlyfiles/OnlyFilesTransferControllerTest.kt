@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.vault.domain.*
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -37,8 +38,8 @@ class OnlyFilesTransferControllerTest {
         controller.paste()
         advanceUntilIdle()
         assertEquals(clipboard, state.value.clipboard)
-        assertTrue(state.value.message.orEmpty().contains("1 partially completed"))
-        assertTrue(state.value.message.orEmpty().contains("Skipped files remain at the source"))
+        assertEquals(UiText.StringResource(R.string.onlyfiles_move_result, listOf(0, 1, 0, 0)), state.value.operationFeedback?.message)
+        assertEquals(OnlyFilesOperationDestination.VaultDirectory(vaultId, DirectoryId.Root), state.value.operationFeedback?.destination)
         assertFalse(state.value.busy)
         assertEquals(1, reloads)
 
@@ -46,7 +47,7 @@ class OnlyFilesTransferControllerTest {
         controller.paste()
         advanceUntilIdle()
         assertNull(state.value.clipboard)
-        assertEquals("1 completed, 0 skipped, 0 failed", state.value.message)
+        assertEquals(UiText.PluralResource(dev.qtremors.arcile.core.ui.R.plurals.file_operation_moved_items, 1, listOf(1)), state.value.operationFeedback?.message)
     }
 
     @Test

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultOperationRecovery
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
@@ -15,7 +16,7 @@ import kotlinx.coroutines.launch
 internal data class OnlyFilesRecoveryState(
     val queues: List<VaultRecoveryQueue> = emptyList(),
     val loading: Boolean = false,
-    val error: String? = null
+    val error: UiText? = null
 )
 
 internal class OnlyFilesRecoveryController(
@@ -40,7 +41,7 @@ internal class OnlyFilesRecoveryController(
                 if (it.mountGeneration != current.mountGeneration || it.recovery == null) it
                 else it.copy(recovery = result.fold(
                     { queues -> OnlyFilesRecoveryState(queues) },
-                    { error -> OnlyFilesRecoveryState(error = error.message ?: "Unable to load interrupted transfers") }
+                    { error -> OnlyFilesRecoveryState(error = vaultOperationErrorText(error, R.string.onlyfiles_recovery_load_failed)) }
                 ))
             }
         }
@@ -53,8 +54,8 @@ internal class OnlyFilesRecoveryController(
         query = scope.launch {
             if (recovery.list(vault).getOrNull().isNullOrEmpty()) return@launch
             state.update {
-                if (it.mountGeneration != current.mountGeneration || it.message != null || it.recovery != null) it
-                else it.copy(message = "Interrupted transfers are available in the vault menu.")
+                if (it.mountGeneration != current.mountGeneration || it.message != null || it.operationFeedback != null || it.recovery != null) it
+                else it.copy(operationFeedback = operationNotice(R.string.onlyfiles_recovery_available, current.mountGeneration))
             }
         }
     }
@@ -76,7 +77,7 @@ internal class OnlyFilesRecoveryController(
                 if (it.mountGeneration != current.mountGeneration || it.recovery == null) it
                 else it.copy(recovery = result.fold(
                     { panel.copy(queues = panel.queues - queue, loading = false) },
-                    { error -> panel.copy(loading = false, error = error.message ?: "Unable to discard the queue") }
+                    { error -> panel.copy(loading = false, error = vaultOperationErrorText(error, R.string.onlyfiles_recovery_discard_failed)) }
                 ))
             }
         }
@@ -92,7 +93,7 @@ internal class OnlyFilesRecoveryController(
         val signal = AtomicBoolean(false)
         cancellation = signal
         val mount = current.mountGeneration
-        state.update { it.copy(recovery = null, busy = true, message = null, transferMountGeneration = mount) }
+        state.update { it.copy(recovery = null, busy = true, message = null, operationFeedback = null, transferMountGeneration = mount) }
         scope.launch {
             try {
                 val conflicts = conflictReview.resolver(mount, exporting = kind == VaultRecoveryKind.EXPORT, signal::get)
@@ -106,8 +107,8 @@ internal class OnlyFilesRecoveryController(
                             val exports = batch.partial.mapNotNull { it.exportRetry }
                             state.update {
                                 it.copy(
-                                    message = "${batch.completed.size} completed, ${batch.partial.size} partial, " +
-                                        "${batch.skipped.size} skipped, ${batch.failed.size + batch.rolledBack.size} failed",
+                                    message = null,
+                                    operationFeedback = vaultBatchFeedback(batch, OnlyFilesOperationKind.RECOVERY, mount),
                                     clipboard = it.clipboard ?: merges.takeIf { retries -> retries.isNotEmpty() }?.let { retries ->
                                         VaultClipboard(
                                             VaultClipboardAction.COPY, retries.map { retry -> retry.source },
@@ -121,7 +122,7 @@ internal class OnlyFilesRecoveryController(
                         }
                     },
                     onFailure = { error ->
-                        state.update { it.copy(message = error.message ?: "Unable to resume the transfer") }
+                        state.update { it.copy(message = null, operationFeedback = vaultOperationFailure(error, R.string.onlyfiles_recovery_resume_failed, mount)) }
                     }
                 )
             } finally {

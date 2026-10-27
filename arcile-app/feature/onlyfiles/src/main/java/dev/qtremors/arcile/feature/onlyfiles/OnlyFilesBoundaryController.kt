@@ -27,6 +27,7 @@ internal class OnlyFilesBoundaryController(
 ) {
     private var cancellation: AtomicBoolean? = null
     private var reservation: VaultBoundaryTransferReservation? = null
+    private var preparedMount: Long? = null
     val conflictReview = OnlyFilesConflictReview(state)
 
     fun prepare(nodes: List<VaultNodeMetadata>): Boolean {
@@ -34,10 +35,11 @@ internal class OnlyFilesBoundaryController(
         val sources = nodes.map(VaultNodeMetadata::ref).distinctBy { it.backendIdentity }
         if (sources.isEmpty() || state.value.busy || cancellation != null) return false
         val prepared = coordinator.prepareExport(sources).getOrElse {
-            state.update { current -> current.copy(message = it.message ?: "Unable to prepare export") }
+            state.update { current -> current.copy(message = null, operationFeedback = vaultOperationFailure(it, R.string.onlyfiles_export_prepare_failed, current.mountGeneration)) }
             return false
         }
         reservation = prepared
+        preparedMount = state.value.mountGeneration
         return true
     }
 
@@ -47,12 +49,14 @@ internal class OnlyFilesBoundaryController(
 
     private fun start(destinationPath: String?, move: Boolean, trash: Boolean) {
         val prepared = reservation ?: return
+        val mount = preparedMount ?: state.value.mountGeneration
         reservation = null
+        preparedMount = null
         if (state.value.busy || cancellation != null) {
             prepared.close()
             return
         }
-        runTransfer(move, trash, prepared.sources.firstOrNull()?.vaultId, close = prepared::close) { conflicts, cancellation ->
+        runTransfer(move, trash, prepared.sources.firstOrNull()?.vaultId, destinationPath, mountGeneration = mount, close = prepared::close) { conflicts, cancellation ->
             if (trash) coordinator.moveToMainTrash(prepared, cancellation)
             else coordinator.exportToDestination(prepared, requireNotNull(destinationPath), move, conflicts, cancellation)
         }
@@ -90,26 +94,30 @@ internal class OnlyFilesBoundaryController(
         move: Boolean,
         trash: Boolean,
         sourceVault: VaultId?,
+        destinationPath: String? = null,
+        mountGeneration: Long = state.value.mountGeneration,
         close: () -> Unit = {},
         execute: suspend (VaultConflictResolver, VaultCancellationSignal) -> VaultBatchResult
     ) {
         val cancelled = AtomicBoolean(false)
         cancellation = cancelled
-        val mountGeneration = state.value.mountGeneration
         scope.launch {
             state.update {
-                it.copy(busy = true, selectedNodeIds = emptySet(), message = null, transferMountGeneration = mountGeneration)
+                it.copy(busy = true, selectedNodeIds = emptySet(), message = null, operationFeedback = null, transferMountGeneration = mountGeneration)
             }
             val conflicts = conflictReview.resolver(mountGeneration, exporting = true, cancelled::get)
             try {
                 val result = execute(conflicts, VaultCancellationSignal(cancelled::get))
-                complete(result, sourceVault, mountGeneration, move, trash)
+                complete(result, sourceVault, mountGeneration, move, trash, destinationPath)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 state.update {
                     if (it.mountGeneration == mountGeneration) it.copy(
-                        message = error.message ?: if (trash) "Move to Trash failed" else "Vault export failed"
+                        message = null, operationFeedback = vaultOperationFailure(
+                            error, if (trash) R.string.onlyfiles_trash_failed else R.string.onlyfiles_export_failed,
+                            mountGeneration
+                        )
                     )
                     else it
                 }
@@ -129,25 +137,31 @@ internal class OnlyFilesBoundaryController(
         sourceVault: VaultId?,
         mountGeneration: Long,
         move: Boolean,
-        trash: Boolean
+        trash: Boolean,
+        destinationPath: String?
     ) {
         val completed = result.completed.size
-        val skipped = result.skipped.size
         val partial = result.partial
-        val failed = result.items.size - completed - skipped - partial.size
-        val completeSummary = if (trash) "$completed moved to Trash" else "$completed exported"
-        val partialSummary = when {
-            partial.isEmpty() -> ""
-            trash -> ", ${partial.size} in Trash with vault originals kept"
-            else -> ", ${partial.size} partially exported"
-        }
-        val summary = "$completeSummary$partialSummary, $skipped skipped, $failed failed"
         val processedSources = result.items.mapTo(mutableSetOf()) { it.sourceIdentity }
         val pendingRetries = partial.mapNotNull { it.exportRetry }
         state.update {
             if (it.mountGeneration != mountGeneration) return@update it
             it.copy(
-                message = if (trash) summary else partial.firstNotNullOfOrNull { item -> item.failure?.message } ?: summary,
+                message = null,
+                operationFeedback = vaultBatchFeedback(
+                    result,
+                    when {
+                        trash -> OnlyFilesOperationKind.TRASH
+                        move -> OnlyFilesOperationKind.MOVE_OUT
+                        else -> OnlyFilesOperationKind.EXPORT
+                    },
+                    mountGeneration,
+                    when {
+                        trash -> OnlyFilesOperationDestination.MainTrash
+                        destinationPath?.startsWith('/') == true -> OnlyFilesOperationDestination.LocalDirectory(destinationPath)
+                        else -> null
+                    }
+                ),
                 exportRetries = if (trash || it.selectedVaultId != sourceVault || sourceVault == null) it.exportRetries else {
                     it.exportRetries.filterNot { retry -> retry.source.backendIdentity in processedSources } + pendingRetries
                 }
@@ -161,6 +175,7 @@ internal class OnlyFilesBoundaryController(
     fun cancelSelection() {
         reservation?.close()
         reservation = null
+        preparedMount = null
     }
 
     fun cancel() {

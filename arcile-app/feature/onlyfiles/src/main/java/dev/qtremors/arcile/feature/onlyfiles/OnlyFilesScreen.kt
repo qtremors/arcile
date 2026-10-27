@@ -77,8 +77,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -113,6 +111,10 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.ui.menus.ExpandableFabMenu
 import dev.qtremors.arcile.core.ui.menus.FabMenuItem
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.ui.showArcileFeedback
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.SearchTopBar
 import dev.qtremors.arcile.core.ui.SearchFiltersSheet
@@ -156,6 +158,7 @@ internal fun OnlyFilesRoute(
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    onOpenOperationDestination: (String?) -> Unit,
     findPlugin: (VaultNodeMetadata) -> VaultPluginViewer?,
     packageInstaller: @Composable (dev.qtremors.arcile.core.vault.domain.VaultExternalGrant, () -> Unit) -> Unit,
     viewModel: OnlyFilesViewModel = hiltViewModel()
@@ -172,6 +175,7 @@ internal fun OnlyFilesRoute(
         getFileOpenBehaviors = getFileOpenBehaviors,
         onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
         onPlayVideo = onPlayVideo,
+        onOpenOperationDestination = { path -> viewModel.lockAllAndExit { onOpenOperationDestination(path) } },
         findPlugin = findPlugin,
         packageInstaller = packageInstaller,
         onImportFiles = viewModel::beginLocalFileImport,
@@ -189,6 +193,7 @@ private fun OnlyFilesScreen(
     getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    onOpenOperationDestination: (String?) -> Unit,
     findPlugin: (VaultNodeMetadata) -> VaultPluginViewer?,
     packageInstaller: @Composable (dev.qtremors.arcile.core.vault.domain.VaultExternalGrant, () -> Unit) -> Unit,
     onImportFiles: () -> Unit,
@@ -196,6 +201,8 @@ private fun OnlyFilesScreen(
     onBoundaryTransfer: (List<VaultNodeMetadata>, Boolean) -> Unit
 ) {
     val snackbarHost = remember(state.mountGeneration) { SnackbarHostState() }
+    var feedbackSeverity by remember(state.mountGeneration) { mutableStateOf(ArcileFeedbackSeverity.Info) }
+    val feedbackContext = LocalContext.current
     val workspaceScroll = remember(state.mountGeneration) { VaultWorkspaceScroll() }
     val activeTabId = state.workspace.activeTabId
     val listingScroll = remember(workspaceScroll, activeTabId) { workspaceScroll.forTab(activeTabId) }
@@ -261,20 +268,32 @@ private fun OnlyFilesScreen(
     }
 
     val revealLabel = stringResource(R.string.onlyfiles_reveal_in_folder)
-    LaunchedEffect(snackbarHost, state.message, state.completedArchive) {
-        state.message?.let { message ->
+    LaunchedEffect(snackbarHost, state.message, state.completedArchive, state.operationFeedback?.id) {
+        val operation = state.operationFeedback?.takeIf { state.message == null }
+        if (operation != null && operation.belongsTo(state)) {
+            feedbackSeverity = operation.severity
+            snackbarHost.showArcileFeedback(feedbackContext, operation.event(
+                onReveal = {
+                    showSearch = false
+                    viewModel.revealOperationDestination(operation, onOpenOperationDestination)
+                },
+                onDismiss = { viewModel.dismissOperationFeedback(operation.id) }
+            ))
+        } else state.message?.let { message ->
             val output = state.completedArchive
-            val result = snackbarHost.showSnackbar(
-                message = message,
-                actionLabel = revealLabel.takeIf { output != null },
-                withDismissAction = true,
-                duration = if (output != null) SnackbarDuration.Long else SnackbarDuration.Short
-            )
-            viewModel.clearMessage()
-            if (output != null && result == SnackbarResult.ActionPerformed) {
-                showSearch = false
-                viewModel.revealInParent(output)
-            }
+            feedbackSeverity = ArcileFeedbackSeverity.Info
+            snackbarHost.showArcileFeedback(feedbackContext, ArcileFeedbackEvent(
+                message = UiText.Dynamic(message),
+                actionLabel = output?.let { UiText.Dynamic(revealLabel) },
+                onAction = {
+                    viewModel.clearMessage()
+                    if (output != null) {
+                        showSearch = false
+                        viewModel.revealInParent(output)
+                    }
+                },
+                onDismiss = viewModel::clearMessage
+            ))
         }
     }
 
@@ -312,14 +331,14 @@ private fun OnlyFilesScreen(
             }?.let {
                 OnlyFilesArchiveToolbar(it, viewModel::cancelArchiveOperation, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
             }
-            ArcileSnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+            ArcileSnackbarHost(snackbarHost, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { feedbackSeverity }
         }
         return
     }
 
     ArcileScreenScaffold(
         modifier = predictiveBackModifier.arcileTopAppBarNestedScroll(scrollBehavior),
-        snackbarHost = { ArcileSnackbarHost(snackbarHost) },
+        snackbarHost = { ArcileSnackbarHost(snackbarHost, severityFor = { feedbackSeverity }) },
         topBar = { Column {
             if (showSearch && state.selectedVault != null && state.selectedNodeIds.isEmpty() && !state.workspace.switching) {
                 Column {
@@ -695,20 +714,16 @@ private fun OnlyFilesScreen(
             null -> Unit
         }
     }
-    if (vaultId != null && state.pendingMoveIntoVault.isNotEmpty()) {
-        AlertDialog(
-            onDismissRequest = { viewModel.resolveLocalMoveIntoVault(false) },
-            title = { Text(stringResource(R.string.onlyfiles_move_into_vault)) },
-            text = { Text(stringResource(R.string.onlyfiles_move_into_vault_confirm)) },
-            confirmButton = {
-                Button(onClick = { viewModel.resolveLocalMoveIntoVault(true) }) {
-                    Text(stringResource(R.string.onlyfiles_move_into_vault))
-                }
+    if (vaultId != null && (state.pendingMoveIntoVault.isNotEmpty() || state.browserImportMovePending)) {
+        val browserMove = state.browserImportMovePending
+        OnlyFilesMoveIntoVaultDialog(
+            onConfirm = {
+                if (browserMove) viewModel.resolveBrowserMoveIntoVault(true)
+                else viewModel.resolveLocalMoveIntoVault(true)
             },
-            dismissButton = {
-                TextButton(onClick = { viewModel.resolveLocalMoveIntoVault(false) }) {
-                    Text(stringResource(R.string.onlyfiles_cancel))
-                }
+            onDismiss = {
+                if (browserMove) viewModel.resolveBrowserMoveIntoVault(false)
+                else viewModel.resolveLocalMoveIntoVault(false)
             }
         )
     }

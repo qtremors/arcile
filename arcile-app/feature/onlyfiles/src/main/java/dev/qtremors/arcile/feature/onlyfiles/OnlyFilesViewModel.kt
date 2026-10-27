@@ -75,8 +75,6 @@ internal class OnlyFilesViewModel @Inject constructor(
     private var pendingEntry: OnlyFilesEntry? = null
     private var consumedEntry: OnlyFilesEntry? = null
     private var pendingExtraction: VaultZipExtraction? = null
-    private var lastBrowserImportRequest: String? = null
-    private var browserImportPaths: List<String> = emptyList()
 
     private val folderPicker by lazy {
         OnlyFilesFolderPickerController(
@@ -124,6 +122,9 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val imports = OnlyFilesImportController(
         importCoordinator, _state, viewModelScope, ::showError, ::reload
     )
+    private val browserImports by lazy {
+        OnlyFilesBrowserImportController(_state, imports, locations::closePicker)
+    }
     private val localPicker by lazy {
         OnlyFilesLocalPickerController(
             localFileBrowser, destinationBrowser, volumeRepository, _state, viewModelScope,
@@ -194,28 +195,9 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun openVaultFolder(path: String) = folderPicker.openPath(path)
     fun navigateVaultFolderUp() = folderPicker.navigateUp()
     fun beginLocalFileImport() = localPicker.openImportFiles()
-    fun acceptBrowserImport(requestId: String) {
-        if (lastBrowserImportRequest == requestId) return
-        lastBrowserImportRequest = requestId
-        browserImportPaths = OnlyFilesBrowserImports.take(requestId).orEmpty()
-        _state.update {
-            it.copy(
-                browserImportCount = browserImportPaths.size,
-                message = if (browserImportPaths.isEmpty()) "Select the files in Browser again to send them to OnlyFiles."
-                else it.message
-            )
-        }
-    }
-
-    fun chooseBrowserImportDestination() {
-        val picker = _state.value.locationPicker ?: return
-        if (picker.mode != OnlyFilesLocationMode.IMPORT_DESTINATION || picker.loading || picker.failed) return
-        val path = picker.stack.lastOrNull()?.path ?: return
-        val sources = browserImportPaths
-        if (sources.isEmpty() || !imports.begin(path)) return
-        closeLocationPicker()
-        imports.finishSelection(sources)
-    }
+    fun acceptBrowserImport(requestId: String) = browserImports.accept(requestId)
+    fun chooseBrowserImportDestination(move: Boolean = false) = browserImports.choose(move)
+    fun resolveBrowserMoveIntoVault(confirmed: Boolean) = browserImports.confirmMove(confirmed)
 
     fun beginLocalMoveIntoVault() = localPicker.openMoveIn()
 
@@ -386,10 +368,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         locations.closePicker()
     }
 
-    private fun clearBrowserImport() {
-        browserImportPaths = emptyList()
-        _state.update { it.copy(browserImportCount = 0) }
-    }
+    private fun clearBrowserImport() = browserImports.clear()
     fun openPinnedFolder(id: DirectoryId) {
         locations.closePicker()
         locations.navigate(id)
@@ -742,7 +721,23 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun finishImportSelection(sourceUris: List<String>) = imports.finishSelection(sourceUris)
     fun cancelImportSelection() = imports.cancelSelection()
     fun cancelImport(vaultId: VaultId) = imports.cancel(vaultId)
-    fun clearMessage() = _state.update { it.copy(message = null, completedArchive = null) }
+    fun clearMessage() = _state.update { it.copy(message = null, completedArchive = null, operationFeedback = null) }
+    fun dismissOperationFeedback(id: String) = _state.update {
+        if (it.operationFeedback?.id == id) it.copy(operationFeedback = null) else it
+    }
+    fun revealOperationDestination(feedback: OnlyFilesOperationFeedback, openLocal: (String?) -> Unit) {
+        val current = _state.value
+        if (!feedback.belongsTo(current) || current.operationFeedback?.id != feedback.id) return
+        dismissOperationFeedback(feedback.id)
+        when (val target = feedback.destination) {
+            is OnlyFilesOperationDestination.VaultDirectory -> {
+                if (current.selectedVaultId == target.vaultId) locations.navigate(target.directoryId)
+            }
+            is OnlyFilesOperationDestination.LocalDirectory -> openLocal(target.path)
+            OnlyFilesOperationDestination.MainTrash -> openLocal(null)
+            null -> Unit
+        }
+    }
     fun openReader(ref: VaultNodeRef): Result<VaultSeekableReader> = fileSystem.openReader(ref)
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
     suspend fun selectionTotals(refs: List<VaultNodeRef>) = fileSystem.selectionTotals(refs)
@@ -797,10 +792,11 @@ internal class OnlyFilesViewModel @Inject constructor(
                 selectedNodeIds = emptySet(),
                 viewer = null,
                 viewerQueue = emptyList(),
-                viewerSelectionEnabled = false
+                viewerSelectionEnabled = false,
+                operationFeedback = null
             )
         }
-        if (browserImportPaths.isNotEmpty()) {
+        if (browserImports.hasPending) {
             reload()
             locations.openImportDestination()
         } else if (requested != null) locations.navigate(requested.directoryId, requested.focusNodeId)
@@ -866,7 +862,8 @@ internal class OnlyFilesViewModel @Inject constructor(
                 message = null,
                 batchProgress = null,
                 archiveProgress = null,
-                completedArchive = null
+                completedArchive = null,
+                operationFeedback = null
             )
         }
         transfers.conflictReview.dismiss()

@@ -91,6 +91,7 @@ internal data class OnlyFilesUiState(
     val backupRequest: VaultBackupRequest? = null,
     val backupInProgress: VaultBackupMode? = null,
     val browserImportCount: Int = 0,
+    val browserImportMovePending: Boolean = false,
     val screenshotProtectionEnabled: Boolean = true,
     val encryptedThumbnailFiles: Int = 0,
     val encryptedThumbnailBytes: Long = 0L,
@@ -103,6 +104,7 @@ internal data class OnlyFilesUiState(
     val batchProgress: OnlyFilesBatchProgress? = null,
     val archiveProgress: OnlyFilesArchiveProgress? = null,
     val completedArchive: VaultNodeMetadata? = null,
+    val operationFeedback: OnlyFilesOperationFeedback? = null,
     val message: String? = null
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }

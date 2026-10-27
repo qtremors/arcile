@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryQueue
 import java.text.DateFormat
@@ -40,7 +41,7 @@ internal fun OnlyFilesRecoveryDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (panel.loading) CircularProgressIndicator()
-                panel.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                panel.error?.let { Text(it.asString(), color = MaterialTheme.colorScheme.error) }
                 if (!panel.loading && panel.error == null && panel.queues.isEmpty()) {
                     Text(stringResource(R.string.onlyfiles_recovery_empty))
                 }

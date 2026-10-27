@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
@@ -118,7 +119,7 @@ class OnlyFilesRecoveryControllerTest {
         advanceUntilIdle()
 
         coVerify(exactly = 1) { service.resume(queue, any(), any()) }
-        assertEquals("1 completed, 0 partial, 0 skipped, 0 failed", state.value.message)
+        assertEquals(UiText.PluralResource(R.plurals.onlyfiles_recovered_items, 1, listOf(1)), state.value.operationFeedback?.message)
         assertNull(state.value.recovery)
         assertNull(state.value.transferMountGeneration)
         assertFalse(state.value.busy)

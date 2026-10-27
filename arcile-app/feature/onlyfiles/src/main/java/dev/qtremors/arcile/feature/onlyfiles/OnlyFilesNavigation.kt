@@ -40,6 +40,7 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
     popExitTransition: AnimatedContentTransitionScope<NavBackStackEntry>.() -> ExitTransition,
     onNavigateBack: () -> Unit,
     onPlayVideo: (VideoPlaybackSession) -> Unit,
+    onOpenOperationDestination: (String?) -> Unit,
     findPlugin: (VaultNodeMetadata) -> VaultPluginViewer?,
     packageInstaller: @Composable (VaultExternalGrant, () -> Unit) -> Unit
 ) {
@@ -56,6 +57,7 @@ fun NavGraphBuilder.registerOnlyFilesRoute(
             importRequestId = route.importRequestId,
             onNavigateBack = onNavigateBack,
             onPlayVideo = onPlayVideo,
+            onOpenOperationDestination = onOpenOperationDestination,
             findPlugin = findPlugin,
             packageInstaller = packageInstaller
         )

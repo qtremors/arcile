@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -96,9 +97,11 @@ internal fun OnlyFilesLocationSheet(
             if (pickingDestination) Button(onClick = viewModel::chooseArchiveDestination, enabled = !picker.loading) {
                 Text(stringResource(R.string.onlyfiles_extract_here))
             }
-            if (importing) Button(onClick = viewModel::chooseBrowserImportDestination, enabled = !picker.loading && !picker.failed) {
-                Text(stringResource(R.string.onlyfiles_import_here))
-            }
+            if (importing) OnlyFilesImportDestinationActions(
+                enabled = !picker.loading && !picker.failed,
+                onCopy = { viewModel.chooseBrowserImportDestination() },
+                onMove = { viewModel.chooseBrowserImportDestination(move = true) }
+            )
         }
     }
 }
@@ -110,5 +113,32 @@ private fun VaultLocationRow(name: String, location: String? = null, onClick: ()
         supportingContent = location?.let { label -> { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) } },
         leadingContent = { Icon(Icons.Default.Folder, contentDescription = null) },
         modifier = Modifier.bounceClickable(onClick = onClick)
+    )
+}
+
+@Composable
+internal fun OnlyFilesImportDestinationActions(enabled: Boolean, onCopy: () -> Unit, onMove: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Button(onClick = onCopy, enabled = enabled, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.onlyfiles_copy_here))
+        }
+        TextButton(onClick = onMove, enabled = enabled, modifier = Modifier.weight(1f)) {
+            Text(stringResource(R.string.onlyfiles_move_here))
+        }
+    }
+}
+
+@Composable
+internal fun OnlyFilesMoveIntoVaultDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    dev.qtremors.arcile.core.ui.dialogs.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.onlyfiles_move_into_vault)) },
+        text = { Text(stringResource(R.string.onlyfiles_move_into_vault_confirm)) },
+        confirmButton = {
+            Button(onClick = onConfirm) { Text(stringResource(R.string.onlyfiles_move_into_vault)) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        }
     )
 }

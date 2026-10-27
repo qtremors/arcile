@@ -1,10 +1,16 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.7
+> **Version:** 2.3.8
 > **Last Updated:** 2026-11-05
 
 ---
+
+## [2.3.8] - 2026-11-05
+
+### Changed
+- Choose Copy or Move when sending Browser selections to OnlyFiles. Moves remove originals after verified encrypted import.
+- Vault transfers use Browser clipboard messages and snackbar presentation, with destination actions and clearer partial-result and error messages.
 
 ## [2.3.7] - 2026-11-05
 

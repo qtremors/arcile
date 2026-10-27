@@ -141,6 +141,73 @@ class OnlyFilesViewModelLockTest {
             assertEquals(destinationId, viewModel.state.value.selectedVaultId)
         }
 
+    @Test
+    fun `completion actions are single use and stale callbacks cannot affect newer feedback or locked mounts`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val vault = VaultId.of("feedback-vault")
+            val summary = VaultSummary(vault, "Private", VaultLocationKind.APP_PRIVATE, 0L, true)
+            val unlocked = MutableStateFlow(setOf(vault))
+            val repository = repository().also {
+                every { it.vaults } returns MutableStateFlow(listOf(summary))
+                every { it.unlockedVaultIds } returns unlocked
+            }
+            val node = VaultNodeMetadata(
+                VaultNodeRef(vault, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities()),
+                "private.txt", VaultNodeKind.FILE, 1, 0, 0
+            )
+            val fileSystem = mockk<VaultFileSystem> {
+                coEvery { listDirectory(vault, DirectoryId.Root, any()) } returns Result.success(VaultPage(listOf(node), null, 1))
+            }
+            val boundary = mockk<VaultBoundaryTransferCoordinator> {
+                every { progress } returns emptyFlow()
+                every { prepareExport(listOf(node.ref)) } answers {
+                    Result.success(mockk<dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferReservation>(relaxed = true) {
+                        every { sources } returns listOf(node.ref)
+                    })
+                }
+                coEvery { exportToDestination(any(), "/storage/Exports", false, any(), any()) } returns
+                    dev.qtremors.arcile.core.vault.domain.VaultBatchResult(listOf(
+                        dev.qtremors.arcile.core.vault.domain.VaultItemResult(
+                            node.ref.backendIdentity, node.name, dev.qtremors.arcile.core.vault.domain.VaultItemOutcome.COMPLETED
+                        )
+                    ))
+            }
+            val viewModel = viewModel(repository, fileSystem, boundary)
+            viewModel.openVault(summary)
+            advanceUntilIdle()
+            val opened = mutableListOf<String?>()
+            fun export() {
+                assertTrue(viewModel.beginExportSelection(listOf(node)))
+                viewModel.finishExportSelection("/storage/Exports", move = false)
+            }
+
+            export()
+            advanceUntilIdle()
+            val first = requireNotNull(viewModel.state.value.operationFeedback)
+            viewModel.revealOperationDestination(first, opened::add)
+            viewModel.revealOperationDestination(first, opened::add)
+            assertEquals(listOf("/storage/Exports"), opened)
+
+            export()
+            advanceUntilIdle()
+            val replaced = requireNotNull(viewModel.state.value.operationFeedback)
+            viewModel.copy(listOf(node))
+            val latest = requireNotNull(viewModel.state.value.operationFeedback)
+            viewModel.dismissOperationFeedback(replaced.id)
+            viewModel.revealOperationDestination(replaced, opened::add)
+            assertEquals(latest, viewModel.state.value.operationFeedback)
+            assertEquals(1, opened.size)
+
+            export()
+            advanceUntilIdle()
+            val beforeLock = requireNotNull(viewModel.state.value.operationFeedback)
+            unlocked.value = emptySet()
+            advanceUntilIdle()
+            viewModel.revealOperationDestination(beforeLock, opened::add)
+            assertNull(viewModel.state.value.operationFeedback)
+            assertEquals(1, opened.size)
+        }
+
     private fun repository() = mockk<VaultRepository>(relaxed = true) {
         every { vaults } returns MutableStateFlow(emptyList())
         every { unlockedVaultIds } returns MutableStateFlow(emptySet())
@@ -148,12 +215,13 @@ class OnlyFilesViewModelLockTest {
 
     private fun viewModel(
         repository: VaultRepository,
-        fileSystem: VaultFileSystem = mockk(relaxed = true)
+        fileSystem: VaultFileSystem = mockk(relaxed = true),
+        suppliedBoundary: VaultBoundaryTransferCoordinator? = null
     ): OnlyFilesViewModel {
         val transferCoordinator = mockk<VaultTransferCoordinator>(relaxed = true) {
             every { progress } returns emptyFlow()
         }
-        val boundaryCoordinator = mockk<VaultBoundaryTransferCoordinator>(relaxed = true) {
+        val boundaryCoordinator = suppliedBoundary ?: mockk<VaultBoundaryTransferCoordinator>(relaxed = true) {
             every { progress } returns emptyFlow()
         }
         val importCoordinator = mockk<VaultImportCoordinator>(relaxed = true) {

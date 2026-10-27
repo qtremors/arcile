@@ -26,9 +26,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
+import dev.qtremors.arcile.core.ui.showArcileFeedback
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -61,7 +60,6 @@ import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
@@ -125,17 +123,7 @@ fun ArcileAppShell(
                 return@collect
             }
             currentFeedbackSeverity = event.severity
-            val result = snackbarHostState.showSnackbar(
-                message = event.message.asString(context),
-                actionLabel = event.actionLabel?.asString(context),
-                withDismissAction = false,
-                duration = SnackbarDuration.Short
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                event.onAction?.invoke()
-            } else {
-                event.onDismiss?.invoke()
-            }
+            snackbarHostState.showArcileFeedback(context, event)
         }
     }
 

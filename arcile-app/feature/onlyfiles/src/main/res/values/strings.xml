@@ -224,4 +224,44 @@
     <string name="onlyfiles_recovery_discard">Discard queue</string>
     <string name="onlyfiles_recovery_discard_description">Remove this recovery record? Existing files and copies stay in place.</string>
     <string name="onlyfiles_recovery_close">Close</string>
+    <string name="onlyfiles_show_destination">Show destination</string>
+    <string name="onlyfiles_copy_here">Copy here</string>
+    <string name="onlyfiles_move_here">Move here</string>
+    <string name="onlyfiles_browser_import_expired">Select the files in Browser again to send them to OnlyFiles.</string>
+    <string name="onlyfiles_import_complete">Import complete</string>
+    <string name="onlyfiles_import_cancelled">Import cancelled</string>
+    <string name="onlyfiles_import_failed">Unable to import these items.</string>
+    <string name="onlyfiles_import_running">Another import is already running.</string>
+    <string name="onlyfiles_export_prepare_failed">Unable to prepare export.</string>
+    <string name="onlyfiles_export_failed">Unable to export these items.</string>
+    <string name="onlyfiles_trash_failed">Unable to move these items to Trash.</string>
+    <string name="onlyfiles_paste_failed">Unable to paste these items.</string>
+    <string name="onlyfiles_recovery_load_failed">Unable to load interrupted transfers.</string>
+    <string name="onlyfiles_recovery_discard_failed">Unable to discard the queue.</string>
+    <string name="onlyfiles_recovery_resume_failed">Unable to resume the transfer.</string>
+    <string name="onlyfiles_recovery_available">Interrupted transfers are available in the vault menu.</string>
+    <string name="onlyfiles_copy_result">%1$d copied, %2$d partial, %3$d skipped, %4$d failed. Remaining items stay in the clipboard.</string>
+    <string name="onlyfiles_move_result">%1$d moved, %2$d partial, %3$d skipped, %4$d failed. Remaining items stay in the clipboard.</string>
+    <string name="onlyfiles_import_result">%1$d copied into the vault, %2$d partial, %3$d skipped, %4$d failed.</string>
+    <string name="onlyfiles_move_in_result">%1$d moved into the vault, %2$d copied with originals kept, %3$d skipped, %4$d failed.</string>
+    <string name="onlyfiles_export_result">%1$d exported, %2$d partial, %3$d skipped, %4$d failed. Review partial destinations before retrying.</string>
+    <string name="onlyfiles_move_out_result">%1$d moved out, %2$d partially exported with vault originals kept, %3$d skipped, %4$d failed.</string>
+    <string name="onlyfiles_trash_result">%1$d moved to Trash, %2$d in Trash with vault originals kept, %3$d skipped, %4$d failed.</string>
+    <string name="onlyfiles_recovery_result">%1$d completed, %2$d partial, %3$d skipped, %4$d failed. Review partial items before retrying.</string>
+    <plurals name="onlyfiles_exported_items">
+        <item quantity="one">%d item exported</item>
+        <item quantity="other">%d items exported</item>
+    </plurals>
+    <plurals name="onlyfiles_recovered_items">
+        <item quantity="one">%d item recovered</item>
+        <item quantity="other">%d items recovered</item>
+    </plurals>
+    <string name="onlyfiles_operation_locked">Unlock the vault before retrying this operation.</string>
+    <string name="onlyfiles_operation_storage_missing">Reconnect the vault storage and try again.</string>
+    <string name="onlyfiles_operation_item_missing">An item or destination is no longer available. Refresh the folder and try again.</string>
+    <string name="onlyfiles_operation_conflict">An item with the same name already exists. Choose a different name or review the conflict.</string>
+    <string name="onlyfiles_operation_changed">The source or vault changed during this operation. Refresh and review the files before retrying.</string>
+    <string name="onlyfiles_operation_integrity">Encrypted data failed verification. Keep the originals and check vault health before retrying.</string>
+    <string name="onlyfiles_operation_cancelled">Operation cancelled.</string>
+    <string name="onlyfiles_operation_space">Not enough space: %1$d bytes needed, %2$d bytes available.</string>
 </resources>

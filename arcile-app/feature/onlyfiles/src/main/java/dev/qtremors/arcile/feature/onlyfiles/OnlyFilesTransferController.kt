@@ -34,7 +34,8 @@ internal class OnlyFilesTransferController(
             it.copy(
                 clipboard = VaultClipboard(action, refs, nodes.distinctBy { node -> node.ref.nodeId }),
                 selectedNodeIds = emptySet(),
-                message = "${refs.size} item(s) ready to ${action.name.lowercase()}"
+                message = null,
+                operationFeedback = clipboardFeedback(action, refs.size, it.mountGeneration)
             )
         }
     }
@@ -53,7 +54,7 @@ internal class OnlyFilesTransferController(
         scope.launch {
             state.update { current ->
                 current.copy(
-                    busy = true, message = null, transferMountGeneration = snapshot.mountGeneration,
+                    busy = true, message = null, operationFeedback = null, transferMountGeneration = snapshot.mountGeneration,
                     pasteQueueNames = clipboard.displayNodes.map(VaultNodeMetadata::name)
                         .takeIf { retries.isEmpty() && current.mountGeneration == snapshot.mountGeneration }.orEmpty()
                 )
@@ -83,13 +84,16 @@ internal class OnlyFilesTransferController(
                         )
                     }
                 }
-                complete(VaultBatchResult(fresh + resumed), clipboard, snapshot.mountGeneration)
+                complete(
+                    VaultBatchResult(fresh + resumed), clipboard, snapshot.mountGeneration,
+                    OnlyFilesOperationDestination.VaultDirectory(destinationVault, destination)
+                )
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
                 state.update {
                     if (it.mountGeneration == snapshot.mountGeneration) {
-                        it.copy(message = error.message ?: "Vault paste failed")
+                        it.copy(message = null, operationFeedback = vaultOperationFailure(error, R.string.onlyfiles_paste_failed, snapshot.mountGeneration))
                     } else it
                 }
             } finally {
@@ -115,7 +119,12 @@ internal class OnlyFilesTransferController(
         conflictReview.dismiss()
     }
 
-    private suspend fun complete(result: VaultBatchResult, submittedClipboard: VaultClipboard, mountGeneration: Long) {
+    private suspend fun complete(
+        result: VaultBatchResult,
+        submittedClipboard: VaultClipboard,
+        mountGeneration: Long,
+        destination: OnlyFilesOperationDestination.VaultDirectory
+    ) {
         val sourceVaults = submittedClipboard.sources.associate { it.backendIdentity to it.vaultId }
         val removedByVault = mutableMapOf<VaultId, MutableSet<DirectoryId>>()
         for (item in result.items) {
@@ -125,11 +134,6 @@ internal class OnlyFilesTransferController(
         }
         for ((vault, folders) in removedByVault) onFoldersDeleted(vault, folders)
         val completedIds = result.completed.mapTo(mutableSetOf()) { it.sourceIdentity }
-        val completed = completedIds.size
-        val partial = result.items.count { it.outcome == VaultItemOutcome.PARTIAL }
-        val skipped = result.items.count { it.outcome == VaultItemOutcome.SKIPPED }
-        val failed = result.items.count { it.outcome == VaultItemOutcome.FAILED || it.outcome == VaultItemOutcome.ROLLED_BACK }
-        val retryFailure = result.partial.firstNotNullOfOrNull { it.failure?.message }
         state.update {
             if (it.mountGeneration != mountGeneration) return@update it
             val remainingClipboard = if (it.clipboard === submittedClipboard) {
@@ -149,12 +153,14 @@ internal class OnlyFilesTransferController(
             } else it.clipboard
             it.copy(
                 clipboard = remainingClipboard,
-                message = if (partial > 0) {
-                    val summary = "$completed completed, $partial partially completed, $skipped skipped, $failed failed."
-                    "$summary ${retryFailure ?: "Skipped files remain at the source."}"
-                } else {
-                    "$completed completed, $skipped skipped, $failed failed"
-                }
+                message = null,
+                operationFeedback = vaultBatchFeedback(
+                    result,
+                    if (submittedClipboard.action == VaultClipboardAction.MOVE) OnlyFilesOperationKind.MOVE else OnlyFilesOperationKind.COPY,
+                    mountGeneration,
+                    // Completion belongs to the submitted destination, even if another folder is now open.
+                    destination
+                )
             )
         }
         if (state.value.mountGeneration == mountGeneration) reload()
