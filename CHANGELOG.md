@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.8
+> **Version:** 2.3.9
 > **Last Updated:** 2026-11-05
 
 ---
+
+## [2.3.9] - 2026-11-05
+
+### Changed
+- Choose when vaults lock after backgrounding and whether screen-off locks immediately. Content stays hidden while locking finishes.
+- Prefer a numeric password keyboard with a text-keyboard fallback. Password changes use masked fields.
+- Improved vault operation and health messages, including feedback from the video viewer.
 
 ## [2.3.8] - 2026-11-05
 

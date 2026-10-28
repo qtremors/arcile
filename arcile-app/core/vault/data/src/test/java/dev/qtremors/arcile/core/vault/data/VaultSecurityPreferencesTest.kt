@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.core.vault.data
 
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
@@ -24,6 +27,8 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Before
+import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -33,10 +38,79 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 @OptIn(ExperimentalCoroutinesApi::class)
 class VaultSecurityPreferencesTest {
+    @Before
+    fun resetPreferences() = runBlocking(Dispatchers.IO) {
+        ApplicationProvider.getApplicationContext<Context>().vaultSecurityDataStore.edit { it.clear() }
+        Unit
+    }
+
+    @Test
+    fun `keyboard and locking preferences default safely and persist across new readers`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val preferences = DefaultVaultSecurityPreferences(context, scope)
+            val initial = withContext(Dispatchers.IO) { context.vaultSecurityDataStore.data.first() }
+            assertTrue(initial.asMap().isEmpty())
+            assertEquals(VaultBackgroundLockDelay.IMMEDIATE, preferences.settings.value.backgroundLockDelay)
+            assertTrue(preferences.settings.value.lockOnScreenOff)
+            assertFalse(preferences.settings.value.numericPasswordKeyboard)
+            preferences.setNumericPasswordKeyboard(true)
+            preferences.setBackgroundLockDelay(VaultBackgroundLockDelay.FIVE_MINUTES)
+            preferences.setLockOnScreenOff(false)
+            val reloaded = DefaultVaultSecurityPreferences(context, scope)
+            val settings = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { reloaded.settings.first { it.numericPasswordKeyboard && !it.lockOnScreenOff } }
+            }
+            assertEquals(VaultBackgroundLockDelay.FIVE_MINUTES, settings.backgroundLockDelay)
+            assertEquals(setOf("numeric_password_keyboard", "background_lock_delay", "lock_on_screen_off"),
+                context.vaultSecurityDataStore.data.first().asMap().keys.map { it.name }.toSet())
+        } finally { scope.cancel() }
+    }
+
+    @Test
+    fun `unknown restored delay values fail closed to immediate locking`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val preferences = DefaultVaultSecurityPreferences(context, scope)
+            preferences.setBackgroundLockDelay(VaultBackgroundLockDelay.ONE_MINUTE)
+            withContext(Dispatchers.IO) {
+                withTimeout(5_000) { preferences.settings.first { it.backgroundLockDelay == VaultBackgroundLockDelay.ONE_MINUTE } }
+            }
+            context.vaultSecurityDataStore.edit { it[stringPreferencesKey("background_lock_delay")] = "FOREVER" }
+            val settings = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { preferences.settings.first { it.backgroundLockDelay == VaultBackgroundLockDelay.IMMEDIATE } }
+            }
+            assertEquals(VaultBackgroundLockDelay.IMMEDIATE, settings.backgroundLockDelay)
+            assertTrue(settings.lockOnScreenOff)
+        } finally { scope.cancel() }
+    }
+
+    @Test
+    fun `removing vault preferences does not reset global keyboard or lock choices`() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val scope = CoroutineScope(SupervisorJob() + UnconfinedTestDispatcher(testScheduler))
+        try {
+            val preferences = DefaultVaultSecurityPreferences(context, scope)
+            val vault = VaultId.of("removed")
+            preferences.setNumericPasswordKeyboard(true)
+            preferences.setLockOnScreenOff(false)
+            preferences.setBackgroundLockDelay(VaultBackgroundLockDelay.THIRTY_SECONDS)
+            preferences.setLastDirectory(vault, DirectoryId.Root)
+            preferences.removeVaultPreferences(vault)
+            val stored = DefaultVaultSecurityPreferences(context, scope)
+            val settings = withContext(Dispatchers.IO) {
+                withTimeout(5_000) { stored.settings.first { it.numericPasswordKeyboard && !it.lockOnScreenOff } }
+            }
+            assertEquals(VaultBackgroundLockDelay.THIRTY_SECONDS, settings.backgroundLockDelay)
+            assertTrue(settings.lastDirectories.isEmpty())
+        } finally { scope.cancel() }
+    }
+
     @Test
     fun `screenshot protection defaults on and persists an explicit change`() = runTest {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        File(context.filesDir, "datastore/onlyfiles_security.preferences_pb").delete()
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val scope = CoroutineScope(SupervisorJob() + dispatcher)
         val preferences = DefaultVaultSecurityPreferences(context, scope)

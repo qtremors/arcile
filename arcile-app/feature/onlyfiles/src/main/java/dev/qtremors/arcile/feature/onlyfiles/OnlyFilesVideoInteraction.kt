@@ -16,7 +16,12 @@ import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.material3.SnackbarHost
+import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
+import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.ui.showArcileFeedback
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,14 +103,23 @@ internal class OnlyFilesVideoInteraction(
                     }
                 }
             }
-            LaunchedEffect(state.message) {
-                val message = state.message ?: return@LaunchedEffect
-                viewModel.clearMessage()
-                feedback.showSnackbar(message)
+            val context = LocalContext.current
+            LaunchedEffect(state.message, state.operationFeedback?.id) {
+                val operation = state.operationFeedback?.takeIf { it.belongsTo(state) && state.message == null }
+                if (operation != null) {
+                    // Global playback remains in its own route; source actions here do not navigate out of it.
+                    val event = operation.event({}, { viewModel.dismissOperationFeedback(operation.id) })
+                        .copy(actionLabel = null, onAction = null)
+                    feedback.showArcileFeedback(context, event)
+                } else state.message?.let { message ->
+                    feedback.showArcileFeedback(context, ArcileFeedbackEvent(
+                        UiText.Dynamic(message), onDismiss = viewModel::clearMessage
+                    ))
+                }
             }
             Box(Modifier.fillMaxSize()) {
                 content()
-                SnackbarHost(feedback, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+                ArcileSnackbarHost(feedback, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { state.operationFeedback?.severity ?: ArcileFeedbackSeverity.Info }
             }
             request?.let { (action, node) ->
                 VaultExternalAccessDialogs(action, listOf(node), viewModel) {

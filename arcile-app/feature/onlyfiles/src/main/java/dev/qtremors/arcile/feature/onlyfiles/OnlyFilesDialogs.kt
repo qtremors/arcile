@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Visibility
@@ -72,6 +74,7 @@ import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
+import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
@@ -234,7 +237,11 @@ internal fun HealthDialog(
         text = { Column {
             Text(stringResource(if (report.isHealthy) R.string.onlyfiles_health_ok else R.string.onlyfiles_health_problems))
             Text(stringResource(R.string.onlyfiles_health_counts, report.checkedObjects, report.checkedChunks, report.issues.size))
-            report.issues.take(8).forEach { Text("${it.severity}: ${it.message}", style = MaterialTheme.typography.bodySmall) }
+            report.issues.take(8).forEach { issue ->
+                Text(stringResource(R.string.onlyfiles_health_issue,
+                    stringResource(vaultHealthSeverityLabel(issue.severity)),
+                    vaultHealthIssueText(issue, report.orphanObjectIds.size).asString()), style = MaterialTheme.typography.bodySmall)
+            }
         } },
         confirmButton = {
             TextButton(
@@ -420,29 +427,15 @@ internal fun PasswordDialog(title: String, actionLabel: String, onDismiss: () ->
     )
 }
 
-@Composable
-internal fun PasswordField(value: String, onValueChange: (String) -> Unit, reveal: Boolean, onReveal: () -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(stringResource(R.string.onlyfiles_password)) },
-        visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        trailingIcon = { IconButton(onClick = onReveal) {
-            Icon(if (reveal) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, stringResource(if (reveal) R.string.onlyfiles_hide_password else R.string.onlyfiles_show_password))
-        } },
-        singleLine = true,
-        shape = ExpressiveShapes.medium,
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun OnlyFilesSettingsSheet(
     state: OnlyFilesUiState,
     onDismiss: () -> Unit,
     onSetScreenshotProtection: (Boolean) -> Unit,
+    onSetBackgroundLockDelay: (dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay) -> Unit,
+    onSetLockOnScreenOff: (Boolean) -> Unit,
+    onSetNumericKeyboard: (Boolean) -> Unit,
     onClearThumbnails: () -> Unit,
     onRevokeExternalAccess: () -> Unit,
     onShowDisclosure: () -> Unit
@@ -461,6 +454,7 @@ internal fun OnlyFilesSettingsSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .navigationBarsPadding()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -468,6 +462,8 @@ internal fun OnlyFilesSettingsSheet(
                 text = stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section),
                 style = MaterialTheme.typography.titleLarge
             )
+
+            OnlyFilesLockSettings(state, onSetBackgroundLockDelay, onSetLockOnScreenOff, onSetNumericKeyboard)
 
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 SegmentedListItem(

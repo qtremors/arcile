@@ -208,6 +208,67 @@ class OnlyFilesViewModelLockTest {
             assertEquals(1, opened.size)
         }
 
+    @Test
+    fun `password keyboard and retention changes persist through the preference interface and update UI state`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val settings = MutableStateFlow(VaultSecuritySettings())
+            val preferences = mockk<VaultSecurityPreferences>(relaxed = true) {
+                every { this@mockk.settings } returns settings
+                coEvery { setNumericPasswordKeyboard(any()) } coAnswers {
+                    settings.value = settings.value.copy(numericPasswordKeyboard = firstArg())
+                }
+                coEvery { setLockOnScreenOff(any()) } coAnswers {
+                    settings.value = settings.value.copy(lockOnScreenOff = firstArg())
+                }
+                coEvery { setBackgroundLockDelay(any()) } coAnswers {
+                    settings.value = settings.value.copy(backgroundLockDelay = firstArg())
+                }
+            }
+            val viewModel = viewModel(repository(), suppliedPreferences = preferences)
+            advanceUntilIdle()
+            assertEquals(false, viewModel.state.value.numericPasswordKeyboard)
+            assertEquals(true, viewModel.state.value.lockOnScreenOff)
+            assertEquals(dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay.IMMEDIATE, viewModel.state.value.backgroundLockDelay)
+
+            viewModel.setNumericPasswordKeyboard(true)
+            viewModel.setLockOnScreenOff(false)
+            viewModel.setBackgroundLockDelay(dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay.ONE_MINUTE)
+            advanceUntilIdle()
+
+            coVerify(exactly = 1) { preferences.setNumericPasswordKeyboard(true) }
+            coVerify(exactly = 1) { preferences.setLockOnScreenOff(false) }
+            coVerify(exactly = 1) { preferences.setBackgroundLockDelay(dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay.ONE_MINUTE) }
+            assertEquals(true, viewModel.state.value.numericPasswordKeyboard)
+            assertEquals(false, viewModel.state.value.lockOnScreenOff)
+            assertEquals(dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay.ONE_MINUTE, viewModel.state.value.backgroundLockDelay)
+
+            val recreated = viewModel(repository(), suppliedPreferences = preferences)
+            advanceUntilIdle()
+            assertEquals(viewModel.state.value.numericPasswordKeyboard, recreated.state.value.numericPasswordKeyboard)
+            assertEquals(viewModel.state.value.backgroundLockDelay, recreated.state.value.backgroundLockDelay)
+            assertEquals(viewModel.state.value.lockOnScreenOff, recreated.state.value.lockOnScreenOff)
+        }
+
+    @Test
+    fun `failed unlock presents localized authentication feedback instead of a backend exception`() =
+        runTest(mainDispatcherRule.dispatcher) {
+            val vault = VaultId.of("private-vault")
+            val repository = repository()
+            coEvery { repository.unlock(vault, any()) } returns Result.failure(
+                dev.qtremors.arcile.core.vault.domain.VaultFailure.AuthenticationFailed()
+            )
+            val viewModel = viewModel(repository)
+            viewModel.unlock(vault, "wrong-password")
+            advanceUntilIdle()
+
+            assertEquals(
+                dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.onlyfiles_error_password),
+                viewModel.state.value.operationFeedback?.message
+            )
+            assertNull(viewModel.state.value.selectedVaultId)
+            assertNull(viewModel.state.value.message)
+        }
+
     private fun repository() = mockk<VaultRepository>(relaxed = true) {
         every { vaults } returns MutableStateFlow(emptyList())
         every { unlockedVaultIds } returns MutableStateFlow(emptySet())
@@ -216,7 +277,8 @@ class OnlyFilesViewModelLockTest {
     private fun viewModel(
         repository: VaultRepository,
         fileSystem: VaultFileSystem = mockk(relaxed = true),
-        suppliedBoundary: VaultBoundaryTransferCoordinator? = null
+        suppliedBoundary: VaultBoundaryTransferCoordinator? = null,
+        suppliedPreferences: VaultSecurityPreferences? = null
     ): OnlyFilesViewModel {
         val transferCoordinator = mockk<VaultTransferCoordinator>(relaxed = true) {
             every { progress } returns emptyFlow()
@@ -228,7 +290,7 @@ class OnlyFilesViewModelLockTest {
             every { activeImports } returns MutableStateFlow(emptyMap())
             every { events } returns emptyFlow()
         }
-        val securityPreferences = mockk<VaultSecurityPreferences>(relaxed = true) {
+        val securityPreferences = suppliedPreferences ?: mockk<VaultSecurityPreferences>(relaxed = true) {
             every { settings } returns MutableStateFlow(VaultSecuritySettings())
         }
         return OnlyFilesViewModel(

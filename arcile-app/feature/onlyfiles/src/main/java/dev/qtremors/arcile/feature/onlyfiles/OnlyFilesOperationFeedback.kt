@@ -100,6 +100,21 @@ internal fun vaultOperationErrorText(error: Throwable, fallback: Int): UiText = 
         R.string.onlyfiles_operation_space, listOf(error.requiredBytes, error.availableBytes)
     )
     else -> UiText.StringResource(when (error) {
+        is VaultFailure.AuthenticationFailed -> R.string.onlyfiles_error_password
+        is VaultFailure.WeakPasswordConfirmationRequired -> R.string.onlyfiles_error_weak_password
+        is VaultFailure.BiometricInvalidated -> R.string.onlyfiles_error_biometric
+        is VaultFailure.UnsupportedFormat -> R.string.onlyfiles_error_format
+        is VaultFailure.UnsafeKdfParameters -> R.string.onlyfiles_error_kdf
+        is VaultFailure.StaleRegistration -> R.string.onlyfiles_error_registration
+        is VaultFailure.DuplicateVault -> R.string.onlyfiles_error_duplicate
+        is VaultFailure.FolderNotEmpty -> R.string.onlyfiles_error_folder_not_empty
+        is VaultFailure.InvalidName -> R.string.onlyfiles_error_name
+        is VaultFailure.SymlinkRejected -> R.string.onlyfiles_error_symlink
+        is VaultFailure.TransactionRecoveryFailed -> R.string.onlyfiles_error_recovery
+        is VaultFailure.FileTooLarge -> R.string.onlyfiles_error_file_too_large
+        is VaultFailure.ExternalGrantExpired -> R.string.onlyfiles_error_grant_expired
+        is VaultFailure.ExternalGrantConsumerMismatch -> R.string.onlyfiles_error_grant_consumer
+        is VaultFailure.DestructiveConfirmationRequired -> R.string.onlyfiles_error_confirmation
         is VaultFailure.Locked -> R.string.onlyfiles_operation_locked
         is VaultFailure.RemovableStorageMissing, is VaultFailure.NotFound -> R.string.onlyfiles_operation_storage_missing
         is VaultFailure.NodeNotFound, is VaultFailure.InvalidPath -> R.string.onlyfiles_operation_item_missing
@@ -116,4 +131,8 @@ internal fun vaultOperationFailure(error: Throwable, fallback: Int, mount: Long)
     vaultOperationErrorText(error, fallback),
     if (error is VaultFailure.Cancelled) ArcileFeedbackSeverity.Info else ArcileFeedbackSeverity.Error,
     mount
+)
+
+internal fun operationSuccess(resource: Int, mount: Long, args: List<Any> = emptyList()) = OnlyFilesOperationFeedback(
+    UiText.StringResource(resource, args), ArcileFeedbackSeverity.Success, mount
 )

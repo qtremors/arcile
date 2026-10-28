@@ -1,5 +1,14 @@
 package dev.qtremors.arcile
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import dev.qtremors.arcile.security.VaultAutoLockController
+import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
 import android.app.Application
 import android.os.StrictMode
 import coil3.request.crossfade
@@ -64,6 +73,12 @@ class ArcileApp : Application(), SingletonImageLoader.Factory {
     @Inject
     lateinit var vaultThumbnailCache: VaultThumbnailCache
 
+    @Inject
+    lateinit var vaultSecurityPreferences: VaultSecurityPreferences
+
+    internal lateinit var vaultAutoLockController: VaultAutoLockController
+        private set
+
     override fun onCreate() {
         super.onCreate()
         if (getProcessName() == packageName) {
@@ -81,12 +96,26 @@ class ArcileApp : Application(), SingletonImageLoader.Factory {
         }
         storageCacheInvalidationObserver.register()
         SensitiveMemory.clearDelegate = { SingletonImageLoader.get(this).memoryCache?.clear() }
+        vaultAutoLockController = VaultAutoLockController(
+            vaultSecurityPreferences.settings,
+            CoroutineScope(applicationScope.coroutineContext + Dispatchers.Main.immediate),
+            SystemClock::elapsedRealtime, vaultRepository::lockAll, SensitiveMemory::clear
+        )
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
-            override fun onStop(owner: LifecycleOwner) {
-                SensitiveMemory.clear()
-                applicationScope.launch { vaultRepository.lockAll() }
-            }
+            override fun onStart(owner: LifecycleOwner) = vaultAutoLockController.onForeground()
+            override fun onStop(owner: LifecycleOwner) = vaultAutoLockController.onBackground()
         })
+        ContextCompat.registerReceiver(this, object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> vaultAutoLockController.onScreenOff()
+                    Intent.ACTION_SCREEN_ON -> vaultAutoLockController.onScreenOn()
+                }
+            }
+        }, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
         GlobalThumbnailStatePersistence.delegate = RoomThumbnailStatePersistence(
             thumbnailCacheStore = thumbnailCacheStore,
             applicationScope = applicationScope

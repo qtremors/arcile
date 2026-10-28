@@ -12,6 +12,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
+import dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay
 import dev.qtremors.arcile.core.vault.domain.VaultSecuritySettings
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
@@ -39,6 +40,10 @@ class DefaultVaultSecurityPreferences @Inject constructor(
     override val settings = store.data.map { preferences ->
         VaultSecuritySettings(
             screenshotProtectionEnabled = preferences[SCREENSHOT_PROTECTION] ?: true,
+            numericPasswordKeyboard = preferences[NUMERIC_PASSWORD_KEYBOARD] ?: false,
+            backgroundLockDelay = VaultBackgroundLockDelay.entries.firstOrNull { it.name == preferences[BACKGROUND_LOCK_DELAY] }
+                ?: VaultBackgroundLockDelay.IMMEDIATE,
+            lockOnScreenOff = preferences[LOCK_ON_SCREEN_OFF] ?: true,
             viewOptions = VaultViewOptions(
                 grid = preferences[GRID] ?: false,
                 sortField = VaultSortField.entries.firstOrNull { it.name == preferences[SORT_FIELD] }
@@ -83,6 +88,18 @@ class DefaultVaultSecurityPreferences @Inject constructor(
 
     override suspend fun setScreenshotProtectionEnabled(enabled: Boolean) {
         store.edit { it[SCREENSHOT_PROTECTION] = enabled }
+    }
+
+    override suspend fun setNumericPasswordKeyboard(enabled: Boolean) {
+        store.edit { it[NUMERIC_PASSWORD_KEYBOARD] = enabled }
+    }
+
+    override suspend fun setBackgroundLockDelay(delay: VaultBackgroundLockDelay) {
+        store.edit { it[BACKGROUND_LOCK_DELAY] = delay.name }
+    }
+
+    override suspend fun setLockOnScreenOff(enabled: Boolean) {
+        store.edit { it[LOCK_ON_SCREEN_OFF] = enabled }
     }
 
     override suspend fun setViewOptions(options: VaultViewOptions) {
@@ -208,6 +225,9 @@ class DefaultVaultSecurityPreferences @Inject constructor(
 
     private companion object {
         val SCREENSHOT_PROTECTION = booleanPreferencesKey("screenshot_protection_enabled")
+        val NUMERIC_PASSWORD_KEYBOARD = booleanPreferencesKey("numeric_password_keyboard")
+        val BACKGROUND_LOCK_DELAY = stringPreferencesKey("background_lock_delay")
+        val LOCK_ON_SCREEN_OFF = booleanPreferencesKey("lock_on_screen_off")
         val GRID = booleanPreferencesKey("browse_grid")
         val SORT_FIELD = stringPreferencesKey("browse_sort_field")
         val SORT_DIRECTION = stringPreferencesKey("browse_sort_direction")

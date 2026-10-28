@@ -4,6 +4,9 @@ import kotlinx.coroutines.flow.StateFlow
 
 data class VaultSecuritySettings(
     val screenshotProtectionEnabled: Boolean = true,
+    val numericPasswordKeyboard: Boolean = false,
+    val backgroundLockDelay: VaultBackgroundLockDelay = VaultBackgroundLockDelay.IMMEDIATE,
+    val lockOnScreenOff: Boolean = true,
     val viewOptions: VaultViewOptions = VaultViewOptions(),
     val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
     val lastDirectories: Map<VaultId, DirectoryId> = emptyMap(),
@@ -12,6 +15,11 @@ data class VaultSecuritySettings(
     val pinnedWorkspaceTabs: Map<VaultId, List<DirectoryId>> = emptyMap(),
     val pinnedVaults: Set<VaultId> = emptySet()
 )
+
+/** Stable preference values. Retention only applies to this process and never stores unlocked keys. */
+enum class VaultBackgroundLockDelay(val milliseconds: Long) {
+    IMMEDIATE(0L), THIRTY_SECONDS(30_000L), ONE_MINUTE(60_000L), FIVE_MINUTES(300_000L)
+}
 
 const val VAULT_MAX_WORKSPACE_TABS = 8
 
@@ -34,6 +42,9 @@ data class VaultViewOptions(
 interface VaultSecurityPreferences {
     val settings: StateFlow<VaultSecuritySettings>
     suspend fun setScreenshotProtectionEnabled(enabled: Boolean)
+    suspend fun setNumericPasswordKeyboard(enabled: Boolean)
+    suspend fun setBackgroundLockDelay(delay: VaultBackgroundLockDelay)
+    suspend fun setLockOnScreenOff(enabled: Boolean)
     suspend fun setViewOptions(options: VaultViewOptions)
     suspend fun setFolderViewOptions(
         vaultId: VaultId,

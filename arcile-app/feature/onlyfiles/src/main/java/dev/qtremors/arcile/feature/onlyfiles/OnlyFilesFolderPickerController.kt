@@ -90,7 +90,7 @@ internal class OnlyFilesFolderPickerController(
 
     private fun attach(path: String) = runBusy {
         repository.attachExistingVault(path).fold(
-            onSuccess = { state.update { it.copy(message = "Vault added. Enter its password to unlock it.") } },
+            onSuccess = { state.update { it.copy(message = null, operationFeedback = operationSuccess(R.string.onlyfiles_vault_added, it.mountGeneration)) } },
             onFailure = showError
         )
     }

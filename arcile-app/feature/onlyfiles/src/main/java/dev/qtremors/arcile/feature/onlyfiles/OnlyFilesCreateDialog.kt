@@ -63,16 +63,9 @@ internal fun CreateVaultDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 PasswordField(password, { password = it }, reveal, { reveal = !reveal })
-                OutlinedTextField(
-                    value = confirm,
-                    onValueChange = { confirm = it },
-                    label = { Text(stringResource(R.string.onlyfiles_confirm_password)) },
-                    visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    isError = mismatch,
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth()
+                PasswordField(
+                    confirm, { confirm = it }, reveal, { reveal = !reveal },
+                    label = R.string.onlyfiles_confirm_password, isError = mismatch, showKeyboardSwitch = false
                 )
                 if (mismatch) Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
                 if (password.isNotEmpty() && password.length < 12) {

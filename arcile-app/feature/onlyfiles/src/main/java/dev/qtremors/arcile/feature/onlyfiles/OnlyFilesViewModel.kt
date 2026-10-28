@@ -171,6 +171,9 @@ internal class OnlyFilesViewModel @Inject constructor(
                 _state.update {
                     it.copy(
                         screenshotProtectionEnabled = settings.screenshotProtectionEnabled,
+                        numericPasswordKeyboard = settings.numericPasswordKeyboard,
+                        backgroundLockDelay = settings.backgroundLockDelay,
+                        lockOnScreenOff = settings.lockOnScreenOff,
                         pinnedDirectoryIds = it.selectedVaultId?.let(settings.pinnedDirectories::get).orEmpty(),
                         pinnedVaultIds = settings.pinnedVaults,
                         workspaceTabsEnabled = settings.workspaceTabsEnabled
@@ -223,7 +226,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun openVault(vault: VaultSummary): Boolean {
         val currentVault = _state.value.vaults.firstOrNull { it.id == vault.id } ?: vault
         if (!currentVault.isAvailable) {
-            _state.update { it.copy(message = "This vault is unavailable. Reconnect its storage and refresh.") }
+            _state.update { it.copy(message = null, operationFeedback = operationNotice(R.string.onlyfiles_operation_storage_missing, it.mountGeneration, error = true)) }
             return true
         }
         if (vault.id !in repository.unlockedVaultIds.value) return false
@@ -892,7 +895,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     private fun showError(error: Throwable) {
-        _state.update { it.copy(message = error.message ?: "Vault operation failed") }
+        _state.update { it.copy(message = null, operationFeedback = vaultOperationFailure(error, R.string.onlyfiles_error_operation, it.mountGeneration)) }
     }
 
     fun openSettings() {
@@ -925,6 +928,16 @@ internal class OnlyFilesViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun setNumericPasswordKeyboard(enabled: Boolean) {
+        viewModelScope.launch { securityPreferences.setNumericPasswordKeyboard(enabled) }
+    }
+    fun setBackgroundLockDelay(delay: dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay) {
+        viewModelScope.launch { securityPreferences.setBackgroundLockDelay(delay) }
+    }
+    fun setLockOnScreenOff(enabled: Boolean) {
+        viewModelScope.launch { securityPreferences.setLockOnScreenOff(enabled) }
     }
 
     fun setScreenshotProtection(enabled: Boolean) {

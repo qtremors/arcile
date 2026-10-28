@@ -39,12 +39,13 @@ internal class OnlyFilesBackupController(
                 val result = when (request.mode) {
                     VaultBackupMode.CREATE -> service.createBackup(
                         requireNotNull(request.vaultId), request.path, label, secret, weakConfirmed
-                    ).map { "Encrypted backup created in ${it.substringAfterLast(java.io.File.separatorChar)}" }
+                    ).map { operationSuccess(R.string.onlyfiles_backup_created, snapshot.mountGeneration,
+                        listOf(it.substringAfterLast(java.io.File.separatorChar))) }
                     VaultBackupMode.RESTORE -> service.restoreBackup(request.path, label, secret)
-                        .map { "Backup restored as a separate vault" }
+                        .map { operationSuccess(R.string.onlyfiles_backup_restored, snapshot.mountGeneration) }
                 }
                 if (state.value.mountGeneration == snapshot.mountGeneration) {
-                    result.fold(onSuccess = { message -> state.update { it.copy(message = message) } }, onFailure = showError)
+                    result.fold(onSuccess = { feedback -> state.update { it.copy(message = null, operationFeedback = feedback) } }, onFailure = showError)
                 }
             } finally {
                 secret.fill('\u0000')

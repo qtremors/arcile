@@ -105,7 +105,7 @@ internal fun VaultExtractZipDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 if (selection.requiresPassword || format == ArchiveFormat.SEVEN_Z) {
-                    PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword })
+                    PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword }, allowKeyboardSwitch = false)
                 }
                 androidx.compose.foundation.layout.Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),

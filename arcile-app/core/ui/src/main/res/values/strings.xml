@@ -769,4 +769,7 @@
     <string name="audio_edit">Edit audio</string>
     <string name="audio_playback_failed">Couldn’t play this audio file.</string>
 
+    <string name="onlyfiles_locking">Locking vaults…</string>
+    <string name="onlyfiles_lock_failed">Unable to finish locking vaults. Try again.</string>
+    <string name="onlyfiles_retry_lock">Retry lock</string>
 </resources>

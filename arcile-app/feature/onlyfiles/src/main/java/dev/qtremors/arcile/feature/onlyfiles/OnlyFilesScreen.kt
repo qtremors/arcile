@@ -168,20 +168,22 @@ internal fun OnlyFilesRoute(
         importRequestId?.let(viewModel::acceptBrowserImport)
     }
     VaultSecureWindowEffect(state.selectedVaultId != null && state.screenshotProtectionEnabled)
-    OnlyFilesScreen(
-        entry = entry,
-        state = state,
-        viewModel = viewModel,
-        getFileOpenBehaviors = getFileOpenBehaviors,
-        onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
-        onPlayVideo = onPlayVideo,
-        onOpenOperationDestination = { path -> viewModel.lockAllAndExit { onOpenOperationDestination(path) } },
-        findPlugin = findPlugin,
-        packageInstaller = packageInstaller,
-        onImportFiles = viewModel::beginLocalFileImport,
-        onImportFolder = viewModel::beginLocalFolderImport,
-        onBoundaryTransfer = viewModel::beginLocalExport
-    )
+    VaultPasswordKeyboardProvider(state.numericPasswordKeyboard, viewModel::setNumericPasswordKeyboard) {
+        OnlyFilesScreen(
+            entry = entry,
+            state = state,
+            viewModel = viewModel,
+            getFileOpenBehaviors = getFileOpenBehaviors,
+            onNavigateBack = { viewModel.lockAllAndExit(onNavigateBack) },
+            onPlayVideo = onPlayVideo,
+            onOpenOperationDestination = { path -> viewModel.lockAllAndExit { onOpenOperationDestination(path) } },
+            findPlugin = findPlugin,
+            packageInstaller = packageInstaller,
+            onImportFiles = viewModel::beginLocalFileImport,
+            onImportFolder = viewModel::beginLocalFolderImport,
+            onBoundaryTransfer = viewModel::beginLocalExport
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -753,6 +755,9 @@ private fun OnlyFilesScreen(
         state = state,
         onDismiss = viewModel::closeSettings,
         onSetScreenshotProtection = viewModel::setScreenshotProtection,
+        onSetBackgroundLockDelay = viewModel::setBackgroundLockDelay,
+        onSetLockOnScreenOff = viewModel::setLockOnScreenOff,
+        onSetNumericKeyboard = viewModel::setNumericPasswordKeyboard,
         onClearThumbnails = viewModel::clearVaultThumbnails,
         onRevokeExternalAccess = viewModel::revokeAllVaultExternalAccess,
         onShowDisclosure = viewModel::openSecurityDisclosure

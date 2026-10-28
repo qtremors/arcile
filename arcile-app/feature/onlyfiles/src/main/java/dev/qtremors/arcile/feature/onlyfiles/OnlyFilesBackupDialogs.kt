@@ -91,20 +91,11 @@ private fun VaultBackupCredentialsDialog(
                 )
                 PasswordField(password, { password = it }, reveal, { reveal = !reveal })
                 if (creating) {
-                    OutlinedTextField(
-                        value = confirmation,
-                        onValueChange = { confirmation = it },
-                        label = { Text(stringResource(R.string.onlyfiles_confirm_password)) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                        visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-                        singleLine = true,
-                        isError = mismatch,
-                        supportingText = if (mismatch) {
-                            { Text(stringResource(R.string.onlyfiles_password_mismatch)) }
-                        } else null,
-                        shape = ExpressiveShapes.medium,
-                        modifier = Modifier.fillMaxWidth()
+                    PasswordField(
+                        confirmation, { confirmation = it }, reveal, { reveal = !reveal },
+                        label = R.string.onlyfiles_confirm_password, isError = mismatch, showKeyboardSwitch = false
                     )
+                    if (mismatch) Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
                 }
                 if (weak) {
                     Row(verticalAlignment = Alignment.CenterVertically) {

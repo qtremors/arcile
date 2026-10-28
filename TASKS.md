@@ -66,16 +66,6 @@
 
 ## Vaults and Settings Backups
 
-- [ ] **FEAT-0014 - Offer a Numeric Keyboard for Vault Password Entry**
-  - **Location:** `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesDialogs.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesCreateDialog.kt`.
-  - **Current:** Password fields use KeyboardType.Password without a layout option.
-  - **Change:** Offer a numeric keyboard with an alphanumeric fallback; keep this an input preference rather than changing encryption.
-
-- [ ] **FEAT-0015 - Configure Vault Auto-Lock and Background Retention**
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/ArcileApp.kt`; `arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/DefaultVaultSecurityPreferences.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesDialogs.kt`.
-  - **Current:** Background handling invokes lockAll; persisted vault security settings currently contain screenshot protection only.
-  - **Change:** Add an explicit lock policy retaining current defaults. Define background retention, screen-off, exit, process-death, and grant behavior without persisting unlocked keys.
-
 - [ ] **FEAT-0017 - Schedule Settings Backups and Discover Restore Candidates**
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/backup/PreferencesBackupManager.kt`; `arcile-app/feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/OnboardingRoute.kt`.
   - **Current:** Export/preview/restore and an onboarding picker exist; recurring export and backup-location discovery are absent from these flows.
@@ -102,11 +92,6 @@
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.
   - **Current:** Paste, import, export, and Trash completion support destination actions tied to the unlocked session. Archive completion supports Reveal. Applicable Undo and destination actions for resumed exports remain incomplete.
   - **Change:** Add verified Undo for reversible operations and retain destination identity for recovered/resumed exports. Preserve mount-aware feedback.
-
-- [ ] **UI-0014 - Localize Vault Operation Messages**
-  - **Location:** OnlyFilesViewModel.kt, OnlyFilesBrowserController.kt, OnlyFilesLocalPickerController.kt, and OnlyFilesBackupController.kt.
-  - **Current:** Transfer and recovery summaries use resources and shared Browser wording. Several navigation, picker, backup, and general error messages remain hard-coded English.
-  - **Change:** Finish using shared wording, string resources, and plurals for the remaining messages.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

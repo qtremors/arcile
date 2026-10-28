@@ -296,9 +296,10 @@ internal fun VaultUnlockDialog(
 ) {
     val context = LocalContext.current
     var password by remember { mutableStateOf("") }
+    var reveal by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(vault.name) },
-        text = { PasswordField(password, { password = it }, false, {}) },
+        text = { PasswordField(password, { password = it }, reveal, { reveal = !reveal }) },
         confirmButton = {
             Button(
                 onClick = { onDismiss(); viewModel.unlock(vault.id, password) },
@@ -346,32 +347,15 @@ internal fun VaultUnlockDialog(
 @Composable
 private fun ChangeVaultPasswordDialog(onDismiss: () -> Unit, onSubmit: (String, String, Boolean) -> Unit) {
     var current by remember { mutableStateOf("") }; var replacement by remember { mutableStateOf("") }
+    var reveal by remember { mutableStateOf(false) }
     var repeated by remember { mutableStateOf("") }; var weakConfirmed by remember { mutableStateOf(false) }
     val weak = replacement.isNotEmpty() && VaultPasswordPolicy.isWeak(replacement.toCharArray())
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_change_password)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedTextField(
-                value = current,
-                onValueChange = { current = it },
-                label = { Text(stringResource(R.string.onlyfiles_current_password)) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = replacement,
-                onValueChange = { replacement = it },
-                label = { Text(stringResource(R.string.onlyfiles_new_password)) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            )
-            OutlinedTextField(
-                value = repeated,
-                onValueChange = { repeated = it },
-                label = { Text(stringResource(R.string.onlyfiles_repeat_password)) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            )
+            PasswordField(current, { current = it }, reveal, { reveal = !reveal }, label = R.string.onlyfiles_current_password)
+            PasswordField(replacement, { replacement = it }, reveal, { reveal = !reveal }, label = R.string.onlyfiles_new_password, showKeyboardSwitch = false)
+            PasswordField(repeated, { repeated = it }, reveal, { reveal = !reveal }, label = R.string.onlyfiles_repeat_password, showKeyboardSwitch = false)
             if (weak) {
                 Row(
                     modifier = Modifier

@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.3.8 | **Last Updated:** 2026-11-05
+**Version:** 2.3.9 | **Last Updated:** 2026-11-05
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -284,7 +284,9 @@ OnlyFiles is an encrypted virtual filesystem, not a hidden ordinary folder. Its 
 
 - UI and navigation use stable opaque IDs. Vault paths, object names, keys, and portable-volume roots must not be put in routes, saved state, logs, or analytics.
 - App-private vaults live under app-controlled no-backup storage. Portable vaults are discovered from a managed volume-relative root and remain usable across reinstall only when their recovery material is available.
-- Unlocking creates a bounded in-memory interactive mount. Session keys are cleared on lock, timeout, background policy, vault deletion, or storage loss. Open readers hold explicit leases so an active stream cannot be invalidated midway through a legitimate read.
+- Unlocking creates an in-memory interactive mount. Background locking defaults to immediate; users may retain the mount for 30 seconds, 1 minute, or 5 minutes in the same process. Screen-off locking defaults on and bypasses that grace period. Explicit Lock and vault Back/exit remain immediate. Process death never restores unlocked keys.
+- `VaultAutoLockController` schedules from elapsed background time and rechecks expiry on foreground return. A privacy curtain hides content and accessibility descendants until pending locking completes, without recreating navigation. Confirmed transfers and issued external grants keep their separate bounded leases and expiry.
+- The preferred numeric password keyboard is an input setting with an in-field text-keyboard fallback. Create, unlock, password change, biometric enrollment, and encrypted-backup credentials use the same masked fields. Password text is never filtered or converted to a PIN.
 - Normal import and export use Arcile's `FileBrowserRepository`, storage volumes, and `SaveDestinationBrowser` directly. Content-URI reading exists only for genuine external-provider imports; it must never replace the native file-manager flow. Every transfer uses a one-shot in-memory reservation and a separate bounded transfer lease, so leaving the mounted browser does not expose keys through navigation or saved state.
 - Browser handoffs offer Copy or confirmed Move through the existing verified vault import coordinator. Vault operation feedback shares the app-shell presenter and Browser clipboard wording; destination actions retain their submission identity and expire on lock, vault switch, or replacement feedback.
 - A vault-scoped transaction lock serializes manifest changes. Cross-vault transfers acquire locks in stable UUID order to avoid deadlocks.
@@ -763,8 +765,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 238 |
-| **Version Name** | `2.3.8` |
+| **Version Code** | 239 |
+| **Version Name** | `2.3.9` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.8.2 |
 | **Gradle JVM** | JDK 21 |
@@ -918,7 +920,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.3.8-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.3.9-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -947,11 +949,11 @@ The normal APK release commands and application ID remain unchanged. To generate
 ./gradlew :app:bundleRelease -Parcile.play=true
 ```
 
-The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.3.8.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
+The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.3.9.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.3.8-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.3.8.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.3.9-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.3.9.apk`
 
 ---
 

@@ -38,7 +38,7 @@ class OnlyFilesBackupControllerTest {
         advanceUntilIdle()
 
         assertTrue(issuedSecrets.single().all { it == '\u0000' })
-        assertEquals("Backup restored as a separate vault", state.value.message)
+        assertEquals(dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.onlyfiles_backup_restored), state.value.operationFeedback?.message)
         assertFalse(state.value.busy)
         assertNull(state.value.backupInProgress)
     }

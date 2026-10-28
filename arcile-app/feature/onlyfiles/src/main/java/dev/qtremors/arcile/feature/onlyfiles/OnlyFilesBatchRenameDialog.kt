@@ -17,6 +17,7 @@ import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultName
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultRenameItem
+import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.core.ui.R as UiR
 
 @Composable
@@ -40,7 +41,7 @@ internal fun OnlyFilesBatchRenameDialog(
             text = {
                 val error = siblingNames?.exceptionOrNull()
                 if (error == null) LinearProgressIndicator()
-                else Text(error.message ?: stringResource(R.string.onlyfiles_batch_rename_unavailable))
+                else Text(vaultOperationErrorText(error, R.string.onlyfiles_batch_rename_unavailable).asString())
             },
             confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(UiR.string.cancel)) } }
         )

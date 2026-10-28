@@ -25,7 +25,7 @@ internal class OnlyFilesAdministrationController(
             sessions.changePassword(
                 vaultId, current.toCharArray(), replacement.toCharArray(), weakConfirmed
             ).fold(
-                onSuccess = { state.update { it.copy(message = "Password changed") } },
+                onSuccess = { state.update { it.copy(message = null, operationFeedback = operationSuccess(R.string.onlyfiles_password_changed, it.mountGeneration)) } },
                 onFailure = showError
             )
         }
@@ -44,7 +44,7 @@ internal class OnlyFilesAdministrationController(
 
     fun biometricCompleted(vaultId: VaultId) {
         selectVault(vaultId)
-        state.update { it.copy(message = "Biometric authentication complete") }
+        state.update { it.copy(message = null, operationFeedback = operationSuccess(R.string.onlyfiles_biometric_complete, it.mountGeneration)) }
         scope.launch {
             if (sessions.hasBiometricEnrollment(vaultId)) {
                 state.update { it.copy(biometricVaultIds = it.biometricVaultIds + vaultId) }
@@ -60,7 +60,7 @@ internal class OnlyFilesAdministrationController(
                     state.update {
                         it.copy(
                             biometricVaultIds = it.biometricVaultIds - vaultId,
-                            message = "Biometric unlock removed"
+                            message = null, operationFeedback = operationSuccess(R.string.onlyfiles_biometric_removed, it.mountGeneration)
                         )
                     }
                 },
@@ -73,7 +73,7 @@ internal class OnlyFilesAdministrationController(
         val vaultId = state.value.selectedVaultId ?: return
         runBusy {
             catalog.removeRegistration(vaultId).fold(
-                onSuccess = { onVaultRemoved(vaultId); clearSelection(vaultId, "Vault removed from Arcile") }, onFailure = showError
+                onSuccess = { onVaultRemoved(vaultId); clearSelection(vaultId, R.string.onlyfiles_vault_removed) }, onFailure = showError
             )
         }
     }
@@ -82,17 +82,17 @@ internal class OnlyFilesAdministrationController(
         val vaultId = state.value.selectedVaultId ?: return
         runBusy {
             catalog.deletePermanently(vaultId, confirmation).fold(
-                onSuccess = { onVaultRemoved(vaultId); clearSelection(vaultId, "Vault data permanently deleted") }, onFailure = showError
+                onSuccess = { onVaultRemoved(vaultId); clearSelection(vaultId, R.string.onlyfiles_vault_deleted) }, onFailure = showError
             )
         }
     }
 
-    private fun clearSelection(vaultId: VaultId, message: String) {
+    private fun clearSelection(vaultId: VaultId, messageResource: Int) {
         state.update {
             if (it.selectedVaultId != null && it.selectedVaultId != vaultId) return@update it
             it.copy(
                 selectedVaultId = null, directoryStack = emptyList(), nodes = emptyList(), searchHits = emptyList(),
-                selectedNodeIds = emptySet(), clipboard = null, viewer = null, message = message
+                selectedNodeIds = emptySet(), clipboard = null, viewer = null, message = null, operationFeedback = operationSuccess(messageResource, it.mountGeneration)
             )
         }
     }

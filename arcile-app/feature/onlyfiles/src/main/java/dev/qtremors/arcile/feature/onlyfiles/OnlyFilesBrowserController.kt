@@ -264,7 +264,14 @@ internal class OnlyFilesBrowserController(
                 viewer = it.viewer?.takeUnless { viewer -> viewer.ref.nodeId.value in deletedIds },
                 viewerQueue = it.viewerQueue.filterNot { node -> node.ref.nodeId.value in deletedIds },
                 batchProgress = null,
-                message = if (failed == 0) "$completed item(s) permanently deleted" else "$completed deleted; $failed failed"
+                message = null,
+                operationFeedback = OnlyFilesOperationFeedback(
+                    if (failed == 0) dev.qtremors.arcile.core.presentation.UiText.PluralResource(
+                        dev.qtremors.arcile.core.ui.R.plurals.file_operation_deleted_items, completed, listOf(completed)
+                    ) else dev.qtremors.arcile.core.presentation.UiText.StringResource(R.string.onlyfiles_delete_result, listOf(completed, failed)),
+                    if (failed == 0) dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity.Success else dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity.Error,
+                    mountGeneration
+                )
             )
         }
         if (state.value.mountGeneration == mountGeneration) {

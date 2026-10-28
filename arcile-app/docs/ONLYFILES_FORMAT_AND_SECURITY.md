@@ -79,7 +79,11 @@ Optional biometric unlock requires Android's `BIOMETRIC_STRONG` class. Password 
 
 Biometric preparation and completion run in the background. Locking invalidates pending challenges, so a delayed biometric result cannot reopen a locked session. Cancelling access releases the pending secret material.
 
-Interactive keys are zeroed when Arcile leaves the foreground. Vault viewers close, navigation and in-memory clipboard state reset, and decrypted thumbnail memory is cleared. Screen rotation alone does not background the app and keeps an active vault video open. Operation-specific leases let an already confirmed import, export, transfer, or external grant finish without keeping interactive access unlocked.
+Interactive access locks immediately when Arcile leaves the foreground by default. Users may instead retain an unlocked mount in memory for 30 seconds, 1 minute, or 5 minutes. The deadline uses elapsed time and is checked again when the app returns, including after Android suspends a timer. Screen-off locking is enabled by default and overrides background retention. Explicit Lock and Back/exit from OnlyFiles still lock immediately. Process death clears interactive keys; retention never persists an unlocked session.
+
+Content is hidden while Arcile is backgrounded or an expired lock is being completed. On lock, vault viewers close, navigation and in-memory clipboard state reset, and decrypted thumbnail memory is cleared. Screen rotation alone does not background the app. Operation-specific leases let an already confirmed import, export, transfer, or external grant finish without keeping interactive access unlocked. Issued external access keeps its existing expiry and can be ended through Revoke access.
+
+The numeric password keyboard is a global input preference with a text-keyboard fallback. It does not filter characters, trim passwords, remove leading zeroes, change password derivation, or introduce a separate PIN. Only the layout preference is persisted.
 
 Unlocked OnlyFiles screens block screenshots and screen recording with `FLAG_SECURE` by default. The global setting can disable that protection.
 
