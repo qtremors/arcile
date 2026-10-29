@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryDestination
 import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
@@ -38,10 +40,12 @@ internal class DefaultVaultOperationRecovery @Inject constructor(
                 VaultRecoveryResult.ImportStarted
             }
             VaultRecoveryKind.EXPORT -> VaultRecoveryResult.Transferred(
-                boundary.resumeInterruptedExport(queue, plan, conflicts, cancellation)
+                boundary.resumeInterruptedExport(queue, plan, conflicts, cancellation),
+                VaultRecoveryDestination.LocalDirectory(plan.destination)
             )
             VaultRecoveryKind.PASTE -> VaultRecoveryResult.Transferred(
-                repository.resumeInterruptedPaste(queue, plan, conflicts, cancellation)
+                repository.resumeInterruptedPaste(queue, plan, conflicts, cancellation),
+                VaultRecoveryDestination.VaultDirectory(queue.vaultId, DirectoryId.of(plan.destination))
             )
         }
         Result.success(result)

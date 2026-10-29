@@ -57,6 +57,12 @@ New transactions are limited to 32 manifest publications, 100,000 new object pat
 
 When a folder move merges into an existing vault folder, skipped files and their parent folders stay at the source. A partially completed move does not delete the whole source tree.
 
+Arcile stores transfer queues, partial-folder checkpoints, and publication receipts under non-backed-up private storage with authenticated encryption bound to the owning vault and journal path. Records contain metadata, never content or directory keys. Each document and the combined saved folder checkpoints are bounded to 4 MiB. Queues require their vaults to be unlocked again after restart; recovered moves resume as copies and cannot delete remaining originals.
+
+New imports and pastes record expected destination metadata before committing. Recovery compares it with authenticated manifests to distinguish a published item from an uncommitted item. Local exports record their selected parent, owned staging identity, and any replacement backup before writing plaintext. Recovery can remove an incomplete owned stage, restore a known backup without overwriting a newer target, or recognize a published destination. Changed identities, missing prepared records, and older ambiguous queues require manual review. File identity uses filesystem object keys where available, with an ownership attribute fallback for newly owned paths; existing backups without an object key require a content proof. Timestamps alone do not authorize cleanup.
+
+Partial-folder checkpoints retain unfinished children across restarts. Progress within an already resumed folder attempt is not yet journaled per child, so interruption there may require reviewing a just-published child again. Recovery never infers deletion authority from a checkpoint.
+
 Recovery cannot reconstruct logical names or hierarchy when all authenticated metadata copies are lost. OnlyFiles does not merge concurrent writers or synchronize independently modified copies. Lock a vault before copying or backing up its folder.
 
 Quick health checks authenticate headers, transaction state, manifests, references, declared sizes, and orphan detection. Full checks additionally authenticate every encrypted file chunk. A successful check reports what Arcile could read at that time; it is not a substitute for backups and cannot repair lost authenticated metadata. Orphans are deleted only after an explicit confirmed cleanup.

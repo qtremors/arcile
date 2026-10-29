@@ -5,6 +5,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultOperationRecovery
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryQueue
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryDestination
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryResult
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CoroutineScope
@@ -108,7 +109,13 @@ internal class OnlyFilesRecoveryController(
                             state.update {
                                 it.copy(
                                     message = null,
-                                    operationFeedback = vaultBatchFeedback(batch, OnlyFilesOperationKind.RECOVERY, mount),
+                                    operationFeedback = vaultBatchFeedback(batch, OnlyFilesOperationKind.RECOVERY, mount,
+                                        when (val destination = result.destination) {
+                                            is VaultRecoveryDestination.VaultDirectory -> OnlyFilesOperationDestination.VaultDirectory(destination.vaultId, destination.directoryId)
+                                            is VaultRecoveryDestination.LocalDirectory -> OnlyFilesOperationDestination.LocalDirectory(destination.path)
+                                            null -> null
+                                        }
+                                    ),
                                     clipboard = it.clipboard ?: merges.takeIf { retries -> retries.isNotEmpty() }?.let { retries ->
                                         VaultClipboard(
                                             VaultClipboardAction.COPY, retries.map { retry -> retry.source },

@@ -126,6 +126,45 @@ class OnlyFilesRecoveryControllerTest {
         assertEquals(1, reloads)
     }
 
+    @Test
+    fun `recovered export completion carries its authenticated local destination into feedback`() = runTest {
+        val queue = queue().copy(kind = VaultRecoveryKind.EXPORT)
+        val state = mounted(queue)
+        val service = mockk<VaultOperationRecovery>()
+        coEvery { service.list(queue.vaultId) } returns Result.success(listOf(queue))
+        coEvery { service.resume(queue, any(), any()) } returns Result.success(
+            (transferred() as VaultRecoveryResult.Transferred).copy(
+                destination = dev.qtremors.arcile.core.vault.domain.VaultRecoveryDestination.LocalDirectory("/storage/Exports")
+            )
+        )
+        val controller = OnlyFilesRecoveryController(service, state, this, {})
+        controller.open()
+        advanceUntilIdle()
+        controller.resume(queue)
+        advanceUntilIdle()
+        assertEquals(OnlyFilesOperationDestination.LocalDirectory("/storage/Exports"), state.value.operationFeedback?.destination)
+    }
+
+    @Test
+    fun `recovered paste completion reveals the original vault directory`() = runTest {
+        val queue = queue()
+        val state = mounted(queue)
+        val folder = dev.qtremors.arcile.core.vault.domain.DirectoryId.of("recorded-folder")
+        val service = mockk<VaultOperationRecovery>()
+        coEvery { service.list(queue.vaultId) } returns Result.success(listOf(queue))
+        coEvery { service.resume(queue, any(), any()) } returns Result.success(
+            (transferred() as VaultRecoveryResult.Transferred).copy(
+                destination = dev.qtremors.arcile.core.vault.domain.VaultRecoveryDestination.VaultDirectory(queue.vaultId, folder)
+            )
+        )
+        val controller = OnlyFilesRecoveryController(service, state, this, {})
+        controller.open()
+        advanceUntilIdle()
+        controller.resume(queue)
+        advanceUntilIdle()
+        assertEquals(OnlyFilesOperationDestination.VaultDirectory(queue.vaultId, folder), state.value.operationFeedback?.destination)
+    }
+
     private fun queue() = VaultRecoveryQueue(
         "queue", VaultId.of("vault"), VaultRecoveryKind.PASTE, 0L, 0, 1,
         hasUncertainItem = false, wasMove = false, lockedSourceVaults = emptySet()

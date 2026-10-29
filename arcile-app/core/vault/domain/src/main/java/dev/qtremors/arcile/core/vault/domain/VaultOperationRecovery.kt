@@ -16,7 +16,12 @@ data class VaultRecoveryQueue(
 
 sealed interface VaultRecoveryResult {
     data object ImportStarted : VaultRecoveryResult
-    data class Transferred(val batch: VaultBatchResult) : VaultRecoveryResult
+    data class Transferred(val batch: VaultBatchResult, val destination: VaultRecoveryDestination? = null) : VaultRecoveryResult
+}
+
+sealed interface VaultRecoveryDestination {
+    data class VaultDirectory(val vaultId: VaultId, val directoryId: DirectoryId) : VaultRecoveryDestination
+    data class LocalDirectory(val path: String) : VaultRecoveryDestination
 }
 
 interface VaultOperationRecovery {

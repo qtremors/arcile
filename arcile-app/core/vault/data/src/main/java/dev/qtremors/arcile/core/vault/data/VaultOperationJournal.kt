@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.vault.crypto.VaultSealedValue
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultItemResult
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
@@ -45,7 +46,8 @@ internal data class VaultQueuePlan(
     val move: Boolean,
     val nodes: List<QueuedVaultNode> = emptyList(),
     val localSources: List<String> = emptyList(),
-    val localDestinationIdentity: ExportFolderIdentity? = null
+    val localDestinationIdentity: ExportFolderIdentity? = null,
+    val publicationReceipts: Boolean = false
 ) {
     val size: Int get() = if (kind == VaultRecoveryKind.IMPORT) localSources.size else nodes.size
 
@@ -79,11 +81,14 @@ private data class VaultQueueDocument(
 )
 
 @Serializable
-internal data class VaultQueueCursor(val next: Int, val inFlight: Boolean = false) {
+internal data class VaultQueueCursor(val next: Int, val inFlight: Boolean = false, val retries: List<Int> = emptyList(), val publicationPrepared: Boolean = false) {
     val firstSafeIndex: Int get() = next + if (inFlight) 1 else 0
 
     fun validate(plan: VaultQueuePlan) {
         require(next in 0..plan.size && firstSafeIndex <= plan.size)
+        require(!publicationPrepared || inFlight)
+        require(retries.size <= plan.size && retries.distinct().size == retries.size)
+        require(retries.all { it in 0 until next })
     }
 }
 
@@ -115,8 +120,8 @@ internal class VaultOperationJournal(root: File) {
         if (path in active) throw VaultFailure.OperationInProgress()
         val (document, cursor) = readQueue(session, path)
         require(document.plan.kind == kind)
-        val next = VaultQueueCursor(cursor.firstSafeIndex)
-        if (next.next == document.plan.size) throw VaultFailure.Unavailable("There are no unstarted items to resume")
+        val next = VaultQueueCursor(cursor.firstSafeIndex, retries = cursor.retries)
+        if (next.next == document.plan.size && next.retries.isEmpty()) throw VaultFailure.Unavailable("There are no unstarted items to resume")
         if (cursor.inFlight) write(session, "$path.cursor", Json.encodeToString(next))
         return claim(session, path, document.plan, next)
     }
@@ -138,6 +143,9 @@ internal class VaultOperationJournal(root: File) {
             val path = file.relativePath
             if (path.endsWith(".cursor") && path.removeSuffix(".cursor") !in paths) directory.delete(path)
             if (path.endsWith(".tmp")) directory.delete(path)
+            if (".retry-" in path && path.substringBefore(".retry-") !in paths) directory.delete(path)
+            if (".receipt-" in path && path.substringBefore(".receipt-") !in paths) directory.delete(path)
+            if (".export-" in path && path.substringBefore(".export-") !in paths) directory.delete(path)
         }
         return plans.mapNotNull { file ->
             val path = file.relativePath.removeSuffix(".plan")
@@ -145,14 +153,14 @@ internal class VaultOperationJournal(root: File) {
             if (path in active || !isQueueId(id)) return@mapNotNull null
             try {
                 val (document, cursor) = readQueue(session, path)
-                if (cursor.next == document.plan.size) {
+                if (cursor.next == document.plan.size && cursor.retries.isEmpty()) {
                     remove(path)
                     return@mapNotNull null
                 }
                 val locked = document.plan.nodes.mapTo(linkedSetOf()) { VaultId.of(it.vault) } - unlocked
                 VaultRecoveryQueue(
                     id, session.id, document.plan.kind, document.createdAtMillis, cursor.next,
-                    document.plan.size - cursor.firstSafeIndex, cursor.inFlight, document.plan.move, locked
+                    document.plan.size - cursor.firstSafeIndex + cursor.retries.size, cursor.inFlight, document.plan.move, locked
                 )
             } catch (_: Exception) {
                 VaultRecoveryQueue(id, session.id, null, file.modifiedAtMillis, 0, 0, false, false, emptySet())
@@ -173,12 +181,61 @@ internal class VaultOperationJournal(root: File) {
         plan: VaultQueuePlan,
         cursor: VaultQueueCursor
     ): VaultQueueRun {
+        val checkpointSizes = checkpointSizes(path, cursor.retries)
+        var totalBytes = checkpointSizes.values.sum()
         check(active.add(path))
         return VaultQueueRun(
             plan, cursor,
             save = { next -> synchronized(this) { write(session, "$path.cursor", Json.encodeToString(next)) } },
             finish = { synchronized(this) { remove(path) } },
-            release = { synchronized(this) { active.remove(path) } }
+            release = { synchronized(this) { active.remove(path) } },
+            saveCheckpoint = { index, checkpoint -> synchronized(this) {
+                checkpoint.validate(plan, index, session.id)
+                val document = Json.encodeToString(checkpoint)
+                val size = document.encodeToByteArray().let { bytes ->
+                    try { bytes.size.toLong() + OVERHEAD } finally { bytes.fill(0) }
+                }
+                val total = totalBytes - (checkpointSizes[index] ?: 0L) + size
+                require(total <= MAX_PLAINTEXT) { "The recovery checkpoints are too large" }
+                write(session, "$path.retry-$index", document)
+                totalBytes = total
+                checkpointSizes[index] = size
+            } },
+            readCheckpoint = { index -> synchronized(this) { readCheckpoint(session, path, plan, index) } },
+            removeCheckpoint = { index -> synchronized(this) {
+                directory.delete("$path.retry-$index")
+                totalBytes -= checkpointSizes.remove(index) ?: 0L
+            } },
+            savePublication = { index, receipt -> synchronized(this) {
+                receipt.validate(plan, index, session.id)
+                receipt.checkpoint?.let { checkpoint ->
+                    val encoded = Json.encodeToString(checkpoint).encodeToByteArray()
+                    try { require(totalBytes + encoded.size + OVERHEAD <= MAX_PLAINTEXT) }
+                    finally { encoded.fill(0) }
+                }
+                write(session, "$path.receipt-$index", Json.encodeToString(receipt))
+            } },
+            removePublication = { index -> synchronized(this) {
+                directory.delete("$path.receipt-$index")
+                directory.delete("$path.export-$index")
+                Unit
+            } },
+            saveExportPublication = { index, receipt -> synchronized(this) {
+                receipt.validate(plan, index, session.id)
+                receipt.checkpoint?.let { checkpoint ->
+                    val encoded = Json.encodeToString(checkpoint).encodeToByteArray()
+                    try { require(totalBytes + encoded.size + OVERHEAD <= MAX_PLAINTEXT) }
+                    finally { encoded.fill(0) }
+                }
+                write(session, "$path.export-$index", Json.encodeToString(receipt))
+            } },
+            canFinishPublication = { index -> synchronized(this) {
+                if (!directory.exists("$path.export-$index")) true
+                else read<VaultExportPublicationReceipt>(session, "$path.export-$index").also {
+                    it.validate(plan, index, session.id)
+                }.reconcile() != VaultPublicationState.UNCERTAIN
+            } }
+
         )
     }
 
@@ -186,16 +243,84 @@ internal class VaultOperationJournal(root: File) {
         val document = read<VaultQueueDocument>(session, "$path.plan")
         if (document.ownerLocation != session.directory.stableId) throw VaultFailure.StaleRegistration()
         document.plan.validate(session.id)
-        val cursor = read<VaultQueueCursor>(session, "$path.cursor")
+        var cursor = read<VaultQueueCursor>(session, "$path.cursor")
         cursor.validate(document.plan)
+        // A checkpoint written after publication but before cursor advancement is authoritative.
+        if (cursor.inFlight && directory.exists("$path.retry-${cursor.next}")) {
+            readCheckpoint(session, path, document.plan, cursor.next)
+            cursor = VaultQueueCursor(cursor.next + 1, retries = cursor.retries + cursor.next)
+            write(session, "$path.cursor", Json.encodeToString(cursor))
+        }
+        if (cursor.inFlight && directory.exists("$path.receipt-${cursor.next}")) {
+            val receipt = read<VaultPublicationReceipt>(session, "$path.receipt-${cursor.next}")
+            receipt.validate(document.plan, cursor.next, session.id)
+            val next = reconcilePublication(session, path, document.plan, cursor, receipt.inspect(session), receipt.checkpoint)
+            if (next != cursor) {
+                cursor = next
+                write(session, "$path.cursor", Json.encodeToString(cursor))
+            }
+        }
+        if (cursor.inFlight && directory.exists("$path.export-${cursor.next}")) {
+            val receipt = read<VaultExportPublicationReceipt>(session, "$path.export-${cursor.next}")
+            receipt.validate(document.plan, cursor.next, session.id)
+            val next = reconcilePublication(session, path, document.plan, cursor, receipt.reconcile(), receipt.checkpoint)
+            if (next != cursor) {
+                cursor = next
+                write(session, "$path.cursor", Json.encodeToString(cursor))
+            }
+        }
+        // Only new producers promise to record a receipt before any publication/plaintext write.
+        // Older queues without that promise retain their conservative manual-review behavior.
+        if (cursor.inFlight && document.plan.publicationReceipts && !cursor.publicationPrepared &&
+            !directory.exists("$path.receipt-${cursor.next}") && !directory.exists("$path.export-${cursor.next}")
+        ) {
+            cursor = cursor.copy(inFlight = false, publicationPrepared = false)
+            write(session, "$path.cursor", Json.encodeToString(cursor))
+        }
+        require(checkpointSizes(path, cursor.retries).values.sum() <= MAX_PLAINTEXT)
+        cursor.retries.forEach { readCheckpoint(session, path, document.plan, it) }
         return document to cursor
     }
+
+    private fun reconcilePublication(
+        session: VaultSessionRecord,
+        path: String,
+        plan: VaultQueuePlan,
+        cursor: VaultQueueCursor,
+        state: VaultPublicationState,
+        checkpoint: VaultRetryCheckpoint?
+    ): VaultQueueCursor = when (state) {
+        VaultPublicationState.PUBLISHED -> {
+            if (checkpoint != null) {
+                checkpoint.validate(plan, cursor.next, session.id)
+                val encoded = Json.encodeToString(checkpoint)
+                val bytes = encoded.encodeToByteArray()
+                try { require(checkpointSizes(path, cursor.retries).values.sum() + bytes.size + OVERHEAD <= MAX_PLAINTEXT) }
+                finally { bytes.fill(0) }
+                write(session, "$path.retry-${cursor.next}", encoded)
+            }
+            VaultQueueCursor(cursor.next + 1, retries = cursor.retries + listOfNotNull(cursor.next.takeIf { checkpoint != null }))
+        }
+        VaultPublicationState.UNPUBLISHED -> cursor.copy(inFlight = false, publicationPrepared = false)
+        VaultPublicationState.UNCERTAIN -> cursor
+    }
+
+    private fun checkpointSizes(path: String, indices: List<Int>): MutableMap<Int, Long> {
+        val files = directory.listFiles(path.substringBeforeLast('/')).associateBy { it.relativePath }
+        return indices.associateWith { requireNotNull(files["$path.retry-$it"]).length }.toMutableMap()
+    }
+
+    private fun readCheckpoint(session: VaultSessionRecord, path: String, plan: VaultQueuePlan, index: Int): VaultRetryCheckpoint =
+        read<VaultRetryCheckpoint>(session, "$path.retry-$index").also { it.validate(plan, index, session.id) }
 
     private fun remove(path: String) {
         if (!directory.delete("$path.plan") && directory.exists("$path.plan")) {
             throw VaultFailure.Unavailable("Unable to clear the recovery queue")
         }
         directory.delete("$path.cursor")
+        directory.listFiles(path.substringBeforeLast('/')).filter {
+            !it.isDirectory && (it.relativePath.startsWith("$path.retry-") || it.relativePath.startsWith("$path.receipt-") || it.relativePath.startsWith("$path.export-"))
+        }.forEach { directory.delete(it.relativePath) }
     }
 
     private fun write(session: VaultSessionRecord, path: String, document: String) {
@@ -260,7 +385,14 @@ internal class VaultQueueRun(
     private var cursor: VaultQueueCursor,
     private val save: (VaultQueueCursor) -> Unit,
     private val finish: () -> Unit,
-    private val release: () -> Unit
+    private val release: () -> Unit,
+    private val saveCheckpoint: (Int, VaultRetryCheckpoint) -> Unit = { _, _ -> },
+    private val readCheckpoint: (Int) -> VaultRetryCheckpoint = { error("No retry checkpoint") },
+    private val removeCheckpoint: (Int) -> Unit = {},
+    private val savePublication: (Int, VaultPublicationReceipt) -> Unit = { _, _ -> },
+    private val removePublication: (Int) -> Unit = {},
+    private val saveExportPublication: (Int, VaultExportPublicationReceipt) -> Unit = { _, _ -> },
+    private val canFinishPublication: (Int) -> Boolean = { true }
 ) : Closeable {
     private var closed = false
     val startIndex: Int get() = cursor.next
@@ -270,14 +402,49 @@ internal class VaultQueueRun(
         persist(cursor.copy(inFlight = true))
     }
 
-    fun finishItem(index: Int) {
+    fun finishItem(index: Int, result: VaultItemResult? = null): Boolean {
         check(!closed && cursor.next == index && cursor.inFlight)
-        persist(VaultQueueCursor(index + 1))
+        if (!canFinishPublication(index)) return false
+        val checkpoint = result?.let(VaultRetryCheckpoint::from)
+        if (checkpoint != null) saveCheckpoint(index, checkpoint)
+        persist(VaultQueueCursor(index + 1, retries = cursor.retries + listOfNotNull(index.takeIf { checkpoint != null })))
+        removePublication(index)
+        return true
+    }
+
+    fun prepareExportPublication(index: Int, receipt: VaultExportPublicationReceipt) {
+        check(!closed && cursor.next == index && cursor.inFlight)
+        saveExportPublication(index, receipt)
+        if (!cursor.publicationPrepared) persist(cursor.copy(publicationPrepared = true))
+    }
+
+    fun preparePublication(index: Int, receipt: VaultPublicationReceipt) {
+        check(!closed && cursor.next == index && cursor.inFlight)
+        savePublication(index, receipt)
+        if (!cursor.publicationPrepared) persist(cursor.copy(publicationPrepared = true))
+    }
+
+    fun pendingRetries(): Sequence<Pair<Int, VaultItemResult>> {
+        check(!closed)
+        return cursor.retries.asSequence().map { index ->
+            check(!closed)
+            index to readCheckpoint(index).restore()
+        }
+    }
+
+    fun finishRetry(index: Int, result: VaultItemResult) {
+        check(!closed && index in cursor.retries)
+        val checkpoint = VaultRetryCheckpoint.from(result)
+        if (checkpoint != null) saveCheckpoint(index, checkpoint)
+        else {
+            persist(cursor.copy(retries = cursor.retries - index))
+            removeCheckpoint(index)
+        }
     }
 
     fun finishQueue() {
-        check(!closed && !cursor.inFlight)
-        finish()
+        check(!closed)
+        if (!cursor.inFlight && cursor.retries.isEmpty()) finish()
     }
 
     fun cancelQueue() {

@@ -75,8 +75,8 @@
 
 - [ ] **REL-0007 - Reconcile Items Interrupted Mid-Transfer**
   - **Location:** VaultOperationJournal.kt, DefaultVaultBoundaryTransferCoordinator.kt, and VaultTransferEngine.kt.
-  - **Current:** After restart, OnlyFiles can resume unstarted queue items. The item that was in progress needs manual review, and partial folder retries are limited to the active session.
-  - **Change:** Reconcile staged and published outputs after interruption, including export staging files. Persist verified folder checkpoints so retry can target unfinished children.
+  - **Current:** Publication receipts reconcile top-level imports, pastes, and local exports. Partial-folder checkpoints survive restart; recovered moves keep originals. A crash during an already resumed folder retry can still require rechecking a newly published child.
+  - **Change:** Journal each resumed child publication and reconcile it into the saved folder checkpoint. Preserve conservative manual review when publication or ownership cannot be verified.
 
 - [ ] **UI-0012 - Complete Vault Audio Editing and Lyrics**
   - **Location:** OnlyFilesAudioMetadata.kt, AudioTagEditor.kt, and the audio editor.
@@ -90,8 +90,8 @@
 
 - [ ] **UI-0013 - Complete Vault Operation Feedback**
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.
-  - **Current:** Paste, import, export, and Trash completion support destination actions tied to the unlocked session. Archive completion supports Reveal. Applicable Undo and destination actions for resumed exports remain incomplete.
-  - **Change:** Add verified Undo for reversible operations and retain destination identity for recovered/resumed exports. Preserve mount-aware feedback.
+  - **Current:** Paste, import, export, and Trash completion support destination actions tied to the unlocked session. Archive completion supports Reveal; recovered pastes and exports retain their destinations. Applicable Undo and recovered-import destination actions remain incomplete.
+  - **Change:** Add verified Undo for reversible operations and a destination action after recovered imports. Preserve mount-aware feedback.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

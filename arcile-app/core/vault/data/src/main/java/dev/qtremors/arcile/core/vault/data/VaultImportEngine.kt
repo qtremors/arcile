@@ -46,7 +46,7 @@ internal class VaultImportEngine(
             val target = session.resolveDirectory(destination)
             target.key.fill(0)
             operationJournal.start(session, VaultQueuePlan(
-                VaultRecoveryKind.IMPORT, target.id.value, move, localSources = sourceUris.distinct()
+                VaultRecoveryKind.IMPORT, target.id.value, move, localSources = sourceUris.distinct(), publicationReceipts = true
             ))
         }
         queue.use {
@@ -98,7 +98,8 @@ internal class VaultImportEngine(
                     session,
                     destination,
                     sources,
-                    sourceMove
+                    sourceMove,
+                    onPrepared = { queue.preparePublication(start + index, it) }
                 ) { itemBytes, currentName ->
                     onProgress(completed, batches.size, before + itemBytes, totalBytes, currentName)
                 }
@@ -141,6 +142,7 @@ internal class VaultImportEngine(
         destination: DirectoryId,
         sources: List<VaultImportSource>,
         move: LocalVaultMove?,
+        onPrepared: (VaultPublicationReceipt) -> Unit,
         onProgress: (Long, String?) -> Unit
     ): Long {
         require(sources.isNotEmpty())
@@ -269,6 +271,9 @@ internal class VaultImportEngine(
                     session.cacheDirectoryKey(temp.id, temp.key)
                 }
             }
+            onPrepared(VaultPublicationReceipt(
+                topLevelEntries.map { SavedVaultNode.from(it.toMetadata(session.id, destination)) }, destinationSnapshot.generation
+            ))
             transactionManager.commit(
                 session.directory,
                 session.id,

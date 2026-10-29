@@ -141,7 +141,8 @@ internal class VaultTransferEngine(
         destinationId: DirectoryId,
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal,
-        moveSource: Boolean = false
+        moveSource: Boolean = false,
+        onPrepared: (VaultPublicationReceipt) -> Unit = {}
     ): VaultItemResult {
         val resolved = resolve(source, ref)
         try {
@@ -191,6 +192,11 @@ internal class VaultTransferEngine(
                 } finally {
                     next.forEach { it.protectedKey.fill(0) }
                 }
+                val pending = context.retry(ref, destinationId, moveSource, resolved.entry.name)
+                onPrepared(VaultPublicationReceipt(
+                    listOf(SavedVaultNode.from(cloned.toMetadata(destination.id, destinationId))), destinationSnapshot.generation,
+                    pending?.let { VaultRetryCheckpoint.from(result(ref, resolved.entry, VaultItemOutcome.PARTIAL).copy(mergeRetry = it)) }
+                ))
                 context.commit(obsolete)
                 val removedSourceFolders = mutableSetOf<DirectoryId>()
                 if (moveSource) {
@@ -234,7 +240,8 @@ internal class VaultTransferEngine(
         ref: VaultNodeRef,
         destinationId: DirectoryId,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        onPrepared: (VaultPublicationReceipt) -> Unit = {}
     ): VaultItemResult {
         val resolved = resolve(session, ref)
         try {
@@ -295,6 +302,11 @@ internal class VaultTransferEngine(
                         onDirectoryRemoved = recordRemovedFolder
                     ))
                 }
+                val pending = context.retry(ref, destinationId, true, resolved.entry.name)
+                onPrepared(VaultPublicationReceipt(
+                    listOf(SavedVaultNode.from(moved.toMetadata(session.id, destinationId))), destinationSnapshot.generation,
+                    pending?.let { VaultRetryCheckpoint.from(result(ref, resolved.entry, VaultItemOutcome.PARTIAL).copy(mergeRetry = it)) }
+                ))
                 context.commit(obsolete)
                 return result(ref, resolved.entry, context.outcome()).copy(
                     removedFolders = removedFolders,

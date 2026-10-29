@@ -585,8 +585,8 @@ class VaultTransferCoordinatorTest {
             }
             assertTrue(interruption.exceptionOrNull() is CancellationException)
             val pending = repository.listInterruptedOperations(vault).getOrThrow().single()
-            assertTrue(pending.hasUncertainItem)
-            assertEquals(1, pending.remainingItems)
+            assertTrue(!pending.hasUncertainItem)
+            assertEquals(2, pending.remainingItems)
             repository.discardInterruptedOperation(pending).getOrThrow()
 
             val cancelledToken = requireNotNull(repository.reserveImport(vault))
@@ -605,7 +605,7 @@ class VaultTransferCoordinatorTest {
     }
 
     @Test
-    fun `interrupted export records completed items and only resumes after the interrupted item`() = runTest {
+    fun `interrupted export retries an item stopped before its publication receipt and preserves settled output`() = runTest {
         val (repository, scope) = repository()
         val output = Files.createTempDirectory("arcile-recovery-export-stop").toFile()
         try {
@@ -633,8 +633,8 @@ class VaultTransferCoordinatorTest {
             assertTrue(interrupted.exceptionOrNull() is CancellationException)
             val queue = repository.listInterruptedOperations(vault).getOrThrow().single()
             assertEquals(1, queue.settledItems)
-            assertEquals(1, queue.remainingItems)
-            assertTrue(queue.hasUncertainItem)
+            assertEquals(2, queue.remainingItems)
+            assertTrue(!queue.hasUncertainItem)
             val finished = File(output, "finished.txt")
             assertTrue(finished.isFile)
             finished.writeText("existing export kept")
@@ -643,9 +643,9 @@ class VaultTransferCoordinatorTest {
                 queue, repository.interruptedPlan(queue).getOrThrow(), decision(VaultConflictDecision.REPLACE), neverCancelled
             )
 
-            assertEquals(listOf("remaining.txt"), result.completed.map { it.displayName })
+            assertEquals(listOf("conflict.txt", "remaining.txt"), result.completed.map { it.displayName })
             assertEquals("existing export kept", finished.readText())
-            assertEquals("local original", collision.readText())
+            assertEquals("", collision.readText())
             assertTrue(File(output, "remaining.txt").isFile)
             assertTrue(repository.listInterruptedOperations(vault).getOrThrow().isEmpty())
         } finally {
@@ -707,6 +707,83 @@ class VaultTransferCoordinatorTest {
             scope.cancel()
             local.deleteRecursively()
         }
+    }
+
+    @Test
+    fun `published partial folder merge resumes only skipped children after repository restart`() = runTest {
+        val (repository, scope) = repository()
+        val vault = repository.createAppPrivateVault("Checkpointed merge", "password".toCharArray()).getOrThrow()
+        val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+        val sourceParent = repository.createDirectory(vault, root, "Source").getOrThrow()
+        val targetParent = repository.createDirectory(vault, root, "Target").getOrThrow()
+        val source = repository.createDirectory(vault, requireNotNull(sourceParent.ref.directoryId), "Folder").getOrThrow()
+        val target = repository.createDirectory(vault, requireNotNull(targetParent.ref.directoryId), "Folder").getOrThrow()
+        val sourceDirectory = requireNotNull(source.ref.directoryId)
+        val targetParentDirectory = requireNotNull(targetParent.ref.directoryId)
+        repository.createEmptyFile(vault, sourceDirectory, "Shared.txt").getOrThrow()
+        repository.createEmptyFile(vault, sourceDirectory, "Fresh.txt").getOrThrow()
+        repository.createEmptyFile(vault, requireNotNull(target.ref.directoryId), "Shared.txt").getOrThrow()
+        val initial = repository.moveWithinVault(listOf(source.ref), targetParentDirectory, mergeFoldersSkipFiles, neverCancelled)
+        assertEquals(1, initial.partial.size)
+        assertEquals(listOf("Shared.txt"), names(repository, vault, sourceDirectory))
+        repository.lockAll()
+        scope.cancel()
+
+        val (restarted, nextScope) = repository()
+        try {
+            restarted.unlock(vault, "password".toCharArray()).getOrThrow()
+            val queue = restarted.listInterruptedOperations(vault).getOrThrow().single()
+            assertEquals(1, queue.remainingItems)
+            assertTrue(queue.wasMove)
+            val result = restarted.resumeInterruptedPaste(queue, restarted.interruptedPlan(queue).getOrThrow(),
+                decision(VaultConflictDecision.KEEP_BOTH), neverCancelled)
+            assertEquals(1, result.completed.size)
+            val published = restarted.listDirectory(vault, targetParentDirectory).getOrThrow().items.single()
+            assertEquals(3, names(restarted, vault, requireNotNull(published.ref.directoryId)).size)
+            assertEquals(1, names(restarted, vault, requireNotNull(published.ref.directoryId)).count { it == "Fresh.txt" })
+            assertEquals(listOf("Shared.txt"), names(restarted, vault, sourceDirectory))
+            assertTrue(restarted.listInterruptedOperations(vault).getOrThrow().isEmpty())
+        } finally { restarted.lockAll(); nextScope.cancel() }
+    }
+
+    @Test
+    fun `partial export resumes into its published folder after repository restart without recopying completed children`() = runTest {
+        val (repository, scope) = repository()
+        val local = Files.createTempDirectory("arcile-persisted-export-").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Checkpointed export", "password".toCharArray()).getOrThrow()
+            val root = repository.createDirectory(vault, VaultSessionRecord.ROOT_DIRECTORY_ID, "Folder").getOrThrow()
+            val directory = requireNotNull(root.ref.directoryId)
+            val shared = repository.createEmptyFile(vault, directory, "Shared.txt").getOrThrow()
+            val fresh = repository.createEmptyFile(vault, directory, "Fresh.txt").getOrThrow()
+            repository.replaceFileContents(shared.ref, shared.revision, "from vault".encodeToByteArray()).getOrThrow()
+            repository.replaceFileContents(fresh.ref, fresh.revision, "new data".encodeToByteArray()).getOrThrow()
+            val output = File(local, "Output").canonicalFile.also { assertTrue(it.mkdir()) }
+            val existing = File(output, "Folder").also { assertTrue(it.mkdir()) }
+            File(existing, "Shared.txt").writeText("from regular storage")
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val initial = coordinator.exportToDestination(coordinator.prepareExport(listOf(root.ref)).getOrThrow(),
+                output.path, false, mergeFoldersSkipFiles, neverCancelled)
+            assertEquals(1, initial.partial.size)
+            assertEquals("new data", File(output, "Folder/Fresh.txt").readText())
+            repository.lockAll()
+            scope.cancel()
+
+            val (restarted, nextScope) = repository()
+            try {
+                restarted.unlock(vault, "password".toCharArray()).getOrThrow()
+                val queue = restarted.listInterruptedOperations(vault).getOrThrow().single()
+                val resumedCoordinator = DefaultVaultBoundaryTransferCoordinator(restarted, mockk<TrashRepository>())
+                val result = resumedCoordinator.resumeInterruptedExport(queue, restarted.interruptedPlan(queue).getOrThrow(),
+                    decision(VaultConflictDecision.REPLACE), neverCancelled)
+                assertEquals(1, result.completed.size)
+                assertEquals("from vault", File(output, "Folder/Shared.txt").readText())
+                assertEquals("new data", File(output, "Folder/Fresh.txt").readText())
+                assertEquals(2, File(output, "Folder").listFiles().orEmpty().size)
+                assertEquals(listOf("Fresh.txt", "Shared.txt"), names(restarted, vault, directory))
+                assertTrue(restarted.listInterruptedOperations(vault).getOrThrow().isEmpty())
+            } finally { restarted.lockAll(); nextScope.cancel() }
+        } finally { scope.cancel(); local.deleteRecursively() }
     }
 
     private fun repository(): Pair<DefaultVaultRepository, CoroutineScope> {

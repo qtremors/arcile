@@ -16,14 +16,25 @@ internal data class DeferredExportChild(val node: VaultNodeMetadata, val parent:
 internal data class PublishedExportFile(val relativePath: List<String>, val size: Long, val digest: String)
 
 @Serializable
-internal data class ExportFolderIdentity(val fileKey: String?, val createdAt: Long?) {
+internal data class ExportFolderIdentity(val fileKey: String?, val createdAt: Long?, val createdAtPrecision: String? = null) {
+    fun matches(folder: File): Boolean = sameAs(read(folder, createIdentity = false))
+
+    fun sameAs(other: ExportFolderIdentity): Boolean = when {
+        fileKey != null -> fileKey == other.fileKey
+        other.fileKey != null -> false
+        createdAt != other.createdAt -> false
+        createdAtPrecision != null && other.createdAtPrecision != null -> createdAtPrecision == other.createdAtPrecision
+        else -> true // Older authenticated queues contain only milliseconds.
+    }
+
     companion object {
-        fun read(folder: File): ExportFolderIdentity {
+        fun read(folder: File, createIdentity: Boolean = true): ExportFolderIdentity {
             val attributes = Files.readAttributes(folder.toPath(), BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
             if (!attributes.isDirectory) throw VaultFailure.ConcurrentMutation()
-            val key = attributes.fileKey()?.toString()
+            val key = exportFileKey(folder, attributes, createMarker = createIdentity)
             // Android can report the current modification time when birth time is unavailable.
-            return ExportFolderIdentity(key, if (key == null) attributes.creationTime().toMillis() else null)
+            return ExportFolderIdentity(key, if (key == null) attributes.creationTime().toMillis() else null,
+                if (key == null) attributes.creationTime().toString() else null)
         }
     }
 }

@@ -16,14 +16,14 @@ internal const val VAULT_LOCAL_EXPORT_BUFFER_SIZE = 256 * 1024
 internal fun exportFolder(retry: PendingVaultExport, segments: List<String>): File {
     var directory = retry.outputRoot
     if (directory.canonicalFile != directory ||
-        retry.folders[emptyList()] != ExportFolderIdentity.read(directory)
+        retry.folders[emptyList()]?.matches(directory) != true
     ) throw VaultFailure.ConcurrentMutation()
     for ((index, segment) in segments.withIndex()) {
         if (segment.isEmpty() || segment == "." || segment == ".." || '/' in segment || '\\' in segment) {
             throw VaultFailure.InvalidPath("The export folder changed")
         }
         directory = File(directory, segment)
-        if (retry.folders[segments.take(index + 1)] != ExportFolderIdentity.read(directory)) {
+        if (retry.folders[segments.take(index + 1)]?.matches(directory) != true) {
             throw VaultFailure.ConcurrentMutation()
         }
     }
@@ -71,7 +71,7 @@ internal fun copyLocalDirectory(source: File, destination: File, cancellation: V
     }
 }
 
-internal fun publishLocal(staging: File, destination: File, replacing: LocalDestinationEntry?) {
+internal fun publishLocal(staging: File, destination: File, replacing: LocalDestinationEntry?, preparedBackup: File? = null) {
     val parent = requireNotNull(destination.parentFile)
     if (!parent.inspectDestination().isDirectory) throw VaultFailure.ConcurrentMutation()
     val current = parent.readLocalChildren().findLocalChild(destination.name)
@@ -81,7 +81,8 @@ internal fun publishLocal(staging: File, destination: File, replacing: LocalDest
         return
     }
     if (current?.inspectDestination() != replacing) throw VaultFailure.ConcurrentMutation()
-    val backup = File(parent, ".arcile-backup-${UUID.randomUUID()}.tmp")
+    val backup = preparedBackup ?: File(parent, ".arcile-backup-${UUID.randomUUID()}.tmp")
+    if (backup.parentFile != parent || Files.exists(backup.toPath(), LinkOption.NOFOLLOW_LINKS)) throw VaultFailure.ConcurrentMutation()
     Files.move(replacing.file.toPath(), backup.toPath())
     try {
         Files.move(staging.toPath(), destination.toPath())
@@ -127,7 +128,7 @@ internal fun File.inspectDestination(): LocalDestinationEntry {
     }
     return LocalDestinationEntry(
         this, attributes.isDirectory, attributes.size(), attributes.lastModifiedTime().toMillis(),
-        attributes.creationTime().toMillis(), attributes.fileKey()?.toString()
+        attributes.creationTime().toMillis(), exportFileKey(this, attributes), attributes.creationTime().toString()
     )
 }
 
@@ -137,7 +138,8 @@ internal data class LocalDestinationEntry(
     val size: Long,
     val modifiedAt: Long,
     val createdAt: Long,
-    val fileKey: String?
+    val fileKey: String?,
+    val createdAtPrecision: String? = null
 ) {
     fun conflictWith(source: VaultNodeMetadata) = VaultConflict(
         sourceName = source.name,

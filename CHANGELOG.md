@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.3.9
-> **Last Updated:** 2026-11-05
+> **Version:** 2.4.0
+> **Last Updated:** 2026-11-06
 
 ---
+
+## [2.4.0] - 2026-11-06
+
+### Changed
+- Recover interrupted vault imports, pastes, and exports with verified publication records. Recovered moves keep remaining originals.
+- Save partial-folder retry checkpoints across restarts and safely clean up owned export stages or restore known backups.
+- Show destinations after recovered vault pastes and exports.
 
 ## [2.3.9] - 2026-11-05
 

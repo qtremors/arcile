@@ -97,7 +97,7 @@ internal abstract class VaultTransferLayer(
                 operationJournal.resume(target, recoveryId, VaultRecoveryKind.PASTE)
             } else {
                 operationJournal.start(target, VaultQueuePlan(
-                    VaultRecoveryKind.PASTE, destination.value, move, nodes = sources.map(QueuedVaultNode::from)
+                    VaultRecoveryKind.PASTE, destination.value, move, nodes = sources.map(QueuedVaultNode::from), publicationReceipts = true
                 ))
             }
             queue.use {
@@ -132,6 +132,18 @@ internal abstract class VaultTransferLayer(
         }
         val resolver = conflicts.reviewed(knownConflicts, cancellation)
         val results = mutableListOf<VaultItemResult>()
+        for ((index, saved) in queue.pendingRetries()) {
+            cancellation.throwIfCancelled()
+            val retry = saved.mergeRetry as? PendingVaultMerge
+                ?: throw VaultFailure.InvalidPath("This checkpoint does not describe a vault paste")
+            val result = transferEngine.resumeMerge(
+                retry, operationSessions.getValue(retry.source.vaultId), target, conflicts, cancellation
+            ) { count, name ->
+                transferProgress.emit(VaultTransferProgress(VaultTransferAction.COPY, name, count, retry.remainingCount, 0L, null))
+            }
+            queue.finishRetry(index, result)
+            results += result
+        }
         for ((index, source) in sources.withIndex()) {
             if (cancellation.isCancelled()) {
                 results += sources.drop(index).map {
@@ -151,9 +163,13 @@ internal abstract class VaultTransferLayer(
             val result = try {
                 val origin = operationSessions.getValue(source.vaultId)
                 if (move && origin.id == target.id) {
-                    transferEngine.moveOneWithinVault(origin, source, destination, resolver, cancellation)
+                    transferEngine.moveOneWithinVault(origin, source, destination, resolver, cancellation) {
+                        queue.preparePublication(start + index, it)
+                    }
                 } else {
-                    transferEngine.copyOne(origin, source, target, destination, resolver, cancellation, moveSource = move)
+                    transferEngine.copyOne(origin, source, target, destination, resolver, cancellation, moveSource = move) {
+                        queue.preparePublication(start + index, it)
+                    }
                 }
             } catch (error: Throwable) {
                 if (error is CancellationException) throw error
@@ -169,7 +185,7 @@ internal abstract class VaultTransferLayer(
                         ?: VaultFailure.Unavailable("Vault transfer failed", error)
                 )
             }
-            queue.finishItem(start + index)
+            queue.finishItem(start + index, result)
             results += result
             transferProgress.emit(
                 VaultTransferProgress(
