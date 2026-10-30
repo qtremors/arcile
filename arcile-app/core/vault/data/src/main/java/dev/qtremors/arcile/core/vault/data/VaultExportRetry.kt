@@ -46,7 +46,8 @@ internal data class PendingVaultExport(
     val deferred: List<DeferredExportChild>,
     val generations: Map<DirectoryId, Long>,
     val files: List<PublishedExportFile>,
-    val folders: Map<List<String>, ExportFolderIdentity>
+    val folders: Map<List<String>, ExportFolderIdentity>,
+    val origin: VaultRetryOrigin? = null
 ) : VaultExportRetry {
     override val source: VaultNodeRef get() = rootNode.ref
     override val displayName: String get() = rootNode.name

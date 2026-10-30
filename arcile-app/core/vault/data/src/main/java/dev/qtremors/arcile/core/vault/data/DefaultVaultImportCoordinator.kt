@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultImportEvent
 import dev.qtremors.arcile.core.vault.domain.VaultImportProgress
@@ -55,9 +56,9 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
     override fun startMoveImport(reservation: VaultImportReservation, localPaths: List<String>): Boolean =
         start(reservation, localPaths, move = true)
 
-    internal fun startRecoveredImport(vault: VaultId, queueId: String): Boolean {
+    internal fun startRecoveredImport(vault: VaultId, queueId: String, destination: DirectoryId): Boolean {
         val prepared = prepareImport(vault, VaultPath.Root).getOrThrow()
-        return start(prepared, emptyList(), move = false, recoveryId = queueId)
+        return start(prepared, emptyList(), move = false, recoveryId = queueId, recoveredDestination = destination)
     }
 
     @Synchronized
@@ -65,7 +66,8 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         reservation: VaultImportReservation,
         sourceUris: List<String>,
         move: Boolean,
-        recoveryId: String? = null
+        recoveryId: String? = null,
+        recoveredDestination: DirectoryId? = null
     ): Boolean {
         val prepared = reservation as? ImportReservation ?: run {
             reservation.close()
@@ -80,7 +82,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         val destination = prepared.destination
         requests[vaultId.value] = ImportRequest(token, recoveryId)
         _activeImports.update { it + (vaultId to VaultImportState(vaultId)) }
-        _events.tryEmit(VaultImportEvent.Started(vaultId))
+        _events.tryEmit(VaultImportEvent.Started(vaultId, recoveredDestination))
 
         val intent = Intent(context, VaultImportService::class.java).apply {
             action = VaultImportService.ACTION_START

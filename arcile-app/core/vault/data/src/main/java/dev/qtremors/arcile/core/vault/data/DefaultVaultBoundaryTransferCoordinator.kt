@@ -125,9 +125,11 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                         cancellation.throwIfCancelled()
                         val retry = saved.exportRetry as? PendingVaultExport
                             ?: throw VaultFailure.InvalidPath("This checkpoint does not describe a vault export")
-                        val result = resumeLocalExport(session, retry, conflicts, cancellation)
-                        queue.finishRetry(index, result)
-                        resumed += result
+                        val progress = queue.retryProgress(index)
+                        val result = resumeLocalExport(session, retry, conflicts, cancellation,
+                            onPublication = { child, receipt -> progress.prepare(VaultRetryPublication.export(child, receipt)) },
+                            onPublished = progress::published)
+                        resumed += queue.finishRetry(index, result)
                     }
                     val fresh = exportToLocalDirectory(
                         session, pending, destination, move = false, conflicts, cancellation, queue
@@ -147,7 +149,24 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         val pending = retry as? PendingVaultExport
             ?: throw VaultFailure.InvalidPath("This export cannot be resumed")
         return prepareExport(listOf(retry.source)).getOrThrow().use { reservation ->
-            withExportSession(reservation) { session, _ -> resumeLocalExport(session, pending, conflicts, cancellation) }
+            withExportSession(reservation) { session, _ ->
+                val origin = pending.origin
+                if (origin != null && session is BoundaryAccessSession.Repository) {
+                    if (origin.ownerMount !== session.value.mutationMutex) {
+                        throw VaultFailure.Unavailable("The original export retry expired. Reopen interrupted transfers to resume as a copy.")
+                    }
+                    requireNotNull(repository).operationJournal.resume(session.value, origin.queueId, VaultRecoveryKind.EXPORT).use { queue ->
+                        val saved = queue.pendingRetries().find { it.first == origin.index }?.second?.exportRetry as? PendingVaultExport
+                            ?: throw VaultFailure.Unavailable("This folder retry is no longer available")
+                        val current = saved.copy(move = pending.move)
+                        val progress = queue.retryProgress(origin.index)
+                        val result = resumeLocalExport(session, current, conflicts, cancellation,
+                            onPublication = { child, receipt -> progress.prepare(VaultRetryPublication.export(child, receipt)) },
+                            onPublished = progress::published)
+                        queue.finishRetry(origin.index, result).also { queue.finishQueue() }
+                    }
+                } else resumeLocalExport(session, pending, conflicts, cancellation)
+            }
         }
     }
 
@@ -332,6 +351,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 results += failed(ref, metadata.getOrNull()?.name.orEmpty(), error)
             }
             if (queue?.finishItem(start + index, results.lastOrNull()) == false) return VaultBatchResult(results)
+            if (queue != null) results[results.lastIndex] = queue.bindRetry(start + index, results.last())
         }
         return VaultBatchResult(results)
     }
@@ -346,7 +366,9 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         session: BoundaryAccessSession,
         retry: PendingVaultExport,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        onPublication: (DeferredExportChild, VaultExportPublicationReceipt) -> Unit = { _, _ -> },
+        onPublished: () -> Unit = {}
     ): VaultItemResult {
         var checkpoint = retry
         var removed = emptySet<DirectoryId>()
@@ -372,7 +394,8 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 val source = unchangedSource(session, child.node)
                 val parent = exportFolder(retry, child.parent)
                 val exported = exportLocalTopLevel(
-                    session, source, parent, resolver, cancellation, retry.move, progress::advance
+                    session, source, parent, resolver, cancellation, retry.move, progress::advance,
+                    onPublication = { onPublication(child, it) }
                 ) { exportFolder(retry, child.parent) }
                 if (exported.outcome != VaultItemOutcome.SKIPPED) {
                     val appended = exported.snapshot
@@ -386,6 +409,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                         throw VaultFailure.Unavailable("This export exceeded the retry limit. The vault original was kept.")
                     }
                 }
+                onPublished()
                 progress.finish(index + 1)
             }
             if (checkpoint.deferred.isEmpty() && checkpoint.move) {

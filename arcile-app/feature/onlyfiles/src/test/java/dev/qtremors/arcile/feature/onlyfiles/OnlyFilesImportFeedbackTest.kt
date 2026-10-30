@@ -134,6 +134,75 @@ class OnlyFilesImportFeedbackTest {
         assertNull(fixture.state.value.operationFeedback?.destination)
     }
 
+    @Test
+    fun `recovered import reveals its authenticated destination after navigation`() = runTest {
+        val fixture = Fixture(this)
+        fixture.events.emit(VaultImportEvent.Started(fixture.vault, fixture.folder.id))
+        fixture.state.value = fixture.state.value.copy(directoryStack = emptyList())
+        fixture.events.emit(VaultImportEvent.Completed(fixture.vault))
+
+        assertEquals(fixture.target, fixture.state.value.operationFeedback?.destination)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_import_complete), fixture.message)
+        assertEquals(1, fixture.reloads)
+    }
+
+    @Test
+    fun `recovered move completion never claims remaining originals were moved`() = runTest {
+        val fixture = Fixture(this)
+        fixture.events.emit(VaultImportEvent.Started(fixture.vault, fixture.folder.id))
+        fixture.events.emit(VaultImportEvent.Partial(fixture.vault, VaultBatchResult(listOf(
+            item(VaultItemOutcome.COMPLETED), item(VaultItemOutcome.SKIPPED)
+        ))))
+
+        assertEquals(UiText.StringResource(R.string.onlyfiles_import_result, listOf(1, 0, 1, 0)), fixture.message)
+        assertEquals(fixture.target, fixture.state.value.operationFeedback?.destination)
+    }
+
+    @Test
+    fun `lock and reopen invalidate a recovered import destination`() = runTest {
+        val fixture = Fixture(this)
+        fixture.events.emit(VaultImportEvent.Started(fixture.vault, fixture.folder.id))
+        fixture.state.value = fixture.state.value.copy(mountGeneration = 13)
+        fixture.events.emit(VaultImportEvent.Completed(fixture.vault))
+
+        assertNull(fixture.state.value.operationFeedback)
+        assertEquals(0, fixture.reloads)
+    }
+
+    @Test
+    fun `recovery in another vault cannot replace a submitted import target`() = runTest {
+        val fixture = Fixture(this)
+        fixture.start()
+        val other = VaultId.of("other")
+        fixture.events.emit(VaultImportEvent.Started(other, DirectoryId.of("unrelated")))
+        fixture.events.emit(VaultImportEvent.Completed(other))
+        fixture.events.emit(VaultImportEvent.Completed(fixture.vault))
+
+        assertEquals(fixture.target, fixture.state.value.operationFeedback?.destination)
+        assertEquals(UiText.PluralResource(UiR.plurals.file_operation_copied_items, 2, listOf(2)), fixture.message)
+    }
+
+    @Test
+    fun `ordinary started event preserves the target registered before service handoff`() = runTest {
+        val fixture = Fixture(this)
+        fixture.start(move = true)
+        fixture.events.emit(VaultImportEvent.Started(fixture.vault))
+        fixture.events.emit(VaultImportEvent.Completed(fixture.vault))
+
+        assertEquals(fixture.target, fixture.state.value.operationFeedback?.destination)
+        assertEquals(UiText.PluralResource(UiR.plurals.file_operation_moved_items, 2, listOf(2)), fixture.message)
+    }
+
+    @Test
+    fun `failed recovery drops destination and does not leak private failure details`() = runTest {
+        val fixture = Fixture(this)
+        fixture.events.emit(VaultImportEvent.Started(fixture.vault, fixture.folder.id))
+        fixture.events.emit(VaultImportEvent.Failed(fixture.vault, "private source path"))
+
+        assertNull(fixture.state.value.operationFeedback?.destination)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_import_failed), fixture.message)
+    }
+
     private fun item(outcome: VaultItemOutcome) = VaultItemResult("source-${outcome.name}", "private", outcome)
 
     private class Fixture(scope: TestScope) {

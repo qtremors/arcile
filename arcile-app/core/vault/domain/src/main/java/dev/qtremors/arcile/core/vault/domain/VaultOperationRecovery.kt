@@ -11,7 +11,8 @@ data class VaultRecoveryQueue(
     val remainingItems: Int,
     val hasUncertainItem: Boolean,
     val wasMove: Boolean,
-    val lockedSourceVaults: Set<VaultId>
+    val lockedSourceVaults: Set<VaultId>,
+    val uncertainItemIndices: List<Int> = emptyList()
 )
 
 sealed interface VaultRecoveryResult {

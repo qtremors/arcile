@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultMergeRetry
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import kotlinx.coroutines.sync.Mutex
 
 internal data class DeferredVaultChild(
     val sourceFolders: List<VaultNodeRef>,
@@ -20,6 +21,8 @@ internal data class DeferredVaultChild(
     )
 }
 
+internal data class VaultRetryOrigin(val queueId: String, val index: Int, val ownerMount: Mutex?, val sourceMount: Mutex?)
+
 internal data class PendingVaultMerge(
     override val source: VaultNodeRef,
     override val destinationVault: VaultId,
@@ -27,7 +30,8 @@ internal data class PendingVaultMerge(
     override val move: Boolean,
     val displayName: String,
     val children: List<DeferredVaultChild>,
-    val cleanupPaths: Set<List<VaultNodeRef>>
+    val cleanupPaths: Set<List<VaultNodeRef>>,
+    val origin: VaultRetryOrigin? = null
 ) : VaultMergeRetry {
     override val remainingCount: Int get() = children.size
 }

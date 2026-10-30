@@ -140,12 +140,14 @@ internal data class SavedVaultMerge(
 internal data class VaultRetryCheckpoint(
     val version: Int = 1,
     val merge: SavedVaultMerge? = null,
-    val export: SavedVaultExport? = null
+    val export: SavedVaultExport? = null,
+    val completedSteps: Int = 0,
+    val stepJournal: Boolean = false
 ) {
     val source: VaultNodeRef get() = merge?.source?.ref() ?: requireNotNull(export).root.ref.ref()
 
     fun validate(plan: VaultQueuePlan, index: Int, owner: VaultId) {
-        require(version == 1 && (merge == null) != (export == null))
+        require(version == 1 && completedSteps >= 0 && (merge == null) != (export == null))
         require(index in plan.nodes.indices && plan.nodes[index].ref() == source)
         if (merge != null) {
             require(plan.kind == VaultRecoveryKind.PASTE)

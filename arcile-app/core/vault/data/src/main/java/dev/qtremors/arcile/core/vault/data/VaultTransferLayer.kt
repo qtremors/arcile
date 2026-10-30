@@ -64,6 +64,25 @@ internal abstract class VaultTransferLayer(
             val source = active.getValue(retry.source.vaultId)
             val destination = active.getValue(retry.destinationVault)
             val action = if (retry.move) VaultTransferAction.MOVE else VaultTransferAction.COPY
+            val origin = pending.origin
+            if (origin != null) {
+                if (origin.ownerMount !== destination.mutationMutex || pending.move && origin.sourceMount !== source.mutationMutex) {
+                    throw VaultFailure.Unavailable("The original folder retry expired. Reopen interrupted transfers to resume as a copy.")
+                }
+                operationJournal.resume(destination, origin.queueId, VaultRecoveryKind.PASTE).use { queue ->
+                    val saved = queue.pendingRetries().find { it.first == origin.index }?.second?.mergeRetry as? PendingVaultMerge
+                        ?: throw VaultFailure.Unavailable("This folder retry is no longer available")
+                    val current = saved.copy(move = pending.move, cleanupPaths = pending.cleanupPaths)
+                    val progress = queue.retryProgress(origin.index)
+                    val result = transferEngine.resumeMerge(current, source, destination, conflicts, cancellation,
+                        onPublication = { child, receipt -> progress.prepare(VaultRetryPublication.merge(child, receipt)) },
+                        onPublished = progress::published) { count, name ->
+                        transferProgress.emit(VaultTransferProgress(action, name, count, current.remainingCount, 0L, null))
+                    }
+                    return@withTransferSessions queue.bindRetry(origin.index, queue.finishRetry(origin.index, result), source.mutationMutex)
+                        .also { queue.finishQueue() }
+                }
+            }
             transferEngine.resumeMerge(pending, source, destination, conflicts, cancellation) { count, name ->
                 transferProgress.emit(VaultTransferProgress(action, name, count, retry.remainingCount, 0L, null))
             }
@@ -136,13 +155,15 @@ internal abstract class VaultTransferLayer(
             cancellation.throwIfCancelled()
             val retry = saved.mergeRetry as? PendingVaultMerge
                 ?: throw VaultFailure.InvalidPath("This checkpoint does not describe a vault paste")
+            val progress = queue.retryProgress(index)
             val result = transferEngine.resumeMerge(
-                retry, operationSessions.getValue(retry.source.vaultId), target, conflicts, cancellation
+                retry, operationSessions.getValue(retry.source.vaultId), target, conflicts, cancellation,
+                onPublication = { child, receipt -> progress.prepare(VaultRetryPublication.merge(child, receipt)) },
+                onPublished = progress::published
             ) { count, name ->
                 transferProgress.emit(VaultTransferProgress(VaultTransferAction.COPY, name, count, retry.remainingCount, 0L, null))
             }
-            queue.finishRetry(index, result)
-            results += result
+            results += queue.finishRetry(index, result)
         }
         for ((index, source) in sources.withIndex()) {
             if (cancellation.isCancelled()) {
@@ -186,7 +207,7 @@ internal abstract class VaultTransferLayer(
                 )
             }
             queue.finishItem(start + index, result)
-            results += result
+            results += queue.bindRetry(start + index, result, operationSessions.getValue(source.vaultId).mutationMutex)
             transferProgress.emit(
                 VaultTransferProgress(
                     action,

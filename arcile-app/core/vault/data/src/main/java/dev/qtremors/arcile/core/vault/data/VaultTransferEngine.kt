@@ -331,6 +331,8 @@ internal class VaultTransferEngine(
         destination: VaultSessionRecord,
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal,
+        onPublication: (DeferredVaultChild, VaultPublicationReceipt) -> Unit = { _, _ -> },
+        onPublished: () -> Unit = {},
         onProgress: suspend (Int, String?) -> Unit
     ): VaultItemResult {
         val remaining = retry.children.toMutableList()
@@ -347,9 +349,9 @@ internal class VaultTransferEngine(
                 cancellation.throwIfCancelled()
                 onProgress(index, child.sourceName)
                 val result = if (retry.move && source.id == destination.id) {
-                    moveOneWithinVault(source, child.source, child.destination, resolver, cancellation)
+                    moveOneWithinVault(source, child.source, child.destination, resolver, cancellation) { onPublication(child, it) }
                 } else {
-                    copyOne(source, child.source, destination, child.destination, resolver, cancellation, retry.move)
+                    copyOne(source, child.source, destination, child.destination, resolver, cancellation, retry.move) { onPublication(child, it) }
                 }
                 removed += result.removedFolders
                 if (result.outcome == VaultItemOutcome.COMPLETED) {
@@ -360,6 +362,7 @@ internal class VaultTransferEngine(
                     remaining += nested.children.map(child::nest)
                     cleanup += nested.cleanupPaths.map { child.sourceFolders + it }
                 }
+                onPublished()
                 onProgress(index + 1, null)
             }
             if (remaining.isEmpty() && retry.move) {

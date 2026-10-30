@@ -150,7 +150,7 @@ data class VaultImportState(
 )
 
 sealed interface VaultImportEvent {
-    data class Started(val vaultId: VaultId) : VaultImportEvent
+    data class Started(val vaultId: VaultId, val recoveredDestination: DirectoryId? = null) : VaultImportEvent
     data class Progress(val vaultId: VaultId, val value: VaultImportProgress) : VaultImportEvent
     data class Completed(val vaultId: VaultId) : VaultImportEvent
     data class Partial(val vaultId: VaultId, val result: VaultBatchResult) : VaultImportEvent

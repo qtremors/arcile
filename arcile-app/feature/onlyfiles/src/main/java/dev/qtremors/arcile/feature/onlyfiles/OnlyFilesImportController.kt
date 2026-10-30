@@ -62,7 +62,13 @@ internal class OnlyFilesImportController(
                     is VaultImportEvent.Failed -> finish(event.vaultId, refresh = false) { request ->
                         operationNotice(R.string.onlyfiles_import_failed, request?.destination?.mount ?: state.value.mountGeneration, error = true)
                     }
-                    is VaultImportEvent.Started,
+                    is VaultImportEvent.Started -> {
+                        val destination = event.recoveredDestination
+                        val snapshot = state.value
+                        if (destination != null && snapshot.selectedVaultId == event.vaultId) {
+                            submitted[event.vaultId] = Submitted(Destination(event.vaultId, destination, snapshot.mountGeneration), 0, false)
+                        }
+                    }
                     is VaultImportEvent.Progress -> Unit
                 }
             }

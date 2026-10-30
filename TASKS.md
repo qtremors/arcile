@@ -73,11 +73,6 @@
 
 ### OnlyFiles
 
-- [ ] **REL-0007 - Reconcile Items Interrupted Mid-Transfer**
-  - **Location:** VaultOperationJournal.kt, DefaultVaultBoundaryTransferCoordinator.kt, and VaultTransferEngine.kt.
-  - **Current:** Publication receipts reconcile top-level imports, pastes, and local exports. Partial-folder checkpoints survive restart; recovered moves keep originals. A crash during an already resumed folder retry can still require rechecking a newly published child.
-  - **Change:** Journal each resumed child publication and reconcile it into the saved folder checkpoint. Preserve conservative manual review when publication or ownership cannot be verified.
-
 - [ ] **UI-0012 - Complete Vault Audio Editing and Lyrics**
   - **Location:** OnlyFilesAudioMetadata.kt, AudioTagEditor.kt, and the audio editor.
   - **Current:** Vault audio uses the shared full player, artwork, music details, queue, and playback controls. Audio editing, tag writes, and lyrics still depend on local files and sidecars.
@@ -90,8 +85,8 @@
 
 - [ ] **UI-0013 - Complete Vault Operation Feedback**
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.
-  - **Current:** Paste, import, export, and Trash completion support destination actions tied to the unlocked session. Archive completion supports Reveal; recovered pastes and exports retain their destinations. Applicable Undo and recovered-import destination actions remain incomplete.
-  - **Change:** Add verified Undo for reversible operations and a destination action after recovered imports. Preserve mount-aware feedback.
+  - **Current:** Paste, import, export, and Trash completion support destination actions tied to the unlocked session. Archive completion supports Reveal; recovered pastes, imports, and exports retain their destinations. Applicable Undo remains incomplete.
+  - **Change:** Add verified Undo for reversible operations. Preserve mount-aware feedback and confirmation for irreversible actions.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

@@ -101,7 +101,10 @@ private fun RecoveryQueueRow(
         if (queue.kind != null) {
             Text(stringResource(R.string.onlyfiles_recovery_counts, queue.settledItems, queue.remainingItems))
         }
-        if (queue.hasUncertainItem) Text(stringResource(R.string.onlyfiles_recovery_uncertain, queue.settledItems + 1))
+        if (queue.hasUncertainItem) {
+            val indices = queue.uncertainItemIndices.ifEmpty { listOf(queue.settledItems) }
+            for (index in indices) Text(stringResource(R.string.onlyfiles_recovery_uncertain, index + 1))
+        }
         if (queue.wasMove && queue.remainingItems > 0) Text(stringResource(R.string.onlyfiles_recovery_move))
         if (queue.lockedSourceVaults.isNotEmpty()) Text(stringResource(R.string.onlyfiles_recovery_unlock_source))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

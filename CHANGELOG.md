@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.0
+> **Version:** 2.4.1
 > **Last Updated:** 2026-11-06
 
 ---
+
+## [2.4.1] - 2026-11-06
+
+### Changed
+- Interrupted folder retries remember each published child across restarts, including retries started in the current session.
+- Uncertain folder publications stay available for review while safe queued selections can resume.
+- Recovered imports offer Show destination. Locking expires earlier Move retry handles.
 
 ## [2.4.0] - 2026-11-06
 

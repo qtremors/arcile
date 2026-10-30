@@ -36,7 +36,7 @@ internal class DefaultVaultOperationRecovery @Inject constructor(
         cancellation.throwIfCancelled()
         val result = when (plan.kind) {
             VaultRecoveryKind.IMPORT -> {
-                if (!imports.startRecoveredImport(queue.vaultId, queue.id)) throw VaultFailure.OperationInProgress()
+                if (!imports.startRecoveredImport(queue.vaultId, queue.id, DirectoryId.of(plan.destination))) throw VaultFailure.OperationInProgress()
                 VaultRecoveryResult.ImportStarted
             }
             VaultRecoveryKind.EXPORT -> VaultRecoveryResult.Transferred(
