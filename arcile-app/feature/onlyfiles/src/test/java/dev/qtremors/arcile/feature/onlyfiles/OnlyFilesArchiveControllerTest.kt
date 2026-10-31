@@ -372,6 +372,75 @@ class OnlyFilesArchiveControllerTest {
         assertNull(state.value.message)
     }
 
+    @Test
+    fun `TAR creation variants stream private files and folders through the shared writer`() = runTest {
+        for (format in dev.qtremors.arcile.core.archive.TarArchiveWriter.formats) {
+            val docs = folder("Docs")
+            val parent = requireNotNull(docs.ref.directoryId)
+            val source = file("Private.txt", 6, parent)
+            val reader = MemoryReader("secret".encodeToByteArray())
+            val fs = mockk<VaultFileSystem>()
+            coEvery { fs.listDirectory(vault, parent, any()) } returns Result.success(VaultPage(listOf(source), null, 1))
+            every { fs.openReader(source.ref) } returns Result.success(reader)
+            val name = "Docs.${format.extension}"
+            val output = ByteArrayOutputStream()
+            coEvery { fs.createArchiveFile(vault, root, name, any(), any()) } coAnswers {
+                arg<(OutputStream) -> Unit>(4)(output)
+                Result.success(file(name, output.size().toLong()))
+            }
+            val state = mounted()
+            OnlyFilesArchiveController(fs, state, this, {}, { throw it }).create(listOf(docs), name, 1, "Created")
+            advanceUntilIdle()
+
+            val result = requireNotNull(state.value.completedArchive)
+            var contents: String? = null
+            readVaultArchive(result, { Result.success(MemoryReader(output.toByteArray())) }, null,
+                dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding.UTF_8) { archive ->
+                assertEquals(listOf(listOf("Docs"), listOf("Docs", "Private.txt")), archive.entries.map { it.segments })
+                contents = archive.entries.last().openStream().use { it.readBytes().decodeToString() }
+            }
+            assertEquals("secret", contents)
+            assertTrue(reader.closed)
+            assertEquals("Created", state.value.message)
+            coVerify(exactly = 0) { fs.createZip(any(), any(), any(), any()) }
+        }
+    }
+
+    @Test
+    fun `TAR creation refuses archive passwords and clears their buffers`() = runTest {
+        val fs = mockk<VaultFileSystem>()
+        val state = mounted()
+        val errors = mutableListOf<Throwable>()
+        val password = "secret".toCharArray()
+        OnlyFilesArchiveController(fs, state, this, {}, errors::add).create(
+            listOf(file("Private.txt", 6)), "Result.tar", 1, "Created", password)
+        advanceUntilIdle()
+        assertEquals(1, errors.size)
+        assertTrue(password.all { it == '\u0000' })
+        assertNull(state.value.completedArchive)
+        coVerify(exactly = 0) { fs.createArchiveFile(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `TAR source size changes abort creation and close the private reader`() = runTest {
+        val source = file("Private.txt", 6)
+        val reader = MemoryReader("changed bytes".encodeToByteArray())
+        val fs = mockk<VaultFileSystem>()
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        coEvery { fs.createArchiveFile(vault, root, "Result.tar", any(), any()) } coAnswers {
+            arg<(OutputStream) -> Unit>(4)(ByteArrayOutputStream())
+            error("Changed sources cannot publish an archive")
+        }
+        val state = mounted()
+        val errors = mutableListOf<Throwable>()
+        OnlyFilesArchiveController(fs, state, this, {}, errors::add).create(listOf(source), "Result.tar", 1, "Created")
+        advanceUntilIdle()
+        assertEquals(1, errors.size)
+        assertTrue(errors.single() is dev.qtremors.arcile.core.vault.domain.VaultFailure.SourceChanged)
+        assertTrue(reader.closed)
+        assertNull(state.value.completedArchive)
+    }
+
     private fun mounted() = MutableStateFlow(OnlyFilesUiState(
         selectedVaultId = vault, mountGeneration = 1L,
         directoryStack = listOf(VaultDirectoryCrumb(root, "", VaultPath.Root))

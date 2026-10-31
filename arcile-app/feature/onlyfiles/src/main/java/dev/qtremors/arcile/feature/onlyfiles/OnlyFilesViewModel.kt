@@ -88,6 +88,9 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val archives by lazy {
         OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError)
     }
+    private val undo by lazy {
+        OnlyFilesUndoController(fileSystem, _state, ::runBusy, ::reload, ::onFoldersDeleted, { locations.navigate(it) })
+    }
     private val locations: OnlyFilesLocationController by lazy {
         OnlyFilesLocationController(
             fileSystem, securityPreferences, _state, viewModelScope, ::reload,
@@ -725,6 +728,7 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun cancelImportSelection() = imports.cancelSelection()
     fun cancelImport(vaultId: VaultId) = imports.cancel(vaultId)
     fun clearMessage() = _state.update { it.copy(message = null, completedArchive = null, operationFeedback = null) }
+    fun undoOperationFeedback(feedback: OnlyFilesOperationFeedback) = undo.undo(feedback)
     fun dismissOperationFeedback(id: String) = _state.update {
         if (it.operationFeedback?.id == id) it.copy(operationFeedback = null) else it
     }

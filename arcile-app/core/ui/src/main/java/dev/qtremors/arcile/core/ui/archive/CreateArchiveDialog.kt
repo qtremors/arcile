@@ -90,6 +90,8 @@ fun CreateArchiveDialog(
         destinationPath.trimEnd('/', '\\') + "/" + outputFileName
     }
     val effectivePassword = password.takeIf { usePassword && format.supportsPassword && it.isNotEmpty() }
+    val effectiveCompressionLevel = resolveArchiveCompressionLevel(format, compressionLevel)
+    val compressionLevels = archiveCompressionLevels(format)
     val canCreate = nameValidation.isValid && (!usePassword || !format.supportsPassword || (password.isNotEmpty() && !passwordError))
 
     AlertDialog(
@@ -114,7 +116,7 @@ fun CreateArchiveDialog(
                     validationValue = validationValue,
                     onDone = {
                         if (canCreate) {
-                            onConfirm(sanitizedArchiveBase, format, compressionLevel, effectivePassword)
+                            onConfirm(sanitizedArchiveBase, format, effectiveCompressionLevel, effectivePassword)
                         }
                     }
                 )
@@ -142,8 +144,8 @@ fun CreateArchiveDialog(
                     )
                     ArchiveDropdown(
                         label = stringResource(R.string.archive_compression),
-                        selectedOption = compressionLevel.displayName,
-                        options = ArchiveCompressionLevel.entries.map { it.displayName },
+                        selectedOption = effectiveCompressionLevel.displayName,
+                        options = compressionLevels.map { it.displayName },
                         onOptionSelected = { selected ->
                             compressionLevel = ArchiveCompressionLevel.entries.first { it.displayName == selected }
                         },
@@ -204,7 +206,7 @@ fun CreateArchiveDialog(
         },
         confirmButton = {
             val onConfirmClick = {
-                onConfirm(sanitizedArchiveBase, format, compressionLevel, effectivePassword)
+                onConfirm(sanitizedArchiveBase, format, effectiveCompressionLevel, effectivePassword)
             }
             FilledTonalButton(
                 enabled = canCreate,

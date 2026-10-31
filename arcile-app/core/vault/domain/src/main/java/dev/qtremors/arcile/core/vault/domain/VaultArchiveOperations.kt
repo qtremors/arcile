@@ -40,4 +40,12 @@ interface VaultArchiveOperations {
         name: String,
         writeZip: (OutputStream) -> Unit
     ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("Archive creation is unavailable"))
+
+    suspend fun createArchiveFile(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        name: String,
+        mimeType: String,
+        writeArchive: (OutputStream) -> Unit
+    ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("Archive creation is unavailable"))
 }

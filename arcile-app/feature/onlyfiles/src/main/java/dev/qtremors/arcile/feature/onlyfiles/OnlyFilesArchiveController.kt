@@ -2,6 +2,9 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
+import dev.qtremors.arcile.core.archive.ArchiveSafetyPolicy
+import dev.qtremors.arcile.core.archive.TarArchiveWriter
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
@@ -26,6 +29,10 @@ import net.lingala.zip4j.model.enums.CompressionLevel
 import net.lingala.zip4j.model.enums.CompressionMethod
 import net.lingala.zip4j.model.enums.EncryptionMethod
 import java.util.zip.Deflater
+import java.io.FilterInputStream
+import java.io.InputStream
+import java.nio.channels.Channels
+import org.apache.commons.compress.archivers.tar.TarArchiveEntry
 
 internal data class VaultZipSelection(
     val folder: List<String>,
@@ -69,6 +76,31 @@ internal class OnlyFilesArchiveController(
         runArchive(VaultArchiveAction.CREATE, successMessage, password) { progress ->
             val items = planZip(nodes)
             val coroutine = currentCoroutineContext()
+            val format = ArchiveFormat.fromPath(name) ?: ArchiveFormat.ZIP
+            if (format != ArchiveFormat.ZIP) {
+                require(format in TarArchiveWriter.formats && password?.isNotEmpty() != true) { "Unsupported archive creation options" }
+                val mime = when (format) {
+                    ArchiveFormat.TAR -> "application/x-tar"
+                    ArchiveFormat.TAR_GZIP, ArchiveFormat.TGZ -> "application/gzip"
+                    ArchiveFormat.TAR_BZIP2, ArchiveFormat.TBZ2 -> "application/x-bzip2"
+                    else -> "application/x-xz"
+                }
+                return@runArchive fileSystem.createArchiveFile(vault, parent, name, mime) { output ->
+                    TarArchiveWriter.open(output, format, level.toArchiveCompressionLevel(),
+                        ArchiveSafetyPolicy(maxEntries = VAULT_ARCHIVE_MAX_ENTRIES, maxUncompressedBytes = VAULT_ARCHIVE_MAX_BYTES)).use { tar ->
+                        items.forEachIndexed { index, item ->
+                            coroutine.ensureActive()
+                            progress(VaultArchiveProgress(index, items.size, item.node.name))
+                            val entry = TarArchiveEntry(item.path).apply {
+                                size = if (item.node.isDirectory) 0L else item.node.sizeBytes
+                                setModTime(item.node.modifiedAtMillis)
+                            }
+                            tar.add(entry, { coroutine.ensureActive() }) { openArchiveInput(item.node) { coroutine.ensureActive() } }
+                            progress(VaultArchiveProgress(index + 1, items.size, null))
+                        }
+                    }
+                }.getOrThrow()
+            }
             fileSystem.createZip(vault, parent, name) { output ->
                 ZipOutputStream(output, password).use { zip ->
                     val buffer = ByteArray(32 * 1024)
@@ -142,6 +174,16 @@ internal class OnlyFilesArchiveController(
 
     fun cancel() {
         operation?.cancel()
+    }
+
+    private fun openArchiveInput(node: VaultNodeMetadata, checkActive: () -> Unit): InputStream {
+        val reader = fileSystem.openReader(node.ref).getOrThrow()
+        try {
+            if (reader.sizeBytes != node.sizeBytes) throw VaultFailure.SourceChanged()
+            return object : FilterInputStream(Channels.newInputStream(VaultArchiveChannel(reader, node.sizeBytes, checkActive))) {
+                override fun close() { try { super.close() } finally { reader.close() } }
+            }
+        } catch (error: Throwable) { reader.close(); throw error }
     }
 
     private fun runArchive(
@@ -231,4 +273,11 @@ private fun Int.toZipCompressionLevel(): CompressionLevel = when (this) {
     Deflater.BEST_SPEED -> CompressionLevel.FASTEST
     Deflater.BEST_COMPRESSION -> CompressionLevel.ULTRA
     else -> CompressionLevel.NORMAL
+}
+
+private fun Int.toArchiveCompressionLevel(): ArchiveCompressionLevel = when (this) {
+    Deflater.NO_COMPRESSION -> ArchiveCompressionLevel.STORE
+    Deflater.BEST_SPEED -> ArchiveCompressionLevel.FAST
+    Deflater.BEST_COMPRESSION -> ArchiveCompressionLevel.MAXIMUM
+    else -> ArchiveCompressionLevel.DEFAULT
 }

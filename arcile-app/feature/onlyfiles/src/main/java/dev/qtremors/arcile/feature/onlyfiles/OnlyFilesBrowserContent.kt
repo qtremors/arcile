@@ -388,7 +388,8 @@ internal fun VaultNodeMetadata.toSharedFileModel(): FileModel {
         canMove = ref.capabilities.canMove,
         canExport = ref.capabilities.canExport,
         canShare = ref.capabilities.canShare,
-        canOpenWith = ref.capabilities.canOpenWith
+        canOpenWith = ref.capabilities.canOpenWith,
+        canArchive = ref.capabilities.canRead
     )
     val storageRef = StorageNodeRef.vault(ref.vaultId.value, ref.nodeId.value, capabilities)
     return FileModel(

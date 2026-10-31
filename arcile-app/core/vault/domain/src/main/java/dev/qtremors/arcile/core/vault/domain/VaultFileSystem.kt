@@ -1,6 +1,6 @@
 package dev.qtremors.arcile.core.vault.domain
 
-interface VaultFileSystem : VaultArchiveOperations {
+interface VaultFileSystem : VaultArchiveOperations, VaultUndoOperations {
     suspend fun listDirectory(
         vaultId: VaultId,
         directoryId: DirectoryId,
@@ -54,6 +54,8 @@ interface VaultFileSystem : VaultArchiveOperations {
         Result.failure(VaultFailure.Unavailable("Synthetic file creation is unavailable"))
 
     suspend fun rename(ref: VaultNodeRef, newName: String): Result<VaultNodeMetadata>
+    suspend fun renameWithPreviousName(ref: VaultNodeRef, newName: String): Result<VaultRenamedNode> =
+        rename(ref, newName).map { VaultRenamedNode(it, previousName = null) }
     suspend fun batchRenameSiblingNames(items: List<VaultRenameItem>): Result<Map<DirectoryId, Set<String>>> =
         Result.failure(VaultFailure.Unavailable("Batch rename is unavailable"))
     suspend fun batchRename(items: List<VaultRenameItem>): Result<List<VaultNodeMetadata>> =

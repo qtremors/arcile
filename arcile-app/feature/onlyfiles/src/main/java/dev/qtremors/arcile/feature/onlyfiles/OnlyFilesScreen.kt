@@ -279,7 +279,8 @@ private fun OnlyFilesScreen(
                     showSearch = false
                     viewModel.revealOperationDestination(operation, onOpenOperationDestination)
                 },
-                onDismiss = { viewModel.dismissOperationFeedback(operation.id) }
+                onDismiss = { viewModel.dismissOperationFeedback(operation.id) },
+                onUndo = { viewModel.undoOperationFeedback(operation) }
             ))
         } else state.message?.let { message ->
             val output = state.completedArchive

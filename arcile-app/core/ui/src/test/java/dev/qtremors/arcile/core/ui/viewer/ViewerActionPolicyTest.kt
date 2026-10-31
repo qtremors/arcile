@@ -7,6 +7,15 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ViewerActionPolicyTest {
+    @Test
+    fun `vault archive action requires readable source archive capability and an available workflow`() {
+        val caps = StorageNodeCapabilities(canRead = true, canArchive = true)
+        assertTrue(ViewerFileAction.CreateArchive in ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.Vault, caps))
+        assertFalse(ViewerFileAction.CreateArchive in ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.Vault, caps.copy(canRead = false)))
+        assertFalse(ViewerFileAction.CreateArchive in ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.Vault, caps.copy(canArchive = false)))
+        assertFalse(ViewerFileAction.CreateArchive in ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.Vault, caps, false))
+        assertFalse(ViewerFileAction.CreateArchive in ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.ArchiveEntry, caps))
+    }
 
     @Test
     fun `normal scope with full capabilities enables all actions`() {

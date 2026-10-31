@@ -107,6 +107,8 @@ Once another application reads plaintext, Arcile cannot control copies that appl
 
 ## Operational limitations
 
-OnlyFiles is offline and adds no network access. Archives inside a vault are ordinary encrypted files; OnlyFiles does not browse, create, or extract them in place. Imports preserve bytes, names, MIME hints, logical modification times, hidden regular files, and empty folders, but reject symlinks and do not preserve permissions or extended attributes.
+OnlyFiles is offline and adds no network access. Archive readers use protected streams; ZIP and TAR-family creation stream directly into new encrypted objects. Extraction publishes a new encrypted folder. Creating 7z archives, extracting directly into an existing folder, and editing entries inside an existing archive remain unsupported. Imports preserve bytes, names, MIME hints, logical modification times, hidden regular files, and empty folders, but reject symlinks and do not preserve permissions or extended attributes.
+
+Undo actions stay in memory with the originating feedback and unlocked mount. Creation Undo requires unchanged file metadata or an unused, empty new folder. Rename Undo checks the published metadata and restores all batch names atomically without overwriting collisions. Same-vault move Undo preserves object identity and publishes all affected parent manifests in one transaction; it checks directory IDs to prevent cycles, with a combined 10,000-folder verification limit. Replaced or merged destinations and cross-boundary moves do not receive these move proofs. Locking expires move proofs, and private feedback cannot reappear in a reopened mount.
 
 Keep the password and locked backups outside the device. Losing both the password/usable envelope and all authenticated metadata can make a vault unrecoverable.

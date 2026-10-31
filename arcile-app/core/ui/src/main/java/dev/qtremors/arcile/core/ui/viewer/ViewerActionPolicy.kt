@@ -36,6 +36,7 @@ object ViewerActionPolicy {
                 if (capabilities.canMove) actions += ViewerFileAction.Cut
                 if (capabilities.canShare) actions += ViewerFileAction.Share
                 if (capabilities.canOpenWith) actions += ViewerFileAction.OpenWith
+                if (capabilities.canRead && capabilities.canArchive && isMultiFileArchiveAvailable) actions += ViewerFileAction.CreateArchive
                 if (capabilities.canRead) actions += ViewerFileAction.Properties
             }
             ViewerSourceScope.Normal -> {

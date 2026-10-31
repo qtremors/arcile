@@ -62,7 +62,7 @@ internal class OnlyFilesVideoInteraction(
         when (action) {
             ViewerFileAction.Copy -> viewModel.copy(listOf(node))
             ViewerFileAction.Cut -> viewModel.move(listOf(node))
-            ViewerFileAction.Rename, ViewerFileAction.Delete -> {
+            ViewerFileAction.Rename, ViewerFileAction.Delete, ViewerFileAction.CreateArchive -> {
                 mutation = action to node
                 queue?.overlay(true)
             }
@@ -107,9 +107,11 @@ internal class OnlyFilesVideoInteraction(
             LaunchedEffect(state.message, state.operationFeedback?.id) {
                 val operation = state.operationFeedback?.takeIf { it.belongsTo(state) && state.message == null }
                 if (operation != null) {
+                    operation.undoResult?.let { activeQueue?.applyUndo(it) }
                     // Global playback remains in its own route; source actions here do not navigate out of it.
-                    val event = operation.event({}, { viewModel.dismissOperationFeedback(operation.id) })
-                        .copy(actionLabel = null, onAction = null)
+                    val action = operation.event({}, { viewModel.dismissOperationFeedback(operation.id) },
+                        onUndo = { viewModel.undoOperationFeedback(operation) })
+                    val event = if (operation.undo != null) action else action.copy(actionLabel = null, onAction = null)
                     feedback.showArcileFeedback(context, event)
                 } else state.message?.let { message ->
                     feedback.showArcileFeedback(context, ArcileFeedbackEvent(
@@ -119,6 +121,10 @@ internal class OnlyFilesVideoInteraction(
             }
             Box(Modifier.fillMaxSize()) {
                 content()
+                state.archiveProgress?.let { progress ->
+                    OnlyFilesArchiveToolbar(progress, viewModel::cancelArchiveOperation,
+                        Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+                }
                 ArcileSnackbarHost(feedback, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) { state.operationFeedback?.severity ?: ArcileFeedbackSeverity.Info }
             }
             request?.let { (action, node) ->
@@ -133,6 +139,11 @@ internal class OnlyFilesVideoInteraction(
                     activeQueue?.overlay(false)
                 }
                 when (action) {
+                    ViewerFileAction.CreateArchive -> VaultCreateZipDialog(listOf(node), state.nodes.mapTo(mutableSetOf(), VaultNodeMetadata::name),
+                        onDismiss = ::dismiss, destinationPath = state.directoryStack.joinToString("/") { it.name }) { name, level, message, password ->
+                        dismiss()
+                        viewModel.createZip(listOf(node), name, level, message, password)
+                    }
                     ViewerFileAction.Rename -> RenameDialog(
                         currentName = node.name, onDismiss = ::dismiss, saveInput = false,
                         onConfirm = { name ->

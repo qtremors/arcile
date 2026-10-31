@@ -458,7 +458,7 @@ internal fun VideoViewerPlaybackSurface(
                     canWrite = fallbackFileActionsAllowed && !readOnly,
                     canDelete = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canDelete,
                     canTrash = fallbackFileActionsAllowed && file.nodeRef.capabilities.canTrash,
-                    canArchive = fallbackFileActionsAllowed && file.nodeRef.capabilities.canArchive,
+                    canArchive = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canArchive,
                     canRename = (fallbackFileActionsAllowed && !readOnly || sourceActionsAllowed) && file.nodeRef.capabilities.canRename,
                     canCopy = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canCopy,
                     canMove = (fallbackFileActionsAllowed && !readOnly || sourceActionsAllowed) && file.nodeRef.capabilities.canMove,

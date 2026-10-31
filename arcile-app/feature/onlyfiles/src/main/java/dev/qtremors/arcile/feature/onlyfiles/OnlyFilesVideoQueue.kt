@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSourceUpdate
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultUndoResult
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,6 +28,11 @@ internal class OnlyFilesVideoQueue(
     }
 
     fun node(reference: String): VaultNodeMetadata? = nodesByReference[reference]
+
+    fun applyUndo(result: VaultUndoResult) {
+        if (result.removedNodeIds.isNotEmpty()) remove(result.removedNodeIds.mapTo(hashSetOf()) { it.value })
+        merge(result.updated)
+    }
 
     fun merge(nodes: List<VaultNodeMetadata>) {
         for (node in nodes) {

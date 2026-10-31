@@ -1,4 +1,5 @@
 <resources>
+    <string name="onlyfiles_undo_complete">Operation undone</string>
     <string name="onlyfiles_resume_paste">Resume partial paste</string>
     <string name="onlyfiles_open_in_plugin">Open in %1$s</string>
     <string name="onlyfiles_preview_selected_images">Preview selected images</string>
@@ -42,9 +43,9 @@
     <string name="onlyfiles_replace_folder">Replace folder</string>
     <string name="onlyfiles_no_storage">No storage locations are available.</string>
     <string name="onlyfiles_batch_rename_unavailable">Couldn’t prepare batch rename.</string>
-    <string name="onlyfiles_create_zip">Create ZIP</string>
-    <string name="onlyfiles_creating_zip">Creating ZIP</string>
-    <string name="onlyfiles_zip_created">ZIP created</string>
+    <string name="onlyfiles_create_zip">Create archive</string>
+    <string name="onlyfiles_creating_zip">Creating archive</string>
+    <string name="onlyfiles_zip_created">Archive created</string>
     <string name="onlyfiles_extract_zip">Extract archive</string>
     <string name="onlyfiles_extract_here">Extract here</string>
     <string name="onlyfiles_extracting_zip">Extracting archive</string>

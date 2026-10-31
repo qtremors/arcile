@@ -9,6 +9,10 @@ import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultRenameUndoEntry
+import dev.qtremors.arcile.core.vault.domain.VaultMoveUndo
+import dev.qtremors.arcile.core.vault.domain.VaultUndoResult
 import java.util.UUID
 import dev.qtremors.arcile.core.ui.R as UiR
 
@@ -20,21 +24,30 @@ internal sealed interface OnlyFilesOperationDestination {
 
 internal enum class OnlyFilesOperationKind { COPY, MOVE, IMPORT, MOVE_IN, EXPORT, MOVE_OUT, TRASH, RECOVERY }
 
+internal sealed interface OnlyFilesUndoAction {
+    data class Created(val expected: VaultNodeMetadata) : OnlyFilesUndoAction
+    data class Renamed(val entries: List<VaultRenameUndoEntry>) : OnlyFilesUndoAction
+    data class Moved(val proofs: List<VaultMoveUndo>) : OnlyFilesUndoAction
+}
+
 /** All destinations and callbacks expire with the originating unlocked mount. Never persist this. */
 internal data class OnlyFilesOperationFeedback(
     val message: UiText,
     val severity: ArcileFeedbackSeverity,
     val mountGeneration: Long,
     val destination: OnlyFilesOperationDestination? = null,
-    val id: String = UUID.randomUUID().toString()
+    val id: String = UUID.randomUUID().toString(),
+    val undo: OnlyFilesUndoAction? = null,
+    val undoResult: VaultUndoResult? = null
 ) {
     fun belongsTo(state: OnlyFilesUiState): Boolean = mountGeneration == state.mountGeneration
 
-    fun event(onReveal: () -> Unit, onDismiss: () -> Unit): ArcileFeedbackEvent = ArcileFeedbackEvent(
+    fun event(onReveal: () -> Unit, onDismiss: () -> Unit, onUndo: () -> Unit = {}): ArcileFeedbackEvent = ArcileFeedbackEvent(
         message = message,
         severity = severity,
-        actionLabel = destination?.let { UiText.StringResource(R.string.onlyfiles_show_destination) },
-        onAction = onReveal.takeIf { destination != null },
+        actionLabel = if (undo != null) UiText.StringResource(UiR.string.undo)
+            else destination?.let { UiText.StringResource(R.string.onlyfiles_show_destination) },
+        onAction = if (undo != null) onUndo else onReveal.takeIf { destination != null },
         onDismiss = onDismiss,
         id = id
     )

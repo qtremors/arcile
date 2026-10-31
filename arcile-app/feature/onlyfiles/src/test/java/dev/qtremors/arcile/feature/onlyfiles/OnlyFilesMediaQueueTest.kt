@@ -26,6 +26,31 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class OnlyFilesMediaQueueTest {
     @Test
+    fun `undo move refreshes the protected parent reference while preserving the playing identity`() {
+        val first = node("first.mp4")
+        val second = node("second.mp4")
+        val queue = OnlyFilesVideoQueue(listOf(first, second), ::video)
+        val unchanged = queue.sourceUpdates.value.items[1]
+        val restored = first.copy(ref = first.ref.copy(parentId = DirectoryId.of("original-parent")))
+
+        queue.applyUndo(dev.qtremors.arcile.core.vault.domain.VaultUndoResult(updated = listOf(restored)))
+
+        assertEquals(restored.ref, queue.refsByOpaqueId[first.ref.nodeId.value])
+        assertEquals(restored, queue.node(first.toSharedFileModel().reference))
+        assertEquals(first.toSharedFileModel().reference, queue.sourceUpdates.value.items.first().mediaItem.mediaId)
+        assertSame(unchanged, queue.sourceUpdates.value.items[1])
+    }
+
+    @Test
+    fun `undo creation removes a deleted video from the playback queue and ignores stale pages`() {
+        val created = node("created.mp4")
+        val queue = OnlyFilesVideoQueue(listOf(created), ::video)
+        queue.applyUndo(dev.qtremors.arcile.core.vault.domain.VaultUndoResult(removedNodeIds = setOf(created.ref.nodeId)))
+        queue.merge(listOf(created))
+        assertTrue(queue.sourceUpdates.value.items.isEmpty())
+        assertTrue(queue.refsByOpaqueId.isEmpty())
+    }
+    @Test
     fun `video queue retains loaded pages and item callbacks across a first page refresh`() {
         val first = node("first.mp4")
         val second = node("second.mp4")

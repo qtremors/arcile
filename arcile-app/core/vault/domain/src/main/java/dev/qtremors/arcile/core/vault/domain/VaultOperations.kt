@@ -110,7 +110,8 @@ data class VaultItemResult(
     val failure: VaultFailure? = null,
     val removedFolders: Set<DirectoryId> = emptySet(),
     val mergeRetry: VaultMergeRetry? = null,
-    val exportRetry: VaultExportRetry? = null
+    val exportRetry: VaultExportRetry? = null,
+    val moveUndo: VaultMoveUndo? = null
 )
 
 data class VaultBatchResult(val items: List<VaultItemResult>) {

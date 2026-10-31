@@ -80,13 +80,13 @@
 
 - [ ] **FEAT-0033 - Complete Vault Archive Creation and Extraction Options**
   - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
-  - **Current:** Archive browsing and the creation dialog are shared. OnlyFiles creates ZIPs; Browser also creates 7z and TAR variants. Vault extraction publishes a new folder, while Browser also offers extraction directly into an existing destination. Archive creation remains unwired in vault viewer menus.
-  - **Change:** Adapt the existing archive writers and extraction targets to vault readers and encrypted output before enabling their options in shared dialogs. Route viewer archive actions through that workflow. Preserve bounded memory, cancellation, conflicts, and rollback.
+  - **Current:** Archive browsing, creation dialogs, and TAR writers are shared. ZIP and TAR creation and image/video archive actions are wired. Vault 7z creation and extraction directly into an existing folder remain unavailable.
+  - **Change:** Adapt the existing 7z writer to protected seekable output and add direct extraction into existing destinations. Finish any remaining viewer action routes. Preserve bounded memory, cancellation, conflicts, and rollback.
 
 - [ ] **UI-0013 - Complete Vault Operation Feedback**
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.
-  - **Current:** Paste, import, export, and Trash completion support destination actions tied to the unlocked session. Archive completion supports Reveal; recovered pastes, imports, and exports retain their destinations. Applicable Undo remains incomplete.
-  - **Change:** Add verified Undo for reversible operations. Preserve mount-aware feedback and confirmation for irreversible actions.
+  - **Current:** Completion and recovered transfers retain destination actions. Creation, rename, batch rename, and reversible same-vault moves support guarded Undo. Cross-vault and plaintext-boundary reverse operations remain unavailable.
+  - **Change:** Complete applicable transfer and Trash Undo with verified source/destination ownership. Preserve mount-aware feedback and confirmation for irreversible actions.
 
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.

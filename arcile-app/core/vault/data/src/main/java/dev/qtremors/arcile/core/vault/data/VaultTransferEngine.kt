@@ -310,7 +310,10 @@ internal class VaultTransferEngine(
                 context.commit(obsolete)
                 return result(ref, resolved.entry, context.outcome()).copy(
                     removedFolders = removedFolders,
-                    mergeRetry = context.retry(ref, destinationId, true, resolved.entry.name)
+                    mergeRetry = context.retry(ref, destinationId, true, resolved.entry.name),
+                    moveUndo = if (existing == null || decision == VaultConflictDecision.KEEP_BOTH) {
+                        PendingVaultMoveUndo(moved.toMetadata(session.id, destinationId), ref.parentId, resolved.entry.name, session.mutationMutex)
+                    } else null
                 )
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()
@@ -784,28 +787,6 @@ internal class VaultTransferEngine(
     }
 
     private fun subtreeDirectoryIds(session: VaultSessionRecord, root: VaultManifestEntry): Set<DirectoryId> {
-        val ids = mutableSetOf<DirectoryId>()
-        val queue = ArrayDeque<Pair<DirectoryId, ByteArray>>()
-        queue += requireNotNull(root.childDirectoryId) to root.protectedKey.copyOf()
-        while (queue.isNotEmpty()) {
-            val (id, key) = queue.removeFirst()
-            if (!ids.add(id)) {
-                key.fill(0)
-                continue
-            }
-            try {
-                val snapshot = session.readDirectory(id, key)
-                try {
-                    snapshot.entries.filter { it.kind == VaultNodeKind.DIRECTORY }.forEach {
-                        queue += requireNotNull(it.childDirectoryId) to it.protectedKey.copyOf()
-                    }
-                } finally {
-                    snapshot.clearProtectedKeys()
-                }
-            } finally {
-                key.fill(0)
-            }
-        }
-        return ids
+        return vaultSubtreeDirectoryIds(session, root)
     }
 }

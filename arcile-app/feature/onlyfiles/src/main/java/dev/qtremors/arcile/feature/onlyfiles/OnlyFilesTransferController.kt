@@ -160,7 +160,9 @@ internal class OnlyFilesTransferController(
                     mountGeneration,
                     // Completion belongs to the submitted destination, even if another folder is now open.
                     destination
-                )
+                ).copy(undo = OnlyFilesUndoAction.Moved(result.completed.mapNotNull { item -> item.moveUndo })
+                    .takeIf { submittedClipboard.action == VaultClipboardAction.MOVE && result.items.isNotEmpty() &&
+                        result.completed.size == result.items.size && result.completed.all { item -> item.moveUndo != null } })
             )
         }
         if (state.value.mountGeneration == mountGeneration) reload()

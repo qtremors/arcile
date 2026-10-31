@@ -55,7 +55,7 @@ internal fun VaultCreateZipDialog(
         destinationPath = destinationPath,
         existingNames = existingNames,
         onDismiss = onDismiss,
-        formats = listOf(ArchiveFormat.ZIP),
+        formats = listOf(ArchiveFormat.ZIP) + dev.qtremors.arcile.core.archive.TarArchiveWriter.formats,
         privateSession = true,
         onConfirm = { name, format, level, password ->
             val compression = when (level) {

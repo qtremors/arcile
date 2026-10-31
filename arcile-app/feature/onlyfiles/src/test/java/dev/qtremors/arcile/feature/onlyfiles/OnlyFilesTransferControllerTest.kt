@@ -19,6 +19,54 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class OnlyFilesTransferControllerTest {
     @Test
+    fun `only a completely reversible move selection offers the shared Undo action`() = runTest {
+        val vault = VaultId.of("vault")
+        val first = VaultNodeRef(vault, NodeId.of("first"), DirectoryId.Root, VaultNodeCapabilities())
+        val second = first.copy(nodeId = NodeId.of("second"))
+        val proof = mockk<VaultMoveUndo> { io.mockk.every { vaultId } returns vault }
+        val cases = listOf(
+            listOf(VaultItemResult(first.backendIdentity, "A", VaultItemOutcome.COMPLETED, moveUndo = proof)) to true,
+            listOf(VaultItemResult(first.backendIdentity, "A", VaultItemOutcome.COMPLETED)) to false,
+            listOf(VaultItemResult(first.backendIdentity, "A", VaultItemOutcome.COMPLETED, moveUndo = proof),
+                VaultItemResult(second.backendIdentity, "B", VaultItemOutcome.PARTIAL)) to false,
+            listOf(VaultItemResult(first.backendIdentity, "A", VaultItemOutcome.COMPLETED, moveUndo = proof),
+                VaultItemResult(second.backendIdentity, "B", VaultItemOutcome.COMPLETED)) to false
+        )
+        for ((items, expectedUndo) in cases) {
+            val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = vault, mountGeneration = 12,
+                directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "Vault", VaultPath.Root)),
+                clipboard = VaultClipboard(VaultClipboardAction.MOVE, listOf(first, second))))
+            val transfers = mockk<VaultTransferCoordinator> {
+                coEvery { moveWithinVault(any(), any(), any(), any()) } returns VaultBatchResult(items)
+            }
+            OnlyFilesTransferController(transfers, state, this, {}).paste()
+            advanceUntilIdle()
+            assertEquals(expectedUndo, state.value.operationFeedback?.undo != null)
+            assertEquals(OnlyFilesOperationDestination.VaultDirectory(vault, DirectoryId.Root), state.value.operationFeedback?.destination)
+        }
+    }
+
+    @Test
+    fun `copy completion retains Show destination even when a backend result contains a move proof`() = runTest {
+        val vault = VaultId.of("vault")
+        val ref = VaultNodeRef(vault, NodeId.of("source"), DirectoryId.Root, VaultNodeCapabilities())
+        val proof = mockk<VaultMoveUndo> { io.mockk.every { vaultId } returns vault }
+        val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = vault,
+            directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.Root, "Vault", VaultPath.Root)),
+            clipboard = VaultClipboard(VaultClipboardAction.COPY, listOf(ref))))
+        val transfers = mockk<VaultTransferCoordinator> {
+            coEvery { copyWithinVault(any(), any(), any(), any()) } returns VaultBatchResult(listOf(
+                VaultItemResult(ref.backendIdentity, "Source", VaultItemOutcome.COMPLETED, moveUndo = proof)))
+        }
+
+        OnlyFilesTransferController(transfers, state, this, {}).paste()
+        advanceUntilIdle()
+
+        assertNull(state.value.operationFeedback?.undo)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_show_destination), state.value.operationFeedback?.event({}, {})?.actionLabel)
+    }
+
+    @Test
     fun `partial move keeps clipboard and tells user skipped files remain at source`() = runTest {
         val vaultId = VaultId.of("vault")
         val ref = VaultNodeRef(vaultId, NodeId.of("folder"), DirectoryId.Root, VaultNodeCapabilities())

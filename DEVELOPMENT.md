@@ -2,7 +2,7 @@
 
 > Architecture, implementation notes, conventions, and verification guidance for Arcile development.
 
-**Version:** 2.4.1 | **Last Updated:** 2026-11-06
+**Version:** 2.4.2 | **Last Updated:** 2026-11-06
 **Scope:** Internal development, storage architecture, UI paradigms, testing, and release maintenance.
 
 ---
@@ -715,6 +715,8 @@ Arcile implements a high-end, premium design system built on **Material 3 Expres
 - Owns the vault-library → authenticate/mount → rooted-browser → lock lifecycle, biometric interaction, import/export/move picker reservations, selection, vault administration, and vault-backed media adapters.
 - Uses Arcile's native local file and save-destination browsers for normal transfers and shared Arcile UI primitives for its library, mounted browser, search, and selection chrome.
 - Delegates all storage layout, cryptography, transaction, recovery, session, and grant policy to `core:vault:*` contracts.
+- Creation, rename, batch rename, and reversible same-vault move Undo share the app feedback presenter. Backend checks and inverse transactions run under the vault mutation lock; Undo callbacks expire with their feedback and unlocked mount.
+- ZIP and TAR-family creation write through the encrypted generated-file boundary. Browser and OnlyFiles share the streaming TAR encoder and format-specific compression choices; image/video archive actions reuse the private creation dialog and progress toolbar.
 
 ### 16. Video Player (`feature/videoplayer`)
 - Owns the global Media3 viewer route and standalone video Activity. It consumes neutral, opaque playback sessions and does not depend on producer features.
@@ -765,8 +767,8 @@ Arcile uses clear, descriptive names to ensure readability.
 | **Compile SDK** | 37 |
 | **Target SDK** | 37 |
 | **Min SDK** | 30 |
-| **Version Code** | 241 |
-| **Version Name** | `2.4.1` |
+| **Version Code** | 242 |
+| **Version Name** | `2.4.2` |
 | **Java Target** | JVM 11 |
 | **Gradle Version** | 9.8.2 |
 | **Gradle JVM** | JDK 21 |
@@ -920,7 +922,7 @@ Run commands from `arcile-app/` with JDK 21 and Android SDK 37 installed. Use `g
 ./gradlew :app:assembleDebug
 
 # Install the debug APK after a successful build
-adb install -r app/build/outputs/apk/debug/Arcile-2.4.1-debug.apk
+adb install -r app/build/outputs/apk/debug/Arcile-2.4.2-debug.apk
 
 # Run app unit and Robolectric tests
 ./gradlew :app:testDebugUnitTest
@@ -949,11 +951,11 @@ The normal APK release commands and application ID remain unchanged. To generate
 ./gradlew :app:bundleRelease -Parcile.play=true
 ```
 
-The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.4.1.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
+The bundle is generated at `app/build/outputs/bundle/release/Arcile-2.4.2.aab`. Bundle filenames follow `Arcile-<version>.aab`, matching the APK naming convention. It uses the existing release signing configuration. Omit `-Parcile.play=true` for the normal `dev.qtremors.arcile` build.
 
 ### APK Naming Standards
-- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.4.1-debug.apk`
-- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.4.1.apk`
+- **Arcile Debug:** `app/build/outputs/apk/debug/Arcile-2.4.2-debug.apk`
+- **Arcile Release:** `app/build/outputs/apk/release/Arcile-2.4.2.apk`
 
 ---
 

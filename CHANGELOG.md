@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.1
+> **Version:** 2.4.2
 > **Last Updated:** 2026-11-06
 
 ---
+
+## [2.4.2] - 2026-11-06
+
+### Changed
+- Undo file and folder creation, renames, batch renames, and reversible moves inside a vault. Changed items and name collisions prevent unsafe reversals.
+- Create TAR, TAR.GZ, TAR.BZ2, and TAR.XZ archives inside vaults using Browser's shared streaming writer and compression options.
+- Create archives from vault image and video menus with private dialogs and operation progress.
 
 ## [2.4.1] - 2026-11-06
 

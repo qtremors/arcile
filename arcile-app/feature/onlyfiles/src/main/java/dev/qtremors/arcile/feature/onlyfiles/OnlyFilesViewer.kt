@@ -93,6 +93,7 @@ internal fun ViewerScreen(
     var externalAction by remember(node.ref.nodeId) { mutableStateOf<ExternalAction?>(null) }
     var installRequested by remember(node.ref) { mutableStateOf(false) }
     var showRename by remember(node.ref.nodeId) { mutableStateOf(false) }
+    var showCreateArchive by remember(node.ref.nodeId) { mutableStateOf(false) }
     var archiveFolder by remember(node.ref.nodeId, node.revision) { mutableStateOf(emptyList<String>()) }
     var archiveSelection by remember(node.ref.nodeId, node.revision) { mutableStateOf<VaultZipSelection?>(null) }
     val navigateBack = {
@@ -115,7 +116,7 @@ internal fun ViewerScreen(
             ViewerFileAction.Share -> externalAction = ExternalAction.SHARE
             ViewerFileAction.OpenWith -> externalAction = ExternalAction.OPEN_WITH
             ViewerFileAction.Properties -> showInfo = true
-            ViewerFileAction.CreateArchive -> Unit
+            ViewerFileAction.CreateArchive -> if (!viewModel.state.value.busy && action in allowedActions) showCreateArchive = true
         }
     }
 
@@ -250,6 +251,15 @@ internal fun ViewerScreen(
         }
     }
 
+    if (showCreateArchive) {
+        val archiveState by viewModel.state.collectAsStateWithLifecycle()
+        VaultCreateZipDialog(listOf(node), archiveState.nodes.mapTo(mutableSetOf(), VaultNodeMetadata::name),
+            onDismiss = { showCreateArchive = false },
+            destinationPath = archiveState.directoryStack.joinToString("/") { it.name }) { name, level, message, password ->
+            showCreateArchive = false
+            viewModel.createZip(listOf(node), name, level, message, password)
+        }
+    }
     if (showInfo) {
         VaultPropertiesDialog(listOf(node), location, viewModel::selectionTotals, viewModel::openReader) { showInfo = false }
     }

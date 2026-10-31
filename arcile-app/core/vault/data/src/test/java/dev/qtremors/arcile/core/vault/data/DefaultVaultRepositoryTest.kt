@@ -607,6 +607,40 @@ class DefaultVaultRepositoryTest {
     }
 
     @Test
+    fun `vault generated archive files preserve encrypted publication and rollback`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            scope, testPortableResolver())
+        try {
+            val vault = repository.createAppPrivateVault("Archives", "password".toCharArray()).getOrThrow()
+            val payload = "private generated archive bytes".encodeToByteArray()
+            val archive = repository.createArchiveFile(vault, DirectoryId.Root, "Result.tar", "application/x-tar") {
+                it.write(payload)
+            }.getOrThrow()
+            assertEquals("application/x-tar", archive.mimeType)
+            repository.openReader(archive.ref).getOrThrow().use { reader ->
+                val actual = ByteArray(payload.size)
+                assertEquals(payload.size, reader.readAt(0, actual, 0, actual.size))
+                assertTrue(payload.contentEquals(actual))
+            }
+            assertTrue(repository.createArchiveFile(vault, DirectoryId.Root, "Broken.tar", "application/x-tar") {
+                it.write(payload)
+                error("Interrupted generation")
+            }.isFailure)
+            var wroteCollision = false
+            assertTrue(repository.createArchiveFile(vault, DirectoryId.Root, archive.name, "application/x-tar") {
+                wroteCollision = true
+            }.isFailure)
+            assertFalse(wroteCollision)
+            assertEquals(listOf(archive), repository.listDirectory(vault, DirectoryId.Root).getOrThrow().items)
+            File(context.noBackupFilesDir, ROOT_DIRECTORY).walkTopDown().filter(File::isFile).forEach { file ->
+                assertFalse(file.readBytes().decodeToString().contains(payload.decodeToString()))
+            }
+        } finally { repository.lockAll(); scope.cancel() }
+    }
+
+    @Test
     fun `vault ZIP output and extracted folders publish only after their data is complete`() = runTest {
         val dispatcher = UnconfinedTestDispatcher(testScheduler)
         val scope = CoroutineScope(SupervisorJob() + dispatcher)

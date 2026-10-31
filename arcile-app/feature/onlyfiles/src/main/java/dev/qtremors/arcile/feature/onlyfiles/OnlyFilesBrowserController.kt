@@ -10,6 +10,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultRenameItem
 import dev.qtremors.arcile.core.vault.domain.VaultSearchHit
 import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
 import dev.qtremors.arcile.core.vault.domain.VaultSecuritySettings
+import dev.qtremors.arcile.core.vault.domain.VaultRenameUndoEntry
+import dev.qtremors.arcile.core.ui.R as UiR
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -175,24 +177,30 @@ internal class OnlyFilesBrowserController(
         val generation: Long
     )
 
-    fun createFolder(name: String) = currentMutation { vaultId, directoryId ->
+    fun createFolder(name: String) = currentMutation(UiR.string.file_operation_folder_created) { vaultId, directoryId ->
         fileSystem.createDirectory(vaultId, directoryId, name)
     }
 
-    fun createEmptyFile(name: String) = currentMutation { vaultId, directoryId ->
+    fun createEmptyFile(name: String) = currentMutation(UiR.string.file_operation_file_created) { vaultId, directoryId ->
         fileSystem.createEmptyFile(vaultId, directoryId, name)
     }
 
-    fun createSyntheticFile(name: String, size: Long) = currentMutation { vaultId, directoryId ->
+    fun createSyntheticFile(name: String, size: Long) = currentMutation(UiR.string.file_operation_file_created) { vaultId, directoryId ->
         fileSystem.createSyntheticFile(vaultId, directoryId, name, size)
     }
 
     fun rename(node: VaultNodeMetadata, name: String, onRenamed: (VaultNodeMetadata) -> Unit = {}) = runBusy {
         val mount = state.value.mountGeneration
-        fileSystem.rename(node.ref, name).fold(
-            onSuccess = { updated ->
+        fileSystem.renameWithPreviousName(node.ref, name).fold(
+            onSuccess = { renamed ->
+                val updated = renamed.updated
                 if (state.value.mountGeneration == mount) {
-                    state.update { it.withUpdatedViewerNode(updated) }
+                    state.update { it.withUpdatedViewerNode(updated).copy(message = null,
+                        operationFeedback = operationSuccess(UiR.string.file_operation_renamed, mount).copy(
+                            undo = renamed.previousName?.takeIf { it != updated.name }?.let {
+                                OnlyFilesUndoAction.Renamed(listOf(VaultRenameUndoEntry(updated, it)))
+                            }
+                        )) }
                     onRenamed(updated)
                     reload()
                 }
@@ -207,9 +215,17 @@ internal class OnlyFilesBrowserController(
         if (state.value.mountGeneration == mount) {
             result.fold(
                 onSuccess = { updated ->
+                    val originals = items.associateBy { it.ref.nodeId }
+                    val undoEntries = updated.mapNotNull { node ->
+                        val original = originals[node.ref.nodeId]?.expectedName ?: return@mapNotNull null
+                        VaultRenameUndoEntry(node, original).takeIf { original != node.name }
+                    }
                     state.update { current ->
                         updated.fold(current) { next, node -> next.withUpdatedViewerNode(node) }
-                            .copy(selectedNodeIds = emptySet())
+                            .copy(selectedNodeIds = emptySet(), message = null,
+                                operationFeedback = operationSuccess(UiR.string.file_operation_renamed, mount).copy(
+                                    undo = OnlyFilesUndoAction.Renamed(undoEntries).takeIf { undoEntries.isNotEmpty() }
+                                ))
                     }
                     reload()
                 },
@@ -280,11 +296,17 @@ internal class OnlyFilesBrowserController(
         }
     }
 
-    private fun currentMutation(block: suspend (VaultId, dev.qtremors.arcile.core.vault.domain.DirectoryId) -> Result<*>) {
+    private fun currentMutation(message: Int, block: suspend (VaultId, dev.qtremors.arcile.core.vault.domain.DirectoryId) -> Result<VaultNodeMetadata>) {
         val snapshot = state.value
         val vaultId = snapshot.selectedVaultId ?: return
         val directoryId = snapshot.currentDirectory?.id ?: return
-        runBusy { block(vaultId, directoryId).fold(onSuccess = { reload() }, onFailure = showError) }
+        runBusy { block(vaultId, directoryId).fold(onSuccess = { created ->
+            if (state.value.mountGeneration == snapshot.mountGeneration) {
+                state.update { it.copy(message = null, operationFeedback = operationSuccess(message, snapshot.mountGeneration)
+                    .copy(undo = OnlyFilesUndoAction.Created(created))) }
+                reload()
+            }
+        }, onFailure = showError) }
     }
 
     private fun loadDirectoryPage(pageToken: String?, append: Boolean) {

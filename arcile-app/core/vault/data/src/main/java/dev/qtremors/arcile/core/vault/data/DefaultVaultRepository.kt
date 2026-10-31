@@ -543,6 +543,10 @@ internal class DefaultVaultRepository @Inject constructor(
     ): Result<VaultNodeMetadata> =
         createFile(vaultId, parentId, name, "application/zip", VAULT_ARCHIVE_MAX_BYTES, writeZip)
 
+    override suspend fun createArchiveFile(
+        vaultId: VaultId, parentId: DirectoryId, name: String, mimeType: String, writeArchive: (OutputStream) -> Unit
+    ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, mimeType, VAULT_ARCHIVE_MAX_BYTES, writeArchive)
+
     override suspend fun extractArchive(
         vaultId: VaultId,
         parentId: DirectoryId,
@@ -629,6 +633,9 @@ internal class DefaultVaultRepository @Inject constructor(
     }
 
     override suspend fun rename(ref: VaultNodeRef, newName: String): Result<VaultNodeMetadata> =
+        renameWithPreviousName(ref, newName).map { it.updated }
+
+    override suspend fun renameWithPreviousName(ref: VaultNodeRef, newName: String): Result<VaultRenamedNode> =
         mutate(ref.vaultId) { session ->
             val (parent, snapshot, existing) = resolveStableEntry(session, ref)
             try {
@@ -657,7 +664,7 @@ internal class DefaultVaultRepository @Inject constructor(
                     emptySet(),
                     emptySet()
                 )
-                replacement.toMetadata(session.id, parent.id)
+                VaultRenamedNode(replacement.toMetadata(session.id, parent.id), existing.name)
             } finally {
                 existing.protectedKey.fill(0)
                 snapshot.clearProtectedKeys()
@@ -679,6 +686,23 @@ internal class DefaultVaultRepository @Inject constructor(
         withSession(ref.vaultId) { session ->
             deletePermanently(session, ref)
         }
+
+    override suspend fun undoCreated(expected: VaultNodeMetadata): Result<VaultUndoResult> =
+        mutate(expected.ref.vaultId) { session -> undoWriter(session).created(expected) }
+
+    override suspend fun undoRenames(entries: List<VaultRenameUndoEntry>): Result<VaultUndoResult> =
+        if (entries.isEmpty()) Result.success(VaultUndoResult())
+        else mutate(entries.first().expected.ref.vaultId) { session -> undoWriter(session).renamed(entries) }
+
+    override suspend fun undoMoves(proofs: List<VaultMoveUndo>): Result<VaultUndoResult> =
+        if (proofs.isEmpty()) Result.success(VaultUndoResult())
+        else mutate(proofs.first().vaultId) { session -> undoWriter(session).moved(proofs) }
+
+    private fun undoWriter(session: VaultSessionRecord) = VaultUndoWriter(
+        session, directoryCodec, transactionManager, { resolveStableEntry(session, it) }, { ref ->
+            buildSet { deleteWithMutationLockHeld(session, ref) { add(it) } }
+        }
+    )
 
     override suspend fun replaceFileContents(
         ref: VaultNodeRef,
