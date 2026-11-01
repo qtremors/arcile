@@ -5,6 +5,8 @@ import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.archive.ArchiveSafetyPolicy
 import dev.qtremors.arcile.core.archive.TarArchiveWriter
+import dev.qtremors.arcile.core.archive.SevenZipArchiveWriter
+import dev.qtremors.arcile.core.archive.ZipArchiveWriter
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
@@ -22,17 +24,13 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import net.lingala.zip4j.io.outputstream.ZipOutputStream
-import net.lingala.zip4j.model.ZipParameters
-import net.lingala.zip4j.model.enums.AesKeyStrength
-import net.lingala.zip4j.model.enums.CompressionLevel
-import net.lingala.zip4j.model.enums.CompressionMethod
-import net.lingala.zip4j.model.enums.EncryptionMethod
 import java.util.zip.Deflater
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.nio.channels.Channels
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry
+import org.apache.commons.compress.archivers.sevenz.SevenZArchiveEntry
+import java.util.Date
 
 internal data class VaultZipSelection(
     val folder: List<String>,
@@ -77,6 +75,26 @@ internal class OnlyFilesArchiveController(
             val items = planZip(nodes)
             val coroutine = currentCoroutineContext()
             val format = ArchiveFormat.fromPath(name) ?: ArchiveFormat.ZIP
+            if (format == ArchiveFormat.SEVEN_Z) {
+                return@runArchive fileSystem.createSeekableArchiveFile(vault, parent, name, "application/x-7z-compressed") { channel ->
+                    SevenZipArchiveWriter.open(channel, password, level.toArchiveCompressionLevel(),
+                        ArchiveSafetyPolicy(maxEntries = VAULT_ARCHIVE_MAX_ENTRIES, maxUncompressedBytes = VAULT_ARCHIVE_MAX_BYTES),
+                        closeChannel = false).use { archive ->
+                        items.forEachIndexed { index, item ->
+                            coroutine.ensureActive()
+                            progress(VaultArchiveProgress(index, items.size, item.node.name))
+                            val entry = SevenZArchiveEntry().apply {
+                                this.name = item.path
+                                isDirectory = item.node.isDirectory
+                                size = if (isDirectory) 0L else item.node.sizeBytes
+                                lastModifiedDate = Date(item.node.modifiedAtMillis)
+                            }
+                            archive.add(entry, { coroutine.ensureActive() }) { openArchiveInput(item.node) { coroutine.ensureActive() } }
+                            progress(VaultArchiveProgress(index + 1, items.size, null))
+                        }
+                    }
+                }.getOrThrow()
+            }
             if (format != ArchiveFormat.ZIP) {
                 require(format in TarArchiveWriter.formats && password?.isNotEmpty() != true) { "Unsupported archive creation options" }
                 val mime = when (format) {
@@ -102,45 +120,17 @@ internal class OnlyFilesArchiveController(
                 }.getOrThrow()
             }
             fileSystem.createZip(vault, parent, name) { output ->
-                ZipOutputStream(output, password).use { zip ->
-                    val buffer = ByteArray(32 * 1024)
-                    try {
-                        items.forEachIndexed { index, item ->
-                            coroutine.ensureActive()
-                            progress(VaultArchiveProgress(index, items.size, item.node.name))
-                            val entry = ZipParameters().apply {
-                                fileNameInZip = item.path
-                                lastModifiedFileTime = item.node.modifiedAtMillis
-                                entrySize = item.node.sizeBytes
-                                compressionMethod = CompressionMethod.DEFLATE
-                                compressionLevel = level.toZipCompressionLevel()
-                                if (password != null && !item.node.isDirectory) {
-                                    isEncryptFiles = true
-                                    encryptionMethod = EncryptionMethod.AES
-                                    aesKeyStrength = AesKeyStrength.KEY_STRENGTH_256
-                                }
-                            }
-                            zip.putNextEntry(entry)
-                            if (!item.node.isDirectory) {
-                                fileSystem.openReader(item.node.ref).getOrThrow().use { reader ->
-                                    if (reader.sizeBytes != item.node.sizeBytes) {
-                                        throw VaultFailure.Unavailable("An archive source changed. Try again.")
-                                    }
-                                    var offset = 0L
-                                    while (offset < reader.sizeBytes) {
-                                        coroutine.ensureActive()
-                                        val count = reader.readAt(offset, buffer, 0, buffer.size)
-                                        if (count <= 0) throw VaultFailure.IntegrityFailed("An archive source ended early")
-                                        zip.write(buffer, 0, count)
-                                        offset += count
-                                    }
-                                }
-                            }
-                            zip.closeEntry()
-                            progress(VaultArchiveProgress(index + 1, items.size, null))
+                ZipArchiveWriter.open(output, password, level = level.toArchiveCompressionLevel(),
+                    policy = ArchiveSafetyPolicy(maxEntries = VAULT_ARCHIVE_MAX_ENTRIES,
+                        maxUncompressedBytes = VAULT_ARCHIVE_MAX_BYTES)).use { zip ->
+                    items.forEachIndexed { index, item ->
+                        coroutine.ensureActive()
+                        progress(VaultArchiveProgress(index, items.size, item.node.name))
+                        zip.add(item.path, if (item.node.isDirectory) 0L else item.node.sizeBytes,
+                            item.node.isDirectory, item.node.modifiedAtMillis, { coroutine.ensureActive() }) {
+                            openArchiveInput(item.node) { coroutine.ensureActive() }
                         }
-                    } finally {
-                        buffer.fill(0)
+                        progress(VaultArchiveProgress(index + 1, items.size, null))
                     }
                 }
             }.getOrThrow()
@@ -266,13 +256,6 @@ internal class OnlyFilesArchiveController(
     }
 
     private data class ZipSource(val node: VaultNodeMetadata, val path: String)
-}
-
-private fun Int.toZipCompressionLevel(): CompressionLevel = when (this) {
-    Deflater.NO_COMPRESSION -> CompressionLevel.NO_COMPRESSION
-    Deflater.BEST_SPEED -> CompressionLevel.FASTEST
-    Deflater.BEST_COMPRESSION -> CompressionLevel.ULTRA
-    else -> CompressionLevel.NORMAL
 }
 
 private fun Int.toArchiveCompressionLevel(): ArchiveCompressionLevel = when (this) {

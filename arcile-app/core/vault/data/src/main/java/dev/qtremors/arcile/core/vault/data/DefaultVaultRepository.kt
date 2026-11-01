@@ -10,6 +10,9 @@ import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
 import dev.qtremors.arcile.core.vault.domain.*
 import java.io.ByteArrayInputStream
 import java.io.OutputStream
+import java.io.File
+import java.nio.ByteBuffer
+import java.nio.channels.SeekableByteChannel
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.attribute.BasicFileAttributes
@@ -35,6 +38,7 @@ internal class DefaultVaultRepository @Inject constructor(
     portableLocationResolver: VaultPortableLocationResolver
 ) : VaultHealthLayer(context, dispatchers, applicationScope, portableLocationResolver),
     VaultFileSystem {
+    private val protectedScratch = VaultProtectedScratchSpace(File(context.cacheDir, "vault-protected-scratch"))
     init {
         applicationScope.launch(dispatchers.io) {
             lifecycleMutex.withLock {
@@ -546,6 +550,31 @@ internal class DefaultVaultRepository @Inject constructor(
     override suspend fun createArchiveFile(
         vaultId: VaultId, parentId: DirectoryId, name: String, mimeType: String, writeArchive: (OutputStream) -> Unit
     ): Result<VaultNodeMetadata> = createFile(vaultId, parentId, name, mimeType, VAULT_ARCHIVE_MAX_BYTES, writeArchive)
+
+    override suspend fun createSeekableArchiveFile(
+        vaultId: VaultId, parentId: DirectoryId, name: String, mimeType: String,
+        writeArchive: (SeekableByteChannel) -> Unit
+    ): Result<VaultNodeMetadata> {
+        val coroutine = currentCoroutineContext()
+        return createFile(vaultId, parentId, name, mimeType, VAULT_ARCHIVE_MAX_BYTES) { output ->
+            protectedScratch.open(VAULT_ARCHIVE_MAX_BYTES) { coroutine.ensureActive() }.use { channel ->
+                writeArchive(channel)
+                coroutine.ensureActive()
+                channel.position(0L)
+                val buffer = ByteBuffer.allocate(32 * 1024)
+                try {
+                    while (true) {
+                        coroutine.ensureActive()
+                        buffer.clear()
+                        val count = channel.read(buffer)
+                        if (count < 0) break
+                        if (count == 0) throw VaultFailure.IntegrityFailed("Protected archive output stopped responding")
+                        output.write(buffer.array(), 0, count)
+                    }
+                } finally { buffer.array().fill(0) }
+            }
+        }
+    }
 
     override suspend fun extractArchive(
         vaultId: VaultId,

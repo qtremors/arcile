@@ -3,7 +3,6 @@ package dev.qtremors.arcile.core.archive
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import java.io.Closeable
-import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
 import java.util.zip.Deflater
@@ -32,21 +31,8 @@ class TarArchiveWriter private constructor(
             requireNotNull(archiveEntrySegments(entry.name)) { "Invalid archive entry path" }
             safety.accept(entry.name, if (entry.isDirectory) 0 else entry.size, null)
             tar.putArchiveEntry(entry)
-            if (!entry.isDirectory) open().use { input ->
-                val buffer = ByteArray(32 * 1024)
-                try {
-                    var remaining = entry.size
-                    while (remaining > 0) {
-                        checkActive()
-                        val count = input.read(buffer, 0, minOf(buffer.size.toLong(), remaining).toInt())
-                        if (count <= 0) throw IOException("An archive source ended before its declared size")
-                        tar.write(buffer, 0, count)
-                        remaining -= count
-                        onBytes(count)
-                    }
-                    checkActive()
-                    if (input.read() != -1) throw IOException("An archive source grew while it was being read")
-                } finally { buffer.fill(0) }
+            if (!entry.isDirectory) copyArchiveEntry(entry.size, checkActive, onBytes, open) { bytes, count ->
+                tar.write(bytes, 0, count)
             }
             tar.closeArchiveEntry()
         } catch (error: Throwable) {

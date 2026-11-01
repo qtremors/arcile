@@ -19,6 +19,7 @@ import io.mockk.mockk
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.OutputStream
+import java.nio.channels.SeekableByteChannel
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -439,6 +440,118 @@ class OnlyFilesArchiveControllerTest {
         assertTrue(errors.single() is dev.qtremors.arcile.core.vault.domain.VaultFailure.SourceChanged)
         assertTrue(reader.closed)
         assertNull(state.value.completedArchive)
+    }
+
+    @Test
+    fun `7z creation uses the shared encoder for every level and returns readable protected content`() = runTest {
+        for (level in listOf(0, 1, -1, 9)) {
+            val docs = folder("Docs")
+            val parent = requireNotNull(docs.ref.directoryId)
+            val source = file("Private.txt", 6, parent)
+            val reader = MemoryReader("secret".encodeToByteArray())
+            val fs = mockk<VaultFileSystem>()
+            coEvery { fs.listDirectory(vault, parent, any()) } returns Result.success(VaultPage(listOf(source), null, 1))
+            every { fs.openReader(source.ref) } returns Result.success(reader)
+            val channel = SeekableInMemoryByteChannel()
+            coEvery { fs.createSeekableArchiveFile(vault, root, "Result.7z", "application/x-7z-compressed", any()) } coAnswers {
+                arg<(SeekableByteChannel) -> Unit>(4)(channel)
+                assertTrue(channel.isOpen)
+                Result.success(file("Result.7z", channel.size()))
+            }
+            val state = mounted()
+            var reloads = 0
+            val password = "secret".toCharArray()
+            OnlyFilesArchiveController(fs, state, this, { reloads++ }, { throw it }).create(
+                listOf(docs), "Result.7z", level, "Created", password)
+            advanceUntilIdle()
+
+            val result = requireNotNull(state.value.completedArchive)
+            var contents: String? = null
+            readVaultArchive(result, { Result.success(MemoryReader(channel.array().copyOf(channel.size().toInt()))) },
+                "secret".toCharArray(), dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding.UTF_8) { archive ->
+                assertEquals(listOf(listOf("Docs"), listOf("Docs", "Private.txt")), archive.entries.map { it.segments })
+                contents = archive.entries.last().openStream().use { it.readBytes().decodeToString() }
+            }
+            assertEquals("secret", contents)
+            assertTrue(reader.closed)
+            assertTrue(password.all { it == '\u0000' })
+            assertEquals("Created", state.value.message)
+            assertEquals(1, reloads)
+            assertFalse(state.value.busy)
+            coVerify(exactly = 0) { fs.createZip(any(), any(), any(), any()) }
+            coVerify(exactly = 0) { fs.createArchiveFile(any(), any(), any(), any(), any()) }
+        }
+    }
+
+    @Test
+    fun `changed sources abort 7z creation clear passwords and close readers`() = runTest {
+        val source = file("Private.txt", 6)
+        val reader = MemoryReader("changed bytes".encodeToByteArray())
+        val fs = mockk<VaultFileSystem>()
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        coEvery { fs.createSeekableArchiveFile(vault, root, "Result.7z", any(), any()) } coAnswers {
+            arg<(SeekableByteChannel) -> Unit>(4)(SeekableInMemoryByteChannel())
+            error("Changed sources cannot publish an archive")
+        }
+        val state = mounted()
+        val errors = mutableListOf<Throwable>()
+        val password = "secret".toCharArray()
+        OnlyFilesArchiveController(fs, state, this, {}, errors::add).create(listOf(source), "Result.7z", 1, "Created", password)
+        advanceUntilIdle()
+        assertEquals(1, errors.size)
+        assertTrue(errors.single() is dev.qtremors.arcile.core.vault.domain.VaultFailure.SourceChanged)
+        assertTrue(reader.closed)
+        assertTrue(password.all { it == '\u0000' })
+        assertNull(state.value.completedArchive)
+        assertFalse(state.value.busy)
+    }
+
+    @Test
+    fun `cancelling queued 7z work releases password and progress without completion feedback`() = runTest {
+        val source = file("Private.txt", 6)
+        val fs = mockk<VaultFileSystem>()
+        val started = CompletableDeferred<Unit>()
+        val pending = CompletableDeferred<Unit>()
+        coEvery { fs.createSeekableArchiveFile(vault, root, "Result.7z", any(), any()) } coAnswers {
+            started.complete(Unit)
+            pending.await()
+            error("Cancelled archives cannot publish")
+        }
+        val state = mounted()
+        val password = "secret".toCharArray()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
+        controller.create(listOf(source), "Result.7z", 1, "Created", password)
+        runCurrent()
+        assertTrue(started.isCompleted)
+        assertTrue(state.value.busy)
+        controller.cancel()
+        advanceUntilIdle()
+        assertTrue(password.all { it == '\u0000' })
+        assertNull(state.value.completedArchive)
+        assertNull(state.value.archiveProgress)
+        assertNull(state.value.message)
+        assertFalse(state.value.busy)
+    }
+
+    @Test
+    fun `7z completion from an old mount cannot replace a newer vault message`() = runTest {
+        val fs = mockk<VaultFileSystem>()
+        val released = CompletableDeferred<Unit>()
+        coEvery { fs.createSeekableArchiveFile(vault, root, "Result.7z", any(), any()) } coAnswers {
+            released.await()
+            Result.success(file("Result.7z", 30))
+        }
+        val state = mounted()
+        val password = "secret".toCharArray()
+        OnlyFilesArchiveController(fs, state, this, {}, { throw it }).create(
+            listOf(file("Private.txt", 6)), "Result.7z", 1, "Created", password)
+        runCurrent()
+        state.value = state.value.copy(mountGeneration = 2, message = "New mount")
+        released.complete(Unit)
+        advanceUntilIdle()
+        assertEquals("New mount", state.value.message)
+        assertNull(state.value.completedArchive)
+        assertTrue(password.all { it == '\u0000' })
     }
 
     private fun mounted() = MutableStateFlow(OnlyFilesUiState(

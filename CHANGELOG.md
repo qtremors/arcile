@@ -1,10 +1,17 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.2
+> **Version:** 2.4.3
 > **Last Updated:** 2026-11-06
 
 ---
+
+## [2.4.3] - 2026-11-06
+
+### Changed
+- Create password-protected 7z archives inside vaults without plaintext temporary files.
+- Browser and vault ZIP and 7z creation share compression options, cancellation, and source-size checks.
+- Vault PDF menus now offer rename, copy, cut, archive creation, and deletion through vault actions.
 
 ## [2.4.2] - 2026-11-06
 

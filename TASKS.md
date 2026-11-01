@@ -78,10 +78,10 @@
   - **Current:** Vault audio uses the shared full player, artwork, music details, queue, and playback controls. Audio editing, tag writes, and lyrics still depend on local files and sidecars.
   - **Change:** Adapt the existing audio and tag editors and lyrics readers to protected sources and verified encrypted writes, including encrypted lyric sidecars. Keep private metadata within the unlocked session.
 
-- [ ] **FEAT-0033 - Complete Vault Archive Creation and Extraction Options**
-  - **Location:** OnlyFilesArchiveController.kt and BrowserArchiveController.kt.
-  - **Current:** Archive browsing, creation dialogs, and TAR writers are shared. ZIP and TAR creation and image/video archive actions are wired. Vault 7z creation and extraction directly into an existing folder remain unavailable.
-  - **Change:** Adapt the existing 7z writer to protected seekable output and add direct extraction into existing destinations. Finish any remaining viewer action routes. Preserve bounded memory, cancellation, conflicts, and rollback.
+- [ ] **FEAT-0033 - Complete Vault Archive Options and Viewer Actions**
+  - **Location:** OnlyFilesArchiveController.kt, BrowserArchiveController.kt, and the shared PDF viewer.
+  - **Current:** Browser and vault creation share ZIP, 7z, and TAR writers. PDF file actions route through vault operations. Direct extraction into existing folders and private PDF printing remain unavailable.
+  - **Change:** Add direct extraction using the shared archive and conflict workflows, and adapt the shared print adapter to protected PDF sources. Verify viewer action routes on Android. Preserve bounded memory, cancellation, conflicts, and rollback.
 
 - [ ] **UI-0013 - Complete Vault Operation Feedback**
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.

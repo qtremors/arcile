@@ -4,6 +4,7 @@ import dev.qtremors.arcile.core.storage.data.MutationFinalizer
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.provider.VolumeProvider
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
@@ -21,6 +22,7 @@ import org.apache.commons.compress.compressors.gzip.GzipCompressorOutputStream
 import org.apache.commons.compress.compressors.xz.XZCompressorOutputStream
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -264,6 +266,47 @@ class ArchiveManagerTest {
         assertTrue(manager.extractArchive(archive.absolutePath, File(root, "seven-wrong-out").absolutePath, password = "wrong").isFailure)
         assertTrue(manager.extractArchive(archive.absolutePath, destination.absolutePath, password = "pass123").isSuccess)
         assertEquals("seven secret", File(destination, "vault.txt").readText())
+    }
+
+    @Test
+    fun `shared 7z writer preserves native trees dates and byte progress for every compression level`() = runTest {
+        val source = File(root, "Tree").apply { mkdirs() }
+        File(source, "Empty").mkdir()
+        val body = Random(242).nextBytes(85_000)
+        val document = File(source, "Document.txt").apply { writeBytes(body); setLastModified(1_660_000_000_000L) }
+        for (level in ArchiveCompressionLevel.entries) {
+            val archive = File(root, "tree-${level.name}.7z")
+            val destination = File(root, "out-${level.name}").apply { mkdirs() }
+            val progress = mutableListOf<Long>()
+            val result = manager.createArchive(listOf(source.path), archive.path, ArchiveFormat.SEVEN_Z,
+                compressionLevel = level) { progress += it.bytesProcessed ?: 0L }
+            assertTrue(result.exceptionOrNull()?.message, result.isSuccess)
+            val entries = manager.listArchiveEntries(archive.path).getOrThrow()
+            assertTrue(entries.any { it.path == "Tree/Empty/" && it.isDirectory })
+            assertEquals(document.lastModified(), entries.single { it.path == "Tree/Document.txt" }.lastModified)
+            assertEquals(body.size.toLong(), progress.last())
+            assertTrue(progress.zipWithNext().all { (before, after) -> before <= after })
+            manager.extractArchive(archive.path, destination.path).getOrThrow()
+            assertArrayEquals(body, File(destination, "Tree/Document.txt").readBytes())
+            assertTrue(File(destination, "Tree/Empty").isDirectory)
+        }
+    }
+
+    @Test
+    fun `7z source length changes abort native publication and remove the staged archive`() = runTest {
+        val source = File(root, "Changing.bin").apply { writeBytes(Random(1).nextBytes(150_000)) }
+        val target = File(root, "Changed.7z")
+        var changed = false
+        val result = manager.createArchive(listOf(source.path), target.path, ArchiveFormat.SEVEN_Z,
+            compressionLevel = ArchiveCompressionLevel.STORE) { progress ->
+            if (!changed && (progress.bytesProcessed ?: 0L) > 0L) {
+                changed = true
+                source.appendBytes(byteArrayOf(42))
+            }
+        }
+        assertTrue(changed)
+        assertTrue(result.isFailure)
+        assertFalse(target.exists())
     }
 
     @Test

@@ -141,7 +141,8 @@ internal fun ViewerScreen(
                 onBack = onBack,
                 onShare = { externalAction = ExternalAction.SHARE },
                 onOpenWith = { externalAction = ExternalAction.OPEN_WITH },
-                modifier = modifier
+                modifier = modifier,
+                onFileAction = onAction
             )
         }
     } else if (openKind == BuiltInFileOpen.TEXT) {

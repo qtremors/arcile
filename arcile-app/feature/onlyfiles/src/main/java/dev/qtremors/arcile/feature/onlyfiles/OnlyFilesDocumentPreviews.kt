@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.ui.pdf.StandalonePdfViewer
 import dev.qtremors.arcile.core.ui.texteditor.StandaloneTextEditor
+import dev.qtremors.arcile.core.ui.viewer.PrivateViewerActions
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
@@ -31,9 +33,13 @@ internal fun VaultPdfPreview(
     onBack: () -> Unit,
     onShare: () -> Unit,
     onOpenWith: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onFileAction: (ViewerFileAction) -> Unit = {}
 ) {
     val context = LocalContext.current
+    val capabilities = node.toSharedFileModel().nodeRef.capabilities
+    val currentAction by androidx.compose.runtime.rememberUpdatedState(onFileAction)
+    val fileActions = remember(node, capabilities) { PrivateViewerActions(capabilities) { currentAction(it) } }
     StandalonePdfViewer(
         reference = node.toSharedFileModel().reference,
         title = node.name,
@@ -42,7 +48,8 @@ internal fun VaultPdfPreview(
         onShare = onShare,
         onOpenWith = onOpenWith,
         modifier = modifier,
-        openPrivateDescriptor = { openVaultPdfDescriptor(context, openReader(node.ref).getOrThrow()) }
+        openPrivateDescriptor = { openVaultPdfDescriptor(context, openReader(node.ref).getOrThrow()) },
+        privateFileActions = fileActions
     )
 }
 

@@ -115,6 +115,7 @@ import dev.qtremors.arcile.core.storage.domain.StorageNodeCapabilities
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
 import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import dev.qtremors.arcile.core.ui.viewer.PrivateViewerActions
 import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
 import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -276,7 +277,8 @@ fun StandalonePdfViewer(
     onFileRenamed: (String, FileModel) -> Unit = { _, _ -> },
     onFileDeleted: (String) -> Unit = {},
     modifier: Modifier = Modifier,
-    openPrivateDescriptor: (() -> ParcelFileDescriptor)? = null
+    openPrivateDescriptor: (() -> ParcelFileDescriptor)? = null,
+    privateFileActions: PrivateViewerActions? = null
 ) {
     val context = LocalContext.current
     val resources = LocalResources.current
@@ -324,6 +326,19 @@ fun StandalonePdfViewer(
         onFileRenamed = onFileRenamed,
         onFileDeleted = onFileDeleted
     )
+    val fileActions = if (isPrivate) privateFileActions else null
+    val allowedFileActions = fileActions?.allowedActions ?: viewerActionController.state.allowedActions
+    val performFileAction: (ViewerFileAction) -> Unit = { action ->
+        if (action in allowedFileActions) {
+            if (fileActions != null) fileActions.dispatch(action)
+            else when (action) {
+                ViewerFileAction.Share -> onShare()
+                ViewerFileAction.OpenWith -> onOpenWith()
+                ViewerFileAction.Properties -> Unit // The PDF information sheet is opened below.
+                else -> if (!isPrivate) viewerActionController.onAction(action)
+            }
+        }
+    }
     var uiVisible by remember { mutableStateOf(true) }
     var infoVisible by remember { mutableStateOf(false) }
     var searchVisible by if (isPrivate) remember(reference) { mutableStateOf(false) }
@@ -574,8 +589,8 @@ fun StandalonePdfViewer(
                             }
                         },
                         onInfo = { infoVisible = true },
-                        onShare = onShare,
-                        onOpenWith = onOpenWith,
+                        onShare = { performFileAction(ViewerFileAction.Share) },
+                        onOpenWith = { performFileAction(ViewerFileAction.OpenWith) },
                         keepScreenOn = keepScreenOn,
                         onKeepScreenOnChange = { keepScreenOn = it },
                         onPrint = if (isPrivate) null else ({
@@ -585,14 +600,10 @@ fun StandalonePdfViewer(
                                 }
                             }
                         }),
-                        viewerActions = viewerActionController.state.allowedActions,
+                        viewerActions = allowedFileActions,
                         onViewerAction = { action ->
-                            when (action) {
-                                ViewerFileAction.Share -> onShare()
-                                ViewerFileAction.OpenWith -> onOpenWith()
-                                ViewerFileAction.Properties -> infoVisible = true
-                                else -> viewerActionController.onAction(action)
-                            }
+                            if (action == ViewerFileAction.Properties && action in allowedFileActions) infoVisible = true
+                            else performFileAction(action)
                         }
                     )
                 }
@@ -605,7 +616,7 @@ fun StandalonePdfViewer(
                     .padding(bottom = 112.dp)
             )
             }
-            ViewerActionHost(viewerActionController)
+            if (!isPrivate) ViewerActionHost(viewerActionController)
         }
 
     if (infoVisible) {

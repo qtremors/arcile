@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.vault.domain
 
 import java.io.InputStream
 import java.io.OutputStream
+import java.nio.channels.SeekableByteChannel
 
 /** An archive entry that may be read only while its caller holds the private source open. */
 sealed interface VaultArchiveSource {
@@ -47,5 +48,14 @@ interface VaultArchiveOperations {
         name: String,
         mimeType: String,
         writeArchive: (OutputStream) -> Unit
+    ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("Archive creation is unavailable"))
+
+    /** Borrowed operation-scoped channel. Only encrypted scratch and the committed object reach disk. */
+    suspend fun createSeekableArchiveFile(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        name: String,
+        mimeType: String,
+        writeArchive: (SeekableByteChannel) -> Unit
     ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("Archive creation is unavailable"))
 }

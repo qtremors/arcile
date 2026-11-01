@@ -355,7 +355,7 @@ private fun PdfOverflowMenu(
                         )
                     }
                 }
-                add(
+                if (ViewerFileAction.Properties in viewerActions) add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.action_info),
@@ -366,7 +366,7 @@ private fun PdfOverflowMenu(
                         }
                     )
                 })
-                add(
+                if (ViewerFileAction.OpenWith in viewerActions) add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.viewer_open_with),
@@ -379,7 +379,7 @@ private fun PdfOverflowMenu(
                         }
                     )
                 })
-                add(
+                if (ViewerFileAction.Share in viewerActions) add(
                 {
                     ArcileDropdownMenuItem(
                         text = stringResource(R.string.share),
