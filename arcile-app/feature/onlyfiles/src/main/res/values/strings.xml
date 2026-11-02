@@ -50,8 +50,7 @@
     <string name="onlyfiles_extract_here">Extract here</string>
     <string name="onlyfiles_extracting_zip">Extracting archive</string>
     <string name="onlyfiles_zip_extracted">Archive extracted</string>
-    <string name="onlyfiles_extract_zip_description">Entries will be extracted into a new encrypted folder.</string>
-    <string name="onlyfiles_extract_keep_both">Use a new name if the folder exists</string>
+    <string name="onlyfiles_extract_result">%1$d extracted, %2$d partial, %3$d skipped, %4$d failed. Skipped entries remain in the archive.</string>
     <string name="onlyfiles_select_zip_items">Select all</string>
     <string name="onlyfiles_clear_zip_selection">Clear selection</string>
     <string name="onlyfiles_zip_compression">Compression</string>

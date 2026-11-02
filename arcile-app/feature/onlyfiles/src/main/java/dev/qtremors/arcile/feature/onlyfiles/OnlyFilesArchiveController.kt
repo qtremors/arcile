@@ -11,6 +11,9 @@ import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveProgress
+import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
+import dev.qtremors.arcile.core.vault.domain.VaultArchiveDestinationResult
+import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
@@ -18,12 +21,14 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.zip.Deflater
 import java.io.FilterInputStream
 import java.io.InputStream
@@ -39,9 +44,9 @@ internal data class VaultZipSelection(
     val encoding: ArchiveNameEncoding = ArchiveNameEncoding.UTF_8
 ) {
     fun relativePath(segments: List<String>): List<String>? {
-        if (segments.size <= folder.size || segments.take(folder.size) != folder) return null
+        if (segments.isEmpty() || segments.size < folder.size || segments.take(folder.size) != folder) return null
         if (selected.isNotEmpty() && selected.none { segments.take(it.size) == it }) return null
-        return segments.drop(folder.size)
+        return segments // Browser preserves the archive hierarchy for both full and selected extraction.
     }
 
 }
@@ -55,9 +60,11 @@ internal class OnlyFilesArchiveController(
     private val state: MutableStateFlow<OnlyFilesUiState>,
     private val scope: CoroutineScope,
     private val reload: () -> Unit,
-    private val showError: (Throwable) -> Unit
+    private val showError: (Throwable) -> Unit,
+    private val onFoldersDeleted: suspend (VaultId, Set<DirectoryId>) -> Unit = { _, _ -> }
 ) {
     private var operation: Job? = null
+    val conflictReview = OnlyFilesConflictReview(state)
 
     fun create(
         nodes: List<VaultNodeMetadata>, name: String, level: Int, successMessage: String, password: CharArray? = null
@@ -142,9 +149,8 @@ internal class OnlyFilesArchiveController(
         parent: DirectoryId,
         selection: VaultZipSelection,
         name: String,
-        successMessage: String,
-        keepBoth: Boolean = false,
-        password: CharArray? = null
+        password: CharArray? = null,
+        intoExisting: Boolean = false
     ) {
         val format = ArchiveFormat.fromPath(node.name)
         if (state.value.selectedVaultId != node.ref.vaultId || !node.ref.capabilities.canRead ||
@@ -153,17 +159,45 @@ internal class OnlyFilesArchiveController(
             password?.fill('\u0000')
             return
         }
-        runArchive(VaultArchiveAction.EXTRACT, successMessage, password) { progress ->
-            readVaultArchive(node, fileSystem::openReader, password, selection.encoding) { archive ->
-                fileSystem.extractArchive(
-                    node.ref.vaultId, parent, name, archive.vaultSources(selection), keepBoth, progress
-                ).getOrThrow()
-            }
-        }
+        // A named folder is reused when it already exists, matching Browser; entries then go through conflict review.
+        extractInto(node, parent, selection, password, name.takeUnless { intoExisting })
     }
 
     fun cancel() {
         operation?.cancel()
+        conflictReview.dismiss()
+    }
+
+    private fun extractInto(node: VaultNodeMetadata, parent: DirectoryId, selection: VaultZipSelection,
+        password: CharArray?, folderName: String?) {
+        val mount = state.value.mountGeneration
+        val conflicts = conflictReview.resolver(mount, exporting = false) { operation?.isCancelled == true }
+        runArchiveOperation(VaultArchiveAction.EXTRACT, password, execute = { progress ->
+            readVaultArchive(node, fileSystem::openReader, password, selection.encoding) { archive ->
+                if (folderName != null) fileSystem.extractArchiveToNamedFolder(node.ref.vaultId, parent, folderName,
+                    archive.vaultSources(selection), conflicts, progress).getOrThrow()
+                else VaultArchiveDestinationResult(parent, fileSystem.extractArchiveInto(node.ref.vaultId, parent,
+                    archive.vaultSources(selection), conflicts, progress).getOrThrow())
+            }
+        }) { completed: VaultArchiveDestinationResult, completedMount ->
+            val result = completed.result
+            val removed = result.items.flatMapTo(mutableSetOf()) { it.removedFolders }
+            if (removed.isNotEmpty()) onFoldersDeleted(node.ref.vaultId, removed)
+            // Replacing the archive itself is a valid conflict choice. Do not retain its stale reader UI.
+            val sourceAvailable = if (state.value.mountGeneration == completedMount && state.value.viewer?.ref == node.ref) {
+                withContext(Dispatchers.IO) { fileSystem.openReader(node.ref).getOrNull()?.use { true } ?: false }
+            } else true
+            state.update { current ->
+                if (current.mountGeneration != completedMount) current else current.copy(
+                    selectedNodeIds = emptySet(), message = null, completedArchive = null,
+                    viewer = current.viewer.takeIf { sourceAvailable || it?.ref != node.ref },
+                    viewerQueue = if (!sourceAvailable && current.viewer?.ref == node.ref) emptyList() else current.viewerQueue,
+                    viewerSelectionEnabled = current.viewerSelectionEnabled && sourceAvailable,
+                    operationFeedback = vaultArchiveFeedback(result, completedMount,
+                        OnlyFilesOperationDestination.VaultDirectory(node.ref.vaultId, completed.directory))
+                )
+            }
+        }
     }
 
     private fun openArchiveInput(node: VaultNodeMetadata, checkActive: () -> Unit): InputStream {
@@ -181,6 +215,18 @@ internal class OnlyFilesArchiveController(
         successMessage: String,
         password: CharArray?,
         execute: suspend ((VaultArchiveProgress) -> Unit) -> VaultNodeMetadata
+    ) = runArchiveOperation(action, password, execute) { completed, mount ->
+        state.update {
+            if (it.mountGeneration != mount) it else it.copy(selectedNodeIds = emptySet(), message = successMessage,
+                completedArchive = completed)
+        }
+    }
+
+    private fun <T> runArchiveOperation(
+        action: VaultArchiveAction,
+        password: CharArray?,
+        execute: suspend ((VaultArchiveProgress) -> Unit) -> T,
+        onCompleted: suspend (T, Long) -> Unit
     ) {
         val snapshot = state.value
         if (snapshot.selectedVaultId == null || snapshot.busy || operation != null) {
@@ -189,7 +235,8 @@ internal class OnlyFilesArchiveController(
         }
         val mount = snapshot.mountGeneration
         state.update {
-            it.copy(busy = true, message = null, completedArchive = null, archiveProgress = OnlyFilesArchiveProgress(action, null))
+            it.copy(busy = true, message = null, operationFeedback = null, completedArchive = null,
+                archiveProgress = OnlyFilesArchiveProgress(action, null))
         }
         val job = scope.launch(start = CoroutineStart.LAZY) {
             try {
@@ -200,9 +247,7 @@ internal class OnlyFilesArchiveController(
                     }
                 }
                 if (state.value.mountGeneration == mount) {
-                    state.update {
-                        it.copy(selectedNodeIds = emptySet(), message = successMessage, completedArchive = completed)
-                    }
+                    onCompleted(completed, mount)
                     reload()
                 }
             } catch (cancelled: CancellationException) {
@@ -216,7 +261,7 @@ internal class OnlyFilesArchiveController(
             password?.fill('\u0000')
             if (operation === job) {
                 operation = null
-                state.update { it.copy(busy = false, archiveProgress = null) }
+                state.update { if (it.mountGeneration == mount) it.copy(busy = false, archiveProgress = null) else it }
             }
         }
         job.start()

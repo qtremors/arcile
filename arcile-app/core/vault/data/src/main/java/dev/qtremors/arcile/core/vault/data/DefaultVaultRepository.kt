@@ -590,6 +590,50 @@ internal class DefaultVaultRepository @Inject constructor(
         )
     }
 
+    override suspend fun extractArchiveInto(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        sources: List<VaultArchiveSource>,
+        conflicts: VaultConflictResolver,
+        onProgress: (VaultArchiveProgress) -> Unit
+    ): Result<VaultBatchResult> = mutate(vaultId) { session ->
+        val coroutine = currentCoroutineContext()
+        VaultArchiveWriter(fileCodec, directoryCodec, transactionManager).extractInto(
+            session, parentId, sources, conflicts, transferEngine, { coroutine.ensureActive() }, onProgress
+        )
+    }
+
+    override suspend fun extractArchiveToNamedFolder(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        name: String,
+        sources: List<VaultArchiveSource>,
+        conflicts: VaultConflictResolver,
+        onProgress: (VaultArchiveProgress) -> Unit
+    ): Result<VaultArchiveDestinationResult> = mutate(vaultId) { session ->
+        val coroutine = currentCoroutineContext()
+        val parent = session.resolveDirectory(parentId)
+        val existingId = try {
+            val snapshot = session.readDirectory(parent)
+            try {
+                findByName(snapshot.entries, normalizeMutationName(name))?.let { entry ->
+                    if (entry.kind != VaultNodeKind.DIRECTORY) throw VaultFailure.NameConflict(name)
+                    requireNotNull(entry.childDirectoryId).also { session.cacheDirectoryKey(it, entry.protectedKey) }
+                }
+            } finally { snapshot.clearProtectedKeys() }
+        } finally { parent.key.fill(0) }
+        val writer = VaultArchiveWriter(fileCodec, directoryCodec, transactionManager)
+        if (existingId != null) {
+            VaultArchiveDestinationResult(existingId, writer.extractInto(session, existingId, sources, conflicts,
+                transferEngine, { coroutine.ensureActive() }, onProgress))
+        } else {
+            val folder = writer.extract(session, parentId, name, sources, false, { coroutine.ensureActive() }, onProgress)
+            VaultArchiveDestinationResult(requireNotNull(folder.ref.directoryId), VaultBatchResult(listOf(
+                VaultItemResult(folder.ref.backendIdentity, folder.name, VaultItemOutcome.COMPLETED)
+            )))
+        }
+    }
+
     private suspend fun createFile(
         vaultId: VaultId,
         parentId: DirectoryId,

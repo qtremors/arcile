@@ -21,11 +21,31 @@ sealed interface VaultArchiveSource {
 
 data class VaultArchiveProgress(val completed: Int, val total: Int, val currentName: String?)
 
+data class VaultArchiveDestinationResult(val directory: DirectoryId, val result: VaultBatchResult)
+
 const val VAULT_ARCHIVE_MAX_FOLDERS = 31
 const val VAULT_ARCHIVE_MAX_ENTRIES = 1_000
 const val VAULT_ARCHIVE_MAX_BYTES = 2L * 1024L * 1024L * 1024L
 
 interface VaultArchiveOperations {
+    suspend fun extractArchiveToNamedFolder(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        name: String,
+        sources: List<VaultArchiveSource>,
+        conflicts: VaultConflictResolver,
+        onProgress: (VaultArchiveProgress) -> Unit
+    ): Result<VaultArchiveDestinationResult> = Result.failure(VaultFailure.Unavailable("Archive extraction is unavailable"))
+
+    /** Extract directly into an existing folder using normal vault conflicts and one publication. */
+    suspend fun extractArchiveInto(
+        vaultId: VaultId,
+        parentId: DirectoryId,
+        sources: List<VaultArchiveSource>,
+        conflicts: VaultConflictResolver,
+        onProgress: (VaultArchiveProgress) -> Unit
+    ): Result<VaultBatchResult> = Result.failure(VaultFailure.Unavailable("Archive extraction is unavailable"))
+
     suspend fun extractArchive(
         vaultId: VaultId,
         parentId: DirectoryId,

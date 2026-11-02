@@ -20,6 +20,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
+import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import java.io.InputStream
 import java.util.ArrayDeque
 
@@ -28,6 +29,65 @@ internal class VaultTransferEngine(
     private val fileCodec: VaultFileCodec,
     private val transactions: VaultTransactionManager
 ) {
+    /** Reuse the normal conflict/merge planner without copying already encrypted archive objects. */
+    suspend fun prepareArchiveMerge(
+        destination: VaultSessionRecord,
+        parentId: DirectoryId,
+        archiveRoot: VaultManifestEntry,
+        stagedDirectories: List<VaultPreparedDirectory>,
+        stagedObjects: Set<String>,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultArchiveMergePlan {
+        val source = VaultSessionRecord(destination.id, VaultUnpublishedArchive(destination.directory, stagedDirectories),
+            destination.masterSecret.copyOf())
+        val parent = try { destination.resolveDirectory(parentId) } catch (error: Throwable) { source.destroy(); throw error }
+        try {
+            val existing = destination.readDirectory(parent)
+            try {
+                val incoming = source.readDirectory(requireNotNull(archiveRoot.childDirectoryId), archiveRoot.protectedKey)
+                try {
+                    val known = incoming.entries.mapNotNull { entry -> findByName(existing.entries, entry.name)?.conflictWith(entry) }
+                    val resolver = conflicts.reviewed(known, cancellation)
+                    val adoptedPaths = linkedSetOf<String>()
+                    val context = CloneContext(destination, resolver, cancellation, reuseEncryptedEntries = true,
+                        onReuse = { session, entry ->
+                            if (session === source) adoptedPaths += collectObsolete(session, entry, checkActive = cancellation::throwIfCancelled)
+                        })
+                    try {
+                        val output = context.mergeDirectoryEntries(existing.entries, destination, incoming.entries, source,
+                            requireNotNull(archiveRoot.childDirectoryId), parent.id)
+                        try {
+                            val removedFolders = linkedSetOf<DirectoryId>()
+                            val obsolete = context.replacedEntries.flatMapTo(linkedSetOf()) { entry ->
+                                collectObsolete(destination, entry, { removedFolders += it }, context.reusedDirectories,
+                                    context.reusedObjects, cancellation::throwIfCancelled)
+                            }
+                            obsolete += existing.pageObjectIds.map(VaultObjectId::shardedPath)
+                            val results = incoming.entries.map { entry ->
+                                val outcome = when (entry.nodeId) {
+                                    in context.skippedSourceNodes -> VaultItemOutcome.SKIPPED
+                                    in context.retainedSourceDirectories -> VaultItemOutcome.PARTIAL
+                                    else -> VaultItemOutcome.COMPLETED
+                                }
+                                result(entry.toMetadata(source.id, requireNotNull(archiveRoot.childDirectoryId)).ref, entry, outcome)
+                            }.mapIndexed { index, item -> if (index == 0) item.copy(removedFolders = removedFolders) else item }
+                            if (results.any { it.outcome != VaultItemOutcome.SKIPPED }) {
+                                context.prepared += VaultPreparedDirectory(directoryCodec.prepare(destination.id, parent.id,
+                                    parent.key, existing.generation + 1L, output), parent.key.copyOf())
+                            }
+                            // Whole incoming folders can be adopted along with their authenticated metadata.
+                            val adoptedDirectories = stagedDirectories.filter { it.manifest.rootRelativePath in adoptedPaths }
+                            val prepared = context.prepared.toList() + adoptedDirectories
+                            context.prepared.clear() // Transfer ownership of prepared keys to the returned plan.
+                            return VaultArchiveMergePlan(prepared, stagedObjects.intersect(adoptedPaths), obsolete, VaultBatchResult(results))
+                        } finally { output.forEach { it.protectedKey.fill(0) } }
+                    } finally { context.close() }
+                } finally { incoming.clearProtectedKeys() }
+            } finally { existing.clearProtectedKeys() }
+        } finally { parent.key.fill(0); source.destroy() }
+    }
+
     // The caller owns the new directory and publishes it only after full verification.
     suspend fun copyToUnpublishedVault(
         source: VaultSessionRecord,
@@ -462,12 +522,17 @@ internal class VaultTransferEngine(
         private val destination: VaultSessionRecord,
         private val conflicts: VaultConflictResolver,
         private val cancellation: VaultCancellationSignal,
-        private val unpublishedDestination: Boolean = false
+        private val unpublishedDestination: Boolean = false,
+        private val reuseEncryptedEntries: Boolean = false,
+        private val onReuse: (VaultSessionRecord, VaultManifestEntry) -> Unit = { _, _ -> }
     ) : AutoCloseable {
         val prepared = mutableListOf<VaultPreparedDirectory>()
         val newObjects = linkedSetOf<String>()
         val skippedSourceNodes = mutableSetOf<NodeId>()
         val retainedSourceDirectories = mutableSetOf<NodeId>()
+        val reusedDirectories = mutableSetOf<DirectoryId>()
+        val reusedObjects = mutableSetOf<String>()
+        val replacedEntries = mutableListOf<VaultManifestEntry>()
         private val deferred = mutableListOf<DeferredVaultChild>()
         private val sourceFolders = mutableListOf<VaultNodeRef>()
         private val destinationFolders = mutableListOf<VaultNodeRef>()
@@ -489,6 +554,13 @@ internal class VaultTransferEngine(
             name: String = entry.name
         ): VaultManifestEntry {
             cancellation.throwIfCancelled()
+            if (reuseEncryptedEntries) {
+                require(source.id == destination.id && source.directory.stableId == destination.directory.stableId)
+                if (entry.kind == VaultNodeKind.FILE) reusedObjects += requireNotNull(entry.objectId).shardedPath()
+                else reusedDirectories += requireNotNull(entry.childDirectoryId)
+                onReuse(source, entry)
+                return entry.copy(name = name, protectedKey = entry.protectedKey.copyOf())
+            }
             return when (entry.kind) {
                 VaultNodeKind.FILE -> cloneFile(entry, source, name)
                 VaultNodeKind.DIRECTORY -> cloneDirectory(entry, source, name)
@@ -588,9 +660,9 @@ internal class VaultTransferEngine(
             val existingSnapshot = existingSession.readDirectory(
                 requireNotNull(existing.childDirectoryId), existing.protectedKey
             )
-            val sourceSnapshot = sourceSession.readDirectory(
-                requireNotNull(source.childDirectoryId), source.protectedKey
-            )
+            val sourceSnapshot = try {
+                sourceSession.readDirectory(requireNotNull(source.childDirectoryId), source.protectedKey)
+            } catch (error: Throwable) { existingSnapshot.clearProtectedKeys(); throw error }
             val childId = DirectoryId.random()
             val childNodeId = NodeId.random()
             val childKey = VaultCryptography.randomBytes(32)
@@ -600,51 +672,8 @@ internal class VaultTransferEngine(
                 destination.id, childNodeId, destinationParent, VaultNodeCapabilities(), childId
             )
             try {
-                val output = mutableListOf<VaultManifestEntry>()
-                val consumedSource = mutableSetOf<NodeId>()
-                val reservedNames = hashSetOf<String>()
-                for (entry in existingSnapshot.entries) reservedNames += VaultName.of(entry.name).comparisonKey
-                for (entry in sourceSnapshot.entries) reservedNames += VaultName.of(entry.name).comparisonKey
-                for (destinationEntry in existingSnapshot.entries) {
-                    val sourceEntry = findByName(sourceSnapshot.entries, destinationEntry.name)
-                    if (sourceEntry == null) {
-                        output += cloneEntry(destinationEntry, existingSession)
-                        continue
-                    }
-                    consumedSource += sourceEntry.nodeId
-                    when (val decision = conflicts.decide(destinationEntry.conflictWith(sourceEntry))) {
-                        VaultConflictDecision.SKIP -> {
-                            skippedSourceNodes += sourceEntry.nodeId
-                            deferred += DeferredVaultChild(
-                                sourceFolders.toList(), destinationFolders.toList(),
-                                sourceEntry.toMetadata(sourceSession.id, requireNotNull(sourceFolder.directoryId)).ref,
-                                sourceEntry.revision, sourceEntry.name
-                            )
-                            output += cloneEntry(destinationEntry, existingSession)
-                        }
-                        VaultConflictDecision.REPLACE -> output += cloneEntry(sourceEntry, sourceSession)
-                        VaultConflictDecision.KEEP_BOTH -> {
-                            output += cloneEntry(destinationEntry, existingSession)
-                            val newName = uniqueName(sourceEntry.name, reservedNames)
-                            reservedNames += VaultName.of(newName).comparisonKey
-                            output += cloneEntry(sourceEntry, sourceSession, newName)
-                        }
-                        VaultConflictDecision.MERGE_DIRECTORIES -> if (
-                            destinationEntry.kind == VaultNodeKind.DIRECTORY &&
-                            sourceEntry.kind == VaultNodeKind.DIRECTORY
-                        ) {
-                            output += cloneMergedDirectory(
-                                destinationEntry, existingSession, sourceEntry, sourceSession, destinationEntry.name,
-                                requireNotNull(sourceFolder.directoryId), childId
-                            )
-                        } else {
-                            output += cloneEntry(sourceEntry, sourceSession)
-                        }
-                    }
-                }
-                sourceSnapshot.entries.filterNot { it.nodeId in consumedSource }.forEach {
-                    output += cloneEntry(it, sourceSession)
-                }
+                val output = mergeDirectoryEntries(existingSnapshot.entries, existingSession, sourceSnapshot.entries,
+                    sourceSession, requireNotNull(sourceFolder.directoryId), childId)
                 try {
                     prepared += VaultPreparedDirectory(
                         directoryCodec.prepare(destination.id, childId, childKey, 0L, output),
@@ -665,6 +694,60 @@ internal class VaultTransferEngine(
                 existingSnapshot.clearProtectedKeys()
                 sourceSnapshot.clearProtectedKeys()
                 childKey.fill(0)
+            }
+        }
+
+        suspend fun mergeDirectoryEntries(
+            existing: List<VaultManifestEntry>,
+            existingSession: VaultSessionRecord,
+            incoming: List<VaultManifestEntry>,
+            sourceSession: VaultSessionRecord,
+            sourceParent: DirectoryId,
+            destinationParent: DirectoryId
+        ): List<VaultManifestEntry> {
+            val output = mutableListOf<VaultManifestEntry>()
+            val consumedSource = mutableSetOf<NodeId>()
+            val reservedNames = (existing + incoming).mapTo(hashSetOf()) { VaultName.of(it.name).comparisonKey }
+            try {
+                for (destinationEntry in existing) {
+                    cancellation.throwIfCancelled()
+                    val sourceEntry = findByName(incoming, destinationEntry.name)
+                    if (sourceEntry == null) {
+                        output += cloneEntry(destinationEntry, existingSession)
+                        continue
+                    }
+                    consumedSource += sourceEntry.nodeId
+                    val decision = conflicts.decide(destinationEntry.conflictWith(sourceEntry))
+                    if (reuseEncryptedEntries && decision in setOf(VaultConflictDecision.REPLACE, VaultConflictDecision.MERGE_DIRECTORIES)) {
+                        replacedEntries += destinationEntry.copyDefensively()
+                    }
+                    when (decision) {
+                        VaultConflictDecision.SKIP -> {
+                            skippedSourceNodes += sourceEntry.nodeId
+                            deferred += DeferredVaultChild(sourceFolders.toList(), destinationFolders.toList(),
+                                sourceEntry.toMetadata(sourceSession.id, sourceParent).ref, sourceEntry.revision, sourceEntry.name)
+                            output += cloneEntry(destinationEntry, existingSession)
+                        }
+                        VaultConflictDecision.REPLACE -> output += cloneEntry(sourceEntry, sourceSession)
+                        VaultConflictDecision.KEEP_BOTH -> {
+                            output += cloneEntry(destinationEntry, existingSession)
+                            val newName = uniqueName(sourceEntry.name, reservedNames)
+                            reservedNames += VaultName.of(newName).comparisonKey
+                            output += cloneEntry(sourceEntry, sourceSession, newName)
+                        }
+                        VaultConflictDecision.MERGE_DIRECTORIES -> if (
+                            destinationEntry.kind == VaultNodeKind.DIRECTORY && sourceEntry.kind == VaultNodeKind.DIRECTORY
+                        ) {
+                            output += cloneMergedDirectory(destinationEntry, existingSession, sourceEntry, sourceSession,
+                                destinationEntry.name, sourceParent, destinationParent)
+                        } else output += cloneEntry(sourceEntry, sourceSession)
+                    }
+                }
+                for (entry in incoming) if (entry.nodeId !in consumedSource) output += cloneEntry(entry, sourceSession)
+                return output
+            } catch (error: Throwable) {
+                output.forEach { it.protectedKey.fill(0) }
+                throw error
             }
         }
 
@@ -689,6 +772,7 @@ internal class VaultTransferEngine(
 
         override fun close() {
             prepared.forEach { it.directoryKey.fill(0) }
+            replacedEntries.forEach { it.protectedKey.fill(0) }
         }
     }
 
@@ -757,32 +841,43 @@ internal class VaultTransferEngine(
     private fun collectObsolete(
         session: VaultSessionRecord,
         root: VaultManifestEntry,
-        onDirectory: (DirectoryId) -> Unit = {}
+        onDirectory: (DirectoryId) -> Unit = {},
+        retainedDirectories: Set<DirectoryId> = emptySet(),
+        retainedObjects: Set<String> = emptySet(),
+        checkActive: () -> Unit = {}
     ): Set<String> {
-        if (root.kind == VaultNodeKind.FILE) return setOf(requireNotNull(root.objectId).shardedPath())
+        if (root.kind == VaultNodeKind.FILE) return setOf(requireNotNull(root.objectId).shardedPath()) - retainedObjects
         val obsolete = mutableSetOf<String>()
         val queue = ArrayDeque<Pair<DirectoryId, ByteArray>>()
+        val visited = mutableSetOf<DirectoryId>()
         queue += requireNotNull(root.childDirectoryId) to root.protectedKey.copyOf()
-        while (queue.isNotEmpty()) {
-            val (id, key) = queue.removeFirst()
-            try {
-                val snapshot = session.readDirectory(id, key)
+        try {
+            while (queue.isNotEmpty()) {
+                val (id, key) = queue.removeFirst()
                 try {
-                    onDirectory(id)
-                    obsolete += snapshot.pageObjectIds.map(VaultObjectId::shardedPath)
-                    obsolete += VaultDirectoryManifestCodec.rootSlot(id, 0L)
-                    obsolete += VaultDirectoryManifestCodec.rootSlot(id, 1L)
-                    snapshot.entries.forEach {
-                        if (it.kind == VaultNodeKind.FILE) obsolete += requireNotNull(it.objectId).shardedPath()
-                        else queue += requireNotNull(it.childDirectoryId) to it.protectedKey.copyOf()
+                    checkActive()
+                    if (id in retainedDirectories) continue
+                    if (!visited.add(id)) throw VaultFailure.InvalidPath("A folder occurs more than once in the tree")
+                    val snapshot = session.readDirectory(id, key)
+                    try {
+                        onDirectory(id)
+                        obsolete += snapshot.pageObjectIds.map(VaultObjectId::shardedPath)
+                        obsolete += VaultDirectoryManifestCodec.rootSlot(id, 0L)
+                        obsolete += VaultDirectoryManifestCodec.rootSlot(id, 1L)
+                        snapshot.entries.forEach {
+                            if (it.kind == VaultNodeKind.FILE) {
+                                val path = requireNotNull(it.objectId).shardedPath()
+                                if (path !in retainedObjects) obsolete += path
+                            } else queue += requireNotNull(it.childDirectoryId) to it.protectedKey.copyOf()
+                        }
+                    } finally {
+                        snapshot.clearProtectedKeys()
                     }
                 } finally {
-                    snapshot.clearProtectedKeys()
+                    key.fill(0)
                 }
-            } finally {
-                key.fill(0)
             }
-        }
+        } finally { while (queue.isNotEmpty()) queue.removeFirst().second.fill(0) }
         return obsolete
     }
 

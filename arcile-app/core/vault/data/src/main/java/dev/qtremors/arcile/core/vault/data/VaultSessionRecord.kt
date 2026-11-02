@@ -152,6 +152,12 @@ internal class VaultSessionRecord(
         directoryKeys.putIfAbsent(directoryId.value, key.copyOf())
     }
 
+    /** Replaced directories must stop resolving through the cache even if physical cleanup fails. */
+    fun forgetDirectoryKeys(directoryIds: Set<DirectoryId>) {
+        directoryIds.filter { it != ROOT_DIRECTORY_ID }.forEach { id -> directoryKeys.remove(id.value)?.fill(0) }
+        if (directoryIds.isNotEmpty()) synchronized(this) { searchWindow = null }
+    }
+
     private fun cachedDirectoryKey(directoryId: DirectoryId, protectedKey: ByteArray): ByteArray {
         val cached = directoryKeys[directoryId.value]
         if (cached != null) return cached.copyOf()

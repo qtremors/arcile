@@ -80,8 +80,8 @@
 
 - [ ] **FEAT-0033 - Complete Vault Archive Options and Viewer Actions**
   - **Location:** OnlyFilesArchiveController.kt, BrowserArchiveController.kt, and the shared PDF viewer.
-  - **Current:** Browser and vault creation share ZIP, 7z, and TAR writers. PDF file actions route through vault operations. Direct extraction into existing folders and private PDF printing remain unavailable.
-  - **Change:** Add direct extraction using the shared archive and conflict workflows, and adapt the shared print adapter to protected PDF sources. Verify viewer action routes on Android. Preserve bounded memory, cancellation, conflicts, and rollback.
+  - **Current:** Browser and vault creation share ZIP, 7z, and TAR writers. PDF file actions route through vault operations. Vault extraction offers Browser's destination choices, including existing folders, with shared conflict review and one rollback-safe publication. Private PDF printing remains unavailable.
+  - **Change:** Adapt the shared print adapter to protected PDF sources. Verify viewer action routes on Android. Preserve bounded memory, cancellation, conflicts, and rollback.
 
 - [ ] **UI-0013 - Complete Vault Operation Feedback**
   - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.

@@ -86,7 +86,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         OnlyFilesBrowserController(fileSystem, _state, viewModelScope, ::showError, ::runBusy, ::onFoldersDeleted)
     }
     private val archives by lazy {
-        OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError)
+        OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError, ::onFoldersDeleted)
     }
     private val undo by lazy {
         OnlyFilesUndoController(fileSystem, _state, ::runBusy, ::reload, ::onFoldersDeleted, { locations.navigate(it) })
@@ -416,7 +416,7 @@ internal class OnlyFilesViewModel @Inject constructor(
 
     private fun extractZip(request: VaultZipExtraction, parent: DirectoryId) =
         archives.extract(
-            request.node, parent, request.selection, request.name, request.successMessage, request.keepBoth, request.password
+            request.node, parent, request.selection, request.name, request.password, request.intoExisting
         )
 
     fun showViewerImage(ref: VaultNodeRef) {
@@ -544,6 +544,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         transfers.conflictReview.resolve(id, response)
         boundary.conflictReview.resolve(id, response)
         recovery.conflictReview.resolve(id, response)
+        archives.conflictReview.resolve(id, response)
     }
     fun openRecovery() = recovery.open()
     fun closeRecovery() = recovery.close()
@@ -875,6 +876,7 @@ internal class OnlyFilesViewModel @Inject constructor(
         }
         transfers.conflictReview.dismiss()
         boundary.conflictReview.dismiss()
+        archives.conflictReview.dismiss()
     }
 
     private fun updateTransferProgress(progress: VaultTransferProgress) {

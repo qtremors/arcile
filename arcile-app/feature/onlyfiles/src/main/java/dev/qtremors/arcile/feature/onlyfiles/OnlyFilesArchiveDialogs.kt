@@ -1,16 +1,12 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.archiveExtractionFolderName
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Unarchive
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -19,14 +15,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.ui.ClipboardToolbar
-import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.OperationProgressDetailsSheet
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
-import dev.qtremors.arcile.core.ui.dialogs.FileNameInput
-import dev.qtremors.arcile.core.ui.dialogs.validateFileName
+import dev.qtremors.arcile.core.ui.archive.ArchiveExtractionChoice
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import java.util.zip.Deflater
 import dev.qtremors.arcile.core.ui.R as UiR
@@ -35,9 +27,8 @@ internal data class VaultZipExtraction(
     val node: VaultNodeMetadata,
     val selection: VaultZipSelection,
     val name: String,
-    val keepBoth: Boolean,
-    val successMessage: String,
-    val password: CharArray? = null
+    val password: CharArray? = null,
+    val intoExisting: Boolean = false
 )
 
 @Composable
@@ -77,56 +68,24 @@ internal fun VaultExtractZipDialog(
     onExtract: (VaultZipExtraction, Boolean) -> Unit
 ) {
     val format = ArchiveFormat.fromPath(node.name)
-    val defaultName = selection.folder.lastOrNull()
-        ?: format?.let { node.name.dropLast(it.extension.length + 1) }?.ifBlank { node.name }
-        ?: node.name
-    var name by remember(defaultName) { mutableStateOf(defaultName) }
-    var keepBoth by remember { mutableStateOf(false) }
-    var password by remember { mutableStateOf("") }
-    var revealPassword by remember { mutableStateOf(false) }
-    val validation = validateFileName(name)
-    val success = stringResource(R.string.onlyfiles_zip_extracted)
-    val canExtract = validation.isValid && (!selection.requiresPassword || password.isNotEmpty())
-    fun extract(choose: Boolean) {
-        val secret = password.takeIf { it.isNotEmpty() }?.toCharArray()
-        onExtract(VaultZipExtraction(node, selection, validation.sanitizedName, keepBoth, success, secret), choose)
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.onlyfiles_extract_zip)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(stringResource(R.string.onlyfiles_extract_zip_description))
-                FileNameInput(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = stringResource(R.string.onlyfiles_new_folder),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                if (selection.requiresPassword || format == ArchiveFormat.SEVEN_Z) {
-                    PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword }, allowKeyboardSwitch = false)
-                }
-                androidx.compose.foundation.layout.Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-                ) {
-                    ExpressiveSwitch(checked = keepBoth, onCheckedChange = { keepBoth = it })
-                    Text(stringResource(R.string.onlyfiles_extract_keep_both))
-                }
-            }
+    val name = archiveExtractionFolderName(node.name)
+    var password by remember(node.ref, node.revision) { mutableStateOf("") }
+    var revealPassword by remember(node.ref, node.revision) { mutableStateOf(false) }
+    dev.qtremors.arcile.core.ui.archive.ExtractArchiveDialog(
+        archiveName = node.name,
+        defaultDestinationPath = "",
+        onDismiss = onDismiss,
+        onConfirm = { target, _ ->
+            val secret = password.takeIf { it.isNotEmpty() }?.toCharArray()
+            onExtract(VaultZipExtraction(node, selection, name, secret,
+                intoExisting = target != ArchiveExtractionChoice.NAMED_FOLDER), target == ArchiveExtractionChoice.CUSTOM_FOLDER)
         },
-        confirmButton = {
-            FilledTonalButton(enabled = canExtract, onClick = { extract(false) }) {
-                Text(stringResource(R.string.onlyfiles_extract_here))
-            }
-        },
-        dismissButton = {
-            Column {
-                TextButton(enabled = canExtract, onClick = { extract(true) }) {
-                    Text(stringResource(R.string.onlyfiles_choose_destination))
-                }
-                TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }
+        privateSession = true,
+        customDestinationContent = {}, // Confirmation opens the existing protected folder picker.
+        canConfirmTarget = { !selection.requiresPassword || password.isNotEmpty() },
+        extraContent = {
+            if (selection.requiresPassword || format == ArchiveFormat.SEVEN_Z) {
+                PasswordField(password, { password = it }, revealPassword, { revealPassword = !revealPassword }, allowKeyboardSwitch = false)
             }
         }
     )

@@ -60,6 +60,26 @@ internal fun clipboardFeedback(action: VaultClipboardAction, count: Int, mount: 
     return OnlyFilesOperationFeedback(shared.message, shared.severity, mount)
 }
 
+internal fun vaultArchiveFeedback(
+    result: VaultBatchResult,
+    mount: Long,
+    destination: OnlyFilesOperationDestination.VaultDirectory
+): OnlyFilesOperationFeedback {
+    val completed = result.completed.size
+    val partial = result.partial.size
+    val skipped = result.skipped.size
+    val failed = result.failed.size + result.rolledBack.size
+    val allCompleted = result.items.isNotEmpty() && completed == result.items.size
+    return OnlyFilesOperationFeedback(
+        message = if (allCompleted) UiText.StringResource(R.string.onlyfiles_zip_extracted)
+            else UiText.StringResource(R.string.onlyfiles_extract_result, listOf(completed, partial, skipped, failed)),
+        severity = if (allCompleted) ArcileFeedbackSeverity.Success else if (failed > 0 && completed == 0 && partial == 0)
+            ArcileFeedbackSeverity.Error else ArcileFeedbackSeverity.Info,
+        mountGeneration = mount,
+        destination = destination.takeIf { completed > 0 || partial > 0 }
+    )
+}
+
 internal fun vaultBatchFeedback(
     result: VaultBatchResult,
     kind: OnlyFilesOperationKind,

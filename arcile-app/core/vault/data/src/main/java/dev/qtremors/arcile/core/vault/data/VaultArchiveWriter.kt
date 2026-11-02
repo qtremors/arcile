@@ -11,6 +11,9 @@ import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_FOLDERS
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveProgress
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
+import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
+import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
+import dev.qtremors.arcile.core.vault.domain.VaultCancellationSignal
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultName
 import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
@@ -25,6 +28,59 @@ internal class VaultArchiveWriter(
     private val directories: VaultDirectoryManifestCodec,
     private val transactions: VaultTransactionManager
 ) {
+    suspend fun extractInto(
+        session: VaultSessionRecord,
+        parentId: DirectoryId,
+        sources: List<VaultArchiveSource>,
+        conflicts: VaultConflictResolver,
+        transfer: VaultTransferEngine,
+        checkActive: () -> Unit,
+        onProgress: (VaultArchiveProgress) -> Unit
+    ): VaultBatchResult {
+        val plan = ArchiveExtractionPlan(sources)
+        // Reject a missing destination before opening any archive entry streams.
+        session.resolveDirectory(parentId).key.fill(0)
+        val staged = mutableListOf<VaultPreparedDirectory>()
+        val newObjects = linkedSetOf<String>()
+        val keys = mutableListOf<ByteArray>()
+        var retainedObjects: Set<String> = emptySet()
+        var beforePublication = transactions.publicationGeneration
+        var publicationAttempted = false
+        var publicationCompleted = false
+        try {
+            val writer = ArchiveTreeWriter(session, staged, newObjects, keys, plan.fileCount, checkActive, onProgress)
+            // Preserve archive stream order, including solid 7z archives with interleaved folders.
+            val writtenFiles = plan.files.associateWith(writer::writeFile)
+            val root = writer.writeFolder("Archive", plan.root, writtenFiles)
+            val cancellation = VaultCancellationSignal { checkActive(); false }
+            transfer.prepareArchiveMerge(session, parentId, root, staged, newObjects, conflicts, cancellation).use { merge ->
+                checkActive()
+                if (merge.prepared.isNotEmpty()) {
+                    beforePublication = transactions.publicationGeneration
+                    publicationAttempted = true
+                    transactions.commit(session.directory, session.id, session.masterSecret,
+                        merge.prepared, merge.newObjects, merge.obsolete)
+                }
+                publicationCompleted = true
+                retainedObjects = merge.newObjects
+                session.forgetDirectoryKeys(merge.result.items.flatMapTo(mutableSetOf()) { it.removedFolders })
+                return merge.result
+            }
+        } finally {
+            // If publication was interrupted, the journal owns the staged objects until recovery.
+            // A completed publication must also survive a later cleanup/reporting failure.
+            try {
+                val uncertain = publicationAttempted && !publicationCompleted && transactions.publicationGeneration != beforePublication
+                if (!uncertain && !transactions.hasPendingCommit(session.directory)) {
+                    (newObjects - retainedObjects).forEach { path -> runCatching { session.directory.delete(path) } }
+                }
+            } finally {
+                keys.forEach { it.fill(0) }
+                staged.forEach { it.directoryKey.fill(0) }
+            }
+        }
+    }
+
     fun extract(
         session: VaultSessionRecord,
         parentId: DirectoryId,

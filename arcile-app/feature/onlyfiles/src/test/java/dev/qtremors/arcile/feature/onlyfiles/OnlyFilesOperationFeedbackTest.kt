@@ -17,6 +17,20 @@ import dev.qtremors.arcile.core.ui.R as UiR
 class OnlyFilesOperationFeedbackTest {
     private val target = OnlyFilesOperationDestination.VaultDirectory(VaultId.of("vault"), DirectoryId.of("target"))
 
+    @Test fun `archive feedback distinguishes completed partial skipped and failed extraction`() {
+        val completed = vaultArchiveFeedback(batch(VaultItemOutcome.COMPLETED), 8, target)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_zip_extracted), completed.message)
+        assertEquals(ArcileFeedbackSeverity.Success, completed.severity)
+        assertEquals(target, completed.destination)
+        val mixed = vaultArchiveFeedback(batch(VaultItemOutcome.COMPLETED, VaultItemOutcome.PARTIAL,
+            VaultItemOutcome.SKIPPED, VaultItemOutcome.FAILED), 8, target)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_extract_result, listOf(1, 1, 1, 1)), mixed.message)
+        assertEquals(target, mixed.destination)
+        val skipped = vaultArchiveFeedback(batch(VaultItemOutcome.SKIPPED), 8, target)
+        assertNull(skipped.destination)
+        assertEquals(ArcileFeedbackSeverity.Info, skipped.severity)
+    }
+
     @Test
     fun `clipboard feedback uses exactly the Browser copy and cut wording`() {
         for ((vaultAction, browserAction) in listOf(

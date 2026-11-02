@@ -3,6 +3,14 @@ package dev.qtremors.arcile.feature.onlyfiles
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.NodeId
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
+import dev.qtremors.arcile.core.vault.domain.VaultArchiveDestinationResult
+import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
+import dev.qtremors.arcile.core.vault.domain.VaultConflict
+import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
+import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
+import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultItemResult
+import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeCapabilities
@@ -48,7 +56,7 @@ class OnlyFilesArchiveControllerTest {
     private val root = DirectoryId.Root
 
     @Test
-    fun `extracting a selection reads only entries under that selection and strips its folder prefix`() = runTest {
+    fun `extracting a selection reads only selected entries and preserves Browser folder paths`() = runTest {
         val payload = zipBytes(
             "docs/one.txt" to "one",
             "docs/chapter/two.txt" to "two",
@@ -59,12 +67,12 @@ class OnlyFilesArchiveControllerTest {
         val reader = MemoryReader(payload)
         every { fs.openReader(source.ref) } returns Result.success(reader)
         val extracted = mutableMapOf<List<String>, String>()
-        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+        coEvery { fs.extractArchiveToNamedFolder(vault, root, "Result", any(), any(), any()) } coAnswers {
             val entries = arg<List<VaultArchiveSource>>(3)
             entries.filterIsInstance<VaultArchiveSource.File>().forEach {
                 extracted[it.path] = it.open().use { input -> input.readBytes().decodeToString() }
             }
-            Result.success(folder("Result"))
+            Result.success(namedExtraction())
         }
         val state = mounted()
         var reloads = 0
@@ -72,15 +80,15 @@ class OnlyFilesArchiveControllerTest {
 
         controller.extract(
             source, root, VaultZipSelection(listOf("docs"), setOf(listOf("docs", "chapter"))),
-            "Result", "Extracted"
+            "Result"
         )
         state.first { !it.busy }
 
-        assertEquals(mapOf(listOf("chapter", "two.txt") to "two"), extracted)
+        assertEquals(mapOf(listOf("docs", "chapter", "two.txt") to "two"), extracted)
         assertTrue(reader.closed)
         assertEquals(1, reloads)
-        assertEquals("Extracted", state.value.message)
-        assertEquals("Result", state.value.completedArchive?.name)
+        assertEquals(OnlyFilesOperationDestination.VaultDirectory(vault, DirectoryId.of("Result")), state.value.operationFeedback?.destination)
+        assertNull(state.value.completedArchive)
     }
 
     @Test
@@ -100,23 +108,23 @@ class OnlyFilesArchiveControllerTest {
         val reader = MemoryReader(payload)
         every { fs.openReader(source.ref) } returns Result.success(reader)
         val extracted = linkedMapOf<List<String>, String>()
-        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+        coEvery { fs.extractArchiveToNamedFolder(vault, root, "Result", any(), any(), any()) } coAnswers {
             val entries = arg<List<VaultArchiveSource>>(3)
             for (entry in entries.filterIsInstance<VaultArchiveSource.File>()) {
                 extracted[entry.path] = entry.open().use { it.readBytes().decodeToString() }
             }
-            Result.success(folder("Result"))
+            Result.success(namedExtraction())
         }
         val state = mounted()
         val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
 
-        controller.extract(source, root, VaultZipSelection(listOf("docs"), emptySet()), "Result", "Extracted")
+        controller.extract(source, root, VaultZipSelection(listOf("docs"), emptySet()), "Result")
         state.first { !it.busy }
 
-        assertEquals(listOf(listOf("one.txt"), listOf("two.txt")), extracted.keys.toList())
+        assertEquals(listOf(listOf("docs", "one.txt"), listOf("docs", "two.txt")), extracted.keys.toList())
         assertEquals(listOf("one", "two"), extracted.values.toList())
         assertTrue(reader.closed)
-        assertEquals("Extracted", state.value.message)
+        assertTrue(state.value.operationFeedback != null)
     }
 
     @Test
@@ -136,24 +144,24 @@ class OnlyFilesArchiveControllerTest {
         val fs = mockk<VaultFileSystem>()
         every { fs.openReader(source.ref) } returns Result.success(reader)
         val extracted = linkedMapOf<List<String>, String>()
-        coEvery { fs.extractArchive(vault, root, "Result", any(), true, any()) } coAnswers {
+        coEvery { fs.extractArchiveToNamedFolder(vault, root, "Result", any(), any(), any()) } coAnswers {
             for (entry in arg<List<VaultArchiveSource>>(3).filterIsInstance<VaultArchiveSource.File>()) {
                 extracted[entry.path] = entry.open().use { it.readBytes().decodeToString() }
             }
-            Result.success(folder("Result"))
+            Result.success(namedExtraction())
         }
         val state = mounted()
         val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
 
         controller.extract(
             source, root, VaultZipSelection(listOf("docs"), setOf(listOf("docs", "two.txt"))),
-            "Result", "Extracted", keepBoth = true
+            "Result"
         )
         state.first { !it.busy }
 
-        assertEquals(mapOf(listOf("two.txt") to "two"), extracted)
+        assertEquals(mapOf(listOf("docs", "two.txt") to "two"), extracted)
         assertTrue(reader.closed)
-        assertEquals("Extracted", state.value.message)
+        assertEquals(OnlyFilesOperationDestination.VaultDirectory(vault, DirectoryId.of("Result")), state.value.operationFeedback?.destination)
     }
 
     @Test
@@ -171,21 +179,21 @@ class OnlyFilesArchiveControllerTest {
         val reader = MemoryReader(payload)
         val fs = mockk<VaultFileSystem>()
         every { fs.openReader(source.ref) } returns Result.success(reader)
-        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+        coEvery { fs.extractArchiveToNamedFolder(vault, root, "Result", any(), any(), any()) } coAnswers {
             val entry = arg<List<VaultArchiveSource>>(3).single() as VaultArchiveSource.File
             assertEquals(listOf("note.txt"), entry.path)
             assertEquals("protected text", entry.open().use { it.readBytes().decodeToString() })
-            Result.success(folder("Result"))
+            Result.success(namedExtraction())
         }
         val state = mounted()
         val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
 
         controller.extract(
-            source, root, VaultZipSelection(emptyList(), emptySet()), "Result", "Extracted", password = password
+            source, root, VaultZipSelection(emptyList(), emptySet()), "Result", password = password
         )
         state.first { !it.busy }
 
-        assertEquals("Extracted", state.value.message)
+        assertTrue(state.value.operationFeedback != null)
         assertTrue(password.all { it == '\u0000' })
         assertTrue(reader.closed)
     }
@@ -200,11 +208,11 @@ class OnlyFilesArchiveControllerTest {
         var failed = false
         val controller = OnlyFilesArchiveController(fs, state, this, { error("Unexpected reload") }, { failed = true })
 
-        controller.extract(source, root, VaultZipSelection(emptyList(), emptySet()), "Result", "Extracted")
+        controller.extract(source, root, VaultZipSelection(emptyList(), emptySet()), "Result")
         state.first { !it.busy }
 
         assertTrue(failed)
-        coVerify(exactly = 0) { fs.extractArchive(any(), any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { fs.extractArchiveToNamedFolder(any(), any(), any(), any(), any(), any()) }
     }
 
     @Test
@@ -266,24 +274,24 @@ class OnlyFilesArchiveControllerTest {
         val archive = file("secret.zip", archiveBytes.size.toLong())
         every { fs.openReader(archive.ref) } answers { Result.success(MemoryReader(archiveBytes)) }
         var extracted: ByteArray? = null
-        coEvery { fs.extractArchive(vault, root, "Result", any(), false, any()) } coAnswers {
+        coEvery { fs.extractArchiveToNamedFolder(vault, root, "Result", any(), any(), any()) } coAnswers {
             val item = arg<List<VaultArchiveSource>>(3).single() as VaultArchiveSource.File
             assertEquals(listOf("secret.txt"), item.path)
             extracted = item.open().use { it.readBytes() }
-            Result.success(folder("Result"))
+            Result.success(namedExtraction())
         }
         val selection = VaultZipSelection(emptyList(), setOf(listOf("secret.txt")), requiresPassword = true)
         val wrong = "wrong-password".toCharArray()
-        controller.extract(archive, root, selection, "Result", "Extracted", password = wrong)
+        controller.extract(archive, root, selection, "Result", password = wrong)
         state.first { !it.busy }
         assertNull(extracted)
         assertTrue(errors.single().message.orEmpty().contains("password", ignoreCase = true))
         assertTrue(wrong.all { it == '\u0000' })
 
         val correct = password.toCharArray()
-        controller.extract(archive, root, selection, "Result", "Extracted", password = correct)
+        controller.extract(archive, root, selection, "Result", password = correct)
         state.first { !it.busy }
-        assertEquals(errors.map(Throwable::message).joinToString(), "Extracted", state.value.message)
+        assertTrue(errors.map(Throwable::message).joinToString(), state.value.operationFeedback != null)
         assertTrue(original.contentEquals(extracted))
         assertTrue(correct.all { it == '\u0000' })
 
@@ -297,7 +305,7 @@ class OnlyFilesArchiveControllerTest {
         every { fs.openReader(archive.ref) } answers { Result.success(MemoryReader(damaged)) }
         extracted = null
         val damagedSecret = password.toCharArray()
-        controller.extract(archive, root, selection, "Result", "Extracted", password = damagedSecret)
+        controller.extract(archive, root, selection, "Result", password = damagedSecret)
         state.first { !it.busy }
 
         assertEquals(2, errors.size)
@@ -553,6 +561,107 @@ class OnlyFilesArchiveControllerTest {
         assertNull(state.value.completedArchive)
         assertTrue(password.all { it == '\u0000' })
     }
+
+    @Test
+    fun `direct extraction uses protected streams selected paths and the submitted destination`() = runTest {
+        val payload = zipBytes("Docs/One.txt" to "one", "Other.txt" to "other")
+        val source = file("Source.zip", payload.size.toLong())
+        val fs = mockk<VaultFileSystem>()
+        val reader = MemoryReader(payload)
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        val target = DirectoryId.of("target")
+        val removed = DirectoryId.of("old-folder")
+        val extracted = mutableMapOf<List<String>, String>()
+        coEvery { fs.extractArchiveInto(vault, target, any(), any(), any()) } coAnswers {
+            for (entry in arg<List<VaultArchiveSource>>(2).filterIsInstance<VaultArchiveSource.File>()) {
+                extracted[entry.path] = entry.open().use { it.readBytes().decodeToString() }
+            }
+            Result.success(VaultBatchResult(listOf(VaultItemResult("one", "One.txt", VaultItemOutcome.COMPLETED,
+                removedFolders = setOf(removed)))))
+        }
+        val state = mounted()
+        var reloads = 0
+        val invalidated = mutableSetOf<DirectoryId>()
+        val controller = OnlyFilesArchiveController(fs, state, this, { reloads++ }, { throw it }, { _, folders -> invalidated += folders })
+        controller.extract(source, target, VaultZipSelection(listOf("Docs"), emptySet()), "Unused", intoExisting = true)
+        state.first { !it.busy }
+        assertEquals(mapOf(listOf("Docs", "One.txt") to "one"), extracted)
+        assertTrue(reader.closed)
+        assertEquals(setOf(removed), invalidated)
+        assertEquals(1, reloads)
+        assertEquals(OnlyFilesOperationDestination.VaultDirectory(vault, target), state.value.operationFeedback?.destination)
+        assertNull(state.value.completedArchive)
+        assertNull(state.value.message)
+        coVerify(exactly = 0) { fs.extractArchiveToNamedFolder(any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `direct extraction shares conflict review and cancellation releases password and prompt`() = runTest {
+        val payload = zipBytes("One.txt" to "one")
+        val source = file("Source.zip", payload.size.toLong())
+        val fs = mockk<VaultFileSystem>()
+        val reader = MemoryReader(payload)
+        every { fs.openReader(source.ref) } returns Result.success(reader)
+        coEvery { fs.extractArchiveInto(vault, root, any(), any(), any()) } coAnswers {
+            arg<VaultConflictResolver>(3).decide(VaultConflict("One.txt", "One.txt", false, false))
+            error("Cancelled extraction must not complete")
+        }
+        val state = mounted()
+        val password = "secret".toCharArray()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
+        controller.extract(source, root, VaultZipSelection(emptyList(), emptySet()), "Unused",
+            password = password, intoExisting = true)
+        state.first { it.pendingConflict != null }
+        controller.cancel()
+        state.first { !it.busy }
+        assertTrue(reader.closed)
+        assertTrue(password.all { it == '\u0000' })
+        assertNull(state.value.pendingConflict)
+        assertNull(state.value.operationFeedback)
+    }
+
+    @Test
+    fun `direct extraction dispatches the chosen conflict decision and reports skips`() = runTest {
+        val payload = zipBytes("One.txt" to "one")
+        val source = file("Source.zip", payload.size.toLong())
+        val fs = mockk<VaultFileSystem>()
+        every { fs.openReader(source.ref) } returns Result.success(MemoryReader(payload))
+        val decided = CompletableDeferred<VaultConflictDecision>()
+        coEvery { fs.extractArchiveInto(vault, root, any(), any(), any()) } coAnswers {
+            decided.complete(arg<VaultConflictResolver>(3).decide(VaultConflict("One.txt", "One.txt", false, false)))
+            Result.success(VaultBatchResult(listOf(VaultItemResult("one", "One.txt", VaultItemOutcome.SKIPPED))))
+        }
+        val state = mounted()
+        val controller = OnlyFilesArchiveController(fs, state, this, {}, { throw it })
+        controller.extract(source, root, VaultZipSelection(emptyList(), emptySet()), "Unused", intoExisting = true)
+        val prompt = requireNotNull(state.first { it.pendingConflict != null }.pendingConflict)
+        controller.conflictReview.resolve(prompt.requestId, VaultConflictResponse(mapOf(0 to VaultConflictDecision.SKIP)))
+        state.first { !it.busy }
+        assertEquals(VaultConflictDecision.SKIP, decided.await())
+        assertNull(state.value.operationFeedback?.destination)
+        assertTrue(state.value.operationFeedback?.message is dev.qtremors.arcile.core.presentation.UiText.StringResource)
+    }
+
+    @Test
+    fun `replacing the open archive clears its stale viewer and preserves completion feedback`() = runTest {
+        val payload = zipBytes("Source.zip" to "replacement")
+        val source = file("Source.zip", payload.size.toLong())
+        val fs = mockk<VaultFileSystem>()
+        every { fs.openReader(source.ref) } returnsMany listOf(Result.success(MemoryReader(payload)),
+            Result.failure(VaultFailure.NodeNotFound(source.ref.nodeId)))
+        coEvery { fs.extractArchiveInto(vault, root, any(), any(), any()) } returns Result.success(
+            VaultBatchResult(listOf(VaultItemResult("source", "Source.zip", VaultItemOutcome.COMPLETED))))
+        val state = mounted().apply { value = value.copy(viewer = source, viewerQueue = listOf(source)) }
+        OnlyFilesArchiveController(fs, state, this, {}, { throw it }).extract(source, root,
+            VaultZipSelection(emptyList(), emptySet()), "Unused", intoExisting = true)
+        state.first { !it.busy }
+        assertNull(state.value.viewer)
+        assertTrue(state.value.viewerQueue.isEmpty())
+        assertEquals(OnlyFilesOperationDestination.VaultDirectory(vault, root), state.value.operationFeedback?.destination)
+    }
+
+    private fun namedExtraction() = VaultArchiveDestinationResult(DirectoryId.of("Result"),
+        VaultBatchResult(listOf(VaultItemResult("Result", "Result", VaultItemOutcome.COMPLETED))))
 
     private fun mounted() = MutableStateFlow(OnlyFilesUiState(
         selectedVaultId = vault, mountGeneration = 1L,

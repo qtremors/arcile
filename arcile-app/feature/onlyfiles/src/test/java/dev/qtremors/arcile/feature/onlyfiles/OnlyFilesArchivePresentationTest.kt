@@ -9,6 +9,13 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class OnlyFilesArchivePresentationTest {
+    @Test fun `current archive folders keep their paths including an explicitly empty folder`() {
+        val selection = VaultZipSelection(listOf("docs"), emptySet())
+        assertEquals(listOf("docs"), selection.relativePath(listOf("docs")))
+        assertEquals(listOf("docs", "child", "note.txt"), selection.relativePath(listOf("docs", "child", "note.txt")))
+        assertEquals(null, selection.relativePath(listOf("outside.txt")))
+    }
+
     @Test
     fun `search keeps matched ancestor folders available for navigation`() {
         val entries = listOf(entry("docs/secret.txt"), entry("docs/other.txt"), entry("outside.txt"))
@@ -23,7 +30,7 @@ class OnlyFilesArchivePresentationTest {
         val listing = VaultArchiveListing(emptyList(), setOf(listOf("docs", "private.txt")), false)
         val selected = listing.selection(listOf("docs"), setOf("docs/public.txt"), ArchiveNameEncoding.CP437)
         assertFalse(selected.requiresPassword)
-        assertEquals(listOf("public.txt"), selected.relativePath(listOf("docs", "public.txt")))
+        assertEquals(listOf("docs", "public.txt"), selected.relativePath(listOf("docs", "public.txt")))
         assertEquals(null, selected.relativePath(listOf("docs", "private.txt")))
         assertEquals(ArchiveNameEncoding.CP437, selected.encoding)
         val entireFolder = listing.selection(emptyList(), setOf("docs"), ArchiveNameEncoding.UTF_8)

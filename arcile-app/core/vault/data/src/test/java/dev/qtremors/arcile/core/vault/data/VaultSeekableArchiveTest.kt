@@ -196,7 +196,7 @@ class VaultSeekableArchiveTest {
         var vault = VaultId.of("pending")
         suspend fun rows() = repository.listDirectory(vault, DirectoryId.Root).getOrThrow().items
         fun objectPaths() = File(context.noBackupFilesDir, ROOT_DIRECTORY).walkTopDown()
-            .filter { it.isFile && it.parentFile?.parentFile?.name == "objects" }.map { it.path }.toSet()
+            .filter { it.isFile && it.extension == "obj" }.map { it.path }.toSet()
         fun bytes(node: VaultNodeMetadata) = repository.openReader(node.ref).getOrThrow().use { reader ->
             ByteArray(reader.sizeBytes.toInt()).also { output ->
                 var offset = 0

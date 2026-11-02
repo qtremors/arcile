@@ -1,10 +1,18 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.3
-> **Last Updated:** 2026-11-06
+> **Version:** 2.4.4
+> **Last Updated:** 2026-11-07
 
 ---
+
+## [2.4.4] - 2026-11-07
+
+### Changed
+- Extract vault archives into a named folder, the current folder, or any existing vault folder using Browser's extraction dialog.
+- Vault extraction reviews name conflicts like other vault transfers and publishes all changes at once; failures and cancellation leave the destination unchanged.
+- An existing extraction folder is reused and merged instead of creating a numbered copy, and selected entries keep their archive folders, matching Browser.
+- Partial extractions report extracted, skipped, and failed counts, with Show destination when anything was written.
 
 ## [2.4.3] - 2026-11-06
 

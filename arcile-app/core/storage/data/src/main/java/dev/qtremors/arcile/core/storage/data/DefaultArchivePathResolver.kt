@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.storage.domain.ArchivePathResolver
 import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionDestinationStyle
 import dev.qtremors.arcile.core.storage.domain.ArchiveExtractionPathRequest
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
+import dev.qtremors.arcile.core.storage.domain.archiveExtractionFolderName
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import javax.inject.Inject
@@ -68,18 +69,13 @@ class DefaultArchivePathResolver @Inject constructor(
                 ?: error("Archive destination has no parent")
             when (request.style) {
                 ArchiveExtractionDestinationStyle.NAMED_FOLDER ->
-                    File(parent, archive.extractionFolderName()).absolutePath.normalizeSeparators()
+                    File(parent, archiveExtractionFolderName(archive.name)).absolutePath.normalizeSeparators()
                 ArchiveExtractionDestinationStyle.SAME_FOLDER -> parent
                 ArchiveExtractionDestinationStyle.CUSTOM_FOLDER ->
                     request.customDestination?.normalizeSeparators()?.takeIf(String::isNotBlank)
                         ?: parent
             }
         }
-    }
-
-    private fun File.extractionFolderName(): String {
-        val format = ArchiveFormat.fromPath(name) ?: return nameWithoutExtension
-        return name.removeSuffix(".${format.extension}").ifBlank { nameWithoutExtension }
     }
 
     private fun String.normalizeSeparators(): String = replace('\\', '/')
