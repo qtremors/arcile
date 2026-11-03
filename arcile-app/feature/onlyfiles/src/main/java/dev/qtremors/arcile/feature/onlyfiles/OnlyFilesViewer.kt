@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.pager.HorizontalPager
@@ -165,12 +166,25 @@ internal fun ViewerScreen(
             destination = location
         )
     } else if (openKind == BuiltInFileOpen.AUDIO) {
+        val context = LocalContext.current
+        val contentResolver = context.contentResolver
+        val audioEditor = remember(node.ref, node.revision) { viewModel.vaultAudioEditor(node, contentResolver) }
+        // Edits are saved as a new file beside the track, so they need a writable vault and an in-memory size.
+        val canEditAudio = node.ref.capabilities.canRename && node.sizeBytes in 1..VaultAudioMetadataEditor.MAX_EDIT_BYTES
         VaultAudioPreview(
             node, mediaQueue, viewModel::openReader,
             onTrackChanged = viewModel::showViewerAudio, onQueueEmpty = onBack,
             onBack = onBack, allowedActions = allowedActions, onAction = onAction,
             location = location, nextPageToken = nextMediaPage,
-            onLoadMore = viewModel::loadNextPage, modifier = modifier
+            onLoadMore = viewModel::loadNextPage, modifier = modifier,
+            metadataEditor = audioEditor,
+            onEditAudio = {
+                viewModel.editVaultAudio(node, context.cacheDir.path) { session ->
+                    context.startActivity(android.content.Intent(PrivateAudioEditSessions.ACTION_EDIT)
+                        .setPackage(context.packageName)
+                        .putExtra(PrivateAudioEditSessions.EXTRA_SESSION, session))
+                }
+            }.takeIf { canEditAudio }
         )
     } else {
         Box(modifier.fillMaxSize().background(Color.Black)) {

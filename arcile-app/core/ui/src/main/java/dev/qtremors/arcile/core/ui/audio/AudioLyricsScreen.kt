@@ -1,9 +1,10 @@
 @file:OptIn(androidx.compose.material3.ExperimentalMaterial3ExpressiveApi::class)
 
-package dev.qtremors.arcile.feature.audio
+package dev.qtremors.arcile.core.ui.audio
+
+import dev.qtremors.arcile.core.ui.R
 
 import androidx.compose.animation.animateColorAsState
-import dev.qtremors.arcile.core.ui.audio.AudioPlaybackProgress
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -66,9 +67,9 @@ import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 
-internal data class TimedLyricLine(val timeMs: Long, val text: String)
+data class TimedLyricLine(val timeMs: Long, val text: String)
 
-internal fun parseLrc(text: String): List<TimedLyricLine> {
+fun parseLrc(text: String): List<TimedLyricLine> {
     val time = Regex("\\[(\\d{1,3}):(\\d{2})(?:\\.(\\d{1,3}))?]")
     val offset = Regex("\\[offset:([+-]?\\d+)]", RegexOption.IGNORE_CASE)
         .find(text)?.groupValues?.get(1)?.toLongOrNull()?.coerceIn(-86_400_000L, 86_400_000L) ?: 0L
@@ -86,7 +87,7 @@ internal fun parseLrc(text: String): List<TimedLyricLine> {
     }.sortedBy(TimedLyricLine::timeMs).toList()
 }
 
-internal fun activeLyricIndex(lines: List<TimedLyricLine>, positionMs: Long): Int {
+fun activeLyricIndex(lines: List<TimedLyricLine>, positionMs: Long): Int {
     var low = 0
     var high = lines.lastIndex
     while (low <= high) {
@@ -97,10 +98,10 @@ internal fun activeLyricIndex(lines: List<TimedLyricLine>, positionMs: Long): In
 }
 
 @Composable
-internal fun AudioPlayerLyrics(
+fun AudioPlayerLyrics(
     track: AudioTrack,
     positionMs: Long,
-    editor: AudioTagEditor,
+    editor: AudioMetadataEditor,
     onSeek: (Long) -> Unit,
     onShowArtwork: () -> Unit,
     onExpand: () -> Unit,
@@ -127,10 +128,10 @@ internal fun AudioPlayerLyrics(
 }
 
 @Composable
-internal fun AudioLyricsScreen(
+fun AudioLyricsScreen(
     track: AudioTrack,
     playback: AudioPlaybackState,
-    editor: AudioTagEditor,
+    editor: AudioMetadataEditor,
     onSeek: (Long) -> Unit,
     onTogglePlayback: () -> Unit,
     onPrevious: () -> Unit,
@@ -207,7 +208,7 @@ internal fun AudioLyricsScreen(
 private fun AudioLyricsContent(
     track: AudioTrack,
     positionMs: Long,
-    editor: AudioTagEditor,
+    editor: AudioMetadataEditor,
     onSeek: (Long) -> Unit,
     modifier: Modifier,
     compact: Boolean = false

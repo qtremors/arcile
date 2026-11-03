@@ -13,6 +13,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.qtremors.arcile.core.ui.theme.ArcileTheme
 import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
 import dev.qtremors.arcile.core.ui.theme.UiPreferences
+import dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions
 
 @AndroidEntryPoint
 class AudioEditorActivity : ComponentActivity() {
@@ -22,13 +23,24 @@ class AudioEditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        viewModel.load(intent.getStringArrayListExtra(EXTRA_AUDIO_EDIT_PATHS).orEmpty())
+        val privateSession = intent.getStringExtra(PrivateAudioEditSessions.EXTRA_SESSION)
+            ?.takeIf { intent.action == PrivateAudioEditSessions.ACTION_EDIT }
+        if (privateSession != null) {
+            // Private edits must not appear in recents thumbnails or screenshots.
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            viewModel.loadPrivate(privateSession)
+        } else {
+            viewModel.load(intent.getStringArrayListExtra(EXTRA_AUDIO_EDIT_PATHS).orEmpty())
+        }
         setContent {
             val uiPreferences by uiPreferencesStore.uiPreferences.collectAsStateWithLifecycle(
                 initialValue = UiPreferences()
             )
             ArcileTheme(uiPreferences = uiPreferences) {
                 val state by viewModel.state.collectAsStateWithLifecycle()
+                androidx.compose.runtime.LaunchedEffect(state.privateSessionEnded) {
+                    if (state.privateSessionEnded) finish()
+                }
                 AudioEditorScreen(
                     state = state,
                     onBack = {

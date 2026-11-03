@@ -10,6 +10,7 @@ import dev.qtremors.arcile.core.storage.domain.SaveDestinationBrowser
 import dev.qtremors.arcile.core.storage.domain.FileBrowserRepository
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.ui.video.GlobalVideoPlaybackSessions
+import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultExternalAccessManager
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
@@ -89,7 +90,8 @@ internal class OnlyFilesViewModel @Inject constructor(
         OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError, ::onFoldersDeleted)
     }
     private val undo by lazy {
-        OnlyFilesUndoController(fileSystem, _state, ::runBusy, ::reload, ::onFoldersDeleted, { locations.navigate(it) })
+        OnlyFilesUndoController(fileSystem, _state, ::runBusy, ::reload, ::onFoldersDeleted, { locations.navigate(it) },
+            transferCoordinator, boundaryTransferCoordinator)
     }
     private val locations: OnlyFilesLocationController by lazy {
         OnlyFilesLocationController(
@@ -730,6 +732,8 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun cancelImport(vaultId: VaultId) = imports.cancel(vaultId)
     fun clearMessage() = _state.update { it.copy(message = null, completedArchive = null, operationFeedback = null) }
     fun undoOperationFeedback(feedback: OnlyFilesOperationFeedback) = undo.undo(feedback)
+    fun confirmUndo(feedback: OnlyFilesOperationFeedback) = undo.undo(feedback, confirmed = true)
+    fun cancelUndoConfirmation(feedback: OnlyFilesOperationFeedback) = undo.cancelConfirmation(feedback.id)
     fun dismissOperationFeedback(id: String) = _state.update {
         if (it.operationFeedback?.id == id) it.copy(operationFeedback = null) else it
     }
@@ -750,12 +754,51 @@ internal class OnlyFilesViewModel @Inject constructor(
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
     suspend fun selectionTotals(refs: List<VaultNodeRef>) = fileSystem.selectionTotals(refs)
 
+    /** Opens the shared audio editor on in-memory copies; [launch] receives the opaque session ID. */
+    fun editVaultAudio(node: VaultNodeMetadata, cacheDirectory: String, launch: (String) -> Unit) {
+        val mount = _state.value.mountGeneration
+        viewModelScope.launch {
+            val session = try {
+                VaultAudioEditSession.create(listOf(node), fileSystem, cacheDirectory, repository.unlockedVaultIds)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                showError(error)
+                return@launch
+            }
+            if (_state.value.mountGeneration != mount) {
+                session.close()
+                return@launch
+            }
+            val id = dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions.register(session)
+            try {
+                launch(id)
+            } catch (error: Exception) {
+                dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions.end(id)
+                showError(error)
+            }
+        }
+    }
+
+    /** One editor per open track; saves refresh the viewer only within the mount that opened it. */
+    fun vaultAudioEditor(node: VaultNodeMetadata, contentResolver: android.content.ContentResolver): VaultAudioMetadataEditor {
+        val mount = _state.value.mountGeneration
+        return VaultAudioMetadataEditor(node, fileSystem, contentResolver, onSaved = { saved ->
+            viewModelScope.launch {
+                if (_state.value.mountGeneration == mount && _state.value.selectedVaultId == saved.ref.vaultId) {
+                    _state.update { it.withUpdatedViewerNode(saved) }
+                    browser.refresh()
+                }
+            }
+        })
+    }
+
     suspend fun saveVaultText(ref: VaultNodeRef, revision: Long, text: String): Result<VaultNodeMetadata> {
         val mount = _state.value.mountGeneration
         val bytes = text.encodeToByteArray()
         val result = try {
             if (bytes.size > MAX_VAULT_EDITOR_BYTES) {
-                Result.failure(IllegalArgumentException("This file exceeds the text editor limit."))
+                Result.failure(VaultFailure.FileTooLarge(bytes.size.toLong(), MAX_VAULT_EDITOR_BYTES.toLong()))
             } else {
                 fileSystem.replaceFileContents(ref, revision, bytes)
             }
@@ -801,7 +844,8 @@ internal class OnlyFilesViewModel @Inject constructor(
                 viewer = null,
                 viewerQueue = emptyList(),
                 viewerSelectionEnabled = false,
-                operationFeedback = null
+                operationFeedback = null,
+                pendingUndoConfirmation = null
             )
         }
         if (browserImports.hasPending) {
@@ -871,7 +915,8 @@ internal class OnlyFilesViewModel @Inject constructor(
                 batchProgress = null,
                 archiveProgress = null,
                 completedArchive = null,
-                operationFeedback = null
+                operationFeedback = null,
+                pendingUndoConfirmation = null
             )
         }
         transfers.conflictReview.dismiss()

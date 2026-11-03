@@ -111,7 +111,9 @@ data class VaultItemResult(
     val removedFolders: Set<DirectoryId> = emptySet(),
     val mergeRetry: VaultMergeRetry? = null,
     val exportRetry: VaultExportRetry? = null,
-    val moveUndo: VaultMoveUndo? = null
+    val moveUndo: VaultMoveUndo? = null,
+    val createdUndo: VaultCreatedUndo? = null,
+    val plaintextUndo: VaultPlaintextUndo? = null
 )
 
 data class VaultBatchResult(val items: List<VaultItemResult>) {
@@ -153,7 +155,7 @@ data class VaultImportState(
 sealed interface VaultImportEvent {
     data class Started(val vaultId: VaultId, val recoveredDestination: DirectoryId? = null) : VaultImportEvent
     data class Progress(val vaultId: VaultId, val value: VaultImportProgress) : VaultImportEvent
-    data class Completed(val vaultId: VaultId) : VaultImportEvent
+    data class Completed(val vaultId: VaultId, val result: VaultBatchResult? = null) : VaultImportEvent
     data class Partial(val vaultId: VaultId, val result: VaultBatchResult) : VaultImportEvent
     data class Failed(val vaultId: VaultId, val message: String) : VaultImportEvent
     data class Cancelled(val vaultId: VaultId) : VaultImportEvent
@@ -210,6 +212,15 @@ interface VaultBoundaryTransferCoordinator {
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultItemResult = throw VaultFailure.Unavailable("Resuming this export is unavailable")
+
+    /**
+     * Reverses exports and Trash moves. Unchanged plaintext is re-encrypted into its [VaultPlaintextUndo.origin]
+     * when one exists, and removed only after that publication succeeds. Each proof is reversed independently.
+     */
+    suspend fun undoPlaintext(
+        proofs: List<VaultPlaintextUndo>,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = throw VaultFailure.Unavailable("Undo is unavailable")
 }
 
 interface VaultBoundaryTransferReservation : Closeable {

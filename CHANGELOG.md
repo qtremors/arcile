@@ -1,10 +1,24 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.4
+> **Version:** 2.4.5
 > **Last Updated:** 2026-11-07
 
 ---
+
+## [2.4.5] - 2026-11-07
+
+### Added
+- Undo vault pastes, cross-vault copies and moves, and imports when every copied item is unchanged.
+- Undo Move into vault, Export, Move out, and Move to main Trash after a confirmation that explains which plaintext is written or removed.
+- Print vault PDFs after confirming that the system print service receives decrypted pages.
+- Edit MP3 and FLAC music details and artwork in vaults. Edits run in memory and save as a new encrypted revision.
+- Timed lyrics for vault tracks, stored in an encrypted LRC file beside the track, with the shared lyrics view.
+- Trim, extract, and combine vault audio in the shared audio editor using in-memory copies; results save as new encrypted files.
+
+### Changed
+- The music details editor, lyrics view, and lyrics parser moved into shared UI so Browser and vaults use one implementation.
+- Archive, audio editor, and vault text editor errors now use localized messages instead of English exception text.
 
 ## [2.4.4] - 2026-11-07
 

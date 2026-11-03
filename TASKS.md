@@ -73,25 +73,10 @@
 
 ### OnlyFiles
 
-- [ ] **UI-0012 - Complete Vault Audio Editing and Lyrics**
-  - **Location:** OnlyFilesAudioMetadata.kt, AudioTagEditor.kt, and the audio editor.
-  - **Current:** Vault audio uses the shared full player, artwork, music details, queue, and playback controls. Audio editing, tag writes, and lyrics still depend on local files and sidecars.
-  - **Change:** Adapt the existing audio and tag editors and lyrics readers to protected sources and verified encrypted writes, including encrypted lyric sidecars. Keep private metadata within the unlocked session.
-
-- [ ] **FEAT-0033 - Complete Vault Archive Options and Viewer Actions**
-  - **Location:** OnlyFilesArchiveController.kt, BrowserArchiveController.kt, and the shared PDF viewer.
-  - **Current:** Browser and vault creation share ZIP, 7z, and TAR writers. PDF file actions route through vault operations. Vault extraction offers Browser's destination choices, including existing folders, with shared conflict review and one rollback-safe publication. Private PDF printing remains unavailable.
-  - **Change:** Adapt the shared print adapter to protected PDF sources. Verify viewer action routes on Android. Preserve bounded memory, cancellation, conflicts, and rollback.
-
-- [ ] **UI-0013 - Complete Vault Operation Feedback**
-  - **Location:** OnlyFilesTransferController.kt, OnlyFilesImportController.kt, and OnlyFilesBoundaryController.kt.
-  - **Current:** Completion and recovered transfers retain destination actions. Creation, rename, batch rename, and reversible same-vault moves support guarded Undo. Cross-vault and plaintext-boundary reverse operations remain unavailable.
-  - **Change:** Complete applicable transfer and Trash Undo with verified source/destination ownership. Preserve mount-aware feedback and confirmation for irreversible actions.
-
 - [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
   - **Location:** OnlyFilesScreen.kt and vault viewers.
-  - **Current:** On-device parity and lock behavior still need verification.
-  - **Change:** Compare gestures, thumbnails, large and animated images, document editing, install, transfer, archive browsing and extraction, and lock with matched fixtures. Measure large private and portable vault search and verify feedback for bounded counts and operation limits.
+  - **Current:** Vault features match Browser in code and unit tests, but on-device parity and lock behavior still need verification. Anonymous memory files for audio editing and private PDF printing have not run on a physical device.
+  - **Change:** Compare gestures, thumbnails, large and animated images, document editing, install, transfer, archive browsing and extraction into existing folders, and lock with matched fixtures. Exercise each Undo kind, including the boundary confirmations, private PDF printing, MP3 and FLAC tag edits, encrypted lyrics, and audio editor sessions closing on lock. Measure large private and portable vault search and verify feedback for bounded counts and operation limits.
 
 ## Media and Documents
 

@@ -170,7 +170,7 @@ internal class DefaultVaultImportCoordinator @Inject constructor(
         result.fold(
             onSuccess = { batch ->
                 if (batch.items.all { it.outcome == dev.qtremors.arcile.core.vault.domain.VaultItemOutcome.COMPLETED }) {
-                    _events.tryEmit(VaultImportEvent.Completed(vaultId))
+                    _events.tryEmit(VaultImportEvent.Completed(vaultId, batch))
                 } else {
                     _events.tryEmit(VaultImportEvent.Partial(vaultId, batch))
                 }

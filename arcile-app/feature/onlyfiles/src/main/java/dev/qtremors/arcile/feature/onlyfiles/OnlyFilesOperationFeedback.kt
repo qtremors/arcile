@@ -12,6 +12,9 @@ import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultRenameUndoEntry
 import dev.qtremors.arcile.core.vault.domain.VaultMoveUndo
+import dev.qtremors.arcile.core.vault.domain.VaultCreatedUndo
+import dev.qtremors.arcile.core.vault.domain.VaultPlaintextUndo
+import dev.qtremors.arcile.core.vault.domain.VaultUndoOrigin
 import dev.qtremors.arcile.core.vault.domain.VaultUndoResult
 import java.util.UUID
 import dev.qtremors.arcile.core.ui.R as UiR
@@ -25,9 +28,66 @@ internal sealed interface OnlyFilesOperationDestination {
 internal enum class OnlyFilesOperationKind { COPY, MOVE, IMPORT, MOVE_IN, EXPORT, MOVE_OUT, TRASH, RECOVERY }
 
 internal sealed interface OnlyFilesUndoAction {
-    data class Created(val expected: VaultNodeMetadata) : OnlyFilesUndoAction
-    data class Renamed(val entries: List<VaultRenameUndoEntry>) : OnlyFilesUndoAction
-    data class Moved(val proofs: List<VaultMoveUndo>) : OnlyFilesUndoAction
+    /** The unlocked vault whose session this Undo belongs to. */
+    val ownerVault: VaultId?
+
+    data class Created(val expected: VaultNodeMetadata) : OnlyFilesUndoAction {
+        override val ownerVault get() = expected.ref.vaultId
+    }
+    data class Renamed(val entries: List<VaultRenameUndoEntry>) : OnlyFilesUndoAction {
+        override val ownerVault get() = entries.firstOrNull()?.expected?.ref?.vaultId
+    }
+    data class Moved(val proofs: List<VaultMoveUndo>) : OnlyFilesUndoAction {
+        override val ownerVault get() = proofs.firstOrNull()?.vaultId
+    }
+
+    /** Removes unchanged copies made by paste, cross-vault copy or import. */
+    data class Copied(val proofs: List<VaultCreatedUndo>) : OnlyFilesUndoAction {
+        override val ownerVault get() = proofs.firstOrNull()?.vaultId
+    }
+
+    /** Moves unchanged items back into the vault they came from. Both vaults must be unlocked. */
+    data class MovedAcrossVaults(val proofs: List<VaultCreatedUndo>) : OnlyFilesUndoAction {
+        override val ownerVault get() = proofs.firstOrNull()?.vaultId
+    }
+
+    /** Decrypts an unchanged Move into vault back to its local folder, then removes the vault copy. */
+    data class MovedIn(val proofs: List<VaultCreatedUndo>) : OnlyFilesUndoAction {
+        override val ownerVault get() = proofs.firstOrNull()?.vaultId
+    }
+
+    /** Removes exported plaintext, re-encrypting it first for Move out and Move to main Trash. */
+    data class Plaintext(
+        val proofs: List<VaultPlaintextUndo>,
+        val kind: OnlyFilesOperationKind,
+        override val ownerVault: VaultId?
+    ) : OnlyFilesUndoAction
+
+    /** Undo that writes or deletes plaintext outside the vault always asks first. */
+    val requiresConfirmation: Boolean get() = this is MovedIn || this is Plaintext
+}
+
+/** Undo for a batch only when every item completed with a matching proof, so it reverses the whole result. */
+internal fun createdUndoAction(result: VaultBatchResult, kind: OnlyFilesOperationKind): OnlyFilesUndoAction? {
+    if (result.items.isEmpty() || result.completed.size != result.items.size) return null
+    val proofs = result.items.map { it.createdUndo ?: return null }
+    if (proofs.map { it.vaultId }.distinct().size != 1) return null
+    return when (kind) {
+        OnlyFilesOperationKind.COPY, OnlyFilesOperationKind.IMPORT ->
+            OnlyFilesUndoAction.Copied(proofs).takeIf { proofs.all { it.origin == null } }
+        OnlyFilesOperationKind.MOVE ->
+            OnlyFilesUndoAction.MovedAcrossVaults(proofs).takeIf { proofs.all { it.origin is VaultUndoOrigin.VaultFolder } }
+        OnlyFilesOperationKind.MOVE_IN ->
+            OnlyFilesUndoAction.MovedIn(proofs).takeIf { proofs.all { it.origin is VaultUndoOrigin.LocalFolder } }
+        else -> null
+    }
+}
+
+internal fun plaintextUndoAction(result: VaultBatchResult, kind: OnlyFilesOperationKind, sourceVault: VaultId?): OnlyFilesUndoAction? {
+    if (sourceVault == null || result.items.isEmpty() || result.completed.size != result.items.size) return null
+    val proofs = result.items.map { it.plaintextUndo ?: return null }
+    if (proofs.any { proof -> proof.origin?.let { it.vaultId != sourceVault } == true }) return null
+    return OnlyFilesUndoAction.Plaintext(proofs, kind, sourceVault)
 }
 
 /** All destinations and callbacks expire with the originating unlocked mount. Never persist this. */
@@ -132,6 +192,14 @@ internal fun vaultOperationErrorText(error: Throwable, fallback: Int): UiText = 
     is VaultFailure.InsufficientSpace -> UiText.StringResource(
         R.string.onlyfiles_operation_space, listOf(error.requiredBytes, error.availableBytes)
     )
+    is VaultFailure.ArchiveRejected -> UiText.StringResource(when (error.reason) {
+        dev.qtremors.arcile.core.vault.domain.ArchiveRejection.UNSUPPORTED_FORMAT -> R.string.onlyfiles_archive_unsupported
+        dev.qtremors.arcile.core.vault.domain.ArchiveRejection.TOO_LARGE -> R.string.onlyfiles_archive_too_large
+        dev.qtremors.arcile.core.vault.domain.ArchiveRejection.TOO_MANY_ENTRIES -> R.string.onlyfiles_archive_too_many_entries
+        dev.qtremors.arcile.core.vault.domain.ArchiveRejection.UNSAFE_ENTRY -> R.string.onlyfiles_archive_unsafe_entry
+        dev.qtremors.arcile.core.vault.domain.ArchiveRejection.UNSUPPORTED_ENTRY -> R.string.onlyfiles_archive_unsupported_entry
+        dev.qtremors.arcile.core.vault.domain.ArchiveRejection.DUPLICATE_NAMES -> R.string.onlyfiles_archive_duplicate_names
+    })
     else -> UiText.StringResource(when (error) {
         is VaultFailure.AuthenticationFailed -> R.string.onlyfiles_error_password
         is VaultFailure.WeakPasswordConfirmationRequired -> R.string.onlyfiles_error_weak_password

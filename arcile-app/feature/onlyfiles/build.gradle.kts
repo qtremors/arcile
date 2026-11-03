@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.media3.datasource)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.apache.commons.compress)
+    implementation(libs.jaudiotagger)
 
     testImplementation(libs.junit)
     testImplementation(libs.tukaani.xz)

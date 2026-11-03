@@ -341,6 +341,8 @@ fun StandalonePdfViewer(
     }
     var uiVisible by remember { mutableStateOf(true) }
     var infoVisible by remember { mutableStateOf(false) }
+    // Never restored from saved state: each private print needs a fresh confirmation in this session.
+    var privatePrintConfirmation by remember(reference) { mutableStateOf(false) }
     var searchVisible by if (isPrivate) remember(reference) { mutableStateOf(false) }
         else rememberSaveable(reference) { mutableStateOf(false) }
     var searchQuery by if (isPrivate) remember(reference) { mutableStateOf("") }
@@ -593,7 +595,7 @@ fun StandalonePdfViewer(
                         onOpenWith = { performFileAction(ViewerFileAction.OpenWith) },
                         keepScreenOn = keepScreenOn,
                         onKeepScreenOnChange = { keepScreenOn = it },
-                        onPrint = if (isPrivate) null else ({
+                        onPrint = if (isPrivate) ({ privatePrintConfirmation = true }) else ({
                             printPdf(context, reference, title).onFailure {
                                 coroutineScope.launch {
                                     snackbarHostState.showSnackbar(resources.getString(R.string.pdf_print_failed))
@@ -618,6 +620,22 @@ fun StandalonePdfViewer(
             }
             if (!isPrivate) ViewerActionHost(viewerActionController)
         }
+
+    if (privatePrintConfirmation && openPrivateDescriptor != null) {
+        PrivatePdfPrintDialog(
+            onDismiss = { privatePrintConfirmation = false },
+            onConfirm = {
+                privatePrintConfirmation = false
+                printPdf(context, title) {
+                    ParcelFileDescriptor.AutoCloseInputStream(openPrivateDescriptor())
+                }.onFailure {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(resources.getString(R.string.pdf_print_failed))
+                    }
+                }
+            }
+        )
+    }
 
     if (infoVisible) {
         ModalBottomSheet(

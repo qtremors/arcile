@@ -6,6 +6,7 @@ import dev.qtremors.arcile.core.archive.ArchiveReader
 import dev.qtremors.arcile.core.archive.ArchiveSafetyPolicy
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.ArchiveNameEncoding
+import dev.qtremors.arcile.core.vault.domain.ArchiveRejection
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
 import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
@@ -37,11 +38,11 @@ internal suspend fun <T> readVaultArchive(
     preview: Boolean = false,
     useArchive: suspend (ArchiveReadSession) -> T
 ): T = withContext(Dispatchers.IO) {
-    val format = ArchiveFormat.fromPath(node.name) ?: throw VaultFailure.InvalidPath("Unsupported archive")
+    val format = ArchiveFormat.fromPath(node.name) ?: throw VaultFailure.ArchiveRejected(ArchiveRejection.UNSUPPORTED_FORMAT)
     val coroutine = currentCoroutineContext()
     openReader(node.ref).getOrThrow().use { reader ->
         if (reader.sizeBytes > VAULT_ARCHIVE_MAX_BYTES) {
-            throw VaultFailure.Unavailable("Archive exceeds the vault archive size limit")
+            throw VaultFailure.ArchiveRejected(ArchiveRejection.TOO_LARGE)
         }
         val budget = if (preview && (format == ArchiveFormat.ZIP || format == ArchiveFormat.SEVEN_Z)) {
             2L * 1024 * 1024
@@ -62,12 +63,12 @@ internal fun ArchiveReadSession.vaultSources(selection: VaultZipSelection): List
         val path = entry.segments
         if (path == null) {
             if (selection.folder.isEmpty() && selection.selected.isEmpty()) {
-                throw VaultFailure.InvalidPath("Archive contains an unsafe entry path or compression ratio")
+                throw VaultFailure.ArchiveRejected(ArchiveRejection.UNSAFE_ENTRY)
             }
             return@mapNotNull null
         }
         val relative = selection.relativePath(path) ?: return@mapNotNull null
-        if (!entry.canRead) throw VaultFailure.Unavailable("Archive contains an unsupported entry")
+        if (!entry.canRead) throw VaultFailure.ArchiveRejected(ArchiveRejection.UNSUPPORTED_ENTRY)
         if (entry.isDirectory) VaultArchiveSource.Folder(relative)
         else VaultArchiveSource.File(relative, entry.size, entry.crc32, entry::openStream)
     }

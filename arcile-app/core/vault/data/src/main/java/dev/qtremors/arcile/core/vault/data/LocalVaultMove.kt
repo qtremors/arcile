@@ -2,6 +2,7 @@ package dev.qtremors.arcile.core.vault.data
 
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
+import dev.qtremors.arcile.core.vault.domain.VaultUndoOrigin
 import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.LinkOption
@@ -16,6 +17,10 @@ import kotlinx.coroutines.ensureActive
 internal class LocalVaultMove private constructor(private val source: Path, private val original: Stamp) {
     private val importedDigest = MessageDigest.getInstance("SHA-256")
     private var verifiedHash: ByteArray? = null
+
+    /** The folder and name an Undo returns this file to after its original is removed. */
+    val origin: VaultUndoOrigin.LocalFolder
+        get() = VaultUndoOrigin.LocalFolder(requireNotNull(source.parent).toString(), source.fileName.toString())
 
     fun openOriginal(): InputStream {
         requireUnchanged()

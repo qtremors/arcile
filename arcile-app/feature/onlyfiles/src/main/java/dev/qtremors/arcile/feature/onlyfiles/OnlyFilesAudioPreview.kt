@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -31,6 +33,9 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
 import dev.qtremors.arcile.core.ui.audio.AudioArtwork
 import dev.qtremors.arcile.core.ui.audio.AudioMetadataSheet
+import dev.qtremors.arcile.core.ui.audio.AudioMetadataEditorSheet
+import dev.qtremors.arcile.core.ui.audio.AudioLyricsScreen
+import dev.qtremors.arcile.core.ui.audio.AudioPlayerLyrics
 import dev.qtremors.arcile.core.ui.audio.AudioNowPlayingScreen
 import dev.qtremors.arcile.core.ui.audio.AudioPlaybackSpectrum
 import dev.qtremors.arcile.core.ui.audio.AudioPlaybackState
@@ -63,7 +68,9 @@ internal fun VaultAudioPreview(
     location: String,
     nextPageToken: String?,
     onLoadMore: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    metadataEditor: VaultAudioMetadataEditor? = null,
+    onEditAudio: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -75,6 +82,12 @@ internal fun VaultAudioPreview(
     var player by remember { mutableStateOf<ExoPlayer?>(null) }
     var playback by remember { mutableStateOf(AudioPlaybackState()) }
     var showMetadata by remember { mutableStateOf(false) }
+    // Private session state only: lyrics and edit dialogs are never restored from saved state.
+    var showLyrics by remember(node.ref) { mutableStateOf(false) }
+    var showTags by remember(node.ref) { mutableStateOf(false) }
+    var lyricsEditorOnly by remember(node.ref) { mutableStateOf(false) }
+    var lyricsRevision by remember(node.ref) { mutableIntStateOf(0) }
+    val canEditTags = metadataEditor?.canEditTags == true
     val preferences = rememberAudioPlayerPreferences()
     val visualizer by preferences.visualizerEnabledState()
     val spectrum = remember { AudioPlaybackSpectrum() }
@@ -250,8 +263,51 @@ internal fun VaultAudioPreview(
         viewerActions = allowedActions, onViewerAction = onAction,
         visualizerEnabled = visualizer, onToggleVisualizer = { preferences.visualizerEnabled = !visualizer },
         spectrumLevels = levels, onSpectrumVisibility = spectrum::setSpectrumVisible,
+        coverLyrics = metadataEditor?.let { editor ->
+            { lyricsModifier, showArtwork, expand ->
+                key(lyricsRevision, node.revision) {
+                    AudioPlayerLyrics(metadata.track, playback.positionMs, editor, { player?.seekTo(it) }, showArtwork, expand, lyricsModifier)
+                }
+            }
+        },
+        onShowLyrics = { showLyrics = true }.takeIf { metadataEditor != null },
+        onEdit = onEditAudio?.let { edit -> { player?.pause(); edit() } },
+        onEditTags = { lyricsEditorOnly = false; showTags = true }.takeIf { canEditTags },
         privateSession = true
     )
+    if (showTags && metadataEditor != null) {
+        AudioMetadataEditorSheet(
+            track = metadata.track, editor = metadataEditor, lyricsOnly = lyricsEditorOnly,
+            onSaved = {
+                showTags = false
+                lyricsRevision++
+                if (lyricsEditorOnly) showLyrics = true
+            },
+            onDismiss = {
+                showTags = false
+                if (lyricsEditorOnly) showLyrics = true
+            },
+            privateSession = true
+        )
+    }
+    if (showLyrics && metadataEditor != null) {
+        key(lyricsRevision, node.revision) {
+            AudioLyricsScreen(
+                track = metadata.track, playback = playback, editor = metadataEditor,
+                onSeek = { player?.seekTo(it) },
+                onTogglePlayback = { player?.let { if (it.isPlaying) it.pause() else it.play() } },
+                onPrevious = { player?.seekToPreviousMediaItem() }, onNext = { player?.seekToNextMediaItem() },
+                onEdit = {
+                    if (canEditTags) {
+                        showLyrics = false
+                        lyricsEditorOnly = true
+                        showTags = true
+                    }
+                },
+                onDismiss = { showLyrics = false }
+            )
+        }
+    }
     if (showMetadata) AudioMetadataSheet(
         metadata.track, metadata.details, { showMetadata = false }, artwork,
         location = "$location / ${node.name}"

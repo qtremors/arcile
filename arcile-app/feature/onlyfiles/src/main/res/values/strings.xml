@@ -1,5 +1,10 @@
 <resources>
     <string name="onlyfiles_undo_complete">Operation undone</string>
+    <string name="onlyfiles_undo_confirm_title">Undo outside the vault?</string>
+    <string name="onlyfiles_undo_move_in_message">The unchanged items will be decrypted back to their original folder, then removed from the vault. Other apps can read the restored files.</string>
+    <string name="onlyfiles_undo_move_out_message">The unchanged exported items will be encrypted back into their original vault folder, then the plaintext copies will be deleted.</string>
+    <string name="onlyfiles_undo_export_message">The unchanged exported plaintext copies will be deleted. The vault originals are not affected.</string>
+    <string name="onlyfiles_undo_trash_message">The unchanged items will be encrypted back into their original vault folder, then removed from main Trash.</string>
     <string name="onlyfiles_resume_paste">Resume partial paste</string>
     <string name="onlyfiles_open_in_plugin">Open in %1$s</string>
     <string name="onlyfiles_preview_selected_images">Preview selected images</string>
@@ -292,6 +297,12 @@
     <string name="onlyfiles_error_grant_consumer">This access grant belongs to another application. Open or share the file again.</string>
     <string name="onlyfiles_error_confirmation">The vault deletion confirmation does not match.</string>
     <string name="onlyfiles_error_operation">Unable to complete this vault operation.</string>
+    <string name="onlyfiles_archive_unsupported">This archive format is not supported in vaults.</string>
+    <string name="onlyfiles_archive_too_large">This archive exceeds the 2 GB vault archive limit.</string>
+    <string name="onlyfiles_archive_too_many_entries">The selection exceeds the vault archive limit of 1,000 entries.</string>
+    <string name="onlyfiles_archive_unsafe_entry">The archive contains an unsafe path or compression ratio and was not extracted.</string>
+    <string name="onlyfiles_archive_unsupported_entry">The archive contains an entry that cannot be read.</string>
+    <string name="onlyfiles_archive_duplicate_names">Selected items would have the same name in the archive.</string>
     <string name="onlyfiles_delete_result">%1$d permanently deleted, %2$d failed.</string>
     <string name="onlyfiles_vault_added">Vault added. Enter its password to unlock it.</string>
     <string name="onlyfiles_password_changed">Password changed.</string>

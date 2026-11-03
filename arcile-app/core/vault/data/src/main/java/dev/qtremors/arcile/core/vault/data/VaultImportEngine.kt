@@ -16,6 +16,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
+import dev.qtremors.arcile.core.vault.domain.VaultCreatedUndo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.withLock
@@ -94,7 +95,7 @@ internal class VaultImportEngine(
             queue.beginItem(start + index)
             try {
                 val (sources, sourceMove) = prepared.getOrThrow()
-                val importedBytes = importOne(
+                val (importedBytes, createdUndo) = importOne(
                     session,
                     destination,
                     sources,
@@ -116,7 +117,9 @@ internal class VaultImportEngine(
                 results += VaultItemResult(
                     sourceIdentity, displayName,
                     if (removalFailure == null) VaultItemOutcome.COMPLETED else VaultItemOutcome.PARTIAL,
-                    removalFailure
+                    removalFailure,
+                    // A move whose original could not be removed is a copy, so it never receives a restore proof.
+                    createdUndo = createdUndo.takeIf { removalFailure == null }
                 )
                 onProgress(completed, batches.size, copiedBytes, totalBytes, displayName)
             } catch (error: CancellationException) {
@@ -144,7 +147,7 @@ internal class VaultImportEngine(
         move: LocalVaultMove?,
         onPrepared: (VaultPublicationReceipt) -> Unit,
         onProgress: (Long, String?) -> Unit
-    ): Long {
+    ): Pair<Long, VaultCreatedUndo?> {
         require(sources.isNotEmpty())
         if (move != null) require(sources.size == 1 && !sources.single().isDirectory)
         val destinationDirectory = session.resolveDirectory(destination)
@@ -282,7 +285,11 @@ internal class VaultImportEngine(
                 createdObjectPaths,
                 emptySet()
             )
-            return copied
+            // Still under the import's mutation lock, so the proof describes exactly what was published.
+            val createdUndo = topLevelEntries.singleOrNull()?.let { entry ->
+                captureCreatedUndo(session, destination, entry.nodeId, move?.origin)
+            }
+            return copied to createdUndo
         } catch (error: Throwable) {
             if (!transactionManager.hasPendingCommit(session.directory)) {
                 createdObjectPaths.forEach(session.directory::delete)

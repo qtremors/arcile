@@ -1,4 +1,4 @@
-package dev.qtremors.arcile.feature.audio
+package dev.qtremors.arcile.core.ui.audio
 
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
@@ -8,7 +8,7 @@ import dev.qtremors.arcile.core.ui.keyboardInputField
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 
 @Composable
-internal fun AudioTextField(
+fun AudioTextField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,

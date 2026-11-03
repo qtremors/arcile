@@ -40,4 +40,8 @@ sealed class VaultFailure(message: String, cause: Throwable? = null) : Exception
     class ExternalGrantConsumerMismatch : VaultFailure("External access belongs to another application")
     class DestructiveConfirmationRequired : VaultFailure("Vault deletion confirmation does not match")
     class OperationInProgress : VaultFailure("A vault operation is still in progress")
+    /** An archive or archive selection that vault operations refuse, with a reason the UI can explain. */
+    class ArchiveRejected(val reason: ArchiveRejection) : VaultFailure("Archive rejected: ${reason.name}")
 }
+
+enum class ArchiveRejection { UNSUPPORTED_FORMAT, TOO_LARGE, TOO_MANY_ENTRIES, UNSAFE_ENTRY, UNSUPPORTED_ENTRY, DUPLICATE_NAMES }

@@ -162,7 +162,10 @@ internal class OnlyFilesTransferController(
                     destination
                 ).copy(undo = OnlyFilesUndoAction.Moved(result.completed.mapNotNull { item -> item.moveUndo })
                     .takeIf { submittedClipboard.action == VaultClipboardAction.MOVE && result.items.isNotEmpty() &&
-                        result.completed.size == result.items.size && result.completed.all { item -> item.moveUndo != null } })
+                        result.completed.size == result.items.size && result.completed.all { item -> item.moveUndo != null } }
+                    // Copies and cross-vault moves carry creation proofs instead of same-vault move proofs.
+                    ?: createdUndoAction(result,
+                        if (submittedClipboard.action == VaultClipboardAction.MOVE) OnlyFilesOperationKind.MOVE else OnlyFilesOperationKind.COPY))
             )
         }
         if (state.value.mountGeneration == mountGeneration) reload()

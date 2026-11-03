@@ -7,6 +7,7 @@ import dev.qtremors.arcile.core.archive.ArchiveSafetyPolicy
 import dev.qtremors.arcile.core.archive.TarArchiveWriter
 import dev.qtremors.arcile.core.archive.SevenZipArchiveWriter
 import dev.qtremors.arcile.core.archive.ZipArchiveWriter
+import dev.qtremors.arcile.core.vault.domain.ArchiveRejection
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES
 import dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_ENTRIES
@@ -275,7 +276,7 @@ internal class OnlyFilesArchiveController(
         suspend fun add(node: VaultNodeMetadata, parentPath: String) {
             currentCoroutineContext().ensureActive()
             if (sources.size >= VAULT_ARCHIVE_MAX_ENTRIES || node.sizeBytes > VAULT_ARCHIVE_MAX_BYTES - totalBytes) {
-                throw VaultFailure.Unavailable("Selection exceeds the vault archive limit")
+                throw VaultFailure.ArchiveRejected(ArchiveRejection.TOO_MANY_ENTRIES)
             }
             if (safeZipSegments(node.name) != listOf(node.name) || parentPath.count { it == '/' } >= 64) {
                 throw VaultFailure.InvalidPath("A selected file name cannot be stored in a ZIP")
@@ -294,7 +295,7 @@ internal class OnlyFilesArchiveController(
         }
 
         if (nodes.map { it.name.lowercase() }.distinct().size != nodes.size) {
-            throw VaultFailure.InvalidPath("Selected items have duplicate archive names")
+            throw VaultFailure.ArchiveRejected(ArchiveRejection.DUPLICATE_NAMES)
         }
         nodes.forEach { add(it, "") }
         return sources

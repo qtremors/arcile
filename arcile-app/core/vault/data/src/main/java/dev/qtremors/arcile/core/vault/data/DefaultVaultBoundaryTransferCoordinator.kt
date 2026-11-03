@@ -23,6 +23,8 @@ import dev.qtremors.arcile.core.vault.domain.VaultRecoveryQueue
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultTransferAction
 import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
+import dev.qtremors.arcile.core.vault.domain.VaultPlaintextUndo
+import dev.qtremors.arcile.core.vault.domain.VaultUndoOrigin
 import java.security.MessageDigest
 import java.io.File
 import java.io.FileOutputStream
@@ -214,6 +216,16 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         }
     }
 
+    override suspend fun undoPlaintext(
+        proofs: List<VaultPlaintextUndo>,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = withContext(Dispatchers.IO) {
+        // Serialized with exports and Trash moves so an Undo never races the operation it reverses.
+        mutex.withLock {
+            VaultPlaintextUndoRunner(repository ?: requireNotNull(legacyFileSystem), trashRepository).undo(proofs, cancellation)
+        }
+    }
+
     private suspend fun moveToTrash(
         session: BoundaryAccessSession,
         sources: List<VaultNodeRef>,
@@ -225,25 +237,31 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
             var name = ""
             var accepted = false
             var removed = emptySet<DirectoryId>()
+            var trashId: String? = null
+            var fingerprint: LocalTreeFingerprint? = null
+            var source: VaultNodeMetadata? = null
             try {
                 cancellation.throwIfCancelled()
-                val source = metadata(session, ref)
-                name = source.name
+                val current = metadata(session, ref).also { source = it }
+                name = current.name
                 progress.start(index, name)
                 trash.acceptExternalItem(
                     displayName = name,
                     writePayload = { path ->
                         val payload = File(path)
                         cancellation.throwIfCancelled()
-                        if (source.isDirectory) {
+                        if (current.isDirectory) {
                             check(payload.mkdir()) { "Unable to prepare folder for Trash" }
                             val partial = exportVaultDirectoryLocal(
-                                session, source, payload, VaultConflictResolver { VaultConflictDecision.SKIP },
+                                session, current, payload, VaultConflictResolver { VaultConflictDecision.SKIP },
                                 cancellation, progress::advance
                             )
                             check(!partial) { "Unable to export the complete folder to Trash" }
-                        } else exportLocalFile(session, source, payload, cancellation, progress::advance)
+                        } else exportLocalFile(session, current, payload, cancellation, progress::advance)
                         cancellation.throwIfCancelled()
+                        // Trash names each staged payload's folder by the item ID it publishes under.
+                        trashId = payload.parentFile?.name
+                        fingerprint = LocalTreeFingerprint.captureOrNull(payload, cancellation)
                     },
                     afterPublished = {
                         accepted = true
@@ -252,7 +270,13 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                     }
                 ).getOrThrow()
                 check(accepted) { "Main Trash did not publish the item" }
-                item(ref, name, VaultItemOutcome.COMPLETED).copy(removedFolders = removed)
+                val proof = fingerprint?.takeIf { it.restorable && trashId != null }?.let {
+                    PendingVaultPlaintextUndo(
+                        name, VaultUndoOrigin.VaultFolder(ref.vaultId, requireNotNull(source).ref.parentId, name),
+                        trashed = true, path = null, trashId = trashId, fingerprint = it
+                    )
+                }
+                item(ref, name, VaultItemOutcome.COMPLETED).copy(removedFolders = removed, plaintextUndo = proof)
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -333,9 +357,19 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 val retryUnavailable = if (exported.outcome == VaultItemOutcome.PARTIAL && exported.snapshot == null) {
                     VaultFailure.Unavailable("This export exceeded the retry limit. The vault original was kept.")
                 } else null
+                val plaintextUndo = exported.fingerprint
+                    ?.takeIf { exported.outcome == VaultItemOutcome.COMPLETED && (!move || it.restorable) }
+                    ?.let { fingerprint ->
+                        PendingVaultPlaintextUndo(
+                            source.name,
+                            if (move) VaultUndoOrigin.VaultFolder(ref.vaultId, source.ref.parentId, source.name) else null,
+                            trashed = false, path = exported.published?.path, trashId = null, fingerprint = fingerprint
+                        )
+                    }
                 results += item(ref, source.name, exported.outcome, retryUnavailable).copy(
                     removedFolders = removed,
-                    exportRetry = exported.snapshot?.takeIf { exported.outcome == VaultItemOutcome.PARTIAL }
+                    exportRetry = exported.snapshot?.takeIf { exported.outcome == VaultItemOutcome.PARTIAL },
+                    plaintextUndo = plaintextUndo
                 )
                 progress.finish(index + 1)
             } catch (error: VaultFailure.Cancelled) {
@@ -483,7 +517,12 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         }
     }
 
-    private data class LocalExport(val outcome: VaultItemOutcome, val snapshot: PendingVaultExport? = null)
+    private data class LocalExport(
+        val outcome: VaultItemOutcome,
+        val snapshot: PendingVaultExport? = null,
+        val published: File? = null,
+        val fingerprint: LocalTreeFingerprint? = null
+    )
 
     private suspend fun exportLocalTopLevel(
         session: BoundaryAccessSession,
@@ -539,9 +578,12 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                     VaultRetryCheckpoint.from(item(source.ref, source.name, VaultItemOutcome.PARTIAL).copy(exportRetry = retry))
                 }))
             publishLocal(staging, File(parent, finalName), replacing, backup)
+            // A replaced or merged destination lost its previous contents, so only new outputs can be reversed.
+            val fingerprint = if (!partial && replacing == null) LocalTreeFingerprint.captureOrNull(published, cancellation) else null
             return LocalExport(
                 if (partial) VaultItemOutcome.PARTIAL else VaultItemOutcome.COMPLETED,
-                trace.snapshot(source, published, move)
+                trace.snapshot(source, published, move),
+                published, fingerprint
             )
         } catch (error: Throwable) {
             try {

@@ -161,7 +161,11 @@ internal class OnlyFilesBoundaryController(
                         destinationPath?.startsWith('/') == true -> OnlyFilesOperationDestination.LocalDirectory(destinationPath)
                         else -> null
                     }
-                ),
+                ).copy(undo = plaintextUndoAction(result, when {
+                    trash -> OnlyFilesOperationKind.TRASH
+                    move -> OnlyFilesOperationKind.MOVE_OUT
+                    else -> OnlyFilesOperationKind.EXPORT
+                }, sourceVault)),
                 exportRetries = if (trash || it.selectedVaultId != sourceVault || sourceVault == null) it.exportRetries else {
                     it.exportRetries.filterNot { retry -> retry.source.backendIdentity in processedSources } + pendingRetries
                 }

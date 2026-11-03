@@ -771,6 +771,14 @@ internal class DefaultVaultRepository @Inject constructor(
         if (proofs.isEmpty()) Result.success(VaultUndoResult())
         else mutate(proofs.first().vaultId) { session -> undoWriter(session).moved(proofs) }
 
+    override suspend fun verifyCreated(proofs: List<VaultCreatedUndo>): Result<List<VaultNodeMetadata>> =
+        if (proofs.isEmpty()) Result.success(emptyList())
+        else mutate(proofs.first().vaultId) { session -> undoWriter(session).verifyCreated(proofs) }
+
+    override suspend fun undoCreatedCopies(proofs: List<VaultCreatedUndo>): Result<VaultUndoResult> =
+        if (proofs.isEmpty()) Result.success(VaultUndoResult())
+        else mutate(proofs.first().vaultId) { session -> undoWriter(session).createdCopies(proofs) }
+
     private fun undoWriter(session: VaultSessionRecord) = VaultUndoWriter(
         session, directoryCodec, transactionManager, { resolveStableEntry(session, it) }, { ref ->
             buildSet { deleteWithMutationLockHeld(session, ref) { add(it) } }
@@ -781,6 +789,13 @@ internal class DefaultVaultRepository @Inject constructor(
         ref: VaultNodeRef,
         expectedRevision: Long,
         content: ByteArray
+    ): Result<VaultNodeMetadata> = replaceFileContents(ref, expectedRevision, content.size.toLong()) { ByteArrayInputStream(content) }
+
+    override suspend fun replaceFileContents(
+        ref: VaultNodeRef,
+        expectedRevision: Long,
+        sizeBytes: Long,
+        open: () -> java.io.InputStream
     ): Result<VaultNodeMetadata> = mutate(ref.vaultId) { session ->
         val (parent, snapshot, existing) = resolveStableEntry(session, ref)
         val objectId = VaultObjectId.fromRandomBytes(VaultCryptography.randomBytes(32))
@@ -794,14 +809,15 @@ internal class DefaultVaultRepository @Inject constructor(
                 throw VaultFailure.Unavailable("The file changed. Reopen it before saving.")
             }
             val revision = existing.revision + 1L
-            fileCodec.writeObject(
-                session.directory, objectPath, session.id, objectId, revision,
-                contentKey, ByteArrayInputStream(content)
-            )
+            val written = open().use { input ->
+                fileCodec.writeObject(session.directory, objectPath, session.id, objectId, revision, contentKey, input)
+            }
+            // A source that changed length while streaming must not replace the previous revision.
+            if (written.sizeBytes != sizeBytes) throw VaultFailure.SourceChanged()
             val replacement = existing.copy(
                 revision = revision,
                 modifiedAtMillis = System.currentTimeMillis(),
-                sizeBytes = content.size.toLong(),
+                sizeBytes = written.sizeBytes,
                 objectId = objectId,
                 protectedKey = contentKey
             )

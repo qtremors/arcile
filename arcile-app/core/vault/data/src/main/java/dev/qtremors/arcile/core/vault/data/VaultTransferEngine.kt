@@ -21,6 +21,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
+import dev.qtremors.arcile.core.vault.domain.VaultUndoOrigin
 import java.io.InputStream
 import java.util.ArrayDeque
 
@@ -278,9 +279,20 @@ internal class VaultTransferEngine(
                         sourcePrepared.forEach { it.directoryKey.fill(0) }
                     }
                 }
-                return result(ref, resolved.entry, context.outcome()).copy(
+                val outcome = context.outcome()
+                // Only a new destination item can be reversed: replaced or merged destinations lost their originals.
+                val createdUndo = if (outcome == VaultItemOutcome.COMPLETED &&
+                    (existing == null || decision == VaultConflictDecision.KEEP_BOTH)
+                ) {
+                    val origin = if (moveSource && source.id != destination.id) {
+                        VaultUndoOrigin.VaultFolder(source.id, ref.parentId, resolved.entry.name)
+                    } else null
+                    captureCreatedUndo(destination, destinationId, cloned.nodeId, origin)
+                } else null
+                return result(ref, resolved.entry, outcome).copy(
                     removedFolders = removedSourceFolders,
-                    mergeRetry = context.retry(ref, destinationId, moveSource, resolved.entry.name)
+                    mergeRetry = context.retry(ref, destinationId, moveSource, resolved.entry.name),
+                    createdUndo = createdUndo
                 )
             } catch (error: Throwable) {
                 context.rollbackIfUncommitted()

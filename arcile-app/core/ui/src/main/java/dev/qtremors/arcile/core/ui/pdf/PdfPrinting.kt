@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.core.ui.pdf
 
 import android.content.Context
-import android.net.Uri
 import android.os.Bundle
 import android.os.CancellationSignal
 import android.os.ParcelFileDescriptor
@@ -14,25 +13,43 @@ import androidx.core.net.toUri
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStream
 
 internal fun printPdf(
     context: Context,
     reference: String,
     title: String
+): Result<Unit> {
+    val appContext = context.applicationContext
+    return printPdf(context, title) { openReference(appContext, reference) }
+}
+
+/**
+ * Prints the bytes returned by [openInput]. The print framework may request several write passes,
+ * so private sources supply a fresh protected stream each time instead of a cached plaintext copy.
+ */
+internal fun printPdf(
+    context: Context,
+    title: String,
+    openInput: () -> InputStream
 ): Result<Unit> = runCatching {
     val printManager = context.getSystemService(PrintManager::class.java)
         ?: error("Printing is unavailable")
-    printManager.print(
-        title,
-        ExistingPdfPrintAdapter(context.applicationContext, reference, title),
-        PrintAttributes.Builder().build()
-    )
+    printManager.print(title, ExistingPdfPrintAdapter(title, openInput), PrintAttributes.Builder().build())
+}
+
+private fun openReference(context: Context, reference: String): InputStream = reference.toUri().let { uri ->
+    if (uri.scheme == "content") {
+        context.contentResolver.openInputStream(uri) ?: error("Unable to read PDF")
+    } else {
+        val file = if (uri.scheme == "file") File(uri.path.orEmpty()) else File(reference)
+        FileInputStream(file)
+    }
 }
 
 private class ExistingPdfPrintAdapter(
-    private val context: Context,
-    private val reference: String,
-    private val title: String
+    private val title: String,
+    private val openInput: () -> InputStream
 ) : PrintDocumentAdapter() {
     override fun onLayout(
         oldAttributes: PrintAttributes?,
@@ -65,13 +82,17 @@ private class ExistingPdfPrintAdapter(
                 openInput().use { input ->
                     FileOutputStream(destination.fileDescriptor).use { output ->
                         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                        while (true) {
-                            if (cancellationSignal.isCanceled) return@Thread callback.onWriteCancelled()
-                            val count = input.read(buffer)
-                            if (count < 0) break
-                            output.write(buffer, 0, count)
+                        try {
+                            while (true) {
+                                if (cancellationSignal.isCanceled) return@Thread callback.onWriteCancelled()
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                output.write(buffer, 0, count)
+                            }
+                            output.flush()
+                        } finally {
+                            buffer.fill(0)
                         }
-                        output.flush()
                     }
                 }
             }.fold(
@@ -81,15 +102,6 @@ private class ExistingPdfPrintAdapter(
         }.apply {
             name = "ArcilePdfPrint"
             start()
-        }
-    }
-
-    private fun openInput() = reference.toUri().let { uri ->
-        if (uri.scheme == "content") {
-            context.contentResolver.openInputStream(uri) ?: error("Unable to read PDF")
-        } else {
-            val file = if (uri.scheme == "file") File(uri.path.orEmpty()) else File(reference)
-            FileInputStream(file)
         }
     }
 }

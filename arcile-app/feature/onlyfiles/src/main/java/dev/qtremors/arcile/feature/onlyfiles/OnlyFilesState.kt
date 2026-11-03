@@ -108,6 +108,8 @@ internal data class OnlyFilesUiState(
     val archiveProgress: OnlyFilesArchiveProgress? = null,
     val completedArchive: VaultNodeMetadata? = null,
     val operationFeedback: OnlyFilesOperationFeedback? = null,
+    /** An Undo that crosses the vault boundary, waiting for explicit confirmation. Never saved. */
+    val pendingUndoConfirmation: OnlyFilesOperationFeedback? = null,
     val message: String? = null
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }

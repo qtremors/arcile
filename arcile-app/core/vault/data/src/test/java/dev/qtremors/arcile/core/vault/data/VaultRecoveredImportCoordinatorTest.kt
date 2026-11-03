@@ -35,7 +35,7 @@ class VaultRecoveredImportCoordinatorTest {
         assertFalse(f.intent.captured.getBooleanExtra(VaultImportService.EXTRA_MOVE, true))
 
         f.coordinator.execute(f.vault, VaultPath.Root, emptyList(), "token", false) {}
-        assertEquals(VaultImportEvent.Completed(f.vault), events.last())
+        assertEquals(f.vault, (events.last() as VaultImportEvent.Completed).vaultId)
         assertTrue(f.coordinator.activeImports.value.isEmpty())
         verify(exactly = 1) { f.repository.releaseImportReservation("token") }
     }

@@ -17,6 +17,42 @@ internal data class PendingVaultMoveUndo(
     override val vaultId: VaultId get() = expected.ref.vaultId
 }
 
+/** Captured while the publishing operation still holds the vault's mutation lock. */
+internal data class PendingVaultCreatedUndo(
+    override val expected: VaultNodeMetadata,
+    override val origin: VaultUndoOrigin?,
+    val generations: Map<DirectoryId, Long>,
+    val mount: Mutex
+) : VaultCreatedUndo
+
+/**
+ * Records the published item and every folder generation beneath it. Returns null instead of failing
+ * the completed operation when the item cannot be proven, such as a tree beyond the verification limit.
+ */
+internal fun captureCreatedUndo(
+    session: VaultSessionRecord,
+    parentId: DirectoryId,
+    nodeId: NodeId,
+    origin: VaultUndoOrigin? = null
+): PendingVaultCreatedUndo? = try {
+    val parent = session.resolveDirectory(parentId)
+    try {
+        val snapshot = session.readDirectory(parent)
+        try {
+            snapshot.entries.find { it.nodeId == nodeId }?.let { entry ->
+                val generations = if (entry.kind == VaultNodeKind.DIRECTORY) {
+                    vaultSubtreeGenerations(session, entry, MAX_CREATED_UNDO_FOLDERS)
+                } else emptyMap()
+                PendingVaultCreatedUndo(entry.toMetadata(session.id, parentId), origin, generations, session.mutationMutex)
+            }
+        } finally { snapshot.clearProtectedKeys() }
+    } finally { parent.key.fill(0) }
+} catch (_: VaultFailure) {
+    null
+}
+
+internal const val MAX_CREATED_UNDO_FOLDERS = 10_000
+
 /** The repository holds the mutation lock across verification and the inverse transaction. */
 internal class VaultUndoWriter(
     private val session: VaultSessionRecord,
@@ -114,6 +150,43 @@ internal class VaultUndoWriter(
             prepared.forEach { it.directoryKey.fill(0) }
             folders.values.forEach { (directory, snapshot) -> snapshot.clearProtectedKeys(); directory.key.fill(0) }
         }
+    }
+
+    suspend fun verifyCreated(proofs: List<VaultCreatedUndo>): List<VaultNodeMetadata> {
+        require(proofs.isNotEmpty() && proofs.size <= VAULT_SELECT_ROWS_LIMIT)
+        val pending = proofs.map { it as? PendingVaultCreatedUndo ?: throw VaultFailure.ConcurrentMutation() }
+        require(pending.map { it.expected.ref.nodeId }.distinct().size == pending.size)
+        // A proof from an earlier unlock, or another vault, can never authorize this session.
+        if (pending.any { it.vaultId != session.id || it.mount !== session.mutationMutex || !it.expected.ref.capabilities.canDeletePermanently }) {
+            throw VaultFailure.ConcurrentMutation()
+        }
+        val coroutine = currentCoroutineContext()
+        var verifiedFolders = 0
+        return pending.map { proof ->
+            coroutine.ensureActive()
+            withExpected(proof.expected) { _, _, entry ->
+                if (entry.kind == VaultNodeKind.DIRECTORY) {
+                    val current = vaultSubtreeGenerations(session, entry, MAX_CREATED_UNDO_FOLDERS - verifiedFolders) {
+                        coroutine.ensureActive()
+                    }
+                    verifiedFolders += current.size
+                    if (current != proof.generations) throw VaultFailure.ConcurrentMutation()
+                } else if (proof.generations.isNotEmpty()) throw VaultFailure.ConcurrentMutation()
+                proof.expected
+            }
+        }
+    }
+
+    /** Every proof is verified before the first deletion, so one changed copy leaves all copies in place. */
+    suspend fun createdCopies(proofs: List<VaultCreatedUndo>): VaultUndoResult {
+        val verified = verifyCreated(proofs)
+        val removedNodes = linkedSetOf<NodeId>()
+        val removedFolders = linkedSetOf<DirectoryId>()
+        for (node in verified) {
+            removedFolders += delete(node.ref)
+            removedNodes += node.ref.nodeId
+        }
+        return VaultUndoResult(removedNodeIds = removedNodes, removedDirectoryIds = removedFolders)
     }
 
     private inline fun <T> withExpected(

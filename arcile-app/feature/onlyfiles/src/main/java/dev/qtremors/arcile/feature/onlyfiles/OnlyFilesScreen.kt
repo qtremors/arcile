@@ -701,6 +701,13 @@ private fun OnlyFilesScreen(
         state.pendingConflict?.let { prompt ->
             VaultConflictDialog(prompt, viewModel::resolveConflict, viewModel::cancelTransfer)
         }
+        state.pendingUndoConfirmation?.takeIf { it.belongsTo(state) }?.let { feedback ->
+            OnlyFilesUndoConfirmationDialog(
+                feedback,
+                onConfirm = { viewModel.confirmUndo(feedback) },
+                onDismiss = { viewModel.cancelUndoConfirmation(feedback) }
+            )
+        }
     }
     state.healthReport?.let {
         HealthDialog(it, state.busy, viewModel::dismissHealthReport, viewModel::recoverVaultTransactions)

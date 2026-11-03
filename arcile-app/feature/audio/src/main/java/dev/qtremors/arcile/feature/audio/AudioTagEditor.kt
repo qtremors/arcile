@@ -19,33 +19,24 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFileIO
+import dev.qtremors.arcile.core.ui.audio.AudioLyrics
+import dev.qtremors.arcile.core.ui.audio.AudioMetadataEdit
+import dev.qtremors.arcile.core.ui.audio.AudioMetadataEditor
+import dev.qtremors.arcile.core.ui.audio.AudioMetadataEditException
+import dev.qtremors.arcile.core.ui.audio.parseLrc
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.TagOptionSingleton
 import org.jaudiotagger.tag.images.ArtworkFactory
 
-internal data class AudioLyrics(val plain: String?, val syncedLrc: String?)
 
 internal typealias AudioFileDetails = dev.qtremors.arcile.core.ui.audio.AudioFileDetails
 
-internal data class AudioMetadataEdit(
-    val title: String,
-    val artist: String,
-    val album: String,
-    val albumArtist: String,
-    val genre: String,
-    val trackNumber: Int?,
-    val discNumber: Int?,
-    val year: Int?,
-    val artworkUri: String?,
-    val removeArtwork: Boolean = false,
-    val lyrics: AudioLyrics
-)
 
 /** Writes tags to the actual audio file and keeps a recovery copy until verification finishes. */
 @Singleton
 internal class AudioTagEditor @Inject constructor(
     @ApplicationContext private val context: Context
-) {
+) : AudioMetadataEditor {
     private val writeMutex = Mutex()
 
     suspend fun fileDetails(track: AudioTrack): AudioFileDetails? = withContext(Dispatchers.IO) {
@@ -71,11 +62,11 @@ internal class AudioTagEditor @Inject constructor(
         }
     }
 
-    suspend fun lyrics(track: AudioTrack): AudioLyrics = withContext(Dispatchers.IO) {
+    override suspend fun lyrics(track: AudioTrack): AudioLyrics = withContext(Dispatchers.IO) {
         val file = File(track.file.reference)
         val sidecar = lrcFile(file)
         if (sidecar.isFile && sidecar.length() > MAX_LRC_BYTES) {
-            throw IOException("Timed lyrics are too large to edit")
+            throw AudioMetadataEditException(AudioMetadataEditException.Reason.LYRICS_TOO_LARGE)
         }
         val synced = sidecar.takeIf(File::isFile)?.readText(Charsets.UTF_8)
         TagOptionSingleton.getInstance().setAndroid(true)
@@ -87,7 +78,7 @@ internal class AudioTagEditor @Inject constructor(
         )
     }
 
-    suspend fun editMetadata(track: AudioTrack, edit: AudioMetadataEdit): Result<AudioTrack> =
+    override suspend fun editMetadata(track: AudioTrack, edit: AudioMetadataEdit): Result<AudioTrack> =
         withContext(Dispatchers.IO) {
             try {
                 Result.success(writeMutex.withLock { writeAndVerify(track, edit) })
@@ -101,7 +92,7 @@ internal class AudioTagEditor @Inject constructor(
     private fun writeAndVerify(track: AudioTrack, edit: AudioMetadataEdit): AudioTrack {
         val file = File(track.file.reference)
         if (!file.isFile || !file.canRead() || !file.canWrite()) {
-            throw IOException("This audio file cannot be written. Check storage access and try again.")
+            throw AudioMetadataEditException(AudioMetadataEditException.Reason.READ_ONLY)
         }
         val sidecar = lrcFile(file)
         val recoveryDir = File(context.filesDir, "audio-tag-recovery").apply { mkdirs() }
@@ -137,9 +128,9 @@ internal class AudioTagEditor @Inject constructor(
                 try {
                     context.contentResolver.openInputStream(Uri.parse(uri))?.use { input ->
                         artwork.outputStream().use { output -> input.copyTo(output) }
-                    } ?: throw IOException("Selected artwork could not be opened")
+                    } ?: throw AudioMetadataEditException(AudioMetadataEditException.Reason.ARTWORK_UNREADABLE)
                     if (artwork.length() !in 1..MAX_ARTWORK_BYTES) {
-                        throw IOException("Artwork must be smaller than 12 MB")
+                        throw AudioMetadataEditException(AudioMetadataEditException.Reason.ARTWORK_TOO_LARGE)
                     }
                     tag.deleteArtworkField()
                     tag.setField(ArtworkFactory.createArtworkFromFile(artwork))
@@ -151,15 +142,15 @@ internal class AudioTagEditor @Inject constructor(
             audio.commit()
             val lrc = edit.lyrics.syncedLrc
             if (lrc == null) {
-                if (sidecar.isFile && !sidecar.delete()) throw IOException("Timed lyrics could not be removed")
+                if (sidecar.isFile && !sidecar.delete()) throw AudioMetadataEditException(AudioMetadataEditException.Reason.LYRICS_NOT_SAVED)
             } else {
                 if (lrc.toByteArray(Charsets.UTF_8).size > MAX_LRC_BYTES) {
-                    throw IOException("Timed lyrics are too large")
+                    throw AudioMetadataEditException(AudioMetadataEditException.Reason.LYRICS_TOO_LARGE)
                 }
                 sidecar.writeText(lrc, Charsets.UTF_8)
             }
             val verified = AudioFileIO.read(file).tag
-                ?: throw IOException("Written tags could not be read back")
+                ?: throw AudioMetadataEditException(AudioMetadataEditException.Reason.VERIFICATION_FAILED)
             fun matches(key: FieldKey, expected: String): Boolean =
                 verified.getFirst(key).orEmpty().trim() == expected.trim()
             if (!matches(FieldKey.TITLE, edit.title) ||
@@ -174,7 +165,7 @@ internal class AudioTagEditor @Inject constructor(
                 (edit.artworkUri != null && verified.artworkList.isEmpty()) ||
                 (edit.removeArtwork && verified.artworkList.isNotEmpty()) ||
                 (lrc != null && sidecar.readText(Charsets.UTF_8) != lrc)
-            ) throw IOException("Written music details did not pass verification")
+            ) throw AudioMetadataEditException(AudioMetadataEditException.Reason.VERIFICATION_FAILED)
             runCatching {
                 MediaScannerConnection.scanFile(context, arrayOf(file.absolutePath), null, null)
             }

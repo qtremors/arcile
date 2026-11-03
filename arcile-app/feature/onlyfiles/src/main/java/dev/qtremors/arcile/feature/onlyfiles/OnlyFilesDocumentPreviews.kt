@@ -22,6 +22,8 @@ import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
+import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -94,6 +96,7 @@ internal fun VaultTextEditor(
     modifier: Modifier = Modifier
 ) {
     var revision by remember(node.ref) { mutableLongStateOf(node.revision) }
+    val context = LocalContext.current
     StandaloneTextEditor(
         reference = node.toSharedFileModel().reference,
         title = node.name,
@@ -104,11 +107,18 @@ internal fun VaultTextEditor(
         onShare = onShare,
         onOpenWith = onOpenWith,
         modifier = modifier,
-        loadContent = { readVaultText(node.ref, viewModel::openReader) },
+        // The shared editor shows exception text, so vault failures are resolved to localized messages first.
+        loadContent = {
+            try {
+                readVaultText(node.ref, viewModel::openReader)
+            } catch (error: Exception) {
+                throw localizedVaultError(error, context)
+            }
+        },
         persistContent = { text ->
             viewModel.saveVaultText(node.ref, revision, text).map { saved ->
                 revision = saved.revision
-            }
+            }.recoverCatching { error -> throw localizedVaultError(error, context) }
         },
         privateSession = true
     )
@@ -119,14 +129,16 @@ private suspend fun readVaultText(
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
 ): String = withContext(Dispatchers.IO) {
     openReader(ref).getOrThrow().use { reader ->
-        require(reader.sizeBytes in 0..MAX_VAULT_EDITOR_BYTES.toLong()) { "This file exceeds the text editor limit." }
+        if (reader.sizeBytes !in 0..MAX_VAULT_EDITOR_BYTES.toLong()) {
+            throw VaultFailure.FileTooLarge(reader.sizeBytes, MAX_VAULT_EDITOR_BYTES.toLong())
+        }
         val bytes = ByteArray(reader.sizeBytes.toInt())
         try {
             var offset = 0
             while (offset < bytes.size) {
                 ensureActive()
                 val read = reader.readAt(offset.toLong(), bytes, offset, bytes.size - offset)
-                check(read > 0) { "The encrypted file ended before its declared size." }
+                if (read <= 0) throw VaultFailure.SourceChanged()
                 offset += read
             }
             bytes.decodeToString(throwOnInvalidSequence = true).removePrefix("\uFEFF")
@@ -137,3 +149,8 @@ private suspend fun readVaultText(
 }
 
 internal const val MAX_VAULT_EDITOR_BYTES = 4 * 1024 * 1024
+
+/** Keeps cancellation intact; any other failure becomes its localized vault message for display. */
+private fun localizedVaultError(error: Throwable, context: Context): Throwable =
+    if (error is kotlinx.coroutines.CancellationException) error
+    else IllegalStateException(vaultOperationErrorText(error, R.string.onlyfiles_error_operation).asString(context), error)

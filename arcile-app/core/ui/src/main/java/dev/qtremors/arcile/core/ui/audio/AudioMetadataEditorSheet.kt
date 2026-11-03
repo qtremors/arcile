@@ -1,4 +1,6 @@
-package dev.qtremors.arcile.feature.audio
+package dev.qtremors.arcile.core.ui.audio
+
+import dev.qtremors.arcile.core.ui.R
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,26 +52,29 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun AudioMetadataEditorSheet(
+fun AudioMetadataEditorSheet(
     track: AudioTrack,
-    editor: AudioTagEditor,
+    editor: AudioMetadataEditor,
     onSaved: (AudioTrack) -> Unit,
     onDismiss: () -> Unit,
-    lyricsOnly: Boolean = false
+    lyricsOnly: Boolean = false,
+    // Private music details never enter saved instance state and describe encrypted saves.
+    privateSession: Boolean = false
 ) {
     val trackKey = track.file.reference
-    var title by rememberSaveable(trackKey) { mutableStateOf(track.title) }
-    var artist by rememberSaveable(trackKey) { mutableStateOf(track.artist.orEmpty()) }
-    var album by rememberSaveable(trackKey) { mutableStateOf(track.album.orEmpty()) }
-    var albumArtist by rememberSaveable(trackKey) { mutableStateOf(track.albumArtist.orEmpty()) }
-    var genre by rememberSaveable(trackKey) { mutableStateOf(track.genre.orEmpty()) }
-    var trackNumber by rememberSaveable(trackKey) { mutableStateOf(track.trackNumber?.toString().orEmpty()) }
-    var discNumber by rememberSaveable(trackKey) { mutableStateOf(track.discNumber?.toString().orEmpty()) }
-    var year by rememberSaveable(trackKey) { mutableStateOf(track.year?.toString().orEmpty()) }
-    var plainLyrics by rememberSaveable(trackKey) { mutableStateOf("") }
-    var syncedLyrics by rememberSaveable(trackKey) { mutableStateOf("") }
-    var artworkUri by rememberSaveable(trackKey) { mutableStateOf<String?>(null) }
-    var removeArtwork by rememberSaveable(trackKey) { mutableStateOf(false) }
+    val resources = androidx.compose.ui.platform.LocalResources.current
+    var title by editorState(privateSession, trackKey) { mutableStateOf(track.title) }
+    var artist by editorState(privateSession, trackKey) { mutableStateOf(track.artist.orEmpty()) }
+    var album by editorState(privateSession, trackKey) { mutableStateOf(track.album.orEmpty()) }
+    var albumArtist by editorState(privateSession, trackKey) { mutableStateOf(track.albumArtist.orEmpty()) }
+    var genre by editorState(privateSession, trackKey) { mutableStateOf(track.genre.orEmpty()) }
+    var trackNumber by editorState(privateSession, trackKey) { mutableStateOf(track.trackNumber?.toString().orEmpty()) }
+    var discNumber by editorState(privateSession, trackKey) { mutableStateOf(track.discNumber?.toString().orEmpty()) }
+    var year by editorState(privateSession, trackKey) { mutableStateOf(track.year?.toString().orEmpty()) }
+    var plainLyrics by editorState(privateSession, trackKey) { mutableStateOf("") }
+    var syncedLyrics by editorState(privateSession, trackKey) { mutableStateOf("") }
+    var artworkUri by editorState(privateSession, trackKey) { mutableStateOf<String?>(null) }
+    var removeArtwork by editorState(privateSession, trackKey) { mutableStateOf(false) }
     var loading by remember { mutableStateOf(false) }
     var lyricsLoaded by remember(trackKey) { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
@@ -86,7 +91,7 @@ internal fun AudioMetadataEditorSheet(
             plainLyrics = lyrics.plain.orEmpty()
             syncedLyrics = lyrics.syncedLrc.orEmpty()
             lyricsLoaded = true
-        }.onFailure { error = it.message ?: "Lyrics could not be loaded" }
+        }.onFailure { error = resources.getString(R.string.audio_lyrics_load_failed) }
         loading = false
     }
 
@@ -96,11 +101,11 @@ internal fun AudioMetadataEditorSheet(
                 it.isNotBlank() && it.toIntOrNull() == null
             }
         ) {
-            error = "Track, disc, and year must be valid numbers"
+            error = resources.getString(R.string.audio_edit_invalid_numbers)
             return
         }
         if (syncedLyrics.isNotBlank() && parseLrc(syncedLyrics).isEmpty()) {
-            error = "Timed lyrics need at least one [mm:ss.xx] cue"
+            error = resources.getString(R.string.audio_edit_invalid_lrc)
             return
         }
         val edit = AudioMetadataEdit(
@@ -124,7 +129,8 @@ internal fun AudioMetadataEditorSheet(
         scope.launch {
             editor.editMetadata(track, edit).onSuccess(onSaved)
                 .onFailure { failure ->
-                    error = failure.message ?: "The edit could not be saved"
+                    error = (failure as? AudioMetadataEditException)?.let { resources.getString(it.reason.message) }
+                        ?: failure.message ?: resources.getString(R.string.audio_edit_failed)
                 }
             saving = false
         }
@@ -217,7 +223,7 @@ internal fun AudioMetadataEditorSheet(
                     style = MaterialTheme.typography.bodyMedium)
             }
             Text(
-                stringResource(R.string.audio_file_write_note),
+                stringResource(if (privateSession) R.string.audio_vault_write_note else R.string.audio_file_write_note),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -247,3 +253,9 @@ private fun AudioEditorSection(title: String, content: @Composable ColumnScope.(
         content()
     }
 }
+
+/** Saveable for ordinary files; session-only for private sources so details are not written to saved state. */
+@Composable
+private fun <T> editorState(privateSession: Boolean, key: String, init: () -> androidx.compose.runtime.MutableState<T>):
+    androidx.compose.runtime.MutableState<T> =
+    if (privateSession) remember(key) { init() } else rememberSaveable(key) { init() }

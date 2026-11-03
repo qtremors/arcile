@@ -65,6 +65,13 @@ interface VaultFileSystem : VaultArchiveOperations, VaultUndoOperations {
         expectedRevision: Long,
         content: ByteArray
     ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("File editing is unavailable"))
+    /** Streams a new encrypted revision; fails without publishing when the stream length differs from [sizeBytes]. */
+    suspend fun replaceFileContents(
+        ref: VaultNodeRef,
+        expectedRevision: Long,
+        sizeBytes: Long,
+        open: () -> java.io.InputStream
+    ): Result<VaultNodeMetadata> = Result.failure(VaultFailure.Unavailable("File editing is unavailable"))
     suspend fun deletePermanently(ref: VaultNodeRef): Result<Unit>
     suspend fun deleteAndReportFolders(ref: VaultNodeRef): Result<Set<DirectoryId>> =
         deletePermanently(ref).map { setOfNotNull(ref.directoryId) }

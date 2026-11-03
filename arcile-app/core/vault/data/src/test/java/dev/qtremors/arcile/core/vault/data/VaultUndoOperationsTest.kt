@@ -357,6 +357,121 @@ class VaultUndoOperationsTest {
         }
     }
 
+    @Test fun `copy undo removes the unchanged copy and keeps the original`() = runTest {
+        fixture { f ->
+            val original = f.write(f.file("Original.txt"), "keep original")
+            val target = f.folder("Target")
+            val targetId = requireNotNull(target.ref.directoryId)
+            val copied = f.repository.copyWithinVault(listOf(original.ref), targetId, replace, neverCancelled).completed.single()
+            val proof = requireNotNull(copied.createdUndo)
+            assertNull(proof.origin)
+
+            val undone = f.repository.undoCreatedCopies(listOf(proof)).getOrThrow()
+
+            assertEquals(setOf(proof.expected.ref.nodeId), undone.removedNodeIds)
+            assertTrue(f.rows(targetId).isEmpty())
+            assertEquals("keep original", f.bytes(f.rows().single { it.name == original.name }).decodeToString())
+        }
+    }
+
+    @Test fun `copied folder undo removes nested contents and reports every removed folder`() = runTest {
+        fixture { f ->
+            val folder = f.folder("Docs")
+            val nested = f.folder("Nested", requireNotNull(folder.ref.directoryId))
+            f.write(f.file("Deep.txt", requireNotNull(nested.ref.directoryId)), "deep")
+            val target = f.folder("Target")
+            val targetId = requireNotNull(target.ref.directoryId)
+            val proof = requireNotNull(f.repository.copyWithinVault(listOf(folder.ref), targetId, replace, neverCancelled)
+                .completed.single().createdUndo)
+
+            val undone = f.repository.undoCreatedCopies(listOf(proof)).getOrThrow()
+
+            assertEquals(2, undone.removedDirectoryIds.size)
+            assertTrue(f.rows(targetId).isEmpty())
+            assertEquals(1, f.rows(requireNotNull(nested.ref.directoryId)).size)
+        }
+    }
+
+    @Test fun `a change anywhere inside a copied folder blocks the copy undo`() = runTest {
+        fixture { f ->
+            val folder = f.folder("Docs")
+            val nested = f.folder("Nested", requireNotNull(folder.ref.directoryId))
+            val target = f.folder("Target")
+            val targetId = requireNotNull(target.ref.directoryId)
+            val proof = requireNotNull(f.repository.copyWithinVault(listOf(folder.ref), targetId, replace, neverCancelled)
+                .completed.single().createdUndo)
+            val copiedNested = f.rows(requireNotNull(f.rows(targetId).single().ref.directoryId)).single()
+            val added = f.write(f.file("Added later.txt", requireNotNull(copiedNested.ref.directoryId)), "user data")
+
+            assertTrue(f.repository.undoCreatedCopies(listOf(proof)).exceptionOrNull() is VaultFailure.ConcurrentMutation)
+
+            assertEquals(1, f.rows(targetId).size)
+            assertEquals("user data", f.bytes(added).decodeToString())
+            assertEquals(nested.name, copiedNested.name)
+        }
+    }
+
+    @Test fun `one changed copy blocks the whole copy undo without deleting any copy`() = runTest {
+        fixture { f ->
+            val first = f.file("A.txt")
+            val second = f.file("B.txt")
+            val target = f.folder("Target")
+            val targetId = requireNotNull(target.ref.directoryId)
+            val copied = f.repository.copyWithinVault(listOf(first.ref, second.ref), targetId, replace, neverCancelled)
+            f.write(f.rows(targetId).single { it.name == "B.txt" }, "edited copy")
+
+            assertTrue(f.repository.undoCreatedCopies(copied.completed.map { requireNotNull(it.createdUndo) }).isFailure)
+
+            assertEquals(setOf("A.txt", "B.txt"), f.rows(targetId).map { it.name }.toSet())
+        }
+    }
+
+    @Test fun `replaced destinations never receive a copy proof`() = runTest {
+        fixture { f ->
+            val source = f.file("Same.txt")
+            val target = f.folder("Target")
+            val targetId = requireNotNull(target.ref.directoryId)
+            f.file(source.name, targetId)
+            val copied = f.repository.copyWithinVault(listOf(source.ref), targetId, replace, neverCancelled).completed.single()
+            assertNull(copied.createdUndo)
+        }
+    }
+
+    @Test fun `locking expires a copy proof even after unlocking the same vault`() = runTest {
+        fixture { f ->
+            val source = f.file("Original.txt")
+            val target = f.folder("Target")
+            val targetId = requireNotNull(target.ref.directoryId)
+            val proof = requireNotNull(f.repository.copyWithinVault(listOf(source.ref), targetId, replace, neverCancelled)
+                .completed.single().createdUndo)
+            f.repository.lockAll()
+            f.repository.unlock(f.vault, "password".toCharArray()).getOrThrow()
+            assertTrue(f.repository.undoCreatedCopies(listOf(proof)).exceptionOrNull() is VaultFailure.ConcurrentMutation)
+            assertEquals(1, f.rows(targetId).size)
+        }
+    }
+
+    @Test fun `cross-vault move proof names its source folder and verifies the unchanged destination`() = runTest {
+        fixture { f ->
+            val other = f.repository.createAppPrivateVault("Other", "password".toCharArray()).getOrThrow()
+            val parent = f.folder("Source")
+            val parentId = requireNotNull(parent.ref.directoryId)
+            val source = f.write(f.file("Cross.txt", parentId), "moving")
+            val moved = f.repository.transferAcrossVaults(listOf(source.ref), other, DirectoryId.Root, true, replace, neverCancelled)
+            val proof = requireNotNull(moved.completed.single().createdUndo)
+
+            assertEquals(VaultUndoOrigin.VaultFolder(f.vault, parentId, source.name), proof.origin)
+            assertEquals(other, proof.vaultId)
+            assertEquals(listOf(proof.expected), f.repository.verifyCreated(listOf(proof)).getOrThrow())
+
+            val back = f.repository.transferAcrossVaults(listOf(proof.expected.ref), f.vault, parentId, true,
+                VaultConflictResolver { VaultConflictDecision.SKIP }, neverCancelled)
+            assertEquals(1, back.completed.size)
+            assertEquals("moving", f.bytes(f.rows(parentId).single()).decodeToString())
+            assertTrue(f.repository.listDirectory(other, DirectoryId.Root).getOrThrow().items.isEmpty())
+        }
+    }
+
     private inner class Fixture {
         private val dispatcher = UnconfinedTestDispatcher()
         val scope = CoroutineScope(SupervisorJob() + dispatcher)

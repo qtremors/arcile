@@ -45,7 +45,11 @@ internal class OnlyFilesImportController(
                             ) else UiText.StringResource(R.string.onlyfiles_import_complete),
                             ArcileFeedbackSeverity.Success,
                             request?.destination?.mount ?: state.value.mountGeneration,
-                            request?.destination?.target()
+                            request?.destination?.target(),
+                            // Only imports submitted in this mount can be reversed from their feedback.
+                            undo = event.result?.takeIf { request != null }?.let { result ->
+                                createdUndoAction(result, if (request?.move == true) OnlyFilesOperationKind.MOVE_IN else OnlyFilesOperationKind.IMPORT)
+                            }
                         )
                     }
                     is VaultImportEvent.Partial -> finish(event.vaultId) { request ->

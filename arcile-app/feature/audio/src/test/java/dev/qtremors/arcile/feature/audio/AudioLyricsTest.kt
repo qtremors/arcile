@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.ui.audio.TimedLyricLine
+import dev.qtremors.arcile.core.ui.audio.activeLyricIndex
+import dev.qtremors.arcile.core.ui.audio.parseLrc
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

@@ -200,6 +200,134 @@ class OnlyFilesUndoControllerTest {
         assertFalse(dismissed)
     }
 
+    @Test fun `copy undo removes the proven copies in one request without confirmation`() = runTest {
+        val f = Fixture(this)
+        val proofs = listOf(f.created())
+        val feedback = f.setUndo(OnlyFilesUndoAction.Copied(proofs))
+        coEvery { f.files.undoCreatedCopies(proofs) } returns Result.success(VaultUndoResult(removedNodeIds = setOf(f.node.ref.nodeId)))
+
+        f.controller.undo(feedback)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { f.files.undoCreatedCopies(proofs) }
+        assertNull(f.state.value.pendingUndoConfirmation)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_undo_complete), f.state.value.operationFeedback?.message)
+    }
+
+    @Test fun `plaintext undo waits for confirmation before touching exported files`() = runTest {
+        val f = Fixture(this)
+        val proofs = listOf(f.plaintext())
+        val feedback = f.setUndo(OnlyFilesUndoAction.Plaintext(proofs, OnlyFilesOperationKind.EXPORT, f.vault))
+        coEvery { f.boundary.undoPlaintext(proofs, any()) } returns VaultBatchResult(listOf(
+            VaultItemResult("Exported.txt", "Exported.txt", VaultItemOutcome.COMPLETED)))
+
+        f.controller.undo(feedback)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { f.boundary.undoPlaintext(any(), any()) }
+        assertEquals(feedback, f.state.value.pendingUndoConfirmation)
+        assertNull(f.state.value.operationFeedback)
+
+        f.controller.undo(feedback, confirmed = true)
+        advanceUntilIdle()
+        coVerify(exactly = 1) { f.boundary.undoPlaintext(proofs, any()) }
+        assertNull(f.state.value.pendingUndoConfirmation)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_undo_complete), f.state.value.operationFeedback?.message)
+    }
+
+    @Test fun `cancelling a boundary undo confirmation discards it without running`() = runTest {
+        val f = Fixture(this)
+        val feedback = f.setUndo(OnlyFilesUndoAction.Plaintext(listOf(f.plaintext()), OnlyFilesOperationKind.EXPORT, f.vault))
+        f.controller.undo(feedback)
+        f.controller.cancelConfirmation(feedback.id)
+        f.controller.undo(feedback, confirmed = true)
+        advanceUntilIdle()
+        assertNull(f.state.value.pendingUndoConfirmation)
+        coVerify(exactly = 0) { f.boundary.undoPlaintext(any(), any()) }
+    }
+
+    @Test fun `a confirmation from an earlier mount cannot run after the vault reopens`() = runTest {
+        val f = Fixture(this)
+        val feedback = f.setUndo(OnlyFilesUndoAction.Plaintext(listOf(f.plaintext()), OnlyFilesOperationKind.TRASH, f.vault))
+        f.controller.undo(feedback)
+        f.state.update { it.copy(mountGeneration = 13) }
+        f.controller.undo(feedback, confirmed = true)
+        advanceUntilIdle()
+        coVerify(exactly = 0) { f.boundary.undoPlaintext(any(), any()) }
+    }
+
+    @Test fun `move in undo verifies the vault copy then exports it back with move semantics`() = runTest {
+        val f = Fixture(this)
+        val proofs = listOf(f.created(origin = VaultUndoOrigin.LocalFolder("/storage/emulated/0/Download", f.node.name)))
+        val feedback = f.setUndo(OnlyFilesUndoAction.MovedIn(proofs))
+        val reservation = mockk<VaultBoundaryTransferReservation>(relaxed = true)
+        coEvery { f.files.verifyCreated(proofs) } returns Result.success(listOf(f.node))
+        every { f.boundary.prepareExport(listOf(f.node.ref)) } returns Result.success(reservation)
+        coEvery { f.boundary.exportToDestination(reservation, "/storage/emulated/0/Download", true, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult("file", f.node.name, VaultItemOutcome.COMPLETED)))
+
+        f.controller.undo(feedback)
+        f.controller.undo(feedback, confirmed = true)
+        advanceUntilIdle()
+
+        coVerifyOrder {
+            f.files.verifyCreated(proofs)
+            f.boundary.exportToDestination(reservation, "/storage/emulated/0/Download", true, any(), any())
+        }
+        assertEquals(setOf(f.node.ref.nodeId), f.state.value.operationFeedback?.undoResult?.removedNodeIds)
+    }
+
+    @Test fun `cross-vault move undo returns items and restores a keep-both name`() = runTest {
+        val f = Fixture(this)
+        val source = VaultId.of("source")
+        val parent = DirectoryId.of("parent")
+        val renamed = f.node.copy(name = "Created (1).txt")
+        val proofs = listOf(f.created(renamed, VaultUndoOrigin.VaultFolder(source, parent, f.node.name)))
+        val feedback = f.setUndo(OnlyFilesUndoAction.MovedAcrossVaults(proofs))
+        val returned = renamed.copy(ref = VaultNodeRef(source, NodeId.of("returned"), parent, VaultNodeCapabilities()))
+        coEvery { f.files.verifyCreated(proofs) } returns Result.success(listOf(renamed))
+        coEvery { f.transfers.transferAcrossVaults(listOf(renamed.ref), source, parent, true, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult("file", renamed.name, VaultItemOutcome.COMPLETED,
+                createdUndo = f.created(returned))))
+        coEvery { f.files.rename(returned.ref, f.node.name) } returns Result.success(returned.copy(name = f.node.name))
+
+        f.controller.undo(feedback)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { f.files.rename(returned.ref, f.node.name) }
+        assertEquals(UiText.StringResource(R.string.onlyfiles_undo_complete), f.state.value.operationFeedback?.message)
+    }
+
+    @Test fun `a skipped return reports a name conflict instead of success`() = runTest {
+        val f = Fixture(this)
+        val proofs = listOf(f.created(origin = VaultUndoOrigin.VaultFolder(VaultId.of("source"), DirectoryId.Root, f.node.name)))
+        val feedback = f.setUndo(OnlyFilesUndoAction.MovedAcrossVaults(proofs))
+        coEvery { f.files.verifyCreated(proofs) } returns Result.success(listOf(f.node))
+        coEvery { f.transfers.transferAcrossVaults(any(), any(), any(), true, any(), any()) } returns
+            VaultBatchResult(listOf(VaultItemResult("file", f.node.name, VaultItemOutcome.SKIPPED)))
+
+        f.controller.undo(feedback)
+        advanceUntilIdle()
+
+        assertEquals(ArcileFeedbackSeverity.Error, f.state.value.operationFeedback?.severity)
+        assertEquals(UiText.StringResource(R.string.onlyfiles_operation_conflict), f.state.value.operationFeedback?.message)
+    }
+
+    @Test fun `batch helpers only offer undo when every item has a matching proof`() {
+        val f = Fixture(TestScope())
+        val complete = VaultBatchResult(listOf(VaultItemResult("a", "A", VaultItemOutcome.COMPLETED, createdUndo = f.created())))
+        assertTrue(createdUndoAction(complete, OnlyFilesOperationKind.COPY) is OnlyFilesUndoAction.Copied)
+        assertNull(createdUndoAction(complete, OnlyFilesOperationKind.MOVE_IN))
+        val mixed = VaultBatchResult(complete.items + VaultItemResult("b", "B", VaultItemOutcome.COMPLETED))
+        assertNull(createdUndoAction(mixed, OnlyFilesOperationKind.COPY))
+        val skipped = VaultBatchResult(complete.items + VaultItemResult("b", "B", VaultItemOutcome.SKIPPED))
+        assertNull(createdUndoAction(skipped, OnlyFilesOperationKind.COPY))
+        val exported = VaultBatchResult(listOf(VaultItemResult("a", "A", VaultItemOutcome.COMPLETED, plaintextUndo = f.plaintext())))
+        assertTrue(plaintextUndoAction(exported, OnlyFilesOperationKind.EXPORT, f.vault)!!.requiresConfirmation)
+        val foreign = VaultBatchResult(listOf(VaultItemResult("a", "A", VaultItemOutcome.COMPLETED,
+            plaintextUndo = f.plaintext(VaultUndoOrigin.VaultFolder(VaultId.of("other"), DirectoryId.Root, "A")))))
+        assertNull(plaintextUndoAction(foreign, OnlyFilesOperationKind.MOVE_OUT, f.vault))
+    }
+
     private class Fixture(scope: TestScope) {
         val vault = VaultId.of("vault")
         val node = VaultNodeMetadata(VaultNodeRef(vault, NodeId.of("file"), DirectoryId.Root, VaultNodeCapabilities()),
@@ -210,10 +338,21 @@ class OnlyFilesUndoControllerTest {
         var reloads = 0
         val navigations = mutableListOf<DirectoryId>()
         val removedFolders = mutableListOf<Pair<VaultId, Set<DirectoryId>>>()
+        val transfers = mockk<VaultTransferCoordinator>()
+        val boundary = mockk<VaultBoundaryTransferCoordinator>()
         val controller = OnlyFilesUndoController(files, state, { block -> scope.launch {
             state.update { it.copy(busy = true) }
             try { block() } finally { state.update { it.copy(busy = false) } }
-        } }, { reloads++ }, { vault, ids -> removedFolders += vault to ids }, { navigations += it })
+        } }, { reloads++ }, { vault, ids -> removedFolders += vault to ids }, { navigations += it }, transfers, boundary)
+        fun created(node: VaultNodeMetadata = this.node, origin: VaultUndoOrigin? = null) = object : VaultCreatedUndo {
+            override val expected = node
+            override val origin = origin
+        }
+        fun plaintext(origin: VaultUndoOrigin.VaultFolder? = null) = object : VaultPlaintextUndo {
+            override val displayName = "Exported.txt"
+            override val origin = origin
+            override val trashed = false
+        }
         fun setUndo(action: OnlyFilesUndoAction): OnlyFilesOperationFeedback = feedback.copy(undo = action).also { next ->
             state.value = state.value.copy(operationFeedback = next)
         }

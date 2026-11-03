@@ -27,6 +27,12 @@
             android:name=".AudioEditorActivity"
             android:exported="false"
             android:label="@string/audio_editor_title"
-            android:theme="@style/Theme.Arcile.AudioEditor" />
+            android:theme="@style/Theme.Arcile.AudioEditor">
+            <!-- Same-package only: callers set this app as the explicit package and pass an opaque session ID. -->
+            <intent-filter>
+                <action android:name="dev.qtremors.arcile.action.EDIT_PRIVATE_AUDIO" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
     </application>
 </manifest>
