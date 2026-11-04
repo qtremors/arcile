@@ -129,7 +129,7 @@ class DefaultTrashManager(
         requireManagedTrashDirectory(volume, trash)
         for (stage in stages.listFiles().orEmpty()) {
             val id = stage.name
-            if (runCatching { UUID.fromString(id).toString() }.getOrNull() != id) continue
+            if (runCatchingPreservingCancellation { UUID.fromString(id).toString() }.getOrNull() != id) continue
             if (!Files.isDirectory(stage.toPath(), LinkOption.NOFOLLOW_LINKS)) continue
             val stagedMetadata = File(stage, "metadata.json")
             val payloadWasMoved = Files.isRegularFile(stagedMetadata.toPath(), LinkOption.NOFOLLOW_LINKS) &&

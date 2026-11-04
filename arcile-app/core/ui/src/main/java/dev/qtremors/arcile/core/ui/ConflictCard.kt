@@ -425,7 +425,7 @@ private fun ThumbnailFallback(
         Icon(
             imageVector = getFileIconVector(
                 file,
-                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
             ),
             contentDescription = null,
             tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,

@@ -146,7 +146,7 @@ private fun ClipboardFileItem(
             Icon(
                 imageVector = dev.qtremors.arcile.core.ui.getFileIconVector(
                     file,
-                    dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                    dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
                 ),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,

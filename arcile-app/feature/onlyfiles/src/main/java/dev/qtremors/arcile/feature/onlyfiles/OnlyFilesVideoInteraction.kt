@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import android.media.MediaDataSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -25,13 +24,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import dev.qtremors.arcile.core.ui.metadata.readVideoVisualMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 internal class OnlyFilesVideoInteraction(
     private val viewModel: OnlyFilesViewModel,
@@ -166,22 +162,5 @@ internal class OnlyFilesVideoInteraction(
                 onClosed()
             }
         }
-    }
-}
-
-internal suspend fun readVaultVideoMetadata(
-    node: VaultNodeMetadata,
-    file: FileModel,
-    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
-) = withContext(Dispatchers.IO) {
-    val reader = openReader(node.ref).getOrNull() ?: return@withContext null
-    reader.use {
-        val source = object : MediaDataSource() {
-            override fun getSize(): Long = reader.sizeBytes
-            override fun readAt(position: Long, buffer: ByteArray, offset: Int, size: Int): Int =
-                reader.readAt(position, buffer, offset, size)
-            override fun close() = Unit
-        }
-        readVideoVisualMetadata(file.reference, reader.sizeBytes, file.mimeType) { it.setDataSource(source) }
     }
 }

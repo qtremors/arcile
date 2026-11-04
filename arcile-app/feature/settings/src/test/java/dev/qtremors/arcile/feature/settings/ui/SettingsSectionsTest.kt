@@ -21,6 +21,7 @@ import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.ui.theme.FileDetailVisibility
 import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.core.ui.theme.ThemePreset
 import dev.qtremors.arcile.core.ui.testing.ArcileTestTheme
@@ -179,13 +180,52 @@ class SettingsSectionsTest {
     }
 
     @Test
-    fun `folder icon setting updates independently`() {
+    fun `folder icon settings update independently`() {
         val original = UiPreferences(marqueeFilenames = true)
-        val updated = original.withFolderIcons(true)
+        val special = original.withSpecialFolderIcons(true)
+        val appOnly = original.withAppFolderIcons(true)
+        val both = special.withAppFolderIcons(true)
 
-        assertFalse(original.folderIconsEnabled)
-        assertTrue(updated.folderIconsEnabled)
-        assertTrue(updated.marqueeFilenames)
+        assertFalse(original.specialFolderIconsEnabled)
+        assertFalse(original.appFolderIconsEnabled)
+        assertTrue(special.specialFolderIconsEnabled)
+        assertFalse(special.appFolderIconsEnabled)
+        assertFalse(appOnly.specialFolderIconsEnabled)
+        assertTrue(appOnly.appFolderIconsEnabled)
+        assertTrue(both.specialFolderIconsEnabled && both.appFolderIconsEnabled)
+        assertFalse(both.withSpecialFolderIcons(false).specialFolderIconsEnabled)
+        assertTrue(both.withSpecialFolderIcons(false).appFolderIconsEnabled)
+        assertTrue(special.marqueeFilenames)
+    }
+
+    @Test
+    fun `plain folder icons clear special and app while those combine`() {
+        val both = UiPreferences()
+            .withFolderIconChoice(FolderIconChoice.SPECIAL, true)
+            .withFolderIconChoice(FolderIconChoice.APP, true)
+
+        assertTrue(UiPreferences().isFolderIconChoiceSelected(FolderIconChoice.PLAIN))
+        assertFalse(both.isFolderIconChoiceSelected(FolderIconChoice.PLAIN))
+        assertTrue(both.isFolderIconChoiceSelected(FolderIconChoice.SPECIAL))
+        assertTrue(both.isFolderIconChoiceSelected(FolderIconChoice.APP))
+        val plain = both.withFolderIconChoice(FolderIconChoice.PLAIN, true)
+        assertTrue(plain.isFolderIconChoiceSelected(FolderIconChoice.PLAIN))
+        assertFalse(plain.specialFolderIconsEnabled || plain.appFolderIconsEnabled)
+        assertEquals(plain, plain.withFolderIconChoice(FolderIconChoice.PLAIN, false))
+    }
+
+    @Test
+    fun `file detail buttons toggle one detail each`() {
+        val details = FileDetailVisibility()
+            .with(FileDetailChoice.COUNT, false)
+            .with(FileDetailChoice.TIME, false)
+
+        assertEquals(FileDetailVisibility(itemCount = false, time = false), details)
+        assertTrue(details.isSelected(FileDetailChoice.SIZE))
+        assertFalse(details.isSelected(FileDetailChoice.COUNT))
+        assertFalse(
+            FileDetailChoice.entries.fold(details) { acc, choice -> acc.with(choice, false) }.let { it.showsStats || it.showsTimestamp }
+        )
     }
 
     @Test

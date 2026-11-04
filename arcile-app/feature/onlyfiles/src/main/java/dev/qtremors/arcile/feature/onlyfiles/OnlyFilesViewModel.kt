@@ -89,6 +89,10 @@ internal class OnlyFilesViewModel @Inject constructor(
     private val archives by lazy {
         OnlyFilesArchiveController(fileSystem, _state, viewModelScope, ::reload, ::showError, ::onFoldersDeleted)
     }
+    private val externalGrants by lazy { OnlyFilesExternalGrants(externalAccessManager) }
+    private val audioEditing by lazy {
+        OnlyFilesAudioEditing(fileSystem, repository.unlockedVaultIds, _state, viewModelScope, ::showError) { browser.refresh() }
+    }
     private val undo by lazy {
         OnlyFilesUndoController(fileSystem, _state, ::runBusy, ::reload, ::onFoldersDeleted, { locations.navigate(it) },
             transferCoordinator, boundaryTransferCoordinator)
@@ -609,19 +613,11 @@ internal class OnlyFilesViewModel @Inject constructor(
         externalAccess.revoke(grants)
     }
 
-    suspend fun vaultExternalGrants(vault: VaultId, mount: Long): List<VaultExternalGrant> {
-        if (!isCurrentVault(vault, mount)) return emptyList()
-        val grants = withContext(Dispatchers.IO) { externalAccessManager.activeGrants(vault) }
-        return grants.takeIf { isCurrentVault(vault, mount) }.orEmpty()
-    }
+    suspend fun vaultExternalGrants(vault: VaultId, mount: Long): List<VaultExternalGrant> =
+        externalGrants.active(vault) { isCurrentVault(vault, mount) }
 
-    suspend fun revokeVaultExternalGrant(vault: VaultId, mount: Long, token: String) {
-        withContext(Dispatchers.IO) {
-            if (isCurrentVault(vault, mount) && externalAccessManager.activeGrants(vault).any { it.token == token }) {
-                externalAccessManager.revoke(token)
-            }
-        }
-    }
+    suspend fun revokeVaultExternalGrant(vault: VaultId, mount: Long, token: String) =
+        externalGrants.revoke(vault, token) { isCurrentVault(vault, mount) }
 
     private fun isCurrentVault(vault: VaultId, mount: Long): Boolean = _state.value.let {
         it.selectedVaultId == vault && it.mountGeneration == mount && vault in repository.unlockedVaultIds.value
@@ -754,44 +750,11 @@ internal class OnlyFilesViewModel @Inject constructor(
     suspend fun folderTotals(ref: VaultNodeRef) = fileSystem.folderTotals(ref)
     suspend fun selectionTotals(refs: List<VaultNodeRef>) = fileSystem.selectionTotals(refs)
 
-    /** Opens the shared audio editor on in-memory copies; [launch] receives the opaque session ID. */
-    fun editVaultAudio(node: VaultNodeMetadata, cacheDirectory: String, launch: (String) -> Unit) {
-        val mount = _state.value.mountGeneration
-        viewModelScope.launch {
-            val session = try {
-                VaultAudioEditSession.create(listOf(node), fileSystem, cacheDirectory, repository.unlockedVaultIds)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Throwable) {
-                showError(error)
-                return@launch
-            }
-            if (_state.value.mountGeneration != mount) {
-                session.close()
-                return@launch
-            }
-            val id = dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions.register(session)
-            try {
-                launch(id)
-            } catch (error: Exception) {
-                dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions.end(id)
-                showError(error)
-            }
-        }
-    }
+    fun editVaultAudio(nodes: List<VaultNodeMetadata>, cacheDirectory: String, launch: (String) -> Unit) =
+        audioEditing.edit(nodes, cacheDirectory, launch)
 
-    /** One editor per open track; saves refresh the viewer only within the mount that opened it. */
-    fun vaultAudioEditor(node: VaultNodeMetadata, contentResolver: android.content.ContentResolver): VaultAudioMetadataEditor {
-        val mount = _state.value.mountGeneration
-        return VaultAudioMetadataEditor(node, fileSystem, contentResolver, onSaved = { saved ->
-            viewModelScope.launch {
-                if (_state.value.mountGeneration == mount && _state.value.selectedVaultId == saved.ref.vaultId) {
-                    _state.update { it.withUpdatedViewerNode(saved) }
-                    browser.refresh()
-                }
-            }
-        })
-    }
+    fun vaultAudioEditor(node: VaultNodeMetadata, contentResolver: android.content.ContentResolver) =
+        audioEditing.metadataEditor(node, contentResolver)
 
     suspend fun saveVaultText(ref: VaultNodeRef, revision: Long, text: String): Result<VaultNodeMetadata> {
         val mount = _state.value.mountGeneration

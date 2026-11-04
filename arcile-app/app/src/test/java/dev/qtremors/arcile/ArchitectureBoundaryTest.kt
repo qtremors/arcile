@@ -9,10 +9,14 @@ import org.junit.Assert.fail
 import org.junit.Test
 
 class ArchitectureBoundaryTest {
-    private val productionClasses: JavaClasses by lazy {
-        ClassFileImporter()
-            .importPaths(productionClassDirs().map { it.toPath() })
-    }
+    // JUnit creates a new instance per test, so the imported class graph is shared across the class.
+    // Importing every module once per test exhausted the test JVM's heap.
+    private val productionClasses: JavaClasses
+        get() = importedClasses ?: synchronized(ArchitectureBoundaryTest::class.java) {
+            importedClasses ?: ClassFileImporter()
+                .importPaths(productionClassDirs().map { it.toPath() })
+                .also { importedClasses = it }
+        }
 
     @Test
     fun `feature packages do not depend on concrete storage data implementations`() {
@@ -512,6 +516,7 @@ class ArchitectureBoundaryTest {
             "videoplayer.registerVideoViewerRoute",
             "onboarding.OnboardingRoute",
             "onlyfiles.registerOnlyFilesRoute",
+            "onlyfiles.VaultPluginViewer",
             "plugins.registerPluginsRoute",
             "quickaccess.QuickAccessDestination",
             "quickaccess.registerQuickAccessRoute",
@@ -888,7 +893,10 @@ class ArchitectureBoundaryTest {
                 publicDeclaration.matches(Regex("""class SaveToArcileActivity\b.*""")) ||
                 publicDeclaration.matches(Regex("""object AudioFeatureEntryPoint\b.*""")) ||
                 publicDeclaration.matches(Regex("""class AudioEditorActivity\b.*""")) ||
-                publicDeclaration.matches(Regex("""class AudioPlayerActivity\b.*"""))
+                publicDeclaration.matches(Regex("""class AudioPlayerActivity\b.*""")) ||
+                // OnlyFiles entry points the app shell uses: the vault plugin-viewer handoff and the Browser import route.
+                publicDeclaration.matches(Regex("""class VaultPluginViewer\b.*""")) ||
+                publicDeclaration.matches(Regex("""fun createOnlyFilesImportRoute\(.*"""))
         }
 
     private fun violation(file: File, index: Int, line: String): String =
@@ -901,6 +909,7 @@ class ArchitectureBoundaryTest {
     )
 
     private companion object {
+        @Volatile var importedClasses: JavaClasses? = null
         const val MAX_FILE_LINES = 700
         const val MAX_VIEWMODEL_LINES = 500
         const val MAX_COMPOSABLE_PARAMETERS = 15
@@ -915,15 +924,26 @@ class ArchitectureBoundaryTest {
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/FilePreferencesDataSource.kt" to 800,
             "arcile-app/core/storage/data/src/main/java/dev/qtremors/arcile/core/storage/data/StorageCleanerScanner.kt" to 1150,
             "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/settings/AccentColorSelector.kt" to 800,
-            "arcile-app/feature/videoplayer/src/main/java/dev/qtremors/arcile/feature/videoplayer/VideoViewerPlaybackSurface.kt" to 800
+            "arcile-app/feature/videoplayer/src/main/java/dev/qtremors/arcile/feature/videoplayer/VideoViewerPlaybackSurface.kt" to 800,
+            // OnlyFiles debt recorded at v2.4.6 sizes. These are ceilings: shrink them as the files are split.
+            "arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/DefaultVaultBoundaryTransferCoordinator.kt" to 799,
+            "arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/DefaultVaultRepository.kt" to 1018,
+            "arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/VaultTransferEngine.kt" to 899,
+            "arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt" to 781,
+            "arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesViewModel.kt" to 982
         )
 
         val LARGE_VIEWMODEL_BASELINE = mapOf(
-            "feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/StorageCleanerViewModel.kt" to 648
+            "feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/StorageCleanerViewModel.kt" to 648,
+            // Mostly one-line delegates to OnlyFiles*Controller classes; splitting it means splitting the screen's state.
+            "feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesViewModel.kt" to 982
         )
 
         val FEATURE_VIEWMODEL_BOUNDARY_BASELINE = emptyMap<String, Set<String>>()
 
-        val COMPOSABLE_PARAMETER_BASELINE = emptyMap<String, Int>()
+        val COMPOSABLE_PARAMETER_BASELINE = mapOf(
+            // Shared by Browser audio and vault audio; grouping its callbacks into state objects is a separate refactor.
+            "arcile-app/core/ui/src/main/java/dev/qtremors/arcile/core/ui/audio/AudioNowPlayingScreen.kt:AudioNowPlayingScreen" to 32
+        )
     }
 }

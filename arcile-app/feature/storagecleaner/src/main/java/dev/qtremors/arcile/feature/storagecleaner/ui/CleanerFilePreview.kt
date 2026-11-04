@@ -86,7 +86,7 @@ private fun CleanerPreviewFallback(
         Icon(
             imageVector = getFileIconVector(
                 fileModel,
-                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
             ),
             contentDescription = fileModel.name,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,

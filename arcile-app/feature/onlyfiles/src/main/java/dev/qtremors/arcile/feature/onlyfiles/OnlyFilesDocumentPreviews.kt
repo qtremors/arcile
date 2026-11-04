@@ -24,9 +24,6 @@ import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.ui.asString
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.withContext
 
 @Composable
 internal fun VaultPdfPreview(
@@ -123,32 +120,6 @@ internal fun VaultTextEditor(
         privateSession = true
     )
 }
-
-private suspend fun readVaultText(
-    ref: VaultNodeRef,
-    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
-): String = withContext(Dispatchers.IO) {
-    openReader(ref).getOrThrow().use { reader ->
-        if (reader.sizeBytes !in 0..MAX_VAULT_EDITOR_BYTES.toLong()) {
-            throw VaultFailure.FileTooLarge(reader.sizeBytes, MAX_VAULT_EDITOR_BYTES.toLong())
-        }
-        val bytes = ByteArray(reader.sizeBytes.toInt())
-        try {
-            var offset = 0
-            while (offset < bytes.size) {
-                ensureActive()
-                val read = reader.readAt(offset.toLong(), bytes, offset, bytes.size - offset)
-                if (read <= 0) throw VaultFailure.SourceChanged()
-                offset += read
-            }
-            bytes.decodeToString(throwOnInvalidSequence = true).removePrefix("\uFEFF")
-        } finally {
-            bytes.fill(0)
-        }
-    }
-}
-
-internal const val MAX_VAULT_EDITOR_BYTES = 4 * 1024 * 1024
 
 /** Keeps cancellation intact; any other failure becomes its localized vault message for display. */
 private fun localizedVaultError(error: Throwable, context: Context): Throwable =

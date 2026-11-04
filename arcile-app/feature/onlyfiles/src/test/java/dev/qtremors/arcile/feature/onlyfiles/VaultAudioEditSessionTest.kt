@@ -116,6 +116,38 @@ class VaultAudioEditSessionTest {
         assertEquals(0, open)
     }
 
+    @Test fun `several vault tracks open together for combining in selection order`() {
+        val second = song.copy(ref = song.ref.copy(nodeId = NodeId.of("second")), name = "Second.mp3")
+        stored["second"] = "more audio".encodeToByteArray()
+        val session = runBlocking {
+            VaultAudioEditSession.create(listOf(song, second.copy(sizeBytes = 10)), files, temporary.root.path, unlocked, scratch = {
+                open++
+                val file = temporary.newFile()
+                object : VaultAudioScratch {
+                    override val file: File = file
+                    override fun close() { open--; file.delete() }
+                }
+            }, link = { _, _ -> })
+        }
+        assertEquals(listOf("Song.mp3", "Second.mp3"), session.sourcePaths.map { session.displayName(it) })
+        assertEquals(2, open)
+        session.close()
+        assertEquals(0, open)
+    }
+
+    @Test fun `only writable audio from one vault within the memory limits can be edited`() {
+        val other = song.copy(ref = song.ref.copy(vaultId = VaultId.of("other"), nodeId = NodeId.of("x")))
+        val text = song.copy(ref = song.ref.copy(nodeId = NodeId.of("t")), name = "Notes.txt")
+        val readOnly = song.copy(ref = song.ref.copy(capabilities = VaultNodeCapabilities(canRename = false)))
+        val huge = song.copy(sizeBytes = VaultAudioMetadataEditor.MAX_EDIT_BYTES + 1)
+        assertTrue(canEditVaultAudio(listOf(song)))
+        assertFalse(canEditVaultAudio(emptyList()))
+        assertFalse(canEditVaultAudio(listOf(song, other)))
+        assertFalse(canEditVaultAudio(listOf(song, text)))
+        assertFalse(canEditVaultAudio(listOf(readOnly)))
+        assertFalse(canEditVaultAudio(listOf(huge)))
+    }
+
     /** The test scratch stands in for the memory file behind the link path. */
     private fun writeOutput(session: VaultAudioEditSession, output: String, text: String) {
         val field = VaultAudioEditSession::class.java.getDeclaredField("entries").apply { isAccessible = true }

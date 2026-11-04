@@ -52,7 +52,7 @@ class FileIconTest {
             getFolderIconVector(
                 "DCIM",
                 "/storage/emulated/0/DCIM",
-                folderIconsEnabled = false
+                specialFolderIcons = false
             )
         )
     }

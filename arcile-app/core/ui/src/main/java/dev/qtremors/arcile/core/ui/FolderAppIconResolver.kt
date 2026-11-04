@@ -21,7 +21,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
-import dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalAppFolderIconsEnabled
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.Normalizer
@@ -271,7 +271,7 @@ object FolderAppIconResolver {
 
 @Composable
 fun rememberFolderAppIcon(folderName: String, path: String? = null): Bitmap? {
-    if (!LocalFolderIconsEnabled.current) return null
+    if (!LocalAppFolderIconsEnabled.current) return null
     val context = LocalContext.current.applicationContext
     val iconState by produceState<Bitmap?>(
         initialValue = null,

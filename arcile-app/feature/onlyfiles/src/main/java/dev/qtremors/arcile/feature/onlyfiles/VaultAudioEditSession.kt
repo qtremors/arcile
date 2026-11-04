@@ -3,6 +3,7 @@ package dev.qtremors.arcile.feature.onlyfiles
 import android.system.Os
 import dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSession
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
@@ -157,4 +158,21 @@ internal class VaultAudioEditSession private constructor(
             session
         }
     }
+}
+
+/** Audio the shared editor can open together: one vault, writable, and within the in-memory limits. */
+internal fun canEditVaultAudio(nodes: List<VaultNodeMetadata>): Boolean =
+    nodes.isNotEmpty() && nodes.size <= MAX_EDIT_SOURCES &&
+        nodes.all { it.builtInOpen() == BuiltInFileOpen.AUDIO && it.ref.capabilities.canRename } &&
+        nodes.map { it.ref.vaultId }.distinct().size == 1 &&
+        nodes.all { it.sizeBytes in 1..VaultAudioMetadataEditor.MAX_EDIT_BYTES } &&
+        nodes.sumOf { it.sizeBytes } <= VaultAudioEditSession.MAX_SESSION_BYTES
+
+private const val MAX_EDIT_SOURCES = 20
+
+/** Opens the shared audio editor for a registered private session; the session ID is the only extra. */
+internal fun launchPrivateAudioEditor(context: android.content.Context, sessionId: String) {
+    context.startActivity(android.content.Intent(dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions.ACTION_EDIT)
+        .setPackage(context.packageName)
+        .putExtra(dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions.EXTRA_SESSION, sessionId))
 }

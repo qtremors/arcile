@@ -284,7 +284,7 @@ private fun TrashPreviewFallback(file: FileModel) {
         Icon(
             imageVector = getFileIconVector(
                 file,
-                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
             ),
             contentDescription = null,
             tint = if (file.isDirectory) {

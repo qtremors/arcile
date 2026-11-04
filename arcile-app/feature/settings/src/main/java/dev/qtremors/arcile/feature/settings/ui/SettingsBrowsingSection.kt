@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Expand
 import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.FolderSpecial
 import androidx.compose.material.icons.filled.Height
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Image
@@ -63,11 +62,12 @@ internal fun SettingsBrowsingSection(
             )
         }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ArcileSectionHeader(text = stringResource(R.string.settings_browsing_files_section))
             Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                 SettingsSwitchRow(
                     index = 0,
-                    count = 3,
+                    count = 2,
                     title = stringResource(R.string.settings_show_thumbnails),
                     description = stringResource(R.string.settings_show_thumbnails_description),
                     checked = preferences.globalPresentation.showThumbnails,
@@ -78,21 +78,7 @@ internal fun SettingsBrowsingSection(
                 )
                 SettingsSwitchRow(
                     index = 1,
-                    count = 3,
-                    title = stringResource(R.string.settings_folder_icons),
-                    description = stringResource(R.string.settings_folder_icons_description),
-                    checked = theme.folderIconsEnabled,
-                    switchTag = "folder_icons_switch",
-                    rowTag = "folder_icons_setting_row",
-                    leadingIcon = Icons.Default.FolderSpecial,
-                    onCheckedChange = { checked ->
-                        haptics.toggleMenu()
-                        actions.themeChange(theme.withFolderIcons(checked))
-                    }
-                )
-                SettingsSwitchRow(
-                    index = 2,
-                    count = 3,
+                    count = 2,
                     title = stringResource(R.string.settings_show_hidden_files),
                     description = stringResource(R.string.settings_show_hidden_files_description),
                     checked = preferences.showHiddenFiles,
@@ -102,8 +88,13 @@ internal fun SettingsBrowsingSection(
                     onCheckedChange = actions.showHiddenFilesChange
                 )
             }
+            ArcileListSurface {
+                FolderIconStyleSelector(theme = theme, onThemeChange = actions.themeChange)
+            }
+            ArcileListSurface {
+                FileDetailsSelector(theme = theme, onThemeChange = actions.themeChange)
+            }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             ArcileSectionHeader(text = stringResource(R.string.settings_browsing_layout_section))
             Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
                 SettingsSwitchRow(

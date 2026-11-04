@@ -361,7 +361,14 @@ private data class ThemeBackupState(
     val doubleLineFilenames: Boolean,
     val marqueeFilenames: Boolean,
     val landscapeDualPaneEnabled: Boolean = false,
+    /** Pre-2.4.6 single switch; still written so older builds restore a sensible value. */
     val folderIconsEnabled: Boolean = false,
+    val specialFolderIconsEnabled: Boolean? = null,
+    val appFolderIconsEnabled: Boolean? = null,
+    val showItemCount: Boolean = true,
+    val showSize: Boolean = true,
+    val showDate: Boolean = true,
+    val showTime: Boolean = true,
     val themePreset: String,
     val customPrimaryColorHex: String,
     val customBackgroundColorHex: String
@@ -375,7 +382,13 @@ private fun UiPreferences.toBackupState(): ThemeBackupState = ThemeBackupState(
     doubleLineFilenames = doubleLineFilenames,
     marqueeFilenames = marqueeFilenames,
     landscapeDualPaneEnabled = landscapeDualPaneEnabled,
-    folderIconsEnabled = folderIconsEnabled,
+    folderIconsEnabled = specialFolderIconsEnabled || appFolderIconsEnabled,
+    specialFolderIconsEnabled = specialFolderIconsEnabled,
+    appFolderIconsEnabled = appFolderIconsEnabled,
+    showItemCount = fileDetails.itemCount,
+    showSize = fileDetails.size,
+    showDate = fileDetails.date,
+    showTime = fileDetails.time,
     themePreset = themePreset.name,
     customPrimaryColorHex = customPrimaryColorHex,
     customBackgroundColorHex = customBackgroundColorHex
@@ -390,7 +403,12 @@ private fun ThemeBackupState.toPreferences(): Preferences {
     preferences[UiPreferencesStore.DOUBLE_LINE_FILENAMES_KEY] = doubleLineFilenames
     preferences[UiPreferencesStore.MARQUEE_FILENAMES_KEY] = marqueeFilenames
     preferences[UiPreferencesStore.LANDSCAPE_DUAL_PANE_KEY] = landscapeDualPaneEnabled
-    preferences[UiPreferencesStore.FOLDER_ICONS_ENABLED_KEY] = folderIconsEnabled
+    preferences[UiPreferencesStore.SPECIAL_FOLDER_ICONS_KEY] = specialFolderIconsEnabled ?: folderIconsEnabled
+    preferences[UiPreferencesStore.APP_FOLDER_ICONS_KEY] = appFolderIconsEnabled ?: folderIconsEnabled
+    preferences[UiPreferencesStore.SHOW_ITEM_COUNT_KEY] = showItemCount
+    preferences[UiPreferencesStore.SHOW_SIZE_KEY] = showSize
+    preferences[UiPreferencesStore.SHOW_DATE_KEY] = showDate
+    preferences[UiPreferencesStore.SHOW_TIME_KEY] = showTime
     preferences[UiPreferencesStore.THEME_PRESET_KEY] = themePreset
     preferences[UiPreferencesStore.CUSTOM_PRIMARY_KEY] = customPrimaryColorHex
     preferences[UiPreferencesStore.CUSTOM_BACKGROUND_KEY] = customBackgroundColorHex

@@ -4,6 +4,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.foundation.layout.Box
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.Info
@@ -42,7 +43,8 @@ internal fun VaultSelectionToolbar(
     onMoveToTrash: () -> Unit,
     onReveal: (() -> Unit)?,
     onCreateZip: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onEditAudio: (() -> Unit)? = null
 ) {
     val single = nodes.singleOrNull()
     var showMenu by remember { mutableStateOf(false) }
@@ -84,6 +86,7 @@ internal fun VaultSelectionToolbar(
                         item(R.string.onlyfiles_reveal_in_folder, Icons.AutoMirrored.Filled.OpenInNew, onReveal)
                     }
                     if (onCreateZip != null) item(R.string.onlyfiles_create_zip, Icons.Default.FolderZip, onCreateZip)
+                    if (onEditAudio != null) item(UiR.string.audio_edit, Icons.Default.GraphicEq, onEditAudio)
                     if (nodes.all { it.ref.capabilities.canExport }) {
                         item(R.string.onlyfiles_export, Icons.Default.UploadFile, onExport)
                         if (nodes.all { it.ref.capabilities.canDeletePermanently }) {

@@ -60,7 +60,8 @@ import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.core.ui.theme.ArcileMotion
 import dev.qtremors.arcile.core.ui.theme.LocalDoubleLineFilenames
-import dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalFileDetailVisibility
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 
@@ -142,6 +143,9 @@ fun FileGridItem(
         label = "gridItemScale"
     )
     val subtitleText = presentation.contextLabel?.invoke(file) ?: row.displaySubtitle()
+    val details = LocalFileDetailVisibility.current
+    val visibleSubtitle = presentation.contextLabel?.invoke(file) ?: row.displaySubtitle(details)
+    val visibleTimestamp = row.displayTimestamp(details)
     val itemShape = if (isSelected || isHighlighted) MaterialTheme.shapes.large else MaterialTheme.shapes.extraLarge
     val shouldOpenThumbnailInSelection = presentation.openFileFromThumbnailInSelectionMode &&
         isInSelectionMode &&
@@ -209,20 +213,21 @@ fun FileGridItem(
                         overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
                         modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
                     )
-                    Text(
-                        text = subtitleText,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    val lines = gridDetailLines(
+                        subtitle = visibleSubtitle,
+                        timestamp = visibleTimestamp,
+                        subtitleSlot = presentation.contextLabel != null || details.showsStats,
+                        timestampSlot = details.showsTimestamp
                     )
-                    Text(
-                        text = row.formattedDate,
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    for (detail in lines) {
+                        Text(
+                            text = detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -323,7 +328,7 @@ private fun GridFileIcon(
     file: FileModel,
     modifier: Modifier = Modifier.fillMaxSize()
 ) {
-    val folderIconsEnabled = LocalFolderIconsEnabled.current
+    val specialFolderIcons = LocalSpecialFolderIconsEnabled.current
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         val folderAppIcon = if (file.isDirectory) {
             dev.qtremors.arcile.core.ui.rememberFolderAppIcon(file.name, file.reference)
@@ -338,7 +343,7 @@ private fun GridFileIcon(
             )
         } else {
             Icon(
-                imageVector = getFileIconVector(file, folderIconsEnabled),
+                imageVector = getFileIconVector(file, specialFolderIcons),
                 contentDescription = null,
                 tint = if (file.isDirectory) {
                     MaterialTheme.colorScheme.primary
@@ -349,4 +354,19 @@ private fun GridFileIcon(
             )
         }
     }
+}
+
+/**
+ * Detail lines for a grid card: visible details first, then blank lines for slots this item leaves
+ * empty (a file has no item count), so every card in the grid keeps the same height.
+ */
+internal fun gridDetailLines(
+    subtitle: String,
+    timestamp: String,
+    subtitleSlot: Boolean,
+    timestampSlot: Boolean
+): List<String> {
+    val slots = listOf(subtitle.takeIf { subtitleSlot }, timestamp.takeIf { timestampSlot }).filterNotNull()
+    val visible = slots.filter(String::isNotEmpty)
+    return visible + List(slots.size - visible.size) { "" }
 }

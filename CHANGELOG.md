@@ -1,10 +1,23 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.5
+> **Version:** 2.4.6
 > **Last Updated:** 2026-11-07
 
 ---
+
+## [2.4.6] - 2026-11-07
+
+### Added
+- Select several vault tracks and choose Edit audio to combine them in the shared audio editor, using in-memory copies.
+
+### Changed
+- Choose folder icons with Plain, Special, and App buttons. Plain uses one icon for every folder, Special marks folders such as DCIM, Pictures, Download, and Recordings, and App uses the related app's icon; Special and App can be combined. The previous single switch carries over to both.
+- Choose which item details appear under file and folder names: Count, Size, Date, and Time. Rows adjust to what is shown: a time or date alone sits beside the name, and with nothing shown the name is centered. Grid cards keep equal heights.
+- Architecture checks pass again: the class graph is imported once per run, vault grant and file reads moved out of ViewModel and composable code, Trash parsing preserves cancellation, and remaining oversized files are capped at their current size.
+
+### Fixed
+- Folders inside archives opened in Browser show their file count and size instead of calculating forever.
 
 ## [2.4.5] - 2026-11-07
 

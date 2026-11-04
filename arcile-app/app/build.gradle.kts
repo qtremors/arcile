@@ -32,8 +32,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 245
-        versionName = "2.4.5"
+        versionCode = 246
+        versionName = "2.4.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -111,6 +111,8 @@ android {
     }
     testOptions {
         unitTests.isIncludeAndroidResources = true
+        // ArchitectureBoundaryTest imports every production module's classes into one graph.
+        unitTests.all { it.maxHeapSize = "2g" }
     }
 }
 

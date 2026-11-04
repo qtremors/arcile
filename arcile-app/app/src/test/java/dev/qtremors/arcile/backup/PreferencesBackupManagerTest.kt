@@ -11,6 +11,7 @@ import dev.qtremors.arcile.core.storage.data.utilityDataStore
 import dev.qtremors.arcile.core.ui.theme.AccentColor
 import dev.qtremors.arcile.core.ui.theme.ThemeMode
 import dev.qtremors.arcile.core.ui.theme.UiPreferencesStore
+import dev.qtremors.arcile.core.ui.theme.FileDetailVisibility
 import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import java.io.File
 import kotlinx.coroutines.flow.first
@@ -57,7 +58,9 @@ class PreferencesBackupManagerTest {
                 accentColor = AccentColor.GREEN,
                 harmonizeColors = false,
                 landscapeDualPaneEnabled = true,
-                folderIconsEnabled = false
+                specialFolderIconsEnabled = true,
+                appFolderIconsEnabled = false,
+                fileDetails = FileDetailVisibility(itemCount = false, time = false)
             )
         )
         val backupFile = backupFile("settings-backup.json")
@@ -83,7 +86,12 @@ class PreferencesBackupManagerTest {
         assertEquals(AccentColor.GREEN, uiPreferencesStore.uiPreferences.first().accentColor)
         assertEquals(false, uiPreferencesStore.uiPreferences.first().harmonizeColors)
         assertTrue(uiPreferencesStore.uiPreferences.first().landscapeDualPaneEnabled)
-        assertFalse(uiPreferencesStore.uiPreferences.first().folderIconsEnabled)
+        assertTrue(uiPreferencesStore.uiPreferences.first().specialFolderIconsEnabled)
+        assertFalse(uiPreferencesStore.uiPreferences.first().appFolderIconsEnabled)
+        assertEquals(
+            FileDetailVisibility(itemCount = false, time = false),
+            uiPreferencesStore.uiPreferences.first().fileDetails
+        )
     }
 
     @Test

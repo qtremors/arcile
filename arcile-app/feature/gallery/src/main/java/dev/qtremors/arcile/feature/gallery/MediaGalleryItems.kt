@@ -291,7 +291,7 @@ internal fun GalleryThumbnail(
             Icon(
                 imageVector = getFileIconVector(
                     file,
-                    dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                    dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
                 ),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)

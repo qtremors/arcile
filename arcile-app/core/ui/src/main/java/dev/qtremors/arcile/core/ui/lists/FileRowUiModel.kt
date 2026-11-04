@@ -16,6 +16,9 @@ import java.io.File
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.presentation.formatFileSize
+import dev.qtremors.arcile.core.ui.rememberDateOnlyFormatter
+import dev.qtremors.arcile.core.ui.rememberTimeOnlyFormatter
+import dev.qtremors.arcile.core.ui.theme.FileDetailVisibility
 import java.text.DateFormat
 import java.util.Date
 
@@ -107,11 +110,14 @@ fun FileRowUiModel.thumbnailRequestData(archiveThumbnailData: Any? = null): Any 
         ?: file.nodeRef.contentUri?.takeIf { it.isNotBlank() }?.let(Uri::parse)
         ?: File(file.reference)
 
+/** Size for files, and item count plus total size for folders, limited to what [visibility] allows. */
 @Composable
-fun FileRowUiModel.displaySubtitle(): String {
+fun FileRowUiModel.displaySubtitle(visibility: FileDetailVisibility = FileDetailVisibility()): String {
     if (!isDirectory) {
+        if (!visibility.size) return ""
         return subtitle.ifBlank { formatFileSize(LocalContext.current, file.size) }
     }
+    if (!visibility.showsStats) return ""
     val stats = folderStats
     if (stats == null) return stringResource(R.string.folder_stats_pending)
     if (stats.status == FolderStatsStatus.Unavailable) return stringResource(R.string.folder_stats_unavailable)
@@ -120,6 +126,23 @@ fun FileRowUiModel.displaySubtitle(): String {
         stats.fileCount.toInt(),
         stats.fileCount
     )
-    val context = LocalContext.current
-    return stringResource(R.string.folder_stats_summary, filesLabel, formatFileSize(context, stats.totalBytes))
+    val sizeLabel = formatFileSize(LocalContext.current, stats.totalBytes)
+    return when {
+        visibility.itemCount && visibility.size -> stringResource(R.string.folder_stats_summary, filesLabel, sizeLabel)
+        visibility.itemCount -> filesLabel
+        else -> sizeLabel
+    }
+}
+
+/** Modified date and time as [visibility] allows; with both on, the row keeps its caller-formatted date. */
+@Composable
+fun FileRowUiModel.displayTimestamp(visibility: FileDetailVisibility = FileDetailVisibility()): String {
+    val dateFormatter = rememberDateOnlyFormatter()
+    val timeFormatter = rememberTimeOnlyFormatter()
+    return when {
+        visibility.date && visibility.time -> formattedDate
+        visibility.date -> dateFormatter.format(Date(file.lastModified))
+        visibility.time -> timeFormatter.format(Date(file.lastModified))
+        else -> ""
+    }
 }

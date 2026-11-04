@@ -547,7 +547,11 @@ private fun OnlyFilesScreen(
                     onCreateZip = { createZipNodes = selected }.takeIf {
                         !state.busy && selected.isNotEmpty() && selected.all { node -> node.ref.capabilities.canRead }
                     },
-                    modifier = toolbarModifier
+                    modifier = toolbarModifier,
+                    onEditAudio = {
+                        viewModel.editVaultAudio(selected, feedbackContext.cacheDir.path) { launchPrivateAudioEditor(feedbackContext, it) }
+                        viewModel.clearSelection()
+                    }.takeIf { !state.busy && canEditVaultAudio(selected) }
                 )
             } else {
                 OnlyFilesClipboardToolbar(state, viewModel, toolbarModifier)
