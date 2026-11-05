@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-@Immutable
 data class StorageCleanerScanLimits(
     val maxFiles: Int = 250_000,
     val maxDepth: Int = 32,

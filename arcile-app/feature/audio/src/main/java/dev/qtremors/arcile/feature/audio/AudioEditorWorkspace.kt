@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.media.MediaScannerConnection
@@ -35,7 +36,7 @@ internal class AudioEditorWorkspace @Inject constructor(
 
     suspend fun extractWaveform(source: AudioEditorSource): AudioWaveform? =
         withContext(dispatchers.io) {
-            runCatching {
+            runCatchingCancellable {
                 waveformExtractor.extract(source.path, source.durationMs)
             }.getOrNull()
         }

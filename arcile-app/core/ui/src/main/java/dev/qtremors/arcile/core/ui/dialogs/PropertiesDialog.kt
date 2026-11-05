@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.dialogs
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -67,7 +68,7 @@ fun PropertiesDialog(
         val model = properties ?: return@LaunchedEffect
         if (!shouldLoadImageMetadata) return@LaunchedEffect
         localImageMetadata = withContext(Dispatchers.IO) {
-            runCatching {
+            runCatchingCancellable {
                 SharedImageMetadataReader.readMetadata(
                     context = context,
                     reference = model.pathSummary,

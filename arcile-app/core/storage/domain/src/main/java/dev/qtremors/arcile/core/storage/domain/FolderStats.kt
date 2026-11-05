@@ -7,7 +7,6 @@ enum class FolderStatsStatus {
     Unavailable
 }
 
-@Immutable
 data class FolderStats(
     val fileCount: Long,
     val totalBytes: Long,
@@ -15,7 +14,6 @@ data class FolderStats(
     val status: FolderStatsStatus = FolderStatsStatus.Ready
 )
 
-@Immutable
 data class FolderStatUpdate(
     val path: String,
     val stats: FolderStats

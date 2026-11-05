@@ -18,8 +18,14 @@ internal data class SavedAudioPlayback(
     val shuffleEnabled: Boolean
 )
 
+/**
+ * Keeps the queue and the playback position in separate preference files. SharedPreferences rewrites
+ * its whole file on every save, so the frequent position saves stay a few bytes instead of rewriting
+ * every track's title, artist, album, and URI.
+ */
 internal class AudioPlaybackQueueStore(context: Context) {
     private val preferences = context.getSharedPreferences("audio_playback_queue", Context.MODE_PRIVATE)
+    private val position = context.getSharedPreferences("audio_playback_position", Context.MODE_PRIVATE)
 
     fun hasSavedQueue(): Boolean = preferences.contains(KEY_QUEUE)
 
@@ -46,19 +52,21 @@ internal class AudioPlaybackQueueStore(context: Context) {
             }
         }
         if (items.isEmpty()) return null
+        // Queues saved before the split keep their position keys in the queue file.
+        val source = if (position.contains(KEY_INDEX)) position else preferences
         SavedAudioPlayback(
             items = items,
-            index = preferences.getInt(KEY_INDEX, 0).coerceIn(items.indices),
-            positionMs = preferences.getLong(KEY_POSITION, 0L).coerceAtLeast(0L),
-            repeatMode = preferences.getInt(KEY_REPEAT, Player.REPEAT_MODE_OFF),
-            shuffleEnabled = preferences.getBoolean(KEY_SHUFFLE, false)
+            index = source.getInt(KEY_INDEX, 0).coerceIn(items.indices),
+            positionMs = source.getLong(KEY_POSITION, 0L).coerceAtLeast(0L),
+            repeatMode = source.getInt(KEY_REPEAT, Player.REPEAT_MODE_OFF),
+            shuffleEnabled = source.getBoolean(KEY_SHUFFLE, false)
         )
     }.getOrNull()
 
     fun saveQueue(player: Player) {
         if (player.mediaItemCount == 0) {
-            preferences.edit().remove(KEY_QUEUE).remove(KEY_INDEX).remove(KEY_POSITION)
-                .apply()
+            preferences.edit().remove(KEY_QUEUE).remove(KEY_INDEX).remove(KEY_POSITION).apply()
+            position.edit().remove(KEY_INDEX).remove(KEY_POSITION).apply()
             return
         }
         val array = JSONArray()
@@ -74,16 +82,14 @@ internal class AudioPlaybackQueueStore(context: Context) {
                 .put("album", item.mediaMetadata.albumTitle?.toString().orEmpty()))
         }
         preferences.edit().putString(KEY_QUEUE, array.toString())
-            .putInt(KEY_INDEX, player.currentMediaItemIndex.coerceAtLeast(0))
-            .putLong(KEY_POSITION, player.currentPosition.coerceAtLeast(0L))
-            .putInt(KEY_REPEAT, player.repeatMode)
-            .putBoolean(KEY_SHUFFLE, player.shuffleModeEnabled)
+            .remove(KEY_INDEX).remove(KEY_POSITION).remove(KEY_REPEAT).remove(KEY_SHUFFLE)
             .apply()
+        savePosition(player)
     }
 
     fun savePosition(player: Player) {
         if (player.mediaItemCount == 0) return
-        preferences.edit()
+        position.edit()
             .putInt(KEY_INDEX, player.currentMediaItemIndex.coerceAtLeast(0))
             .putLong(KEY_POSITION, player.currentPosition.coerceAtLeast(0L))
             .putInt(KEY_REPEAT, player.repeatMode)

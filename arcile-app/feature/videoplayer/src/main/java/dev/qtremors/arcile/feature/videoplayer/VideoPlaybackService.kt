@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.core.os.BundleCompat
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
@@ -20,13 +21,24 @@ import com.google.common.util.concurrent.ListenableFuture
 @androidx.annotation.OptIn(UnstableApi::class)
 internal class VideoPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    private var launcherActivity: PendingIntent? = null
     private val closePlayerCommand = SessionCommand(ACTION_CLOSE_VIDEO_PLAYER, Bundle.EMPTY)
     private val sessionCallback = object : MediaSession.Callback {
         override fun onConnect(
             session: MediaSession,
             controller: MediaSession.ControllerInfo
-        ): MediaSession.ConnectionResult =
-            MediaSession.ConnectionResult.AcceptedResultBuilder()
+        ): MediaSession.ConnectionResult {
+            if (controller.packageName == packageName) {
+                // The most recent viewer decides where the notification leads: a standalone viewer
+                // asks to be reopened, the in-app viewer falls back to the launcher.
+                val requested = BundleCompat.getParcelable(
+                    controller.connectionHints,
+                    CONNECTION_HINT_SESSION_ACTIVITY,
+                    PendingIntent::class.java
+                )
+                (requested ?: launcherActivity)?.let(session::setSessionActivity)
+            }
+            return MediaSession.ConnectionResult.AcceptedResultBuilder()
                 .setAvailableSessionCommands(
                     MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
                         .buildUpon()
@@ -35,6 +47,7 @@ internal class VideoPlaybackService : MediaSessionService() {
                 )
                 .setAvailablePlayerCommands(MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS)
                 .build()
+        }
 
         override fun onCustomCommand(
             session: MediaSession,
@@ -65,7 +78,7 @@ internal class VideoPlaybackService : MediaSessionService() {
             .setAudioAttributes(videoPlaybackAudioAttributes(), true)
             .setHandleAudioBecomingNoisy(true)
             .build()
-        val sessionActivity = packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
+        launcherActivity = packageManager.getLaunchIntentForPackage(packageName)?.let { intent ->
             PendingIntent.getActivity(
                 this,
                 0,
@@ -74,7 +87,7 @@ internal class VideoPlaybackService : MediaSessionService() {
             )
         }
         mediaSession = MediaSession.Builder(this, player)
-            .apply { sessionActivity?.let(::setSessionActivity) }
+            .apply { launcherActivity?.let(::setSessionActivity) }
             .setCallback(sessionCallback)
             .build()
             .apply {

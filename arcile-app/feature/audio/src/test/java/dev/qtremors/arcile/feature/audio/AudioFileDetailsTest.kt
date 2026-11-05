@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import android.content.Context
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -68,7 +69,7 @@ class AudioFileDetailsTest {
         verify(exactly = 1) { anyConstructed<MediaExtractor>().release() }
     }
 
-    private fun editor() = AudioTagEditor(ApplicationProvider.getApplicationContext<Context>())
+    private fun editor() = AudioTagEditor(ApplicationProvider.getApplicationContext<Context>(), ArcileDispatchers.Standard)
 
     private fun track() = AudioTrack(
         file = FileModel(name = "song.mp3", reference = "/music/song.mp3", size = 1L,

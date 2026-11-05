@@ -128,33 +128,6 @@ fun ArcileDropdownMenu(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ExposedDropdownMenuBoxScope.ArcileExposedDropdownMenu(
-    expanded: Boolean,
-    onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
-    minWidth: Dp = 120.dp,
-    maxWidth: Dp = 260.dp,
-    shape: Shape = MaterialTheme.shapes.extraLarge,
-    items: List<@Composable () -> Unit>
-) {
-    ExposedDropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismissRequest,
-        modifier = modifier
-            .padding(vertical = 2.dp)
-            .width(IntrinsicSize.Max)
-            .widthIn(min = minWidth, max = maxWidth),
-        shape = shape,
-        containerColor = Color.Transparent,
-        shadowElevation = 0.dp,
-        tonalElevation = 0.dp
-    ) {
-        ArcileSegmentedMenuItems(items = items)
-    }
-}
-
 @Composable
 private fun ArcileSegmentedMenuItems(
     items: List<@Composable () -> Unit>

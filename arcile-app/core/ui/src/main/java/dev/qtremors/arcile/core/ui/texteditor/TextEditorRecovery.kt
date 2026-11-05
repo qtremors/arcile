@@ -4,7 +4,11 @@ import android.content.Context
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.FileTime
 import java.security.MessageDigest
 
 internal data class TextEditorDraft(val sourceHash: String, val text: String) {
@@ -29,6 +33,14 @@ internal fun writeTextDraft(file: File, source: String, draft: String) {
     persistAtomicText(file, "${textContentHash(source)}\n$draft").getOrThrow()
 }
 
+/**
+ * Replaces [file] with [content] through a staged sibling and an atomic rename.
+ *
+ * Nothing is read back: the staging write is fsync'd and checked by length (which catches short
+ * writes), and the rename either publishes the whole staged file or leaves the original. The
+ * original is guarded by its attributes rather than its bytes, so saving a large document costs
+ * one write instead of four extra reads.
+ */
 internal fun persistAtomicText(
     file: File,
     content: String,
@@ -43,26 +55,38 @@ internal fun persistAtomicText(
         Files.move(staged.toPath(), target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
     }
 ): Result<Unit> = runCatching {
-    require(!Files.isSymbolicLink(file.toPath())) { "Cannot replace a symbolic link" }
-    val original = if (file.exists()) file.readBytes() else null
-    val originalKey = if (file.exists()) Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java) else null
+    val path = file.toPath()
+    require(!Files.isSymbolicLink(path)) { "Cannot replace a symbolic link" }
+    val original = if (file.exists()) FileIdentity.of(path) else null
     val staged = File.createTempFile(".arcile-editor-", ".tmp", file.parentFile)
     try {
         val bytes = content.toByteArray(Charsets.UTF_8)
         writeStaging(staged, bytes)
-        check(staged.readBytes().contentEquals(bytes)) { "The staging file did not preserve the complete document" }
+        check(staged.length() == bytes.size.toLong()) { "The staging file did not preserve the complete document" }
         if (original != null) {
-            val currentKey = Files.readAttributes(file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java)
-            check(!Files.isSymbolicLink(file.toPath()) && currentKey.fileKey() == originalKey?.fileKey() &&
-                currentKey.creationTime() == originalKey?.creationTime() && file.readBytes().contentEquals(original)) {
+            check(!Files.isSymbolicLink(path) && FileIdentity.of(path) == original) {
                 "The original document changed before saving"
             }
-            runCatching { Files.setPosixFilePermissions(staged.toPath(), Files.getPosixFilePermissions(file.toPath())) }
+            runCatching { Files.setPosixFilePermissions(staged.toPath(), Files.getPosixFilePermissions(path)) }
         } else check(!file.exists()) { "The destination appeared before saving" }
         publish(staged, file)
-        check(file.readBytes().contentEquals(bytes)) { "The saved document could not be verified" }
     } finally {
         staged.delete()
+    }
+}
+
+/** What identifies one version of a file without reading it: inode, size and timestamps. */
+private data class FileIdentity(
+    val key: Any?,
+    val size: Long,
+    val modified: FileTime,
+    val created: FileTime
+) {
+    companion object {
+        fun of(path: Path): FileIdentity =
+            Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS).let {
+                FileIdentity(it.fileKey(), it.size(), it.lastModifiedTime(), it.creationTime())
+            }
     }
 }
 

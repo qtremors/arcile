@@ -166,7 +166,7 @@ class VaultPlaintextUndoTest {
         }
         val repository = DefaultVaultRepository(context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
             scope, VaultPortableLocationResolver(volumes))
-        val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, trash)
+        val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, trash, ArcileDispatchers.Standard)
         var vault = VaultId.of("pending")
 
         suspend fun file(name: String, text: String, parent: DirectoryId = DirectoryId.Root): VaultNodeMetadata {

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -82,7 +83,7 @@ open class PdfViewerActivity : ComponentActivity() {
 
     private fun openTargetWithChooser(target: StandalonePdfTarget) {
         lifecycleScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     this@PdfViewerActivity,
                     target.toExternalReference()

@@ -21,7 +21,6 @@ import dev.qtremors.arcile.core.storage.domain.ListingPage
 import dev.qtremors.arcile.core.storage.domain.StorageNodePath
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -34,12 +33,7 @@ class DefaultFileSystemDataSource(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
     private val mutationFinalizer: MutationFinalizer,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    ),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard,
     private val conflictDetector: FileConflictDetector = FileConflictDetector(),
     private val storageNodeDao: StorageNodeDao? = null,
     mutationJournal: MutationJournal = NoOpMutationJournal(),

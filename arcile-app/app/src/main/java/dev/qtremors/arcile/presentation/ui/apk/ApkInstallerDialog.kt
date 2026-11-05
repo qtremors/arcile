@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -82,7 +83,7 @@ fun ApkInstallerDialog(
                     CircularProgressIndicator(modifier = Modifier.size(36.dp))
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "Analyzing package metadata...",
+                        text = stringResource(R.string.apk_analyzing),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -176,12 +177,12 @@ fun ApkInstallerDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "APK Version",
+                                    text = stringResource(R.string.apk_version),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = "v${details.versionName} (${details.versionCode})",
+                                    text = stringResource(R.string.apk_version_value, "${details.versionName}", "${details.versionCode}"),
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.Medium,
                                     textAlign = TextAlign.End,
@@ -200,12 +201,12 @@ fun ApkInstallerDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "Installed",
+                                        text = stringResource(R.string.apk_installed_version),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = "v$installedVerName ($installedVerCode)",
+                                        text = stringResource(R.string.apk_version_value, "$installedVerName", "$installedVerCode"),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         fontWeight = FontWeight.Medium,
@@ -222,12 +223,16 @@ fun ApkInstallerDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Package Type",
+                                    text = stringResource(R.string.apk_package_type),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Text(
-                                    text = if (details.isSplitApk) "Split APK (${details.splitCount} components)" else "Single APK",
+                                    text = if (details.isSplitApk) {
+                                        pluralStringResource(R.plurals.apk_split_components, details.splitCount, details.splitCount)
+                                    } else {
+                                        stringResource(R.string.apk_single)
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     fontWeight = FontWeight.SemiBold,
                                     color = if (details.isSplitApk) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
@@ -243,7 +248,7 @@ fun ApkInstallerDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Total Size",
+                                    text = stringResource(R.string.apk_total_size),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -268,7 +273,7 @@ fun ApkInstallerDialog(
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
                                     Text(
-                                        text = "Android will close Arcile, install this update, and let you reopen it.",
+                                        text = stringResource(R.string.apk_self_update_notice),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                                         modifier = Modifier.padding(10.dp)
@@ -292,7 +297,7 @@ fun ApkInstallerDialog(
                                             tint = MaterialTheme.colorScheme.onErrorContainer
                                         )
                                         Text(
-                                            text = "Android blocks installing older versions. Uninstall the current app first to install this version.",
+                                            text = stringResource(R.string.apk_downgrade_blocked),
                                             style = MaterialTheme.typography.bodySmall,
                                             color = MaterialTheme.colorScheme.onErrorContainer
                                         )
@@ -318,7 +323,7 @@ fun ApkInstallerDialog(
                                         tint = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                     Text(
-                                        text = "Permission to install unknown apps from system settings is required.",
+                                        text = stringResource(R.string.apk_unknown_sources_required),
                                         style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )

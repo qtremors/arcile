@@ -199,7 +199,7 @@ internal fun HomeScreen(
 
     LifecycleResumeEffect(Unit) {
         contentIntents.resumeRefresh()
-        onPauseOrDispose { }
+        onPauseOrDispose { contentIntents.pauseRefresh() }
     }
 
     val normalizedRecentLimit = dev.qtremors.arcile.core.storage.domain.SharedFilePreferences

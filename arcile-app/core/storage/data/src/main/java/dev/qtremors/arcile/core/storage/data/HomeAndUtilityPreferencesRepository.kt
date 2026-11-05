@@ -12,7 +12,6 @@ import dev.qtremors.arcile.core.storage.domain.HomeAndUtilityPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.HomeLayoutPreferences
 import dev.qtremors.arcile.core.storage.domain.HomeSectionIds
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -24,12 +23,7 @@ val Context.utilityDataStore by preferencesDataStore(name = "utility_prefs")
 class HomeAndUtilityPreferencesRepository(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.utilityDataStore,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : HomeAndUtilityPreferencesStore {
     private val HOME_UTILITY_IDS_KEY = stringSetPreferencesKey("home_utility_ids")
     private val HOME_UTILITY_ORDER_KEY = stringPreferencesKey("home_utility_order")

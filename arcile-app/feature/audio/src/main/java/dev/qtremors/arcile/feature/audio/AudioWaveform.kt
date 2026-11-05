@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.media.AudioFormat
 import android.media.MediaCodec
 import android.media.MediaExtractor
@@ -94,8 +95,8 @@ internal class AudioWaveformExtractor(
                 }
             }
         } finally {
-            runCatching { decoder?.stop() }
-            runCatching { decoder?.release() }
+            runCatchingCancellable { decoder?.stop() }
+            runCatchingCancellable { decoder?.release() }
             extractor.release()
         }
         normalize(peaks)

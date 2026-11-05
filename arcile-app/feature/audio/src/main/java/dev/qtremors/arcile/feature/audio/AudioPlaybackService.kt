@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Bundle
@@ -56,7 +57,7 @@ internal class AudioPlaybackService : MediaSessionService() {
         if (!qualified && listenedMs >= threshold) {
             qualified = true
             serviceScope.launch(Dispatchers.IO) {
-                runCatching { listeningStore.recordQualifiedPlay(path) }
+                runCatchingCancellable { listeningStore.recordQualifiedPlay(path) }
             }
         }
     }

@@ -52,13 +52,6 @@ interface VaultSeekableReader : Closeable {
     fun readAt(position: Long, target: ByteArray, offset: Int, length: Int): Int
 }
 
-interface VaultStreamingWriter : Closeable {
-    val bytesWritten: Long
-    fun write(source: ByteArray, offset: Int = 0, length: Int = source.size)
-    fun commit(): Result<VaultNodeMetadata>
-    fun cancel()
-}
-
 enum class VaultConflictDecision { KEEP_BOTH, REPLACE, SKIP, MERGE_DIRECTORIES }
 
 fun interface VaultConflictResolver {

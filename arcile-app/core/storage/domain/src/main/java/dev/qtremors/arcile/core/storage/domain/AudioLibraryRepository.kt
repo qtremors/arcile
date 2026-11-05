@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-@Immutable
 data class AudioTrack(
     val file: FileModel,
     val title: String,

@@ -209,14 +209,6 @@ internal enum class TimeSection {
     TODAY, WEEK, MONTH, OLDER
 }
 
-@Composable
-internal fun TimeSection.toDisplayString(): String = when (this) {
-    TimeSection.TODAY -> stringResource(R.string.image_gallery_section_today)
-    TimeSection.WEEK -> stringResource(R.string.image_gallery_section_week)
-    TimeSection.MONTH -> stringResource(R.string.image_gallery_section_month)
-    TimeSection.OLDER -> stringResource(R.string.image_gallery_section_older)
-}
-
 internal fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): TimeSection {
     val diff = now - lastModified
     val oneDay = 24 * 60 * 60 * 1000L
@@ -260,4 +252,3 @@ internal fun getWeekLabel(timestamp: Long): String {
 }
 
 internal const val GALLERY_MAX_THUMBNAIL_PX = 512
-

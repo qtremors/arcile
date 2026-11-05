@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -281,7 +282,7 @@ internal class StorageCleanerViewModel @Inject constructor(
             }
 
             val rules = _state.value.rules
-            val cached = runCatching {
+            val cached = runCatchingCancellable {
                 scanner.cachedScanForGroups(indexedPaths, groups, rules = rules)
             }.getOrElse { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
@@ -325,7 +326,7 @@ internal class StorageCleanerViewModel @Inject constructor(
                     successMessage = if (clearMessages) null else current.successMessage
                 )
             }
-            val scanResult = runCatching {
+            val scanResult = runCatchingCancellable {
                 scanner.scanGroupUpdates(indexedPaths, groups, rules = rules).collect { update ->
                     _state.update { current ->
                         val result = update.result
@@ -499,7 +500,7 @@ internal class StorageCleanerViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            runCatching { preferencesStore.ignorePath(path) }
+            runCatchingCancellable { preferencesStore.ignorePath(path) }
                 .onFailure { error ->
                     if (error is kotlinx.coroutines.CancellationException) throw error
                     _state.update { it.copy(errorMessage = error.message.orEmpty()) }

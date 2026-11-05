@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryManifestCodec
@@ -75,7 +76,7 @@ internal class VaultImportEngine(
         val reader = VaultImportSourceReader(context.contentResolver)
         val batches = sourceUris.map { sourceUri ->
             coroutineContext.ensureActive()
-            sourceUri to runCatching {
+            sourceUri to runCatchingCancellable {
                 val sourceMove = if (move) LocalVaultMove.prepare(sourceUri, protectedRoots) else null
                 PreparedImport(reader.collect(listOf(sourceUri)), sourceMove)
             }

@@ -311,7 +311,7 @@ fun BatchRenameDialog(
 
                 // Target Scope Segmented Buttons
                 Text(
-                    text = "Target Scope",
+                    text = stringResource(R.string.batch_rename_target_scope),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -350,7 +350,7 @@ fun BatchRenameDialog(
 
                 // Case Transform Segmented Buttons
                 Text(
-                    text = "Case Transform",
+                    text = stringResource(R.string.batch_rename_case_transform),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

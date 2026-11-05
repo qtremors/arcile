@@ -21,7 +21,6 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt.android)
     alias(libs.plugins.kotlin.serialization)
-    id("arcile.build.verification")
 }
 
 android {
@@ -32,8 +31,8 @@ android {
         applicationId = "dev.qtremors.arcile"
         minSdk = 30
         targetSdk = 37
-        versionCode = 246
-        versionName = "2.4.6"
+        versionCode = 247
+        versionName = "2.4.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -137,11 +136,6 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
-}
-
-composeCompiler {
-    reportsDestination = layout.buildDirectory.dir("compose_compiler/reports")
-    metricsDestination = layout.buildDirectory.dir("compose_compiler/metrics")
 }
 
 dependencies {

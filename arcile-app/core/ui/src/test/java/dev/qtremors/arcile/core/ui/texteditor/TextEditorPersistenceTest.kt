@@ -53,6 +53,49 @@ class TextEditorPersistenceTest {
         } finally { root.deleteRecursively() }
     }
     @Test
+    fun `a same-length external edit during staging is still detected`() {
+        val root = java.nio.file.Files.createTempDirectory("text-same-length").toFile()
+        try {
+            val file = java.io.File(root, "text").apply { writeText("abc") }
+            val result = persistAtomicText(file, "new content", writeStaging = { staged, bytes ->
+                staged.writeBytes(bytes)
+                // Same size, so only the timestamp tells this version apart from the original.
+                file.writeText("xyz")
+                file.setLastModified(file.lastModified() + 5_000L)
+            })
+            assertTrue(result.isFailure)
+            assertEquals("xyz", file.readText())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test
+    fun `atomic save creates a missing document and leaves no staging files`() {
+        val root = java.nio.file.Files.createTempDirectory("text-create").toFile()
+        try {
+            val file = java.io.File(root, "new.txt")
+            assertTrue(persistAtomicText(file, "first draft").isSuccess)
+            assertEquals("first draft", file.readText())
+            assertTrue(persistAtomicText(file, "second draft").isSuccess)
+            assertEquals("second draft", file.readText())
+            assertEquals(listOf("new.txt"), root.list()?.toList())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test
+    fun `atomic save rejects a destination that appears while staging`() {
+        val root = java.nio.file.Files.createTempDirectory("text-appeared").toFile()
+        try {
+            val file = java.io.File(root, "race.txt")
+            val result = persistAtomicText(file, "mine", writeStaging = { staged, bytes ->
+                staged.writeBytes(bytes)
+                file.writeText("theirs")
+            })
+            assertTrue(result.isFailure)
+            assertEquals("theirs", file.readText())
+        } finally { root.deleteRecursively() }
+    }
+
+    @Test
     fun `verified persistence writes the requested snapshot`() {
         var persisted = "old"
 

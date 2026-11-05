@@ -195,9 +195,3 @@ object VaultCryptography {
     fun longBytes(value: Long): ByteArray = ByteBuffer.allocate(Long.SIZE_BYTES).putLong(value).array()
     fun intBytes(value: Int): ByteArray = ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array()
 }
-
-inline fun <T> ByteArray.useSecret(block: (ByteArray) -> T): T = try {
-    block(this)
-} finally {
-    fill(0)
-}

@@ -31,36 +31,6 @@ import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.settings.PreferencesBackupUiState
 import dev.qtremors.arcile.core.ui.settings.SettingsSection
 
-@Composable
-internal fun SettingsPluginSection(onOpen: () -> Unit) {
-    SettingsSection(title = stringResource(R.string.section_plugins)) {
-        SegmentedListItem(
-            onClick = onOpen,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 1),
-            content = { Text(stringResource(R.string.plugins_title)) },
-            supportingContent = { Text(stringResource(R.string.plugins_settings_description)) },
-            leadingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Extension,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-    }
-}
-
-
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun SettingsBackupSection(
@@ -119,34 +89,6 @@ internal fun SettingsBackupSection(
                 ) {
                     Icon(
                         Icons.Default.FileDownload,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            colors = ListItemDefaults.segmentedColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer
-            ),
-            modifier = Modifier.height(IntrinsicSize.Min)
-        )
-    }
-}
-
-@Composable
-internal fun SettingsAboutSection(onOpen: () -> Unit) {
-    SettingsSection(title = stringResource(R.string.section_info)) {
-        SegmentedListItem(
-            onClick = onOpen,
-            shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 1),
-            content = { Text(stringResource(R.string.about_headline)) },
-            supportingContent = { Text(stringResource(R.string.about_description)) },
-            leadingContent = {
-                Box(
-                    modifier = Modifier.fillMaxHeight(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Info,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )

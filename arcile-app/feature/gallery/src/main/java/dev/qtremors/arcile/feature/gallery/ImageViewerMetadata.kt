@@ -310,14 +310,3 @@ internal fun MetadataSheet(
         }
     }
 }
-
-@Composable
-internal fun MetadataSectionHeader(title: String) {
-    MediaMetadataSectionHeader(title)
-}
-
-@Composable
-internal fun MetadataRow(label: String, value: String) {
-    MediaMetadataRow(label, value)
-}
-

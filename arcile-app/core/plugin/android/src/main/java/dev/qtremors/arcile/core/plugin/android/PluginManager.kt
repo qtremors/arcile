@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.plugin.android
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ComponentName
@@ -86,7 +87,7 @@ class PluginManager(private val context: Context) {
         if (plugin.compatibility != PluginCompatibility.COMPATIBLE) {
             return PluginLaunchResult.Incompatible(plugin)
         }
-        return runCatching {
+        return runCatchingCancellable {
             val baseIntent = ExternalFileAccessHelper.createOpenIntent(context, path)
             val displayName = path.substringAfterLast('/').substringAfterLast('\\').ifBlank { "File" }
             val launchIntent = buildPluginLaunchIntent(plugin, baseIntent, displayName)

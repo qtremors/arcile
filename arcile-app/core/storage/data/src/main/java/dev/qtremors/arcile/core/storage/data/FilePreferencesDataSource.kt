@@ -19,7 +19,6 @@ import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.CategoryGrouping
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.FileSortOption
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -35,12 +34,7 @@ class FilePreferencesDataSource(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.filePreferencesDataStore,
     private val activityLogRepository: ActivityLogRepository? = null,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) {
     private val writer = FilePreferenceWriter(dataStore)
     internal val preferencesFlow: Flow<SharedFilePreferences> = dataStore.data

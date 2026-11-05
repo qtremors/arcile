@@ -23,6 +23,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Outfit:wght@400;500;600&display=swap" rel="stylesheet">
     
     <!-- Custom Styles -->
+    <link rel="stylesheet" href="tailwind.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body class="antialiased selection:bg-m3-primary selection:text-m3-onPrimary">
@@ -163,13 +164,7 @@
                 <!-- M3 Expressive Ambient Theme Glow -->
                 <div class="absolute w-[350px] h-[350px] sm:w-[450px] sm:h-[450px] bg-m3-primary/10 rounded-full blur-[100px] pointer-events-none select-none -top-12 -right-12 z-0"></div>
                 
-                <div class="relative z-10 box-content aspect-[1080/2412] w-[280px] sm:w-[320px] lg:w-auto lg:h-[75vh] xl:h-[80vh] max-h-[800px] rounded-[1.8rem] sm:rounded-[2.5rem] bg-black phone-mockup border-[4px] sm:border-[6px] border-[#36343B] animate-float overflow-hidden shrink-0 max-w-[90vw]">
-                    <!-- Commented out for now - missing assets 
-                    <video autoplay loop muted playsinline poster="assets/homepage.jpeg" class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none">
-                        <source src="assets/arcile-demo.mp4" type="video/mp4">
-                        <img src="assets/homepage.jpeg" alt="Arcile App Screenshot" class="absolute inset-0 w-full h-full object-contain select-none pointer-events-none">
-                    </video>
-                    -->
+                <div class="relative z-10 box-content aspect-[1080/2412] w-[280px] sm:w-[320px] lg:w-auto lg:h-[75vh] xl:h-[80vh] max-h-[800px] rounded-[1.8rem] sm:rounded-[2.5rem] bg-black phone-mockup border-[4px] sm:border-[6px] border-[#36343B] motion-safe:animate-float overflow-hidden shrink-0 max-w-[90vw]">
                     <img src="assets/Homepage.png" alt="Arcile App Screenshot" class="absolute inset-0 w-full h-full object-cover select-none pointer-events-none">
                 </div>
             </div>
@@ -804,7 +799,6 @@
     </footer>
 
     <!-- Frameworks -->
-    <script src="https://cdn.tailwindcss.com/3.4.17"></script>
     <script src="https://unpkg.com/lucide@0.477.0/dist/umd/lucide.min.js"></script>
 
     <!-- Custom Logic -->

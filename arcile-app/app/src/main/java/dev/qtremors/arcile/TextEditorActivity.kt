@@ -1,5 +1,6 @@
 package dev.qtremors.arcile
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -74,7 +75,7 @@ open class TextEditorActivity : ComponentActivity() {
 
     private fun openTargetWithChooser(target: StandaloneTextTarget) {
         lifecycleScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     this@TextEditorActivity,
                     target.toExternalReference()

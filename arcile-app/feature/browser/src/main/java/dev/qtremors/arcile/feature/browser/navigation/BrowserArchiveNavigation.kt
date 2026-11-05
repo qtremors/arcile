@@ -89,6 +89,7 @@ internal fun BrowserNavigationController.loadArchiveEntries(
     }
     val volume = if (isRootStorageScope) null else findVolumeForPath(archivePath)
     onLocationChanged()
+    fileBrowserRepository.cancelFolderStatsOutside(archivePath)
     update {
         it.withValues(
             archiveContext = BrowserArchiveContext(

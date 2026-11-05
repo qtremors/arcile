@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
@@ -40,6 +42,7 @@ internal class AudioPlaybackController @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(AudioPlaybackState())
     val state: StateFlow<AudioPlaybackState> = _state.asStateFlow()
+    private var observed = false
     private var controller: MediaController? = null
     private var pendingQueue: Triple<List<AudioTrack>, String, Boolean>? = null
     private val playbackPreferences = AudioPlayerPreferences(context)
@@ -67,6 +70,12 @@ internal class AudioPlaybackController @Inject constructor(
         scope.launch {
             playbackPreferences.playbackParametersFlow.collect { controller?.setPlaybackParameters(it) }
         }
+        scope.launch {
+            _state.subscriptionCount.map { it > 0 }.distinctUntilChanged().collect { watched ->
+                observed = watched
+                updateProgressPolling(controller?.isPlaying == true)
+            }
+        }
         val token = SessionToken(context, ComponentName(context, AudioPlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener(
@@ -90,9 +99,14 @@ internal class AudioPlaybackController @Inject constructor(
         )
     }
 
+    /**
+     * Position ticks only matter while a player UI collects [state]; every collector is lifecycle-aware,
+     * so with the screen off or the app in the background playback runs without waking the main thread.
+     */
     private fun updateProgressPolling(isPlaying: Boolean) {
         progressJob?.cancel()
-        progressJob = if (isPlaying) scope.launch {
+        progressJob = if (isPlaying && observed) scope.launch {
+            controller?.let { publish(it, refreshQueue = false) }
             while (isActive) {
                 delay(POSITION_UPDATE_MS)
                 controller?.takeIf { it.isPlaying }?.let { publish(it, refreshQueue = false) }

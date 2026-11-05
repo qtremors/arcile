@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -74,7 +75,7 @@ fun NativeStorageAuthorizationEffect(
         }
 
         launchedRequestId = current.requestId
-        runCatching {
+        runCatchingCancellable {
             launcher.launch(IntentSenderRequest.Builder(sender).build())
         }.onFailure {
             currentGateway.complete(current.requestId)

@@ -72,8 +72,6 @@ import dev.qtremors.arcile.core.storage.domain.VolumeRepository
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
 import javax.inject.Singleton
 
@@ -81,17 +79,9 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object StorageDataModule {
 
-    @OptIn(ExperimentalCoroutinesApi::class)
     @Provides
     @Singleton
-    fun provideArcileDispatchers(): ArcileDispatchers {
-        return ArcileDispatchers(
-            io = Dispatchers.IO,
-            default = Dispatchers.Default,
-            main = Dispatchers.Main,
-            storage = Dispatchers.IO.limitedParallelism(2)
-        )
-    }
+    fun provideArcileDispatchers(): ArcileDispatchers = ArcileDispatchers.Standard
 
     @Provides
     @Singleton

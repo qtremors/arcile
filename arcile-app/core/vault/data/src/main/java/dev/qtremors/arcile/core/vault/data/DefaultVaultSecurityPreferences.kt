@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -81,7 +82,7 @@ class DefaultVaultSecurityPreferences @Inject constructor(
                 vault to ids
             }.toMap(),
             pinnedVaults = preferences[PINNED_VAULTS].orEmpty().mapNotNullTo(mutableSetOf()) {
-                runCatching { VaultId.of(it) }.getOrNull()
+                runCatchingCancellable { VaultId.of(it) }.getOrNull()
             }
         )
     }.stateIn(scope, SharingStarted.Eagerly, VaultSecuritySettings())

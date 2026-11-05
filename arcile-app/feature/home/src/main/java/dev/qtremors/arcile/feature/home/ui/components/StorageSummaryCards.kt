@@ -204,12 +204,12 @@ private fun MountedStorageSummaryCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "${formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayUsed)} used",
+                            text = stringResource(R.string.storage_amount_used, formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayUsed)),
                             style = MaterialTheme.typography.bodyMediumMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "${formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayFree)} free",
+                            text = stringResource(R.string.storage_amount_free, formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayFree)),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )

@@ -40,7 +40,6 @@ enum class FilenameVersionEvidence {
 }
 
 @Serializable
-@Immutable
 data class FilenameVersionMetadata(
     val familyKey: String,
     val displayStem: String,
@@ -48,7 +47,6 @@ data class FilenameVersionMetadata(
     val isLikelyNewest: Boolean = false
 )
 
-@Immutable
 data class CleanerCandidate(
     val name: String,
     val absolutePath: String,
@@ -66,7 +64,6 @@ data class CleanerCandidate(
     val groups: Set<CleanerGroupType> get() = groupTypes
 }
 
-@Immutable
 data class CleanerGroup(
     val type: CleanerGroupType,
     val candidates: List<CleanerCandidate>
@@ -74,7 +71,6 @@ data class CleanerGroup(
     val totalBytes: Long get() = candidates.sumOf(CleanerCandidate::size)
 }
 
-@Immutable
 data class StorageCleanerResult(
     val groups: List<CleanerGroup>,
     val scannedFiles: Int,

@@ -12,28 +12,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!--
+        A file manager names arbitrary apps: installed versions for any APK, icons for
+        Android/data folders, and launchable apps for Quick Access. This makes every package
+        visible, so no <queries> block is needed alongside it.
+    -->
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission" />
-
-    <queries>
-        <package android:name="com.whatsapp" />
-        <package android:name="com.whatsapp.w4b" />
-
-        <intent>
-            <action android:name="android.intent.action.MAIN" />
-            <category android:name="android.intent.category.LAUNCHER" />
-        </intent>
-        <intent>
-            <action android:name="dev.qtremors.arcile.plugin.REGISTER" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.VIEW" />
-            <category android:name="android.intent.category.DEFAULT" />
-            <data android:mimeType="vnd.android.document/directory" />
-        </intent>
-        <intent>
-            <action android:name="android.intent.action.OPEN_DOCUMENT" />
-        </intent>
-    </queries>
 
     <application
         android:name=".ArcileApp"

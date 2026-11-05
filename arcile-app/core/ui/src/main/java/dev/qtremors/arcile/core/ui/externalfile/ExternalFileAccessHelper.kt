@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.externalfile
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.ComponentName
 import android.content.Intent
@@ -470,7 +471,7 @@ object ExternalFileAccessHelper {
                     reference.displayName ?: sourceFile.name,
                     reference.allowManagedTrashPayload
                 )
-                val uri = runCatching {
+                val uri = runCatchingCancellable {
                     directOpenUriFactory(context, stagedFile)
                 }.getOrElse { error ->
                     throw IllegalArgumentException("Unable to create file access grant", error)

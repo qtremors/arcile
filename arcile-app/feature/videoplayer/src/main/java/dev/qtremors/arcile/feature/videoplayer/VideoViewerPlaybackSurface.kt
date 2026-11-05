@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
@@ -339,6 +340,14 @@ internal fun VideoViewerPlaybackSurface(
                         isBuffering = false
                     }
 
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int
+                    ) {
+                        playbackPosition = player.currentPosition.coerceAtLeast(0L)
+                    }
+
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                         transitionedPath = mediaItem?.mediaId
                         playbackPosition = player.currentPosition.coerceAtLeast(0L)
@@ -363,9 +372,11 @@ internal fun VideoViewerPlaybackSurface(
                 }
             }
 
-            LaunchedEffect(player) {
-                while (true) {
-                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            // Polls only while playing and visible; a paused video samples once, and seeks while
+            // paused arrive through onPositionDiscontinuity, so a still frame never recomposes.
+            LaunchedEffect(player, isPlaying) {
+                lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    while (true) {
                         playbackPosition = player.currentPosition.coerceAtLeast(0L)
                         loadedPath?.let { path ->
                             if (privateSession) {
@@ -377,8 +388,9 @@ internal fun VideoViewerPlaybackSurface(
                             }
                         }
                         playbackDuration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
+                        if (!isPlaying) break
+                        kotlinx.coroutines.delay(500L)
                     }
-                    kotlinx.coroutines.delay(500L)
                 }
             }
 

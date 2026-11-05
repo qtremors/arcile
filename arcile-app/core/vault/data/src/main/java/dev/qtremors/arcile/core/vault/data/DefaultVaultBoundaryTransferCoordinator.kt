@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.TrashRepository
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
@@ -32,7 +33,6 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -45,18 +45,17 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
     private val repository: DefaultVaultRepository?,
     private val legacyFileSystem: VaultFileSystem?,
     private val legacySessions: VaultSessionManager?,
-    private val trashRepository: TrashRepository?
+    private val trashRepository: TrashRepository?,
+    private val dispatchers: ArcileDispatchers
 ) : VaultBoundaryTransferCoordinator {
-    @Inject internal constructor(
-        repository: DefaultVaultRepository,
-        trashRepository: TrashRepository
-    ) : this(repository, null, null, trashRepository)
+    @Inject internal constructor(repository: DefaultVaultRepository, trashRepository: TrashRepository, dispatchers: ArcileDispatchers) :
+        this(repository, null, null, trashRepository, dispatchers)
 
     internal constructor(
         fileSystem: VaultFileSystem,
         sessions: VaultSessionManager,
         trashRepository: TrashRepository? = null
-    ) : this(null, fileSystem, sessions, trashRepository)
+    ) : this(null, fileSystem, sessions, trashRepository, ArcileDispatchers.Standard)
     private val mutex = Mutex()
     private val updates = MutableSharedFlow<VaultTransferProgress>(extraBufferCapacity = 32)
     override val progress: Flow<VaultTransferProgress> = updates
@@ -175,7 +174,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
     private suspend fun <T> withExportSession(
         reservation: VaultBoundaryTransferReservation,
         operation: suspend (BoundaryAccessSession, List<VaultNodeRef>) -> T
-    ): T = withContext(Dispatchers.IO) {
+    ): T = withContext(dispatchers.io) {
         mutex.withLock {
             val prepared = reservation as? BoundaryReservation
                 ?: throw VaultFailure.Unavailable("Export session is invalid")
@@ -197,7 +196,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
     override suspend fun moveToMainTrash(
         reservation: VaultBoundaryTransferReservation,
         cancellation: VaultCancellationSignal
-    ): VaultBatchResult = withContext(Dispatchers.IO) {
+    ): VaultBatchResult = withContext(dispatchers.io) {
         mutex.withLock {
             val trash = trashRepository ?: throw VaultFailure.Unavailable("Main Trash is unavailable")
             val prepared = reservation as? BoundaryReservation
@@ -219,7 +218,7 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
     override suspend fun undoPlaintext(
         proofs: List<VaultPlaintextUndo>,
         cancellation: VaultCancellationSignal
-    ): VaultBatchResult = withContext(Dispatchers.IO) {
+    ): VaultBatchResult = withContext(dispatchers.io) {
         // Serialized with exports and Trash moves so an Undo never races the operation it reverses.
         mutex.withLock {
             VaultPlaintextUndoRunner(repository ?: requireNotNull(legacyFileSystem), trashRepository).undo(proofs, cancellation)

@@ -25,6 +25,19 @@ interface ThumbnailDao {
     @Upsert
     suspend fun upsertVariant(entity: ThumbnailVariantEntity)
 
+    @Upsert
+    suspend fun upsertEntries(entities: List<ThumbnailEntryEntity>)
+
+    @Upsert
+    suspend fun upsertVariants(entities: List<ThumbnailVariantEntity>)
+
+    /** Writes a batch of loaded thumbnails in one transaction instead of two statements per image. */
+    @Transaction
+    suspend fun upsertLoaded(entries: List<ThumbnailEntryEntity>, variants: List<ThumbnailVariantEntity>) {
+        upsertEntries(entries)
+        upsertVariants(variants)
+    }
+
     @Query(
         """
         UPDATE thumbnail_entries

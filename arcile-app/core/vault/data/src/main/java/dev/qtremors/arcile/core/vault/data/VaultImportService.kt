@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -18,7 +19,6 @@ import dev.qtremors.arcile.core.vault.domain.VaultPath
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -28,8 +28,13 @@ import javax.inject.Inject
 @AndroidEntryPoint
 class VaultImportService : Service() {
     @Inject internal lateinit var coordinator: DefaultVaultImportCoordinator
+    @Inject internal lateinit var dispatchers: ArcileDispatchers
 
-    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    // Injection runs in onCreate, after field initializers, so the scope waits for first use.
+    private val serviceScope by lazy {
+        val io = if (::dispatchers.isInitialized) dispatchers.io else ArcileDispatchers.Standard.io
+        CoroutineScope(SupervisorJob() + io)
+    }
     private val operationLock = Any()
     private val jobs = mutableMapOf<String, Job>()
     private val activeNotifications = mutableMapOf<String, Notification>()

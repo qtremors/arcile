@@ -452,6 +452,73 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `data layers take dispatchers from ArcileDispatchers`() {
+        val ioDispatcher = Regex("""\bDispatchers\.IO\b""")
+        val dispatcherSource = "core/runtime/src/main/java/dev/qtremors/arcile/core/runtime/di/ArcileDispatchers.kt"
+        val offenders = listOf(
+            "core/storage/data",
+            "core/vault/data",
+            "core/operation",
+            "core/operation/api",
+            "core/operation/android",
+            "core/runtime"
+        )
+            .flatMap { File(projectRoot(), "$it/src/main").kotlinFiles().toList() }
+            .filterNot { it.relativeTo(projectRoot()).invariantSeparatorsPath == dispatcherSource }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    violation(file, index, line).takeIf { ioDispatcher.containsMatchIn(line) }
+                }
+            }
+
+        if (offenders.isNotEmpty()) {
+            fail(
+                "Data layers must use injected ArcileDispatchers (or ArcileDispatchers.Standard outside DI):\n" +
+                    offenders.joinToString("\n")
+            )
+        }
+    }
+
+    /**
+     * Hardcoded English in a spoken or visible UI string. Line based on purpose: it covers the
+     * call shapes Arcile uses, and a literal that holds only interpolations is allowed.
+     */
+    @Test
+    fun `production ui strings come from resources`() {
+        val literal = """"(?=[^"]*[A-Za-z])(?:[^"\\$]|\\.|[$]\{[^}]*\}|[$]\w+)*""""
+        val patterns = listOf(
+            Regex("""\bText\(\s*$literal"""),
+            Regex("""\bIcon\(\s*[\w.]+(?:\([^)]*\))?\s*,\s*$literal"""),
+            Regex("""\b(?:contentDescription|stateDescription|placeholder|title|text|onClickLabel)\s*=\s*$literal"""),
+            Regex("""\b(?:onClick|onLongClick|CustomAccessibilityAction)\(\s*label\s*=\s*$literal"""),
+            Regex("""\b(?:createChooser|Toast\.makeText|showArcileToast)\([^"]*$literal"""),
+            Regex("""\bset(?:ContentTitle|ContentText|DisplayName)\(\s*$literal""")
+        )
+        val interpolationOnly = Regex("""^"(?:[$]\{[^}]*\}|[$]\w+|[^A-Za-z])*"$""")
+        val literalPattern = Regex(literal)
+        // Device facts read from Build are not translatable copy.
+        val allowed = listOf("android.os.Build.")
+        val offenders = productionKotlinFiles()
+            .filterNot { "${File.separator}ui${File.separator}theme${File.separator}" in it.path }
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("//") || trimmed.startsWith("*") || allowed.any(trimmed::contains)) {
+                        return@mapIndexedNotNull null
+                    }
+                    val match = patterns.firstNotNullOfOrNull { it.find(trimmed) } ?: return@mapIndexedNotNull null
+                    val text = literalPattern.find(trimmed, match.range.first)?.value.orEmpty()
+                    violation(file, index, line).takeUnless { interpolationOnly.matches(text) }
+                }
+            }
+            .toList()
+
+        if (offenders.isNotEmpty()) {
+            fail("Move hardcoded UI strings into strings.xml:\n" + offenders.joinToString("\n"))
+        }
+    }
+
+    @Test
     fun `storage failures preserve coroutine cancellation`() {
         val storageRoot = File(projectRoot(), "core/storage/data/src/main/java")
         val rawResultWrapper = Regex("""\brunCatching\s*\{""")

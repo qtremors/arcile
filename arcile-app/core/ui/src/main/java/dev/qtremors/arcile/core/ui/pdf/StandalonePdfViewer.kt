@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.pdf
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
@@ -396,7 +397,7 @@ fun StandalonePdfViewer(
         delay(PDF_SEARCH_DEBOUNCE_MILLIS)
         searchStatus = PdfSearchStatus.Searching
         val result = withContext(Dispatchers.IO) {
-            runCatching { document.searchText(searchQuery.trim()) }
+            runCatchingCancellable { document.searchText(searchQuery.trim()) }
         }
         result.fold(
             onSuccess = { matches ->

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.graphics.Bitmap
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,7 +24,7 @@ fun rememberApplicationIconInfo(packageName: String?): ApplicationIconInfo? {
     ) {
         value = packageName?.let { packageId ->
             withContext(Dispatchers.IO) {
-                val label = runCatching {
+                val label = runCatchingCancellable {
                     val packageManager = context.packageManager
                     packageManager.getApplicationLabel(
                         packageManager.getApplicationInfo(packageId, 0)

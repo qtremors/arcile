@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
@@ -30,7 +32,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -38,22 +39,23 @@ import kotlinx.coroutines.withContext
 @Singleton
 internal class DefaultVaultThumbnailCache @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val repository: DefaultVaultRepository
+    private val repository: DefaultVaultRepository,
+    private val dispatchers: ArcileDispatchers
 ) : VaultThumbnailCache {
     private val root by lazy { File(context.noBackupFilesDir, "onlyfiles-thumbnail-cache") }
     private val mutex = Mutex()
 
     override suspend fun loadOrCreate(ref: VaultNodeRef, revision: Long, requestedSizePx: Int): Result<ByteArray> =
-        withContext(Dispatchers.IO) {
-            runCatching {
+        withContext(dispatchers.io) {
+            runCatchingCancellable {
                 require(revision >= 0L)
                 val bucket = VaultThumbnailRequest.sizeBucket(requestedSizePx)
                 mutex.withLock { loadOrCreateLocked(ref, revision, bucket) }
             }
         }
 
-    override suspend fun clear(): Result<VaultThumbnailCacheStats> = withContext(Dispatchers.IO) {
-        runCatching {
+    override suspend fun clear(): Result<VaultThumbnailCacheStats> = withContext(dispatchers.io) {
+        runCatchingCancellable {
             mutex.withLock {
                 if (root.exists() && !root.deleteRecursively() && root.exists()) {
                     throw IllegalStateException("The encrypted thumbnail cache could not be cleared")
@@ -63,8 +65,8 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
         }
     }
 
-    override suspend fun stats(): Result<VaultThumbnailCacheStats> = withContext(Dispatchers.IO) {
-        runCatching { mutex.withLock { calculateStats() } }
+    override suspend fun stats(): Result<VaultThumbnailCacheStats> = withContext(dispatchers.io) {
+        runCatchingCancellable { mutex.withLock { calculateStats() } }
     }
 
     private fun loadOrCreateLocked(ref: VaultNodeRef, revision: Long, bucket: Int): ByteArray {

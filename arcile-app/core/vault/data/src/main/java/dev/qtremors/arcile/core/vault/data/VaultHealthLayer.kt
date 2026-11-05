@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.vault.crypto.VaultFileCodec
@@ -293,7 +294,7 @@ internal abstract class VaultHealthLayer(
             .filterNot { it.isDirectory }
             .mapNotNull { physical ->
                 physical.relativePath.substringAfterLast('/').removeSuffix(".obj")
-                    .let { runCatching { VaultObjectId.of(it) }.getOrNull() }
+                    .let { runCatchingCancellable { VaultObjectId.of(it) }.getOrNull() }
             }.toSet()
         val orphans = physicalObjectIds - referencedObjects
         if (orphans.isNotEmpty()) {

@@ -7,7 +7,6 @@ enum class PropertiesAccessStatus {
     Limited
 }
 
-@Immutable
 data class SelectionProperties(
     val displayName: String,
     val pathSummary: String,

@@ -13,13 +13,6 @@ import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.FileOpenPreferences
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 
-internal fun nodeIcon(node: VaultNodeMetadata) = when {
-    node.isDirectory -> Icons.Default.Folder
-    node.isViewableImage() -> Icons.Default.Image
-    node.isViewableVideo() -> Icons.Default.Movie
-    else -> Icons.Outlined.Description
-}
-
 internal fun VaultNodeMetadata.builtInOpen(): BuiltInFileOpen =
     if (isDirectory) BuiltInFileOpen.EXTERNAL else BuiltInFileOpen.resolve(
         name, extension, mimeType ?: "image/avif".takeIf { extension.equals("avif", ignoreCase = true) }

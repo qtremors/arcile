@@ -128,16 +128,12 @@ internal class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             bulkFileOperationCoordinator.events.collect { event ->
                 val request = (event as? BulkFileOperationEvent.Completed)?.request ?: return@collect
-                if (request.type.refreshesHomeAnalytics()) {
-                    loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
-                }
+                if (request.type.refreshesHomeAnalytics()) refreshAnalyticsWhenVisible()
             }
         }
 
         viewModelScope.launch {
-            storageMutationNotifier.events.collect {
-                loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
-            }
+            storageMutationNotifier.events.collect { refreshAnalyticsWhenVisible() }
         }
 
         viewModelScope.launch {
@@ -180,7 +176,26 @@ internal class HomeViewModel @Inject constructor(
         }
     }
 
+    // Starts visible so events before the first pause behave as before; the screen's lifecycle drives it after.
+    private var visible = true
+    private var analyticsStaleWhileHidden = false
+
+    /** Home is off screen: storage changes only mark its totals stale until [resumeHomeData]. */
+    fun pauseHomeData() {
+        visible = false
+    }
+
+    private fun refreshAnalyticsWhenVisible() {
+        if (visible) loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true) else analyticsStaleWhileHidden = true
+    }
+
     fun resumeHomeData() {
+        visible = true
+        if (analyticsStaleWhileHidden) {
+            analyticsStaleWhileHidden = false
+            loadHomeData(HomeRefreshMode.SILENT, forceAnalytics = true)
+            return
+        }
         // Cache restoration and mutation events already own refreshes.
         if (startupJob?.isActive == true || refreshJob?.isActive == true) return
         val hadError = _state.value.error != null

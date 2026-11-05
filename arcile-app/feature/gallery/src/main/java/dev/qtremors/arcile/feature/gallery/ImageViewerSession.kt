@@ -93,14 +93,6 @@ import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 
-internal fun viewerFilesForInitialPath(
-    initialPath: String,
-    displayedFiles: List<FileModel>,
-    allFiles: List<FileModel>
-): List<FileModel> {
-    return viewerFileContextForInitialPath(initialPath, displayedFiles, allFiles).files
-}
-
 internal data class ViewerFileContext(
     val files: List<FileModel>,
     val initialPage: Int

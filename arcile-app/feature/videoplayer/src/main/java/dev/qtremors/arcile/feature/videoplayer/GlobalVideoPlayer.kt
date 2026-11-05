@@ -307,27 +307,27 @@ internal fun GlobalVideoViewer(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = exitViewer) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back), tint = Color.White)
             }
             Text(
                 activeItem.title, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
             activeItem.onShare?.let { action ->
-                IconButton(onClick = action) { Icon(Icons.Default.Share, "Share", tint = Color.White) }
+                IconButton(onClick = action) { Icon(Icons.Default.Share, stringResource(R.string.share), tint = Color.White) }
             }
             activeItem.onOpenWith?.let { action ->
                 IconButton(onClick = action) {
-                    Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open with", tint = Color.White)
+                    Icon(Icons.AutoMirrored.Filled.OpenInNew, stringResource(R.string.action_open_with), tint = Color.White)
                 }
             }
             IconButton(onClick = { resizeModeIndex = (resizeModeIndex + 1) % resizeModes.size }) {
                 Icon(
                     Icons.Default.AspectRatio,
                     when (resizeModeIndex) {
-                        0 -> "Resize: fit"
-                        1 -> "Resize: zoom"
-                        else -> "Resize: fill"
+                        0 -> stringResource(R.string.video_resize_fit)
+                        1 -> stringResource(R.string.video_resize_zoom)
+                        else -> stringResource(R.string.video_resize_fill)
                     },
                     tint = Color.White
                 )

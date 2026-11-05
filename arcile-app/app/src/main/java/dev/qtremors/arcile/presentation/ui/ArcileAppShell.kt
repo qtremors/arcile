@@ -45,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -92,9 +93,8 @@ fun ArcileAppShell(
         mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
     }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val audioLibraryIsCurrent = AppRoutes.AudioLibrary::class.qualifiedName?.let { route ->
-        navBackStackEntry?.destination?.route?.startsWith(route)
-    } == true
+    // Match by serializer, not class name: R8 renames classes, but serial names are fixed at compile time.
+    val audioLibraryIsCurrent = navBackStackEntry?.destination?.hasRoute<AppRoutes.AudioLibrary>() == true
     val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
 

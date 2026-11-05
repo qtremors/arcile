@@ -1,6 +1,5 @@
 <resources>
     <string name="send_to_onlyfiles">Send to OnlyFiles</string>
-    <string name="video_playback_failed">This video could not be played.</string>
     <string name="app_name">Arcile</string>
     
     <!-- General -->
@@ -41,7 +40,6 @@
     <string name="action_paste_here">Paste here</string>
     <string name="action_sort">Sort</string>
     <string name="view_options">View options</string>
-    <string name="action_settings">Settings</string>
     <string name="action_more_options">More options</string>
     <string name="action_copy">Copy</string>
     <string name="action_cut">Cut</string>
@@ -51,7 +49,6 @@
     <string name="action_share">Share</string>
     <string name="action_open_with">Open with</string>
     <string name="action_create_archive">Compress</string>
-    <string name="action_shred">Shred</string>
     <string name="action_properties">Properties</string>
     <string name="action_navigate_to">Navigate to</string>
     <string name="action_favorite">Favorite</string>
@@ -114,8 +111,6 @@
     <string name="storage_dashboard_usage_map_tab">Usage Map</string>
 
     <!-- Permission Request -->
-    <string name="permission_title">Storage Permission Required</string>
-    <string name="permission_description">This application requires permission to read and manage files on your device.</string>
     <string name="grant_permission">Grant Permission</string>
 
     <!-- Home Screen -->
@@ -144,7 +139,6 @@
     <string name="thumbnail">Thumbnail</string>
 
     <string name="folders">Folders</string>
-    <string name="all_files">Arcile</string>
     <string name="folder_tabs_content_description">Folder filters</string>
     <string name="empty_folder_tab_description">No files from this folder match the current view.</string>
     <string name="browser_tab_actions">Show tab actions</string>
@@ -181,7 +175,6 @@
     <string name="no_recent_files">No recent files</string>
     <string name="no_recent_files_description">Files you open recently will appear here for quick access.</string>
     <string name="internal_storage">Internal Storage</string>
-    <string name="tap_to_browse">Tap to browse storage</string>
     <string name="new_storage_detected">New Storage Detected</string>
     <string name="how_should_be_treated">"How should %1$s be treated?"</string>
     <string name="sd_card">SD Card</string>
@@ -191,8 +184,6 @@
     <string name="otg_usb_description">Temporary, browsable only, no trash</string>
     <string name="decide_later">Decide later</string>
     <string name="used_of">%1$s / %2$s</string>
-    <string name="used_label">%1$s used</string>
-    <string name="free_label">%1$s free</string>
     <string name="trash_bin">Trash Bin</string>
     <string name="activity_log_title">Activity</string>
     <string name="activity_log_clear_action">Clear activity</string>
@@ -262,18 +253,6 @@
     <string name="empty_directory_description">This folder doesn\'t have any files yet. You can create one using the + button.</string>
     <string name="browsing_temp_usb">Browsing temporary USB storage. It is excluded from indexed surfaces and deletions are permanent.</string>
     <string name="browsing_unclassified">Browsing unclassified external storage. It is treated as temporary until classified, and deletions are permanent.</string>
-    <plurals name="delete_items_title">
-        <item quantity="one">Delete %1$d item?</item>
-        <item quantity="other">Delete %1$d items?</item>
-    </plurals>
-    <string name="delete_items_description">Selected items will be moved to the Trash Bin. You can restore them later.</string>
-    <plurals name="delete_permanent_title">
-        <item quantity="one">Permanently delete %1$d item?</item>
-        <item quantity="other">Permanently delete %1$d items?</item>
-    </plurals>
-    <string name="delete_permanent_description">Selected items will be permanently deleted. This action cannot be undone.</string>
-    <string name="mixed_selection_title">Mixed Selection Blocked</string>
-    <string name="mixed_selection_description">Your selection includes items from both permanent storage (which uses the Trash Bin) and temporary storage (which deletes items permanently).\n\nTo prevent accidental data loss, please delete items from these storages separately.</string>
     <string name="sort_folder_title">Sort current folder</string>
     <string name="sort_name_asc">Name (A to Z)</string>
     <string name="sort_name_desc">Name (Z to A)</string>
@@ -294,7 +273,6 @@
     <string name="open_as_archive">Archive</string>
     <string name="open_as_text">Text</string>
     <string name="open_as_other">Other file</string>
-    <string name="browser_layout_summary">%1$s in %2$s</string>
     <string name="browser_layout_view_mode">View mode</string>
     <string name="browser_layout_list_zoom">List zoom</string>
     <string name="browser_layout_list_zoom_value">%1$d%% density</string>
@@ -304,19 +282,12 @@
         <item quantity="other">%1$d columns at this width</item>
     </plurals>
     <string name="browser_layout_persistence_hint">Keep this layout for nested folders too</string>
-    <plurals name="clipboard_feedback">
-        <item quantity="one">%1$d item %2$s to clipboard</item>
-        <item quantity="other">%1$d items %2$s to clipboard</item>
-    </plurals>
-    <string name="clipboard_copied">copied</string>
-    <string name="clipboard_cut">cut</string>
     <string name="clipboard_copied_files">Copied Files</string>
     <string name="clipboard_cut_files">Cut Files</string>
     <string name="clipboard_remove_item">Remove from clipboard</string>
     <string name="folder_label">Folder</string>
     <string name="folder_stats_summary">%1$s • %2$s</string>
     <string name="directory_label">Directory</string>
-    <string name="folder_stats_limited_access">Limited access</string>
     <string name="folder_stats_pending">Calculating size…</string>
     <string name="folder_stats_unavailable">Size unavailable • Limited access</string>
     <string name="properties_title">Properties</string>
@@ -338,10 +309,6 @@
     <string name="properties_access_partial">Partial</string>
     <string name="properties_access_limited">Limited</string>
     <string name="properties_contains">Contains</string>
-    <plurals name="properties_contains_value">
-        <item quantity="one">%1$d file • %2$s</item>
-        <item quantity="other">%1$d files • %2$s</item>
-    </plurals>
     <plurals name="properties_file_count_value">
         <item quantity="one">%1$d file</item>
         <item quantity="other">%1$d files</item>
@@ -353,7 +320,6 @@
     <string name="properties_folder_contents">%1$s • %2$s • %3$s</string>
     <string name="archive_create_menu_action">Create archive</string>
     <string name="archive_extract_here">Extract here</string>
-    <string name="archive_extract_to_folder">Extract to folder</string>
     <string name="archive_extract_folder">Extract folder</string>
     <string name="archive_extract_archive">Extract archive</string>
     <string name="archive_root">Archive root</string>
@@ -371,24 +337,16 @@
     <string name="archive_filename_preview">File name: %1$s</string>
     <string name="archive_password_title">Archive password</string>
     <string name="archive_password_protect">Password protect</string>
-    <string name="archive_has_password">Archive has password</string>
     <string name="archive_password">Password</string>
     <string name="archive_password_description">Enter the password to open this archive.</string>
     <string name="archive_password_show">Show password</string>
     <string name="archive_password_hide">Hide password</string>
     <string name="archive_confirm_password">Confirm password</string>
     <string name="archive_password_mismatch">Passwords do not match</string>
-    <string name="archive_password_hint">Leave off for normal archives; enable only if this archive is encrypted.</string>
     <string name="archive_destination">Destination: %1$s</string>
     <string name="create_destination_preview">Creates at %1$s</string>
     <string name="archive_create_action">Create</string>
-    <string name="archive_compression_level">Compression level</string>
-    <string name="archive_encryption">Encryption</string>
-    <string name="archive_split_volumes">Split into volumes</string>
-    <string name="archive_delete_source">Delete source files after compression</string>
-    <string name="archive_separate_archives">Create separate archive for each item</string>
     <string name="archive_create_subfolder">Create subfolder</string>
-    <string name="archive_delete_after_extraction">Delete archive after extraction</string>
     <string name="archive_extract_title">Extract archive</string>
     <string name="archive_choose_folder">Choose folder</string>
     <string name="archive_destination_folder">Destination folder</string>
@@ -468,8 +426,6 @@
     <string name="settings_file_opening_add">Add extension</string>
     <string name="settings_file_opening_added_extensions">Added by you</string>
     <string name="settings_file_opening_remove_extension">Remove %1$s</string>
-    <string name="settings_file_opening_arcile">Open in Arcile when supported</string>
-    <string name="settings_file_opening_external">Always use another app</string>
     <string name="cleaner_detail_storage_map">Selection storage map</string>
     <string name="cleaner_detail_storage_selected">%1$s selected of %2$s</string>
 
@@ -591,4 +547,28 @@
     <string name="onlyfiles_locking">Locking vaults…</string>
     <string name="onlyfiles_lock_failed">Unable to finish locking vaults. Try again.</string>
     <string name="onlyfiles_retry_lock">Retry lock</string>
+    <string name="apk_analyzing">Analyzing package metadata…</string>
+    <string name="apk_version">APK version</string>
+    <string name="apk_version_value">v%1$s (%2$s)</string>
+    <string name="apk_installed_version">Installed</string>
+    <string name="apk_package_type">Package type</string>
+    <plurals name="apk_split_components">
+        <item quantity="one">Split APK (%d component)</item>
+        <item quantity="other">Split APK (%d components)</item>
+    </plurals>
+    <string name="apk_single">Single APK</string>
+    <string name="apk_total_size">Total size</string>
+    <string name="apk_self_update_notice">Android will close Arcile, install this update, and let you reopen it.</string>
+    <string name="apk_downgrade_blocked">Android blocks installing older versions. Uninstall the current app first to install this version.</string>
+    <string name="apk_unknown_sources_required">Permission to install unknown apps from system settings is required.</string>
+    <string name="batch_rename_target_scope">Target scope</string>
+    <string name="batch_rename_case_transform">Case transform</string>
+    <string name="accent_system_themes">System themes</string>
+    <string name="accent_preview_interface">Arcile interface</string>
+    <string name="accent_preview_list_controls">List item &amp; controls</string>
+    <string name="storage_amount_used">%1$s used</string>
+    <string name="storage_amount_free">%1$s free</string>
+    <string name="video_resize_fit">Resize: fit</string>
+    <string name="video_resize_zoom">Resize: zoom</string>
+    <string name="video_resize_fill">Resize: fill</string>
 </resources>

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -122,7 +123,7 @@ internal class AppNavigationActions(
     fun openFileAs(path: String, type: FileOpenAsType) {
         onRecordFileOpened(path)
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
@@ -237,7 +238,7 @@ internal class AppNavigationActions(
 
     private fun openManagedTrashFileExternally(file: FileModel, forceChooser: Boolean) {
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     file.toManagedTrashReference()
@@ -423,7 +424,7 @@ internal class AppNavigationActions(
             return
         }
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
@@ -538,7 +539,7 @@ internal class AppNavigationActions(
 
     private fun openFileModelExternally(file: FileModel, forceChooser: Boolean) {
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     file.toInternalReference()

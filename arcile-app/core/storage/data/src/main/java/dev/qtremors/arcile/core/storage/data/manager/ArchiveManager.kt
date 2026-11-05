@@ -27,7 +27,6 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.util.UUID
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -38,12 +37,7 @@ class DefaultArchiveManager(
     private val volumeProvider: VolumeProvider,
     private val mutationFinalizer: MutationFinalizer,
     private val safetyPolicy: ArchiveSafetyPolicy = ArchiveSafetyPolicy(),
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    ),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard,
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) }
 ) : ArchiveManager {

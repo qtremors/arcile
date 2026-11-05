@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.operation.android.apk
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -86,7 +87,7 @@ class DefaultOnDeviceApkDiscovery @Inject constructor(
     override suspend fun discoverArcileUpdate(scope: StorageScope): ApkUpdateCandidate? =
         withContext(dispatchers.io) {
             val currentPackageName = context.packageName
-            val currentPackageInfo = runCatching {
+            val currentPackageInfo = runCatchingCancellable {
                 context.packageManager.getPackageInfo(currentPackageName, 0)
             }.getOrNull() ?: return@withContext null
 
@@ -146,7 +147,7 @@ class DefaultOnDeviceApkDiscovery @Inject constructor(
                     ?: return@withContext null
                 evaluatePluginRejection(freshMetadata, installed, appSignatures)
             } else {
-                val currentPackageInfo = runCatching {
+                val currentPackageInfo = runCatchingCancellable {
                     context.packageManager.getPackageInfo(context.packageName, 0)
                 }.getOrNull() ?: return@withContext null
                 evaluateArcileRejection(freshMetadata, currentPackageInfo.longVersionCode, appSignatures)

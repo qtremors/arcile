@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -142,7 +143,7 @@ fun StandaloneImageViewer(
 
     LaunchedEffect(reference) {
         metadata = withContext(Dispatchers.IO) {
-            runCatching { SharedImageMetadataReader.readMetadata(context, reference, mimeType) }.getOrNull()
+            runCatchingCancellable { SharedImageMetadataReader.readMetadata(context, reference, mimeType) }.getOrNull()
         }
     }
 

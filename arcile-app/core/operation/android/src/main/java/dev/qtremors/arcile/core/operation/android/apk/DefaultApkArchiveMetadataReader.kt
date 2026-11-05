@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.operation.android.apk
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -37,7 +38,7 @@ class DefaultApkArchiveMetadataReader @Inject constructor(
         val file = File(filePath)
         if (!file.exists() || !file.isFile) return null
 
-        val canonical = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
+        val canonical = runCatchingCancellable { file.canonicalPath }.getOrDefault(file.absolutePath)
         val key = CacheKey(canonical, file.length(), file.lastModified())
         cache[key]?.let { return it }
 
@@ -55,7 +56,7 @@ class DefaultApkArchiveMetadataReader @Inject constructor(
         val file = File(filePath)
         if (!file.exists() || !file.isFile) return null
         val metadata = extractMetadata(file) ?: return null
-        val canonical = runCatching { file.canonicalPath }.getOrDefault(file.absolutePath)
+        val canonical = runCatchingCancellable { file.canonicalPath }.getOrDefault(file.absolutePath)
         cache[CacheKey(canonical, file.length(), file.lastModified())] = metadata
         return metadata
     }

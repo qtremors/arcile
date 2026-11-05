@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import dev.qtremors.arcile.core.storage.domain.AudioLibraryPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,7 +18,7 @@ internal class AudioLibraryCollectionActions(
 ) {
     fun createPlaylist(name: String) {
         scope.launch {
-            runCatching { musicStore.createPlaylist(name) }.onFailure(onError)
+            runCatchingCancellable { musicStore.createPlaylist(name) }.onFailure(onError)
         }
     }
 
@@ -25,7 +26,7 @@ internal class AudioLibraryCollectionActions(
         val paths = state.value.selectedPaths.toList()
         if (paths.isEmpty()) return
         scope.launch {
-            runCatching { musicStore.createPlaylist(name, paths) }
+            runCatchingCancellable { musicStore.createPlaylist(name, paths) }
                 .onSuccess { clearSelection() }
                 .onFailure(onError)
         }
@@ -35,7 +36,7 @@ internal class AudioLibraryCollectionActions(
         val paths = state.value.selectedPaths.toList()
         if (paths.isEmpty()) return
         scope.launch {
-            runCatching { musicStore.appendPlaylistTracks(id, paths) }
+            runCatchingCancellable { musicStore.appendPlaylistTracks(id, paths) }
                 .onSuccess { clearSelection() }
                 .onFailure(onError)
         }
@@ -43,19 +44,19 @@ internal class AudioLibraryCollectionActions(
 
     fun renamePlaylist(id: String, name: String) {
         scope.launch {
-            runCatching { musicStore.renamePlaylist(id, name) }.onFailure(onError)
+            runCatchingCancellable { musicStore.renamePlaylist(id, name) }.onFailure(onError)
         }
     }
 
     fun deletePlaylist(id: String) {
         scope.launch {
-            runCatching { musicStore.deletePlaylist(id) }.onFailure(onError)
+            runCatchingCancellable { musicStore.deletePlaylist(id) }.onFailure(onError)
         }
     }
 
     fun setPlaylistTracks(id: String, paths: List<String>) {
         scope.launch {
-            runCatching { musicStore.setPlaylistTracks(id, paths) }.onFailure(onError)
+            runCatchingCancellable { musicStore.setPlaylistTracks(id, paths) }.onFailure(onError)
         }
     }
 
@@ -64,7 +65,7 @@ internal class AudioLibraryCollectionActions(
         if (selected.isEmpty()) return
         val makeFavorite = !selected.all(state.value.favoritePaths::contains)
         scope.launch {
-            runCatching { listeningStore.setFavorites(selected, makeFavorite) }
+            runCatchingCancellable { listeningStore.setFavorites(selected, makeFavorite) }
                 .onFailure(onError)
         }
         rebuildPresentation { current ->
@@ -117,13 +118,13 @@ internal class AudioLibraryCollectionActions(
     fun toggleFavoriteTrack(path: String) {
         val favorite = path !in state.value.favoritePaths
         scope.launch {
-            runCatching { listeningStore.setFavorite(path, favorite) }.onFailure(onError)
+            runCatchingCancellable { listeningStore.setFavorite(path, favorite) }.onFailure(onError)
         }
     }
 
     fun clearListeningHistory() {
         scope.launch {
-            runCatching { listeningStore.clearHistory() }.onFailure(onError)
+            runCatchingCancellable { listeningStore.clearHistory() }.onFailure(onError)
         }
     }
 }

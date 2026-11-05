@@ -23,7 +23,6 @@
     <string name="privacy_policy_url">"https://github.com/qtremors/arcile/blob/main/PRIVACY.md"</string>
     <string name="open_source_licenses">Open Source Licenses</string>
     <string name="open_source_licenses_description">"View third-party software details."</string>
-    <string name="open_source_licenses_url">"https://github.com/qtremors/arcile/blob/main/LICENSE.md"</string>
     <string name="licenses_notice">"This application is built with the following open source libraries. Each library is the property of its respective owner and is used under the terms of its license."</string>
     <string name="licenses_section_libraries">Libraries</string>
     <string name="copied_to_clipboard">Copied to clipboard</string>
@@ -44,7 +43,6 @@
     <string name="settings_appearance_theme_section">Colors and theme</string>
     <string name="settings_appearance_names_section">File names</string>
     <string name="settings_appearance_feedback_section">Feedback</string>
-    <string name="settings_storage_external_section">External storage</string>
     <string name="settings_storage_temporary_section">Temporary files</string>
     <string name="settings_theme_mode_description">Follow your device or choose a display mode.</string>
     <string name="settings_theme_preset">Theme preset</string>
@@ -54,15 +52,12 @@
     <string name="settings_privacy_summary">Activity history</string>
     <string name="settings_storage_summary">External drives and shared-file cache</string>
     <string name="settings_backup_summary">Export or restore settings</string>
-    <string name="manage_classification">External storage types</string>
-    <string name="manage_classification_description">"Configure USB drives and SD card behavior."</string>
     <string name="clear_external_access_cache">Clear shared-file cache</string>
     <plurals name="clear_external_access_cache_description">
         <item quantity="one">Remove %1$d temporary file used for sharing</item>
         <item quantity="other">Remove %1$d temporary files used for sharing</item>
     </plurals>
     <string name="clear_external_access_cache_empty">No temporary files to clear</string>
-    <string name="section_info">Info</string>
     <string name="about_headline">About</string>
     <string name="about_description">App details, privacy policy, and changelog</string>
     <string name="section_setup">Backup &amp; restore</string>
@@ -85,10 +80,6 @@
     <string name="settings_backup_read_failed">Failed to read settings backup</string>
     <string name="settings_backup_restore_failed">Failed to restore settings backup</string>
     <string name="settings_backup_store_read_failed">Unable to read preference store</string>
-    <string name="settings_backup_store_reset_failed">Unable to reset preference store</string>
-    <string name="settings_backup_store_restore_failed">Unable to restore preference store</string>
-    <string name="settings_backup_theme_restore_failed">Unable to restore theme preferences</string>
-    <string name="settings_backup_loading">Reading backup…</string>
     <string name="settings_backup_restore_preview_title">Restore this backup?</string>
     <string name="settings_backup_restore_preview_description">Review what will be restored. Preference groups missing from the backup will be reset to defaults.</string>
     <string name="settings_backup_status_exported">Exported</string>
@@ -134,10 +125,6 @@
     <string name="filename_display_single">Single line</string>
     <string name="filename_display_double">Two lines</string>
     <string name="filename_display_scroll">Auto-scroll</string>
-    <string name="settings_double_line_filenames">Double-line filenames</string>
-    <string name="settings_double_line_filenames_description">Wrap filenames across up to two lines.</string>
-    <string name="settings_marquee_filenames">Auto-scroll filenames</string>
-    <string name="settings_marquee_filenames_description">Scroll long filenames horizontally in single-line view.</string>
     <string name="settings_browser_tabs">Browser tabs</string>
     <string name="settings_browser_tabs_description">Keep multiple folders open and switch between them.</string>
     <string name="settings_remember_last_folder">Remember last folder</string>
@@ -150,8 +137,6 @@
     <string name="settings_app_start_page_description">Choose what you see when Arcile opens.</string>
     <string name="start_page_home">Home</string>
     <string name="start_page_browser">Browse</string>
-    <string name="start_page_home_description">Recent files and storage</string>
-    <string name="start_page_browser_description">Files and folders</string>
     
     <!-- Theme Selection -->
     <string name="theme_mode">Theme mode</string>

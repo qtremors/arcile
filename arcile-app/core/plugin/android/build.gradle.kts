@@ -29,6 +29,7 @@ kotlin {
 dependencies {
     implementation(project(":plugin-api"))
     implementation(project(":core:ui"))
+    implementation(project(":core:runtime"))
     implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.media.MediaExtractor
@@ -14,7 +15,6 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -35,11 +35,12 @@ internal typealias AudioFileDetails = dev.qtremors.arcile.core.ui.audio.AudioFil
 /** Writes tags to the actual audio file and keeps a recovery copy until verification finishes. */
 @Singleton
 internal class AudioTagEditor @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val dispatchers: ArcileDispatchers
 ) : AudioMetadataEditor {
     private val writeMutex = Mutex()
 
-    suspend fun fileDetails(track: AudioTrack): AudioFileDetails? = withContext(Dispatchers.IO) {
+    suspend fun fileDetails(track: AudioTrack): AudioFileDetails? = withContext(dispatchers.io) {
         val extractor = MediaExtractor()
         try {
             val uri = track.file.nodeRef.contentUri
@@ -62,7 +63,7 @@ internal class AudioTagEditor @Inject constructor(
         }
     }
 
-    override suspend fun lyrics(track: AudioTrack): AudioLyrics = withContext(Dispatchers.IO) {
+    override suspend fun lyrics(track: AudioTrack): AudioLyrics = withContext(dispatchers.io) {
         val file = File(track.file.reference)
         val sidecar = lrcFile(file)
         if (sidecar.isFile && sidecar.length() > MAX_LRC_BYTES) {
@@ -79,7 +80,7 @@ internal class AudioTagEditor @Inject constructor(
     }
 
     override suspend fun editMetadata(track: AudioTrack, edit: AudioMetadataEdit): Result<AudioTrack> =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             try {
                 Result.success(writeMutex.withLock { writeAndVerify(track, edit) })
             } catch (error: CancellationException) {

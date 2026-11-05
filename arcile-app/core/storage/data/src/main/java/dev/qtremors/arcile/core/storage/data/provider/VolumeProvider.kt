@@ -18,7 +18,6 @@ import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -43,12 +42,7 @@ class DefaultVolumeProvider(
     private val context: Context,
     private val classificationRepo: StorageClassificationRepository,
     @param:ApplicationScope private val applicationScope: CoroutineScope,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : VolumeProvider {
     private val appContext = context.applicationContext
     private val storageManager = appContext.getSystemService(Context.STORAGE_SERVICE) as StorageManager

@@ -56,6 +56,13 @@ interface StorageNodeDao {
     )
     suspend fun deleteImages(volumeId: String?, extensions: List<String>)
 
+    /** Swaps the cached image rows atomically so readers never see an empty gallery mid-refresh. */
+    @Transaction
+    suspend fun replaceImages(volumeId: String?, extensions: List<String>, rows: List<StorageNodeEntity>) {
+        deleteImages(volumeId, extensions)
+        if (rows.isNotEmpty()) upsert(rows)
+    }
+
     @Query("DELETE FROM storage_nodes WHERE path = :path OR parent_path = :path OR path LIKE :descendantPrefix")
     suspend fun deleteTree(path: String, descendantPrefix: String)
 

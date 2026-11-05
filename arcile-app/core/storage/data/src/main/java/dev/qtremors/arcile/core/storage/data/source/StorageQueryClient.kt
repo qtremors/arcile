@@ -24,7 +24,6 @@ import dev.qtremors.arcile.core.storage.domain.matchesSearchFilters
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -54,12 +53,7 @@ class DefaultStorageQueryClient(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
     private val categorySummaryDao: CategorySummaryDao = ArcileDatabase.getInstance(context).categorySummaryDao(),
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : StorageQueryClient {
     private companion object {
         const val MAX_PATH_SEARCH_RESULTS = 1000

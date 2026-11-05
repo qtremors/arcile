@@ -1,62 +1,15 @@
-// Tailwind Configuration
-tailwind.config = {
-    theme: {
-        extend: {
-            fontFamily: {
-                sans: ['Roboto', 'sans-serif'],
-                display: ['Outfit', 'sans-serif'],
-            },
-            colors: {
-                // Authentic Material 3 Dark Theme Palette
-                m3: {
-                    bg: '#141218',
-                    surface: '#1D1B20',
-                    surfaceContainerLow: '#1D1B20',
-                    surfaceContainer: '#211F26',
-                    surfaceContainerHigh: '#2B2930',
-                    surfaceContainerHighest: '#36343B',
-                    primary: '#D0BCFF',
-                    onPrimary: '#381E72',
-                    primaryContainer: '#4F378B',
-                    onPrimaryContainer: '#EADDFF',
-                    secondary: '#CCC2DC',
-                    onSecondary: '#332D41',
-                    secondaryContainer: '#4A4458',
-                    onSecondaryContainer: '#E8DEF8',
-                    outline: '#938F99',
-                    outlineVariant: '#49454F',
-                    onSurface: '#E6E0E9',
-                    onSurfaceVariant: '#CAC4D0',
-                }
-            },
-            animation: {
-                'float': 'float 6s ease-in-out infinite',
-            },
-            keyframes: {
-                float: {
-                    '0%, 100%': { transform: 'translateY(0)' },
-                    '50%': { transform: 'translateY(-12px)' },
-                }
-            },
-            transitionTimingFunction: {
-                // M3 Expressive Spring Transition Curve
-                'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
-            }
-        }
-    }
-}
-
-// Navbar surface tonal elevation effect on scroll
+// Navbar tonal elevation once the page leaves the top. A sentinel observer replaces a scroll
+// listener, so nothing runs while scrolling.
 const navbar = document.getElementById('navbar');
-window.addEventListener('scroll', () => {
-    if (window.scrollY > 20) {
-        navbar.classList.remove('bg-m3-bg');
-        navbar.classList.add('bg-m3-surfaceContainer/80', 'backdrop-blur-lg', 'shadow-lg', 'border-b', 'border-m3-outlineVariant/10');
-    } else {
-        navbar.classList.add('bg-m3-bg');
-        navbar.classList.remove('bg-m3-surfaceContainer/80', 'backdrop-blur-lg', 'shadow-lg', 'border-b', 'border-m3-outlineVariant/10');
-    }
-});
+if (navbar) {
+    const navSentinel = document.createElement('div');
+    navSentinel.setAttribute('aria-hidden', 'true');
+    navSentinel.style.cssText = 'position:absolute;top:0;left:0;width:1px;height:20px;pointer-events:none';
+    document.body.prepend(navSentinel);
+    new IntersectionObserver(([entry]) => {
+        navbar.classList.toggle('is-scrolled', !entry.isIntersecting);
+    }).observe(navSentinel);
+}
 
 // FAQ Accordion Toggle
 function toggleFaq(element) {

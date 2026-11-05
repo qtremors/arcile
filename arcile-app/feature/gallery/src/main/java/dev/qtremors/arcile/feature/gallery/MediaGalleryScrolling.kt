@@ -189,9 +189,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.flow.SharedFlow
 
-internal enum class GalleryViewState {
-    ITEMS_TAB, FOLDERS_TAB_GRID, FOLDER_ITEMS
-}
 internal fun Modifier.pinchToResize(
     currentCellSize: Float,
     minSize: Float = 96f,

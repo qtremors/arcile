@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.media.MediaDataSource
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -62,7 +63,7 @@ internal suspend fun readVaultAudioMetadata(
         } catch (_: Exception) {
             // Playback remains available when a platform decoder cannot read tags.
         } finally {
-            runCatching { retriever.release() }
+            runCatchingCancellable { retriever.release() }
         }
         val extractor = MediaExtractor()
         try {
@@ -78,7 +79,7 @@ internal suspend fun readVaultAudioMetadata(
         } catch (_: Exception) {
             // Container details are optional; names and file properties remain usable.
         } finally {
-            runCatching { extractor.release() }
+            runCatchingCancellable { extractor.release() }
         }
     }
     VaultAudioMetadata(track, details)

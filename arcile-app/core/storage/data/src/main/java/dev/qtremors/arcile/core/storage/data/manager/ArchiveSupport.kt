@@ -209,16 +209,6 @@ private fun rememberCreatedDirectory(target: File, createdOutputs: MutableSet<Fi
     missing.asReversed().forEach { createdOutputs += it }
 }
 
-internal fun archiveSourceEntries(
-    sources: List<File>,
-    validateMutationPath: (File) -> Result<Unit>
-): Flow<ArchiveSourceEntry> = flow {
-    traverseArchiveSources(sources, validateMutationPath) { entry ->
-        emit(entry)
-        true
-    }
-}
-
 internal suspend fun traverseArchiveSources(
     sources: List<File>,
     validateMutationPath: (File) -> Result<Unit>,

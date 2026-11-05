@@ -26,16 +26,6 @@ interface OperationJournal {
     fun recoverInterrupted(): List<OperationJournalRecord>
 }
 
-class NoOpOperationJournal : OperationJournal {
-    override fun activeRecord(): OperationJournalRecord? = null
-    override fun upsertActive(record: OperationJournalRecord) = Unit
-    override fun update(operationId: String, transform: (OperationJournalRecord) -> OperationJournalRecord) = Unit
-    override fun clearActive(operationId: String) = Unit
-    override fun recoveryRecords(): List<OperationJournalRecord> = emptyList()
-    override fun dismissRecovery(operationId: String) = Unit
-    override fun recoverInterrupted(): List<OperationJournalRecord> = emptyList()
-}
-
 class DefaultOperationJournal(private val context: Context) : OperationJournal {
     private val store by lazy { storeFile(context) }
     private val lock = Any()

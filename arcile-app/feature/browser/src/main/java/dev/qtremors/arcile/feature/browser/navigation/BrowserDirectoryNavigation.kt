@@ -38,7 +38,10 @@ internal fun BrowserNavigationController.loadDirectory(
         state.value.currentVolumeId == resolvedVolumeId
     if (clearHistory) navigationPersistence.clear()
     val generation = nextLoadGeneration()
-    if (!preserveCurrentListing) onLocationChanged()
+    if (!preserveCurrentListing) {
+        onLocationChanged()
+        fileBrowserRepository.cancelFolderStatsOutside(path)
+    }
     update {
         it.reduce(BrowserNavigationEvent.OpenDirectory(path, resolvedVolumeId, isRootStorageScope)).withValues(
             isLoading = true,

@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="image_gallery_title">Images</string>
     <string name="image_gallery_search_placeholder">Search images</string>
     <string name="image_gallery_empty_title">No images found</string>
     <string name="image_gallery_empty_description">Images indexed by Android will appear here.</string>
-    <string name="image_gallery_all_folder">All (%1$d)</string>
     <string name="image_gallery_view_sort_title">View and sort images</string>
     <string name="image_gallery_show_file_details">Show file names and info</string>
     <string name="image_gallery_show_file_details_description">Turn off for a clean image-only gallery.</string>
@@ -20,11 +18,6 @@
     <string name="settings_clear_thumbnail_cache">Clear</string>
     <string name="image_gallery_view_mode_aspect">Aspect ratio grid</string>
     <string name="image_gallery_view_mode_square">Square grid</string>
-    <string name="image_gallery_group_time">Group by time</string>
-    <string name="image_gallery_section_today">Today</string>
-    <string name="image_gallery_section_week">This Week</string>
-    <string name="image_gallery_section_month">This Month</string>
-    <string name="image_gallery_section_older">Older</string>
     <string name="image_gallery_grid_mode">Grid Mode</string>
     <string name="image_gallery_grouping">Grouping</string>
     <string name="category_group_none">None</string>
@@ -62,7 +55,6 @@
     <string name="image_gallery_metadata_camera_make">Camera make</string>
     <string name="image_gallery_metadata_camera_model">Camera model</string>
     <string name="image_gallery_metadata_date_taken">Date taken</string>
-    <string name="image_gallery_metadata_set_date">Set date and time</string>
     <string name="image_gallery_metadata_set_date_only">Set date</string>
     <string name="image_gallery_metadata_set_time">Set time</string>
     <string name="image_gallery_metadata_clear_date">Clear date</string>
@@ -73,9 +65,7 @@
     <string name="image_gallery_metadata_save_failed">Could not save image metadata.</string>
     <string name="image_gallery_metadata_not_writable">This image is not writable.</string>
     <string name="image_gallery_metadata_unsupported_format">Metadata editing is not supported for this image format.</string>
-    <string name="image_gallery_favorite">Favorite</string>
     <string name="image_gallery_set_as_cover">Set as Folder Cover</string>
-    <string name="image_gallery_cover_set_success">Folder cover updated</string>
     <string name="image_gallery_favorites_folder">Favorites</string>
     <string name="viewer_open_with">Open with…</string>
     <string name="image_gallery_section_favourites">Favourites</string>

@@ -24,7 +24,6 @@ enum class CaseTransform {
 /**
  * Configuration for adding sequential numbering to renamed files.
  */
-@Immutable
 data class EnumerationConfig(
     val enabled: Boolean = false,
     val start: Int = 1,
@@ -37,7 +36,6 @@ data class EnumerationConfig(
 /**
  * Rule configuration for batch renaming operations.
  */
-@Immutable
 data class BatchRenameRule(
     val findQuery: String = "",
     val replacement: String = "",
@@ -61,7 +59,6 @@ enum class BatchRenameError {
 /**
  * Individual file rename preview result evaluated by [BatchRenameEngine].
  */
-@Immutable
 data class BatchRenameItem(
     val file: FileModel,
     val proposedName: String,

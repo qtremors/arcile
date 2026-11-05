@@ -1,6 +1,5 @@
 package dev.qtremors.arcile.core.storage.domain
 
-@Immutable
 data class ArchiveEntryModel(
     val name: String,
     val path: String,
@@ -11,7 +10,6 @@ data class ArchiveEntryModel(
     val canRead: Boolean = true
 )
 
-@Immutable
 data class ArchiveSummary(
     val archivePath: String,
     val format: ArchiveFormat,

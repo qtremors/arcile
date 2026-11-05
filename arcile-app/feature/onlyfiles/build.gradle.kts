@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":core:vault:domain"))
     implementation(project(":core:ui"))
 
+    implementation(project(":core:runtime"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)

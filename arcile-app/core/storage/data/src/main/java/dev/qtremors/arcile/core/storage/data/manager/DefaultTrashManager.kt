@@ -21,7 +21,6 @@ import dev.qtremors.arcile.core.storage.domain.TrashStorageUsage
 import dev.qtremors.arcile.core.storage.domain.supportsTrash
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -41,12 +40,7 @@ class DefaultTrashManager(
     private val context: Context,
     private val volumeProvider: VolumeProvider,
     private val mutationFinalizer: MutationFinalizer,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    ),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard,
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) },
     private val transferEngine: FileTransferEngine = FileTransferEngine(

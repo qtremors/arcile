@@ -286,62 +286,6 @@ internal fun OnboardingWelcomeAndFeatures() {
 }
 
 @Composable
-internal fun OnboardingPrivacy() {
-    OnboardingPage(
-        icon = Icons.Default.PrivacyTip,
-        title = stringResource(R.string.onboarding_privacy_title),
-        description = stringResource(R.string.onboarding_privacy_description),
-        hasBodyContent = true
-    ) {
-        FeatureRow(Icons.Default.CloudOff, stringResource(R.string.onboarding_privacy_offline), stringResource(R.string.onboarding_privacy_offline_description))
-        FeatureRow(Icons.Default.Block, stringResource(R.string.onboarding_privacy_trackers), stringResource(R.string.onboarding_privacy_trackers_description))
-        FeatureRow(Icons.Default.Folder, stringResource(R.string.onboarding_privacy_local_file_access), stringResource(R.string.onboarding_privacy_local_file_access_description))
-        FeatureRow(Icons.Default.Source, stringResource(R.string.onboarding_privacy_source), stringResource(R.string.onboarding_privacy_source_description))
-    }
-}
-
-@Composable
-internal fun OnboardingTheme(
-    currentUiPreferences: UiPreferences,
-    onThemeChange: (UiPreferences) -> Unit
-) {
-    OnboardingPage(
-        icon = Icons.Default.Palette,
-        title = stringResource(R.string.onboarding_theme_title),
-        description = stringResource(R.string.onboarding_theme_description),
-        hasBodyContent = true
-    ) {
-        Surface(
-            shape = MaterialTheme.shapes.large,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            tonalElevation = 1.dp,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                ThemeModeSelector(
-                    currentMode = currentUiPreferences.themeMode,
-                    onModeSelected = { onThemeChange(currentUiPreferences.copy(themeMode = it)) }
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                AccentColorSelector(
-                    currentAccent = currentUiPreferences.accentColor,
-                    onAccentSelected = { onThemeChange(currentUiPreferences.copy(accentColor = it)) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-internal fun OnboardingDone() {
-    OnboardingPage(
-        icon = Icons.Default.CheckCircle,
-        title = stringResource(R.string.onboarding_done_title),
-        description = stringResource(R.string.onboarding_done_description)
-    )
-}
-
-@Composable
 internal fun FeatureRow(
     icon: ImageVector,
     title: String,

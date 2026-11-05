@@ -1,10 +1,41 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.6
-> **Last Updated:** 2026-11-07
+> **Version:** 2.4.7
+> **Last Updated:** 2026-11-08
 
 ---
+
+## [2.4.7] - 2026-11-08
+
+### Changed
+- Folder sizes read each item with one file-system call instead of three, stop scanning when you leave a folder, and keep a running scan when you come back instead of restarting it.
+- While Arcile is in the background, changes from other apps (camera, downloads, messaging) are only noted. Caches, folder sizes, and Home totals refresh once when you return, and Home skips refreshes while it is off screen.
+- Image, PDF, text, and video viewer processes no longer repeat the main app's storage watching and thumbnail bookkeeping. Each viewer process has its own image cache, and the database stays in sync across processes.
+- Thumbnails already shown are not recorded again, and new ones are saved in one batch instead of several database writes per image.
+- The music player saves its position separately from the queue, so the regular position save no longer rewrites every track. Position updates pause while no player screen is visible.
+- The gallery finds images through MediaStore's indexed media type instead of matching every file name, and swaps its saved list in one step.
+- Paused videos stop polling their position. Empty-screen animations drift for 15 seconds and then hold still.
+- File, folder, and other storage models are marked stable for Compose through a stability configuration file. The previous homemade annotation was ignored by the compiler, so lists rebuilt unchanged rows.
+- Saving in the text editor no longer reads the file back. Local files are staged, synced, checked by length, and swapped in atomically, with the original guarded by its size and timestamps instead of a full copy in memory. The recovery draft is written once per save instead of twice. Documents from other apps' providers are still read back once, since a provider can silently keep old content.
+- Storage, vault, audio, backup, and operation classes take their background threads from one shared, injectable dispatcher set instead of creating their own. Storage scans share one two-thread pool everywhere, and an architecture check keeps hardcoded IO threads out of the data layers.
+- Hardcoded UI text is now checked by an architecture test instead of a separate Gradle plugin with its own Kotlin tokenizer. The new check also catches icon descriptions and named text arguments that the old one missed.
+- Release builds shrink and rename more code. The rules that kept every serializable class and every image loader whole are gone; the libraries' own rules cover what is actually needed, and crash traces now include line numbers. The one screen check that compared routes by class name now matches by route type, so renaming is safe.
+- The manifest drops its package query list: the all-packages permission a file manager needs for APK versions and folder app icons already makes every app visible. The reason is now written next to the permission.
+- Backup rules list each excluded path once and explain what is excluded and why. A test checks that both backup rule files stay identical.
+- Gradle builds run modules in parallel and reuse the build and configuration caches. Compose compiler reports are written only when asked for.
+- The website loads a prebuilt stylesheet instead of compiling Tailwind in every visitor's browser. The navigation bar changes style through an observer instead of a scroll listener, the phone mockup's float and the other animations stop when Reduce Motion is on, and two unused images are removed.
+- The developer guide is shorter and matches the current code, including the plugin contract, permissions, size limits, and release steps.
+
+### Fixed
+- Cancelling an action or leaving a screen no longer shows an error in 77 places across audio, viewers, vaults, backups, APK tools, and plugins.
+- Two onboarding tests expected outdated capitalization for the theme labels.
+- Tapping the notification of a video opened from another app reopens that video instead of Arcile's home screen. Videos played inside Arcile still return to where you were.
+- The APK installer, batch rename, accent color preview, storage cards, and video viewer showed English text in every language. These 23 labels now come from string resources.
+
+### Removed
+- Unused code and resources: a video overflow menu, audio track sheet, mixed-delete dialog, tab indicator, viewer session registry, progress smoother, three onboarding pages, two settings sections, archive option types, a vault streaming writer, two pass-through use cases, and 192 strings.
+- IDE settings files tracked by mistake, a duplicate inner .gitignore, and the rule that ignored every .txt file in the repository.
 
 ## [2.4.6] - 2026-11-07
 

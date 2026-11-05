@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 
 import androidx.compose.ui.platform.LocalContext
@@ -345,7 +346,7 @@ internal fun VaultExternalAccessDialogs(
             Button(onClick = {
                 onDismiss()
                 val launch: (List<VaultExternalGrant>) -> Unit = { grants ->
-                    runCatching {
+                    runCatchingCancellable {
                         if (plugin == null) launchExternalIntent(context, action, grants, openAs)
                         else check(plugin.launch(grants.single()))
                     }.onFailure {

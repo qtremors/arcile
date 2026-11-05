@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -338,7 +339,7 @@ internal class AudioLibraryViewModel @Inject constructor(
             AudioCollectionKind.FOLDERS -> updatePresentation(CategoryLibraryPage.FOLDERS, presentation)
             else -> {
                 viewModelScope.launch {
-                    runCatching { musicStore.savePresentation(section, presentation) }
+                    runCatchingCancellable { musicStore.savePresentation(section, presentation) }
                         .onFailure(::showMusicError)
                 }
                 rebuildPresentation {
@@ -387,7 +388,7 @@ internal class AudioLibraryViewModel @Inject constructor(
         if (_state.value.musicOnly == enabled) return
         _state.update { it.copy(musicOnly = enabled) }
         viewModelScope.launch {
-            runCatching { musicStore.saveMusicOnly(enabled) }.onFailure(::showMusicError)
+            runCatchingCancellable { musicStore.saveMusicOnly(enabled) }.onFailure(::showMusicError)
         }
         load(refresh = true)
     }
@@ -399,7 +400,7 @@ internal class AudioLibraryViewModel @Inject constructor(
 
     fun updateDefaultSection(section: AudioCollectionKind) {
         viewModelScope.launch {
-            runCatching { musicStore.saveDefaultSection(section) }.onFailure(::showMusicError)
+            runCatchingCancellable { musicStore.saveDefaultSection(section) }.onFailure(::showMusicError)
         }
         _state.update { it.copy(defaultSection = section) }
     }

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
@@ -24,7 +25,7 @@ internal suspend fun decodeVaultViewerImage(
     targetHeight: Int,
     openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
 ): Result<Any> = withContext(Dispatchers.IO) {
-    runCatching {
+    runCatchingCancellable {
         val animated = node.extension.equals("gif", ignoreCase = true) || node.mimeType == "image/gif"
         if (animated && node.sizeBytes in 1..MAX_ANIMATED_IMAGE_BYTES.toLong()) {
             val bytes = openReader(node.ref).getOrThrow().use { reader ->
@@ -38,7 +39,7 @@ internal suspend fun decodeVaultViewerImage(
                     }
                 }
             }
-            return@runCatching ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) {
+            return@runCatchingCancellable ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) {
                     decoder, info, _ ->
                 val scale = minOf(
                     1f, targetWidth.toFloat() / info.size.width, targetHeight.toFloat() / info.size.height
@@ -52,7 +53,7 @@ internal suspend fun decodeVaultViewerImage(
 
         val bitmap = requireNotNull(decodeSampledVaultImage(node.ref, targetWidth, targetHeight, openReader).getOrThrow())
         val orientation = openReader(node.ref).getOrNull()?.use { reader ->
-            runCatching {
+            runCatchingCancellable {
                 ExifInterface(VaultReaderInputStream(reader)).getAttributeInt(
                     ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL
                 )
@@ -114,15 +115,6 @@ private fun readVaultImageBounds(
         BitmapFactory.decodeStream(it, null, bounds)
     }
     return bounds
-}
-
-internal suspend fun decodeSampledVaultImageOnWorker(
-    ref: VaultNodeRef,
-    targetWidth: Int,
-    targetHeight: Int,
-    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>
-): Result<Bitmap?> = withContext(Dispatchers.IO) {
-    decodeSampledVaultImage(ref, targetWidth, targetHeight, openReader)
 }
 
 internal fun decodeSampledVaultImage(

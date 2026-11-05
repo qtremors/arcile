@@ -406,7 +406,7 @@ class VaultTransferCoordinatorTest {
             repository.createEmptyFile(vault, folderId, "collision.txt").getOrThrow()
             val output = File(destination, "Folder").also { assertTrue(it.mkdir()) }
             val collision = File(output, "collision.txt").also { it.writeText("local file") }
-            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>(), ArcileDispatchers.Standard)
             val reservation = coordinator.prepareExport(listOf(folder.ref)).getOrThrow()
 
             val initial = coordinator.exportToDestination(
@@ -454,7 +454,7 @@ class VaultTransferCoordinatorTest {
             repository.createEmptyFile(vault, inner, "collision.txt").getOrThrow()
             val output = File(destination, "Folder/Inner").also { assertTrue(it.mkdirs()) }
             File(output, "collision.txt").writeText("local file")
-            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>(), ArcileDispatchers.Standard)
             val reservation = coordinator.prepareExport(listOf(folder.ref)).getOrThrow()
             val initial = coordinator.exportToDestination(
                 reservation, destination.absolutePath, move = false, mergeFoldersSkipFiles, neverCancelled
@@ -615,7 +615,7 @@ class VaultTransferCoordinatorTest {
                 repository.createEmptyFile(vault, root, it).getOrThrow()
             }
             val collision = File(output, "conflict.txt").also { it.writeText("local original") }
-            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>(), ArcileDispatchers.Standard)
             val reservation = coordinator.prepareExport(nodes.map { it.ref }).getOrThrow()
             val stop = object : VaultConflictResolver {
                 override suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> =
@@ -679,7 +679,7 @@ class VaultTransferCoordinatorTest {
             } finally {
                 session.destroy()
             }
-            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>(), ArcileDispatchers.Standard)
             val queue = repository.listInterruptedOperations(vault).getOrThrow().single()
             val previous = File(local, "Previous")
             Files.move(output.toPath(), previous.toPath())
@@ -761,7 +761,7 @@ class VaultTransferCoordinatorTest {
             val output = File(local, "Output").canonicalFile.also { assertTrue(it.mkdir()) }
             val existing = File(output, "Folder").also { assertTrue(it.mkdir()) }
             File(existing, "Shared.txt").writeText("from regular storage")
-            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>(), ArcileDispatchers.Standard)
             val initial = coordinator.exportToDestination(coordinator.prepareExport(listOf(root.ref)).getOrThrow(),
                 output.path, false, mergeFoldersSkipFiles, neverCancelled)
             assertEquals(1, initial.partial.size)
@@ -773,7 +773,7 @@ class VaultTransferCoordinatorTest {
             try {
                 restarted.unlock(vault, "password".toCharArray()).getOrThrow()
                 val queue = restarted.listInterruptedOperations(vault).getOrThrow().single()
-                val resumedCoordinator = DefaultVaultBoundaryTransferCoordinator(restarted, mockk<TrashRepository>())
+                val resumedCoordinator = DefaultVaultBoundaryTransferCoordinator(restarted, mockk<TrashRepository>(), ArcileDispatchers.Standard)
                 val result = resumedCoordinator.resumeInterruptedExport(queue, restarted.interruptedPlan(queue).getOrThrow(),
                     decision(VaultConflictDecision.REPLACE), neverCancelled)
                 assertEquals(1, result.completed.size)
@@ -856,7 +856,7 @@ class VaultTransferCoordinatorTest {
                 repository.replaceFileContents(node.ref, node.revision, "vault $name".encodeToByteArray()).getOrThrow()
                 File(folder, name).writeText("regular $name")
             }
-            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>())
+            val coordinator = DefaultVaultBoundaryTransferCoordinator(repository, mockk<TrashRepository>(), ArcileDispatchers.Standard)
             val initial = coordinator.exportToDestination(coordinator.prepareExport(listOf(source.ref)).getOrThrow(),
                 output.path, true, mergeFoldersSkipFiles, neverCancelled)
             val retry = initial.partial.single().exportRetry as PendingVaultExport
@@ -880,7 +880,7 @@ class VaultTransferCoordinatorTest {
             try {
                 restarted.unlock(vault, "password".toCharArray()).getOrThrow()
                 val queue = restarted.listInterruptedOperations(vault).getOrThrow().single()
-                val resumed = DefaultVaultBoundaryTransferCoordinator(restarted, mockk<TrashRepository>())
+                val resumed = DefaultVaultBoundaryTransferCoordinator(restarted, mockk<TrashRepository>(), ArcileDispatchers.Standard)
                 assertTrue(runCatching {
                     resumed.resumeExport(retry, decision(VaultConflictDecision.REPLACE), neverCancelled)
                 }.isFailure)

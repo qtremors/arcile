@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import dev.qtremors.arcile.core.ui.R
 
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -87,7 +88,7 @@ fun AudioMetadataEditorSheet(
 
     LaunchedEffect(trackKey) {
         loading = true
-        runCatching { editor.lyrics(track) }.onSuccess { lyrics ->
+        runCatchingCancellable { editor.lyrics(track) }.onSuccess { lyrics ->
             plainLyrics = lyrics.plain.orEmpty()
             syncedLyrics = lyrics.syncedLrc.orEmpty()
             lyricsLoaded = true

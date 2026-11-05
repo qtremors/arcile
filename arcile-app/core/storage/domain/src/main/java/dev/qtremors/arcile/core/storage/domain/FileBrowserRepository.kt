@@ -10,5 +10,8 @@ interface FileBrowserRepository : SelectionPropertiesRepository {
     ): Flow<ListingPage>
     suspend fun getCachedFolderStats(paths: Collection<String>): Map<String, FolderStats>
     fun queueFolderStats(paths: List<String>)
+
+    /** Stops size scans for folders outside [parentPath] so leaving a folder ends its background work. */
+    fun cancelFolderStatsOutside(parentPath: String) = Unit
     fun observeFolderStatUpdates(): Flow<FolderStatUpdate>
 }

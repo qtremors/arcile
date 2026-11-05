@@ -95,4 +95,16 @@ class ThumbnailCacheStoreTest {
             sizeBucketPx = 512
         )
     }
+
+    @Test
+    fun `a batch of loaded thumbnails is written once and deduplicated`() = runBlocking {
+        val first = record(path = "/storage/emulated/0/DCIM/c.jpg")
+        val second = record(path = "/storage/emulated/0/DCIM/d.jpg")
+
+        store.recordLoaded(listOf(first, second, first))
+        val snapshot = store.snapshot()
+
+        assertEquals(setOf(first.variantKey, second.variantKey), snapshot.loadedVariantKeys.toSet())
+        assertEquals(2, snapshot.loadedVariantKeys.size)
+    }
 }

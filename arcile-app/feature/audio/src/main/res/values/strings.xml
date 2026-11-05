@@ -18,10 +18,6 @@
     <string name="audio_page_view_sort">%1$s view and sort</string>
     <string name="audio_new_playlist">New playlist</string>
     <string name="audio_add_to_playlist">Add to playlist</string>
-    <string name="audio_add_favorite">Add to favorites</string>
-    <string name="audio_remove_favorite">Remove from favorites</string>
-    <string name="audio_edit_audio">Edit audio</string>
-    <string name="audio_close">Close</string>
     <string name="audio_clear">Clear</string>
     <string name="audio_cancel">Cancel</string>
     <string name="audio_add_selected">Add selected</string>
@@ -140,12 +136,7 @@
     <string name="audio_visualizer_on">Turn visualizer on</string>
     <string name="audio_visualizer_off">Turn visualizer off</string>
     <plurals name="audio_track_count"><item quantity="one">%1$d track</item><item quantity="other">%1$d tracks</item></plurals>
-    <plurals name="audio_folder_count"><item quantity="one">%1$d folder</item><item quantity="other">%1$d folders</item></plurals>
-    <string name="audio_clear_filter">Show all audio</string>
-    <string name="audio_refresh">Refresh audio</string>
     <string name="audio_playback_failed">Couldn’t play this audio file.</string>
-    <string name="audio_view_sort_title">View and sort audio</string>
-    <string name="audio_folder_view_sort_title">View and sort folders</string>
     <string name="audio_show_file_details">Show audio details</string>
     <string name="audio_show_file_details_description">Show artist, album, duration, and file information.</string>
     <string name="audio_grouping">Grouping</string>
@@ -153,8 +144,6 @@
     <string name="audio_group_day">Day</string>
     <string name="audio_group_week">Week</string>
     <string name="audio_group_month">Month</string>
-    <string name="audio_open_to_audio">Open to Audio</string>
-    <string name="audio_open_to_folders">Open to Folders</string>
     <string name="audio_play_selected">Play selected</string>
     <plurals name="audio_selected_count"><item quantity="one">%1$d selected</item><item quantity="other">%1$d selected</item></plurals>
     <string name="audio_metadata">Audio information</string>
@@ -166,7 +155,6 @@
     <string name="audio_metadata_modified">Modified</string>
     <string name="audio_metadata_format">Format</string>
     <string name="audio_metadata_path">Path</string>
-    <string name="audio_show_metadata">Show audio information</string>
     <string name="audio_copy">Copy</string>
     <string name="audio_cut">Cut</string>
     <string name="audio_paste_here">Paste here</string>
@@ -187,15 +175,12 @@
     <string name="audio_editor_no_files">No readable audio files were provided.</string>
     <string name="audio_editor_unavailable">Audio editing unavailable</string>
     <string name="audio_editor_export_failed">Couldn’t export the edited audio.</string>
-    <string name="audio_editor_range_heading">Choose the section</string>
     <string name="audio_editor_combine_heading">Arrange audio files</string>
     <string name="audio_editor_precision_heading">Shape the exact selection</string>
     <string name="audio_editor_precision_subheading">Drag the waveform handles, zoom in, then fine-tune either boundary in milliseconds.</string>
     <string name="audio_editor_combine_subheading">Set the final order. Every waveform is decoded locally from its source file.</string>
     <string name="audio_editor_extract">Extract</string>
     <string name="audio_editor_remove">Remove</string>
-    <string name="audio_editor_extract_description">Keep only the selected section in a new audio file.</string>
-    <string name="audio_editor_remove_description">Delete the selected section and join the remaining audio in a new file.</string>
     <string name="audio_editor_lossless_note">Arcile first tries to copy the original audio samples without re-encoding. If the container requires conversion, the export still completes and Arcile shows a quality warning. Lossless cut points may move slightly to the nearest codec frame. Source files are never changed.</string>
     <string name="audio_editor_export_extract">Extract to new file</string>
     <string name="audio_editor_export_remove">Remove and save copy</string>
@@ -211,7 +196,6 @@
     <string name="audio_editor_unsupported_unknown">This audio format is not supported for lossless editing.</string>
     <string name="audio_editor_zoom">Zoom</string>
     <string name="audio_editor_waveform_mode">Waveform</string>
-    <string name="audio_editor_classic_mode">Classic slider</string>
     <string name="audio_editor_classic_description">Original range slider without the waveform.</string>
     <string name="audio_editor_add_audio">Add audio</string>
     <string name="audio_editor_remove_audio">Remove audio</string>
