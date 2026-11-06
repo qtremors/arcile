@@ -20,6 +20,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -195,13 +196,16 @@ internal fun VaultAudioPreview(
         val index = order.indexOf(playback.currentMediaId)
         if (nextPageToken != null && index >= 0 && index >= order.lastIndex - 1) onLoadMore()
     }
-    LaunchedEffect(player) {
+    // Position ticks run only while playing and on screen; pauses, seeks and track changes
+    // arrive through the player listener, so an idle player never wakes this loop.
+    LaunchedEffect(player, playback.isPlaying) {
         val activePlayer = player ?: return@LaunchedEffect
-        while (true) {
-            if (activePlayer.isPlaying && lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+        if (!playback.isPlaying) return@LaunchedEffect
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (activePlayer.isPlaying) {
                 playback = audioPlaybackSnapshot(activePlayer, playback, refreshQueue = false)
+                delay(250)
             }
-            delay(250)
         }
     }
 

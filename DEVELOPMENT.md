@@ -2,7 +2,7 @@
 
 How Arcile is built, the rules the code follows, and how to verify and release it.
 
-**Version:** 2.4.7 | **Last Updated:** 2026-11-08
+**Version:** 2.4.8 | **Last Updated:** 2026-11-08
 
 ---
 
@@ -293,15 +293,13 @@ Material 3 Expressive with Arcile's own theme layer in `core:ui`.
 
 Run affected modules while working and the full suite at release milestones. Robolectric tests target SDK 34 or 35, below compile SDK 37. Vault changes need golden vectors, recovery, deep-tree, cancellation, and large-manifest tests. Player changes need source-adapter, session-lifecycle, and queue tests. Always test cancellation and removable-storage loss, not just success.
 
-`BulkFileOperationServiceTest`'s foreground import case waits 2 seconds and can time out when every module's tests run in parallel. Rerun it alone before treating it as a regression.
-
 ## Build and Release
 
 Run from `arcile-app/` with JDK 21 and Android SDK 37 (`gradlew.bat` on Windows). Builds run in parallel with the build cache and configuration cache on (`gradle.properties`).
 
 ```bash
-./gradlew :app:assembleDebug     # app/build/outputs/apk/debug/Arcile-2.4.7-debug.apk
-./gradlew :app:assembleRelease   # app/build/outputs/apk/release/Arcile-2.4.7.apk
+./gradlew :app:assembleDebug     # app/build/outputs/apk/debug/Arcile-2.4.8-debug.apk
+./gradlew :app:assembleRelease   # app/build/outputs/apk/release/Arcile-2.4.8.apk
 ```
 
 **Signing** reads `signing.properties`, falling back to `local.properties`. Never commit either file or a keystore.
@@ -316,7 +314,7 @@ signing.keyPassword=...
 **Google Play internal testing** builds a separate bundle with application ID `play.qtremors.arcile`:
 
 ```bash
-./gradlew :app:bundleRelease -Parcile.play=true   # app/build/outputs/bundle/release/Arcile-2.4.7.aab
+./gradlew :app:bundleRelease -Parcile.play=true   # app/build/outputs/bundle/release/Arcile-2.4.8.aab
 ```
 
 **Shrinking.** Release builds use R8 with resource shrinking. `app/proguard-rules.pro` holds only `-dontwarn` lines and line-number attributes; kotlinx.serialization, Hilt, and Navigation bring their own rules. Add a keep rule only for code reached by reflection, and smoke-test a release build after changing rules.
@@ -347,7 +345,7 @@ npx tailwindcss@3.4.17 -c docs/tailwind.config.js -i docs/tailwind.input.css -o 
 ## Maintenance
 
 - Every user-visible change gets a line in `CHANGELOG.md` under the current version. Leave out intermediate refactors.
-- Bump versions only when asked. `versionCode` is the version without dots (`2.4.7` → `247`).
+- Bump versions only when asked. `versionCode` is the version without dots (`2.4.8` → `248`).
 - Changing the vault format means updating the format specification and compatibility tests together. Never reuse an authenticated-data domain or reinterpret an existing version.
 - Copy portable vaults only while locked; a live multi-file copy isn't an atomic snapshot.
 - Treat the architecture rules as guardrails, not a reason for speculative abstraction.
