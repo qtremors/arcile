@@ -11,6 +11,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,9 @@ internal class VaultAudioEditSession private constructor(
 ) : PrivateAudioEditSession {
     private val entries = ConcurrentHashMap<String, Pair<VaultAudioScratch, String?>>()
     private val activeState = MutableStateFlow(true)
+    // Set first when closing so new work is refused at once; `active` turns false only after the
+    // decrypted buffers are released, so anyone waiting on it never sees audio still in memory.
+    private val closing = AtomicBoolean(false)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     override val active: StateFlow<Boolean> = activeState.asStateFlow()
     override var sourcePaths: List<String> = emptyList()
@@ -44,13 +48,13 @@ internal class VaultAudioEditSession private constructor(
     override fun displayName(path: String): String? = entries[path]?.second
 
     override fun createOutput(extension: String): String {
-        check(activeState.value) { "The vault locked." }
+        check(!closing.get()) { "The vault locked." }
         return expose(scratch.create(), extension, null)
     }
 
     /** Saves beside the first source as a new file; an existing name is never replaced. */
     override suspend fun publish(outputPath: String): Result<String> = try {
-        if (!activeState.value) throw VaultFailure.Locked(owner.ref.vaultId)
+        if (closing.get()) throw VaultFailure.Locked(owner.ref.vaultId)
         val output = entries[outputPath]?.first ?: throw VaultFailure.InvalidPath("Unknown edit output")
         val size = output.file.length()
         if (size <= 0L) throw VaultFailure.IntegrityFailed("The edited audio is empty")
@@ -75,10 +79,11 @@ internal class VaultAudioEditSession private constructor(
     }
 
     override fun close() {
-        if (!activeState.compareAndSet(true, false)) return
+        if (!closing.compareAndSet(false, true)) return
         entries.keys.toList().forEach(::discard)
         linkDirectory.delete()
         liveDirectories -= linkDirectory.name
+        activeState.value = false
         scope.cancel()
     }
 

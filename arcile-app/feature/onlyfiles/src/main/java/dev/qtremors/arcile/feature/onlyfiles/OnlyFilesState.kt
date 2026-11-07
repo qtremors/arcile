@@ -48,6 +48,8 @@ internal data class OnlyFilesBatchProgress(
 
 internal data class OnlyFilesUiState(
     val vaults: List<VaultSummary> = emptyList(),
+    /** False until the first catalog scan finishes, so an empty list means "still loading". */
+    val vaultsLoaded: Boolean = false,
     val selectedVaultId: VaultId? = null,
     val mountGeneration: Long = 0L,
     val workspaceTabsEnabled: Boolean = false,
@@ -100,7 +102,7 @@ internal data class OnlyFilesUiState(
     val encryptedThumbnailBytes: Long = 0L,
     val activeExternalGrants: Int = 0,
     val isSettingsBusy: Boolean = false,
-    val showSettingsSheet: Boolean = false,
+    val settingsPage: OnlyFilesSettingsPage? = null,
     val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
     val isSelectingRows: Boolean = false,
@@ -180,6 +182,16 @@ internal data class OnlyFilesUiState(
     }
 }
 
+/**
+ * Marks the first catalog scan finished. The scanned list is applied too, because the vault
+ * collector may not have delivered it yet and the empty state must never show in between.
+ */
+internal fun OnlyFilesUiState.withVaultsLoaded(scanned: List<VaultSummary>) =
+    copy(vaultsLoaded = true, vaults = vaults.ifEmpty { scanned })
+
+internal fun dev.qtremors.arcile.core.vault.domain.VaultRepository.currentVaults(): List<VaultSummary> =
+    vaults.value.withCurrentUnlockState(unlockedVaultIds.value)
+
 internal fun List<VaultSummary>.withCurrentUnlockState(
     unlockedVaultIds: Set<VaultId>
 ): List<VaultSummary> = map { vault ->
@@ -195,3 +207,6 @@ internal fun pendingUnlockVault(
     if (requestedId == null || requestedId == selectedId) return null
     return vaults.firstOrNull { vault -> vault.id == requestedId && !vault.isUnlocked }
 }
+
+/** Full-screen settings: app-wide OnlyFiles options, or administration of the open vault. */
+internal enum class OnlyFilesSettingsPage { APP, VAULT }

@@ -1,5 +1,14 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.material.icons.filled.Bookmarks
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.RestartAlt
+import androidx.compose.material.icons.filled.Upload
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
+import dev.qtremors.arcile.core.ui.ArcileMenuQuickAction
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -7,27 +16,16 @@ import android.hardware.biometrics.BiometricManager
 import android.hardware.biometrics.BiometricPrompt
 import android.os.CancellationSignal
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteForever
-import androidx.compose.material.icons.filled.Fingerprint
-import androidx.compose.material.icons.filled.HealthAndSafety
-import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.RemoveCircleOutline
 import androidx.compose.material.icons.filled.Settings
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -46,8 +44,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
-import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
-import dev.qtremors.arcile.core.vault.domain.VaultLocationKind
 import dev.qtremors.arcile.core.vault.domain.VaultPasswordPolicy
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
@@ -55,16 +51,16 @@ import androidx.compose.material.icons.filled.Tab
 import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
-import dev.qtremors.arcile.core.ui.theme.menuGroupLast
-import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
-import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.launch
 
+/**
+ * The open vault's overflow menu. The list holds actions for the current folder and anything
+ * that needs attention; the icon row at the bottom holds the everyday toggles. Vault
+ * administration lives on the vault settings page.
+ */
 @Composable
 internal fun VaultActionsMenu(
     expanded: Boolean,
-    vault: VaultSummary,
     viewModel: OnlyFilesViewModel,
     hiddenFilesShown: Boolean,
     directoryId: dev.qtremors.arcile.core.vault.domain.DirectoryId?,
@@ -72,219 +68,63 @@ internal fun VaultActionsMenu(
     hasExactFolderView: Boolean,
     workspaceTabsEnabled: Boolean,
     hasExportRetry: Boolean,
-    onVaultDetails: (VaultDetails) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var changePassword by remember { mutableStateOf(false) }
-    var enrollBiometric by remember { mutableStateOf(false) }
-    var confirmRemoveBiometric by remember { mutableStateOf(false) }
-    var confirmRemoveRegistration by remember { mutableStateOf(false) }
-    var confirmDelete by remember { mutableStateOf(false) }
-    var confirmResetViews by remember { mutableStateOf(false) }
-    val context = LocalContext.current
     fun closeAnd(action: () -> Unit) { onDismiss(); action() }
-
-    val menuActions = remember(vault, hiddenFilesShown, directoryId, directoryPinned, hasExactFolderView, workspaceTabsEnabled, hasExportRetry, onVaultDetails) {
-        mutableListOf<@Composable () -> Unit>().apply {
-            if (hasExportRetry) add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_resume_partial_export)) },
-                    onClick = { closeAnd(viewModel::resumeLocalExport) }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_interrupted_transfers)) },
-                    onClick = { closeAnd(viewModel::openRecovery) }
-                )
-            }
-            add {
-                dev.qtremors.arcile.core.ui.HiddenFilesMenuItem(hiddenFilesShown) {
-                    closeAnd(viewModel::toggleHiddenFiles)
-                }
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_workspace_tabs)) },
-                    leadingIcon = { Icon(Icons.Default.Tab, contentDescription = null) },
-                    isSelected = workspaceTabsEnabled,
-                    onClick = { closeAnd { viewModel.setWorkspaceTabsEnabled(!workspaceTabsEnabled) } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_pinned_folders)) },
-                    onClick = { closeAnd(viewModel::openPinnedFolders) }
-                )
-            }
-            if (directoryId != null) add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(if (directoryPinned) R.string.onlyfiles_unpin_folder else R.string.onlyfiles_pin_folder)) },
-                    onClick = { closeAnd { viewModel.toggleFolderPin(directoryId) } }
-                )
-            }
-            if (hasExactFolderView) add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_reset_folder_view)) },
-                    onClick = { closeAnd(viewModel::resetFolderView) }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_reset_vault_folder_views)) },
-                    onClick = { closeAnd { confirmResetViews = true } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_vault_storage_usage)) },
-                    onClick = { closeAnd { onVaultDetails(VaultDetails.STORAGE) } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_create_backup)) },
-                    onClick = { closeAnd(viewModel::beginVaultBackup) }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_vault_external_access)) },
-                    onClick = { closeAnd { onVaultDetails(VaultDetails.EXTERNAL_ACCESS) } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(stringResource(R.string.onlyfiles_quick_health_check))
-                            Text(
-                                text = stringResource(R.string.onlyfiles_quick_health_check_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
-                    onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.QUICK) } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(stringResource(R.string.onlyfiles_full_health_check))
-                            Text(
-                                text = stringResource(R.string.onlyfiles_full_health_check_description),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    },
-                    leadingIcon = { Icon(Icons.Default.HealthAndSafety, null) },
-                    onClick = { closeAnd { viewModel.verifyHealth(VaultHealthMode.FULL) } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_change_password)) },
-                    leadingIcon = { Icon(Icons.Default.Key, null) },
-                    onClick = { closeAnd { changePassword = true } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_enable_biometric)) },
-                    leadingIcon = { Icon(Icons.Default.Fingerprint, null) },
-                    onClick = { closeAnd { enrollBiometric = true } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_remove_biometric)) },
-                    leadingIcon = { Icon(Icons.Default.Fingerprint, null) },
-                    onClick = { closeAnd { confirmRemoveBiometric = true } }
-                )
-            }
-            if (vault.locationKind != VaultLocationKind.APP_PRIVATE) {
-                add {
-                    ArcileDropdownMenuItem(
-                        text = { Text(stringResource(R.string.onlyfiles_remove_registration)) },
-                        leadingIcon = { Icon(Icons.Default.RemoveCircleOutline, null) },
-                        onClick = { closeAnd { confirmRemoveRegistration = true } }
-                    )
-                }
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_delete_vault)) },
-                    leadingIcon = { Icon(Icons.Default.DeleteForever, null) },
-                    onClick = { closeAnd { confirmDelete = true } }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section)) },
-                    leadingIcon = { Icon(Icons.Default.Settings, null) },
-                    onClick = { closeAnd(viewModel::openSettings) }
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = { Text(stringResource(R.string.onlyfiles_lock)) },
-                    leadingIcon = { Icon(Icons.Default.Lock, null) },
-                    onClick = { closeAnd(viewModel::lockCurrent) }
-                )
-            }
+    val items = buildList<@Composable () -> Unit> {
+        if (hasExportRetry) add {
+            ArcileDropdownMenuItem(
+                text = { Text(stringResource(R.string.onlyfiles_resume_partial_export)) },
+                leadingIcon = { Icon(Icons.Default.Upload, contentDescription = null) },
+                onClick = { closeAnd(viewModel::resumeLocalExport) }
+            )
+        }
+        add {
+            ArcileDropdownMenuItem(
+                text = { Text(stringResource(R.string.onlyfiles_interrupted_transfers)) },
+                leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
+                onClick = { closeAnd(viewModel::openRecovery) }
+            )
+        }
+        if (directoryId != null) add {
+            ArcileDropdownMenuItem(
+                text = { Text(stringResource(if (directoryPinned) R.string.onlyfiles_unpin_folder else R.string.onlyfiles_pin_folder)) },
+                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                onClick = { closeAnd { viewModel.toggleFolderPin(directoryId) } }
+            )
+        }
+        if (hasExactFolderView) add {
+            ArcileDropdownMenuItem(
+                text = { Text(stringResource(R.string.onlyfiles_reset_folder_view)) },
+                leadingIcon = { Icon(Icons.Default.RestartAlt, contentDescription = null) },
+                onClick = { closeAnd(viewModel::resetFolderView) }
+            )
+        }
+        add {
+            ArcileDropdownMenuItem(
+                text = { Text(stringResource(R.string.onlyfiles_vault_settings)) },
+                leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                onClick = { closeAnd { viewModel.openSettings(OnlyFilesSettingsPage.VAULT) } }
+            )
         }
     }
-
-    dev.qtremors.arcile.core.ui.ArcileDropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss,
-        items = menuActions
-    )
-
-    if (confirmResetViews) dev.qtremors.arcile.core.ui.dialogs.AlertDialog(
-        onDismissRequest = { confirmResetViews = false },
-        title = { Text(stringResource(R.string.onlyfiles_reset_vault_folder_views)) },
-        text = { Text(stringResource(R.string.onlyfiles_reset_vault_folder_views_message)) },
-        confirmButton = {
-            Button(onClick = { confirmResetViews = false; viewModel.resetVaultFolderViews() }) {
-                Text(stringResource(R.string.onlyfiles_reset_vault_folder_views))
-            }
+    val quickActions = listOf(
+        ArcileMenuQuickAction(Icons.Default.Lock, stringResource(R.string.onlyfiles_lock)) {
+            closeAnd(viewModel::lockCurrent)
         },
-        dismissButton = {
-            TextButton(onClick = { confirmResetViews = false }) { Text(stringResource(R.string.onlyfiles_cancel)) }
-        }
+        ArcileMenuQuickAction(
+            if (hiddenFilesShown) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+            stringResource(dev.qtremors.arcile.core.ui.R.string.settings_show_hidden_files),
+            selected = hiddenFilesShown
+        ) { closeAnd(viewModel::toggleHiddenFiles) },
+        ArcileMenuQuickAction(Icons.Default.Bookmarks, stringResource(R.string.onlyfiles_pinned_folders)) {
+            closeAnd(viewModel::openPinnedFolders)
+        },
+        ArcileMenuQuickAction(
+            Icons.Default.Tab, stringResource(R.string.onlyfiles_workspace_tabs), selected = workspaceTabsEnabled
+        ) { closeAnd { viewModel.setWorkspaceTabsEnabled(!workspaceTabsEnabled) } }
     )
-    if (changePassword) ChangeVaultPasswordDialog(
-        { changePassword = false }
-    ) { current, replacement, confirmed ->
-        changePassword = false
-        viewModel.changePassword(current, replacement, confirmed)
-    }
-    if (enrollBiometric) PasswordDialog(
-        stringResource(R.string.onlyfiles_enable_biometric), stringResource(R.string.onlyfiles_continue),
-        { enrollBiometric = false }
-    ) { password ->
-        enrollBiometric = false
-        viewModel.prepareBiometricEnrollment(password) { challenge ->
-            val activity = context.findActivity() ?: run { challenge.close(); return@prepareBiometricEnrollment }
-            showBiometricPrompt(activity, challenge) { if (it.isSuccess) viewModel.biometricCompleted(challenge.vaultId) }
-        }
-    }
-    if (confirmRemoveBiometric) ConfirmationDialog(
-        stringResource(R.string.onlyfiles_remove_biometric), stringResource(R.string.onlyfiles_remove_biometric_confirm),
-        { confirmRemoveBiometric = false }
-    ) { confirmRemoveBiometric = false; viewModel.removeBiometric() }
-    if (confirmRemoveRegistration) ConfirmationDialog(
-        stringResource(R.string.onlyfiles_remove_registration), stringResource(R.string.onlyfiles_remove_registration_confirm),
-        { confirmRemoveRegistration = false }
-    ) { confirmRemoveRegistration = false; viewModel.removeRegistration() }
-    if (confirmDelete) DeleteVaultDialog(vault.name, { confirmDelete = false }) {
-        confirmDelete = false; viewModel.deleteVault(it)
-    }
+    ArcileDropdownMenu(expanded = expanded, onDismissRequest = onDismiss, quickActions = quickActions, items = items)
 }
 
 @Composable
@@ -345,7 +185,7 @@ internal fun VaultUnlockDialog(
 }
 
 @Composable
-private fun ChangeVaultPasswordDialog(onDismiss: () -> Unit, onSubmit: (String, String, Boolean) -> Unit) {
+internal fun ChangeVaultPasswordDialog(onDismiss: () -> Unit, onSubmit: (String, String, Boolean) -> Unit) {
     var current by remember { mutableStateOf("") }; var replacement by remember { mutableStateOf("") }
     var reveal by remember { mutableStateOf(false) }
     var repeated by remember { mutableStateOf("") }; var weakConfirmed by remember { mutableStateOf(false) }
@@ -395,7 +235,7 @@ private fun ChangeVaultPasswordDialog(onDismiss: () -> Unit, onSubmit: (String, 
 }
 
 @Composable
-private fun DeleteVaultDialog(name: String, onDismiss: () -> Unit, onDelete: (String) -> Unit) {
+internal fun DeleteVaultDialog(name: String, onDismiss: () -> Unit, onDelete: (String) -> Unit) {
     var confirmation by remember { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_delete_vault)) },
@@ -429,7 +269,7 @@ private fun DeleteVaultDialog(name: String, onDismiss: () -> Unit, onDelete: (St
 }
 
 @Composable
-private fun ConfirmationDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+internal fun ConfirmationDialog(title: String, message: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(title) }, text = { Text(message) },
         confirmButton = {

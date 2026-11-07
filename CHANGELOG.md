@@ -1,10 +1,23 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.8
+> **Version:** 2.4.9
 > **Last Updated:** 2026-11-08
 
 ---
+
+## [2.4.9] - 2026-11-08
+
+### Changed
+- Long-press a vault for its options instead of tapping a menu button. Pinned vaults now sit in their own Pinned section above the rest, and unlocked vaults offer Vault settings from the same menu.
+- The open vault's menu is shorter: actions for the current folder and items that need attention are listed first, and a row of icons along the bottom holds Lock, Show hidden files, Pinned folders, and Workspace tabs. Search stays in the app bar.
+- Each vault has a full-screen Vault settings page, opened from its menu: password, fingerprint unlock, backups, apps with access, storage use, folder views, health checks, and removing or deleting the vault. These were previously all crowded into the menu, which also showed both turning fingerprint unlock on and off at once.
+- OnlyFiles settings open as a full screen instead of a bottom sheet, grouped into Locking, Password entry, Privacy, and Storage.
+- Choosing files to import, a folder to export to, or a backup location happens on a full-screen picker. Moving between folders keeps the list on screen with a thin progress bar instead of flashing a spinner and resizing.
+
+### Fixed
+- Opening OnlyFiles no longer flashes the "no vaults" screen before your vaults appear. If the vault list is slow to load, a loading indicator shows instead.
+- When a vault locked during audio editing, the editor reported itself closed slightly before it had released the decrypted audio from memory. It now releases the audio first.
 
 ## [2.4.8] - 2026-11-08
 

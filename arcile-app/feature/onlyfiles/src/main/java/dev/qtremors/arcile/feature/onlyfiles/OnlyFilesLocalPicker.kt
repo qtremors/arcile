@@ -1,11 +1,21 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.window.Dialog
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,7 +40,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.DialogProperties
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.SaveDestinationDirectory
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import dev.qtremors.arcile.core.ui.lists.StorageLocationRow
 import dev.qtremors.arcile.core.ui.R as UiR
 
@@ -87,7 +96,12 @@ internal fun OnlyFilesLocalPickerDialog(
     )
 }
 
-@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+/**
+ * Full-screen storage picker shared by imports, exports, backups and the vault folder picker.
+ * Moving between folders keeps the current list on screen with a thin progress bar until the
+ * next folder is ready, so the picker never flashes or changes size.
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun OnlyFilesStoragePicker(
     current: SaveDestinationDirectory?,
@@ -103,58 +117,96 @@ internal fun OnlyFilesStoragePicker(
     onToggleFile: (String) -> Unit = {}
 ) {
     val atRoots = current == null
-    AlertDialog(
+    Dialog(
         onDismissRequest = if (atRoots) onDismiss else onUp,
-        properties = DialogProperties(dismissOnClickOutside = atRoots),
-        title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (!atRoots) IconButton(onClick = onUp) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(UiR.string.back))
-                }
-                Text(
-                    current?.name ?: stringResource(R.string.onlyfiles_storage_locations),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                current?.let {
-                    Text(it.path, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
-                val count = selectedPaths?.size ?: 0
-                if (count > 0) Text(pluralStringResource(UiR.plurals.clipboard_item_count, count, count))
-                if (loading) {
-                    Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) { LoadingIndicator() }
-                } else if (files.isEmpty()) {
-                    Text(stringResource(if (atRoots) R.string.onlyfiles_no_storage else R.string.onlyfiles_empty_folder))
-                } else key(current?.path) {
-                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 440.dp)) {
-                        items(files, key = FileModel::reference) { file ->
-                            StorageLocationRow(
-                                name = file.name,
-                                isDirectory = file.isDirectory,
-                                path = file.reference.takeIf { atRoots },
-                                isVolume = atRoots,
-                                selected = selectedPaths?.let { file.reference in it }.takeUnless { file.isDirectory },
-                                onClick = {
-                                    if (file.isDirectory) onOpenDirectory(file.reference)
-                                    else onToggleFile(file.reference)
-                                }
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
+    ) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+            Column(Modifier.fillMaxSize().systemBarsPadding()) {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = if (atRoots) onDismiss else onUp) {
+                            Icon(
+                                if (atRoots) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
+                                stringResource(if (atRoots) UiR.string.cancel else UiR.string.back)
                             )
+                        }
+                    },
+                    title = {
+                        Column {
+                            Text(
+                                current?.name ?: stringResource(R.string.onlyfiles_storage_locations),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            current?.let {
+                                Text(
+                                    it.path,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.StartEllipsis
+                                )
+                            }
+                        }
+                    },
+                    windowInsets = WindowInsets(0)
+                )
+                // Space is reserved so the list below never moves when loading starts or stops.
+                Box(Modifier.fillMaxWidth().height(4.dp)) {
+                    if (loading && files.isNotEmpty()) LinearProgressIndicator(Modifier.fillMaxWidth())
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) {
+                    when {
+                        files.isEmpty() && loading -> LoadingIndicator(Modifier.align(Alignment.Center))
+                        files.isEmpty() -> Text(
+                            stringResource(if (atRoots) R.string.onlyfiles_no_storage else R.string.onlyfiles_empty_folder),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.align(Alignment.Center).padding(24.dp)
+                        )
+                        else -> key(current?.path) {
+                            LazyColumn(
+                                Modifier.fillMaxSize(),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                            ) {
+                                items(files, key = FileModel::reference) { file ->
+                                    StorageLocationRow(
+                                        name = file.name,
+                                        isDirectory = file.isDirectory,
+                                        path = file.reference.takeIf { atRoots },
+                                        isVolume = atRoots,
+                                        selected = selectedPaths?.let { file.reference in it }.takeUnless { file.isDirectory },
+                                        onClick = {
+                                            if (loading) return@StorageLocationRow
+                                            if (file.isDirectory) onOpenDirectory(file.reference)
+                                            else onToggleFile(file.reference)
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
+                Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val count = selectedPaths?.size ?: 0
+                        Text(
+                            if (count > 0) pluralStringResource(UiR.plurals.clipboard_item_count, count, count) else "",
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = onDismiss) { Text(stringResource(UiR.string.cancel)) }
+                        Button(onClick = onChoose, enabled = canChoose) { Text(stringResource(confirmLabel)) }
+                    }
+                }
             }
-        },
-        confirmButton = {
-            Button(onClick = onChoose, enabled = canChoose) { Text(stringResource(confirmLabel)) }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text(stringResource(UiR.string.cancel)) }
         }
-    )
+    }
 }
 
 @Composable

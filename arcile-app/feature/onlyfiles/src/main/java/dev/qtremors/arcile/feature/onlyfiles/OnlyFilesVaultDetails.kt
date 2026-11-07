@@ -34,8 +34,6 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import dev.qtremors.arcile.core.ui.R as UiR
 
-internal enum class VaultDetails { STORAGE, EXTERNAL_ACCESS }
-
 @Composable
 internal fun VaultStorageUsageDialog(
     vault: VaultId,

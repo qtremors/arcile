@@ -996,14 +996,14 @@ class ArchitectureBoundaryTest {
             "arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/DefaultVaultBoundaryTransferCoordinator.kt" to 799,
             "arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/DefaultVaultRepository.kt" to 1018,
             "arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/VaultTransferEngine.kt" to 899,
-            "arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt" to 781,
-            "arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesViewModel.kt" to 982
+            "arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt" to 762,
+            "arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesViewModel.kt" to 980
         )
 
         val LARGE_VIEWMODEL_BASELINE = mapOf(
             "feature/storagecleaner/src/main/java/dev/qtremors/arcile/feature/storagecleaner/StorageCleanerViewModel.kt" to 648,
             // Mostly one-line delegates to OnlyFiles*Controller classes; splitting it means splitting the screen's state.
-            "feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesViewModel.kt" to 982
+            "feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesViewModel.kt" to 980
         )
 
         val FEATURE_VIEWMODEL_BOUNDARY_BASELINE = emptyMap<String, Set<String>>()

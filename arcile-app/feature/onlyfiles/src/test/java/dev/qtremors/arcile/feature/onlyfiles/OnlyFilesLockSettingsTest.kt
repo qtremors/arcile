@@ -2,12 +2,14 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import android.content.Context
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,42 +24,41 @@ class OnlyFilesLockSettingsTest {
     private fun text(id: Int) = context.getString(id)
 
     @Test
-    fun `background lock picker exposes the persisted delay and dispatches the selected policy`() {
+    fun `background lock picker marks the persisted delay and dispatches the selected policy`() {
         val choices = mutableListOf<VaultBackgroundLockDelay>()
         rule.setContent {
             MaterialTheme {
-                OnlyFilesLockSettings(OnlyFilesUiState(backgroundLockDelay = VaultBackgroundLockDelay.ONE_MINUTE), choices::add, {}, {})
+                BackgroundLockDelayDialog(VaultBackgroundLockDelay.ONE_MINUTE, choices::add, onDismiss = {})
             }
         }
-        rule.onNodeWithText(text(R.string.onlyfiles_lock_one_minute)).assertExists()
-        rule.onNodeWithText(text(R.string.onlyfiles_background_lock)).performClick()
+        rule.onNodeWithText(text(R.string.onlyfiles_lock_one_minute)).assertIsSelected()
         rule.onNodeWithText(text(R.string.onlyfiles_lock_five_minutes)).performClick()
         rule.runOnIdle { assertEquals(listOf(VaultBackgroundLockDelay.FIVE_MINUTES), choices) }
     }
 
     @Test
-    fun `screen-off and keyboard choices are independent`() {
-        val screen = mutableListOf<Boolean>()
-        val numeric = mutableListOf<Boolean>()
+    fun `cancelling the picker keeps the existing lock policy`() {
+        val choices = mutableListOf<VaultBackgroundLockDelay>()
+        var dismissed = false
         rule.setContent {
-            MaterialTheme { OnlyFilesLockSettings(OnlyFilesUiState(), {}, screen::add, numeric::add) }
+            MaterialTheme {
+                BackgroundLockDelayDialog(VaultBackgroundLockDelay.IMMEDIATE, choices::add) { dismissed = true }
+            }
         }
-        rule.onNodeWithText(text(R.string.onlyfiles_lock_screen_off)).performClick()
-        rule.onNodeWithText(text(R.string.onlyfiles_numeric_keyboard)).performClick()
+        rule.onNodeWithText(text(R.string.onlyfiles_cancel)).performClick()
         rule.runOnIdle {
-            assertEquals(listOf(false), screen)
-            assertEquals(listOf(true), numeric)
+            assertTrue(choices.isEmpty())
+            assertTrue(dismissed)
         }
     }
 
     @Test
-    fun `closing the picker preserves the existing lock policy`() {
-        val choices = mutableListOf<VaultBackgroundLockDelay>()
+    fun `every delay is offered as a choice`() {
         rule.setContent {
-            MaterialTheme { OnlyFilesLockSettings(OnlyFilesUiState(), choices::add, {}, {}) }
+            MaterialTheme { BackgroundLockDelayDialog(VaultBackgroundLockDelay.IMMEDIATE, {}, onDismiss = {}) }
         }
-        rule.onNodeWithText(text(R.string.onlyfiles_background_lock)).performClick()
-        rule.onNodeWithText(text(R.string.onlyfiles_cancel)).performClick()
-        rule.runOnIdle { assertTrue(choices.isEmpty()) }
+        VaultBackgroundLockDelay.entries.forEach { delay ->
+            rule.onNodeWithText(text(delay.label())).assertExists()
+        }
     }
 }

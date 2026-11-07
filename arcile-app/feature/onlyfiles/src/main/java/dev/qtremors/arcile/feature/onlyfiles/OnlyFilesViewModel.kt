@@ -168,13 +168,11 @@ internal class OnlyFilesViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch { transferCoordinator.progress.collect(::updateTransferProgress) }
+        viewModelScope.launch { boundaryTransferCoordinator.progress.collect(::updateTransferProgress) }
         viewModelScope.launch {
-            transferCoordinator.progress.collect(::updateTransferProgress)
+            try { repository.refreshVaults() } finally { _state.update { it.withVaultsLoaded(repository.currentVaults()) } }
         }
-        viewModelScope.launch {
-            boundaryTransferCoordinator.progress.collect(::updateTransferProgress)
-        }
-        viewModelScope.launch { repository.refreshVaults() }
         viewModelScope.launch {
             securityPreferences.settings.collect { settings ->
                 _state.update {
@@ -912,13 +910,13 @@ internal class OnlyFilesViewModel @Inject constructor(
         _state.update { it.copy(message = null, operationFeedback = vaultOperationFailure(error, R.string.onlyfiles_error_operation, it.mountGeneration)) }
     }
 
-    fun openSettings() {
-        _state.update { it.copy(showSettingsSheet = true) }
+    fun openSettings(page: OnlyFilesSettingsPage = OnlyFilesSettingsPage.APP) {
+        _state.update { it.copy(settingsPage = page) }
         refreshSettings()
     }
 
     fun closeSettings() {
-        _state.update { it.copy(showSettingsSheet = false) }
+        _state.update { it.copy(settingsPage = null) }
     }
 
     fun openSecurityDisclosure() {

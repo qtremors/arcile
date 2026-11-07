@@ -217,7 +217,6 @@ private fun OnlyFilesScreen(
     var deleteNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var trashNodes by remember(state.mountGeneration) { mutableStateOf<List<VaultNodeMetadata>>(emptyList()) }
     var showViewOptions by remember(state.mountGeneration) { mutableStateOf(false) }
-    var vaultDetails by remember(state.mountGeneration) { mutableStateOf<VaultDetails?>(null) }
     var externalRequest by remember(state.mountGeneration) { mutableStateOf<ExternalRequest?>(null) }
     var openAsNode by remember(state.mountGeneration) { mutableStateOf<VaultNodeMetadata?>(null) }
     var boundaryRequest by remember(state.mountGeneration) { mutableStateOf<Pair<List<VaultNodeMetadata>, Boolean>?>(null) }
@@ -238,6 +237,7 @@ private fun OnlyFilesScreen(
             state.viewer != null -> viewModel.navigateUp()
             state.localPicker != null -> viewModel.navigateLocalPickerUp()
             state.folderPicker != null -> viewModel.navigateVaultFolderUp()
+            state.settingsPage != null -> viewModel.closeSettings()
             state.workspace.switching -> viewModel.navigateUp()
             fabExpanded -> fabExpanded = false
             showSearch -> {
@@ -338,6 +338,10 @@ private fun OnlyFilesScreen(
         }
         return
     }
+    state.settingsPage?.let { page ->
+        OnlyFilesSettingsHost(page, state, viewModel, snackbarHost, { feedbackSeverity }, predictiveBackModifier)
+        return
+    }
 
     ArcileScreenScaffold(
         modifier = predictiveBackModifier.arcileTopAppBarNestedScroll(scrollBehavior),
@@ -379,14 +383,10 @@ private fun OnlyFilesScreen(
                 val vaultOverflow: (@Composable (Boolean, () -> Unit) -> Unit)? = if (vault == null) null else {
                     { expanded, dismiss ->
                         VaultActionsMenu(
-                            expanded, vault, viewModel, state.viewOptions.showHiddenFiles,
-                            state.currentDirectory?.id,
+                            expanded, viewModel, state.viewOptions.showHiddenFiles, state.currentDirectory?.id,
                             state.currentDirectory?.id?.let { it in state.pinnedDirectoryIds } == true,
-                            state.hasExactFolderView,
-                            state.workspaceTabsEnabled,
-                            state.exportRetries.isNotEmpty() && !state.busy,
-                            { vaultDetails = it },
-                            dismiss
+                            state.hasExactFolderView, state.workspaceTabsEnabled,
+                            state.exportRetries.isNotEmpty() && !state.busy, dismiss
                         )
                     }
                 }
@@ -720,15 +720,7 @@ private fun OnlyFilesScreen(
         OnlyFilesRecoveryDialog(recovery, viewModel::resumeRecovery, viewModel::discardRecovery, viewModel::closeRecovery)
     }
     OnlyFilesBackupDialogs(state, viewModel)
-    val vaultId = state.selectedVaultId
-    if (vaultId != null) {
-        when (vaultDetails) {
-            VaultDetails.STORAGE -> VaultStorageUsageDialog(vaultId, viewModel::vaultStorageUsage) { vaultDetails = null }
-            VaultDetails.EXTERNAL_ACCESS -> VaultExternalGrantsDialog(vaultId, state.mountGeneration, viewModel) { vaultDetails = null }
-            null -> Unit
-        }
-    }
-    if (vaultId != null && (state.pendingMoveIntoVault.isNotEmpty() || state.browserImportMovePending)) {
+    if (state.selectedVaultId != null && (state.pendingMoveIntoVault.isNotEmpty() || state.browserImportMovePending)) {
         val browserMove = state.browserImportMovePending
         OnlyFilesMoveIntoVaultDialog(
             onConfirm = {
@@ -763,17 +755,6 @@ private fun OnlyFilesScreen(
             }
         )
     }
-    if (state.showSettingsSheet) OnlyFilesSettingsSheet(
-        state = state,
-        onDismiss = viewModel::closeSettings,
-        onSetScreenshotProtection = viewModel::setScreenshotProtection,
-        onSetBackgroundLockDelay = viewModel::setBackgroundLockDelay,
-        onSetLockOnScreenOff = viewModel::setLockOnScreenOff,
-        onSetNumericKeyboard = viewModel::setNumericPasswordKeyboard,
-        onClearThumbnails = viewModel::clearVaultThumbnails,
-        onRevokeExternalAccess = viewModel::revokeAllVaultExternalAccess,
-        onShowDisclosure = viewModel::openSecurityDisclosure
-    )
     if (state.showSecurityDisclosure) OnlyFilesSecurityDisclosureDialog(
         onDismiss = viewModel::closeSecurityDisclosure
     )

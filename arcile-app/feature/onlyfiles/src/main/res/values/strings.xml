@@ -263,4 +263,26 @@
         <item quantity="one">%d unreachable encrypted object can be cleaned up.</item>
         <item quantity="other">%d unreachable encrypted objects can be cleaned up.</item>
     </plurals>
+    <string name="onlyfiles_vault_settings">Vault settings</string>
+    <string name="onlyfiles_settings_locking">Locking</string>
+    <string name="onlyfiles_settings_password_entry">Password entry</string>
+    <string name="onlyfiles_settings_privacy">Privacy</string>
+    <string name="onlyfiles_settings_storage">Storage</string>
+    <string name="onlyfiles_settings_security">Security</string>
+    <string name="onlyfiles_settings_backup">Backup and sharing</string>
+    <string name="onlyfiles_settings_health">Vault health</string>
+    <string name="onlyfiles_settings_remove">Remove or delete</string>
+    <string name="onlyfiles_settings_app_description">Locking, screenshots, and thumbnails for every vault</string>
+    <string name="onlyfiles_change_password_description">Choose a new password for this vault</string>
+    <string name="onlyfiles_fingerprint_unlock">Unlock with fingerprint</string>
+    <string name="onlyfiles_fingerprint_unlock_on">On. You can still unlock with your password.</string>
+    <string name="onlyfiles_fingerprint_unlock_off">Off. Turn on to unlock without typing your password.</string>
+    <string name="onlyfiles_create_backup_description">Save an encrypted copy you can restore later</string>
+    <string name="onlyfiles_vault_external_access_description">Files from this vault that other apps can still open</string>
+    <string name="onlyfiles_vault_storage_usage_description">How much space this vault\'s files take up</string>
+    <string name="onlyfiles_reset_vault_folder_views_description">Forget the layout and sorting saved for each folder</string>
+    <string name="onlyfiles_remove_registration_description">Hide it from OnlyFiles. Its files stay where they are.</string>
+    <string name="onlyfiles_delete_vault_description">Permanently erase this vault and everything in it</string>
+    <string name="onlyfiles_pinned_vaults">Pinned</string>
+    <string name="onlyfiles_other_vaults">Other vaults</string>
 </resources>

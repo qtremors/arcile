@@ -1,11 +1,13 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Settings
+import dev.qtremors.arcile.core.ui.ArcileSectionHeader
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material3.IconButton
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,7 +24,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material.icons.Icons
@@ -406,111 +407,150 @@ internal fun VaultList(
     imports: Map<VaultId, VaultImportState>,
     biometricVaultIds: Set<VaultId>,
     onOpen: (VaultSummary) -> Unit,
+    onOpenSettings: (VaultSummary) -> Unit,
     onUnlockBiometric: (VaultSummary) -> Unit,
     onCancelImport: (VaultId) -> Unit
 ) {
-    val ordered = remember(vaults, pinnedVaults) { vaults.sortedByDescending { it.id in pinnedVaults } }
+    val (pinned, others) = remember(vaults, pinnedVaults) { vaults.partition { it.id in pinnedVaults } }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        items(ordered, key = { it.id.value }) { vault ->
-            val pinned = vault.id in pinnedVaults
-            Surface(
-                modifier = Modifier.fillMaxWidth().bounceClickable { onOpen(vault) },
-                shape = MaterialTheme.shapes.storageCard,
-                color = if (vault.isUnlocked) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceContainerLow,
-                tonalElevation = if (vault.isUnlocked) 1.dp else 0.dp
-            ) {
-                val biometricEnrolled = vault.id in biometricVaultIds
-                Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Surface(
-                            shape = MaterialTheme.shapes.medium,
-                            color = if (vault.isUnlocked) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.secondaryContainer
+        // Headers appear only once something is pinned; a plain list needs no labels.
+        if (pinned.isNotEmpty()) {
+            item(key = "header-pinned") { ArcileSectionHeader(stringResource(R.string.onlyfiles_pinned_vaults)) }
+            items(pinned, key = { it.id.value }) { vault ->
+                VaultCard(vault, true, imports[vault.id], vault.id in biometricVaultIds, onOpen, onOpenSettings, onPinVault, onUnlockBiometric, onCancelImport)
+            }
+            if (others.isNotEmpty()) item(key = "header-others") {
+                ArcileSectionHeader(stringResource(R.string.onlyfiles_other_vaults), Modifier.padding(top = 8.dp))
+            }
+        }
+        items(others, key = { it.id.value }) { vault ->
+            VaultCard(vault, false, imports[vault.id], vault.id in biometricVaultIds, onOpen, onOpenSettings, onPinVault, onUnlockBiometric, onCancelImport)
+        }
+    }
+}
+
+/** One vault. Tap opens it; long-press shows its options, the same gesture files use. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun VaultCard(
+    vault: VaultSummary,
+    pinned: Boolean,
+    import: VaultImportState?,
+    biometricEnrolled: Boolean,
+    onOpen: (VaultSummary) -> Unit,
+    onOpenSettings: (VaultSummary) -> Unit,
+    onPinVault: (VaultId, Boolean) -> Unit,
+    onUnlockBiometric: (VaultSummary) -> Unit,
+    onCancelImport: (VaultId) -> Unit
+) {
+    var showOptions by remember(vault.id) { mutableStateOf(false) }
+    val haptics = rememberArcileHaptics()
+    val optionsLabel = stringResource(R.string.onlyfiles_vault_actions, vault.name)
+    Box {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(MaterialTheme.shapes.storageCard)
+                .combinedClickable(
+                    onClick = { onOpen(vault) },
+                    onLongClick = {
+                        haptics.selectionStart()
+                        showOptions = true
+                    },
+                    onLongClickLabel = optionsLabel
+                ),
+            shape = MaterialTheme.shapes.storageCard,
+            color = if (vault.isUnlocked) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = if (vault.isUnlocked) 1.dp else 0.dp
+        ) {
+            Column(Modifier.padding(horizontal = 20.dp, vertical = 18.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Surface(
+                        shape = MaterialTheme.shapes.medium,
+                        color = if (vault.isUnlocked) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.secondaryContainer
+                    ) {
+                        Icon(
+                            if (vault.isUnlocked) Icons.Outlined.FolderOpen else Icons.Outlined.Lock,
+                            null,
+                            Modifier.padding(12.dp),
+                            tint = if (vault.isUnlocked) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(vault.name, style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            if (vault.isAvailable) {
+                                stringResource(
+                                    if (vault.locationKind == VaultLocationKind.APP_PRIVATE) R.string.onlyfiles_app_storage
+                                    else R.string.onlyfiles_user_folder
+                                ) + " \u00b7 " + DateFormat.getDateInstance().format(vault.createdAtMillis)
+                            } else stringResource(R.string.onlyfiles_folder_unavailable),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (biometricEnrolled && !vault.isUnlocked) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
+                                .bounceClickable { onUnlockBiometric(vault) },
+                            contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                if (vault.isUnlocked) Icons.Outlined.FolderOpen else Icons.Outlined.Lock,
-                                null,
-                                Modifier.padding(12.dp),
-                                tint = if (vault.isUnlocked) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSecondaryContainer
+                                imageVector = Icons.Default.Fingerprint,
+                                contentDescription = stringResource(R.string.onlyfiles_biometric_enabled),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Column(Modifier.weight(1f)) {
-                            Text(vault.name, style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                if (vault.isAvailable) {
-                                    stringResource(
-                                        if (vault.locationKind == VaultLocationKind.APP_PRIVATE) R.string.onlyfiles_app_storage
-                                        else R.string.onlyfiles_user_folder
-                                    ) + " · " + DateFormat.getDateInstance().format(vault.createdAtMillis)
-                                } else stringResource(R.string.onlyfiles_folder_unavailable),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (pinned) Icon(
-                            Icons.Default.PushPin, stringResource(R.string.onlyfiles_pinned_vault),
-                            Modifier.size(16.dp)
-                        )
-                        if (biometricEnrolled && !vault.isUnlocked) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f))
-                                    .bounceClickable { onUnlockBiometric(vault) },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Fingerprint,
-                                    contentDescription = stringResource(R.string.onlyfiles_biometric_enabled),
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        VaultCardMenu(vault, pinned, onPinVault)
                     }
-                    imports[vault.id]?.let { import ->
-                        Spacer(Modifier.height(12.dp))
-                        val progress = import.progress
-                        val total = progress?.totalBytes
-                        if (total != null && total > 0L) {
-                            LinearProgressIndicator({ progress.bytesProcessed.toFloat() / total }, Modifier.fillMaxWidth().clip(CircleShape))
-                        } else LinearProgressIndicator(Modifier.fillMaxWidth().clip(CircleShape))
-                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                stringResource(R.string.onlyfiles_importing, progress?.completedItems ?: 0, progress?.totalItems ?: 0),
-                                Modifier.weight(1f), style = MaterialTheme.typography.bodySmall
-                            )
-                            TextButton(onClick = { onCancelImport(vault.id) }, enabled = !import.isCancelling) {
-                                Text(stringResource(R.string.onlyfiles_cancel_import))
-                            }
+                }
+                import?.let { active ->
+                    Spacer(Modifier.height(12.dp))
+                    val progress = active.progress
+                    val total = progress?.totalBytes
+                    if (total != null && total > 0L) {
+                        LinearProgressIndicator({ progress.bytesProcessed.toFloat() / total }, Modifier.fillMaxWidth().clip(CircleShape))
+                    } else LinearProgressIndicator(Modifier.fillMaxWidth().clip(CircleShape))
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            stringResource(R.string.onlyfiles_importing, progress?.completedItems ?: 0, progress?.totalItems ?: 0),
+                            Modifier.weight(1f), style = MaterialTheme.typography.bodySmall
+                        )
+                        TextButton(onClick = { onCancelImport(vault.id) }, enabled = !active.isCancelling) {
+                            Text(stringResource(R.string.onlyfiles_cancel_import))
                         }
                     }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun VaultCardMenu(vault: VaultSummary, pinned: Boolean, onPinVault: (VaultId, Boolean) -> Unit) {
-    val expanded = remember(vault.id) { mutableStateOf(false) }
-    Box {
-        IconButton(onClick = { expanded.value = true }) {
-            Icon(Icons.Default.MoreVert, stringResource(R.string.onlyfiles_vault_actions, vault.name))
-        }
-        ArcileDropdownMenu(expanded.value, onDismissRequest = { expanded.value = false }, items = listOf({
-            ArcileDropdownMenuItem(
-                text = { Text(stringResource(if (pinned) R.string.onlyfiles_unpin_vault else R.string.onlyfiles_pin_vault)) },
-                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                onClick = {
-                    expanded.value = false
-                    onPinVault(vault.id, !pinned)
-                }
-            )
-        }))
+        ArcileDropdownMenu(showOptions, onDismissRequest = { showOptions = false }, items = buildList {
+            add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(if (pinned) R.string.onlyfiles_unpin_vault else R.string.onlyfiles_pin_vault)) },
+                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
+                    onClick = {
+                        showOptions = false
+                        onPinVault(vault.id, !pinned)
+                    }
+                )
+            }
+            // Vault settings need the vault's session, so they are offered once it is unlocked.
+            if (vault.isUnlocked) add {
+                ArcileDropdownMenuItem(
+                    text = { Text(stringResource(R.string.onlyfiles_vault_settings)) },
+                    leadingIcon = { Icon(Icons.Default.Settings, contentDescription = null) },
+                    onClick = {
+                        showOptions = false
+                        onOpenSettings(vault)
+                    }
+                )
+            }
+        })
     }
 }

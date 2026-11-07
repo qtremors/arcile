@@ -30,8 +30,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -165,6 +167,7 @@ internal fun OnlyFilesMainContent(
                 imports = state.activeImports,
                 biometricVaultIds = state.biometricVaultIds,
                 onOpen = { if (!viewModel.openVault(it)) onUnlockRequired(it.id) },
+                onOpenSettings = { if (viewModel.openVault(it)) viewModel.openSettings(OnlyFilesSettingsPage.VAULT) },
                 onUnlockBiometric = { vault ->
                     viewModel.prepareBiometricUnlock(vault.id) { challenge ->
                         val activity = context.findActivity()
@@ -176,7 +179,11 @@ internal fun OnlyFilesMainContent(
                 },
                 onCancelImport = viewModel::cancelImport
             )
-            if (state.vaults.isEmpty()) {
+            if (state.vaults.isEmpty() && !state.vaultsLoaded) {
+                // Still scanning: stay blank briefly so a quick scan shows nothing extra.
+                val slow by produceState(false) { delay(VAULT_LOADING_DELAY_MS); value = true }
+                if (slow) LoadingIndicator(Modifier.align(Alignment.Center))
+            } else if (state.vaults.isEmpty()) {
                 EmptyState(
                     modifier = Modifier.align(Alignment.Center).padding(24.dp),
                     variant = EmptyStateVariant.Folder,
@@ -307,3 +314,5 @@ internal fun OnlyFilesMainContent(
         }
     }
 }
+
+private const val VAULT_LOADING_DELAY_MS = 300L
