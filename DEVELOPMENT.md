@@ -2,7 +2,7 @@
 
 How Arcile is built, the rules the code follows, and how to verify and release it.
 
-**Version:** 2.4.9 | **Last Updated:** 2026-11-08
+**Version:** 2.5.0 | **Last Updated:** 2026-11-08
 
 ---
 
@@ -71,7 +71,7 @@ Versions live in `arcile-app/gradle/libs.versions.toml`.
 
 ## Modules
 
-36 Gradle modules under `arcile-app/`:
+37 Gradle modules under `arcile-app/`:
 
 ```text
 app/                      Activities, Hilt graph, app shell, route mapping
@@ -248,6 +248,7 @@ Material 3 Expressive with Arcile's own theme layer in `core:ui`.
 - **Themes:** Light, Dark, System, and OLED (pure black surfaces), plus Dracula and Tokyo Night presets and a Custom mode with user colors. Accents come from the wallpaper (Android 12+), monochrome, or preset seeds; optional harmonization blends category colors into the scheme.
 - **Composition locals:** `LocalCategoryColors`, `LocalSemanticColors`, `LocalSpacing`, `LocalHapticsEnabled`, `LocalReducedMotionEnabled`, and the filename display locals.
 - **Motion:** springs are slightly under-damped (`dampingRatio = 0.75f`). Animated sizes and paddings are clamped to zero or more so overshoot can't produce negative layout values. Every animation honours Reduce Motion.
+- **Switches:** always `ExpressiveSwitch`, never the plain Material `Switch` (an architecture test enforces this). In a toggle row, pass `onCheckedChange = null` and make the row toggleable.
 - **Typography:** use the semantic styles in `Type.kt` (`filename`, `fileMetadata`, `pathBreadcrumb`, `storageMetric`, `sectionHeader`, `dangerLabel`, and the bold helpers) instead of raw sizes.
 - **Shared building blocks:** `ArcileScreenScaffold`, shared top and search bars, file rows and grids, `SplitButtonGroup` for selection actions, `ExpandableFabMenu`, the floating navigation bar, and fast scrollbars with date pills. A new screen, including a secure one, uses these before inventing its own.
 - **Hidden files** (leading dot) render dimmed and italic. Scroll positions survive returning from viewers.
@@ -298,8 +299,8 @@ Run affected modules while working and the full suite at release milestones. Rob
 Run from `arcile-app/` with JDK 21 and Android SDK 37 (`gradlew.bat` on Windows). Builds run in parallel with the build cache and configuration cache on (`gradle.properties`).
 
 ```bash
-./gradlew :app:assembleDebug     # app/build/outputs/apk/debug/Arcile-2.4.9-debug.apk
-./gradlew :app:assembleRelease   # app/build/outputs/apk/release/Arcile-2.4.9.apk
+./gradlew :app:assembleDebug     # app/build/outputs/apk/debug/Arcile-2.5.0-debug.apk
+./gradlew :app:assembleRelease   # app/build/outputs/apk/release/Arcile-2.5.0.apk
 ```
 
 **Signing** reads `signing.properties`, falling back to `local.properties`. Never commit either file or a keystore.
@@ -314,7 +315,7 @@ signing.keyPassword=...
 **Google Play internal testing** builds a separate bundle with application ID `play.qtremors.arcile`:
 
 ```bash
-./gradlew :app:bundleRelease -Parcile.play=true   # app/build/outputs/bundle/release/Arcile-2.4.9.aab
+./gradlew :app:bundleRelease -Parcile.play=true   # app/build/outputs/bundle/release/Arcile-2.5.0.aab
 ```
 
 **Shrinking.** Release builds use R8 with resource shrinking. `app/proguard-rules.pro` holds only `-dontwarn` lines and line-number attributes; kotlinx.serialization, Hilt, and Navigation bring their own rules. Add a keep rule only for code reached by reflection, and smoke-test a release build after changing rules.
@@ -325,11 +326,7 @@ signing.keyPassword=...
 
 **Backups.** `backup_rules.xml` (Android 11) and `data_extraction_rules.xml` (Android 12+) exclude keys, journals, staging, the Room cache, and all DataStore files, and must list the same paths (`BackupRulesTest` checks this). Settings move between devices through Arcile's own preferences backup.
 
-**Website.** `docs/` is served by GitHub Pages as plain files. After changing classes in `index.html` or `scripts.js`, rebuild the stylesheet:
-
-```bash
-npx tailwindcss@3.4.17 -c docs/tailwind.config.js -i docs/tailwind.input.css -o docs/tailwind.css --minify
-```
+**Website.** `docs/` is served by GitHub Pages as plain HTML, CSS, and JavaScript, with no build step and no third-party scripts, styles, or fonts. Colors are CSS variables at the top of `styles.css`. Icons are an inline SVG sprite in `index.html` (`<use href="#i-name"/>`) copied from Lucide and Simple Icons; add a new one as another `<symbol>`. The Outfit heading font is self-hosted in `docs/assets/fonts/` with its license. Screenshots live in `docs/Screenshots/` as lossless WebP, and the hero slideshow reads its screens from the `#showcase-screens` list in `index.html`.
 
 ## Troubleshooting
 
@@ -345,7 +342,7 @@ npx tailwindcss@3.4.17 -c docs/tailwind.config.js -i docs/tailwind.input.css -o 
 ## Maintenance
 
 - Every user-visible change gets a line in `CHANGELOG.md` under the current version. Leave out intermediate refactors.
-- Bump versions only when asked. `versionCode` is the version without dots (`2.4.9` → `249`).
+- Bump versions only when asked. `versionCode` is the version without dots (`2.5.0` → `250`).
 - Changing the vault format means updating the format specification and compatibility tests together. Never reuse an authenticated-data domain or reinterpret an existing version.
 - Copy portable vaults only while locked; a live multi-file copy isn't an atomic snapshot.
 - Treat the architecture rules as guardrails, not a reason for speculative abstraction.

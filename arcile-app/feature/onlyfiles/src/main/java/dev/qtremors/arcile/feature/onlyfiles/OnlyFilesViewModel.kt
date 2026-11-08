@@ -181,7 +181,6 @@ internal class OnlyFilesViewModel @Inject constructor(
                         numericPasswordKeyboard = settings.numericPasswordKeyboard,
                         backgroundLockDelay = settings.backgroundLockDelay,
                         lockOnScreenOff = settings.lockOnScreenOff,
-                        pinnedDirectoryIds = it.selectedVaultId?.let(settings.pinnedDirectories::get).orEmpty(),
                         pinnedVaultIds = settings.pinnedVaults,
                         workspaceTabsEnabled = settings.workspaceTabsEnabled
                     )
@@ -311,7 +310,6 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
     fun openSearchScope() = locations.openScopePicker()
     fun clearSearchScope() = locations.clearScope()
-    fun openPinnedFolders() = locations.openPinnedFolders()
     fun resetVaultFolderViews() {
         val vault = _state.value.selectedVaultId ?: return
         viewModelScope.launch {
@@ -365,7 +363,6 @@ internal class OnlyFilesViewModel @Inject constructor(
     fun moveWorkspaceTab(id: Int, offset: Int) = workspace.moveTab(id, offset)
     fun closeWorkspaceTab(id: Int) = workspace.closeTab(id)
     fun closeOtherWorkspaceTabs(id: Int) = workspace.closeOtherTabs(id)
-    fun toggleFolderPin(directory: DirectoryId) = locations.togglePin(directory)
     fun resetFolderView() = locations.resetCurrentFolderView()
     fun openLocationFolder(folder: VaultNodeMetadata) = locations.openPickerFolder(folder)
     fun navigateLocationPicker(id: DirectoryId) = locations.pickerToDirectory(id)
@@ -379,10 +376,6 @@ internal class OnlyFilesViewModel @Inject constructor(
     }
 
     private fun clearBrowserImport() = browserImports.clear()
-    fun openPinnedFolder(id: DirectoryId) {
-        locations.closePicker()
-        locations.navigate(id)
-    }
 
     fun createZip(nodes: List<VaultNodeMetadata>, name: String, compression: Int, successMessage: String, password: CharArray?) =
         archives.create(nodes, name, compression, successMessage, password)
@@ -800,7 +793,6 @@ internal class OnlyFilesViewModel @Inject constructor(
                 searchScope = null,
                 revealNodeId = null,
                 revealHiddenNodeId = null,
-                pinnedDirectoryIds = settings.pinnedDirectories[vaultId].orEmpty(),
                 selectedNodeIds = emptySet(),
                 viewer = null,
                 viewerQueue = emptyList(),
@@ -857,7 +849,6 @@ internal class OnlyFilesViewModel @Inject constructor(
                 searchScope = null,
                 revealNodeId = null,
                 revealHiddenNodeId = null,
-                pinnedDirectoryIds = emptySet(),
                 isSearching = false,
                 isListing = false,
                 selectedNodeIds = emptySet(),

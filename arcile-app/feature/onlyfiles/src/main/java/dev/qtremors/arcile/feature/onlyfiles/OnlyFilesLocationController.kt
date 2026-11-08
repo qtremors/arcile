@@ -18,13 +18,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-internal enum class OnlyFilesLocationMode { SEARCH_SCOPE, PINNED, ARCHIVE_DESTINATION, IMPORT_DESTINATION }
+internal enum class OnlyFilesLocationMode { SEARCH_SCOPE, ARCHIVE_DESTINATION, IMPORT_DESTINATION }
 
 internal data class OnlyFilesLocationPickerState(
     val mode: OnlyFilesLocationMode,
     val stack: List<VaultDirectoryCrumb>,
     val folders: List<VaultNodeMetadata> = emptyList(),
-    val shortcuts: List<List<VaultDirectoryCrumb>> = emptyList(),
     val nextPageToken: String? = null,
     val generation: Long? = null,
     val loading: Boolean = true,
@@ -88,15 +87,6 @@ internal class OnlyFilesLocationController(
         reload()
     }
 
-    fun togglePin(directory: DirectoryId) {
-        val snapshot = state.value
-        val vault = snapshot.selectedVaultId ?: return
-        val pinned = directory in snapshot.pinnedDirectoryIds
-        savePreference {
-            preferences.setDirectoryPinned(vault, directory, !pinned)
-        }
-    }
-
     fun resetCurrentFolderView() {
         val snapshot = state.value
         val vault = snapshot.selectedVaultId ?: return
@@ -122,37 +112,8 @@ internal class OnlyFilesLocationController(
         loadPicker(OnlyFilesLocationPickerState(OnlyFilesLocationMode.IMPORT_DESTINATION, listOf(root)))
     }
 
-    fun openPinnedFolders() {
-        closePicker()
-        val snapshot = state.value
-        val vault = snapshot.selectedVaultId ?: return
-        state.update { it.copy(locationPicker = OnlyFilesLocationPickerState(OnlyFilesLocationMode.PINNED, emptyList())) }
-        pickerJob = scope.launch {
-            val trails = mutableListOf<List<VaultDirectoryCrumb>>()
-            for (id in snapshot.pinnedDirectoryIds) {
-                val result = fileSystem.directoryTrail(vault, id)
-                ensureActive()
-                if (!isMounted(vault, snapshot.mountGeneration)) return@launch
-                result.fold(
-                    onSuccess = { trails.add(it.toCrumbs()) },
-                    onFailure = { error ->
-                        if (error is VaultFailure.InvalidPath) {
-                            savePreference { preferences.setDirectoryPinned(vault, id, false) }
-                        }
-                    }
-                )
-            }
-            state.update { current ->
-                current.copy(locationPicker = current.locationPicker?.copy(
-                    shortcuts = trails.sortedBy { it.last().name.lowercase() }, loading = false
-                ))
-            }
-        }
-    }
-
     fun openPickerFolder(folder: VaultNodeMetadata) {
         val picker = state.value.locationPicker ?: return
-        if (picker.mode == OnlyFilesLocationMode.PINNED) return
         val id = folder.ref.directoryId ?: return
         val path = picker.stack.last().path.resolve(folder.name)
         loadPicker(picker.copy(

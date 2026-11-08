@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -30,7 +31,6 @@ import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.ScreenLockPortrait
 import androidx.compose.material.icons.filled.Screenshot
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -43,7 +43,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
@@ -164,23 +163,14 @@ private fun OnlyFilesSettingsScaffold(
 
 private fun LazyListScope.appSettingsItems(state: OnlyFilesUiState, viewModel: OnlyFilesViewModel) {
     item(key = "locking") {
-        var chooseDelay by remember { mutableStateOf(false) }
         SettingsSection(stringResource(R.string.onlyfiles_settings_locking)) {
-            SettingsActionRow(
-                0, 2, stringResource(R.string.onlyfiles_background_lock),
-                stringResource(state.backgroundLockDelay.label()), Icons.Default.Timer
-            ) { chooseDelay = true }
+            BackgroundLockDelaySelector(state.backgroundLockDelay, viewModel::setBackgroundLockDelay)
             SettingsToggleRow(
-                1, 2, stringResource(R.string.onlyfiles_lock_screen_off),
+                0, 1, stringResource(R.string.onlyfiles_lock_screen_off),
                 stringResource(R.string.onlyfiles_lock_screen_off_description), Icons.Default.ScreenLockPortrait,
                 state.lockOnScreenOff, viewModel::setLockOnScreenOff
             )
         }
-        if (chooseDelay) BackgroundLockDelayDialog(
-            current = state.backgroundLockDelay,
-            onSelect = { chooseDelay = false; viewModel.setBackgroundLockDelay(it) },
-            onDismiss = { chooseDelay = false }
-        )
     }
     item(key = "password") {
         SettingsSection(stringResource(R.string.onlyfiles_settings_password_entry)) {
@@ -437,7 +427,7 @@ private fun SettingsToggleRow(
         supportingContent = description?.let { { Text(it) } },
         trailingContent = {
             Box(Modifier.fillMaxHeight(), contentAlignment = Alignment.Center) {
-                Switch(checked = checked, onCheckedChange = onCheckedChange)
+                ExpressiveSwitch(checked = checked, onCheckedChange = onCheckedChange)
             }
         },
         colors = ListItemDefaults.segmentedColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),

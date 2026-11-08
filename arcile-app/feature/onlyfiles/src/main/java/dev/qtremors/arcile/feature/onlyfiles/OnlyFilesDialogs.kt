@@ -1,5 +1,24 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.vault.domain.VaultHealthSeverity
 import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
 
@@ -190,6 +209,10 @@ internal fun VaultPropertiesDialog(
     )
 }
 
+/**
+ * Health check result. The icon and title answer "is everything fine?" at a glance; each problem
+ * gets its own row with a severity icon, and recovery becomes the main action when it is needed.
+ */
 @Composable
 internal fun HealthDialog(
     report: VaultHealthReport,
@@ -198,24 +221,44 @@ internal fun HealthDialog(
     onRecover: () -> Unit
 ) {
     val needsRecovery = report.issues.any { it.code == "pending_transaction" }
+    val healthy = report.isHealthy
     AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_health_result)) },
-        text = { Column {
-            Text(stringResource(if (report.isHealthy) R.string.onlyfiles_health_ok else R.string.onlyfiles_health_problems))
-            Text(stringResource(R.string.onlyfiles_health_counts, report.checkedObjects, report.checkedChunks, report.issues.size))
-            report.issues.take(8).forEach { issue ->
-                Text(stringResource(R.string.onlyfiles_health_issue,
-                    stringResource(vaultHealthSeverityLabel(issue.severity)),
-                    vaultHealthIssueText(issue, report.orphanObjectIds.size).asString()), style = MaterialTheme.typography.bodySmall)
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                if (healthy) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = if (healthy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+            )
+        },
+        title = { Text(stringResource(if (healthy) R.string.onlyfiles_health_title_ok else R.string.onlyfiles_health_title_problems)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(if (healthy) R.string.onlyfiles_health_ok else R.string.onlyfiles_health_problems))
+                if (report.issues.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                        val shown = report.issues.take(MAX_SHOWN_ISSUES)
+                        shown.forEachIndexed { index, issue ->
+                            HealthIssueRow(
+                                issue.severity,
+                                vaultHealthIssueText(issue, report.orphanObjectIds.size).asString(),
+                                index, shown.size
+                            )
+                        }
+                    }
+                }
+                Text(
+                    stringResource(R.string.onlyfiles_health_counts, report.checkedObjects, report.checkedChunks, report.issues.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        } },
+        },
         confirmButton = {
-            TextButton(
-                onClick = if (needsRecovery) onRecover else onDismiss,
-                enabled = !busy,
-                shape = ExpressiveShapes.medium,
-            ) {
-                Text(stringResource(if (needsRecovery) R.string.onlyfiles_recover_transaction else R.string.onlyfiles_close))
+            if (needsRecovery) Button(onClick = onRecover, enabled = !busy, shape = ExpressiveShapes.medium) {
+                Text(stringResource(R.string.onlyfiles_recover_transaction))
+            } else TextButton(onClick = onDismiss, shape = ExpressiveShapes.medium) {
+                Text(stringResource(R.string.onlyfiles_close))
             }
         },
         dismissButton = {
@@ -225,6 +268,37 @@ internal fun HealthDialog(
         }
     )
 }
+
+@Composable
+private fun HealthIssueRow(severity: VaultHealthSeverity, text: String, index: Int, count: Int) {
+    val (icon, tint) = when (severity) {
+        VaultHealthSeverity.ERROR -> Icons.Default.Error to MaterialTheme.colorScheme.error
+        VaultHealthSeverity.WARNING -> Icons.Default.Warning to MaterialTheme.colorScheme.tertiary
+        VaultHealthSeverity.INFO -> Icons.Default.Info to MaterialTheme.colorScheme.primary
+    }
+    val shape = when {
+        count == 1 -> MaterialTheme.shapes.menuGroupSingle
+        index == 0 -> MaterialTheme.shapes.menuGroupFirst
+        index == count - 1 -> MaterialTheme.shapes.menuGroupLast
+        else -> MaterialTheme.shapes.menuGroupMiddle
+    }
+    val severityLabel = stringResource(vaultHealthSeverityLabel(severity))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .semantics(mergeDescendants = true) { contentDescription = "$severityLabel: $text" }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private const val MAX_SHOWN_ISSUES = 8
 
 @Composable
 internal fun VaultMoveToTrashDialog(onDismiss: () -> Unit, onMove: () -> Unit) {

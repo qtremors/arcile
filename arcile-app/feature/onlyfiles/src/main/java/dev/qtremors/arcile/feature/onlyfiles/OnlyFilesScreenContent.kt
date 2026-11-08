@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -152,6 +153,7 @@ internal fun OnlyFilesMainContent(
     onShowCreateVault: () -> Unit
 ) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val hasFloatingToolbar = state.selectedNodeIds.isNotEmpty() ||
         (state.selectedVaultId != null && state.clipboard != null) || state.transferProgress != null ||
         state.archiveProgress != null
@@ -256,7 +258,7 @@ internal fun OnlyFilesMainContent(
                         onSelectRange = viewModel::selectRange,
                         onLoadMore = viewModel::loadNextPage,
                         onRevealFinished = { found ->
-                            viewModel.finishReveal(context.getString(R.string.onlyfiles_reveal_unavailable).takeUnless { found })
+                            viewModel.finishReveal(resources.getString(R.string.onlyfiles_reveal_unavailable).takeUnless { found })
                         },
                         onGridSizeFinalized = viewModel::setGridCellSize,
                         onImportFiles = onImportFiles,

@@ -40,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -93,6 +94,7 @@ internal fun PluginsScreen(
     val uriHandler = LocalUriHandler.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val coroutineScope = rememberCoroutineScope()
+    val resources = LocalResources.current
     val manager = remember(context) { PluginManager(context) }
     var installed by remember { mutableStateOf(manager.getInstalledPlugins()) }
 
@@ -227,7 +229,7 @@ internal fun PluginsScreen(
                                                 onInstallUpdate(freshCandidate.metadata.filePath)
                                             } else {
                                                 context.showArcileToast(
-                                                    context.getString(R.string.error_file_operation_failed)
+                                                    resources.getString(R.string.error_file_operation_failed)
                                                 )
                                             }
                                         }

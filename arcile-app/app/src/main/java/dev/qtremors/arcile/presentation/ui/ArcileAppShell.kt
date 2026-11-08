@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -62,6 +63,7 @@ import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
@@ -138,13 +140,7 @@ fun ArcileAppShell(
     )
     LaunchedEffect(appLaunchContext.navigationSessionId, coldLaunchPage) {
         if (coldLaunchPage != null) {
-            navController.navigate(AppRoutes.Main(initialPage = coldLaunchPage, restorePersistentLocation = true)) {
-                popUpTo(navController.graph.id) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-                restoreState = false
-            }
+            navController.resetToColdLaunchPage(coldLaunchPage)
             isColdLaunchResetting = false
         }
     }
@@ -205,6 +201,23 @@ fun ArcileAppShell(
             }
             }
         }
+    }
+}
+
+/**
+ * Replaces the back stack with Main on [page]. The NavHost sets the graph when the Scaffold content
+ * composes, which can be after the caller's effect starts: a quick reopen has the start page ready
+ * on the first frame. Reading `graph` before then throws, so this waits for the first back stack
+ * entry, which exists as soon as the graph does.
+ */
+internal suspend fun NavHostController.resetToColdLaunchPage(page: Int) {
+    currentBackStackEntryFlow.first()
+    navigate(AppRoutes.Main(initialPage = page, restorePersistentLocation = true)) {
+        popUpTo(graph.id) {
+            inclusive = true
+        }
+        launchSingleTop = true
+        restoreState = false
     }
 }
 

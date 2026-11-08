@@ -1,3 +1,7 @@
+// Arcile website behavior. Loaded with `defer`, so the page is parsed before this runs.
+
+const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
 // Navbar tonal elevation once the page leaves the top. A sentinel observer replaces a scroll
 // listener, so nothing runs while scrolling.
 const navbar = document.getElementById('navbar');
@@ -11,52 +15,135 @@ if (navbar) {
     }).observe(navSentinel);
 }
 
-// FAQ Accordion Toggle
-function toggleFaq(element) {
-    const content = element.querySelector('.faq-content');
-    const icon = element.querySelector('.faq-icon');
-    
-    // Close all others
-    document.querySelectorAll('.faq-content').forEach(el => {
-        if(el !== content) el.classList.remove('open');
+// Scroll reveal: each block fades up once, the first time it enters the screen
+const revealObserver = new IntersectionObserver((entries, observer) => {
+    entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('is-visible');
+        observer.unobserve(entry.target);
     });
-    document.querySelectorAll('.faq-icon').forEach(el => {
-        if(el !== icon) el.classList.remove('rotate');
-    });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
 
-    // Toggle current
-    content.classList.toggle('open');
-    icon.classList.toggle('rotate');
-}
+// Hero screenshot showcase. Tapping the phone shows the next screen. The first visit stays still;
+// once the visitor scrolls away and comes back, the screens change on their own while the hero is
+// on screen. Hovering pauses that, as does keyboard focus, a background tab, or reduced motion.
+function setupShowcase() {
+    const phone = document.getElementById('showcase-phone');
+    const image = document.getElementById('showcase-image');
+    const screens = [...document.querySelectorAll('#showcase-screens li')].map(item => ({
+        src: item.dataset.src,
+        alt: item.textContent.trim()
+    }));
+    if (!phone || !image || screens.length < 2) return;
 
-// Intersection Observer for Scroll Reveal Animations
-document.addEventListener("DOMContentLoaded", () => {
-    // Render Icons
-    lucide.createIcons();
-
-    const observerOptions = {
-        root: null,
-        rootMargin: '0px',
-        threshold: 0.1
+    const interval = 3500;
+    const decoded = new Map([[screens[0].src, Promise.resolve()]]);
+    const preload = index => {
+        const { src } = screens[index];
+        if (!decoded.has(src)) {
+            const img = new Image();
+            img.src = src;
+            decoded.set(src, img.decode().catch(() => {}));
+        }
+        return decoded.get(src);
     };
 
-    const observer = new IntersectionObserver((entries, observer) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.classList.add('opacity-100', 'translate-y-0');
-                entry.target.classList.remove('opacity-0', 'translate-y-8');
-                observer.unobserve(entry.target);
-            }
-        });
-    }, observerOptions);
+    let current = 0;
+    let request = 0;
 
-    document.querySelectorAll('.reveal').forEach(el => {
-        observer.observe(el);
+    async function showNext() {
+        const next = (current + 1) % screens.length;
+        current = next;
+        const token = ++request;
+        phone.classList.add('is-switching');
+        await Promise.all([preload(next), new Promise(resolve => setTimeout(resolve, reduceMotionQuery.matches ? 0 : 150))]);
+        if (token !== request) return; // a newer tap took over
+        image.src = screens[next].src;
+        image.alt = screens[next].alt;
+        phone.classList.remove('is-switching');
+        preload((next + 1) % screens.length);
+    }
+
+    let timer = 0;
+    let inView = false;
+    let returned = false; // true once the hero has been left and entered again
+    let hovered = false;
+    let focused = false;
+
+    const schedule = () => {
+        clearTimeout(timer);
+        timer = 0;
+        if (returned && inView && !hovered && !focused && !document.hidden && !reduceMotionQuery.matches) {
+            timer = setTimeout(() => showNext().then(schedule), interval);
+        }
+    };
+
+    phone.addEventListener('click', () => {
+        showNext();
+        schedule(); // a tap restarts the countdown
     });
-});
 
+    new IntersectionObserver(([entry]) => {
+        if (inView && !entry.isIntersecting) returned = true;
+        inView = entry.isIntersecting;
+        if (inView && returned) preload((current + 1) % screens.length);
+        schedule();
+    }, { threshold: 0.5 }).observe(phone);
+
+    phone.addEventListener('pointerenter', event => {
+        if (event.pointerType !== 'mouse') return;
+        hovered = true;
+        schedule();
+    });
+    phone.addEventListener('pointerleave', () => {
+        hovered = false;
+        schedule();
+    });
+    // Keyboard focus pauses; the focus a tap leaves behind does not
+    phone.addEventListener('focus', () => {
+        focused = phone.matches(':focus-visible');
+        schedule();
+    });
+    phone.addEventListener('blur', () => {
+        focused = false;
+        schedule();
+    });
+    document.addEventListener('visibilitychange', schedule);
+    reduceMotionQuery.addEventListener('change', schedule);
+
+    // Fetch the second screen once the page is idle, so the first tap is instant
+    const warmUp = () => preload(1);
+    if ('requestIdleCallback' in window) requestIdleCallback(warmUp);
+    else setTimeout(warmUp, 1500);
+}
+setupShowcase();
+
+// Mobile menu
+const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+const mobileMenu = document.getElementById('mobile-menu');
+if (mobileMenuBtn && mobileMenu) {
+    const menuIcon = document.getElementById('mobile-menu-icon');
+
+    const setMenuOpen = open => {
+        mobileMenu.classList.toggle('is-open', open);
+        mobileMenuBtn.setAttribute('aria-expanded', String(open));
+        mobileMenuBtn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+        menuIcon?.setAttribute('href', open ? '#i-x' : '#i-menu');
+        document.body.style.overflow = open ? 'hidden' : '';
+    };
+
+    mobileMenuBtn.addEventListener('click', () => setMenuOpen(!mobileMenu.classList.contains('is-open')));
+    document.querySelectorAll('.mobile-link').forEach(link => {
+        link.addEventListener('click', () => setMenuOpen(false));
+    });
+    document.addEventListener('keydown', event => {
+        if (event.key === 'Escape' && mobileMenu.classList.contains('is-open')) setMenuOpen(false);
+    });
+}
+
+// Live GitHub stats and release downloads
 const numberFormatter = new Intl.NumberFormat();
-const reduceMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 function animateCounter(element, target) {
     if (!element || !Number.isFinite(target)) return;
@@ -112,7 +199,6 @@ async function fetchTotalReleaseDownloads() {
     return totalDownloads;
 }
 
-// Fetch Live GitHub Stats & Release Downloads
 async function fetchGitHubStats() {
     const [repoResult, releaseResult, totalDownloadsResult] = await Promise.allSettled([
         fetch('https://api.github.com/repos/qtremors/arcile'),
@@ -125,10 +211,8 @@ async function fetchGitHubStats() {
         if (repoRes?.ok) {
             const data = await repoRes.json();
             if (data.stargazers_count !== undefined) {
-                const starsEl = document.getElementById('gh-stars');
-                const forksEl = document.getElementById('gh-forks');
-                animateCounter(starsEl, data.stargazers_count);
-                animateCounter(forksEl, data.forks_count);
+                animateCounter(document.getElementById('gh-stars'), data.stargazers_count);
+                animateCounter(document.getElementById('gh-forks'), data.forks_count);
             }
         }
     } catch (error) {
@@ -144,59 +228,17 @@ async function fetchGitHubStats() {
                     el.innerText = `Download ${release.tag_name}`;
                 });
             }
-
-            const latestDownloads = sumReleaseDownloads([release]);
-            animateCounter(document.getElementById('gh-latest-downloads'), latestDownloads);
+            animateCounter(document.getElementById('gh-latest-downloads'), sumReleaseDownloads([release]));
         }
     } catch (error) {
         console.error('Error fetching the latest GitHub release:', error);
     }
 
     if (totalDownloadsResult.status === 'fulfilled') {
-        const totalDownloads = totalDownloadsResult.value;
-        animateCounter(document.getElementById('gh-total-downloads'), totalDownloads);
+        animateCounter(document.getElementById('gh-total-downloads'), totalDownloadsResult.value);
     } else {
         console.error('Error fetching total GitHub downloads:', totalDownloadsResult.reason);
     }
 }
 
-// Execute fetch
 fetchGitHubStats();
-
-// Mobile Menu Toggle
-const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-const mobileMenu = document.getElementById('mobile-menu');
-let isMobileMenuOpen = false;
-
-if (mobileMenuBtn && mobileMenu) {
-    const mobileMenuIcon = document.getElementById('mobile-menu-icon');
-    
-    function toggleMobileMenu() {
-        isMobileMenuOpen = !isMobileMenuOpen;
-        if (isMobileMenuOpen) {
-            mobileMenu.classList.remove('translate-x-full');
-            mobileMenu.classList.add('translate-x-0');
-            if (mobileMenuIcon) {
-                mobileMenuIcon.setAttribute('data-lucide', 'x');
-            }
-            document.body.style.overflow = 'hidden'; // Prevent scrolling
-        } else {
-            mobileMenu.classList.add('translate-x-full');
-            mobileMenu.classList.remove('translate-x-0');
-            if (mobileMenuIcon) {
-                mobileMenuIcon.setAttribute('data-lucide', 'menu');
-            }
-            document.body.style.overflow = ''; // Restore scrolling
-        }
-        lucide.createIcons();
-    }
-
-    mobileMenuBtn.addEventListener('click', toggleMobileMenu);
-
-    // Close menu when clicking a link
-    document.querySelectorAll('.mobile-link').forEach(link => {
-        link.addEventListener('click', () => {
-            if (isMobileMenuOpen) toggleMobileMenu();
-        });
-    });
-}

@@ -2,6 +2,7 @@
 
 package dev.qtremors.arcile.core.ui.category
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.layout.Arrangement
@@ -64,7 +65,6 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.SheetValue
@@ -439,7 +439,7 @@ private fun CategoryThumbnailSection(
             text = stringResource(R.string.settings_show_thumbnails),
             style = MaterialTheme.typography.bodyMedium
         )
-        Switch(
+        ExpressiveSwitch(
             checked = showThumbnails,
             onCheckedChange = onShowThumbnailsChange
         )
@@ -467,7 +467,7 @@ private fun CategoryDetailsSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(
+        ExpressiveSwitch(
             checked = showFileDetails,
             onCheckedChange = onShowFileDetailsChange
         )

@@ -67,12 +67,6 @@ class DefaultVaultSecurityPreferences @Inject constructor(
                 val directory = (value as? String)?.let(::decodeDirectory) ?: return@mapNotNull null
                 vault to directory
             }.toMap(),
-            pinnedDirectories = preferences.asMap().mapNotNull { (key, value) ->
-                val vault = decodeVaultKey(key.name, PINNED_DIRECTORIES_PREFIX) ?: return@mapNotNull null
-                val ids = (value as? Set<*>)?.mapNotNull { (it as? String)?.let(::decodeDirectory) }
-                    ?: return@mapNotNull null
-                vault to ids.toSet()
-            }.toMap(),
             workspaceTabsEnabled = preferences[WORKSPACE_TABS_ENABLED] ?: false,
             pinnedWorkspaceTabs = preferences.asMap().mapNotNull { (key, value) ->
                 val vault = decodeVaultKey(key.name, PINNED_WORKSPACE_PREFIX) ?: return@mapNotNull null
@@ -135,14 +129,6 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         store.edit { it.remove(key) }
     }
 
-    override suspend fun setDirectoryPinned(vaultId: VaultId, directoryId: DirectoryId, pinned: Boolean) {
-        val key = stringSetPreferencesKey(PINNED_DIRECTORIES_PREFIX + vaultId.value)
-        store.edit {
-            val current = it[key].orEmpty()
-            it[key] = if (pinned) current + directoryId.value else current - directoryId.value
-        }
-    }
-
     override suspend fun setWorkspaceTabsEnabled(enabled: Boolean) {
         store.edit { it[WORKSPACE_TABS_ENABLED] = enabled }
     }
@@ -171,9 +157,7 @@ class DefaultVaultSecurityPreferences @Inject constructor(
             }
             val last = stringPreferencesKey(LAST_DIRECTORY_PREFIX + vaultId.value)
             if (preferences[last] in values) preferences.remove(last)
-            val pins = stringSetPreferencesKey(PINNED_DIRECTORIES_PREFIX + vaultId.value)
-            val remainingPins = preferences[pins].orEmpty() - values
-            if (remainingPins.isEmpty()) preferences.remove(pins) else preferences[pins] = remainingPins
+            preferences.remove(stringSetPreferencesKey(LEGACY_PINNED_DIRECTORIES_PREFIX + vaultId.value))
             val workspace = stringPreferencesKey(PINNED_WORKSPACE_PREFIX + vaultId.value)
             val remainingTabs = preferences[workspace]?.split('/')?.filterNot { it in values }.orEmpty()
             if (remainingTabs.isEmpty()) preferences.remove(workspace) else preferences[workspace] = remainingTabs.joinToString("/")
@@ -186,7 +170,7 @@ class DefaultVaultSecurityPreferences @Inject constructor(
             preferences.asMap().keys.filter { it.name.startsWith(prefix) }.forEach { preferences.remove(it) }
             preferences.remove(stringPreferencesKey(LAST_DIRECTORY_PREFIX + vaultId.value))
             preferences.remove(stringPreferencesKey(PINNED_WORKSPACE_PREFIX + vaultId.value))
-            preferences.remove(stringSetPreferencesKey(PINNED_DIRECTORIES_PREFIX + vaultId.value))
+            preferences.remove(stringSetPreferencesKey(LEGACY_PINNED_DIRECTORIES_PREFIX + vaultId.value))
             val pins = preferences[PINNED_VAULTS].orEmpty() - vaultId.value
             if (pins.isEmpty()) preferences.remove(PINNED_VAULTS) else preferences[PINNED_VAULTS] = pins
         }
@@ -238,7 +222,9 @@ class DefaultVaultSecurityPreferences @Inject constructor(
         val FOLDERS_FIRST = booleanPreferencesKey("browse_folders_first")
         const val FOLDER_PREFIX = "browse_folder/"
         const val LAST_DIRECTORY_PREFIX = "browse_last_directory/"
-        const val PINNED_DIRECTORIES_PREFIX = "browse_pinned_directories/"
+        // Folder pins were removed in 2.5.0; leftover keys are dropped when a vault's folder
+        // preferences are next cleaned up or the vault is removed.
+        const val LEGACY_PINNED_DIRECTORIES_PREFIX = "browse_pinned_directories/"
         const val PINNED_WORKSPACE_PREFIX = "browse_pinned_workspace/"
         val WORKSPACE_TABS_ENABLED = booleanPreferencesKey("browse_workspace_enabled")
         val PINNED_VAULTS = stringSetPreferencesKey("browse_pinned_vaults")

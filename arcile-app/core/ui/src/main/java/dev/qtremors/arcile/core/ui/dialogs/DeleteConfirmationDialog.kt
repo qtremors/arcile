@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.dialogs
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -200,7 +201,7 @@ fun DeleteConfirmationDialog(
                                     )
                                 },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = isPermanentDeleteChecked,
                                         onCheckedChange = null,
                                         enabled = isPermanentDeleteToggleEnabled,

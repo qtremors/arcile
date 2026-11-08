@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -23,7 +24,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.SheetValue
@@ -391,7 +391,7 @@ private fun AudioDetailsSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = showDetails, onCheckedChange = onChange)
+        ExpressiveSwitch(checked = showDetails, onCheckedChange = onChange)
     }
 }
 
@@ -410,7 +410,7 @@ private fun AudioMusicOnlySection(musicOnly: Boolean, onChange: (Boolean) -> Uni
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = musicOnly, onCheckedChange = onChange)
+        ExpressiveSwitch(checked = musicOnly, onCheckedChange = onChange)
     }
 }
 

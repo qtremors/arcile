@@ -519,6 +519,21 @@ class ArchitectureBoundaryTest {
     }
 
     @Test
+    fun `production code uses the expressive switch`() {
+        val plainSwitch = Regex("""^import androidx\.compose\.material3\.Switch$""")
+        val offenders = productionKotlinFiles()
+            .flatMap { file ->
+                file.readLines().mapIndexedNotNull { index, line ->
+                    violation(file, index, line).takeIf { plainSwitch.matches(line.trim()) }
+                }
+            }
+            .toList()
+        if (offenders.isNotEmpty()) {
+            fail("Use ExpressiveSwitch so every switch looks and behaves the same:\n" + offenders.joinToString("\n"))
+        }
+    }
+
+    @Test
     fun `storage failures preserve coroutine cancellation`() {
         val storageRoot = File(projectRoot(), "core/storage/data/src/main/java")
         val rawResultWrapper = Regex("""\brunCatching\s*\{""")

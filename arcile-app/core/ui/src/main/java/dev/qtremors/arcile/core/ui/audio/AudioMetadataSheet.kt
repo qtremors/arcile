@@ -33,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -44,6 +45,7 @@ import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
+import dev.qtremors.arcile.core.ui.primaryLocale
 import java.text.DateFormat
 import java.util.Date
 import java.util.Locale
@@ -120,7 +122,7 @@ fun AudioMetadataSheet(
                 fileDetails?.bitrate?.let { AudioMetadataRow(stringResource(R.string.audio_bitrate),
                     stringResource(R.string.audio_bitrate_value, it / 1000)) }
                 fileDetails?.sampleRate?.let { AudioMetadataRow(stringResource(R.string.audio_sample_rate),
-                    stringResource(R.string.audio_sample_rate_value, String.format(Locale.getDefault(), "%.1f", it / 1000f))) }
+                    stringResource(R.string.audio_sample_rate_value, String.format(LocalConfiguration.current.primaryLocale(), "%.1f", it / 1000f))) }
                 fileDetails?.channels?.let { AudioMetadataRow(stringResource(R.string.audio_channels), it.toString()) }
                 AudioMetadataRow(stringResource(R.string.audio_metadata_duration), formatAudioDuration(track.durationMs))
                 AudioMetadataRow(stringResource(R.string.audio_metadata_size), formatFileSize(context, track.file.size))

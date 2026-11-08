@@ -383,8 +383,7 @@ private fun OnlyFilesScreen(
                 val vaultOverflow: (@Composable (Boolean, () -> Unit) -> Unit)? = if (vault == null) null else {
                     { expanded, dismiss ->
                         VaultActionsMenu(
-                            expanded, viewModel, state.viewOptions.showHiddenFiles, state.currentDirectory?.id,
-                            state.currentDirectory?.id?.let { it in state.pinnedDirectoryIds } == true,
+                            expanded, viewModel, state.viewOptions.showHiddenFiles,
                             state.hasExactFolderView, state.workspaceTabsEnabled,
                             state.exportRetries.isNotEmpty() && !state.busy, dismiss
                         )

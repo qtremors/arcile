@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.v2.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
@@ -52,7 +53,7 @@ class OnlyFilesPasswordInputTest {
         val password = "00a!é"
         rule.onNodeWithText(text(R.string.onlyfiles_password)).performTextInput(password)
         rule.runOnIdle { assertEquals(password, entered) }
-        rule.onNodeWithText(text(R.string.onlyfiles_use_text_keyboard)).performClick()
+        rule.onNodeWithContentDescription(text(R.string.onlyfiles_use_text_keyboard)).performClick()
         rule.runOnIdle { assertEquals(password, entered) }
     }
 
@@ -74,8 +75,8 @@ class OnlyFilesPasswordInputTest {
             }
         }
         rule.onNodeWithText(text(R.string.onlyfiles_confirm_password)).performTextInput("0042")
-        rule.onNodeWithText(text(R.string.onlyfiles_use_text_keyboard)).performClick()
-        rule.onNodeWithText(text(R.string.onlyfiles_use_numeric_keyboard)).performClick()
+        rule.onNodeWithContentDescription(text(R.string.onlyfiles_use_text_keyboard)).performClick()
+        rule.onNodeWithContentDescription(text(R.string.onlyfiles_use_numeric_keyboard)).performClick()
         rule.runOnIdle {
             assertEquals(listOf(false, true), preferences)
             assertEquals("0042", confirmation)
@@ -92,8 +93,8 @@ class OnlyFilesPasswordInputTest {
                 }
             }
         }
-        rule.onNodeWithText(text(R.string.onlyfiles_use_text_keyboard)).assertDoesNotExist()
-        rule.onNodeWithText(text(R.string.onlyfiles_use_numeric_keyboard)).assertDoesNotExist()
+        rule.onNodeWithContentDescription(text(R.string.onlyfiles_use_text_keyboard)).assertDoesNotExist()
+        rule.onNodeWithContentDescription(text(R.string.onlyfiles_use_numeric_keyboard)).assertDoesNotExist()
         rule.runOnIdle { assertTrue(preferences.isEmpty()) }
     }
 }

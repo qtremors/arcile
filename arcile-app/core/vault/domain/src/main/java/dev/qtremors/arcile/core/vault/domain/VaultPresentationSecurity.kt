@@ -10,7 +10,6 @@ data class VaultSecuritySettings(
     val viewOptions: VaultViewOptions = VaultViewOptions(),
     val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
     val lastDirectories: Map<VaultId, DirectoryId> = emptyMap(),
-    val pinnedDirectories: Map<VaultId, Set<DirectoryId>> = emptyMap(),
     val workspaceTabsEnabled: Boolean = false,
     val pinnedWorkspaceTabs: Map<VaultId, List<DirectoryId>> = emptyMap(),
     val pinnedVaults: Set<VaultId> = emptySet()
@@ -52,7 +51,6 @@ interface VaultSecurityPreferences {
         options: VaultFolderViewOptions
     )
     suspend fun setLastDirectory(vaultId: VaultId, directoryId: DirectoryId)
-    suspend fun setDirectoryPinned(vaultId: VaultId, directoryId: DirectoryId, pinned: Boolean)
     suspend fun resetFolderViewOptions(vaultId: VaultId, directoryId: DirectoryId)
     suspend fun setWorkspaceTabsEnabled(enabled: Boolean)
     suspend fun setPinnedWorkspaceTabs(vaultId: VaultId, directories: List<DirectoryId>)

@@ -1,12 +1,36 @@
 # Arcile Changelog
 
 > **Project:** Arcile
-> **Version:** 2.4.9
+> **Version:** 2.5.0
 > **Last Updated:** 2026-11-08
 
 ---
 
-## [2.4.9] - 2026-11-08
+## [2.5.0] - 2026-11-08
+
+### Changed
+- Every switch in the app uses Arcile's expressive switch: Tools, view options, search filters, deleting, the audio editor, Home layout, Quick Access, cleaner settings, and OnlyFiles. Switches now announce themselves as switches to screen readers and dim when unavailable.
+- Choosing how long a vault stays open after you leave Arcile is a row of connected buttons (Now, 30 sec, 1 min, 5 min) on the settings page, instead of a dialog with radio buttons.
+- Password fields switch keyboards with an ABC / 123 toggle instead of a text link.
+- Short or simple passwords, PINs included, work the same everywhere: creating a vault, changing its password, and making a backup each show one "Use it anyway" switch, and continue only once it is on.
+- The file picker's actions float at the bottom as a cancel button and a confirm pill showing how many files are selected, matching Arcile's selection toolbars.
+- Vault cards spring slightly when pressed, as other cards do.
+- Health check results say "All good" or "Needs attention" up front, list each problem on its own row with an icon for how serious it is, and make recovery the main button when it is needed.
+- OnlyFiles text is shorter and plainer throughout: health checks, warnings before files leave the vault, undo prompts, backups, errors, and settings.
+- Release notes cover everything since 2.2.0, the privacy policy explains how the installed-apps list is used, and the website and developer guide list the current Kotlin version and 37 modules. Gradle syncs modules in parallel.
+- The website is plain HTML, CSS, and JavaScript with no build step, and loads nothing from other sites except GitHub stats: Tailwind is replaced by a hand-written stylesheet, the Lucide script by an inline sprite of the icons in use, and Google Fonts by the system font plus a self-hosted Outfit for headings.
+- The website's hero phone, sized like a Nothing Phone (2), shows real screenshots: tap it for the next one, and once you scroll back to it they change on their own, pausing while the pointer is over it. Features open with a privacy band and an even grid of the rest, and the layout is tuned for phones first, with hover effects kept to devices that can hover.
+- The README shows a grid of nine screenshots. Screenshots are lossless WebP (1.5 MB down to 524 KB), and all images and icons live in `docs/assets`.
+
+### Fixed
+- Arcile no longer crashes when it is closed and opened again straight away. The start-page reset waited for nothing and could run before navigation was ready; it now waits until it is.
+- Five lint errors: the audio details sheet and speed presets now follow the app language when it changes, the plugins and OnlyFiles screens read text in a way that updates with configuration changes, and a hidden byte-order mark in vault text reading is written as an escape.
+
+### Removed
+- Pinning folders inside a vault. Pinning is for vaults on the OnlyFiles screen; saved folder pins are cleared as vaults are tidied up.
+- The repository's root `assets` folder, merged into `docs/assets`, and the website's Tailwind build files.
+
+## [2.4.9] - 2026-11-07
 
 ### Changed
 - Long-press a vault for its options instead of tapping a menu button. Pinned vaults now sit in their own Pinned section above the rest, and unlocked vaults offer Vault settings from the same menu.
@@ -19,7 +43,7 @@
 - Opening OnlyFiles no longer flashes the "no vaults" screen before your vaults appear. If the vault list is slow to load, a loading indicator shows instead.
 - When a vault locked during audio editing, the editor reported itself closed slightly before it had released the decrypted audio from memory. It now releases the audio first.
 
-## [2.4.8] - 2026-11-08
+## [2.4.8] - 2026-11-06
 
 ### Changed
 - The OnlyFiles audio player updates its position only while playing and on screen, instead of waking four times a second for as long as it is open.
@@ -32,7 +56,7 @@
 - When one file operation ended just as another began, the app could treat storage as idle and start folder size scans during the second operation. The busy flag and its counter now change together.
 - A file import test failed occasionally when every module's tests ran at once.
 
-## [2.4.7] - 2026-11-08
+## [2.4.7] - 2026-11-05
 
 ### Changed
 - Folder sizes read each item with one file-system call instead of three, stop scanning when you leave a folder, and keep a running scan when you come back instead of restarting it.
@@ -63,7 +87,7 @@
 - Unused code and resources: a video overflow menu, audio track sheet, mixed-delete dialog, tab indicator, viewer session registry, progress smoother, three onboarding pages, two settings sections, archive option types, a vault streaming writer, two pass-through use cases, and 192 strings.
 - IDE settings files tracked by mistake, a duplicate inner .gitignore, and the rule that ignored every .txt file in the repository.
 
-## [2.4.6] - 2026-11-07
+## [2.4.6] - 2026-11-04
 
 ### Added
 - Select several vault tracks and choose Edit audio to combine them in the shared audio editor, using in-memory copies.
@@ -76,7 +100,7 @@
 ### Fixed
 - Folders inside archives opened in Browser show their file count and size instead of calculating forever.
 
-## [2.4.5] - 2026-11-07
+## [2.4.5] - 2026-11-03
 
 ### Added
 - Undo vault pastes, cross-vault copies and moves, and imports when every copied item is unchanged.
@@ -90,7 +114,7 @@
 - The music details editor, lyrics view, and lyrics parser moved into shared UI so Browser and vaults use one implementation.
 - Archive, audio editor, and vault text editor errors now use localized messages instead of English exception text.
 
-## [2.4.4] - 2026-11-07
+## [2.4.4] - 2026-11-02
 
 ### Changed
 - Extract vault archives into a named folder, the current folder, or any existing vault folder using Browser's extraction dialog.
@@ -98,87 +122,87 @@
 - An existing extraction folder is reused and merged instead of creating a numbered copy, and selected entries keep their archive folders, matching Browser.
 - Partial extractions report extracted, skipped, and failed counts, with Show destination when anything was written.
 
-## [2.4.3] - 2026-11-06
+## [2.4.3] - 2026-11-01
 
 ### Changed
 - Create password-protected 7z archives inside vaults without plaintext temporary files.
 - Browser and vault ZIP and 7z creation share compression options, cancellation, and source-size checks.
 - Vault PDF menus now offer rename, copy, cut, archive creation, and deletion through vault actions.
 
-## [2.4.2] - 2026-11-06
+## [2.4.2] - 2026-10-31
 
 ### Changed
 - Undo file and folder creation, renames, batch renames, and reversible moves inside a vault. Changed items and name collisions prevent unsafe reversals.
 - Create TAR, TAR.GZ, TAR.BZ2, and TAR.XZ archives inside vaults using Browser's shared streaming writer and compression options.
 - Create archives from vault image and video menus with private dialogs and operation progress.
 
-## [2.4.1] - 2026-11-06
+## [2.4.1] - 2026-10-30
 
 ### Changed
 - Interrupted folder retries remember each published child across restarts, including retries started in the current session.
 - Uncertain folder publications stay available for review while safe queued selections can resume.
 - Recovered imports offer Show destination. Locking expires earlier Move retry handles.
 
-## [2.4.0] - 2026-11-06
+## [2.4.0] - 2026-10-29
 
 ### Changed
 - Recover interrupted vault imports, pastes, and exports with verified publication records. Recovered moves keep remaining originals.
 - Save partial-folder retry checkpoints across restarts and safely clean up owned export stages or restore known backups.
 - Show destinations after recovered vault pastes and exports.
 
-## [2.3.9] - 2026-11-05
+## [2.3.9] - 2026-10-28
 
 ### Changed
 - Choose when vaults lock after backgrounding and whether screen-off locks immediately.
 - Prefer a numeric password keyboard with a text-keyboard fallback.
 - Improved vault operation and health messages, including feedback from the video viewer.
 
-## [2.3.8] - 2026-11-05
+## [2.3.8] - 2026-10-27
 
 ### Changed
 - Choose Copy or Move when sending Browser selections to OnlyFiles.
 - Vault transfers use Browser clipboard messages and snackbar presentation, with destination actions and clearer partial-result and error messages.
 
-## [2.3.7] - 2026-11-05
+## [2.3.7] - 2026-10-26
 
 ### Changed
 - Opening vault audio starts playback in Arcile's full player with cover art, music details, shuffle, repeat, speed/pitch, sleep timer, and visualizer.
 - Vault audio shares playback preferences with Audio.
 
-## [2.3.6] - 2026-11-05
+## [2.3.6] - 2026-10-25
 
 ### Changed
 - OnlyFiles uses Browser's archive screen and creation dialog, including in-archive search, selection, and filename encoding.
 - Fixed archive Root navigation, selection Back handling, and file-action menu placement.
 - Archive password fields use password keyboards with autocorrect disabled.
 
-## [2.3.5] - 2026-11-05
+## [2.3.5] - 2026-10-24
 
 ### Changed
 - Rename, copy, cut, and delete vault videos from the shared viewer.
 - Vault audio uses the shared queue sheet with reordering, removal, and continuous playback between tracks.
 - Portable vault search reuses ranked pages and detects changed folders.
 
-## [2.3.4] - 2026-11-04
+## [2.3.4] - 2026-10-23
 
 ### Changed
 - Browser and OnlyFiles share archive readers and extraction checks.
 - Browse and extract TAR, GZIP, BZIP2, and XZ archives inside OnlyFiles, including compressed TAR variants.
 - Open password-protected 7z archives and choose ZIP filename encoding inside OnlyFiles.
 
-## [2.3.3] - 2026-11-04
+## [2.3.3] - 2026-10-22
 
 ### Added
 - Resume queued items from interrupted imports, exports, and vault pastes after unlocking OnlyFiles.
 - Recovery skips the item that was in progress.
 
-## [2.3.2] - 2026-11-04
+## [2.3.2] - 2026-10-21
 
 ### Changed
 - Resume partial OnlyFiles pastes and exports from the files that were skipped.
 - Resuming Move Out verifies earlier exports before removing the encrypted original.
 
-## [2.3.1] - 2026-11-04
+## [2.3.1] - 2026-10-20
 
 ### Changed
 - OnlyFiles and Browser share built-in file routing.
@@ -186,7 +210,7 @@
 - Create and extract password-protected ZIPs, and browse and extract unencrypted 7z archives inside vaults.
 - Browse more images while swiping and carry viewer selection back to the listing.
 
-## [2.3.0] - 2026-11-04
+## [2.3.0] - 2026-10-19
 
 ### Changed
 - Move vault items to main Trash after confirming decryption.
@@ -194,7 +218,7 @@
 - Open APKs and split packages from OnlyFiles in Arcile’s shared installer after granting temporary access.
 - Recover committed transactions from the vault health report.
 
-## [2.2.9] - 2026-11-04
+## [2.2.9] - 2026-10-18
 
 ### Changed
 - Pin vaults to keep them at the top of the OnlyFiles list.
@@ -202,13 +226,13 @@
 - See vault storage use and revoke individual external access grants from the vault menu.
 - Reset a vault’s folder views together.
 
-## [2.2.8] - 2026-11-04
+## [2.2.8] - 2026-10-17
 
 ### Changed
 - Enable Workspace tabs in OnlyFiles to keep separate folders, searches, and scroll positions open in a vault.
 - OnlyFiles uses Browser's tab controls.
 
-## [2.2.7] - 2026-11-04
+## [2.2.7] - 2026-10-16
 
 ### Changed
 - OnlyFiles paste and export use Browser's comparison dialog to review known conflicts before transferring.
@@ -217,20 +241,20 @@
 ### Fixed
 - Move Out keeps the source folder in the vault when any child is skipped.
 
-## [2.2.6] - 2026-11-04
+## [2.2.6] - 2026-10-15
 
 ### Changed
 - OnlyFiles Select All and Invert include results across pages.
 - Open As and saved open preferences use the Android chooser after vault consent.
 - Properties shows recursive selection totals and private image metadata.
 
-## [2.2.5] - 2026-11-04
+## [2.2.5] - 2026-10-14
 
 ### Changed
 - OnlyFiles creates ZIPs from selected files and folders directly in the vault.
 - Extract an entire ZIP, its current folder, or selected entries into an encrypted folder.
 
-## [2.2.4] - 2026-11-04
+## [2.2.4] - 2026-10-13
 
 ### Changed
 - OnlyFiles restores the last folder after unlock, supports pinned folders, and lets you choose a search folder and reveal results in their parent.
@@ -240,7 +264,7 @@
 - Copy and cut survive switching between unlocked vaults.
 - Open viewers refresh after rename or text save.
 
-## [2.2.3] - 2026-11-04
+## [2.2.3] - 2026-10-12
 
 ### Changed
 - OnlyFiles shares Browser's navigation, selection, file dialogs, clipboard, and transfer details.
@@ -250,7 +274,7 @@
 - Vault folders show file counts and sizes when available.
 - Paste retries skip completed items, and paste queue names stay within the initiating vault session.
 
-## [2.2.2] - 2026-11-04
+## [2.2.2] - 2026-10-11
 
 ### Changed
 - OnlyFiles uses Gallery's swipeable image viewer and Arcile's video and PDF viewers.
@@ -260,7 +284,7 @@
 - Vault previews and private dialogs clear on lock.
 - Vault video strips load encrypted thumbnails and show a play icon when a frame is unavailable.
 
-## [2.2.1] - 2026-11-02
+## [2.2.1] - 2026-10-10
 
 ### Changed
 - **Dependency Updates:** Upgraded Android build tooling and app libraries, including Coil 3, Compose, Navigation, and Media3, with the required image-loading.

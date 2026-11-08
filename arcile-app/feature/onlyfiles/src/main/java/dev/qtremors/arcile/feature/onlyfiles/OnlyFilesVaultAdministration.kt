@@ -1,8 +1,6 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Visibility
@@ -20,14 +18,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -36,19 +32,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import dev.qtremors.arcile.core.vault.domain.VaultBiometricChallenge
-import dev.qtremors.arcile.core.vault.domain.VaultPasswordPolicy
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import androidx.compose.material.icons.filled.Tab
-import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import kotlinx.coroutines.launch
@@ -63,8 +55,6 @@ internal fun VaultActionsMenu(
     expanded: Boolean,
     viewModel: OnlyFilesViewModel,
     hiddenFilesShown: Boolean,
-    directoryId: dev.qtremors.arcile.core.vault.domain.DirectoryId?,
-    directoryPinned: Boolean,
     hasExactFolderView: Boolean,
     workspaceTabsEnabled: Boolean,
     hasExportRetry: Boolean,
@@ -84,13 +74,6 @@ internal fun VaultActionsMenu(
                 text = { Text(stringResource(R.string.onlyfiles_interrupted_transfers)) },
                 leadingIcon = { Icon(Icons.Default.History, contentDescription = null) },
                 onClick = { closeAnd(viewModel::openRecovery) }
-            )
-        }
-        if (directoryId != null) add {
-            ArcileDropdownMenuItem(
-                text = { Text(stringResource(if (directoryPinned) R.string.onlyfiles_unpin_folder else R.string.onlyfiles_pin_folder)) },
-                leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                onClick = { closeAnd { viewModel.toggleFolderPin(directoryId) } }
             )
         }
         if (hasExactFolderView) add {
@@ -117,9 +100,6 @@ internal fun VaultActionsMenu(
             stringResource(dev.qtremors.arcile.core.ui.R.string.settings_show_hidden_files),
             selected = hiddenFilesShown
         ) { closeAnd(viewModel::toggleHiddenFiles) },
-        ArcileMenuQuickAction(Icons.Default.Bookmarks, stringResource(R.string.onlyfiles_pinned_folders)) {
-            closeAnd(viewModel::openPinnedFolders)
-        },
         ArcileMenuQuickAction(
             Icons.Default.Tab, stringResource(R.string.onlyfiles_workspace_tabs), selected = workspaceTabsEnabled
         ) { closeAnd { viewModel.setWorkspaceTabsEnabled(!workspaceTabsEnabled) } }
@@ -189,31 +169,14 @@ internal fun ChangeVaultPasswordDialog(onDismiss: () -> Unit, onSubmit: (String,
     var current by remember { mutableStateOf("") }; var replacement by remember { mutableStateOf("") }
     var reveal by remember { mutableStateOf(false) }
     var repeated by remember { mutableStateOf("") }; var weakConfirmed by remember { mutableStateOf(false) }
-    val weak = replacement.isNotEmpty() && VaultPasswordPolicy.isWeak(replacement.toCharArray())
+    val weak = rememberPasswordWeak(replacement)
     AlertDialog(
         onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_change_password)) },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             PasswordField(current, { current = it }, reveal, { reveal = !reveal }, label = R.string.onlyfiles_current_password)
             PasswordField(replacement, { replacement = it }, reveal, { reveal = !reveal }, label = R.string.onlyfiles_new_password, showKeyboardSwitch = false)
             PasswordField(repeated, { repeated = it }, reveal, { reveal = !reveal }, label = R.string.onlyfiles_repeat_password, showKeyboardSwitch = false)
-            if (weak) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(MaterialTheme.shapes.medium)
-                        .bounceClickable { weakConfirmed = !weakConfirmed }
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = stringResource(R.string.onlyfiles_weak_password_confirm),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveSwitch(checked = weakConfirmed, onCheckedChange = { weakConfirmed = it })
-                }
-            }
+            if (weak) ShortPasswordConsent(weakConfirmed) { weakConfirmed = it }
         } },
         confirmButton = {
             val enabled = current.isNotEmpty() && replacement.isNotEmpty() && replacement == repeated && (!weak || weakConfirmed)

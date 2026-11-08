@@ -33,8 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import dev.qtremors.arcile.core.ui.primaryLocale
 import java.util.Locale
 import kotlin.math.roundToInt
 
@@ -46,6 +48,7 @@ internal fun AudioPlaybackSettingsDialog(
     onSave: (Float, Float) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val locale = LocalConfiguration.current.primaryLocale()
     var draftSpeed by remember(speed) { mutableFloatStateOf(speed) }
     var draftPitch by remember(pitch) { mutableFloatStateOf(pitch) }
     val context = LocalContext.current
@@ -101,7 +104,7 @@ internal fun AudioPlaybackSettingsDialog(
                             FilterChip(selected = draftSpeed == preset,
                                 onClick = { draftSpeed = preset },
                                 label = { Text(stringResource(R.string.audio_speed_preset,
-                                    String.format(Locale.getDefault(), "%.1f", preset))) })
+                                    String.format(locale, "%.1f", preset))) })
                         }
                     }
                     TextButton(onClick = {

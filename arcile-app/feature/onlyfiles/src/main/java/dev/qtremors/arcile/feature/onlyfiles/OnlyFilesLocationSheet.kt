@@ -39,7 +39,6 @@ internal fun OnlyFilesLocationSheet(
     val pickingScope = picker.mode == OnlyFilesLocationMode.SEARCH_SCOPE
     val pickingDestination = picker.mode == OnlyFilesLocationMode.ARCHIVE_DESTINATION
     val importing = picker.mode == OnlyFilesLocationMode.IMPORT_DESTINATION
-    val browsingFolders = pickingScope || pickingDestination || importing
     ArcileActionSheet(onDismissRequest = viewModel::closeLocationPicker) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
@@ -50,38 +49,27 @@ internal fun OnlyFilesLocationSheet(
                     OnlyFilesLocationMode.SEARCH_SCOPE -> R.string.onlyfiles_search_scope
                     OnlyFilesLocationMode.ARCHIVE_DESTINATION -> R.string.onlyfiles_choose_destination
                     OnlyFilesLocationMode.IMPORT_DESTINATION -> R.string.onlyfiles_choose_import_destination
-                    OnlyFilesLocationMode.PINNED -> R.string.onlyfiles_pinned_folders
                 }),
                 style = MaterialTheme.typography.titleLarge
             )
-            if (browsingFolders) {
-                Breadcrumbs(
-                    rootLabel = vaultName,
-                    rootKey = DirectoryId.Root.value,
-                    segments = picker.stack.drop(1).map { it.name to it.id.value },
-                    onSegmentClick = { viewModel.navigateLocationPicker(DirectoryId.of(it)) }
-                )
-            }
+            Breadcrumbs(
+                rootLabel = vaultName,
+                rootKey = DirectoryId.Root.value,
+                segments = picker.stack.drop(1).map { it.name to it.id.value },
+                onSegmentClick = { viewModel.navigateLocationPicker(DirectoryId.of(it)) }
+            )
             if (picker.loading && picker.folders.isEmpty()) {
                 LoadingIndicator()
             } else if (picker.failed && picker.folders.isEmpty()) {
                 TextButton(onClick = viewModel::retryLocationPicker) {
                     Text(stringResource(R.string.onlyfiles_retry_folder_list))
                 }
-            } else if (picker.folders.isEmpty() && picker.shortcuts.isEmpty()) {
-                Text(stringResource(if (browsingFolders) R.string.onlyfiles_no_subfolders else R.string.onlyfiles_no_pinned_folders))
+            } else if (picker.folders.isEmpty()) {
+                Text(stringResource(R.string.onlyfiles_no_subfolders))
             }
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                 items(picker.folders, key = { it.ref.nodeId.value }) { folder ->
                     VaultLocationRow(folder.name, onClick = { viewModel.openLocationFolder(folder) })
-                }
-                items(picker.shortcuts, key = { it.last().id.value }) { trail ->
-                    val folder = trail.last()
-                    VaultLocationRow(
-                        name = folder.name.ifBlank { vaultName },
-                        location = trail.drop(1).dropLast(1).joinToString(" / ") { it.name }.ifBlank { null },
-                        onClick = { viewModel.openPinnedFolder(folder.id) }
-                    )
                 }
                 if (picker.nextPageToken != null) {
                     item {

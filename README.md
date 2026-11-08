@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/Arcile.svg" alt="Arcile Logo" width="120"/>
+  <img src="docs/assets/Arcile.svg" alt="Arcile Logo" width="120"/>
 </p>
 
 <h1 align="center"><a href="https://qtremors.github.io/arcile/">Arcile</a></h1>
@@ -29,6 +29,26 @@
 ## Why Arcile
 
 Arcile is an offline Android file manager built for speed, privacy, and a clean native interface. It has no ads, trackers, accounts, network access, or hidden data collection.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td align="center" width="33%"><a href="docs/Screenshots/Homepage.webp"><img src="docs/Screenshots/Homepage.webp" alt="Home screen with storage, categories, and Quick Access" width="240"></a><br><b>Home</b><br><sub>Storage, categories, and shortcuts</sub></td>
+    <td align="center" width="33%"><a href="docs/Screenshots/Browser.webp"><img src="docs/Screenshots/Browser.webp" alt="Browser listing folders in Internal Storage" width="240"></a><br><b>Browser</b><br><sub>Folders with counts, sizes, and dates</sub></td>
+    <td align="center" width="33%"><a href="docs/Screenshots/QuickAccess.webp"><img src="docs/Screenshots/QuickAccess.webp" alt="Manage Quick Access screen" width="240"></a><br><b>Quick Access</b><br><sub>Pick and reorder Home shortcuts</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/Screenshots/StorageSummary.webp"><img src="docs/Screenshots/StorageSummary.webp" alt="Storage Dashboard summary by category" width="240"></a><br><b>Storage summary</b><br><sub>What uses space, by category</sub></td>
+    <td align="center"><a href="docs/Screenshots/UsageMap.webp"><img src="docs/Screenshots/UsageMap.webp" alt="Storage usage map shown as a sunburst chart" width="240"></a><br><b>Usage map</b><br><sub>Every folder as a sunburst</sub></td>
+    <td align="center"><a href="docs/Screenshots/Cleaner.webp"><img src="docs/Screenshots/Cleaner.webp" alt="Storage Cleaner with large, old, and duplicate files" width="240"></a><br><b>Storage Cleaner</b><br><sub>Large, old, and duplicate files</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="docs/Screenshots/Theme.webp"><img src="docs/Screenshots/Theme.webp" alt="Appearance settings with theme modes, presets, and accent colors" width="240"></a><br><b>Appearance</b><br><sub>Theme modes, presets, and accents</sub></td>
+    <td align="center"><a href="docs/Screenshots/Settings.webp"><img src="docs/Screenshots/Settings.webp" alt="Settings home screen" width="240"></a><br><b>Settings</b><br><sub>Every option in clear pages</sub></td>
+    <td align="center"><a href="docs/Screenshots/FileDefaults.webp"><img src="docs/Screenshots/FileDefaults.webp" alt="File opening settings by file type" width="240"></a><br><b>File opening</b><br><sub>Choose what opens in Arcile</sub></td>
+  </tr>
+</table>
 
 ## Download
 
@@ -65,7 +85,7 @@ Arcile is built by [Tremors](https://github.com/qtremors) with Kotlin and the An
 - [Dagger and Hilt](https://dagger.dev/hilt/), [Coil](https://coil-kt.github.io/coil/), and [MaterialKolor](https://github.com/jordond/MaterialKolor)
 - [Apache Commons Compress](https://commons.apache.org/proper/commons-compress/), [Tukaani XZ for Java](https://tukaani.org/xz/java.html), and [Zip4j](https://github.com/srikanth-lingala/zip4j)
 - [Bouncy Castle](https://www.bouncycastle.org/)
-- [Tailwind CSS](https://tailwindcss.com/), [Lucide](https://lucide.dev/), [Simple Icons](https://simpleicons.org/), [Roboto](https://fonts.google.com/specimen/Roboto), [Outfit](https://fonts.google.com/specimen/Outfit), and [Material Symbols](https://fonts.google.com/icons) for the project website and visual presentation
+- [Lucide](https://lucide.dev/), [Simple Icons](https://simpleicons.org/), and [Outfit](https://github.com/Outfitio/Outfit-Fonts) for the project website
 
 The app's **Settings → About → Open Source Licenses** screen lists its runtime libraries and their licenses. Each project remains the property of its respective authors and is used under its own license.
 

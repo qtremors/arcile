@@ -1,24 +1,21 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
+import dev.qtremors.arcile.core.ui.ArcileListSurface
+import dev.qtremors.arcile.core.ui.rememberArcileHaptics
+import dev.qtremors.arcile.core.ui.settings.SettingsChoiceHeader
+import dev.qtremors.arcile.core.ui.settings.SettingsConnectedChoices
 import dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay
 
+/** Short label for each delay, sized to fit side by side in connected buttons. */
 internal fun VaultBackgroundLockDelay.label(): Int = when (this) {
     VaultBackgroundLockDelay.IMMEDIATE -> R.string.onlyfiles_lock_immediately
     VaultBackgroundLockDelay.THIRTY_SECONDS -> R.string.onlyfiles_lock_thirty_seconds
@@ -26,36 +23,37 @@ internal fun VaultBackgroundLockDelay.label(): Int = when (this) {
     VaultBackgroundLockDelay.FIVE_MINUTES -> R.string.onlyfiles_lock_five_minutes
 }
 
-/** Picks how long an unlocked vault stays open after Arcile leaves the screen. */
+/**
+ * How long an unlocked vault stays open after Arcile leaves the screen, as one row of connected
+ * buttons in the same style as Arcile's other settings choices.
+ */
 @Composable
-internal fun BackgroundLockDelayDialog(
+internal fun BackgroundLockDelaySelector(
     current: VaultBackgroundLockDelay,
-    onSelect: (VaultBackgroundLockDelay) -> Unit,
-    onDismiss: () -> Unit
+    onSelect: (VaultBackgroundLockDelay) -> Unit
 ) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.onlyfiles_background_lock)) },
-        text = {
-            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                VaultBackgroundLockDelay.entries.forEach { delay ->
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .selectable(
-                                selected = delay == current,
-                                role = Role.RadioButton,
-                                onClick = { onSelect(delay) }
-                            )
-                            .padding(vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        RadioButton(selected = delay == current, onClick = null)
-                        Text(stringResource(delay.label()), Modifier.padding(start = 12.dp))
+    val haptics = rememberArcileHaptics()
+    val delays = VaultBackgroundLockDelay.entries
+    ArcileListSurface {
+        Column(Modifier.fillMaxWidth().padding(vertical = 16.dp)) {
+            SettingsChoiceHeader(
+                title = stringResource(R.string.onlyfiles_background_lock),
+                description = stringResource(R.string.onlyfiles_background_lock_description),
+                icon = Icons.Default.Timer
+            )
+            SettingsConnectedChoices(
+                options = delays.map { stringResource(it.label()) },
+                isSelected = { delays[it] == current },
+                onSelectionChanged = { index, checked ->
+                    if (checked && delays[index] != current) {
+                        haptics.toggleMenu()
+                        onSelect(delays[index])
                     }
-                }
-            }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) } }
-    )
+                },
+                testTagForIndex = { "lock_delay_${delays[it].name}" },
+                dynamicExpand = true,
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            )
+        }
+    }
 }

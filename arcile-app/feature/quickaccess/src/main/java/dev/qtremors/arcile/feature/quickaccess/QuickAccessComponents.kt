@@ -2,6 +2,7 @@
 
 package dev.qtremors.arcile.feature.quickaccess
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -65,7 +66,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SegmentedListItem
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -232,18 +232,11 @@ internal fun QuickAccessListItem(
                         item.label,
                         showOnHomeLabel
                     )
-                    Switch(
+                    ExpressiveSwitch(
                         checked = item.isPinned,
                         onCheckedChange = {
                             haptics.selectionChanged()
                             onTogglePin()
-                        },
-                        thumbContent = {
-                            Icon(
-                                imageVector = if (item.isPinned) Icons.Filled.Check else Icons.Filled.Close,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
                         },
                         modifier = Modifier.semantics {
                             contentDescription = showOnHomeContentDescription

@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,6 +20,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -168,7 +172,8 @@ internal fun OnlyFilesStoragePicker(
                         else -> key(current?.path) {
                             LazyColumn(
                                 Modifier.fillMaxSize(),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+                                // Room for the floating actions so the last row can scroll clear of them.
+                                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 104.dp)
                             ) {
                                 items(files, key = FileModel::reference) { file ->
                                     StorageLocationRow(
@@ -187,23 +192,64 @@ internal fun OnlyFilesStoragePicker(
                             }
                         }
                     }
+                    PickerActions(
+                        selectedCount = selectedPaths?.size ?: 0,
+                        canChoose = canChoose,
+                        confirmLabel = confirmLabel,
+                        onChoose = onChoose,
+                        onDismiss = onDismiss,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
+                    )
                 }
-                Surface(color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 2.dp) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val count = selectedPaths?.size ?: 0
-                        Text(
-                            if (count > 0) pluralStringResource(UiR.plurals.clipboard_item_count, count, count) else "",
-                            style = MaterialTheme.typography.labelLarge,
-                            modifier = Modifier.weight(1f)
-                        )
-                        TextButton(onClick = onDismiss) { Text(stringResource(UiR.string.cancel)) }
-                        Button(onClick = onChoose, enabled = canChoose) { Text(stringResource(confirmLabel)) }
-                    }
-                }
+            }
+        }
+    }
+}
+
+/** Floating cancel and confirm controls in the same pill style as Arcile's selection toolbars. */
+@Composable
+private fun PickerActions(
+    selectedCount: Int,
+    canChoose: Boolean,
+    confirmLabel: Int,
+    onChoose: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(
+            onClick = onDismiss,
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 4.dp,
+            shadowElevation = 3.dp,
+            modifier = Modifier.size(56.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(Icons.Default.Close, stringResource(UiR.string.cancel))
+            }
+        }
+        val label = stringResource(confirmLabel)
+        Surface(
+            onClick = onChoose,
+            enabled = canChoose,
+            shape = CircleShape,
+            color = if (canChoose) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+            contentColor = if (canChoose) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            shadowElevation = if (canChoose) 3.dp else 0.dp,
+            modifier = Modifier.height(56.dp).animateContentSize()
+        ) {
+            Row(
+                Modifier.padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Icon(Icons.Default.Check, contentDescription = null)
+                Text(
+                    if (selectedCount > 0) "$label \u00b7 $selectedCount" else label,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 1
+                )
             }
         }
     }

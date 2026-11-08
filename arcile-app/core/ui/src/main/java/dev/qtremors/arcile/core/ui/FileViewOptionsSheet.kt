@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
@@ -337,7 +336,7 @@ fun FileViewOptionsSheet(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
-                                Switch(
+                                ExpressiveSwitch(
                                     checked = draftPreferences.foldersFirst,
                                     onCheckedChange = null
                                 )
@@ -451,7 +450,7 @@ fun FileViewOptionsSheet(
                             )
                         }
                         Spacer(modifier = Modifier.width(16.dp))
-                        Switch(
+                        ExpressiveSwitch(
                             checked = applyToSubfolders,
                             onCheckedChange = null // Handled by Row click
                         )

@@ -139,20 +139,17 @@ class VaultSecurityPreferencesTest {
         )
         preferences.setFolderViewOptions(vault, directory, folderOptions)
         preferences.setLastDirectory(vault, directory)
-        preferences.setDirectoryPinned(vault, directory, pinned = true)
         val reloaded = DefaultVaultSecurityPreferences(context, scope)
         val reloadedSettings = withContext(Dispatchers.IO) {
-            withTimeout(5_000) { reloaded.settings.first { it.lastDirectories[vault] == directory && it.pinnedDirectories.isNotEmpty() } }
+            withTimeout(5_000) { reloaded.settings.first { it.lastDirectories[vault] == directory } }
         }
         assertEquals(viewOptions, reloadedSettings.viewOptions)
         assertEquals(folderOptions, reloadedSettings.folderViewOptions[vaultFolderViewKey(vault, directory)])
         assertFalse(reloadedSettings.screenshotProtectionEnabled)
-        assertEquals(setOf(directory), reloadedSettings.pinnedDirectories[vault])
         assertEquals(directory, reloadedSettings.lastDirectories[vault])
         reloaded.resetFolderViewOptions(vault, directory)
-        reloaded.setDirectoryPinned(vault, directory, pinned = false)
         val reset = withContext(Dispatchers.IO) {
-            withTimeout(5_000) { reloaded.settings.first { it.folderViewOptions.isEmpty() && it.pinnedDirectories[vault].isNullOrEmpty() } }
+            withTimeout(5_000) { reloaded.settings.first { it.folderViewOptions.isEmpty() } }
         }
         assertEquals(directory, reset.lastDirectories[vault])
 
@@ -174,7 +171,6 @@ class VaultSecurityPreferencesTest {
                 preferences.setVaultPinned(vault, true)
                 preferences.setFolderViewOptions(vault, folder, layout)
                 preferences.setFolderViewOptions(vault, retained, layout)
-                preferences.setDirectoryPinned(vault, folder, true)
                 preferences.setLastDirectory(vault, folder)
                 preferences.setPinnedWorkspaceTabs(vault, listOf(folder, retained, folder))
             }
@@ -192,8 +188,6 @@ class VaultSecurityPreferencesTest {
             assertEquals(layout, cleaned.folderViewOptions[vaultFolderViewKey(second, folder)])
             assertFalse(first in cleaned.lastDirectories)
             assertEquals(folder, cleaned.lastDirectories[second])
-            assertTrue(cleaned.pinnedDirectories[first].isNullOrEmpty())
-            assertEquals(setOf(folder), cleaned.pinnedDirectories[second])
 
             preferences.resetVaultFolderViews(second)
             val reset = withContext(Dispatchers.IO) {
@@ -233,7 +227,6 @@ class VaultSecurityPreferencesTest {
             assertTrue(restored.workspaceTabsEnabled)
             assertEquals(ordered, restored.pinnedWorkspaceTabs[first])
             assertEquals(listOf(DirectoryId.Root), restored.pinnedWorkspaceTabs[second])
-            assertFalse(first in restored.pinnedDirectories)
 
             preferences.setWorkspaceTabsEnabled(false)
             preferences.setPinnedWorkspaceTabs(first, emptyList())

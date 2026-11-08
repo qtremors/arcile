@@ -113,21 +113,6 @@ class OnlyFilesLocationControllerTest {
     }
 
     @Test
-    fun `deleted pins are removed without discarding existing shortcuts`() = runTest {
-        val state = mounted()
-        state.value = state.value.copy(pinnedDirectoryIds = setOf(photos, documents))
-        coEvery { fs.directoryTrail(vault, photos) } returns Result.success(trail(photos, "Photos"))
-        coEvery { fs.directoryTrail(vault, documents) } returns Result.failure(VaultFailure.InvalidPath("Missing"))
-        val controller = OnlyFilesLocationController(fs, preferences, state, this, {}, {}, { throw it })
-
-        controller.openPinnedFolders()
-        advanceUntilIdle()
-
-        assertEquals(listOf("Photos"), state.value.locationPicker?.shortcuts?.map { it.last().name })
-        coVerify(exactly = 1) { preferences.setDirectoryPinned(vault, documents, false) }
-    }
-
-    @Test
     fun `a late reveal cannot navigate a different vault mount`() = runTest {
         val state = mounted()
         coEvery { fs.directoryTrail(vault, photos) } coAnswers {

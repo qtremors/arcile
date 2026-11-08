@@ -66,7 +66,6 @@ internal data class OnlyFilesUiState(
     val revealNodeId: String? = null,
     val revealHiddenNodeId: String? = null,
     val locationPicker: OnlyFilesLocationPickerState? = null,
-    val pinnedDirectoryIds: Set<DirectoryId> = emptySet(),
     val pinnedVaultIds: Set<VaultId> = emptySet(),
     val isSearching: Boolean = false,
     val isListing: Boolean = false,

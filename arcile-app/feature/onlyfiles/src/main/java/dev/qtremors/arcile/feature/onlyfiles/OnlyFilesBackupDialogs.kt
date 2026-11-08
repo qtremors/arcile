@@ -2,11 +2,8 @@ package dev.qtremors.arcile.feature.onlyfiles
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -17,16 +14,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.vault.domain.VaultPasswordPolicy
 
 @Composable
 internal fun OnlyFilesBackupDialogs(state: OnlyFilesUiState, viewModel: OnlyFilesViewModel) {
@@ -61,16 +53,7 @@ private fun VaultBackupCredentialsDialog(
     var confirmation by remember(request) { mutableStateOf("") }
     var reveal by remember(request) { mutableStateOf(false) }
     var weakConfirmed by remember(request, password) { mutableStateOf(false) }
-    val weak = remember(password, creating) {
-        if (!creating || password.isEmpty()) false else {
-            val secret = password.toCharArray()
-            try {
-                VaultPasswordPolicy.isWeak(secret)
-            } finally {
-                secret.fill('\u0000')
-            }
-        }
-    }
+    val weak = creating && rememberPasswordWeak(password)
     val action = stringResource(if (creating) R.string.onlyfiles_create_backup else R.string.onlyfiles_restore_backup)
     val mismatch = creating && confirmation.isNotEmpty() && confirmation != password
     val valid = label.isNotBlank() && password.isNotEmpty() &&
@@ -97,12 +80,7 @@ private fun VaultBackupCredentialsDialog(
                     )
                     if (mismatch) Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
                 }
-                if (weak) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = weakConfirmed, onCheckedChange = { weakConfirmed = it })
-                        Text(stringResource(R.string.onlyfiles_backup_weak_password), style = MaterialTheme.typography.bodySmall)
-                    }
-                }
+                if (weak) ShortPasswordConsent(weakConfirmed) { weakConfirmed = it }
             }
         },
         confirmButton = {

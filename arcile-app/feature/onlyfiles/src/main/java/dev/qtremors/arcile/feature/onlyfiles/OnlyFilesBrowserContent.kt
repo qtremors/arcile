@@ -1,5 +1,13 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
+import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.material.icons.filled.Settings
@@ -446,12 +454,24 @@ private fun VaultCard(
     var showOptions by remember(vault.id) { mutableStateOf(false) }
     val haptics = rememberArcileHaptics()
     val optionsLabel = stringResource(R.string.onlyfiles_vault_actions, vault.name)
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val reducedMotion = LocalReducedMotionEnabled.current
+    // The same springy press as Arcile's other cards; long-press support rules out bounceClickable.
+    val pressScale by animateFloatAsState(
+        targetValue = if (pressed && !reducedMotion) 0.97f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "vaultCardPress"
+    )
     Box {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
+                .graphicsLayer { scaleX = pressScale; scaleY = pressScale }
                 .clip(MaterialTheme.shapes.storageCard)
                 .combinedClickable(
+                    interactionSource = interaction,
+                    indication = LocalIndication.current,
                     onClick = { onOpen(vault) },
                     onLongClick = {
                         haptics.selectionStart()

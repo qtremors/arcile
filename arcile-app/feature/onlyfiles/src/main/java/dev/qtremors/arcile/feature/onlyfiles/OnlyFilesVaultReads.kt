@@ -32,7 +32,7 @@ internal suspend fun readVaultText(
                 if (read <= 0) throw VaultFailure.SourceChanged()
                 offset += read
             }
-            bytes.decodeToString(throwOnInvalidSequence = true).removePrefix("﻿")
+            bytes.decodeToString(throwOnInvalidSequence = true).removePrefix("\uFEFF")
         } finally {
             bytes.fill(0)
         }

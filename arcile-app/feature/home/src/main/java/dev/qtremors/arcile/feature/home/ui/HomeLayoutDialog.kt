@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.home.ui
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,7 +27,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -175,7 +175,7 @@ internal fun HomeLayoutDialog(
                                     R.string.home_show_section,
                                     sectionLabel
                                 )
-                                Switch(
+                                ExpressiveSwitch(
                                     checked = draft.enabled,
                                     onCheckedChange = { enabled ->
                                         haptics.toggleMenu()
@@ -186,17 +186,6 @@ internal fun HomeLayoutDialog(
                                                 remove(draft.definition.id)
                                             }
                                         }
-                                    },
-                                    thumbContent = {
-                                        Icon(
-                                            imageVector = if (draft.enabled) {
-                                                Icons.Default.Check
-                                            } else {
-                                                Icons.Default.Close
-                                            },
-                                            contentDescription = null,
-                                            modifier = Modifier.size(16.dp)
-                                        )
                                     },
                                     modifier = Modifier.semantics {
                                         contentDescription = visibilityDescription

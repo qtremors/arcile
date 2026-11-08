@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.gallery
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -11,7 +12,6 @@ import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -306,7 +306,7 @@ private fun GalleryDetailsSection(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Switch(checked = showDetails, onCheckedChange = onShowDetailsChange)
+        ExpressiveSwitch(checked = showDetails, onCheckedChange = onShowDetailsChange)
     }
 }
 

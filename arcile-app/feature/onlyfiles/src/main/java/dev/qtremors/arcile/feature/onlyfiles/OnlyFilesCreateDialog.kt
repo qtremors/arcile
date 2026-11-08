@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.outlined.FolderOpen
@@ -22,12 +20,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.vault.domain.VaultLocationKind
 import dev.qtremors.arcile.core.ui.ExpressiveSelectorCard
@@ -46,8 +40,11 @@ internal fun CreateVaultDialog(
     var reveal by remember { mutableStateOf(false) }
     var locationKind by remember { mutableStateOf(VaultLocationKind.APP_PRIVATE) }
     
+    var shortAccepted by remember(password) { mutableStateOf(false) }
+    val weak = rememberPasswordWeak(password)
     val mismatch = confirm.isNotEmpty() && password != confirm
-    val valid = name.isNotBlank() && password.isNotEmpty() && confirm.isNotEmpty() && password == confirm
+    val valid = name.isNotBlank() && password.isNotEmpty() && confirm.isNotEmpty() && password == confirm &&
+        (!weak || shortAccepted)
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -68,9 +65,7 @@ internal fun CreateVaultDialog(
                     label = R.string.onlyfiles_confirm_password, isError = mismatch, showKeyboardSwitch = false
                 )
                 if (mismatch) Text(stringResource(R.string.onlyfiles_password_mismatch), color = MaterialTheme.colorScheme.error)
-                if (password.isNotEmpty() && password.length < 12) {
-                    Text(stringResource(R.string.onlyfiles_short_password), color = MaterialTheme.colorScheme.tertiary)
-                }
+                if (weak) ShortPasswordConsent(shortAccepted) { shortAccepted = it }
                 
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
