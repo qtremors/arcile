@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSession
+import dev.qtremors.arcile.core.ui.audio.PrivateAudioEditSessions
 
 internal data class AudioEditorSource(
     val path: String,
@@ -57,7 +59,9 @@ internal data class AudioEditorState(
     val previewPlaying: Boolean = false,
     val previewPrepared: Boolean = false,
     val previewPositionMs: Long = 0,
-    val loopEnabled: Boolean = true
+    val loopEnabled: Boolean = true,
+    /** The private source locked or its session ended, so the editor must close. */
+    val privateSessionEnded: Boolean = false
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -86,6 +90,8 @@ internal class AudioEditorViewModel @Inject constructor(
     private var previewEndMs = 0L
     private var loaded = false
     private val addedUris = mutableSetOf<String>()
+    private var privateSessionId: String? = null
+    private var privateSession: PrivateAudioEditSession? = null
 
     init {
         previewPlayer.addListener(
@@ -142,6 +148,46 @@ internal class AudioEditorViewModel @Inject constructor(
             sources.forEach { source ->
                 extractWaveform(source)
             }
+        }
+    }
+
+    /** Edits in-memory private sources; outputs are published back to their owner instead of a folder. */
+    fun loadPrivate(sessionId: String) {
+        if (loaded) return
+        loaded = true
+        val session = PrivateAudioEditSessions.get(sessionId)
+        if (session == null) {
+            _state.value = AudioEditorState(isLoading = false, privateSessionEnded = true)
+            return
+        }
+        privateSessionId = sessionId
+        privateSession = session
+        viewModelScope.launch {
+            session.active.collect { active ->
+                if (!active) {
+                    if (_state.value.isExporting) cancelExport()
+                    stopPreview()
+                    _state.update { it.copy(privateSessionEnded = true) }
+                }
+            }
+        }
+        viewModelScope.launch {
+            val sources = workspace.readSources(session.sourcePaths).map { source ->
+                source.copy(name = session.displayName(source.path) ?: source.name)
+            }
+            if (sources.isEmpty()) {
+                _state.value = AudioEditorState(
+                    isLoading = false,
+                    error = getApplication<Application>().getString(R.string.audio_editor_no_files)
+                )
+                return@launch
+            }
+            _state.value = AudioEditorState(
+                isLoading = false,
+                sources = sources,
+                waveformPathsLoading = sources.mapTo(mutableSetOf(), AudioEditorSource::path)
+            )
+            sources.forEach { source -> extractWaveform(source) }
         }
     }
 
@@ -250,9 +296,14 @@ internal class AudioEditorViewModel @Inject constructor(
         _state.update { it.copy(loopEnabled = enabled) }
     }
 
-    fun export(plan: AudioEditPlan, orderedSources: List<AudioEditorSource>) {
+    fun export(requested: AudioEditPlan, orderedSources: List<AudioEditorSource>) {
         if (_state.value.isExporting) return
+        val session = privateSession
+        if (session != null && !session.active.value) return
         stopPreview()
+        // Private exports never write beside their sources: the output is a fresh in-memory file.
+        val plan = session?.let { requested.copy(outputPath = it.createOutput(requested.outputPath.substringAfterLast('.', ""))) }
+            ?: requested
         activeOutputPath = plan.outputPath
         _state.update {
             it.copy(
@@ -282,6 +333,11 @@ internal class AudioEditorViewModel @Inject constructor(
         progressJob?.cancel()
         _state.update { it.copy(progress = 100, isPreservingMetadata = true) }
         metadataJob = viewModelScope.launch {
+            val session = privateSession
+            if (session != null) {
+                finishPrivateExport(session, plan, exportResult)
+                return@launch
+            }
             val metadataResult = workspace.preserveMetadata(
                 plan.segments.first().path,
                 plan.outputPath
@@ -313,8 +369,35 @@ internal class AudioEditorViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Tags are copied only for formats whose writers rewrite the same file in place: other writers stage a
+     * temporary copy beside the output, which would place plaintext on storage.
+     */
+    private suspend fun finishPrivateExport(session: PrivateAudioEditSession, plan: AudioEditPlan, exportResult: ExportResult) {
+        val inPlaceTags = plan.outputPath.substringAfterLast('.', "").lowercase() in setOf("mp3", "flac")
+        val metadataWarning = if (inPlaceTags) {
+            workspace.preserveMetadata(plan.segments.first().path, plan.outputPath).warning
+        } else getApplication<Application>().getString(R.string.audio_editor_private_tags_warning)
+        val published = session.publish(plan.outputPath)
+        session.discard(plan.outputPath)
+        activeOutputPath = null
+        published.fold(onSuccess = { savedName ->
+            val warnings = buildList {
+                if (exportResult.audioConversionProcess != ExportResult.CONVERSION_PROCESS_TRANSMUXED) {
+                    add(getApplication<Application>().getString(R.string.audio_editor_reencoded_warning))
+                }
+                metadataWarning?.let(::add)
+            }
+            _state.update {
+                it.copy(isExporting = false, isPreservingMetadata = false, progress = 100,
+                    completedPath = savedName, completedWarnings = warnings)
+            }
+        }, onFailure = ::failExport)
+    }
+
     private fun failExport(error: Throwable) {
         progressJob?.cancel()
+        privateSession?.let { session -> activeOutputPath?.let(session::discard) }
         activeOutputPath = null
         _state.update {
             it.copy(
@@ -331,7 +414,8 @@ internal class AudioEditorViewModel @Inject constructor(
         progressJob?.cancel()
         metadataJob?.cancel()
         exporter.cancel()
-        activeOutputPath?.let(workspace::delete)
+        val session = privateSession
+        activeOutputPath?.let { if (session != null) session.discard(it) else workspace.delete(it) }
         activeOutputPath = null
         _state.update {
             it.copy(
@@ -349,6 +433,8 @@ internal class AudioEditorViewModel @Inject constructor(
         previewPlayer.release()
         if (_state.value.isExporting) cancelExport()
         workspace.clearTemporaryInputs()
+        // Closing the editor releases every in-memory private source and output.
+        PrivateAudioEditSessions.end(privateSessionId)
         super.onCleared()
     }
 

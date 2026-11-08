@@ -12,7 +12,6 @@ import dev.qtremors.arcile.core.storage.domain.CleanerSectionRule
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerPreferencesStore
 import dev.qtremors.arcile.core.storage.domain.StorageCleanerRules
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -27,12 +26,7 @@ val Context.storageCleanerDataStore by preferencesDataStore(name = "storage_clea
 class StorageCleanerPreferencesRepository(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.storageCleanerDataStore,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : StorageCleanerPreferencesStore {
     private val rulesKey = stringPreferencesKey("rules")
     private val json = Json {

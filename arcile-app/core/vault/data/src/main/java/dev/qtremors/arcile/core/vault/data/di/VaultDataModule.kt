@@ -5,10 +5,13 @@ import dagger.Module
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dev.qtremors.arcile.core.vault.data.DefaultVaultImportCoordinator
+import dev.qtremors.arcile.core.vault.data.DefaultVaultOperationRecovery
+import dev.qtremors.arcile.core.vault.domain.VaultOperationRecovery
 import dev.qtremors.arcile.core.vault.data.DefaultVaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultHealthService
+import dev.qtremors.arcile.core.vault.domain.VaultBackupService
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultCatalog
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
@@ -35,8 +38,15 @@ internal abstract class VaultDataModule {
     internal abstract fun bindVaultImportCoordinator(implementation: DefaultVaultImportCoordinator): VaultImportCoordinator
 
     @Binds
+    internal abstract fun bindVaultOperationRecovery(implementation: DefaultVaultOperationRecovery): VaultOperationRecovery
+
+    @Binds
     @Singleton
     internal abstract fun bindVaultHealthService(implementation: DefaultVaultRepository): VaultHealthService
+
+    @Binds
+    @Singleton
+    internal abstract fun bindVaultBackupService(implementation: DefaultVaultRepository): VaultBackupService
 
     @Binds
     @Singleton

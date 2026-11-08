@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import android.graphics.BitmapFactory
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -62,7 +63,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RangeSlider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -139,7 +139,7 @@ internal fun SegmentAndWaveformControls(
                     stringResource(R.string.audio_editor_waveform_mode),
                     style = MaterialTheme.typography.labelLarge
                 )
-                Switch(
+                ExpressiveSwitch(
                     checked = waveformEnabled,
                     onCheckedChange = onWaveformChanged,
                     enabled = enabled,
@@ -529,7 +529,7 @@ internal fun PreviewControls(
                         style = MaterialTheme.typography.labelSmall
                     )
                 }
-                Switch(
+                ExpressiveSwitch(
                     checked = loopEnabled,
                     onCheckedChange = onLoopChanged,
                     enabled = enabled

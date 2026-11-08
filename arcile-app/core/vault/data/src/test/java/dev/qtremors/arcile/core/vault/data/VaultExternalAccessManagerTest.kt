@@ -73,10 +73,21 @@ class VaultExternalAccessManagerTest {
         val manager = DefaultVaultExternalAccessManager(context, repository, scope)
         val grant = manager.issue(file.ref, 60_000L).getOrThrow()
         val expiring = manager.issue(file.ref, DefaultVaultExternalAccessManager.MAX_LIFETIME_MILLIS).getOrThrow()
+        assertEquals(setOf(grant, expiring), manager.activeGrants(vaultId).toSet())
+        val otherVault = repository.createAppPrivateVault("Other", "password".toCharArray()).getOrThrow()
+        assertTrue(manager.activeGrants(otherVault).isEmpty())
+        val otherFile = repository.createEmptyFile(
+            otherVault, VaultSessionRecord.ROOT_DIRECTORY_ID, "other.txt", "text/plain"
+        ).getOrThrow()
+        val otherGrant = manager.issue(otherFile.ref, 60_000L).getOrThrow()
+        assertEquals(listOf(otherGrant), manager.activeGrants(otherVault))
+        assertTrue(otherGrant !in manager.activeGrants(vaultId))
+        manager.revoke(otherGrant.token)
         assertFalse(grant.contentUri.contains("private-name"))
         assertEquals(64, grant.token.length)
 
         repository.lock(vaultId)
+        assertTrue(manager.activeGrants(vaultId).isEmpty())
         manager.openGrantedContent(grant.token, consumerUid = 1001).getOrThrow().reader.use {
             assertEquals(0L, it.sizeBytes)
         }

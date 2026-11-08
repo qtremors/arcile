@@ -46,6 +46,8 @@ abstract class ArcileDatabase : RoomDatabase() {
                         DATABASE_NAME
                     )
                         .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1)
+                        // Viewer processes open the same file; keep their observers in sync with the main process.
+                        .enableMultiInstanceInvalidation()
                         .build()
                         .also { instance = it }
                 }

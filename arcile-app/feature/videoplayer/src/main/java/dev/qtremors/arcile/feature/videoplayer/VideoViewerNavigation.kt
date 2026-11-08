@@ -4,10 +4,12 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
@@ -57,13 +59,24 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                 videoPlaybackInitialPath(session)
             }
             val viewModel = hiltViewModel<VideoViewerViewModel>()
+            val sourceUpdate = session.sourceUpdates?.collectAsStateWithLifecycle()?.value
+            val activeSession = if (sourceUpdate == null || sourceUpdate.items.isEmpty()) session else session.copy(
+                items = sourceUpdate.items,
+                files = sourceUpdate.files,
+                startIndex = sourceUpdate.files.indexOfFirst { it.reference == initialPath }.coerceAtLeast(0),
+                sourceOverlayVisible = sourceUpdate.overlayVisible
+            )
             LaunchedEffect(session, initialPath, contextFiles) {
                 viewModel.initialize(
                     initialPath = initialPath,
                     contextFiles = contextFiles,
                     selectedPaths = session.initialSelectedPaths.toList(),
-                    discoverSiblings = session.files == null
+                    discoverSiblings = session.files == null,
+                    persistFileReferences = session.securityScopeId == null
                 )
+            }
+            LaunchedEffect(sourceUpdate?.files) {
+                sourceUpdate?.let { viewModel.updateSourceFiles(it.files) }
             }
 
             var isNavigatingBack by remember { mutableStateOf(false) }
@@ -71,12 +84,12 @@ fun NavGraphBuilder.registerVideoViewerRoute(
             val navigateBack = {
                 if (!isNavigatingBack) {
                     isNavigatingBack = true
-                    viewModel.state.value.viewerCurrentPath?.let { path ->
+                    viewModel.state.value.viewerCurrentPath?.takeIf { session.securityScopeId == null }?.let { path ->
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set(AppRoutes.MEDIA_VIEWER_RETURN_PATH_KEY, path)
                     }
-                    if (session.initialSelectedPaths.isNotEmpty()) {
+                    if (session.securityScopeId == null && session.initialSelectedPaths.isNotEmpty()) {
                         navController.previousBackStackEntry
                             ?.savedStateHandle
                             ?.set(
@@ -89,15 +102,19 @@ fun NavGraphBuilder.registerVideoViewerRoute(
                 }
             }
 
-            VideoViewerScreen(
-                session = session,
-                viewModel = viewModel,
-                selectionModeEnabled = session.initialSelectedPaths.isNotEmpty() && !readOnly,
-                readOnly = readOnly,
-                onNavigateBack = navigateBack,
-                onShareFile = { file -> onShareFile(file, session.managedTrash) },
-                onOpenWith = { file -> onOpenFileWith(file, session.managedTrash) }
-            )
+            val viewer: @Composable () -> Unit = {
+                VideoViewerScreen(
+                    session = activeSession,
+                    viewModel = viewModel,
+                    selectionModeEnabled = session.initialSelectedPaths.isNotEmpty() && !readOnly,
+                    readOnly = readOnly,
+                    onNavigateBack = navigateBack,
+                    onShareFile = { file -> onShareFile(file, session.managedTrash) },
+                    onOpenWith = { file -> onOpenFileWith(file, session.managedTrash) }
+                )
+            }
+            val sourceHost = session.sourceHost
+            if (sourceHost == null) viewer() else sourceHost(navigateBack, viewer)
         }
     }
 }

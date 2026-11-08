@@ -53,6 +53,43 @@ class OnlyFilesImportControllerTest {
     }
 
     @Test
+    fun `Browser import can reserve an authenticated destination without changing the open directory`() = runTest {
+        val vault = VaultId.of("browser-vault")
+        val destination = VaultPath.of("Selected destination")
+        val current = VaultDirectoryCrumb(DirectoryId.Root, "", VaultPath.Root)
+        val state = MutableStateFlow(OnlyFilesUiState(selectedVaultId = vault, directoryStack = listOf(current)))
+        val coordinator = RecordingImportCoordinator()
+        val controller = OnlyFilesImportController(coordinator, state, backgroundScope, { throw it }, {})
+
+        assertTrue(controller.begin(destination))
+        controller.finishSelection(listOf("/storage/local/photo.jpg"))
+
+        assertEquals(destination, coordinator.startedReservation?.destination)
+        assertEquals(current, state.value.currentDirectory)
+        assertEquals(listOf("/storage/local/photo.jpg"), coordinator.startedUris)
+        assertEquals(false, coordinator.moveRequested)
+    }
+
+    @Test
+    fun `confirmed move uses the distinct move operation with the reserved destination`() = runTest {
+        val vault = VaultId.of("move-vault")
+        val destination = VaultPath.of("Documents")
+        val state = MutableStateFlow(OnlyFilesUiState(
+            selectedVaultId = vault,
+            directoryStack = listOf(VaultDirectoryCrumb(DirectoryId.of("docs"), "Documents", destination))
+        ))
+        val coordinator = RecordingImportCoordinator()
+        val controller = OnlyFilesImportController(coordinator, state, backgroundScope, { throw it }, {})
+        assertTrue(controller.begin())
+
+        controller.finishSelection(listOf("/storage/local/note.txt"), move = true)
+
+        assertTrue(coordinator.moveRequested)
+        assertEquals(destination, coordinator.startedReservation?.destination)
+        assertEquals(listOf("/storage/local/note.txt"), coordinator.startedUris)
+    }
+
+    @Test
     fun `cancelling picker destroys prepared operation reservation`() = runTest {
         val vaultId = VaultId.of("cancel-vault")
         val state = MutableStateFlow(
@@ -84,6 +121,7 @@ class OnlyFilesImportControllerTest {
         val prepared = mutableListOf<TestReservation>()
         var startedReservation: VaultImportReservation? = null
         var startedUris: List<String> = emptyList()
+        var moveRequested = false
 
         override fun prepareImport(vaultId: VaultId, destination: VaultPath): Result<VaultImportReservation> =
             Result.success(TestReservation(vaultId, destination).also(prepared::add))
@@ -92,6 +130,11 @@ class OnlyFilesImportControllerTest {
             startedReservation = reservation
             startedUris = sourceUris
             return true
+        }
+
+        override fun startMoveImport(reservation: VaultImportReservation, localPaths: List<String>): Boolean {
+            moveRequested = true
+            return startImport(reservation, localPaths)
         }
 
         override fun cancelImport(vaultId: VaultId) = Unit

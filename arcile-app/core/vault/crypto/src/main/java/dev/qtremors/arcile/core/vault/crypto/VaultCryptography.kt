@@ -66,6 +66,7 @@ enum class VaultKeyDomain(val label: String) {
     ROOT_DIRECTORY("root-directory-key"),
     HEADER_AUTHENTICATION("public-header-authentication"),
     TRANSACTION("transaction-journal"),
+    OPERATION_QUEUE("operation-queue"),
     THUMBNAILS("encrypted-thumbnail-cache"),
     BIOMETRIC_ENVELOPE("biometric-convenience-envelope")
 }
@@ -193,10 +194,4 @@ object VaultCryptography {
     fun constantTimeEquals(left: ByteArray, right: ByteArray): Boolean = MessageDigest.isEqual(left, right)
     fun longBytes(value: Long): ByteArray = ByteBuffer.allocate(Long.SIZE_BYTES).putLong(value).array()
     fun intBytes(value: Int): ByteArray = ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array()
-}
-
-inline fun <T> ByteArray.useSecret(block: (ByteArray) -> T): T = try {
-    block(this)
-} finally {
-    fill(0)
 }

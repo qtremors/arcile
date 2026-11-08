@@ -1,11 +1,5 @@
 # Arcile Task Backlog
 
-> **Version:** 2.2.0 | **Last Updated:** 2026-10-04
-
-30 open feature and workflow tasks. No open bug or maintenance tasks.
-
-Only unfinished work is listed. Task IDs are retained for reference. Source locations and current-behavior notes come from the 2026-09-26 review; recheck them before implementation.
-
 ## Browser and File Organization
 
 - [ ] **FEAT-0001 - Edit the Browser Path Bar**
@@ -72,25 +66,17 @@ Only unfinished work is listed. Task IDs are retained for reference. Source loca
 
 ## Vaults and Settings Backups
 
-- [ ] **FEAT-0014 - Offer a Numeric Keyboard for Vault Password Entry**
-  - **Location:** `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesDialogs.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesCreateDialog.kt`.
-  - **Current:** Password fields use KeyboardType.Password without a layout option.
-  - **Change:** Offer a numeric keyboard with an alphanumeric fallback; keep this an input preference rather than changing encryption.
-
-- [ ] **FEAT-0015 - Configure Vault Auto-Lock and Background Retention**
-  - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/ArcileApp.kt`; `arcile-app/core/vault/data/src/main/java/dev/qtremors/arcile/core/vault/data/DefaultVaultSecurityPreferences.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesDialogs.kt`.
-  - **Current:** Background handling invokes lockAll; persisted vault security settings currently contain screenshot protection only.
-  - **Change:** Add an explicit lock policy retaining current defaults. Define background retention, screen-off, exit, process-death, and grant behavior without persisting unlocked keys.
-
-- [ ] **FEAT-0016 - Send Browser Selections Directly into OnlyFiles**
-  - **Location:** `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesScreen.kt`; `arcile-app/feature/onlyfiles/src/main/java/dev/qtremors/arcile/feature/onlyfiles/OnlyFilesTransferController.kt`; `arcile-app/feature/browser/src/main/java/dev/qtremors/arcile/feature/browser/controller/BrowserClipboardController.kt`.
-  - **Current:** OnlyFiles already imports local files/folders and has its own clipboard; inspected Browser sources lack a vault-selection action.
-  - **Change:** Choose/unlock a vault from Browser and reuse boundary transfers. Distinguish copy/move and use typed clipboard references. Preserve verified vault transaction and transfer recovery safeguards.
-
 - [ ] **FEAT-0017 - Schedule Settings Backups and Discover Restore Candidates**
   - **Location:** `arcile-app/app/src/main/java/dev/qtremors/arcile/backup/PreferencesBackupManager.kt`; `arcile-app/feature/onboarding/src/main/java/dev/qtremors/arcile/feature/onboarding/OnboardingRoute.kt`.
   - **Current:** Export/preview/restore and an onboarding picker exist; recurring export and backup-location discovery are absent from these flows.
   - **Change:** Add opt-in scheduled settings export to a selected destination and discover compatible backups in authorized locations. Retain preview/validation; do not imply file/vault-content backup.
+
+### OnlyFiles
+
+- [ ] **QA-0001 - Verify Browser and Vault Flows on Android**
+  - **Location:** OnlyFilesScreen.kt and vault viewers.
+  - **Current:** Vault features match Browser in code and unit tests, but on-device parity and lock behavior still need verification. Anonymous memory files for audio editing and private PDF printing have not run on a physical device.
+  - **Change:** Compare gestures, thumbnails, large and animated images, document editing, install, transfer, archive browsing and extraction into existing folders, and lock with matched fixtures. Exercise each Undo kind, including the boundary confirmations, private PDF printing, MP3 and FLAC tag edits, encrypted lyrics, and audio editor sessions closing on lock. Measure large private and portable vault search and verify feedback for bounded counts and operation limits.
 
 ## Media and Documents
 

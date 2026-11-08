@@ -11,7 +11,8 @@ data class FileItemPresentation(
     val showDetails: Boolean = true,
     val thumbnailLoadingPaused: Boolean = false,
     val openFileFromThumbnailInSelectionMode: Boolean = false,
-    val thumbnailData: ((FileModel, Int) -> Any?)? = null
+    val thumbnailData: ((FileModel, Int) -> Any?)? = null,
+    val contextLabel: ((FileModel) -> String?)? = null
 )
 
 internal fun TextStyle.scaled(zoom: Float): TextStyle = copy(

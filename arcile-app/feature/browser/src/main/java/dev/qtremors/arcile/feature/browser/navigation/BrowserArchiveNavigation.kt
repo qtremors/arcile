@@ -11,6 +11,7 @@ import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.persistentMapOf
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
+import kotlinx.collections.immutable.toPersistentMap
 import kotlinx.coroutines.launch
 
 internal fun BrowserNavigationController.openArchive(
@@ -88,6 +89,7 @@ internal fun BrowserNavigationController.loadArchiveEntries(
     }
     val volume = if (isRootStorageScope) null else findVolumeForPath(archivePath)
     onLocationChanged()
+    fileBrowserRepository.cancelFolderStatsOutside(archivePath)
     update {
         it.withValues(
             archiveContext = BrowserArchiveContext(
@@ -133,7 +135,12 @@ internal fun BrowserNavigationController.loadArchiveEntries(
                             archivePath,
                             entries,
                             entryPrefix
-                        ).toPersistentList()
+                        ).toPersistentList(),
+                        folderStatsByPath = BrowserArchiveListingMapper.folderStats(
+                            archivePath,
+                            entries,
+                            entryPrefix
+                        ).toPersistentMap()
                     ).withUpdatedDisplayState()
                 }
                 saveNavStateIfActive(generation)

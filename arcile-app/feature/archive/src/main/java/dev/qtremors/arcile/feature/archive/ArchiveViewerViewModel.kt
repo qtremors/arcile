@@ -104,10 +104,11 @@ internal class ArchiveViewerViewModel @Inject constructor(
     }
 
     fun openFolder(path: String) {
+        val prefix = path.trim('/').takeIf { it.isNotBlank() }
         _state.update {
             it.copy(
-                currentPrefix = path,
-                visibleItems = buildArchiveBrowserItems(it.entries, path, it.searchQuery),
+                currentPrefix = prefix,
+                visibleItems = buildArchiveBrowserItems(it.entries, prefix, it.searchQuery),
                 selectedItems = emptySet()
             )
         }

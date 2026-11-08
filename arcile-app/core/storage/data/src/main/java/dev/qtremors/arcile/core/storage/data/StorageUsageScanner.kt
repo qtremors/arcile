@@ -15,8 +15,8 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
@@ -30,6 +30,10 @@ class DefaultStorageUsageScanner @Inject constructor(
     @param:ApplicationScope private val applicationScope: CoroutineScope? = null
 ) : StorageUsageScanner {
     private val cacheLock = Any()
+    // Hilt always supplies the application scope; a hand-built scanner still invalidates in the
+    // background rather than blocking whichever thread reported the change.
+    private val invalidationScope: CoroutineScope =
+        applicationScope ?: CoroutineScope(SupervisorJob() + dispatchers.io)
     private val cachedScans = object : LinkedHashMap<CacheKey, CacheEntry>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<CacheKey, CacheEntry>?): Boolean =
             size > MAX_CACHED_SCANS
@@ -92,11 +96,7 @@ class DefaultStorageUsageScanner @Inject constructor(
             }
         }
         val store = snapshotStore ?: return
-        applicationScope?.launch(dispatchers.io) {
-            store.invalidate(normalizedPaths)
-        } ?: runBlocking(dispatchers.io) {
-            store.invalidate(normalizedPaths)
-        }
+        invalidationScope.launch { store.invalidate(normalizedPaths) }
     }
 
     private fun cached(rootPath: String, limits: StorageUsageScanLimits): StorageUsageNode? =

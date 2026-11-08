@@ -11,7 +11,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferences
 import dev.qtremors.arcile.core.storage.domain.OnboardingPreferencesStore
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -23,12 +22,7 @@ val Context.onboardingDataStore by preferencesDataStore(name = "onboarding_prefs
 class OnboardingPreferencesRepository(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.onboardingDataStore,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : OnboardingPreferencesStore {
     private val IS_COMPLETED_KEY = booleanPreferencesKey("is_completed")
     private val COMPLETED_VERSION_KEY = intPreferencesKey("completed_version")

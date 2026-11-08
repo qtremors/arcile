@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.operation.android.apk
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -10,7 +12,6 @@ import android.os.Looper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -48,7 +49,7 @@ object PackageInstallerEngine {
     private val _installState = MutableStateFlow<ApkInstallState>(ApkInstallState.Idle)
     val installState: StateFlow<ApkInstallState> = _installState.asStateFlow()
 
-    private val engineScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val engineScope = CoroutineScope(ArcileDispatchers.Standard.io + SupervisorJob())
     private val activeSessionIds = ConcurrentHashMap.newKeySet<Int>()
     private val activeInstallJob = AtomicReference<Job?>(null)
     private val sessionStatuses = ConcurrentHashMap<Int, String>()
@@ -69,6 +70,12 @@ object PackageInstallerEngine {
         if (targetKey == key) return
         resetState()
         targetKey = key
+    }
+
+    @Synchronized
+    fun releaseTarget(key: String): ApkPackageDetails? {
+        if (targetKey != key) return null
+        return preparedDetails.also { resetState() }
     }
 
     @Synchronized
@@ -233,14 +240,14 @@ object PackageInstallerEngine {
                 if (createdSessionId >= 0) {
                     activeSessionIds.remove(createdSessionId)
                     sessionStatuses.remove(createdSessionId)
-                    runCatching {
+                    runCatchingCancellable {
                         context.packageManager.packageInstaller.abandonSession(createdSessionId)
                     }
                 }
                 if (e is CancellationException) throw e
                 _installState.value = ApkInstallState.Failed(e.localizedMessage ?: "Failed to initiate package installation")
             } finally {
-                runCatching { openedSession?.close() }
+                runCatchingCancellable { openedSession?.close() }
                 cleanupApkStaging(appContext, details)
                 activeInstallJob.compareAndSet(installJob, null)
             }

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
@@ -60,8 +61,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.crossfade
+import coil3.request.ImageRequest
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
 import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
@@ -141,7 +143,7 @@ fun StandaloneImageViewer(
 
     LaunchedEffect(reference) {
         metadata = withContext(Dispatchers.IO) {
-            runCatching { SharedImageMetadataReader.readMetadata(context, reference, mimeType) }.getOrNull()
+            runCatchingCancellable { SharedImageMetadataReader.readMetadata(context, reference, mimeType) }.getOrNull()
         }
     }
 

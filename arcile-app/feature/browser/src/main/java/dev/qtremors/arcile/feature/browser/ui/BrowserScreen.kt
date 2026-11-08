@@ -2,6 +2,8 @@
 
 package dev.qtremors.arcile.feature.browser.ui
 
+import dev.qtremors.arcile.core.ui.WorkspaceScrollPosition
+import dev.qtremors.arcile.core.ui.rememberWorkspaceTabsVisible
 import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -31,7 +33,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -50,7 +51,6 @@ import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
 import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.flow.distinctUntilChanged
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.ArchiveCompressionLevel
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
@@ -116,7 +116,6 @@ internal fun BrowserScreen(
     var showSearchBar by rememberSaveable {
         mutableStateOf(state.browserSearchQuery.isNotEmpty() || state.activeSearchFilters.hasActiveFilters)
     }
-    var workspaceTabsVisible by rememberSaveable { mutableStateOf(true) }
     
     var isFabExpanded by rememberSaveable { mutableStateOf(false) }
     val fabIconRotation by animateFloatAsState(
@@ -186,39 +185,11 @@ internal fun BrowserScreen(
         )
     }
     BrowserScrollEffects(state, scroll, resumeRestoreTick)
-    LaunchedEffect(state.browserViewMode, listState, gridState) {
-        var previousIndex = 0
-        var previousOffset = 0
-        snapshotFlow {
-            if (state.browserViewMode == FileViewMode.GRID) {
-                BrowserTabsScrollCapture(
-                    gridState.isScrollInProgress,
-                    gridState.firstVisibleItemIndex,
-                    gridState.firstVisibleItemScrollOffset
-                )
-            } else {
-                BrowserTabsScrollCapture(
-                    listState.isScrollInProgress,
-                    listState.firstVisibleItemIndex,
-                    listState.firstVisibleItemScrollOffset
-                )
-            }
-        }.distinctUntilChanged().collect { capture ->
-            val atTop = capture.index == 0 && capture.offset == 0
-            if (atTop) {
-                workspaceTabsVisible = true
-            } else if (capture.isScrollInProgress) {
-                val movingForward = capture.index > previousIndex ||
-                    (capture.index == previousIndex && capture.offset > previousOffset)
-                val movingBackward = capture.index < previousIndex ||
-                    (capture.index == previousIndex && capture.offset < previousOffset)
-                when {
-                    movingForward -> workspaceTabsVisible = false
-                    movingBackward -> workspaceTabsVisible = true
-                }
-            }
-            previousIndex = capture.index
-            previousOffset = capture.offset
+    val workspaceTabsVisible = rememberWorkspaceTabsVisible(Triple(state.browserViewMode, listState, gridState)) {
+        if (state.browserViewMode == FileViewMode.GRID) {
+            WorkspaceScrollPosition(gridState.isScrollInProgress, gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+        } else {
+            WorkspaceScrollPosition(listState.isScrollInProgress, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
         }
     }
     val categoryFolderTabs = state.displayState.categoryFolderTabs
@@ -518,9 +489,3 @@ internal fun BrowserScreen(
         batchRenameHistory = batchRenameHistory
     )
 }
-
-private data class BrowserTabsScrollCapture(
-    val isScrollInProgress: Boolean,
-    val index: Int,
-    val offset: Int
-)

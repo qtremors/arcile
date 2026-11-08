@@ -16,6 +16,19 @@ internal data class ResolvedPortableVault(
 class VaultPortableLocationResolver @Inject constructor(
     private val volumes: VolumeRepository
 ) {
+    internal suspend fun backupParent(absolutePath: String): File {
+        val target = File(absolutePath).canonicalFile
+        val volume = volumes.getVolumeForPath(target.path).getOrElse {
+            throw VaultFailure.Unavailable("The backup destination is outside Arcile's managed storage", it)
+        }
+        val root = File(volume.path).canonicalFile
+        if (target != root) requireDescendant(root, target)
+        if (!target.isDirectory || !target.canWrite()) {
+            throw VaultFailure.Unavailable("The backup destination is unavailable or read-only")
+        }
+        return target
+    }
+
     internal suspend fun identify(absolutePath: String): ResolvedPortableVault {
         val target = File(absolutePath).canonicalFile
         val volume = volumes.getVolumeForPath(target.path).getOrElse {

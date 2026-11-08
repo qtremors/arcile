@@ -17,6 +17,11 @@ interface TrashManager {
         targets: List<TrashTarget>,
         onProgress: ((BulkFileOperationProgress) -> Unit)? = null
     ): Result<Unit>
+    suspend fun acceptExternalItem(
+        displayName: String,
+        writePayload: suspend (String) -> Unit,
+        afterPublished: suspend () -> Unit
+    ): Result<Unit> = Result.failure(UnsupportedOperationException("Trash does not accept exported items"))
 
     suspend fun restoreFromTrash(trashIds: List<String>, destinationPath: String?): Result<Unit>
     suspend fun restoreWithResults(trashIds: List<String>, destinationPath: String?): Result<List<RestoredTrashItem>> =
@@ -44,5 +49,6 @@ data class TrashMetadataEntity(
     val originalPath: String,
     val deletionTime: Long,
     val sourceVolumeId: String? = null,
-    val sourceStorageKind: String? = null
+    val sourceStorageKind: String? = null,
+    val displayName: String? = null
 )

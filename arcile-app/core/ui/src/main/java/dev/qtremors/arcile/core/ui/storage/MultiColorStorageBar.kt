@@ -198,8 +198,9 @@ private fun animatedStorageFraction(target: Float, revealed: Boolean, label: Str
     return fraction.coerceAtLeast(MinimumStorageBarWeight)
 }
 
+/** Category-colored block sweeping across a storage bar while totals load. */
 @Composable
-private fun StorageBarLoadingIndicator() {
+fun StorageBarLoadingIndicator(modifier: Modifier = Modifier) {
     val categoryColors = LocalCategoryColors.current
     val infiniteTransition = rememberInfiniteTransition(label = "linearMovingProgress")
     val progressOffset by infiniteTransition.animateFloat(
@@ -211,7 +212,7 @@ private fun StorageBarLoadingIndicator() {
         ),
         label = "progressOffset"
     )
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    Canvas(modifier = modifier.fillMaxSize()) {
         val blockWidth = size.width * 0.4f
         val startX = progressOffset * size.width
         drawRoundRect(

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.operation.android
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.ContextCompat
@@ -25,7 +26,6 @@ import dev.qtremors.arcile.core.storage.domain.NoOpClipboardRepository
 import dev.qtremors.arcile.core.storage.domain.toArcileError
 import dev.qtremors.arcile.core.runtime.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -51,7 +51,7 @@ class ForegroundBulkFileOperationCoordinator @Inject constructor(
     private val requestStore: OperationRequestStore = OperationRequestStore(context),
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val activityLogStore: ActivityLogStore? = null,
-    @param:ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    @param:ApplicationScope private val applicationScope: CoroutineScope = CoroutineScope(SupervisorJob() + ArcileDispatchers.Standard.io),
     @param:DeferOperationJournalRecovery private val deferJournalRecovery: Boolean = false,
     private val clipboardRepository: ClipboardRepository = NoOpClipboardRepository
 ) : BulkFileOperationCoordinator {

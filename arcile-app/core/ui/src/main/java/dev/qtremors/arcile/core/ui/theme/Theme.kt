@@ -30,7 +30,10 @@ import androidx.core.view.WindowCompat
 val LocalHapticsEnabled = staticCompositionLocalOf { true }
 val LocalDoubleLineFilenames = staticCompositionLocalOf { false }
 val LocalMarqueeFilenames = staticCompositionLocalOf { false }
-val LocalFolderIconsEnabled = staticCompositionLocalOf { false }
+/** Dedicated vector icons for well-known storage folders; off draws every folder the same. */
+val LocalSpecialFolderIconsEnabled = staticCompositionLocalOf { false }
+/** Owning-app icons for folders; drawn over the special or plain icon once resolved. */
+val LocalAppFolderIconsEnabled = staticCompositionLocalOf { false }
 
 @Composable
 fun ArcileTheme(
@@ -188,7 +191,9 @@ fun ArcileTheme(
         LocalHapticsEnabled provides uiPreferences.vibrationsEnabled,
         LocalDoubleLineFilenames provides uiPreferences.doubleLineFilenames,
         LocalMarqueeFilenames provides uiPreferences.marqueeFilenames,
-        LocalFolderIconsEnabled provides uiPreferences.folderIconsEnabled,
+        LocalSpecialFolderIconsEnabled provides uiPreferences.specialFolderIconsEnabled,
+        LocalAppFolderIconsEnabled provides uiPreferences.appFolderIconsEnabled,
+        LocalFileDetailVisibility provides uiPreferences.fileDetails,
         LocalHapticFeedback provides customHapticFeedback,
         LocalReducedMotionEnabled provides reducedMotionEnabled
     ) {

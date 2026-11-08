@@ -106,6 +106,7 @@ fun ArcileTopBar(
     expandable: Boolean = true,
     options: ArcileTopBarOptions = ArcileTopBarOptions(),
     menuActions: List<ArcileTopBarMenuAction> = emptyList(),
+    overflowContent: (@Composable (Boolean, () -> Unit) -> Unit)? = null,
     actions: ArcileTopBarActions
 ) {
     val showBackArrow = options.showBackArrow
@@ -347,24 +348,10 @@ fun ArcileTopBar(
                                 }
                                 if (showHiddenFilesAction) {
                                     add {
-                                        ArcileDropdownMenuItem(
-                                            text = { Text(stringResource(R.string.settings_show_hidden_files)) },
-                                            isSelected = areHiddenFilesShown,
-                                            leadingIcon = {
-                                                Icon(
-                                                    if (areHiddenFilesShown) {
-                                                        Icons.Default.Visibility
-                                                    } else {
-                                                        Icons.Default.VisibilityOff
-                                                    },
-                                                    contentDescription = null
-                                                )
-                                            },
-                                            onClick = {
-                                                showMenu = false
-                                                onActionSelected(TopBarAction.ToggleHiddenFiles)
-                                            }
-                                        )
+                                        HiddenFilesMenuItem(areHiddenFilesShown) {
+                                            showMenu = false
+                                            onActionSelected(TopBarAction.ToggleHiddenFiles)
+                                        }
                                     }
                                 }
                                 if (showGridViewAction) {
@@ -387,11 +374,15 @@ fun ArcileTopBar(
                             }
                         }
 
-                        ArcileDropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false },
-                            items = renderedMenuActions
-                        )
+                        if (overflowContent != null) {
+                            overflowContent(showMenu) { showMenu = false }
+                        } else {
+                            ArcileDropdownMenu(
+                                expanded = showMenu,
+                                onDismissRequest = { showMenu = false },
+                                items = renderedMenuActions
+                            )
+                        }
                     }
                 }
             }
@@ -400,5 +391,17 @@ fun ArcileTopBar(
             containerColor = containerColor,
             titleContentColor = MaterialTheme.colorScheme.onSurface
         )
+    )
+}
+
+@Composable
+fun HiddenFilesMenuItem(shown: Boolean, onClick: () -> Unit) {
+    ArcileDropdownMenuItem(
+        text = { Text(stringResource(R.string.settings_show_hidden_files)) },
+        isSelected = shown,
+        leadingIcon = {
+            Icon(if (shown) Icons.Default.Visibility else Icons.Default.VisibilityOff, contentDescription = null)
+        },
+        onClick = onClick
     )
 }

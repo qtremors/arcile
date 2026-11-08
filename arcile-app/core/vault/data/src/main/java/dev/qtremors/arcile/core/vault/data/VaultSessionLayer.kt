@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.vault.domain.*
@@ -26,7 +27,7 @@ internal abstract class VaultSessionLayer(
     override suspend fun lockAllInteractive() = lockAll()
 
     override suspend fun hasBiometricEnrollment(vaultId: VaultId): Boolean =
-        withContext(dispatchers.io) { runCatching { biometricStore.hasEnrollment(vaultId) }.getOrDefault(false) }
+        withContext(dispatchers.io) { runCatchingCancellable { biometricStore.hasEnrollment(vaultId) }.getOrDefault(false) }
 
     override fun acquireLease(vaultId: VaultId, purpose: VaultLeasePurpose): Result<VaultKeyLease> =
         holdSession(vaultId).map { VaultKeyLeaseImpl(vaultId, purpose, it) }
@@ -168,7 +169,7 @@ internal abstract class VaultSessionLayer(
 
     override suspend fun removeBiometric(vaultId: VaultId): Result<Unit> =
         withContext(dispatchers.io) {
-            runCatching {
+            runCatchingCancellable {
                 biometricStore.remove(vaultId)
                 Unit
             }

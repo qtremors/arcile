@@ -100,8 +100,11 @@ fun EmptyStateBlobs(
     LaunchedEffect(size) {
         if (size.width <= 0 || size.height <= 0) return@LaunchedEffect
         var lastTime = withFrameNanos { it }
+        val stopAt = lastTime + ACTIVE_DRIFT_NANOS
 
-        while (true) {
+        // Drift for a while after the empty state appears, then hold still instead of
+        // running physics on every frame for as long as the screen stays empty.
+        while (lastTime < stopAt) {
             withFrameNanos { frameTime ->
                 val dt = ((frameTime - lastTime) / 1_000_000_000f).coerceIn(0f, 0.05f)
                 lastTime = frameTime
@@ -213,3 +216,5 @@ fun EmptyStateBlobs(
         }
     }
 }
+
+private const val ACTIVE_DRIFT_NANOS = 15_000_000_000L

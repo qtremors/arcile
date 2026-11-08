@@ -20,6 +20,12 @@ interface TrashRepository {
         paths: List<String>,
         onProgress: ((FileOperationProgress) -> Unit)? = null
     ): Result<Unit>
+    /** Publish a verified payload with no original Browser path, then let its owner remove the source. */
+    suspend fun acceptExternalItem(
+        displayName: String,
+        writePayload: suspend (String) -> Unit,
+        afterPublished: suspend () -> Unit
+    ): Result<Unit> = Result.failure(UnsupportedOperationException("Trash does not accept exported items"))
     suspend fun restoreFromTrash(
         trashIds: List<String>,
         destinationPath: String? = null

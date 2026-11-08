@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.presentation.UiText
+import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultImportEvent
@@ -17,7 +20,11 @@ internal class OnlyFilesImportController(
     private val showError: (Throwable) -> Unit,
     private val reload: () -> Unit
 ) {
+    private data class Destination(val vaultId: VaultId, val directoryId: DirectoryId?, val mount: Long)
+    private data class Submitted(val destination: Destination, val count: Int, val move: Boolean)
     private var reservation: VaultImportReservation? = null
+    private var reservedDestination: Destination? = null
+    private val submitted = mutableMapOf<VaultId, Submitted>()
 
     init {
         scope.launch {
@@ -28,57 +35,116 @@ internal class OnlyFilesImportController(
         scope.launch {
             coordinator.events.collect { event ->
                 when (event) {
-                    is VaultImportEvent.Completed -> finish(event.vaultId, "Import complete")
-                    is VaultImportEvent.Cancelled -> state.update { it.copy(message = "Import cancelled") }
-                    is VaultImportEvent.Failed -> state.update { it.copy(message = event.message) }
-                    is VaultImportEvent.Partial -> finish(
-                        event.vaultId,
-                        "Imported ${event.result.completed.size}; ${event.result.failed.size} failed"
-                    )
-                    is VaultImportEvent.Started,
+                    is VaultImportEvent.Completed -> finish(event.vaultId) { request ->
+                        val count = request?.count ?: 0
+                        OnlyFilesOperationFeedback(
+                            if (count > 0) UiText.PluralResource(
+                                if (request?.move == true) dev.qtremors.arcile.core.ui.R.plurals.file_operation_moved_items
+                                else dev.qtremors.arcile.core.ui.R.plurals.file_operation_copied_items,
+                                count, listOf(count)
+                            ) else UiText.StringResource(R.string.onlyfiles_import_complete),
+                            ArcileFeedbackSeverity.Success,
+                            request?.destination?.mount ?: state.value.mountGeneration,
+                            request?.destination?.target(),
+                            // Only imports submitted in this mount can be reversed from their feedback.
+                            undo = event.result?.takeIf { request != null }?.let { result ->
+                                createdUndoAction(result, if (request?.move == true) OnlyFilesOperationKind.MOVE_IN else OnlyFilesOperationKind.IMPORT)
+                            }
+                        )
+                    }
+                    is VaultImportEvent.Partial -> finish(event.vaultId) { request ->
+                        vaultBatchFeedback(
+                            event.result,
+                            if (request?.move == true) OnlyFilesOperationKind.MOVE_IN else OnlyFilesOperationKind.IMPORT,
+                            request?.destination?.mount ?: state.value.mountGeneration,
+                            request?.destination?.target()
+                        )
+                    }
+                    is VaultImportEvent.Cancelled -> finish(event.vaultId, refresh = false) { request ->
+                        operationNotice(R.string.onlyfiles_import_cancelled, request?.destination?.mount ?: state.value.mountGeneration)
+                    }
+                    is VaultImportEvent.Failed -> finish(event.vaultId, refresh = false) { request ->
+                        operationNotice(R.string.onlyfiles_import_failed, request?.destination?.mount ?: state.value.mountGeneration, error = true)
+                    }
+                    is VaultImportEvent.Started -> {
+                        val destination = event.recoveredDestination
+                        val snapshot = state.value
+                        if (destination != null && snapshot.selectedVaultId == event.vaultId) {
+                            submitted[event.vaultId] = Submitted(Destination(event.vaultId, destination, snapshot.mountGeneration), 0, false)
+                        }
+                    }
                     is VaultImportEvent.Progress -> Unit
                 }
             }
         }
     }
 
-    fun begin(): Boolean {
+    fun begin(destination: VaultPath? = null, directoryId: DirectoryId? = null): Boolean {
         cancelSelection()
         val snapshot = state.value
         val id = snapshot.selectedVaultId ?: return false
         val prepared = coordinator.prepareImport(
             id,
-            snapshot.currentDirectory?.path ?: VaultPath.Root
+            destination ?: snapshot.currentDirectory?.path ?: VaultPath.Root
         ).getOrElse {
             showError(it)
             return false
         }
         reservation = prepared
+        reservedDestination = Destination(
+            id,
+            directoryId ?: snapshot.currentDirectory?.takeIf { destination == null || it.path == destination }?.id,
+            snapshot.mountGeneration
+        )
         return true
     }
 
-    fun finishSelection(sourceUris: List<String>) {
+    fun finishSelection(sourceUris: List<String>, move: Boolean = false): Boolean {
         val prepared = reservation
+        val destination = reservedDestination
         reservation = null
-        if (sourceUris.isEmpty() || prepared == null) {
+        reservedDestination = null
+        if (sourceUris.isEmpty() || prepared == null || destination == null) {
             prepared?.close()
-            return
+            return false
         }
-        if (!coordinator.startImport(prepared, sourceUris)) {
+        // Register before start: coordinator events may be emitted synchronously during handoff.
+        val request = Submitted(destination, sourceUris.distinct().size, move)
+        submitted[prepared.vaultId] = request
+        val started = if (move) coordinator.startMoveImport(prepared, sourceUris)
+        else coordinator.startImport(prepared, sourceUris)
+        if (!started) {
+            if (submitted[prepared.vaultId] === request) submitted.remove(prepared.vaultId)
             prepared.close()
-            state.update { it.copy(message = "Another import is already running") }
+            state.update {
+                if (it.mountGeneration != destination.mount) it
+                else it.copy(message = null, operationFeedback = operationNotice(R.string.onlyfiles_import_running, destination.mount))
+            }
         }
+        return started
     }
 
     fun cancelSelection() {
         reservation?.close()
         reservation = null
+        reservedDestination = null
     }
 
     fun cancel(vaultId: VaultId) = coordinator.cancelImport(vaultId)
 
-    private fun finish(vaultId: VaultId, message: String) {
-        state.update { it.copy(message = message) }
-        if (state.value.selectedVaultId == vaultId) reload()
+    private fun Destination.target(): OnlyFilesOperationDestination.VaultDirectory? =
+        directoryId?.let { OnlyFilesOperationDestination.VaultDirectory(vaultId, it) }
+
+    private fun finish(vaultId: VaultId, refresh: Boolean = true, feedback: (Submitted?) -> OnlyFilesOperationFeedback) {
+        val request = submitted.remove(vaultId)
+        val current = state.value
+        if (current.selectedVaultId != vaultId) return
+        if (request != null && request.destination.mount != current.mountGeneration) return
+        val completed = feedback(request)
+        state.update {
+            if (it.selectedVaultId != vaultId || !completed.belongsTo(it)) it
+            else it.copy(message = null, operationFeedback = completed)
+        }
+        if (refresh) reload()
     }
 }

@@ -20,7 +20,6 @@ import java.io.File
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
@@ -29,7 +28,7 @@ import kotlinx.serialization.json.Json
 @Singleton
 class RecentFilesSnapshotStore @Inject constructor(
     private val dao: RecentFilesSnapshotDao,
-    private val dispatchers: ArcileDispatchers = defaultDispatchers()
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -83,7 +82,7 @@ private const val RECENT_SNAPSHOT_RETENTION_MS = 8L * RECENT_WINDOW_BUCKET_MS
 @Singleton
 class StorageUsageSnapshotStore @Inject constructor(
     private val dao: StorageUsageSnapshotDao,
-    private val dispatchers: ArcileDispatchers = defaultDispatchers()
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -122,7 +121,7 @@ class StorageUsageSnapshotStore @Inject constructor(
 @Singleton
 class StorageCleanerSnapshotStore @Inject constructor(
     private val dao: StorageCleanerSnapshotDao,
-    private val dispatchers: ArcileDispatchers = defaultDispatchers()
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -231,9 +230,3 @@ private fun String.sha256(): String {
     return digest.joinToString("") { "%02x".format(it) }
 }
 
-private fun defaultDispatchers() = ArcileDispatchers(
-    io = Dispatchers.IO,
-    default = Dispatchers.Default,
-    main = Dispatchers.Main,
-    storage = Dispatchers.IO
-)

@@ -5,7 +5,19 @@ import androidx.test.core.app.ApplicationProvider
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.VolumeRepository
+import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
+import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
+import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryManifestCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultHeaderCodec
+import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
+import dev.qtremors.arcile.core.vault.crypto.VaultManifestEntry
+import dev.qtremors.arcile.core.vault.domain.NodeId
+import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
+import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
+import dev.qtremors.arcile.core.vault.domain.VaultArchiveSource
+import dev.qtremors.arcile.core.vault.domain.VaultArchiveProgress
 import dev.qtremors.arcile.core.vault.domain.VaultPath
 import dev.qtremors.arcile.core.vault.domain.VaultHealthMode
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
@@ -13,6 +25,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultSearchQuery
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultCreationRequest
 import dev.qtremors.arcile.core.vault.domain.VaultLocation
+import dev.qtremors.arcile.core.vault.domain.VaultRenameItem
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -46,6 +59,69 @@ class DefaultVaultRepositoryTest {
     @After
     fun tearDown() {
         File(context.noBackupFilesDir, ROOT_DIRECTORY).deleteRecursively()
+    }
+
+    @Test
+    fun `encrypted backup restores as a separate verified vault and rejects corruption`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        val directory = java.nio.file.Files.createTempDirectory("onlyfiles-backup").toFile()
+        val password = "Backup-Password-7"
+        try {
+            val source = repository.createAppPrivateVault("Original", "original password".toCharArray()).getOrThrow()
+            val folder = repository.createDirectory(source, DirectoryId.Root, "Confidential").getOrThrow()
+            val folderId = requireNotNull(folder.ref.directoryId)
+            val note = repository.createEmptyFile(source, folderId, "private.md", "text/markdown").getOrThrow()
+            val original = "This is a private note".encodeToByteArray()
+            val saved = repository.replaceFileContents(note.ref, note.revision, original).getOrThrow()
+
+            val creationSecret = password.toCharArray()
+            val backup = File(repository.createBackup(source, directory.path, "Snapshot", creationSecret, false).getOrThrow())
+            assertTrue(creationSecret.all { it == '\u0000' })
+            assertEquals("Snapshot.onlyfiles-backup", backup.name)
+            assertEquals(listOf(source), repository.list().map { it.id })
+            assertFalse(backup.walkTopDown().any { it.name == note.name || it.name == folder.name })
+            assertTrue(backup.walkTopDown().filter { it.isFile }.none { original.contentEquals(it.readBytes()) })
+            assertTrue(repository.createBackup(source, directory.path, "Snapshot", password.toCharArray(), false).isFailure)
+
+            repository.replaceFileContents(saved.ref, saved.revision, "later edit".encodeToByteArray()).getOrThrow()
+            val wrongSecret = "wrong password".toCharArray()
+            assertTrue(repository.restoreBackup(backup.path, "Wrong", wrongSecret).isFailure)
+            assertTrue(wrongSecret.all { it == '\u0000' })
+            assertEquals(listOf(source), repository.list().map { it.id })
+
+            val restorationSecret = password.toCharArray()
+            val restored = repository.restoreBackup(backup.path, "Restored", restorationSecret).getOrThrow()
+            assertTrue(restorationSecret.all { it == '\u0000' })
+            assertTrue(restored != source)
+            assertFalse(restored in repository.unlockedVaultIds.value)
+            repository.unlock(restored, password.toCharArray()).getOrThrow()
+            val restoredFolder = repository.listDirectory(restored, DirectoryId.Root, VaultListOptions())
+                .getOrThrow().items.single()
+            assertEquals("Confidential", restoredFolder.name)
+            val restoredNote = repository.listDirectory(
+                restored, requireNotNull(restoredFolder.ref.directoryId), VaultListOptions()
+            ).getOrThrow().items.single()
+            assertEquals(note.name, restoredNote.name)
+            assertEquals(note.mimeType, restoredNote.mimeType)
+            repository.openReader(restoredNote.ref).getOrThrow().use { reader ->
+                val contents = ByteArray(original.size)
+                assertEquals(original.size, reader.readAt(0, contents, 0, contents.size))
+                assertTrue(contents.contentEquals(original))
+            }
+            assertTrue(repository.verify(restored, VaultHealthMode.FULL).getOrThrow().isHealthy)
+            File(backup, OBJECTS_DIRECTORY).walkTopDown().first { it.isFile }.writeBytes(byteArrayOf(0))
+            assertTrue(repository.restoreBackup(backup.path, "Corrupt", password.toCharArray()).isFailure)
+            assertEquals(setOf(source, restored), repository.list().map { it.id }.toSet())
+            val appStorage = File(context.noBackupFilesDir, ROOT_DIRECTORY)
+            assertTrue(appStorage.listFiles().orEmpty().none { it.name.startsWith(STAGING_PREFIX) })
+        } finally {
+            scope.cancel()
+            directory.deleteRecursively()
+        }
     }
 
     @Test
@@ -129,12 +205,92 @@ class DefaultVaultRepositoryTest {
         val search = repository.search(
             vaultId,
             VaultSessionRecord.ROOT_DIRECTORY_ID,
-            VaultSearchQuery("empty", recursive = true)
+            VaultSearchQuery("empty", recursive = true, pageSize = 1)
         ).getOrThrow()
         assertEquals(listOf("empty.txt"), search.items.map { it.metadata.name })
+        assertEquals(listOf("Folder"), search.items.single().parentNames)
+        assertEquals(listOf(folderId), search.items.single().parentDirectoryIds)
+        assertEquals(null, search.nextPageToken)
+        assertEquals(VaultFolderTotals(1L, 0L), repository.folderTotals(folder.ref).getOrThrow())
+
+        val contents = "# Updated".encodeToByteArray()
+        val saved = repository.replaceFileContents(empty.ref, empty.revision, contents).getOrThrow()
+        assertEquals(empty.ref, saved.ref)
+        assertEquals(empty.revision + 1L, saved.revision)
+        assertEquals(VaultFolderTotals(1L, contents.size.toLong()), repository.folderTotals(folder.ref).getOrThrow())
+        repository.createDirectory(vaultId, folderId, "Nested").getOrThrow()
+        assertEquals(
+            VaultFolderTotals(1L, contents.size.toLong(), folderCount = 1),
+            repository.folderTotals(folder.ref).getOrThrow()
+        )
+        assertTrue(repository.replaceFileContents(empty.ref, empty.revision, byteArrayOf(1)).isFailure)
+        repository.openReader(saved.ref).getOrThrow().use { reader ->
+            val loaded = ByteArray(contents.size)
+            assertEquals(contents.size, reader.readAt(0, loaded, 0, loaded.size))
+            assertTrue(contents.contentEquals(loaded))
+        }
 
         assertTrue(repository.verify(vaultId, VaultHealthMode.QUICK).getOrThrow().isHealthy)
         assertTrue(repository.verify(vaultId, VaultHealthMode.FULL).getOrThrow().isHealthy)
+
+        val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+        val hidden = repository.createDirectory(vaultId, root, ".private").getOrThrow()
+        repository.createEmptyFile(vaultId, requireNotNull(hidden.ref.directoryId), "hidden.txt").getOrThrow()
+        val visiblePage = repository.listDirectory(
+            vaultId, root, VaultListOptions(pageSize = 1, showHiddenFiles = false)
+        ).getOrThrow()
+        assertEquals(listOf("Folder"), visiblePage.items.map { it.name })
+        assertEquals(null, visiblePage.nextPageToken)
+        val filtered = repository.search(
+            vaultId, root,
+            VaultSearchQuery("", recursive = true, pageSize = 1, includeHidden = false) { !it.isDirectory }
+        ).getOrThrow()
+        assertEquals(listOf("empty.txt"), filtered.items.map { it.metadata.name })
+        assertEquals(null, filtered.nextPageToken)
+
+        val later = repository.createEmptyFile(vaultId, root, "z.txt").getOrThrow()
+        val sortedQuery = VaultSearchQuery(
+            ".txt", recursive = true, pageSize = 1, includeHidden = false,
+            direction = dev.qtremors.arcile.core.vault.domain.VaultSortDirection.DESCENDING
+        )
+        val firstPage = repository.search(vaultId, root, sortedQuery).getOrThrow()
+        assertEquals(later.ref, firstPage.items.single().metadata.ref)
+        val nextPage = repository.search(vaultId, root, sortedQuery.copy(pageToken = requireNotNull(firstPage.nextPageToken))).getOrThrow()
+        assertEquals(empty.ref, nextPage.items.single().metadata.ref)
+        assertEquals(null, nextPage.nextPageToken)
+        repository.replaceFileContents(empty.ref, saved.revision, "Changed between pages".encodeToByteArray()).getOrThrow()
+        val changedPage = repository.search(vaultId, root, sortedQuery.copy(pageToken = firstPage.nextPageToken)).getOrThrow()
+        assertTrue(firstPage.generation != changedPage.generation)
+        val countSort = repository.listDirectory(
+            vaultId, root,
+            VaultListOptions(
+                sortField = dev.qtremors.arcile.core.vault.domain.VaultSortField.FILE_COUNT,
+                showHiddenFiles = false, foldersFirst = false
+            )
+        ).getOrThrow()
+        assertEquals(listOf("Folder", "z.txt"), countSort.items.map { it.name })
+
+        val hiddenReveal = repository.listDirectory(
+            vaultId, root, VaultListOptions(showHiddenFiles = false, revealHiddenNodeId = hidden.ref.nodeId.value)
+        ).getOrThrow()
+        assertTrue(hiddenReveal.items.any { it.ref == hidden.ref })
+        val folderPicker = repository.listDirectory(vaultId, root, VaultListOptions(foldersOnly = true)).getOrThrow()
+        assertEquals(setOf("Folder", ".private"), folderPicker.items.map { it.name }.toSet())
+
+        val nested = repository.listDirectory(vaultId, folderId, VaultListOptions(foldersOnly = true)).getOrThrow().items.single()
+        val nestedId = requireNotNull(nested.ref.directoryId)
+        repository.rename(folder.ref, "Renamed").getOrThrow()
+        val trail = repository.directoryTrail(vaultId, nestedId).getOrThrow()
+        assertEquals(listOf(root, folderId, nestedId), trail.map { it.id })
+        assertEquals(listOf("", "Renamed", "Nested"), trail.map { it.name })
+
+        val synthetic = repository.createSyntheticFile(vaultId, nestedId, "sample.bin", 4097L).getOrThrow()
+        assertEquals(4097L, synthetic.sizeBytes)
+        repository.openReader(synthetic.ref).getOrThrow().use { reader ->
+            val tail = ByteArray(16)
+            assertEquals(1, reader.readAt(4096L, tail, 0, tail.size))
+            assertEquals(-1, reader.readAt(4097L, tail, 0, tail.size))
+        }
 
         val orphan = VaultObjectId.of("f".repeat(64))
         val orphanFile = File(context.noBackupFilesDir, "$ROOT_DIRECTORY/${vaultId.value}/${orphan.shardedPath()}")
@@ -144,7 +300,435 @@ class DefaultVaultRepositoryTest {
         assertTrue(orphan in damaged.orphanObjectIds)
         assertEquals(1, repository.cleanupOrphans(vaultId, setOf(orphan)).getOrThrow())
         assertFalse(orphanFile.exists())
+        repository.lock(vaultId)
+        assertTrue(repository.directoryTrail(vaultId, nestedId).exceptionOrNull() is VaultFailure.Locked)
         scope.cancel()
+    }
+
+    @Test
+    fun `vault batch rename publishes swaps across folders and preserves opaque references`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Rename", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Folder").getOrThrow()
+            val child = requireNotNull(folder.ref.directoryId)
+            val first = repository.createEmptyFile(vault, root, "alpha.txt").getOrThrow()
+            val second = repository.createEmptyFile(vault, root, "beta.txt").getOrThrow()
+            val other = repository.createEmptyFile(vault, child, "ALPHA.txt").getOrThrow()
+            val occupied = repository.createEmptyFile(vault, child, "Résumé.txt").getOrThrow()
+            val changes = listOf(
+                VaultRenameItem(first.ref, first.name, second.name),
+                VaultRenameItem(second.ref, second.name, first.name),
+                VaultRenameItem(other.ref, other.name, "alpha.txt")
+            )
+
+            val siblings = repository.batchRenameSiblingNames(changes).getOrThrow()
+            assertEquals(setOf(folder.name), siblings[root])
+            assertEquals(setOf(occupied.name), siblings[child])
+
+            val invalid = changes.dropLast(1) + changes.last().copy(newName = "re\u0301sume\u0301.txt")
+            assertTrue(repository.batchRename(invalid).exceptionOrNull() is VaultFailure.NameConflict)
+            assertEquals(first.name, repository.metadata(first.ref).getOrThrow().name)
+            assertEquals(second.name, repository.metadata(second.ref).getOrThrow().name)
+            assertEquals(other.name, repository.metadata(other.ref).getOrThrow().name)
+
+            val renamed = repository.batchRename(changes).getOrThrow()
+            assertEquals(changes.map(VaultRenameItem::ref), renamed.map { it.ref })
+            assertEquals(changes.map(VaultRenameItem::newName), renamed.map { it.name })
+            assertEquals(listOf(first.revision, second.revision, other.revision), renamed.map { it.revision })
+            assertTrue(repository.batchRename(changes).isFailure)
+            assertTrue(repository.batchRenameSiblingNames(changes).isFailure)
+
+            repository.lock(vault)
+            assertTrue(repository.batchRename(changes).exceptionOrNull() is VaultFailure.Locked)
+            repository.unlock(vault, "password".toCharArray()).getOrThrow()
+            assertEquals(listOf("Folder", "alpha.txt", "beta.txt"), repository.listDirectory(vault, root)
+                .getOrThrow().items.map { it.name })
+            assertEquals(listOf("alpha.txt", "Résumé.txt"), repository.listDirectory(vault, child)
+                .getOrThrow().items.map { it.name })
+            repository.openReader(first.ref).getOrThrow().use { assertEquals(0L, it.sizeBytes) }
+
+            val renamedFolder = repository.batchRename(listOf(VaultRenameItem(folder.ref, folder.name, "Cafe\u0301")))
+                .getOrThrow().single()
+            assertEquals(folder.ref, renamedFolder.ref)
+            assertEquals("Café", renamedFolder.name)
+            assertEquals("Café", repository.directoryTrail(vault, child).getOrThrow().last().name)
+            assertEquals("alpha.txt", repository.metadata(other.ref).getOrThrow().name)
+
+            val invalidPath = VaultRenameItem(renamedFolder.ref, renamedFolder.name, "../elsewhere")
+            assertTrue(repository.batchRename(listOf(invalidPath)).exceptionOrNull() is VaultFailure.InvalidName)
+            assertEquals("Café", repository.metadata(folder.ref).getOrThrow().name)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault search scans a large ranked manifest once for its first four pages`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Search", "password".toCharArray()).getOrThrow()
+            val access = FileVaultDirectory(File(context.noBackupFilesDir, "$ROOT_DIRECTORY/${vault.value}"))
+            val password = "password".toCharArray()
+            val header = try {
+                VaultHeaderCodec().open(access, password).getOrThrow()
+            } finally {
+                password.fill('\u0000')
+            }
+            val rootKey = VaultCryptography.deriveDomainKey(header.masterKey, vault, VaultKeyDomain.ROOT_DIRECTORY)
+            // This fixture only needs encrypted manifests. Search never opens the file payloads.
+            val total = 1_140
+            val entries = (0 until total).map { index ->
+                VaultManifestEntry(
+                    NodeId.of("node-$index"), "item-${index.toString().padStart(4, '0')}.txt",
+                    VaultNodeKind.FILE, 1L, 0L, 0L, "text/plain",
+                    VaultObjectId.fromRandomBytes(java.nio.ByteBuffer.allocate(32).putInt(index).array()),
+                    null, VaultCryptography.randomBytes(32)
+                )
+            }
+            try {
+                val codec = VaultDirectoryManifestCodec()
+                codec.publish(access, codec.prepare(vault, DirectoryId.Root, rootKey, 1L, entries))
+            } finally {
+                rootKey.fill(0)
+                header.masterKey.fill(0)
+                entries.forEach { it.protectedKey.fill(0) }
+            }
+            var visits = 0
+            val query = VaultSearchQuery("item-", recursive = true, reusePageWindow = true) {
+                visits++
+                true
+            }
+            var token: String? = null
+            repeat(4) { pageIndex ->
+                val page = repository.search(vault, DirectoryId.Root, query.copy(pageToken = token)).getOrThrow()
+                assertEquals(256, page.items.size)
+                assertEquals("node-${pageIndex * 256}", page.items.first().metadata.ref.nodeId.value)
+                token = page.nextPageToken
+            }
+            assertEquals(total, visits)
+            val tail = repository.search(vault, DirectoryId.Root, query.copy(pageToken = token)).getOrThrow()
+            assertEquals(total - 1_024, tail.items.size)
+            assertEquals(null, tail.nextPageToken)
+            assertEquals(total * 2, visits)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault search reuses a ranked window until a descendant mutation publishes`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Search", "password".toCharArray()).getOrThrow()
+            val root = DirectoryId.Root
+            val folder = repository.createDirectory(vault, root, "Nested").getOrThrow()
+            val child = requireNotNull(folder.ref.directoryId)
+            repeat(9) { index -> repository.createEmptyFile(vault, child, "item-$index.txt").getOrThrow() }
+            var visits = 0
+            val query = VaultSearchQuery("item-", recursive = true, pageSize = 2, reusePageWindow = true) {
+                visits++
+                true
+            }
+            val first = repository.search(vault, root, query).getOrThrow()
+            assertEquals(listOf("item-0.txt", "item-1.txt"), first.items.map { it.metadata.name })
+            assertEquals(9, visits)
+            var token = first.nextPageToken
+            for (page in 1..3) {
+                val next = repository.search(vault, root, query.copy(pageToken = token)).getOrThrow()
+                assertEquals(first.generation, next.generation)
+                assertEquals(listOf("item-${page * 2}.txt", "item-${page * 2 + 1}.txt"), next.items.map { it.metadata.name })
+                token = next.nextPageToken
+            }
+            assertEquals(9, visits)
+            val finalPage = repository.search(vault, root, query.copy(pageToken = token)).getOrThrow()
+            assertEquals(listOf("item-8.txt"), finalPage.items.map { it.metadata.name })
+            assertEquals(null, finalPage.nextPageToken)
+            assertEquals(18, visits)
+
+            repository.search(vault, root, query).getOrThrow()
+            repository.createEmptyFile(vault, child, "item-00.txt").getOrThrow()
+            val changed = repository.search(vault, root, query.copy(pageToken = first.nextPageToken)).getOrThrow()
+            assertTrue(first.generation != changed.generation)
+            assertEquals(listOf("item-1.txt", "item-2.txt"), changed.items.map { it.metadata.name })
+            assertEquals(37, visits)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault complete selection matches filters and counts overlapping folders and files once`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Selection", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val folder = repository.createDirectory(vault, root, "Folder").getOrThrow()
+            val folderId = requireNotNull(folder.ref.directoryId)
+            val child = repository.createDirectory(vault, folderId, "Child").getOrThrow()
+            val childId = requireNotNull(child.ref.directoryId)
+            val first = repository.createSyntheticFile(vault, childId, "one.txt", 5).getOrThrow()
+            val second = repository.createSyntheticFile(vault, folderId, "two.txt", 7).getOrThrow()
+            repository.createSyntheticFile(vault, folderId, ".hidden.txt", 9).getOrThrow()
+            val direct = repository.createSyntheticFile(vault, root, "root.txt", 2).getOrThrow()
+            repository.createEmptyFile(vault, folderId, "other.bin").getOrThrow()
+
+            val listOptions = VaultListOptions(pageSize = 1, showHiddenFiles = false)
+            assertEquals(1, repository.listDirectory(vault, folderId, listOptions).getOrThrow().items.size)
+            val listing = repository.selectDirectoryRows(vault, folderId, listOptions.copy(pageToken = "1")).getOrThrow()
+            assertEquals(listOf("Child", "other.bin", "two.txt"), listing.items.map { it.name })
+            assertEquals(null, listing.nextPageToken)
+
+            val query = VaultSearchQuery(".txt", recursive = true, pageSize = 1, includeHidden = false) {
+                it.ref.nodeId != direct.ref.nodeId
+            }
+            assertEquals("1", repository.search(vault, root, query).getOrThrow().nextPageToken)
+            val results = repository.selectSearchRows(vault, root, query.copy(pageToken = "1")).getOrThrow()
+            assertEquals(listOf(first.ref, second.ref), results.items.map { it.metadata.ref })
+            assertEquals(null, results.nextPageToken)
+            assertEquals(listOf("Folder", "Child"), results.items.first().parentNames)
+
+            val overlapping = listOf(first.ref, child.ref, folder.ref, direct.ref, folder.ref)
+            val totals = VaultFolderTotals(fileCount = 5, totalBytes = 23, folderCount = 2)
+            assertEquals(totals, repository.selectionTotals(overlapping).getOrThrow())
+            assertEquals(totals, repository.selectionTotals(overlapping.reversed()).getOrThrow())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault management moves a verified local file and leaves unsupported sources in place`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        val temporary = java.nio.file.Files.createTempDirectory("vault-move").toFile()
+        try {
+            val vault = repository.createAppPrivateVault("Moves", "password".toCharArray()).getOrThrow()
+            val original = temporary.resolve("note.txt").also { it.writeText("verify this content") }
+            val directory = temporary.resolve("Folder").also { assertTrue(it.mkdir()) }
+            val directoryChild = directory.resolve("keep.txt").also { it.writeText("keep this") }
+            val token = requireNotNull(repository.reserveImport(vault))
+
+            val result = repository.importUris(token, VaultPath.Root, listOf(directory.path, original.path), move = true) {
+                _, _, _, _, _ -> Unit
+            }.getOrThrow()
+
+            assertEquals(1, result.completed.size)
+            assertEquals(1, result.rolledBack.size)
+            assertFalse(original.exists())
+            assertEquals("keep this", directoryChild.readText())
+            val node = repository.listDirectory(vault, VaultSessionRecord.ROOT_DIRECTORY_ID).getOrThrow().items.single()
+            assertEquals("note.txt", node.name)
+            val contents = ByteArray(node.sizeBytes.toInt())
+            repository.openReader(node.ref).getOrThrow().use {
+                assertEquals(contents.size, it.readAt(0, contents, 0, contents.size))
+            }
+            assertEquals("verify this content", contents.decodeToString())
+
+            val changed = temporary.resolve("changed.txt").also { it.writeText("keep the local original") }
+            val oldModifiedAt = java.nio.file.Files.getLastModifiedTime(changed.toPath())
+            var touched = false
+            val secondToken = requireNotNull(repository.reserveImport(vault))
+            val partiallyMoved = repository.importUris(
+                secondToken, VaultPath.Root, listOf(changed.path), move = true
+            ) { completed, _, bytes, _, _ ->
+                if (completed == 0 && bytes > 0L && !touched) {
+                    java.nio.file.Files.setLastModifiedTime(
+                        changed.toPath(),
+                        java.nio.file.attribute.FileTime.fromMillis(oldModifiedAt.toMillis() - 60_000L)
+                    )
+                    touched = true
+                }
+            }.getOrThrow()
+            assertTrue(touched)
+            assertEquals(1, partiallyMoved.partial.size)
+            assertTrue(partiallyMoved.partial.single().failure is VaultFailure.SourceChanged)
+            assertEquals("keep the local original", changed.readText())
+            assertEquals(setOf("note.txt", "changed.txt"), repository.listDirectory(vault, VaultSessionRecord.ROOT_DIRECTORY_ID)
+                .getOrThrow().items.map { it.name }.toSet())
+        } finally {
+            temporary.deleteRecursively()
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault management reports stored bytes and only returns folder IDs after deletion`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Usage", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val large = repository.createDirectory(vault, root, "Larger").getOrThrow()
+            val small = repository.createDirectory(vault, root, "Smaller").getOrThrow()
+            val largeId = requireNotNull(large.ref.directoryId)
+            val child = repository.createDirectory(vault, largeId, "Nested").getOrThrow()
+            val childId = requireNotNull(child.ref.directoryId)
+            repository.createSyntheticFile(vault, childId, "child.bin", 13).getOrThrow()
+            repository.createSyntheticFile(vault, largeId, "file.bin", 7).getOrThrow()
+            repository.createSyntheticFile(vault, requireNotNull(small.ref.directoryId), "small.bin", 3).getOrThrow()
+
+            val usage = repository.storageUsage(vault).getOrThrow()
+            assertTrue(requireNotNull(usage.storedBytes) > 23L)
+            assertFalse(usage.storedBytesPartial)
+            assertEquals(2, usage.foldersMeasured)
+            assertEquals(listOf("Larger" to 20L, "Smaller" to 3L), usage.largestFolders.map { it.name to it.totalBytes })
+            assertEquals(setOf(largeId, childId), repository.deleteAndReportFolders(large.ref).getOrThrow())
+            assertTrue(repository.deleteAndReportFolders(large.ref).isFailure)
+            assertEquals(listOf("Smaller"), repository.storageUsage(vault).getOrThrow().largestFolders.map { it.name })
+            repository.lock(vault)
+            assertTrue(repository.storageUsage(vault).exceptionOrNull() is VaultFailure.Locked)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `vault generated archive files preserve encrypted publication and rollback`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher),
+            scope, testPortableResolver())
+        try {
+            val vault = repository.createAppPrivateVault("Archives", "password".toCharArray()).getOrThrow()
+            val payload = "private generated archive bytes".encodeToByteArray()
+            val archive = repository.createArchiveFile(vault, DirectoryId.Root, "Result.tar", "application/x-tar") {
+                it.write(payload)
+            }.getOrThrow()
+            assertEquals("application/x-tar", archive.mimeType)
+            repository.openReader(archive.ref).getOrThrow().use { reader ->
+                val actual = ByteArray(payload.size)
+                assertEquals(payload.size, reader.readAt(0, actual, 0, actual.size))
+                assertTrue(payload.contentEquals(actual))
+            }
+            assertTrue(repository.createArchiveFile(vault, DirectoryId.Root, "Broken.tar", "application/x-tar") {
+                it.write(payload)
+                error("Interrupted generation")
+            }.isFailure)
+            var wroteCollision = false
+            assertTrue(repository.createArchiveFile(vault, DirectoryId.Root, archive.name, "application/x-tar") {
+                wroteCollision = true
+            }.isFailure)
+            assertFalse(wroteCollision)
+            assertEquals(listOf(archive), repository.listDirectory(vault, DirectoryId.Root).getOrThrow().items)
+            File(context.noBackupFilesDir, ROOT_DIRECTORY).walkTopDown().filter(File::isFile).forEach { file ->
+                assertFalse(file.readBytes().decodeToString().contains(payload.decodeToString()))
+            }
+        } finally { repository.lockAll(); scope.cancel() }
+    }
+
+    @Test
+    fun `vault ZIP output and extracted folders publish only after their data is complete`() = runTest {
+        val dispatcher = UnconfinedTestDispatcher(testScheduler)
+        val scope = CoroutineScope(SupervisorJob() + dispatcher)
+        val repository = DefaultVaultRepository(
+            context, ArcileDispatchers(dispatcher, dispatcher, dispatcher, dispatcher), scope, testPortableResolver()
+        )
+        try {
+            val vault = repository.createAppPrivateVault("Archives", "password".toCharArray()).getOrThrow()
+            val root = VaultSessionRecord.ROOT_DIRECTORY_ID
+            val contents = "private archive payload".encodeToByteArray()
+            val crc = java.util.zip.CRC32().apply { update(contents) }.value
+            val archive = repository.createZip(vault, root, "packed.zip") { output ->
+                java.util.zip.ZipOutputStream(output).use { zip ->
+                    zip.putNextEntry(java.util.zip.ZipEntry("docs/note.txt"))
+                    zip.write(contents)
+                    zip.closeEntry()
+                }
+            }.getOrThrow()
+            assertEquals("application/zip", archive.mimeType)
+            val zipBytes = ByteArray(archive.sizeBytes.toInt())
+            repository.openReader(archive.ref).getOrThrow().use { reader ->
+                assertEquals(zipBytes.size, reader.readAt(0, zipBytes, 0, zipBytes.size))
+            }
+            java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(zipBytes)).use { zip ->
+                assertEquals("docs/note.txt", zip.nextEntry.name)
+                assertTrue(contents.contentEquals(zip.readBytes()))
+                assertEquals(null, zip.nextEntry)
+            }
+
+            val progress = mutableListOf<VaultArchiveProgress>()
+            val file = VaultArchiveSource.File(listOf("docs", "note.txt"), contents.size.toLong(), crc) {
+                java.io.ByteArrayInputStream(contents)
+            }
+            val directory = repository.extractArchive(
+                vault, root, "Extracted", listOf(file, VaultArchiveSource.Folder(listOf("empty"))),
+                onProgress = progress::add
+            ).getOrThrow()
+            val extractionId = requireNotNull(directory.ref.directoryId)
+            val children = repository.listDirectory(vault, extractionId).getOrThrow().items
+            assertEquals(listOf("docs", "empty"), children.map { it.name })
+            val extracted = repository.listDirectory(vault, requireNotNull(children.first().ref.directoryId))
+                .getOrThrow().items.single()
+            repository.openReader(extracted.ref).getOrThrow().use { reader ->
+                val actual = ByteArray(contents.size)
+                assertEquals(actual.size, reader.readAt(0, actual, 0, actual.size))
+                assertTrue(contents.contentEquals(actual))
+            }
+            assertEquals(1, progress.last().completed)
+
+            val corrupt = file.copy(path = listOf("bad.txt"), crc32 = crc xor 1L)
+            assertTrue(repository.extractArchive(vault, root, "Broken", listOf(file, corrupt)) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Invalid", listOf(file.copy(path = listOf("..", "bad")))) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Duplicate", listOf(file, file)) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Extracted", listOf(file)) {}.isFailure)
+            assertTrue(repository.createZip(vault, root, "broken.zip") { output ->
+                output.write(contents)
+                error("Interrupted ZIP")
+            }.isFailure)
+            assertEquals(listOf("Extracted", "packed.zip"), repository.listDirectory(vault, root).getOrThrow().items.map { it.name })
+            val kept = repository.extractArchive(vault, root, "Extracted", listOf(file), keepBoth = true) {}.getOrThrow()
+            assertEquals("Extracted (1)", kept.name)
+            val unused = repository.extractArchive(vault, root, "Another", listOf(file), keepBoth = true) {}.getOrThrow()
+            assertEquals("Another", unused.name)
+            val short = file.copy(path = listOf("short.txt"), sizeBytes = contents.size.toLong() + 1L)
+            val overlong = file.copy(path = listOf("overlong.txt"), sizeBytes = contents.size.toLong() - 1L)
+            assertTrue(repository.extractArchive(vault, root, "Short", listOf(file, short)) {}.isFailure)
+            assertTrue(repository.extractArchive(vault, root, "Overlong", listOf(file, overlong)) {}.isFailure)
+            val tooLarge = file.copy(
+                path = listOf("too-large.txt"),
+                sizeBytes = dev.qtremors.arcile.core.vault.domain.VAULT_ARCHIVE_MAX_BYTES + 1L,
+                open = { error("An oversized entry must be rejected before it is opened") }
+            )
+            assertTrue(repository.extractArchive(vault, root, "Too large", listOf(tooLarge)) {}.isFailure)
+            val conflict = listOf(file.copy(path = listOf("item")), file.copy(path = listOf("item", "child.txt")))
+            assertTrue(repository.extractArchive(vault, root, "Conflict", conflict) {}.isFailure)
+            val cancelled = file.copy(path = listOf("cancelled.txt"), open = { throw kotlinx.coroutines.CancellationException() })
+            val cancellation = runCatching {
+                repository.extractArchive(vault, root, "Cancelled", listOf(file, cancelled)) {}.getOrThrow()
+            }
+            assertTrue(cancellation.exceptionOrNull() is kotlinx.coroutines.CancellationException)
+            assertEquals(
+                listOf("Another", "Extracted", "Extracted (1)", "packed.zip"),
+                repository.listDirectory(vault, root).getOrThrow().items.map { it.name }
+            )
+            assertTrue(repository.verify(vault, VaultHealthMode.FULL).getOrThrow().isHealthy)
+        } finally {
+            scope.cancel()
+        }
     }
 
     @Test

@@ -1,5 +1,14 @@
 package dev.qtremors.arcile.core.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.IconToggleButton
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -109,6 +118,7 @@ fun ArcileDropdownMenu(
     modifier: Modifier = Modifier,
     offset: DpOffset = DpOffset(0.dp, 4.dp),
     shape: Shape = MaterialTheme.shapes.extraLarge,
+    quickActions: List<ArcileMenuQuickAction> = emptyList(),
     items: List<@Composable () -> Unit>
 ) {
     DropdownMenu(
@@ -125,33 +135,46 @@ fun ArcileDropdownMenu(
         tonalElevation = 0.dp
     ) {
         ArcileSegmentedMenuItems(items = items)
+        if (quickActions.isNotEmpty()) ArcileMenuQuickActionRow(quickActions)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** An icon-only action shown in a menu's bottom row, the way browsers place their most used actions. */
+data class ArcileMenuQuickAction(
+    val icon: ImageVector,
+    val label: String,
+    val selected: Boolean = false,
+    val onClick: () -> Unit
+)
+
 @Composable
-fun ExposedDropdownMenuBoxScope.ArcileExposedDropdownMenu(
-    expanded: Boolean,
-    onDismissRequest: () -> Unit,
-    modifier: Modifier = Modifier,
-    minWidth: Dp = 120.dp,
-    maxWidth: Dp = 260.dp,
-    shape: Shape = MaterialTheme.shapes.extraLarge,
-    items: List<@Composable () -> Unit>
-) {
-    ExposedDropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismissRequest,
-        modifier = modifier
-            .padding(vertical = 2.dp)
-            .width(IntrinsicSize.Max)
-            .widthIn(min = minWidth, max = maxWidth),
-        shape = shape,
-        containerColor = Color.Transparent,
-        shadowElevation = 0.dp,
-        tonalElevation = 0.dp
+private fun ArcileMenuQuickActionRow(actions: List<ArcileMenuQuickAction>) {
+    val haptics = rememberArcileHaptics()
+    Row(
+        modifier = Modifier
+            .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 1.dp)
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.menuGroupSingle)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .padding(horizontal = 4.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        ArcileSegmentedMenuItems(items = items)
+        actions.forEach { action ->
+            IconToggleButton(
+                checked = action.selected,
+                onCheckedChange = {
+                    haptics.selectionStart()
+                    action.onClick()
+                },
+                colors = IconButtonDefaults.iconToggleButtonColors(
+                    checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                    checkedContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ),
+                modifier = Modifier.semantics { contentDescription = action.label }
+            ) {
+                Icon(action.icon, contentDescription = null)
+            }
+        }
     }
 }
 

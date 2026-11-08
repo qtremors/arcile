@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Article
 import androidx.compose.material.icons.automirrored.outlined.InsertDriveFile
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.AudioFile
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.Description
@@ -41,9 +42,9 @@ internal enum class FolderIconKind {
 fun getFolderIconVector(
     folderName: String,
     path: String? = null,
-    folderIconsEnabled: Boolean = true
+    specialFolderIcons: Boolean = true
 ): ImageVector {
-    if (!folderIconsEnabled) return Icons.Outlined.Folder
+    if (!specialFolderIcons) return Icons.Outlined.Folder
     return when (folderIconKind(folderName, path)) {
         FolderIconKind.Arcile -> Icons.Outlined.Folder
         FolderIconKind.Download -> Icons.Outlined.Download
@@ -105,9 +106,9 @@ private val AUDIO_FOLDER_NAMES = setOf("music", "audio", "podcasts")
 private val DOCUMENT_FOLDER_NAMES = setOf("documents", "docs")
 private val ARCHIVE_FOLDER_NAMES = setOf("archive", "archives", "compressed", "zips")
 
-fun getFileIconVector(file: FileModel, folderIconsEnabled: Boolean = true): ImageVector {
+fun getFileIconVector(file: FileModel, specialFolderIcons: Boolean = true): ImageVector {
     if (file.isDirectory) {
-        return getFolderIconVector(file.name, file.reference, folderIconsEnabled)
+        return getFolderIconVector(file.name, file.reference, specialFolderIcons)
     }
 
     val ext = file.extension.lowercase()
@@ -142,7 +143,7 @@ fun getFileIconVector(file: FileModel, folderIconsEnabled: Boolean = true): Imag
         "zip", "7z", "rar", "tar", "gz", "bz2", "xz", "zst" -> Icons.Outlined.FolderZip
         
         // APK
-        "apk", "xapk", "apks", "apkm" -> Icons.Outlined.Archive
+        "apk", "xapk", "apks", "apkm" -> Icons.Outlined.Android
         
         else -> Icons.AutoMirrored.Outlined.InsertDriveFile
     }

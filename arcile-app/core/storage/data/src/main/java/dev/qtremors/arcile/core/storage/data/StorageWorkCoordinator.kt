@@ -1,11 +1,10 @@
 package dev.qtremors.arcile.core.storage.data
 
 import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -19,22 +18,25 @@ object NoOpStorageWorkCoordinator : StorageWorkCoordinator {
 
 @Singleton
 class DefaultStorageWorkCoordinator @Inject constructor() : StorageWorkCoordinator {
-    private val activeMutationCount = AtomicInteger(0)
+    // The count and the published flag change together under one lock; updated separately, an
+    // ending mutation could publish "idle" after another had already begun.
+    private val lock = Any()
+    private var activeMutationCount = 0
     private val _isMutationActive = MutableStateFlow(false)
     override val isMutationActive: StateFlow<Boolean> = _isMutationActive.asStateFlow()
 
-    override fun beginMutation() {
-        _isMutationActive.value = activeMutationCount.incrementAndGet() > 0
+    override fun beginMutation() = synchronized(lock) {
+        activeMutationCount++
+        _isMutationActive.value = true
     }
 
-    override fun endMutation() {
-        val remaining = activeMutationCount.updateAndGet { current -> (current - 1).coerceAtLeast(0) }
-        _isMutationActive.value = remaining > 0
+    override fun endMutation() = synchronized(lock) {
+        activeMutationCount = (activeMutationCount - 1).coerceAtLeast(0)
+        _isMutationActive.value = activeMutationCount > 0
     }
 
+    /** Suspends until no mutation is running, without waking up to check. */
     override suspend fun awaitLowPrioritySlot() {
-        while (_isMutationActive.value) {
-            delay(250)
-        }
+        _isMutationActive.first { active -> !active }
     }
 }

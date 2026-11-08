@@ -1,378 +1,324 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import dev.qtremors.arcile.core.ui.theme.menuGroupFirst
+import dev.qtremors.arcile.core.ui.theme.menuGroupLast
+import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
+import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
+import dev.qtremors.arcile.core.vault.domain.VaultHealthSeverity
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
+import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
+
+import androidx.compose.ui.platform.LocalContext
+
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CreateNewFolder
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.GridView
-import androidx.compose.material.icons.automirrored.filled.ViewList
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
 import dev.qtremors.arcile.core.ui.dialogs.AlertDialog
+import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
+import dev.qtremors.arcile.core.storage.domain.DeleteDecision
+import dev.qtremors.arcile.core.storage.domain.DeleteDestination
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.core.net.toUri
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.ListItemDefaults
-import androidx.compose.material3.SegmentedListItem
-import androidx.compose.material3.Switch
-import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultExternalGrant
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
+import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
-import dev.qtremors.arcile.core.ui.ExpressiveSegmentedRow
-import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
-import dev.qtremors.arcile.core.ui.ExpressiveSwitch
+import dev.qtremors.arcile.core.ui.FileViewOptionsSheet
+import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
+import dev.qtremors.arcile.core.storage.domain.FileSortOption
+import dev.qtremors.arcile.core.storage.domain.FileViewMode
+import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
+import dev.qtremors.arcile.core.ui.asString
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
-import dev.qtremors.arcile.core.ui.theme.sheet
-import java.text.DateFormat
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.res.pluralStringResource
+import dev.qtremors.arcile.core.ui.dialogs.PropertiesDialog
+import dev.qtremors.arcile.core.ui.R as UiR
+import dev.qtremors.arcile.core.presentation.PropertiesUiModel
+import dev.qtremors.arcile.core.storage.domain.PropertiesAccessStatus
+import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultFolderTotals
 
 @Composable
-internal fun CreateItemDialog(initialKind: CreateItemKind, onDismiss: () -> Unit, onCreate: (CreateItemKind, String) -> Unit) {
-    var kind by remember { mutableStateOf(initialKind) }
-    var name by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_new_item)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            ExpressiveSegmentedRow(
-                options = listOf(CreateItemKind.FOLDER, CreateItemKind.FILE),
-                selectedOption = kind,
-                onOptionSelected = { kind = it },
-                modifier = Modifier.fillMaxWidth()
-            ) { option ->
-                val icon = if (option == CreateItemKind.FOLDER) Icons.Default.CreateNewFolder else Icons.Default.Description
-                val label = stringResource(if (option == CreateItemKind.FOLDER) R.string.onlyfiles_folder else R.string.onlyfiles_empty_file)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(icon, null, modifier = Modifier.size(16.dp))
-                    Text(label)
-                }
+internal fun VaultDeleteConfirmation(
+    nodes: List<VaultNodeMetadata>,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    val folderCount = nodes.count(VaultNodeMetadata::isDirectory)
+    DeleteConfirmationDialog(
+        selectedCount = nodes.size,
+        isPermanentDeleteChecked = true,
+        isPermanentDeleteToggleEnabled = false,
+        onConfirm = onConfirm,
+        onDismiss = onDismiss,
+        onTogglePermanentDelete = {},
+        decision = DeleteDecision(
+            destination = DeleteDestination.Permanent,
+            selectedCount = nodes.size,
+            totalBytes = nodes.sumOf(VaultNodeMetadata::sizeBytes),
+            fileCount = nodes.size - folderCount,
+            folderCount = folderCount,
+            irreversible = true
+        ),
+        showPermanentDeleteToggle = false
+    )
+}
+
+@Composable
+internal fun VaultViewOptionsSheet(
+    options: VaultViewOptions,
+    applyToSubfolders: Boolean,
+    gridContentWidth: Dp?,
+    onDismiss: () -> Unit,
+    onApply: (VaultViewOptions, Boolean) -> Unit
+) {
+    val ascending = options.sortDirection == VaultSortDirection.ASCENDING
+    val sortOption = when (options.sortField) {
+        VaultSortField.NAME, VaultSortField.TYPE -> if (ascending) FileSortOption.NAME_ASC else FileSortOption.NAME_DESC
+        VaultSortField.MODIFIED -> if (ascending) FileSortOption.DATE_OLDEST else FileSortOption.DATE_NEWEST
+        VaultSortField.SIZE -> if (ascending) FileSortOption.SIZE_SMALLEST else FileSortOption.SIZE_LARGEST
+        VaultSortField.FILE_COUNT -> if (ascending) FileSortOption.FILE_COUNT_LOWEST else FileSortOption.FILE_COUNT_HIGHEST
+    }
+    FileViewOptionsSheet(
+        title = stringResource(UiR.string.sort_folder_title),
+        selectedPreferences = FileListingPreferences(
+            sortOption = sortOption,
+            viewMode = if (options.grid) FileViewMode.GRID else FileViewMode.LIST,
+            listZoom = options.listZoom,
+            gridMinCellSize = options.gridMinCellSize,
+            showThumbnails = options.showThumbnails,
+            foldersFirst = options.foldersFirst
+        ),
+        showApplyToSubfolders = true,
+        initialApplyToSubfolders = applyToSubfolders,
+        showFoldersFirst = true,
+        gridContentWidth = gridContentWidth,
+        onDismiss = onDismiss,
+        onApply = { listing, inherit ->
+            val (field, direction) = when (listing.sortOption) {
+                FileSortOption.NAME_ASC -> VaultSortField.NAME to VaultSortDirection.ASCENDING
+                FileSortOption.NAME_DESC -> VaultSortField.NAME to VaultSortDirection.DESCENDING
+                FileSortOption.DATE_NEWEST -> VaultSortField.MODIFIED to VaultSortDirection.DESCENDING
+                FileSortOption.DATE_OLDEST -> VaultSortField.MODIFIED to VaultSortDirection.ASCENDING
+                FileSortOption.SIZE_LARGEST -> VaultSortField.SIZE to VaultSortDirection.DESCENDING
+                FileSortOption.SIZE_SMALLEST -> VaultSortField.SIZE to VaultSortDirection.ASCENDING
+                FileSortOption.FILE_COUNT_HIGHEST -> VaultSortField.FILE_COUNT to VaultSortDirection.DESCENDING
+                FileSortOption.FILE_COUNT_LOWEST -> VaultSortField.FILE_COUNT to VaultSortDirection.ASCENDING
             }
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text(stringResource(R.string.onlyfiles_name)) },
-                singleLine = true,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
+            onApply(options.copy(
+                grid = listing.viewMode == FileViewMode.GRID,
+                sortField = field,
+                sortDirection = direction,
+                listZoom = listing.listZoom,
+                gridMinCellSize = listing.gridMinCellSize,
+                showThumbnails = listing.showThumbnails,
+                foldersFirst = listing.foldersFirst
+            ), inherit)
+        }
+    )
+}
+
+@Composable
+internal fun VaultPropertiesDialog(
+    nodes: List<VaultNodeMetadata>,
+    location: String,
+    loadSelectionTotals: suspend (List<VaultNodeRef>) -> Result<VaultFolderTotals>,
+    openReader: (VaultNodeRef) -> Result<VaultSeekableReader>,
+    onDismiss: () -> Unit
+) {
+    val single = nodes.singleOrNull()
+    val hasFolders = nodes.any(VaultNodeMetadata::isDirectory)
+    var totals by remember(nodes) { mutableStateOf<VaultFolderTotals?>(null) }
+    var isLoading by remember(nodes) { mutableStateOf(hasFolders) }
+    var imageMetadata by remember(single) { mutableStateOf<VisualMediaMetadata?>(null) }
+    LaunchedEffect(nodes) {
+        if (hasFolders) {
+            totals = loadSelectionTotals(nodes.map(VaultNodeMetadata::ref)).getOrNull()
+            isLoading = false
+        }
+        if (single?.isViewableImage() == true) imageMetadata = readVaultImageMetadata(single, openReader)
+    }
+    val title = single?.name ?: pluralStringResource(UiR.plurals.clipboard_item_count, nodes.size, nodes.size)
+    val folderTotals = totals
+    val properties = remember(nodes, location, title, folderTotals) {
+        val folderCount = nodes.count(VaultNodeMetadata::isDirectory)
+        val modified = nodes.map(VaultNodeMetadata::modifiedAtMillis).filter { it > 0L }
+        PropertiesUiModel(
+            title = title,
+            pathSummary = location,
+            itemCount = nodes.size,
+            fileCount = folderTotals?.fileCount?.coerceAtMost(Int.MAX_VALUE.toLong())?.toInt() ?: nodes.size - folderCount,
+            folderCount = folderTotals?.folderCount?.let { if (single?.isDirectory == true) it - 1 else it }
+                ?: folderCount,
+            totalBytes = folderTotals?.totalBytes ?: nodes.sumOf(VaultNodeMetadata::sizeBytes),
+            newestModifiedAt = modified.maxOrNull(),
+            oldestModifiedAt = modified.minOrNull(),
+            mimeTypeSummary = single?.mimeType,
+            extensionSummary = nodes.map(VaultNodeMetadata::extension).filter(String::isNotBlank)
+                .distinct().joinToString(", ").ifBlank { null },
+            hiddenCount = nodes.count { it.name.startsWith('.') },
+            accessStatus = if (folderCount == 0 || folderTotals != null) PropertiesAccessStatus.Full
+                else PropertiesAccessStatus.Partial,
+            folderFileCount = folderTotals?.fileCount,
+            folderTotalBytes = folderTotals?.totalBytes,
+            isSingleItem = single != null,
+            isDirectory = single?.isDirectory
+        )
+    }
+    PropertiesDialog(
+        properties = properties.takeUnless { isLoading },
+        isLoading = isLoading,
+        onDismiss = onDismiss,
+        readLocalImageMetadata = false,
+        sourceImageMetadata = imageMetadata
+    )
+}
+
+/**
+ * Health check result. The icon and title answer "is everything fine?" at a glance; each problem
+ * gets its own row with a severity icon, and recovery becomes the main action when it is needed.
+ */
+@Composable
+internal fun HealthDialog(
+    report: VaultHealthReport,
+    busy: Boolean,
+    onDismiss: () -> Unit,
+    onRecover: () -> Unit
+) {
+    val needsRecovery = report.issues.any { it.code == "pending_transaction" }
+    val healthy = report.isHealthy
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                if (healthy) Icons.Default.CheckCircle else Icons.Default.Warning,
+                contentDescription = null,
+                tint = if (healthy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
-        } },
+        },
+        title = { Text(stringResource(if (healthy) R.string.onlyfiles_health_title_ok else R.string.onlyfiles_health_title_problems)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(if (healthy) R.string.onlyfiles_health_ok else R.string.onlyfiles_health_problems))
+                if (report.issues.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(ListItemDefaults.SegmentedGap)) {
+                        val shown = report.issues.take(MAX_SHOWN_ISSUES)
+                        shown.forEachIndexed { index, issue ->
+                            HealthIssueRow(
+                                issue.severity,
+                                vaultHealthIssueText(issue, report.orphanObjectIds.size).asString(),
+                                index, shown.size
+                            )
+                        }
+                    }
+                }
+                Text(
+                    stringResource(R.string.onlyfiles_health_counts, report.checkedObjects, report.checkedChunks, report.issues.size),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            if (needsRecovery) Button(onClick = onRecover, enabled = !busy, shape = ExpressiveShapes.medium) {
+                Text(stringResource(R.string.onlyfiles_recover_transaction))
+            } else TextButton(onClick = onDismiss, shape = ExpressiveShapes.medium) {
+                Text(stringResource(R.string.onlyfiles_close))
+            }
+        },
+        dismissButton = {
+            if (needsRecovery) TextButton(onClick = onDismiss, enabled = !busy, shape = ExpressiveShapes.medium) {
+                Text(stringResource(R.string.onlyfiles_close))
+            }
+        }
+    )
+}
+
+@Composable
+private fun HealthIssueRow(severity: VaultHealthSeverity, text: String, index: Int, count: Int) {
+    val (icon, tint) = when (severity) {
+        VaultHealthSeverity.ERROR -> Icons.Default.Error to MaterialTheme.colorScheme.error
+        VaultHealthSeverity.WARNING -> Icons.Default.Warning to MaterialTheme.colorScheme.tertiary
+        VaultHealthSeverity.INFO -> Icons.Default.Info to MaterialTheme.colorScheme.primary
+    }
+    val shape = when {
+        count == 1 -> MaterialTheme.shapes.menuGroupSingle
+        index == 0 -> MaterialTheme.shapes.menuGroupFirst
+        index == count - 1 -> MaterialTheme.shapes.menuGroupLast
+        else -> MaterialTheme.shapes.menuGroupMiddle
+    }
+    val severityLabel = stringResource(vaultHealthSeverityLabel(severity))
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .semantics(mergeDescendants = true) { contentDescription = "$severityLabel: $text" }
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+private const val MAX_SHOWN_ISSUES = 8
+
+@Composable
+internal fun VaultMoveToTrashDialog(onDismiss: () -> Unit, onMove: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.onlyfiles_move_to_main_trash)) },
+        text = { Text(stringResource(R.string.onlyfiles_move_to_main_trash_message)) },
         confirmButton = {
             Button(
-                onClick = { onCreate(kind, name.trim()) },
-                enabled = name.isNotBlank(),
+                onClick = onMove,
                 shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(enabled = name.isNotBlank()) { onCreate(kind, name.trim()) }
-            ) {
-                Text(stringResource(R.string.onlyfiles_create_action))
-            }
+                modifier = Modifier.bounceClickable(onClick = onMove)
+            ) { Text(stringResource(R.string.onlyfiles_move_to_main_trash)) }
         },
         dismissButton = {
             TextButton(
                 onClick = onDismiss,
                 shape = ExpressiveShapes.medium,
                 modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.onlyfiles_cancel))
-            }
-        }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun VaultViewOptionsSheet(
-    state: OnlyFilesUiState,
-    onDismiss: () -> Unit,
-    onSort: (VaultSortField, VaultSortDirection) -> Unit,
-    onLayoutChange: (OnlyFilesLayout) -> Unit
-) {
-    var field by remember { mutableStateOf(state.sortField) }
-    var direction by remember { mutableStateOf(state.sortDirection) }
-    var layout by remember { mutableStateOf(state.layout) }
-    val sheetState = rememberBottomSheetState(
-        initialValue = SheetValue.Hidden,
-        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
-    )
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = MaterialTheme.shapes.sheet
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = stringResource(R.string.onlyfiles_sort),
-                style = MaterialTheme.typography.titleLarge
-            )
-
-            Text(
-                text = stringResource(dev.qtremors.arcile.core.ui.R.string.browser_layout_view_mode),
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            ExpressiveSegmentedRow(
-                options = listOf(OnlyFilesLayout.LIST, OnlyFilesLayout.GRID),
-                selectedOption = layout,
-                onOptionSelected = { layout = it },
-                modifier = Modifier.fillMaxWidth()
-            ) { mode ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (mode == OnlyFilesLayout.LIST) {
-                            Icons.AutoMirrored.Filled.ViewList
-                        } else {
-                            Icons.Default.GridView
-                        },
-                        contentDescription = null
-                    )
-                    Text(
-                        stringResource(
-                            if (mode == OnlyFilesLayout.LIST) dev.qtremors.arcile.core.ui.R.string.list_view
-                            else dev.qtremors.arcile.core.ui.R.string.grid_view
-                        )
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Sort Field",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.NAME,
-                        onClick = { field = VaultSortField.NAME },
-                        label = { Text("Name", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.MODIFIED,
-                        onClick = { field = VaultSortField.MODIFIED },
-                        label = { Text("Date", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.SIZE,
-                        onClick = { field = VaultSortField.SIZE },
-                        label = { Text("Size", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                    ExpressiveFilterChip(
-                        selected = field == VaultSortField.TYPE,
-                        onClick = { field = VaultSortField.TYPE },
-                        label = { Text("Type", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Direction",
-                style = MaterialTheme.typography.titleMedium
-            )
-
-            ExpressiveSegmentedRow(
-                options = VaultSortDirection.entries,
-                selectedOption = direction,
-                onOptionSelected = { direction = it },
-                modifier = Modifier.fillMaxWidth()
-            ) { option ->
-                Text(
-                    stringResource(
-                        if (option == VaultSortDirection.ASCENDING) R.string.onlyfiles_ascending
-                        else R.string.onlyfiles_descending
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(
-                    onClick = onDismiss,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable(onClick = onDismiss)
-                ) {
-                    Text(stringResource(R.string.onlyfiles_cancel))
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        onSort(field, direction)
-                        onLayoutChange(layout)
-                    },
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable {
-                        onSort(field, direction)
-                        onLayoutChange(layout)
-                    }
-                ) {
-                    Text(stringResource(R.string.onlyfiles_apply))
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun PropertiesDialog(nodes: List<VaultNodeMetadata>, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_properties)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.onlyfiles_property_items, nodes.size))
-            Text(stringResource(R.string.onlyfiles_property_size, formatBytes(androidx.compose.ui.platform.LocalContext.current, nodes.sumOf(VaultNodeMetadata::sizeBytes))))
-            if (nodes.size == 1) {
-                Text(nodes.single().name)
-                Text(nodes.single().mimeType ?: stringResource(R.string.onlyfiles_unknown_type))
-                Text(DateFormat.getDateTimeInstance().format(nodes.single().modifiedAtMillis))
-            }
-        } },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.onlyfiles_close))
-            }
-        }
-    )
-}
-
-@Composable
-internal fun ConflictDialog(prompt: VaultConflictPrompt, onDecision: (VaultConflictDecision, Boolean) -> Unit) {
-    var applyAll by remember(prompt.requestId) { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = { onDecision(VaultConflictDecision.SKIP, false) },
-        title = { Text(stringResource(R.string.onlyfiles_conflict)) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(stringResource(R.string.onlyfiles_conflict_message, prompt.conflict.destinationName))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(MaterialTheme.shapes.medium)
-                    .bounceClickable { applyAll = !applyAll }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(stringResource(R.string.onlyfiles_apply_all), style = MaterialTheme.typography.bodyMedium)
-                ExpressiveSwitch(checked = applyAll, onCheckedChange = { applyAll = it })
-            }
-        } },
-        confirmButton = { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (prompt.conflict.sourceIsDirectory && prompt.conflict.destinationIsDirectory) {
-                TextButton(
-                    onClick = { onDecision(VaultConflictDecision.MERGE_DIRECTORIES, applyAll) },
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.MERGE_DIRECTORIES, applyAll) }
-                ) { Text(stringResource(R.string.onlyfiles_merge)) }
-            }
-            TextButton(
-                onClick = { onDecision(VaultConflictDecision.KEEP_BOTH, applyAll) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.KEEP_BOTH, applyAll) }
-            ) { Text(stringResource(R.string.onlyfiles_keep_both)) }
-            Button(
-                onClick = { onDecision(VaultConflictDecision.REPLACE, applyAll) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.REPLACE, applyAll) }
-            ) { Text(stringResource(R.string.onlyfiles_replace)) }
-        } },
-        dismissButton = {
-            TextButton(
-                onClick = { onDecision(VaultConflictDecision.SKIP, applyAll) },
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable { onDecision(VaultConflictDecision.SKIP, applyAll) }
-            ) { Text(stringResource(R.string.onlyfiles_skip)) }
-        }
-    )
-}
-
-@Composable
-internal fun HealthDialog(report: VaultHealthReport, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(stringResource(R.string.onlyfiles_health_result)) },
-        text = { Column {
-            Text(stringResource(if (report.isHealthy) R.string.onlyfiles_health_ok else R.string.onlyfiles_health_problems))
-            Text(stringResource(R.string.onlyfiles_health_counts, report.checkedObjects, report.checkedChunks, report.issues.size))
-            report.issues.take(8).forEach { Text("${it.severity}: ${it.message}", style = MaterialTheme.typography.bodySmall) }
-        } },
-        confirmButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) {
-                Text(stringResource(R.string.onlyfiles_close))
-            }
+            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
         }
     )
 }
@@ -408,18 +354,93 @@ internal fun BoundaryTransferDialog(
     )
 }
 
-internal fun launchExternalIntent(context: Context, action: ExternalAction, grants: List<VaultExternalGrant>) {
+@Composable
+internal fun VaultExternalAccessDialogs(
+    action: ExternalAction,
+    nodes: List<VaultNodeMetadata>,
+    viewModel: OnlyFilesViewModel,
+    openAs: FileOpenAsType? = null,
+    plugin: VaultPluginViewer? = null,
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val errorMessage = stringResource(R.string.onlyfiles_external_launch_failed)
+    var compatibilityCopy by remember(action, nodes, openAs, plugin) { mutableStateOf(false) }
+    val title = when {
+        compatibilityCopy -> R.string.onlyfiles_compatibility_copy
+        action == ExternalAction.SHARE -> R.string.onlyfiles_share
+        else -> R.string.onlyfiles_open_with
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(if (plugin == null) stringResource(title)
+            else stringResource(R.string.onlyfiles_open_in_plugin, plugin.name))
+        },
+        text = {
+            Text(stringResource(if (compatibilityCopy) R.string.onlyfiles_compatibility_copy_warning
+            else R.string.onlyfiles_external_warning))
+        },
+        confirmButton = {
+            Button(onClick = {
+                onDismiss()
+                val launch: (List<VaultExternalGrant>) -> Unit = { grants ->
+                    runCatchingCancellable {
+                        if (plugin == null) launchExternalIntent(context, action, grants, openAs)
+                        else check(plugin.launch(grants.single()))
+                    }.onFailure {
+                        viewModel.revokeExternalAccess(grants)
+                        viewModel.reportExternalLaunchFailure(errorMessage)
+                    }
+                }
+                if (compatibilityCopy) viewModel.issuePlaintextFallbackAccess(nodes, launch)
+                else viewModel.issueExternalAccess(nodes, launch)
+            }) {
+                Text(stringResource(if (compatibilityCopy) R.string.onlyfiles_create_copy
+                else R.string.onlyfiles_continue))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!compatibilityCopy && plugin == null) {
+                    TextButton(onClick = { compatibilityCopy = true }) {
+                        Text(stringResource(R.string.onlyfiles_compatibility_copy))
+                    }
+                }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.onlyfiles_cancel)) }
+            }
+        }
+    )
+}
+
+private fun launchExternalIntent(
+    context: Context,
+    action: ExternalAction,
+    grants: List<VaultExternalGrant>,
+    openAs: FileOpenAsType?
+) {
+    val intent = buildVaultExternalIntent(context, action, grants, openAs)
+    context.startActivity(Intent.createChooser(intent, grants.first().displayName))
+}
+
+internal fun buildVaultExternalIntent(
+    context: Context,
+    action: ExternalAction,
+    grants: List<VaultExternalGrant>,
+    openAs: FileOpenAsType? = null
+): Intent {
     require(grants.isNotEmpty())
     val uris = ArrayList(grants.map { it.contentUri.toUri() })
     val intent = when {
-        action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW).setDataAndType(uris.single(), grants.single().mimeType)
+        action == ExternalAction.OPEN_WITH -> Intent(Intent.ACTION_VIEW)
+            .setDataAndType(uris.single(), openAs?.mimeType ?: grants.single().mimeType)
         grants.size == 1 -> Intent(Intent.ACTION_SEND).setType(grants.single().mimeType).putExtra(Intent.EXTRA_STREAM, uris.single())
         else -> Intent(Intent.ACTION_SEND_MULTIPLE).setType("*/*").putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris)
     }.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     intent.clipData = ClipData.newUri(context.contentResolver, grants.first().displayName, uris.first()).apply {
         uris.drop(1).forEach { addItem(ClipData.Item(it)) }
     }
-    context.startActivity(Intent.createChooser(intent, grants.first().displayName))
+    return intent
 }
 
 @Composable
@@ -444,178 +465,6 @@ internal fun PasswordDialog(title: String, actionLabel: String, onDismiss: () ->
             ) { Text(stringResource(R.string.onlyfiles_cancel)) }
         }
     )
-}
-
-@Composable
-internal fun PasswordField(value: String, onValueChange: (String) -> Unit, reveal: Boolean, onReveal: () -> Unit) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(stringResource(R.string.onlyfiles_password)) },
-        visualTransformation = if (reveal) VisualTransformation.None else PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-        trailingIcon = { IconButton(onClick = onReveal) {
-            Icon(if (reveal) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility, stringResource(if (reveal) R.string.onlyfiles_hide_password else R.string.onlyfiles_show_password))
-        } },
-        singleLine = true,
-        shape = ExpressiveShapes.medium,
-        modifier = Modifier.fillMaxWidth()
-    )
-}
-
-@Composable
-internal fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, onSubmit: (String) -> Unit) {
-    var value by remember(initial) { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss, title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = value,
-                onValueChange = { value = it },
-                singleLine = true,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.fillMaxWidth()
-            )
-        },
-        confirmButton = {
-            Button(
-                onClick = { onSubmit(value.trim()) },
-                enabled = value.isNotBlank(),
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(enabled = value.isNotBlank()) { onSubmit(value.trim()) }
-            ) { Text(title) }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                shape = ExpressiveShapes.medium,
-                modifier = Modifier.bounceClickable(onClick = onDismiss)
-            ) { Text(stringResource(R.string.onlyfiles_cancel)) }
-        }
-    )
-}
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-internal fun OnlyFilesSettingsSheet(
-    state: OnlyFilesUiState,
-    onDismiss: () -> Unit,
-    onSetScreenshotProtection: (Boolean) -> Unit,
-    onClearThumbnails: () -> Unit,
-    onRevokeExternalAccess: () -> Unit,
-    onShowDisclosure: () -> Unit
-) {
-    val sheetState = rememberBottomSheetState(
-        initialValue = SheetValue.Hidden,
-        enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded)
-    )
-
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        shape = MaterialTheme.shapes.sheet
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .navigationBarsPadding()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Text(
-                text = stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_settings_section),
-                style = MaterialTheme.typography.titleLarge
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                SegmentedListItem(
-                    onClick = { onSetScreenshotProtection(!state.screenshotProtectionEnabled) },
-                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 0, count = 4),
-                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_screenshot_protection)) },
-                    supportingContent = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_screenshot_protection_description)) },
-                    trailingContent = {
-                        Box(
-                            modifier = Modifier.fillMaxHeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Switch(state.screenshotProtectionEnabled, onSetScreenshotProtection)
-                        }
-                    },
-                    colors = ListItemDefaults.segmentedColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    modifier = Modifier.height(IntrinsicSize.Min)
-                )
-
-                SegmentedListItem(
-                    onClick = { if (!state.isSettingsBusy) onClearThumbnails() },
-                    enabled = !state.isSettingsBusy,
-                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 1, count = 4),
-                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_encrypted_thumbnail_cache)) },
-                    supportingContent = {
-                        Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_encrypted_thumbnail_cache_stats, state.encryptedThumbnailFiles, state.encryptedThumbnailFiles, formatBytes(androidx.compose.ui.platform.LocalContext.current, state.encryptedThumbnailBytes)))
-                    },
-                    trailingContent = {
-                        Box(
-                            modifier = Modifier.fillMaxHeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            FilledTonalButton(
-                                onClick = { if (!state.isSettingsBusy) onClearThumbnails() },
-                                enabled = !state.isSettingsBusy
-                            ) {
-                                Text(stringResource(dev.qtremors.arcile.core.ui.R.string.settings_clear_thumbnail_cache))
-                            }
-                        }
-                    },
-                    colors = ListItemDefaults.segmentedColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    modifier = Modifier.height(IntrinsicSize.Min)
-                )
-
-                SegmentedListItem(
-                    onClick = {
-                        if (state.activeExternalGrants > 0) onRevokeExternalAccess()
-                    },
-                    enabled = state.activeExternalGrants > 0,
-                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 2, count = 4),
-                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_active_external_access)) },
-                    supportingContent = { Text(androidx.compose.ui.res.pluralStringResource(dev.qtremors.arcile.core.ui.R.plurals.onlyfiles_active_external_access_count, state.activeExternalGrants, state.activeExternalGrants)) },
-                    trailingContent = {
-                        Box(
-                            modifier = Modifier.fillMaxHeight(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            FilledTonalButton(
-                                onClick = {
-                                    if (state.activeExternalGrants > 0) onRevokeExternalAccess()
-                                },
-                                enabled = state.activeExternalGrants > 0
-                            ) {
-                                Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_revoke_all))
-                            }
-                        }
-                    },
-                    colors = ListItemDefaults.segmentedColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    modifier = Modifier.height(IntrinsicSize.Min)
-                )
-
-                SegmentedListItem(
-                    onClick = onShowDisclosure,
-                    shapes = dev.qtremors.arcile.core.ui.theme.expressiveSegmentedShapes(index = 3, count = 4),
-                    content = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_security_disclosure_title)) },
-                    supportingContent = { Text(stringResource(dev.qtremors.arcile.core.ui.R.string.onlyfiles_unaudited_short)) },
-                    colors = ListItemDefaults.segmentedColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceContainer
-                    ),
-                    modifier = Modifier.height(IntrinsicSize.Min)
-                )
-            }
-        }
-    }
 }
 
 @Composable

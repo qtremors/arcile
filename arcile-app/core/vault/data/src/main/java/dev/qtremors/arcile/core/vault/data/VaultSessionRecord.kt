@@ -37,6 +37,7 @@ internal class VaultSessionRecord(
 ) {
     var holdCount: Int = 0
     var lockRequested: Boolean = false
+    private var searchWindow: VaultSearchWindow? = null
     private val directoryKeys = ConcurrentHashMap<String, ByteArray>()
     private val activeReaders = ConcurrentHashMap.newKeySet<Closeable>()
 
@@ -151,6 +152,12 @@ internal class VaultSessionRecord(
         directoryKeys.putIfAbsent(directoryId.value, key.copyOf())
     }
 
+    /** Replaced directories must stop resolving through the cache even if physical cleanup fails. */
+    fun forgetDirectoryKeys(directoryIds: Set<DirectoryId>) {
+        directoryIds.filter { it != ROOT_DIRECTORY_ID }.forEach { id -> directoryKeys.remove(id.value)?.fill(0) }
+        if (directoryIds.isNotEmpty()) synchronized(this) { searchWindow = null }
+    }
+
     private fun cachedDirectoryKey(directoryId: DirectoryId, protectedKey: ByteArray): ByteArray {
         val cached = directoryKeys[directoryId.value]
         if (cached != null) return cached.copyOf()
@@ -159,12 +166,21 @@ internal class VaultSessionRecord(
     }
 
     fun destroy() {
-        synchronized(this) { lockRequested = true }
+        synchronized(this) {
+            lockRequested = true
+            searchWindow = null
+        }
         activeReaders.toList().forEach { runCatching { it.close() } }
         activeReaders.clear()
         masterSecret.fill(0)
         directoryKeys.values.forEach { it.fill(0) }
         directoryKeys.clear()
+    }
+
+    fun currentSearchWindow(): VaultSearchWindow? = synchronized(this) { searchWindow }
+
+    fun updateSearchWindow(window: VaultSearchWindow?) = synchronized(this) {
+        if (!lockRequested) searchWindow = window
     }
 
     fun registerReader(reader: Closeable): Boolean = synchronized(this) {

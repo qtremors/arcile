@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import android.content.Context
 import java.io.File
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -32,7 +33,7 @@ class AudioCollectionStoreTest {
 
     @Test
     fun `playlist edits persist in order without duplicating songs`() = runBlocking {
-        val store = AudioCollectionStore(context)
+        val store = AudioCollectionStore(context, ArcileDispatchers.Standard)
         val playlist = store.createPlaylist("  Drive  ", listOf("/a.mp3", "/a.mp3"))
         store.appendPlaylistTracks(playlist.id, listOf("/b.mp3", "/a.mp3"))
         store.renamePlaylist(playlist.id, "Evening")
@@ -42,12 +43,12 @@ class AudioCollectionStoreTest {
         assertEquals("Evening", store.playlists.value.single().name)
         assertTrue(File(context.filesDir, "audio_playlists.json").readText().contains("Evening"))
 
-        val reopened = AudioCollectionStore(context).playlists.value.single()
+        val reopened = AudioCollectionStore(context, ArcileDispatchers.Standard).playlists.value.single()
         assertEquals("Evening", reopened.name)
         assertEquals(listOf("/b.mp3", "/renamed.mp3"), reopened.trackPaths)
 
         store.deletePlaylist(playlist.id)
-        assertTrue(AudioCollectionStore(context).playlists.value.isEmpty())
+        assertTrue(AudioCollectionStore(context, ArcileDispatchers.Standard).playlists.value.isEmpty())
     }
 
     @Test
@@ -60,18 +61,18 @@ class AudioCollectionStoreTest {
         val preferences = context.getSharedPreferences("audio_music", Context.MODE_PRIVATE)
         preferences.edit().putString("playlists_v1", legacy.toString()).commit()
 
-        val store = AudioCollectionStore(context)
+        val store = AudioCollectionStore(context, ArcileDispatchers.Standard)
         assertEquals(listOf("/song.mp3"), store.playlists.value.single().trackPaths)
         store.renamePlaylist("old", "Renamed")
 
         assertTrue(File(context.filesDir, "audio_playlists.json").isFile)
         assertTrue(!preferences.contains("playlists_v1"))
-        assertEquals("Renamed", AudioCollectionStore(context).playlists.value.single().name)
+        assertEquals("Renamed", AudioCollectionStore(context, ArcileDispatchers.Standard).playlists.value.single().name)
     }
 
     @Test
     fun `each music page retains its own layout and sort`() = runBlocking {
-        val store = AudioCollectionStore(context)
+        val store = AudioCollectionStore(context, ArcileDispatchers.Standard)
         store.savePresentation(AudioCollectionKind.ALBUMS, FileListingPreferences(
             sortOption = FileSortOption.DATE_NEWEST,
             viewMode = FileViewMode.LIST,
@@ -84,7 +85,7 @@ class AudioCollectionStoreTest {
         ))
         store.saveDefaultSection(AudioCollectionKind.GENRES)
 
-        val reopened = AudioCollectionStore(context)
+        val reopened = AudioCollectionStore(context, ArcileDispatchers.Standard)
         assertEquals(FileSortOption.DATE_NEWEST,
             reopened.presentation(AudioCollectionKind.ALBUMS).sortOption)
         assertEquals(FileViewMode.LIST,

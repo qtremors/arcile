@@ -37,8 +37,11 @@ class ThumbnailPolicy(
     }
 
     fun recordLoaded(key: ThumbnailKey, thumbnailSizePx: Int) {
-        loadStateStore.recordLoaded(key.variantKey(thumbnailSizePx))
-        GlobalThumbnailStatePersistence.delegate?.recordLoaded(key, thumbnailSizePx)
+        val variant = key.variantKey(thumbnailSizePx)
+        // Scrolling back over known thumbnails is the common case; only first loads need persisting.
+        val alreadyKnown = loadStateStore.isLoaded(variant)
+        loadStateStore.recordLoaded(variant)
+        if (!alreadyKnown) GlobalThumbnailStatePersistence.delegate?.recordLoaded(key, thumbnailSizePx)
     }
 
     fun recordFailure(key: ThumbnailKey, thumbnailSizePx: Int) {

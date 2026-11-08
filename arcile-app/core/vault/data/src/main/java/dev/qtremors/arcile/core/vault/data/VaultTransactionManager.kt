@@ -21,6 +21,7 @@ import java.io.DataOutputStream
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 internal data class VaultPreparedDirectory(
     val manifest: PreparedVaultManifest,
@@ -42,6 +43,9 @@ internal class VaultTransactionManager(
     private val json: Json = Json { ignoreUnknownKeys = false; encodeDefaults = true },
     private val stageObserver: (VaultTransactionStage) -> Unit = {}
 ) {
+    private val publications = AtomicLong()
+    val publicationGeneration: Long get() = publications.get()
+
     fun commit(
         directory: VaultDirectoryAccess,
         vaultId: VaultId,
@@ -128,6 +132,7 @@ internal class VaultTransactionManager(
             }
         }
         // 5: readers can now discover only complete authenticated roots.
+        publications.incrementAndGet()
         marker.publications.forEach { publication ->
             val bytes = publication.bytes.fromBase64(MAX_ROOT_BYTES, minimumSize = 1)
             directory.writeAtomic(publication.relativePath, bytes)
@@ -259,7 +264,7 @@ internal class VaultTransactionManager(
         private const val MAX_MARKER_BYTES = MAX_MARKER_PLAINTEXT_BYTES + 1024
         private const val MIN_MARKER_BYTES = 8 + 4 + 12 + 4 + 16
         private const val MAX_ROOT_BYTES = 8 * 1024 * 1024
-        private const val MAX_PUBLICATIONS = 32
+        const val MAX_PUBLICATIONS = 32
         private const val MAX_OBJECTS_PER_TRANSACTION = 100_000
     }
 }

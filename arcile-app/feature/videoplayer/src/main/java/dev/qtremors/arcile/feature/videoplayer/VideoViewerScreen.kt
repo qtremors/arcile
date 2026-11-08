@@ -80,8 +80,8 @@ import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -138,10 +138,15 @@ internal fun VideoViewerScreen(
         }
     }
     val displayedFiles = viewerContext.files
+    LaunchedEffect(state.viewerCurrentPath, displayedFiles.size) {
+        val currentIndex = displayedFiles.indexOfFirst { it.reference == state.viewerCurrentPath }
+        if (currentIndex >= displayedFiles.lastIndex - 1) session.onLoadMore?.invoke()
+    }
 
     val haptics = rememberArcileHaptics()
     val isDeleteDialogVisible = state.showTrashConfirmation || state.showPermanentDeleteConfirmation || state.showMixedDeleteExplanation
-    val showMetadataSheet = !readOnly && state.viewerMetadataPath != null
+    val showMetadataSheet = (!readOnly || session.items.any { it.readMetadata != null }) &&
+        state.viewerMetadataPath != null
 
     var backProgress by remember { mutableFloatStateOf(0f) }
     var isBackPredicting by remember { mutableStateOf(false) }

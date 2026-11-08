@@ -2,7 +2,6 @@ package dev.qtremors.arcile.feature.importing
 
 import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.SaveAlt
-import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
@@ -30,7 +27,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
@@ -53,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
+import dev.qtremors.arcile.core.ui.lists.StorageLocationRow
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -190,26 +187,21 @@ private fun SaveToArcileDirectoryList(
         }
         if (state.currentDirectory == null) {
             items(state.volumes, key = { it.id }) { volume ->
-                ListItem(
-                    content = { Text(volume.name) },
-                    supportingContent = { Text(volume.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    leadingContent = { Icon(Icons.Outlined.Storage, contentDescription = null) },
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        .clip(ExpressiveShapes.medium)
-                        .clickable { actions.selectVolume(volume) }
+                StorageLocationRow(
+                    name = volume.name,
+                    path = volume.path,
+                    isDirectory = true,
+                    isVolume = true,
+                    onClick = { actions.selectVolume(volume) }
                 )
             }
         } else {
             items(state.childDirectories, key = { it.path }) { directory ->
-                ListItem(
-                    content = { Text(directory.name) },
-                    supportingContent = {
-                        Text(directory.path, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    },
-                    leadingContent = { Icon(Icons.Outlined.Folder, contentDescription = null) },
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                        .clip(ExpressiveShapes.medium)
-                        .clickable { actions.selectDirectory(directory) }
+                StorageLocationRow(
+                    name = directory.name,
+                    path = directory.path,
+                    isDirectory = true,
+                    onClick = { actions.selectDirectory(directory) }
                 )
             }
         }

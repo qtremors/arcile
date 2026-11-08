@@ -4,7 +4,6 @@ import dev.qtremors.arcile.core.storage.data.db.ThumbnailDao
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailEntryEntity
 import dev.qtremors.arcile.core.storage.data.db.ThumbnailVariantEntity
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -29,6 +28,7 @@ data class ThumbnailCacheRecord(
 interface ThumbnailCacheStore {
     suspend fun snapshot(): ThumbnailCacheSnapshot
     suspend fun recordLoaded(record: ThumbnailCacheRecord)
+    suspend fun recordLoaded(records: List<ThumbnailCacheRecord>) = records.forEach { recordLoaded(it) }
     suspend fun recordFailure(record: ThumbnailCacheRecord, message: String? = null)
     suspend fun clearFailure(identityKey: String)
     suspend fun invalidateSources(paths: Collection<String>)
@@ -47,12 +47,7 @@ object NoOpThumbnailCacheStore : ThumbnailCacheStore {
 @Singleton
 class DefaultThumbnailCacheStore @Inject constructor(
     private val thumbnailDao: ThumbnailDao,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : ThumbnailCacheStore {
     private companion object {
         const val MAX_VARIANTS = 20_000
@@ -65,24 +60,25 @@ class DefaultThumbnailCacheStore @Inject constructor(
         )
     }
 
-    override suspend fun recordLoaded(record: ThumbnailCacheRecord) = withContext(dispatchers.io) {
+    override suspend fun recordLoaded(record: ThumbnailCacheRecord) = recordLoaded(listOf(record))
+
+    override suspend fun recordLoaded(records: List<ThumbnailCacheRecord>) = withContext(dispatchers.io) {
+        if (records.isEmpty()) return@withContext
         val now = System.currentTimeMillis()
-        thumbnailDao.upsertEntry(
-            record.toEntity(
-                lastSuccessAt = now,
-                lastFailureAt = null,
-                failureCount = 0,
-                failureMessage = null
-            )
-        )
-        thumbnailDao.upsertVariant(
-            ThumbnailVariantEntity(
-                variantKey = record.variantKey,
-                identityKey = record.identityKey,
-                sizeBucketPx = record.sizeBucketPx,
-                generatedAt = now,
-                lastAccessedAt = now
-            )
+        val latest = records.associateBy { it.variantKey }.values
+        thumbnailDao.upsertLoaded(
+            entries = latest.associateBy { it.identityKey }.values.map { record ->
+                record.toEntity(lastSuccessAt = now, lastFailureAt = null, failureCount = 0, failureMessage = null)
+            },
+            variants = latest.map { record ->
+                ThumbnailVariantEntity(
+                    variantKey = record.variantKey,
+                    identityKey = record.identityKey,
+                    sizeBucketPx = record.sizeBucketPx,
+                    generatedAt = now,
+                    lastAccessedAt = now
+                )
+            }
         )
         pruneIfNeeded()
     }

@@ -26,6 +26,8 @@ class AudioPlaybackQueueStoreTest {
         context = RuntimeEnvironment.getApplication()
         context.getSharedPreferences("audio_playback_queue", Context.MODE_PRIVATE)
             .edit().clear().commit()
+        context.getSharedPreferences("audio_playback_position", Context.MODE_PRIVATE)
+            .edit().clear().commit()
     }
 
     @Test
@@ -64,5 +66,41 @@ class AudioPlaybackQueueStoreTest {
         every { player.mediaItemCount } returns 0
         store.saveQueue(player)
         assertFalse(store.hasSavedQueue())
+    }
+
+    @Test
+    fun `position saves leave the queue file untouched`() {
+        val item = MediaItem.Builder().setMediaId("/a.mp3").setUri("file:///a.mp3").build()
+        val player = mockk<Player>()
+        every { player.mediaItemCount } returns 1
+        every { player.getMediaItemAt(0) } returns item
+        every { player.currentMediaItemIndex } returns 0
+        every { player.currentPosition } returns 1_000L
+        every { player.repeatMode } returns Player.REPEAT_MODE_OFF
+        every { player.shuffleModeEnabled } returns false
+        val store = AudioPlaybackQueueStore(context)
+        store.saveQueue(player)
+        val queuePrefs = context.getSharedPreferences("audio_playback_queue", Context.MODE_PRIVATE)
+        val queueSnapshot = queuePrefs.all.toMap()
+
+        every { player.currentPosition } returns 9_000L
+        store.savePosition(player)
+
+        assertEquals(queueSnapshot, queuePrefs.all.toMap())
+        assertEquals(9_000L, store.read()!!.positionMs)
+    }
+
+    @Test
+    fun `queues saved before the split restore their position`() {
+        context.getSharedPreferences("audio_playback_queue", Context.MODE_PRIVATE).edit()
+            .putString("queue_v1", "[{\"id\":\"/a.mp3\",\"uri\":\"file:///a.mp3\"},{\"id\":\"/b.mp3\",\"uri\":\"file:///b.mp3\"}]")
+            .putInt("index_v1", 1)
+            .putLong("position_v1", 4_200L)
+            .commit()
+
+        val restored = AudioPlaybackQueueStore(context).read()!!
+
+        assertEquals(1, restored.index)
+        assertEquals(4_200L, restored.positionMs)
     }
 }

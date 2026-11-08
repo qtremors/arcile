@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -19,6 +20,7 @@ import androidx.navigation.NavHostController
 import dev.qtremors.arcile.PdfViewerActivity
 import dev.qtremors.arcile.TextEditorActivity
 import dev.qtremors.arcile.core.plugin.android.PluginFileResolution
+import dev.qtremors.arcile.core.plugin.android.PluginLaunchResult
 import dev.qtremors.arcile.core.plugin.android.PluginManager
 import dev.qtremors.arcile.core.presentation.UiText
 import dev.qtremors.arcile.core.storage.domain.AudioTrack
@@ -35,6 +37,9 @@ import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.navigation.AppRoutes
 import dev.qtremors.arcile.feature.audio.AudioFeatureEntryPoint
+import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
+import dev.qtremors.arcile.feature.onlyfiles.VaultPluginViewer
+import dev.qtremors.arcile.plugin.api.PluginCompatibility
 import dev.qtremors.arcile.presentation.utils.ShareHelper
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
@@ -50,7 +55,8 @@ internal class AppNavigationActions(
     private val onOpenFileWith: (String) -> Unit,
     private val onRecordFileOpened: (String) -> Unit,
     private val onFeedback: (ArcileFeedbackEvent) -> Unit,
-    apkTargetState: MutableState<AppFileOpenResolution.InstallApk?>
+    apkTargetState: MutableState<AppFileOpenResolution.InstallApk?>,
+    private val pluginManager: PluginManager = PluginManager(context)
 ) {
     var pluginPrompt by mutableStateOf<PluginFileResolution?>(null)
         private set
@@ -67,6 +73,16 @@ internal class AppNavigationActions(
 
     fun dismissPluginPrompt() {
         pluginPrompt = null
+    }
+
+    fun findVaultPlugin(node: VaultNodeMetadata): VaultPluginViewer? {
+        val plugin = pluginManager.findPlugin(node.mimeType, node.extension) ?: return null
+        if (plugin.compatibility != PluginCompatibility.COMPATIBLE) return null
+        return VaultPluginViewer(plugin.name) { grant ->
+            pluginManager.launchPlugin(
+                plugin, Uri.parse(grant.contentUri), grant.mimeType, grant.displayName
+            ) == PluginLaunchResult.Launched
+        }
     }
 
     fun dismissApkInstaller() {
@@ -107,7 +123,7 @@ internal class AppNavigationActions(
     fun openFileAs(path: String, type: FileOpenAsType) {
         onRecordFileOpened(path)
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
@@ -132,6 +148,10 @@ internal class AppNavigationActions(
                 )
             }
         }
+    }
+
+    fun sendToOnlyFiles(paths: List<String>) {
+        dev.qtremors.arcile.feature.onlyfiles.createOnlyFilesImportRoute(paths)?.let { navController.navigate(it) }
     }
 
     fun openAudioPlayer(
@@ -218,7 +238,7 @@ internal class AppNavigationActions(
 
     private fun openManagedTrashFileExternally(file: FileModel, forceChooser: Boolean) {
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     file.toManagedTrashReference()
@@ -404,7 +424,7 @@ internal class AppNavigationActions(
             return
         }
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     ExternalFileAccessHelper.ExternalFileReference(
@@ -519,7 +539,7 @@ internal class AppNavigationActions(
 
     private fun openFileModelExternally(file: FileModel, forceChooser: Boolean) {
         coroutineScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(
                     context,
                     file.toInternalReference()
@@ -587,19 +607,21 @@ internal fun rememberAppNavigationActions(
         fileOpenBehaviors,
         onFeedback
     ) {
+        val pluginManager = PluginManager(context)
         AppNavigationActions(
             context = context,
             navController = navController,
             coroutineScope = coroutineScope,
             fileOpenResolver = AppFileOpenResolver(
-                pluginGateway = InstalledPluginFileResolutionGateway(PluginManager(context)),
+                pluginGateway = InstalledPluginFileResolutionGateway(pluginManager),
                 fileOpenBehaviors = fileOpenBehaviors
             ),
             onOpenFile = onOpenFile,
             onOpenFileWith = onOpenFileWith,
             onRecordFileOpened = onRecordFileOpened,
             onFeedback = onFeedback,
-            apkTargetState = apkTargetState
+            apkTargetState = apkTargetState,
+            pluginManager = pluginManager
         )
     }
 }

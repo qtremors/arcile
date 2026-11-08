@@ -476,10 +476,12 @@ class BulkFileOperationServiceTest {
         )
         every { coordinator.activeRequest } returns MutableStateFlow(request)
 
+        // The import runs on real IO threads; a loaded machine running every module in parallel
+        // can take longer than two seconds, and verify returns as soon as the call arrives.
         serviceController.withIntent(startIntent(request)).startCommand(0, 1)
 
-        verify(timeout = 2_000) { coordinator.onOperationCompleted(request) }
-        verify(timeout = 2_000) {
+        verify(timeout = IMPORT_TIMEOUT_MS) { coordinator.onOperationCompleted(request) }
+        verify(timeout = IMPORT_TIMEOUT_MS) {
             coordinator.onOperationCheckpoint(
                 request = request,
                 stagedPaths = any(),
@@ -612,3 +614,5 @@ class BulkFileOperationServiceTest {
         )
     }
 }
+
+private const val IMPORT_TIMEOUT_MS = 10_000L

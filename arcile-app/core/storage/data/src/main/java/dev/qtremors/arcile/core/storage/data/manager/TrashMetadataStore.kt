@@ -1,6 +1,7 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
+import dev.qtremors.arcile.core.storage.data.runCatchingPreservingCancellation
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.TrashRestoreStatus
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
@@ -44,6 +45,14 @@ internal class TrashMetadataStore {
 
     fun write(metadataFile: File, entity: TrashMetadataEntity) {
         metadataFile.writeText(json.encodeToString(entity), Charsets.UTF_8)
+    }
+
+    fun isExternalStageRecord(file: File, id: String): Boolean {
+        if (file.length() !in 1..65_536L) return false
+        val entity = runCatchingPreservingCancellation {
+            json.decodeFromString<TrashMetadataEntity>(file.readText(Charsets.UTF_8))
+        }.getOrNull() ?: return false
+        return entity.id == id && entity.originalPath.isEmpty() && !entity.displayName.isNullOrBlank()
     }
 
     fun read(metadataFile: File, trashDirectory: File): TrashMetadataReadResult {

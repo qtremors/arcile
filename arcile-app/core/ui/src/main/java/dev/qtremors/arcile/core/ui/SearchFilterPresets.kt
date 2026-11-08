@@ -40,7 +40,15 @@ fun rememberDateOnlyFormatter(): DateFormat {
     }
 }
 
-private fun android.content.res.Configuration.primaryLocale(): Locale {
+@Composable
+fun rememberTimeOnlyFormatter(): DateFormat {
+    val configuration = LocalConfiguration.current
+    return remember(configuration) {
+        DateFormat.getTimeInstance(DateFormat.SHORT, configuration.primaryLocale())
+    }
+}
+
+internal fun android.content.res.Configuration.primaryLocale(): Locale {
     val locales = androidx.core.os.ConfigurationCompat.getLocales(this)
     return if (!locales.isEmpty) locales.get(0) ?: Locale.getDefault() else Locale.getDefault()
 }

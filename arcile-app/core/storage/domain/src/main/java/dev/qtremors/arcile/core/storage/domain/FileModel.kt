@@ -16,7 +16,6 @@ package dev.qtremors.arcile.core.storage.domain
  *   Empty string for directories or files without an extension.
  * @property isHidden `true` when the filename starts with a dot (Unix hidden-file convention).
  */
-@Immutable
 data class FileModel(
     val name: String,
     val reference: String,

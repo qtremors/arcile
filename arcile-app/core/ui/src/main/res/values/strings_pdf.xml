@@ -21,4 +21,6 @@
     <string name="pdf_keep_screen_on">Keep screen on</string>
     <string name="pdf_print">Print</string>
     <string name="pdf_print_failed">Unable to start printing</string>
+    <string name="pdf_print_private_title">Print private PDF?</string>
+    <string name="pdf_print_private_message">Android\'s print service and the selected printer receive decrypted pages. They may keep their own copies after the vault locks.</string>
 </resources>

@@ -4,9 +4,9 @@ import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultSeekableReader
-import java.io.BufferedInputStream
 import java.io.File
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
 import kotlin.math.min
@@ -70,6 +70,38 @@ class VaultFileCodec(val chunkSizeBytes: Int = DEFAULT_CHUNK_SIZE_BYTES) {
         contentKey: ByteArray,
         input: InputStream,
         onBytesWritten: ((Long) -> Unit)? = null
+    ): VaultFileWriteResult = writeGeneratedObject(
+        directory, relativePath, vaultId, objectId, revision, contentKey, onBytesWritten
+    ) { output ->
+        val inputBuffer = ByteArray(16 * 1024)
+        try {
+            input.use {
+                while (true) {
+                    val count = it.read(inputBuffer)
+                    if (count < 0) break
+                    if (count == 0) {
+                        val value = it.read()
+                        if (value < 0) break
+                        output.write(value)
+                    } else {
+                        output.write(inputBuffer, 0, count)
+                    }
+                }
+            }
+        } finally {
+            inputBuffer.fill(0)
+        }
+    }
+
+    fun writeGeneratedObject(
+        directory: VaultDirectoryAccess,
+        relativePath: String,
+        vaultId: VaultId,
+        objectId: VaultObjectId,
+        revision: Long,
+        contentKey: ByteArray,
+        onBytesWritten: ((Long) -> Unit)? = null,
+        writeContent: (OutputStream) -> Unit
     ): VaultFileWriteResult {
         require(revision >= 1L)
         require(contentKey.size == VaultCryptography.KEY_SIZE_BYTES)
@@ -81,29 +113,48 @@ class VaultFileCodec(val chunkSizeBytes: Int = DEFAULT_CHUNK_SIZE_BYTES) {
                 output.setLength(0L)
                 writeHeader(output, vaultId, objectId, revision, contentKey, totalBytes)
                 val buffer = ByteArray(chunkSizeBytes)
+                var buffered = 0
+                fun publishChunk() {
+                    if (buffered == 0) return
+                    val plaintext = if (buffered == buffer.size) buffer else buffer.copyOf(buffered)
+                    try {
+                        val sealed = VaultCryptography.seal(
+                            contentKey, plaintext,
+                            chunkAssociatedData(vaultId, objectId, revision, chunkCount, buffered)
+                        )
+                        output.writeInt(buffered)
+                        output.write(sealed.nonce)
+                        output.write(sealed.ciphertext)
+                    } finally {
+                        if (plaintext !== buffer) plaintext.fill(0)
+                    }
+                    totalBytes = Math.addExact(totalBytes, buffered.toLong())
+                    chunkCount++
+                    buffered = 0
+                    onBytesWritten?.invoke(totalBytes)
+                }
                 try {
-                    BufferedInputStream(input, chunkSizeBytes).use { source ->
-                        while (true) {
-                            val count = source.readFullyOrToEnd(buffer)
-                            if (count == 0) break
-                            val plaintext = if (count == buffer.size) buffer else buffer.copyOf(count)
-                            try {
-                                val sealed = VaultCryptography.seal(
-                                    contentKey,
-                                    plaintext,
-                                    chunkAssociatedData(vaultId, objectId, revision, chunkCount, count)
-                                )
-                                output.writeInt(count)
-                                output.write(sealed.nonce)
-                                output.write(sealed.ciphertext)
-                            } finally {
-                                if (plaintext !== buffer) plaintext.fill(0)
+                    val sink = object : OutputStream() {
+                        override fun write(value: Int) {
+                            buffer[buffered++] = value.toByte()
+                            if (buffered == buffer.size) publishChunk()
+                        }
+
+                        override fun write(source: ByteArray, offset: Int, length: Int) {
+                            require(offset >= 0 && length >= 0 && offset <= source.size - length)
+                            var readOffset = offset
+                            val end = offset + length
+                            while (readOffset < end) {
+                                val count = minOf(end - readOffset, buffer.size - buffered)
+                                source.copyInto(buffer, buffered, readOffset, readOffset + count)
+                                readOffset += count
+                                buffered += count
+                                if (buffered == buffer.size) publishChunk()
                             }
-                            totalBytes = Math.addExact(totalBytes, count.toLong())
-                            chunkCount++
-                            onBytesWritten?.invoke(totalBytes)
                         }
                     }
+                    writeContent(sink)
+                    publishChunk()
                 } finally {
                     buffer.fill(0)
                 }
@@ -388,22 +439,6 @@ class VaultFileCodec(val chunkSizeBytes: Int = DEFAULT_CHUNK_SIZE_BYTES) {
             )
         }
     }
-}
-
-private fun InputStream.readFullyOrToEnd(buffer: ByteArray): Int {
-    var offset = 0
-    while (offset < buffer.size) {
-        val count = read(buffer, offset, buffer.size - offset)
-        if (count < 0) break
-        if (count == 0) {
-            val single = read()
-            if (single < 0) break
-            buffer[offset++] = single.toByte()
-        } else {
-            offset += count
-        }
-    }
-    return offset
 }
 
 private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it.toInt() and 0xff) }

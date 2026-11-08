@@ -116,7 +116,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -142,10 +141,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import coil.size.Precision
+import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.size.Precision
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
@@ -209,14 +208,6 @@ internal enum class TimeSection {
     TODAY, WEEK, MONTH, OLDER
 }
 
-@Composable
-internal fun TimeSection.toDisplayString(): String = when (this) {
-    TimeSection.TODAY -> stringResource(R.string.image_gallery_section_today)
-    TimeSection.WEEK -> stringResource(R.string.image_gallery_section_week)
-    TimeSection.MONTH -> stringResource(R.string.image_gallery_section_month)
-    TimeSection.OLDER -> stringResource(R.string.image_gallery_section_older)
-}
-
 internal fun getTimeSection(lastModified: Long, now: Long = System.currentTimeMillis()): TimeSection {
     val diff = now - lastModified
     val oneDay = 24 * 60 * 60 * 1000L
@@ -260,4 +251,3 @@ internal fun getWeekLabel(timestamp: Long): String {
 }
 
 internal const val GALLERY_MAX_THUMBNAIL_PX = 512
-

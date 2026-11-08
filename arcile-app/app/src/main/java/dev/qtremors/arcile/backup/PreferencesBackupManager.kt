@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.backup
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.net.Uri
 import android.util.Base64
@@ -35,7 +37,6 @@ import java.io.InputStream
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -47,9 +48,10 @@ import kotlinx.serialization.json.Json
 @Singleton
 class PreferencesBackupManager @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val uiPreferencesStore: UiPreferencesStore
+    private val uiPreferencesStore: UiPreferencesStore,
+    private val dispatchers: ArcileDispatchers
 ) : PreferencesBackupGateway {
-    constructor(context: Context) : this(context, UiPreferencesStore(context))
+    constructor(context: Context) : this(context, UiPreferencesStore(context), ArcileDispatchers.Standard)
 
     internal var beforeRestoreCommit: (storeName: String) -> Unit = {}
 
@@ -59,13 +61,13 @@ class PreferencesBackupManager @Inject constructor(
         prettyPrint = true
     }
 
-    override suspend fun exportTo(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(Dispatchers.IO) {
-        runCatching {
+    override suspend fun exportTo(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(dispatchers.io) {
+        runCatchingCancellable {
             val failures = mutableListOf<PreferencesBackupFailure>()
             var totalBytes = 0L
             val uiPreferences = uiPreferencesStore.uiPreferences.first().toBackupState()
             val stores = livePreferenceStores().mapNotNull { (storeName, store) ->
-                runCatching {
+                runCatchingCancellable {
                     val bytes = serializePreferences(store.data.first())
                     require(bytes.size <= MAX_STORE_BYTES) { "$storeName is too large to export" }
                     totalBytes += bytes.size
@@ -103,8 +105,8 @@ class PreferencesBackupManager @Inject constructor(
         }
     }
 
-    override suspend fun preview(uri: Uri): Result<PreferencesBackupPreview> = withContext(Dispatchers.IO) {
-        runCatching {
+    override suspend fun preview(uri: Uri): Result<PreferencesBackupPreview> = withContext(dispatchers.io) {
+        runCatchingCancellable {
             val payload = readPayload(uri)
             validatePayload(payload)
             PreferencesBackupPreview(
@@ -124,8 +126,8 @@ class PreferencesBackupManager @Inject constructor(
         }
     }
 
-    override suspend fun restoreFrom(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(Dispatchers.IO) {
-        runCatching {
+    override suspend fun restoreFrom(uri: Uri): Result<PreferencesBackupOperationResult> = withContext(dispatchers.io) {
+        runCatchingCancellable {
             val payload = readPayload(uri)
             validatePayload(payload)
             val stores = livePreferenceStores()
@@ -142,7 +144,7 @@ class PreferencesBackupManager @Inject constructor(
             } catch (restoreError: Throwable) {
                 withContext(NonCancellable) {
                     committed.asReversed().forEach { storeName ->
-                        runCatching {
+                        runCatchingCancellable {
                             stores.getValue(storeName).updateData { originals.getValue(storeName) }
                         }.onFailure(restoreError::addSuppressed)
                     }
@@ -361,7 +363,14 @@ private data class ThemeBackupState(
     val doubleLineFilenames: Boolean,
     val marqueeFilenames: Boolean,
     val landscapeDualPaneEnabled: Boolean = false,
+    /** Pre-2.4.6 single switch; still written so older builds restore a sensible value. */
     val folderIconsEnabled: Boolean = false,
+    val specialFolderIconsEnabled: Boolean? = null,
+    val appFolderIconsEnabled: Boolean? = null,
+    val showItemCount: Boolean = true,
+    val showSize: Boolean = true,
+    val showDate: Boolean = true,
+    val showTime: Boolean = true,
     val themePreset: String,
     val customPrimaryColorHex: String,
     val customBackgroundColorHex: String
@@ -375,7 +384,13 @@ private fun UiPreferences.toBackupState(): ThemeBackupState = ThemeBackupState(
     doubleLineFilenames = doubleLineFilenames,
     marqueeFilenames = marqueeFilenames,
     landscapeDualPaneEnabled = landscapeDualPaneEnabled,
-    folderIconsEnabled = folderIconsEnabled,
+    folderIconsEnabled = specialFolderIconsEnabled || appFolderIconsEnabled,
+    specialFolderIconsEnabled = specialFolderIconsEnabled,
+    appFolderIconsEnabled = appFolderIconsEnabled,
+    showItemCount = fileDetails.itemCount,
+    showSize = fileDetails.size,
+    showDate = fileDetails.date,
+    showTime = fileDetails.time,
     themePreset = themePreset.name,
     customPrimaryColorHex = customPrimaryColorHex,
     customBackgroundColorHex = customBackgroundColorHex
@@ -390,7 +405,12 @@ private fun ThemeBackupState.toPreferences(): Preferences {
     preferences[UiPreferencesStore.DOUBLE_LINE_FILENAMES_KEY] = doubleLineFilenames
     preferences[UiPreferencesStore.MARQUEE_FILENAMES_KEY] = marqueeFilenames
     preferences[UiPreferencesStore.LANDSCAPE_DUAL_PANE_KEY] = landscapeDualPaneEnabled
-    preferences[UiPreferencesStore.FOLDER_ICONS_ENABLED_KEY] = folderIconsEnabled
+    preferences[UiPreferencesStore.SPECIAL_FOLDER_ICONS_KEY] = specialFolderIconsEnabled ?: folderIconsEnabled
+    preferences[UiPreferencesStore.APP_FOLDER_ICONS_KEY] = appFolderIconsEnabled ?: folderIconsEnabled
+    preferences[UiPreferencesStore.SHOW_ITEM_COUNT_KEY] = showItemCount
+    preferences[UiPreferencesStore.SHOW_SIZE_KEY] = showSize
+    preferences[UiPreferencesStore.SHOW_DATE_KEY] = showDate
+    preferences[UiPreferencesStore.SHOW_TIME_KEY] = showTime
     preferences[UiPreferencesStore.THEME_PRESET_KEY] = themePreset
     preferences[UiPreferencesStore.CUSTOM_PRIMARY_KEY] = customPrimaryColorHex
     preferences[UiPreferencesStore.CUSTOM_BACKGROUND_KEY] = customBackgroundColorHex

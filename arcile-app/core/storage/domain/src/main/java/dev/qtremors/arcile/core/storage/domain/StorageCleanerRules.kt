@@ -3,7 +3,6 @@ package dev.qtremors.arcile.core.storage.domain
 import kotlinx.serialization.Serializable
 
 @Serializable
-@Immutable
 data class StorageCleanerRules(
     val ignoredPaths: Set<String> = emptySet(),
     val sections: Map<CleanerGroupType, CleanerSectionRule> = defaultSections()
@@ -33,7 +32,6 @@ data class StorageCleanerRules(
 }
 
 @Serializable
-@Immutable
 data class CleanerSectionRule(
     val enabled: Boolean = true,
     val ignoredNamePatterns: Set<String> = emptySet(),

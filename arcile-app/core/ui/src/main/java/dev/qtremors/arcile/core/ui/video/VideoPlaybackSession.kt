@@ -1,16 +1,33 @@
 package dev.qtremors.arcile.core.ui.video
 
 import androidx.media3.common.MediaItem
+import androidx.compose.runtime.Composable
 import androidx.media3.datasource.DataSource
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.SensitiveThumbnailRequest
+import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
+import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
+import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
 
 data class VideoPlaybackItem(
     val mediaItem: MediaItem,
     val title: String,
     val onShare: (() -> Unit)? = null,
-    val onOpenWith: (() -> Unit)? = null
+    val onOpenWith: (() -> Unit)? = null,
+    val readMetadata: (suspend () -> VisualMediaMetadata?)? = null
 )
+
+data class VideoPlaybackSourceUpdate(
+    val items: List<VideoPlaybackItem>,
+    val files: List<FileModel>,
+    val overlayVisible: Boolean = false
+) {
+    init {
+        require(items.size == files.size)
+        require(files.map(FileModel::reference).distinct().size == files.size)
+    }
+}
 
 data class VideoPlaybackSession(
     val items: List<VideoPlaybackItem>,
@@ -24,7 +41,15 @@ data class VideoPlaybackSession(
     /** Managed-trash media is shareable/openable but must remain read-only in the viewer. */
     val managedTrash: Boolean = false,
     /** Keeps the host window protected while this sensitive playback session is visible. */
-    val screenshotProtectionEnabled: Boolean = false
+    val screenshotProtectionEnabled: Boolean = false,
+    /** Optional thumbnail source for protected media whose references are opaque. */
+    val thumbnailData: ((FileModel, Int) -> SensitiveThumbnailRequest?)? = null,
+    /** Protected sources can gate the viewer and render consent within its route. */
+    val sourceHost: (@Composable (() -> Unit, @Composable () -> Unit) -> Unit)? = null,
+    val sourceUpdates: StateFlow<VideoPlaybackSourceUpdate>? = null,
+    val onSourceAction: ((FileModel, ViewerFileAction) -> Unit)? = null,
+    val onLoadMore: (() -> Unit)? = null,
+    val sourceOverlayVisible: Boolean = false
 ) {
     init {
         require(items.isNotEmpty())

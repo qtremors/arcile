@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.dialogs
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -52,20 +53,22 @@ import java.util.Date
 fun PropertiesDialog(
     properties: PropertiesUiModel?,
     isLoading: Boolean,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    readLocalImageMetadata: Boolean = true,
+    sourceImageMetadata: VisualMediaMetadata? = null
 ) {
     val context = LocalContext.current
-    var imageMetadata by remember(properties?.pathSummary, properties?.isSingleItem) {
+    var localImageMetadata by remember(properties?.pathSummary, properties?.isSingleItem) {
         mutableStateOf<VisualMediaMetadata?>(null)
     }
-    val shouldLoadImageMetadata = remember(properties) { properties?.isSingleImageProperty() == true }
+    val shouldLoadImageMetadata = readLocalImageMetadata && properties?.isSingleImageProperty() == true
 
     LaunchedEffect(properties?.pathSummary, shouldLoadImageMetadata) {
-        imageMetadata = null
+        localImageMetadata = null
         val model = properties ?: return@LaunchedEffect
         if (!shouldLoadImageMetadata) return@LaunchedEffect
-        imageMetadata = withContext(Dispatchers.IO) {
-            runCatching {
+        localImageMetadata = withContext(Dispatchers.IO) {
+            runCatchingCancellable {
                 SharedImageMetadataReader.readMetadata(
                     context = context,
                     reference = model.pathSummary,
@@ -74,6 +77,7 @@ fun PropertiesDialog(
             }.getOrNull()
         }
     }
+    val imageMetadata = sourceImageMetadata ?: localImageMetadata
 
     Dialog(
         onDismissRequest = onDismiss,

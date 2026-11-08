@@ -78,8 +78,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
@@ -93,27 +93,11 @@ import java.util.TimeZone
 
 @OptIn(ExperimentalMaterial3Api::class)
 
-internal fun viewerFilesForInitialPath(
-    initialPath: String,
-    displayedFiles: List<FileModel>,
-    allFiles: List<FileModel>
-): List<FileModel> {
-    return viewerFileContextForInitialPath(initialPath, displayedFiles, allFiles).files
-}
-
 internal data class ViewerFileContext(
     val files: List<FileModel>,
     val initialPage: Int
 )
 
-internal enum class ViewerThumbnailScrollAction {
-    None,
-    Jump,
-    Animate
-}
-
-internal const val VIEWER_MIN_STABLE_SCALE = 0.000001f
-internal const val VIEWER_MAX_STABLE_SCALE = 1_000_000f
 
 internal fun viewerFileContextForInitialPath(
     initialPath: String,
@@ -164,19 +148,4 @@ internal fun <K, V> MutableMap<K, V>.putBoundedViewerEntry(
 ) {
     if (key !in this && size >= MAX_VIEWER_METADATA_ENTRIES) keys.firstOrNull()?.let(::remove)
     this[key] = value
-}
-
-internal fun viewerThumbnailScrollAction(
-    previousIndex: Int?,
-    targetIndex: Int,
-    maxAnimatedDistance: Int = 12
-): ViewerThumbnailScrollAction {
-    if (targetIndex < 0) return ViewerThumbnailScrollAction.None
-    val previous = previousIndex ?: return ViewerThumbnailScrollAction.Jump
-    if (previous == targetIndex) return ViewerThumbnailScrollAction.None
-    return if (kotlin.math.abs(targetIndex - previous) <= maxAnimatedDistance) {
-        ViewerThumbnailScrollAction.Animate
-    } else {
-        ViewerThumbnailScrollAction.Jump
-    }
 }

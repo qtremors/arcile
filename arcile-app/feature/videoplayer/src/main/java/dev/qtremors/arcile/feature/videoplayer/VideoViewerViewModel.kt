@@ -180,12 +180,23 @@ internal class VideoViewerViewModel @Inject constructor(
         }
     }
 
+    private var persistFileReferences = true
+    var protectedPlaybackPath: String? = null
+    var protectedPlaybackPosition: Long = 0L
+
     fun initialize(
         initialPath: String,
         contextFiles: List<FileModel>,
         selectedPaths: List<String> = emptyList(),
-        discoverSiblings: Boolean = true
+        discoverSiblings: Boolean = true,
+        persistFileReferences: Boolean = true
     ) {
+        this.persistFileReferences = persistFileReferences
+        if (!persistFileReferences) {
+            savedStateHandle.remove<String>(KEY_SESSION_INITIAL_PATH)
+            savedStateHandle.remove<String>(KEY_CURRENT_PATH)
+            savedStateHandle.remove<String>(KEY_METADATA_PATH)
+        }
         siblingLoadJob?.cancel()
         val files = (contextFiles + fileModelFromPath(initialPath))
             .distinctBy(FileModel::reference).toPersistentList()
@@ -216,6 +227,19 @@ internal class VideoViewerViewModel @Inject constructor(
                     it.copy(files = siblingFiles, displayedFiles = siblingFiles)
                 }
             }
+        }
+    }
+
+    fun updateSourceFiles(files: List<FileModel>) {
+        if (persistFileReferences || !_state.value.isInitialized) return
+        val unique = files.distinctBy(FileModel::reference).toPersistentList()
+        val references = unique.mapTo(hashSetOf(), FileModel::reference)
+        _state.update {
+            it.copy(
+                files = unique, displayedFiles = unique,
+                selectedFiles = it.selectedFiles.filter { path -> path in references }.toPersistentSet(),
+                viewerMetadataPath = it.viewerMetadataPath?.takeIf { path -> path in references }
+            )
         }
     }
 
@@ -266,8 +290,10 @@ internal class VideoViewerViewModel @Inject constructor(
 
     fun startViewerSession(initialPath: String) {
         if (state.value.viewerSessionInitialPath == initialPath) return
-        savedStateHandle[KEY_SESSION_INITIAL_PATH] = initialPath
-        savedStateHandle[KEY_CURRENT_PATH] = initialPath
+        if (persistFileReferences) {
+            savedStateHandle[KEY_SESSION_INITIAL_PATH] = initialPath
+            savedStateHandle[KEY_CURRENT_PATH] = initialPath
+        }
         savedStateHandle[KEY_UI_VISIBLE] = true
         savedStateHandle.remove<String>(KEY_METADATA_PATH)
         _state.update {
@@ -281,12 +307,12 @@ internal class VideoViewerViewModel @Inject constructor(
     }
 
     fun setViewerCurrentPath(path: String?) {
-        savedStateHandle[KEY_CURRENT_PATH] = path
+        if (persistFileReferences) savedStateHandle[KEY_CURRENT_PATH] = path
         _state.update { it.copy(viewerCurrentPath = path) }
     }
 
     fun applyViewerRename(oldPath: String, newFile: FileModel) {
-        savedStateHandle[KEY_CURRENT_PATH] = newFile.reference
+        if (persistFileReferences) savedStateHandle[KEY_CURRENT_PATH] = newFile.reference
         _state.update { current ->
             current.copy(
                 files = current.files.map { if (it.reference == oldPath) newFile else it }.toPersistentList(),
@@ -321,7 +347,7 @@ internal class VideoViewerViewModel @Inject constructor(
 
     fun setViewerMetadataVisible(path: String?, visible: Boolean) {
         val metadataPath = if (visible) path else null
-        savedStateHandle[KEY_METADATA_PATH] = metadataPath
+        if (persistFileReferences) savedStateHandle[KEY_METADATA_PATH] = metadataPath
         _state.update { it.copy(viewerMetadataPath = metadataPath) }
     }
 

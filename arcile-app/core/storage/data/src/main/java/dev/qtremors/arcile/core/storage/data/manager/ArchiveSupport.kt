@@ -30,7 +30,8 @@ internal data class ArchiveCreationScan(
     val isDeterminate: Boolean get() = entries != null
 }
 
-internal class UnsafeArchiveEntryException(message: String) : IllegalArgumentException(message)
+internal typealias UnsafeArchiveEntryException = dev.qtremors.arcile.core.archive.UnsafeArchiveEntryException
+internal typealias ArchiveSafetyTally = dev.qtremors.arcile.core.archive.ArchiveSafetyTally
 
 internal class ArchiveExtractionContext(
     private val safetyPolicy: ArchiveSafetyPolicy,
@@ -104,99 +105,6 @@ internal class ArchiveExtractionContext(
         val suffix = normalizedName.removePrefix(match).trimStart('/')
         return listOf(directoryAliases.getValue(match), suffix).filter { it.isNotBlank() }.joinToString("/")
     }
-}
-
-internal class ArchiveSafetyTally(private val safetyPolicy: ArchiveSafetyPolicy) {
-    private var entries = 0
-    private var uncompressedBytes = 0L
-
-    fun accept(rawName: String, uncompressedSize: Long, compressedSize: Long?) {
-        entries += 1
-        require(entries <= safetyPolicy.maxEntries) { "Archive contains too many entries" }
-
-        val normalized = rawName.normalizeEntryName()
-        if (normalized.isBlank()) throw UnsafeArchiveEntryException("Archive contains an empty entry name")
-        if (File(normalized).isAbsolute || normalized.startsWith("/")) {
-            throw UnsafeArchiveEntryException("Archive contains unsafe absolute paths")
-        }
-        if (normalized.split('/').any { it == ".." }) {
-            throw UnsafeArchiveEntryException("Archive contains unsafe relative paths")
-        }
-        if (normalized.length > safetyPolicy.maxEntryPathLength) {
-            throw UnsafeArchiveEntryException("Archive entry path is too long")
-        }
-        val segments = normalized.split('/').filter { it.isNotBlank() }
-        if (segments.size > safetyPolicy.maxNestedDepth) {
-            throw UnsafeArchiveEntryException("Archive nesting is too deep")
-        }
-
-        val safeUncompressedSize = uncompressedSize.coerceAtLeast(0L)
-        if (safeUncompressedSize > 0L && compressedSize != null) {
-            val safeCompressedSize = compressedSize.coerceAtLeast(0L)
-            val ratio = if (safeCompressedSize == 0L) {
-                Double.POSITIVE_INFINITY
-            } else {
-                safeUncompressedSize.toDouble() / safeCompressedSize.toDouble()
-            }
-            if (ratio > safetyPolicy.maxCompressionRatio) {
-                throw UnsafeArchiveEntryException("Archive compression ratio is too high")
-            }
-        }
-
-        uncompressedBytes = Math.addExact(uncompressedBytes, safeUncompressedSize)
-        require(uncompressedBytes <= safetyPolicy.maxUncompressedBytes) { "Archive is too large to process safely" }
-    }
-
-    fun acceptForExtraction(rawName: String, uncompressedSize: Long, compressedSize: Long?): Boolean =
-        try {
-            accept(rawName, uncompressedSize, compressedSize)
-            true
-        } catch (_: UnsafeArchiveEntryException) {
-            false
-        }
-}
-
-internal class ArchiveExpansionLimiter(
-    private val safetyPolicy: ArchiveSafetyPolicy,
-    compressedBytes: Long,
-    private val availableBytes: Long? = null
-) {
-    private val ratioByteLimit = compressionRatioByteLimit(
-        compressedBytes = compressedBytes.coerceAtLeast(0L),
-        maxCompressionRatio = safetyPolicy.maxCompressionRatio
-    )
-
-    var expandedBytes: Long = 0L
-        private set
-
-    fun accept(byteCount: Int): Long {
-        require(byteCount >= 0) { "Expanded byte count cannot be negative" }
-        val nextSize = try {
-            Math.addExact(expandedBytes, byteCount.toLong())
-        } catch (_: ArithmeticException) {
-            throw UnsafeArchiveEntryException("Archive is too large to process safely")
-        }
-        if (nextSize > safetyPolicy.maxUncompressedBytes) {
-            throw UnsafeArchiveEntryException("Archive is too large to process safely")
-        }
-        if (nextSize > ratioByteLimit) {
-            throw UnsafeArchiveEntryException("Archive compression ratio is too high")
-        }
-        if (availableBytes != null && nextSize > availableBytes) {
-            throw UnsafeArchiveEntryException("Not enough free space to extract this archive safely")
-        }
-        expandedBytes = nextSize
-        return expandedBytes
-    }
-}
-
-private fun compressionRatioByteLimit(compressedBytes: Long, maxCompressionRatio: Double): Long {
-    require(maxCompressionRatio >= 0.0 && !maxCompressionRatio.isNaN()) {
-        "Archive compression ratio limit must be non-negative"
-    }
-    if (maxCompressionRatio.isInfinite()) return Long.MAX_VALUE
-    val limit = compressedBytes.toDouble() * maxCompressionRatio
-    return if (limit >= Long.MAX_VALUE.toDouble()) Long.MAX_VALUE else kotlin.math.floor(limit).toLong()
 }
 
 internal fun rememberCreatedOutput(target: File, createdOutputs: MutableSet<File>) {
@@ -299,16 +207,6 @@ private fun rememberCreatedDirectory(target: File, createdOutputs: MutableSet<Fi
         current = current.parentFile
     }
     missing.asReversed().forEach { createdOutputs += it }
-}
-
-internal fun archiveSourceEntries(
-    sources: List<File>,
-    validateMutationPath: (File) -> Result<Unit>
-): Flow<ArchiveSourceEntry> = flow {
-    traverseArchiveSources(sources, validateMutationPath) { entry ->
-        emit(entry)
-        true
-    }
 }
 
 internal suspend fun traverseArchiveSources(

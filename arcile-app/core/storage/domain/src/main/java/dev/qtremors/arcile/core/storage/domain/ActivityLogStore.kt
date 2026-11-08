@@ -15,15 +15,3 @@ interface ActivityLogStore {
     suspend fun setRecordingEnabled(enabled: Boolean) = Unit
     suspend fun clear()
 }
-
-object NoOpActivityLogStore : ActivityLogStore {
-    override val entries: Flow<List<ActivityLogEntry>> = flowOf(emptyList())
-    override val recordingEnabled: Flow<Boolean> = flowOf(false)
-
-    override suspend fun recordFolderOpened(path: String, volumeId: String?) = Unit
-    override suspend fun recordFileOpened(path: String) = Unit
-    override suspend fun recordPageVisited(page: ActivityLogPage, detail: String?) = Unit
-    override suspend fun upsertFileOperation(entry: ActivityLogEntry.FileOperation) = Unit
-    override suspend fun setRecordingEnabled(enabled: Boolean) = Unit
-    override suspend fun clear() = Unit
-}

@@ -63,6 +63,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.common.C
@@ -83,14 +84,15 @@ import dev.qtremors.arcile.core.ui.rememberArcileHaptics
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackSession
 import dev.qtremors.arcile.core.ui.viewer.ViewerActionHost
+import dev.qtremors.arcile.core.ui.viewer.ViewerActionPolicy
 import dev.qtremors.arcile.core.ui.viewer.ViewerFileAction
 import dev.qtremors.arcile.core.ui.viewer.ViewerSourceScope
 import dev.qtremors.arcile.core.ui.viewer.rememberViewerActionController
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 import dev.qtremors.arcile.core.ui.video.VideoPlaybackItem
 import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -209,8 +211,16 @@ internal fun VideoViewerPlaybackSurface(
             val playbackItemResolver = remember(session.items, session.files) {
                 VideoPlaybackItemResolver(session)
             }
-            var restoredPlaybackPath by rememberSaveable { mutableStateOf<String?>(null) }
-            var restoredPlaybackPosition by rememberSaveable { mutableLongStateOf(0L) }
+            val privateSession = session.securityScopeId != null
+            val restoredPath = if (privateSession) null else rememberSaveable { mutableStateOf<String?>(null) }
+            val restoredPosition = if (privateSession) null else rememberSaveable { mutableLongStateOf(0L) }
+            fun playbackPositionFor(path: String?): Long {
+                return if (privateSession) {
+                    viewModel.protectedPlaybackPosition.takeIf { viewModel.protectedPlaybackPath == path } ?: 0L
+                } else {
+                    restoredPosition?.longValue?.takeIf { restoredPath?.value == path } ?: 0L
+                }
+            }
             val initialPlaybackPage = remember(session) {
                 pagerState.currentPage.coerceIn(displayedFiles.indices)
             }
@@ -229,7 +239,6 @@ internal fun VideoViewerPlaybackSurface(
                 onCloseRequested = onNavigateBack
             )
             val localPlayer = remember(
-                initialPlaybackItem,
                 session.dataSourceFactory,
                 backgroundPlaybackAllowed
             ) {
@@ -243,9 +252,7 @@ internal fun VideoViewerPlaybackSurface(
                     )
                 }
                 builder.build().apply {
-                    val initialPosition = restoredPlaybackPosition.takeIf {
-                        restoredPlaybackPath == displayedPaths.getOrNull(initialPlaybackPage)
-                    } ?: 0L
+                    val initialPosition = playbackPositionFor(displayedPaths.getOrNull(initialPlaybackPage))
                     setMediaItem(initialPlaybackItem.mediaItem.withVideoTitle(initialPlaybackItem.title), initialPosition)
                     repeatMode = Player.REPEAT_MODE_ONE
                     playWhenReady = true
@@ -279,7 +286,8 @@ internal fun VideoViewerPlaybackSurface(
                 )
                 return@Box
             }
-            var resizeModeIndex by rememberSaveable(session) { mutableIntStateOf(0) }
+            val playbackStateKey = session.sourceUpdates ?: session
+            var resizeModeIndex by rememberSaveable(playbackStateKey) { mutableIntStateOf(0) }
             val resizeModes = remember {
                 intArrayOf(
                     AspectRatioFrameLayout.RESIZE_MODE_FIT,
@@ -287,7 +295,7 @@ internal fun VideoViewerPlaybackSurface(
                     AspectRatioFrameLayout.RESIZE_MODE_FILL
                 )
             }
-            val playbackPositions = remember(session) { LinkedHashMap<String, Long>() }
+            val playbackPositions = remember(playbackStateKey) { LinkedHashMap<String, Long>() }
             var loadedPath by remember(player) {
                 mutableStateOf(
                     displayedPaths.getOrNull(initialPlaybackPage)
@@ -302,9 +310,7 @@ internal fun VideoViewerPlaybackSurface(
                     loadedPath = initialPath
                     return@LaunchedEffect
                 }
-                val initialPosition = restoredPlaybackPosition.takeIf {
-                    restoredPlaybackPath == initialPath
-                } ?: 0L
+                val initialPosition = playbackPositionFor(initialPath)
                 transitionedPath = null
                 player.setMediaItem(
                     initialPlaybackItem.mediaItem.withVideoTitle(initialPlaybackItem.title),
@@ -334,6 +340,14 @@ internal fun VideoViewerPlaybackSurface(
                         isBuffering = false
                     }
 
+                    override fun onPositionDiscontinuity(
+                        oldPosition: Player.PositionInfo,
+                        newPosition: Player.PositionInfo,
+                        reason: Int
+                    ) {
+                        playbackPosition = player.currentPosition.coerceAtLeast(0L)
+                    }
+
                     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                         transitionedPath = mediaItem?.mediaId
                         playbackPosition = player.currentPosition.coerceAtLeast(0L)
@@ -358,17 +372,25 @@ internal fun VideoViewerPlaybackSurface(
                 }
             }
 
-            LaunchedEffect(player) {
-                while (true) {
-                    if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            // Polls only while playing and visible; a paused video samples once, and seeks while
+            // paused arrive through onPositionDiscontinuity, so a still frame never recomposes.
+            LaunchedEffect(player, isPlaying) {
+                lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                    while (true) {
                         playbackPosition = player.currentPosition.coerceAtLeast(0L)
                         loadedPath?.let { path ->
-                            restoredPlaybackPath = path
-                            restoredPlaybackPosition = playbackPosition
+                            if (privateSession) {
+                                viewModel.protectedPlaybackPath = path
+                                viewModel.protectedPlaybackPosition = playbackPosition
+                            } else {
+                                restoredPath?.value = path
+                                restoredPosition?.longValue = playbackPosition
+                            }
                         }
                         playbackDuration = player.duration.takeIf { it != C.TIME_UNSET } ?: 0L
+                        if (!isPlaying) break
+                        kotlinx.coroutines.delay(500L)
                     }
-                    kotlinx.coroutines.delay(500L)
                 }
             }
 
@@ -390,7 +412,7 @@ internal fun VideoViewerPlaybackSurface(
                 }
             }
 
-            val playbackObscured = showMetadataSheet || isDeleteDialogVisible
+            val playbackObscured = showMetadataSheet || isDeleteDialogVisible || session.sourceOverlayVisible
             var resumeAfterOverlay by remember(player) { mutableStateOf(false) }
             LaunchedEffect(playbackObscured, player) {
                 if (playbackObscured) {
@@ -440,17 +462,18 @@ internal fun VideoViewerPlaybackSurface(
             val isArchiveEntry = currentFile?.reference
                 ?.startsWith(ArchiveEntryThumbnailData.VIRTUAL_PREFIX) == true
             val fallbackFileActionsAllowed = session.securityScopeId == null && !isArchiveEntry
+            val sourceActionsAllowed = session.onSourceAction != null && !session.managedTrash
             val canOpenWith = currentPlaybackItem?.onOpenWith != null || fallbackFileActionsAllowed
             val canShare = currentPlaybackItem?.onShare != null || fallbackFileActionsAllowed
             val actionFile = currentFile?.let { file ->
                 val capabilities = file.nodeRef.capabilities.copy(
                     canWrite = fallbackFileActionsAllowed && !readOnly,
-                    canDelete = fallbackFileActionsAllowed && file.nodeRef.capabilities.canDelete,
+                    canDelete = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canDelete,
                     canTrash = fallbackFileActionsAllowed && file.nodeRef.capabilities.canTrash,
-                    canArchive = fallbackFileActionsAllowed && file.nodeRef.capabilities.canArchive,
-                    canRename = fallbackFileActionsAllowed && !readOnly && file.nodeRef.capabilities.canRename,
-                    canCopy = fallbackFileActionsAllowed && file.nodeRef.capabilities.canCopy,
-                    canMove = fallbackFileActionsAllowed && !readOnly && file.nodeRef.capabilities.canMove,
+                    canArchive = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canArchive,
+                    canRename = (fallbackFileActionsAllowed && !readOnly || sourceActionsAllowed) && file.nodeRef.capabilities.canRename,
+                    canCopy = (fallbackFileActionsAllowed || sourceActionsAllowed) && file.nodeRef.capabilities.canCopy,
+                    canMove = (fallbackFileActionsAllowed && !readOnly || sourceActionsAllowed) && file.nodeRef.capabilities.canMove,
                     canShare = canShare,
                     canOpenWith = canOpenWith
                 )
@@ -459,8 +482,8 @@ internal fun VideoViewerPlaybackSurface(
             val viewerActionController = rememberViewerActionController(
                 currentFile = actionFile,
                 sourceScope = when {
-                    readOnly -> ViewerSourceScope.ManagedTrash
                     session.securityScopeId != null -> ViewerSourceScope.Vault
+                    readOnly -> ViewerSourceScope.ManagedTrash
                     isArchiveEntry -> ViewerSourceScope.ArchiveEntry
                     else -> ViewerSourceScope.Normal
                 },
@@ -474,14 +497,14 @@ internal fun VideoViewerPlaybackSurface(
                 }
             }
             val currentPath = currentFile?.reference
-            LaunchedEffect(currentPath, state.isRefreshing, readOnly) {
+            val metadataSource = currentPlaybackItem?.readMetadata
+            val canShowCurrentMetadata = !readOnly || metadataSource != null
+            LaunchedEffect(currentPath, state.isRefreshing, readOnly, metadataSource) {
                 val file = currentFile ?: return@LaunchedEffect
-                if (!readOnly && !state.isRefreshing && metadataCache[file.reference] == null) {
-                    metadataCache.putBounded(
-                        file.reference,
-                        viewModel.readVideoMetadata(file.reference, file.mimeType),
-                        64
-                    )
+                if (canShowCurrentMetadata && !state.isRefreshing && metadataCache[file.reference] == null) {
+                    val metadata = if (metadataSource != null) metadataSource()
+                    else viewModel.readVideoMetadata(file.reference, file.mimeType)
+                    if (metadata != null) metadataCache.putBounded(file.reference, metadata, 64)
                 }
             }
 
@@ -509,34 +532,16 @@ internal fun VideoViewerPlaybackSurface(
             ) { page ->
                 val file = displayedFiles.getOrNull(page)
                 if (file != null) {
+                    val canShowMetadata = !readOnly || playbackItemResolver.resolve(file, page).readMetadata != null
                     val verticalPagerState = rememberPagerState(
-                        initialPage = if (!readOnly && state.viewerMetadataPath == file.reference) 1 else 0,
-                        pageCount = { if (readOnly) 1 else 2 }
+                        initialPage = if (canShowMetadata && state.viewerMetadataPath == file.reference) 1 else 0,
+                        pageCount = { if (canShowMetadata) 2 else 1 }
                     )
 
                     val isCurrentPage = settledPage == page
-                    var metadata by remember(file.reference) {
-                        mutableStateOf<VideoFileMetadata?>(metadataCache[file.reference])
-                    }
-                    LaunchedEffect(
-                        file.reference,
-                        state.isRefreshing,
-                        showMetadataSheet,
-                        isCurrentPage,
-                        readOnly
-                    ) {
-                        if (!readOnly && !state.isRefreshing && showMetadataSheet && isCurrentPage) {
-                            val data = metadataCache[file.reference]
-                                ?: viewModel.readVideoMetadata(file.reference, file.mimeType).also {
-                                    metadataCache.putBounded(file.reference, it, 64)
-                                }
-                            metadata = data
-                        }
-                    }
-
                     LaunchedEffect(showMetadataSheet, isCurrentPage) {
                         if (isCurrentPage) {
-                            val shouldShowMetadata = state.viewerMetadataPath == file.reference
+                            val shouldShowMetadata = canShowMetadata && state.viewerMetadataPath == file.reference
                             if (shouldShowMetadata && verticalPagerState.currentPage == 0) {
                                 verticalPagerState.animateScrollToPage(
                                     1,
@@ -563,7 +568,7 @@ internal fun VideoViewerPlaybackSurface(
                     VerticalPager(
                         state = verticalPagerState,
                         modifier = Modifier.fillMaxSize(),
-                        userScrollEnabled = !readOnly && verticalPagerState.currentPage == 1,
+                        userScrollEnabled = canShowMetadata && verticalPagerState.currentPage == 1,
                         beyondViewportPageCount = 1,
                         flingBehavior = PagerDefaults.flingBehavior(
                             state = verticalPagerState,
@@ -595,7 +600,7 @@ internal fun VideoViewerPlaybackSurface(
                                 },
                                 onToggleMetadata = { visible ->
                                     if (visible) {
-                                        viewModel.setViewerMetadataVisible(file.reference, visible = true)
+                                        if (canShowMetadata) viewModel.setViewerMetadataVisible(file.reference, visible = true)
                                     } else {
                                         if (state.viewerMetadataPath == file.reference) {
                                             viewModel.setViewerMetadataVisible(null, visible = false)
@@ -622,8 +627,9 @@ internal fun VideoViewerPlaybackSurface(
                             ) {
                                 VideoMetadataSheet(
                                     file = file,
-                                    metadata = metadata,
+                                    metadata = metadataCache[file.reference],
                                     durationMs = if (isCurrentPage) playbackDuration else 0L,
+                                    showReference = session.securityScopeId == null,
                                     onDismiss = { viewModel.setViewerMetadataVisible(null, visible = false) }
                                 )
                             }
@@ -704,6 +710,11 @@ internal fun VideoViewerPlaybackSurface(
                 )
             }
 
+            val thumbnailData = remember(session) {
+                session.thumbnailData ?: if (session.securityScopeId != null) {
+                    { _: FileModel, _: Int -> null }
+                } else null
+            }
             VideoViewerBottomChrome(
                 visible = state.viewerUiVisible && !showMetadataSheet,
                 files = displayedFiles,
@@ -713,12 +724,15 @@ internal fun VideoViewerPlaybackSurface(
                 selectedFiles = state.selectedFiles,
                 selectionModeEnabled = selectionModeEnabled,
                 readOnly = readOnly,
+                canShowMetadata = canShowCurrentMetadata,
                 isPlaying = isPlaying,
                 playbackPosition = playbackPosition,
                 playbackDuration = playbackDuration,
                 canOpenWith = canOpenWith,
                 canShare = canShare,
-                viewerActions = viewerActionController.state.allowedActions,
+                viewerActions = if (sourceActionsAllowed && actionFile != null) {
+                    ViewerActionPolicy.resolveAllowedActions(ViewerSourceScope.Vault, actionFile.nodeRef.capabilities)
+                } else viewerActionController.state.allowedActions,
                 onViewerAction = { action ->
                     when (action) {
                         ViewerFileAction.Share -> {
@@ -729,14 +743,17 @@ internal fun VideoViewerPlaybackSurface(
                             currentPlaybackItem?.onOpenWith?.invoke()
                                 ?: viewerActionController.onAction(action)
                         }
-                        ViewerFileAction.Properties -> currentFile?.let {
+                        ViewerFileAction.Properties -> currentFile?.takeIf { canShowCurrentMetadata }?.let {
                             viewModel.setViewerMetadataVisible(it.reference, visible = true)
                         }
-                        else -> viewerActionController.onAction(action)
+                        else -> if (sourceActionsAllowed && currentFile != null) {
+                            session.onSourceAction?.invoke(currentFile, action)
+                        } else viewerActionController.onAction(action)
                     }
                 },
                 resizeModeIndex = resizeModeIndex,
                 showThumbnails = state.showThumbnails,
+                thumbnailData = thumbnailData,
                 actions = chromeActions,
                 modifier = Modifier.align(Alignment.BottomCenter)
             )

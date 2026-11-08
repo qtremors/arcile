@@ -7,24 +7,16 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -32,31 +24,26 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import dev.qtremors.arcile.core.ui.storage.StorageBarLoadingIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -65,17 +52,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.CategoryStorage
-import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.storage.domain.isIndexed
-import dev.qtremors.arcile.core.storage.domain.showTemporaryStorageBadge
 import dev.qtremors.arcile.feature.home.HomeState
 import dev.qtremors.arcile.core.ui.theme.LocalCategoryColors
 import dev.qtremors.arcile.core.ui.theme.bodyMediumMedium
-import dev.qtremors.arcile.core.ui.theme.bodySmallMedium
 
 import dev.qtremors.arcile.core.ui.theme.titleLargeBold
-import dev.qtremors.arcile.core.ui.theme.titleMediumBold
 import dev.qtremors.arcile.core.ui.theme.bounceCombinedClickable
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.theme.getCategoryColor
@@ -204,12 +187,12 @@ private fun MountedStorageSummaryCard(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "${formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayUsed)} used",
+                            text = stringResource(R.string.storage_amount_used, formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayUsed)),
                             style = MaterialTheme.typography.bodyMediumMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "${formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayFree)} free",
+                            text = stringResource(R.string.storage_amount_free, formatFileSize(androidx.compose.ui.platform.LocalContext.current, displayFree)),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -392,29 +375,3 @@ private fun animatedStorageFraction(target: Float, revealed: Boolean, label: Str
         ),
         label = "storage_${label}_animation"
     )
-
-@Composable
-private fun StorageBarLoadingIndicator(modifier: Modifier = Modifier) {
-    val colors = LocalCategoryColors.current
-    val transition = rememberInfiniteTransition(label = "storageBarLoading")
-    val offset by transition.animateFloat(
-        initialValue = -0.4f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(1500, easing = LinearEasing), RepeatMode.Restart),
-        label = "storageBarLoadingOffset"
-    )
-    Canvas(modifier) {
-        val width = size.width * 0.4f
-        val x = offset * size.width
-        drawRoundRect(
-            brush = Brush.linearGradient(
-                listOf(colors.images, colors.videos, colors.audio).map { it.copy(alpha = 0.5f) },
-                start = Offset(x, 0f),
-                end = Offset(x + width, 0f)
-            ),
-            topLeft = Offset(x, 0f),
-            size = Size(width, size.height),
-            cornerRadius = CornerRadius(size.height / 2f)
-        )
-    }
-}

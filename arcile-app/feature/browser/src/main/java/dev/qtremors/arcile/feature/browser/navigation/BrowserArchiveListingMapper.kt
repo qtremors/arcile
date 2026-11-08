@@ -2,6 +2,8 @@ package dev.qtremors.arcile.feature.browser.navigation
 
 import dev.qtremors.arcile.core.storage.domain.ArchiveEntryModel
 import dev.qtremors.arcile.core.storage.domain.FileModel
+import dev.qtremors.arcile.core.storage.domain.FolderStats
+import dev.qtremors.arcile.core.storage.domain.FolderStatsStatus
 import dev.qtremors.arcile.core.ui.image.ArchiveEntryThumbnailData
 
 internal object BrowserArchiveListingMapper {
@@ -67,5 +69,40 @@ internal object BrowserArchiveListingMapper {
             }
         }
         return children.values.toList()
+    }
+
+    /**
+     * File count and uncompressed size for each folder listed under [prefix], keyed like the rows
+     * from [map]. Archive listings hold every entry already, so these are exact and need no scan.
+     */
+    fun folderStats(
+        archivePath: String,
+        entries: List<ArchiveEntryModel>,
+        prefix: String?
+    ): Map<String, FolderStats> {
+        val normalizedPrefix = prefix?.trimEnd('/')?.takeIf { it.isNotBlank() }
+        val counts = linkedMapOf<String, Long>()
+        val sizes = linkedMapOf<String, Long>()
+        entries.forEach { entry ->
+            val path = entry.path.trim('/')
+            val remainder = when {
+                normalizedPrefix == null -> path
+                path.startsWith("$normalizedPrefix/") -> path.removePrefix("$normalizedPrefix/")
+                else -> return@forEach
+            }
+            if (!remainder.contains('/') && !entry.isDirectory) return@forEach
+            val childName = remainder.substringBefore('/').takeIf { it.isNotBlank() } ?: return@forEach
+            val childPath = if (normalizedPrefix == null) childName else "$normalizedPrefix/$childName"
+            counts.putIfAbsent(childPath, 0L)
+            sizes.putIfAbsent(childPath, 0L)
+            if (!entry.isDirectory) {
+                counts[childPath] = counts.getValue(childPath) + 1
+                sizes[childPath] = sizes.getValue(childPath) + entry.size.coerceAtLeast(0L)
+            }
+        }
+        return counts.entries.associate { (childPath, count) ->
+            ArchiveEntryThumbnailData.virtualPath(archivePath, childPath) to
+                FolderStats(count, sizes.getValue(childPath), cachedAt = 0L, status = FolderStatsStatus.Ready)
+        }
     }
 }

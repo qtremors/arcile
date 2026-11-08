@@ -52,34 +52,61 @@ interface VaultSeekableReader : Closeable {
     fun readAt(position: Long, target: ByteArray, offset: Int, length: Int): Int
 }
 
-interface VaultStreamingWriter : Closeable {
-    val bytesWritten: Long
-    fun write(source: ByteArray, offset: Int = 0, length: Int = source.size)
-    fun commit(): Result<VaultNodeMetadata>
-    fun cancel()
-}
-
 enum class VaultConflictDecision { KEEP_BOTH, REPLACE, SKIP, MERGE_DIRECTORIES }
 
 fun interface VaultConflictResolver {
     suspend fun decide(conflict: VaultConflict): VaultConflictDecision
+
+    /** Review known conflicts before writing. Unreviewed or changed conflicts still use [decide]. */
+    suspend fun review(conflicts: List<VaultConflict>): Map<VaultConflict, VaultConflictDecision> = emptyMap()
 }
 
 data class VaultConflict(
     val sourceName: String,
     val destinationName: String,
     val sourceIsDirectory: Boolean,
-    val destinationIsDirectory: Boolean
-)
+    val destinationIsDirectory: Boolean,
+    val sourceIdentity: String? = null,
+    val destinationIdentity: String? = null,
+    val sourceSize: Long = 0,
+    val destinationSize: Long = 0,
+    val sourceModifiedAt: Long = 0,
+    val destinationModifiedAt: Long = 0
+) {
+    val canMerge: Boolean get() = sourceIsDirectory && destinationIsDirectory
+}
 
 enum class VaultTransferAction { COPY, MOVE, IMPORT, EXPORT, SHARE, OPEN_WITH }
 enum class VaultItemOutcome { COMPLETED, PARTIAL, SKIPPED, FAILED, ROLLED_BACK }
+
+/** An in-memory continuation of a folder merge. Both vaults must still be unlocked to use it. */
+interface VaultMergeRetry {
+    val source: VaultNodeRef
+    val destinationVault: VaultId
+    val destinationDirectory: DirectoryId
+    val move: Boolean
+    val remainingCount: Int
+}
+
+/** A one-session continuation for a folder already published outside the vault. */
+interface VaultExportRetry {
+    val source: VaultNodeRef
+    val displayName: String
+    val move: Boolean
+    val remainingCount: Int
+}
 
 data class VaultItemResult(
     val sourceIdentity: String,
     val displayName: String,
     val outcome: VaultItemOutcome,
-    val failure: VaultFailure? = null
+    val failure: VaultFailure? = null,
+    val removedFolders: Set<DirectoryId> = emptySet(),
+    val mergeRetry: VaultMergeRetry? = null,
+    val exportRetry: VaultExportRetry? = null,
+    val moveUndo: VaultMoveUndo? = null,
+    val createdUndo: VaultCreatedUndo? = null,
+    val plaintextUndo: VaultPlaintextUndo? = null
 )
 
 data class VaultBatchResult(val items: List<VaultItemResult>) {
@@ -96,7 +123,8 @@ data class VaultTransferProgress(
     val completedTopLevelItems: Int,
     val totalTopLevelItems: Int,
     val bytesTransferred: Long,
-    val totalBytes: Long?
+    val totalBytes: Long?,
+    val startedAtMillis: Long? = null
 )
 
 fun interface VaultCancellationSignal {
@@ -118,9 +146,9 @@ data class VaultImportState(
 )
 
 sealed interface VaultImportEvent {
-    data class Started(val vaultId: VaultId) : VaultImportEvent
+    data class Started(val vaultId: VaultId, val recoveredDestination: DirectoryId? = null) : VaultImportEvent
     data class Progress(val vaultId: VaultId, val value: VaultImportProgress) : VaultImportEvent
-    data class Completed(val vaultId: VaultId) : VaultImportEvent
+    data class Completed(val vaultId: VaultId, val result: VaultBatchResult? = null) : VaultImportEvent
     data class Partial(val vaultId: VaultId, val result: VaultBatchResult) : VaultImportEvent
     data class Failed(val vaultId: VaultId, val message: String) : VaultImportEvent
     data class Cancelled(val vaultId: VaultId) : VaultImportEvent
@@ -148,6 +176,12 @@ interface VaultTransferCoordinator {
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult
+
+    suspend fun resumeMerge(
+        retry: VaultMergeRetry,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultItemResult = throw VaultFailure.Unavailable("Resuming this vault merge is unavailable")
 }
 
 interface VaultBoundaryTransferCoordinator {
@@ -160,6 +194,26 @@ interface VaultBoundaryTransferCoordinator {
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
     ): VaultBatchResult
+
+    suspend fun moveToMainTrash(
+        reservation: VaultBoundaryTransferReservation,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = throw VaultFailure.Unavailable("Main Trash is unavailable")
+
+    suspend fun resumeExport(
+        retry: VaultExportRetry,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultItemResult = throw VaultFailure.Unavailable("Resuming this export is unavailable")
+
+    /**
+     * Reverses exports and Trash moves. Unchanged plaintext is re-encrypted into its [VaultPlaintextUndo.origin]
+     * when one exists, and removed only after that publication succeeds. Each proof is reversed independently.
+     */
+    suspend fun undoPlaintext(
+        proofs: List<VaultPlaintextUndo>,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = throw VaultFailure.Unavailable("Undo is unavailable")
 }
 
 interface VaultBoundaryTransferReservation : Closeable {
@@ -201,7 +255,8 @@ data class VaultExternalGrant(
     val displayName: String,
     val mimeType: String,
     val sizeBytes: Long,
-    val expiresAtMillis: Long
+    val expiresAtMillis: Long,
+    val vaultId: VaultId? = null
 )
 
 data class VaultGrantedContent(
@@ -218,6 +273,7 @@ interface VaultExternalAccessManager {
         lifetimeMillis: Long = 10 * 60 * 1000L
     ): Result<VaultExternalGrant>
     fun activeGrants(): List<VaultExternalGrant>
+    fun activeGrants(vaultId: VaultId): List<VaultExternalGrant> = activeGrants().filter { it.vaultId == vaultId }
     fun revoke(token: String): Boolean
     fun revokeAll()
     fun describe(token: String): Result<VaultExternalGrant>

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.presentation.ui
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import dev.qtremors.arcile.core.ui.arcileTopAppBarNestedScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -131,7 +132,7 @@ fun ToolsScreen(
                                 onMoveDown = { onMoveUtility(definition.id, 1) }
                             )
                         }
-                        Switch(
+                        ExpressiveSwitch(
                             checked = shown,
                             onCheckedChange = { onUtilityHomeVisibilityChange(definition.id, it) }
                         )

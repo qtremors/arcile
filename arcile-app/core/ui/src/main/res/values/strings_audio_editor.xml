@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="audio_artwork_removed">Artwork removed</string>
+    <string name="audio_artwork_section">Artwork</string>
+    <string name="audio_artwork_selected">Artwork selected</string>
+    <string name="audio_back_to_player">Back to player</string>
+    <string name="audio_choose_artwork">Choose artwork</string>
+    <string name="audio_edit_music_details">Edit music details</string>
+    <string name="audio_expand_lyrics">Expand lyrics</string>
+    <string name="audio_file_write_note">Save writes tags into the audio file and timed lyrics into a matching LRC file. Protected or unsupported files will report an error.</string>
+    <string name="audio_follow_lyrics">Follow lyrics</string>
+    <string name="audio_lyrics_load_failed">Lyrics could not be loaded.</string>
+    <string name="audio_metadata_album_artist">Album artist</string>
+    <string name="audio_metadata_title">Title</string>
+    <string name="audio_no_lyrics">No lyrics yet. Open music details to add them.</string>
+    <string name="audio_remove_artwork">Remove artwork</string>
+    <string name="audio_save_to_file">Save to file</string>
+    <string name="audio_timed_lyrics">Timed lyrics (LRC)</string>
+    <string name="audio_vault_write_note">Save publishes a new encrypted revision of this file and keeps timed lyrics in an encrypted LRC file beside it. Tags are edited in memory, so vault files over 256 MB and formats other than MP3 and FLAC are not supported.</string>
+    <string name="audio_timed_lyrics_hint">Use [mm:ss.xx] timestamps, one line per cue</string>
+    <string name="audio_edit_failed">The music details could not be saved.</string>
+    <string name="audio_edit_invalid_numbers">Track, disc, and year must be valid numbers.</string>
+    <string name="audio_edit_invalid_lrc">Timed lyrics need at least one [mm:ss.xx] cue.</string>
+    <string name="audio_edit_error_format">Tag editing in vaults supports MP3 and FLAC files.</string>
+    <string name="audio_edit_error_too_large">This file is too large to edit in memory.</string>
+    <string name="audio_edit_error_read_only">This audio file cannot be written. Check storage access and try again.</string>
+    <string name="audio_edit_error_changed">The file changed. Reopen it before saving.</string>
+    <string name="audio_edit_error_lyrics_size">Timed lyrics are too large.</string>
+    <string name="audio_edit_error_artwork">The selected artwork could not be opened.</string>
+    <string name="audio_edit_error_artwork_size">Artwork must be smaller than 12 MB.</string>
+    <string name="audio_edit_error_verification">The written music details did not pass verification.</string>
+    <string name="audio_edit_error_lyrics_not_saved">Music details were saved, but timed lyrics could not be saved.</string>
+</resources>

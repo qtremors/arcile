@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultDirectoryManifestCodec
@@ -15,14 +16,18 @@ import dev.qtremors.arcile.core.vault.domain.VaultName
 import dev.qtremors.arcile.core.vault.domain.VaultNodeKind
 import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import dev.qtremors.arcile.core.vault.domain.VaultPath
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
+import dev.qtremors.arcile.core.vault.domain.VaultCreatedUndo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.sync.withLock
 import java.util.Locale
+import java.nio.file.Path
 import kotlin.coroutines.coroutineContext
 
 internal class VaultImportEngine(
     private val context: Context,
+    private val operationJournal: VaultOperationJournal,
     private val directoryCodec: VaultDirectoryManifestCodec = VaultDirectoryManifestCodec(),
     private val fileCodec: VaultFileCodec = VaultFileCodec(),
     private val transactionManager: VaultTransactionManager = VaultTransactionManager(directoryCodec)
@@ -31,11 +36,52 @@ internal class VaultImportEngine(
         session: VaultSessionRecord,
         destination: VaultPath,
         sourceUris: List<String>,
+        move: Boolean,
+        protectedRoots: List<Path>,
+        recoveryId: String?,
         onProgress: (Int, Int, Long, Long?, String?) -> Unit
     ): VaultBatchResult = session.mutationMutex.withLock {
+        if (recoveryId == null && sourceUris.isEmpty()) return@withLock VaultBatchResult(emptyList())
+        val queue = if (recoveryId != null) {
+            operationJournal.resume(session, recoveryId, VaultRecoveryKind.IMPORT)
+        } else {
+            val target = session.resolveDirectory(destination)
+            target.key.fill(0)
+            operationJournal.start(session, VaultQueuePlan(
+                VaultRecoveryKind.IMPORT, target.id.value, move, localSources = sourceUris.distinct(), publicationReceipts = true
+            ))
+        }
+        queue.use {
+            try {
+                val result = importItems(session, move && recoveryId == null, protectedRoots, queue, onProgress)
+                queue.finishQueue()
+                result
+            } catch (cancelled: CancellationException) {
+                if (cancelled is UserCancelledVaultImport) queue.cancelQueue()
+                throw cancelled
+            }
+        }
+    }
+
+    private suspend fun importItems(
+        session: VaultSessionRecord,
+        move: Boolean,
+        protectedRoots: List<Path>,
+        queue: VaultQueueRun,
+        onProgress: (Int, Int, Long, Long?, String?) -> Unit
+    ): VaultBatchResult {
+        val destination = DirectoryId.of(queue.plan.destination)
+        val start = queue.startIndex
+        val sourceUris = queue.plan.localSources.drop(start)
         val reader = VaultImportSourceReader(context.contentResolver)
-        val batches = sourceUris.map { sourceUri -> sourceUri to reader.collect(listOf(sourceUri)) }
-        val totalBytes = batches.flatMap { it.second }.filterNot(VaultImportSource::isDirectory)
+        val batches = sourceUris.map { sourceUri ->
+            coroutineContext.ensureActive()
+            sourceUri to runCatchingCancellable {
+                val sourceMove = if (move) LocalVaultMove.prepare(sourceUri, protectedRoots) else null
+                PreparedImport(reader.collect(listOf(sourceUri)), sourceMove)
+            }
+        }
+        val totalBytes = batches.flatMap { it.second.getOrNull()?.sources.orEmpty() }.filterNot(VaultImportSource::isDirectory)
             .map(VaultImportSource::sizeBytes).let { sizes ->
                 if (sizes.all { it != null }) sizes.sumOf { requireNotNull(it) } else null
             }
@@ -43,21 +89,39 @@ internal class VaultImportEngine(
         var completed = 0
         var copiedBytes = 0L
 
-        batches.forEach { (sourceIdentity, sources) ->
+        batches.forEachIndexed { index, (sourceIdentity, prepared) ->
             coroutineContext.ensureActive()
-            val displayName = sources.firstOrNull()?.topLevelName() ?: sourceIdentity
+            val displayName = prepared.getOrNull()?.sources?.firstOrNull()?.topLevelName().orEmpty()
             val before = copiedBytes
+            queue.beginItem(start + index)
             try {
-                val importedBytes = importOne(
+                val (sources, sourceMove) = prepared.getOrThrow()
+                val (importedBytes, createdUndo) = importOne(
                     session,
                     destination,
-                    sources
+                    sources,
+                    sourceMove,
+                    onPrepared = { queue.preparePublication(start + index, it) }
                 ) { itemBytes, currentName ->
                     onProgress(completed, batches.size, before + itemBytes, totalBytes, currentName)
                 }
                 copiedBytes += importedBytes
                 completed++
-                results += VaultItemResult(sourceIdentity, displayName, VaultItemOutcome.COMPLETED)
+                val removalFailure = try {
+                    sourceMove?.removeOriginal()
+                    null
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    error.asVaultFailure()
+                }
+                results += VaultItemResult(
+                    sourceIdentity, displayName,
+                    if (removalFailure == null) VaultItemOutcome.COMPLETED else VaultItemOutcome.PARTIAL,
+                    removalFailure,
+                    // A move whose original could not be removed is a copy, so it never receives a restore proof.
+                    createdUndo = createdUndo.takeIf { removalFailure == null }
+                )
                 onProgress(completed, batches.size, copiedBytes, totalBytes, displayName)
             } catch (error: CancellationException) {
                 results += VaultItemResult(sourceIdentity, displayName, VaultItemOutcome.ROLLED_BACK, VaultFailure.Cancelled())
@@ -69,18 +133,24 @@ internal class VaultImportEngine(
                     VaultItemOutcome.ROLLED_BACK,
                     error.asVaultFailure()
                 )
+            } finally {
+                prepared.getOrNull()?.move?.clear()
             }
+            queue.finishItem(start + index)
         }
-        VaultBatchResult(results)
+        return VaultBatchResult(results)
     }
 
     private suspend fun importOne(
         session: VaultSessionRecord,
-        destination: VaultPath,
+        destination: DirectoryId,
         sources: List<VaultImportSource>,
+        move: LocalVaultMove?,
+        onPrepared: (VaultPublicationReceipt) -> Unit,
         onProgress: (Long, String?) -> Unit
-    ): Long {
+    ): Pair<Long, VaultCreatedUndo?> {
         require(sources.isNotEmpty())
+        if (move != null) require(sources.size == 1 && !sources.single().isDirectory)
         val destinationDirectory = session.resolveDirectory(destination)
         val destinationSnapshot = session.readDirectory(destinationDirectory)
         val createdObjectPaths = mutableSetOf<String>()
@@ -112,7 +182,7 @@ internal class VaultImportEngine(
                 val objectId = VaultObjectId.fromRandomBytes(VaultCryptography.randomBytes(32))
                 val objectPath = objectId.shardedPath()
                 try {
-                    val input = context.contentResolver.openInputStream(source.uri)
+                    val input = move?.openOriginal() ?: context.contentResolver.openInputStream(source.uri)
                         ?: throw VaultFailure.ImportUnavailable("Unable to read ${source.name}")
                     val itemStart = copied
                     val result = input.use { stream ->
@@ -127,6 +197,11 @@ internal class VaultImportEngine(
                         ) { bytes -> onProgress(itemStart + bytes, source.name) }
                     }
                     createdObjectPaths += objectPath
+                    if (move != null) {
+                        fileCodec.openObject(
+                            session.directory, objectPath, session.id, objectId, 1L, contentKey
+                        ).use { move.verifyCopy(it) }
+                    }
                     copied += result.sizeBytes
                     val entry = VaultManifestEntry(
                         nodeId = NodeId.random(),
@@ -200,6 +275,9 @@ internal class VaultImportEngine(
                     session.cacheDirectoryKey(temp.id, temp.key)
                 }
             }
+            onPrepared(VaultPublicationReceipt(
+                topLevelEntries.map { SavedVaultNode.from(it.toMetadata(session.id, destination)) }, destinationSnapshot.generation
+            ))
             transactionManager.commit(
                 session.directory,
                 session.id,
@@ -208,7 +286,11 @@ internal class VaultImportEngine(
                 createdObjectPaths,
                 emptySet()
             )
-            return copied
+            // Still under the import's mutation lock, so the proof describes exactly what was published.
+            val createdUndo = topLevelEntries.singleOrNull()?.let { entry ->
+                captureCreatedUndo(session, destination, entry.nodeId, move?.origin)
+            }
+            return copied to createdUndo
         } catch (error: Throwable) {
             if (!transactionManager.hasPendingCommit(session.directory)) {
                 createdObjectPaths.forEach(session.directory::delete)
@@ -220,6 +302,8 @@ internal class VaultImportEngine(
             destinationDirectory.key.fill(0)
         }
     }
+
+    private data class PreparedImport(val sources: List<VaultImportSource>, val move: LocalVaultMove?)
 
     private class ImportDirectory(
         val id: DirectoryId,
@@ -260,6 +344,8 @@ internal class VaultImportEngine(
         }
     }
 }
+
+internal class UserCancelledVaultImport : CancellationException("Import cancelled")
 
 private fun VaultImportSource.topLevelName(): String =
     relativeParent.firstOrNull()?.let(::normalizeImportName) ?: normalizeImportName(name)

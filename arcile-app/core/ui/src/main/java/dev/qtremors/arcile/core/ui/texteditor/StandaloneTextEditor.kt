@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.texteditor
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -103,14 +104,17 @@ fun StandaloneTextEditor(
     onOpenWith: () -> Unit,
     modifier: Modifier = Modifier,
     loadContent: (suspend () -> String)? = null,
-    persistContent: (suspend (String) -> Result<Unit>)? = null
+    persistContent: (suspend (String) -> Result<Unit>)? = null,
+    privateSession: Boolean = false
 ) {
+    require(!privateSession || loadContent != null && (!writable || persistContent != null))
     val context = LocalContext.current
     val resources = LocalResources.current
     val coroutineScope = rememberCoroutineScope()
     var loadState by remember(reference) { mutableStateOf<TextLoadState>(TextLoadState.Loading) }
     var loadRequest by remember { mutableIntStateOf(0) }
-    val session: TextEditorSession = viewModel(key = "text-editor:$reference")
+    val session: TextEditorSession = if (privateSession) remember(reference) { TextEditorSession() }
+        else viewModel(key = "text-editor:$reference")
     var textState by session::text
     var sessionInitialized by session::initialized
     var originalText by session::original
@@ -137,10 +141,10 @@ fun StandaloneTextEditor(
     LaunchedEffect(reference, loadRequest) {
         loadState = TextLoadState.Loading
         val loaded = withContext(Dispatchers.IO) {
-            runCatching {
+            runCatchingCancellable {
                 val source = loadContent?.invoke() ?: readTextFileContent(context, reference)
                 if (!textFitsEditor(source)) throw TextTooLargeException()
-                val draft = if (writable && !sessionInitialized) readRecoveryDraft(context, reference) else null
+                val draft = if (!privateSession && writable && !sessionInitialized) readRecoveryDraft(context, reference) else null
                 source to draft
             }
         }
@@ -171,12 +175,12 @@ fun StandaloneTextEditor(
     }
 
     LaunchedEffect(reference, textState.text, originalText, sessionInitialized, isSaving, recoveryDraft) {
-        if (!writable || !sessionInitialized || isSaving || recoveryDraft != null) return@LaunchedEffect
+        if (privateSession || !writable || !sessionInitialized || isSaving || recoveryDraft != null) return@LaunchedEffect
         delay(600)
         val textToPersist = textState.text
         val draftResult = withContext(Dispatchers.IO) {
             val draftContext = currentCoroutineContext()
-            runCatching {
+            runCatchingCancellable {
                 if (textToPersist != originalText) {
                     writeDraft(context, reference, originalText, textToPersist) { draftContext.ensureActive() }
                 } else {
@@ -253,9 +257,9 @@ fun StandaloneTextEditor(
         isSaving = true
         coroutineScope.launch {
             val result = withContext(Dispatchers.IO) {
-                runCatching {
+                runCatchingCancellable {
                     // Preserve this snapshot durably before any provider can truncate its target.
-                    writeDraft(context, reference, originalText, snapshot)
+                    if (!privateSession) writeDraft(context, reference, originalText, snapshot)
                     (persistContent?.invoke(snapshot)
                         ?: writeAndVerifyTextFile(context, reference, snapshot)).getOrThrow()
                 }
@@ -266,7 +270,7 @@ fun StandaloneTextEditor(
                     originalText = snapshot
                     withContext(Dispatchers.IO) {
                         // Keep newer edits even if they arrived while publication was running.
-                        if (textState.text == snapshot) clearDraft(context, reference)
+                        if (!privateSession && textState.text == snapshot) clearDraft(context, reference)
                     }
                     val noNewEdits = textState.text == snapshot
                     coroutineScope.launch {
@@ -458,7 +462,7 @@ fun StandaloneTextEditor(
                     }
                     TextButton(onClick = {
                         showUnsavedDialog = false
-                        clearDraft(context, reference)
+                        if (!privateSession) clearDraft(context, reference)
                         onNavigateBack()
                     }) { Text(stringResource(R.string.text_editor_discard)) }
                 }
@@ -520,35 +524,42 @@ internal fun readTextFileContent(context: Context, reference: String): String {
     }
 }
 
+/**
+ * Publishes [content] to the document. The caller writes the recovery draft first, once.
+ *
+ * Local files go through [persistAtomicText], which needs no read-back. Content providers can
+ * silently truncate or keep stale bytes, so only they are read back to verify the save.
+ */
 internal fun writeAndVerifyTextFile(
     context: Context,
     reference: String,
     content: String
-): Result<Unit> = persistVerifiedText(
-    content = content,
-    write = { snapshot ->
-        writeDraft(context, reference, readTextFileContent(context, reference), snapshot)
-        val uri = reference.toUri()
-        when (uri.scheme) {
-            "content" -> context.contentResolver.openOutputStream(uri, "wt")?.use {
-                it.bufferedWriter().use { writer -> writer.write(snapshot) }
-            } ?: error("The document provider did not allow writing")
-            "file", null -> {
-                val file = if (uri.scheme == "file") File(uri.path.orEmpty()) else File(reference)
-                require(
-                    file.isFile &&
-                        file.canWrite() &&
-                        ExternalFileAccessHelper.isAllowedUserFile(context, file)
-                ) {
-                    "The file is read-only or no longer available"
-                }
-                persistAtomicText(file, snapshot).getOrThrow()
+): Result<Unit> {
+    val uri = reference.toUri()
+    return when (uri.scheme) {
+        "content" -> persistVerifiedText(
+            content = content,
+            write = { snapshot ->
+                context.contentResolver.openOutputStream(uri, "wt")?.use {
+                    it.bufferedWriter().use { writer -> writer.write(snapshot) }
+                } ?: error("The document provider did not allow writing")
+            },
+            read = { readTextFileContent(context, reference) }
+        )
+        "file", null -> runCatching {
+            val file = if (uri.scheme == "file") File(uri.path.orEmpty()) else File(reference)
+            require(
+                file.isFile &&
+                    file.canWrite() &&
+                    ExternalFileAccessHelper.isAllowedUserFile(context, file)
+            ) {
+                "The file is read-only or no longer available"
             }
-            else -> error("Unsupported URI scheme ${uri.scheme}")
+            persistAtomicText(file, content).getOrThrow()
         }
-    },
-    read = { readTextFileContent(context, reference) }
-)
+        else -> Result.failure(IllegalStateException("Unsupported URI scheme ${uri.scheme}"))
+    }
+}
 
 internal fun persistVerifiedText(
     content: String,

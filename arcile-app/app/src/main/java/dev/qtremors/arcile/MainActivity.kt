@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.os.Process
 import android.os.StrictMode
 import android.os.Trace
+import dev.qtremors.arcile.core.ui.security.VaultPrivacyCurtain
 import dev.qtremors.arcile.core.ui.showArcileToast
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
@@ -81,6 +82,9 @@ class MainActivity : ComponentActivity() {
         
         traceStartupSection("Arcile.setContent") {
             setContent {
+                val vaultLockController = (application as ArcileApp).vaultAutoLockController
+                val vaultBlocked by vaultLockController.blockContent.collectAsStateWithLifecycle()
+                val vaultLockFailed by vaultLockController.lockFailed.collectAsStateWithLifecycle()
                 val uiPreferences by uiPreferencesStore.uiPreferences.collectAsStateWithLifecycle(
                     initialValue = UiPreferences()
                 )
@@ -95,43 +99,45 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.fillMaxSize(),
                         color = MaterialTheme.colorScheme.background
                     ) {
-                        OnboardingRoute(
-                            currentUiPreferences = uiPreferences,
-                            onThemeChange = { newState ->
-                                coroutineScope.launch {
-                                    uiPreferencesStore.saveUiPreferences(newState)
+                        VaultPrivacyCurtain(vaultBlocked, vaultLockFailed, vaultLockController::retryLock) {
+                            OnboardingRoute(
+                                currentUiPreferences = uiPreferences,
+                                onThemeChange = { newState ->
+                                    coroutineScope.launch {
+                                        uiPreferencesStore.saveUiPreferences(newState)
+                                    }
+                                },
+                                hasStoragePermission = hasPermission,
+                                keepApplicationContentVisible = hasPermission,
+                                onOpenStoragePermissionSettings = ::requestStoragePermission,
+                                onRestartApp = ::restartApp,
+                                appContent = {
+                                    ArcileAppShell(
+                                        appLaunchContext = appLaunchContext,
+                                        currentUiPreferences = uiPreferences,
+                                        onThemeChange = { newState ->
+                                            coroutineScope.launch {
+                                                uiPreferencesStore.saveUiPreferences(newState)
+                                            }
+                                        },
+                                        onOpenFile = ::openFile,
+                                        onOpenFileWith = ::openFileWith,
+                                        onRecordFileOpened = viewModel::recordFileOpened,
+                                        onRecordPageVisited = viewModel::recordPageVisited,
+                                        keepAppBarsCollapsed = keepAppBarsCollapsed,
+                                        fileOpenBehaviors = fileOpenBehaviors,
+                                        appStartPage = appStartPage,
+                                        onAppStartPageChange = viewModel::updateAppStartPage,
+                                        onRestartApp = ::restartApp
+                                    )
+                                },
+                                permissionContent = {
+                                    PermissionRequestScreen(
+                                        onRequestPermission = ::requestStoragePermission
+                                    )
                                 }
-                            },
-                            hasStoragePermission = hasPermission,
-                            keepApplicationContentVisible = hasPermission,
-                            onOpenStoragePermissionSettings = ::requestStoragePermission,
-                            onRestartApp = ::restartApp,
-                            appContent = {
-                                ArcileAppShell(
-                                    appLaunchContext = appLaunchContext,
-                                    currentUiPreferences = uiPreferences,
-                                    onThemeChange = { newState ->
-                                        coroutineScope.launch {
-                                            uiPreferencesStore.saveUiPreferences(newState)
-                                        }
-                                    },
-                                    onOpenFile = ::openFile,
-                                    onOpenFileWith = ::openFileWith,
-                                    onRecordFileOpened = viewModel::recordFileOpened,
-                                    onRecordPageVisited = viewModel::recordPageVisited,
-                                    keepAppBarsCollapsed = keepAppBarsCollapsed,
-                                    fileOpenBehaviors = fileOpenBehaviors,
-                                    appStartPage = appStartPage,
-                                    onAppStartPageChange = viewModel::updateAppStartPage,
-                                    onRestartApp = ::restartApp
-                                )
-                            },
-                            permissionContent = {
-                                PermissionRequestScreen(
-                                    onRequestPermission = ::requestStoragePermission
-                                )
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }

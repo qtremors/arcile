@@ -1,0 +1,50 @@
+package dev.qtremors.arcile.feature.onlyfiles
+
+import dev.qtremors.arcile.core.archive.archiveEntrySegments
+
+internal data class VaultZipEntry(
+    val name: String,
+    val isDirectory: Boolean,
+    val size: Long = 0L,
+    val encrypted: Boolean = false
+)
+
+internal data class VaultZipItem(
+    val name: String,
+    val path: List<String>,
+    val isDirectory: Boolean,
+    val size: Long
+)
+
+internal class VaultZipTree(entries: List<VaultZipEntry>) {
+    private val children = mutableMapOf<List<String>, MutableMap<String, VaultZipItem>>()
+    private val encryptedPaths = mutableListOf<List<String>>()
+
+    init {
+        for (entry in entries) {
+            val segments = safeZipSegments(entry.name) ?: continue
+            if (entry.encrypted && !entry.isDirectory) encryptedPaths += segments
+            var parent = emptyList<String>()
+            for ((index, name) in segments.withIndex()) {
+                val directory = index < segments.lastIndex || entry.isDirectory
+                val path = parent + name
+                val folder = children.getOrPut(parent, ::linkedMapOf)
+                val previous = folder[name]
+                if (previous == null || directory && !previous.isDirectory) {
+                    folder[name] = VaultZipItem(name, path, directory, if (directory) 0L else entry.size.coerceAtLeast(0L))
+                }
+                parent = path
+            }
+        }
+    }
+
+    fun requiresPassword(selection: VaultZipSelection): Boolean =
+        encryptedPaths.any { selection.relativePath(it) != null }
+
+    fun list(path: List<String>): List<VaultZipItem> =
+        children[path]?.values.orEmpty().sortedWith(
+            compareByDescending<VaultZipItem> { it.isDirectory }.thenBy { it.name.lowercase() }.thenBy { it.name }
+        )
+}
+
+internal fun safeZipSegments(name: String): List<String>? = archiveEntrySegments(name, allowBackslashes = false)

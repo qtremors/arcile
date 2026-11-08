@@ -1,5 +1,10 @@
 package dev.qtremors.arcile.feature.gallery
 
+import dev.qtremors.arcile.core.ui.viewer.ZoomableImageViewer
+import dev.qtremors.arcile.core.ui.viewer.ImageViewerBottomChrome
+import dev.qtremors.arcile.core.ui.viewer.ImageViewerChromeActions
+import dev.qtremors.arcile.core.ui.viewer.ImageViewerTopChrome
+
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
@@ -57,8 +62,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
@@ -347,8 +352,9 @@ internal fun ImageViewerScreen(
                         )
                     ) { vertPage ->
                         if (vertPage == 0) {
+                            val requestData = remember(file) { imageRequestDataFor(file) }
                             ZoomableImageViewer(
-                                file = file,
+                                requestData = requestData,
                                 rotation = rotation,
                                 onDismiss = onNavigateBack,
                                 onTap = { viewModel.toggleViewerUi() },
@@ -444,7 +450,7 @@ internal fun ImageViewerScreen(
                 modifier = Modifier.align(Alignment.TopCenter)
             )
 
-            val chromeActions = remember(viewModel, pagerState, onOpenWith, onShareFile) {
+            val chromeActions = remember(viewModel, pagerState) {
                 ImageViewerChromeActions(
                     onPageSelected = { page -> pagerState.animateScrollToPage(page) },
                     onToggleFavorite = viewModel::toggleFavorite,
@@ -455,9 +461,7 @@ internal fun ImageViewerScreen(
                     onToggleSelection = viewModel::toggleSelection,
                     onShowMetadata = { path ->
                         viewModel.setViewerMetadataVisible(path, visible = true)
-                    },
-                    onOpenWith = onOpenWith,
-                    onShare = onShareFile
+                    }
                 )
             }
             ImageViewerBottomChrome(

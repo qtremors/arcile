@@ -12,7 +12,6 @@ enum class StorageUsageScanStatus {
     Unavailable
 }
 
-@Immutable
 data class StorageUsageNode(
     val name: String,
     val path: String,

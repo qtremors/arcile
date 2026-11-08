@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.vault.crypto.FileVaultDirectory
@@ -158,10 +159,10 @@ internal abstract class VaultCatalogLayer(
         val privateIds = appPrivate.mapTo(mutableSetOf()) { it.id.value }
         val unavailable = mutableSetOf<VaultId>()
         val portable = locationRegistry.load().mapNotNull { pointer ->
-            val pointerId = runCatching { VaultId.of(pointer.vaultId) }.getOrNull()
+            val pointerId = runCatchingCancellable { VaultId.of(pointer.vaultId) }.getOrNull()
                 ?: return@mapNotNull null
             if (pointerId.value in privateIds) return@mapNotNull null
-            runCatching {
+            runCatchingCancellable {
                 val resolved = portableLocationResolver.resolve(pointer)
                 val header = headerCodec.readPublic(resolved.access).getOrThrow()
                 if (header.id != pointerId) throw VaultFailure.StaleRegistration()

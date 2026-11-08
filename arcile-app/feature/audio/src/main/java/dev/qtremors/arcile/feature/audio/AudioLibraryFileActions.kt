@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import dev.qtremors.arcile.core.storage.domain.CategoryLibraryPage
 import dev.qtremors.arcile.core.operation.BulkFileOperationCoordinator
 import dev.qtremors.arcile.core.operation.BulkFileOperationEvent
@@ -296,7 +297,7 @@ internal class AudioLibraryFileActions(
             fileMutationRepository.renameFile(path, newName)
                 .onSuccess { renamedFile ->
                     playback.replaceQueueItem(path, track.copy(file = renamedFile))
-                    runCatching { onFileRenamed(path, renamedFile.reference) }
+                    runCatchingCancellable { onFileRenamed(path, renamedFile.reference) }
                     clearSelection()
                     reload()
                 }

@@ -38,7 +38,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.SubcomposeAsyncImage
+import coil3.compose.SubcomposeAsyncImage
 import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.storage.domain.ConflictResolution
 import dev.qtremors.arcile.core.storage.domain.FileConflict
@@ -425,7 +425,7 @@ private fun ThumbnailFallback(
         Icon(
             imageVector = getFileIconVector(
                 file,
-                dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
             ),
             contentDescription = null,
             tint = if (file.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,

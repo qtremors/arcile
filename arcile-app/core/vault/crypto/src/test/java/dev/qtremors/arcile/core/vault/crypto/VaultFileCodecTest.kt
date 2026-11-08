@@ -2,8 +2,10 @@ package dev.qtremors.arcile.core.vault.crypto
 
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
 import dev.qtremors.arcile.core.vault.domain.VaultId
+import dev.qtremors.arcile.core.vault.domain.VaultObjectId
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,6 +14,42 @@ import java.io.RandomAccessFile
 import java.nio.file.Files
 
 class VaultFileCodecTest {
+    @Test
+    fun `generated data crosses chunk boundaries and failed output is removed`() {
+        val directory = Files.createTempDirectory("onlyfiles-generated").toFile()
+        try {
+            val storage = FileVaultDirectory(directory)
+            val codec = VaultFileCodec(32 * 1024)
+            val vault = VaultId.of("vault-id")
+            val key = ByteArray(32) { it.toByte() }
+            val id = VaultObjectId.of("a".repeat(64))
+            val content = ByteArray(32 * 1024 + 5) { (it % 251).toByte() }
+            val progress = mutableListOf<Long>()
+            val result = codec.writeGeneratedObject(storage, "object", vault, id, 1L, key, progress::add) { output ->
+                output.write(content, 0, 32 * 1024 - 1)
+                output.write(content[32 * 1024 - 1].toInt())
+                output.write(content, 32 * 1024, 5)
+            }
+            assertEquals(content.size.toLong(), result.sizeBytes)
+            assertEquals(2L, result.chunkCount)
+            assertEquals(listOf(32L * 1024, content.size.toLong()), progress)
+            codec.openObject(storage, "object", vault, id, 1L, key).use { reader ->
+                val actual = ByteArray(content.size)
+                assertEquals(actual.size, reader.readAt(0L, actual, 0, actual.size))
+                assertArrayEquals(content, actual)
+            }
+            assertThrows(IllegalStateException::class.java) {
+                codec.writeGeneratedObject(storage, "failed", vault, id, 1L, key) {
+                    it.write(content)
+                    error("Producer failed")
+                }
+            }
+            assertFalse(storage.exists("failed"))
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
     @Test
     fun `empty exact chunk and multi chunk files round trip`() {
         val sizes = listOf(0, 32 * 1024, 32 * 1024 + 1, 96 * 1024 + 17)

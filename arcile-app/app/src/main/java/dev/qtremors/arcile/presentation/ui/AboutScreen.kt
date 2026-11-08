@@ -54,7 +54,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import dev.qtremors.arcile.core.ui.ArcileScreenScaffold
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.settings.SettingsSection

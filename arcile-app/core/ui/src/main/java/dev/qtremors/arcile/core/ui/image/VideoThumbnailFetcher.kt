@@ -5,14 +5,14 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.util.Size
-import androidx.core.graphics.drawable.toDrawable
 import androidx.core.net.toUri
-import coil.ImageLoader
-import coil.decode.DataSource
-import coil.fetch.DrawableResult
-import coil.fetch.FetchResult
-import coil.fetch.Fetcher
-import coil.request.Options
+import coil3.ImageLoader
+import coil3.decode.DataSource
+import coil3.asImage
+import coil3.fetch.ImageFetchResult
+import coil3.fetch.FetchResult
+import coil3.fetch.Fetcher
+import coil3.request.Options
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -46,8 +46,8 @@ class VideoThumbnailFetcher(
             try {
                 contentUri?.let { uri ->
                     val bitmap = context.contentResolver.loadThumbnail(uri.toUri(), Size(targetSize, targetSize), null)
-                    return@withContext DrawableResult(
-                        drawable = bitmap.toDrawable(context.resources),
+                    return@withContext ImageFetchResult(
+                        image = bitmap.asImage(),
                         isSampled = true,
                         dataSource = DataSource.DISK
                     )
@@ -73,8 +73,8 @@ class VideoThumbnailFetcher(
                     targetSize
                 ) ?: return@withContext null
 
-                DrawableResult(
-                    drawable = bitmap.toDrawable(context.resources),
+                ImageFetchResult(
+                    image = bitmap.asImage(),
                     isSampled = true,
                     dataSource = DataSource.DISK
                 )
@@ -87,10 +87,11 @@ class VideoThumbnailFetcher(
         }
     }
 
-    class Factory : Fetcher.Factory<File> {
-        override fun create(data: File, options: Options, imageLoader: ImageLoader): Fetcher? {
-            return if (data.extension.lowercase() in FileCategories.Videos.extensions) {
-                VideoThumbnailFetcher(data, options)
+    class Factory : Fetcher.Factory<coil3.Uri> {
+        override fun create(data: coil3.Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
+            val file = data.localThumbnailFile() ?: return null
+            return if (file.extension.lowercase() in FileCategories.Videos.extensions) {
+                VideoThumbnailFetcher(file, options)
             } else {
                 null
             }

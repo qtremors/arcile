@@ -3,12 +3,61 @@ package dev.qtremors.arcile.core.vault.domain
 import kotlinx.coroutines.flow.StateFlow
 
 data class VaultSecuritySettings(
-    val screenshotProtectionEnabled: Boolean = true
+    val screenshotProtectionEnabled: Boolean = true,
+    val numericPasswordKeyboard: Boolean = false,
+    val backgroundLockDelay: VaultBackgroundLockDelay = VaultBackgroundLockDelay.IMMEDIATE,
+    val lockOnScreenOff: Boolean = true,
+    val viewOptions: VaultViewOptions = VaultViewOptions(),
+    val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
+    val lastDirectories: Map<VaultId, DirectoryId> = emptyMap(),
+    val workspaceTabsEnabled: Boolean = false,
+    val pinnedWorkspaceTabs: Map<VaultId, List<DirectoryId>> = emptyMap(),
+    val pinnedVaults: Set<VaultId> = emptySet()
+)
+
+/** Stable preference values. Retention only applies to this process and never stores unlocked keys. */
+enum class VaultBackgroundLockDelay(val milliseconds: Long) {
+    IMMEDIATE(0L), THIRTY_SECONDS(30_000L), ONE_MINUTE(60_000L), FIVE_MINUTES(300_000L)
+}
+
+const val VAULT_MAX_WORKSPACE_TABS = 8
+
+data class VaultFolderViewOptions(val options: VaultViewOptions, val applyToSubfolders: Boolean)
+
+fun vaultFolderViewKey(vaultId: VaultId, directoryId: DirectoryId): String = "${vaultId.value}/${directoryId.value}"
+
+data class VaultViewOptions(
+    val grid: Boolean = false,
+    val sortField: VaultSortField = VaultSortField.NAME,
+    val sortDirection: VaultSortDirection = VaultSortDirection.ASCENDING,
+    val recursiveSearch: Boolean = true,
+    val showThumbnails: Boolean = true,
+    val listZoom: Float = 1f,
+    val gridMinCellSize: Float = 132f,
+    val showHiddenFiles: Boolean = true,
+    val foldersFirst: Boolean = true
 )
 
 interface VaultSecurityPreferences {
     val settings: StateFlow<VaultSecuritySettings>
     suspend fun setScreenshotProtectionEnabled(enabled: Boolean)
+    suspend fun setNumericPasswordKeyboard(enabled: Boolean)
+    suspend fun setBackgroundLockDelay(delay: VaultBackgroundLockDelay)
+    suspend fun setLockOnScreenOff(enabled: Boolean)
+    suspend fun setViewOptions(options: VaultViewOptions)
+    suspend fun setFolderViewOptions(
+        vaultId: VaultId,
+        directoryId: DirectoryId,
+        options: VaultFolderViewOptions
+    )
+    suspend fun setLastDirectory(vaultId: VaultId, directoryId: DirectoryId)
+    suspend fun resetFolderViewOptions(vaultId: VaultId, directoryId: DirectoryId)
+    suspend fun setWorkspaceTabsEnabled(enabled: Boolean)
+    suspend fun setPinnedWorkspaceTabs(vaultId: VaultId, directories: List<DirectoryId>)
+    suspend fun setVaultPinned(vaultId: VaultId, pinned: Boolean)
+    suspend fun resetVaultFolderViews(vaultId: VaultId)
+    suspend fun removeDirectoryPreferences(vaultId: VaultId, deleted: Set<DirectoryId>)
+    suspend fun removeVaultPreferences(vaultId: VaultId)
 }
 
 data class VaultThumbnailCacheStats(val encryptedFileCount: Int, val encryptedBytes: Long)

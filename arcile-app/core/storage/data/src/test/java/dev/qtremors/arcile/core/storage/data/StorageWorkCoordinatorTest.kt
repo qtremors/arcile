@@ -24,6 +24,31 @@ class StorageWorkCoordinatorTest {
     }
 
     @Test
+    fun `concurrent mutations settle to idle only when all have ended`() {
+        val coordinator = DefaultStorageWorkCoordinator()
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+        try {
+            repeat(20) {
+                val start = java.util.concurrent.CountDownLatch(1)
+                val tasks = List(8) {
+                    pool.submit {
+                        start.await()
+                        repeat(500) {
+                            coordinator.beginMutation()
+                            coordinator.endMutation()
+                        }
+                    }
+                }
+                start.countDown()
+                tasks.forEach { it.get() }
+                assertFalse(coordinator.isMutationActive.value)
+            }
+        } finally {
+            pool.shutdownNow()
+        }
+    }
+
+    @Test
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     fun `low priority work waits until mutation completes`() = runTest {
         val coordinator = DefaultStorageWorkCoordinator()

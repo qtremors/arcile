@@ -31,10 +31,16 @@ fun RenameDialog(
     onDismiss: () -> Unit,
     onConfirm: (String) -> Unit,
     existingNames: Set<String> = emptySet(),
-    isDirectory: Boolean = false
+    isDirectory: Boolean = false,
+    saveInput: Boolean = true
 ) {
-    var newName by rememberSaveable(currentName, isDirectory, stateSaver = TextFieldValue.Saver) {
+    val initialInput = {
         mutableStateOf(TextFieldValue(currentName, initialRenameSelection(currentName, isDirectory)))
+    }
+    var newName by if (saveInput) {
+        rememberSaveable(currentName, isDirectory, stateSaver = TextFieldValue.Saver, init = initialInput)
+    } else {
+        remember(currentName, isDirectory, calculation = initialInput)
     }
     val validation = remember(newName, existingNames, currentName) {
         validateFileName(newName.text, existingNames, ignoredName = currentName)

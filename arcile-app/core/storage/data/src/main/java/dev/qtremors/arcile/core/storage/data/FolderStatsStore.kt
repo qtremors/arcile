@@ -14,7 +14,6 @@ import dev.qtremors.arcile.core.storage.domain.StorageWorkCoordinator
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.withContext
@@ -34,6 +33,9 @@ interface FolderStatsStore {
     suspend fun getCached(paths: Collection<String>): Map<String, FolderStats>
     fun observeUpdates(): Flow<FolderStatUpdate>
     fun queue(paths: List<String>)
+
+    /** Cancels scans for folders that are not direct children of [parentPath], such as after leaving a folder. */
+    fun cancelOutside(parentPath: String) = Unit
     suspend fun invalidate(paths: Collection<String>)
     suspend fun invalidateAll() = clear()
     suspend fun clear()
@@ -47,12 +49,7 @@ class DefaultFolderStatsStore @Inject constructor(
     private val calculator: suspend (File) -> FolderStats = FolderStatsCalculator::calculate,
     private val onCalculationStarted: ((String) -> Unit)? = null,
     private val beforePublish: ((String) -> Unit)? = null,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO.limitedParallelism(2)
-    ),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard,
     private val workerScope: CoroutineScope = CoroutineScope(SupervisorJob() + dispatchers.storage),
     private val storageWorkCoordinator: StorageWorkCoordinator = NoOpStorageWorkCoordinator
 ) : FolderStatsStore, AutoCloseable {
@@ -106,6 +103,8 @@ class DefaultFolderStatsStore @Inject constructor(
             .map(::normalizePath)
             .distinct()
             .forEach { path ->
+                // Re-entering a folder keeps a running scan; content changes cancel it through invalidate().
+                if (activeJobs[path]?.isActive == true) return@forEach
                 val generation = nextGeneration(path)
                 activeJobs.remove(path)?.cancel()
                 queuedPaths.add(path)
@@ -143,6 +142,17 @@ class DefaultFolderStatsStore @Inject constructor(
                 }
                 activeJobs[path] = job
                 job.start()
+            }
+    }
+
+    override fun cancelOutside(parentPath: String) {
+        val parent = normalizePath(parentPath)
+        activeJobs.keys
+            .filter { path -> File(path).parent?.let(::normalizePath) != parent }
+            .forEach { path ->
+                nextGeneration(path)
+                activeJobs.remove(path)?.cancel()
+                queuedPaths.remove(path)
             }
     }
 

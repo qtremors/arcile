@@ -151,15 +151,19 @@ class FolderStatsStoreTest {
     }
 
     @Test
-    fun `requeue cancels stale in-flight scan and publishes newest stats`() = runBlocking {
-        val folder = File(root, "Changing").apply { mkdirs() }
-        File(folder, "old.txt").writeText("old")
+    fun `requeue keeps an in-flight scan instead of restarting it`() = runBlocking {
+        val folder = File(root, "Reentered").apply { mkdirs() }
+        File(folder, "a.txt").writeText("abc")
+        val starts = java.util.concurrent.atomic.AtomicInteger()
         val firstStarted = CountDownLatch(1)
         val releaseFirst = CountDownLatch(1)
         val store = trackedStore(
             context = context,
             onCalculationStarted = { path ->
-                if (path == folder.absolutePath) firstStarted.countDown()
+                if (path == folder.absolutePath) {
+                    starts.incrementAndGet()
+                    firstStarted.countDown()
+                }
             },
             beforePublish = { path ->
                 if (path == folder.absolutePath) releaseFirst.await(2, TimeUnit.SECONDS)
@@ -168,8 +172,6 @@ class FolderStatsStoreTest {
 
         store.queue(listOf(folder.absolutePath))
         assertTrue(firstStarted.await(2, TimeUnit.SECONDS))
-
-        File(folder, "new.txt").writeText("newer")
         val updateDeferred = async(start = CoroutineStart.UNDISPATCHED) {
             store.observeUpdates().first { it.path == folder.absolutePath }
         }
@@ -177,9 +179,34 @@ class FolderStatsStoreTest {
         releaseFirst.countDown()
 
         val update = withTimeout(5_000) { updateDeferred.await() }
+        assertEquals(1, starts.get())
+        assertEquals(1L, update.stats.fileCount)
+    }
 
-        assertEquals(2L, update.stats.fileCount)
-        assertEquals(8L, update.stats.totalBytes)
+    @Test
+    fun `leaving a folder cancels scans of its subfolders`() = runBlocking {
+        val parent = File(root, "Parent").apply { mkdirs() }
+        val child = File(parent, "Child").apply { mkdirs() }
+        File(child, "a.txt").writeText("abc")
+        val started = CountDownLatch(1)
+        val published = java.util.concurrent.atomic.AtomicBoolean(false)
+        val store = trackedStore(
+            context = context,
+            onCalculationStarted = { path -> if (path == child.absolutePath) started.countDown() },
+            beforePublish = { path ->
+                if (path == child.absolutePath) {
+                    Thread.sleep(300)
+                    published.set(true)
+                }
+            }
+        )
+
+        store.queue(listOf(child.absolutePath))
+        assertTrue(started.await(2, TimeUnit.SECONDS))
+        store.cancelOutside(root.absolutePath)
+        kotlinx.coroutines.delay(600)
+
+        assertTrue(store.getCached(listOf(child.absolutePath)).isEmpty())
     }
 
     @Test

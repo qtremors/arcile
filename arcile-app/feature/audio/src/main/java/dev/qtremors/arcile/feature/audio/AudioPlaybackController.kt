@@ -3,7 +3,6 @@ package dev.qtremors.arcile.feature.audio
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
-import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -23,45 +22,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
-internal data class AudioPlaybackState(
-    val isConnected: Boolean = false,
-    val currentMediaId: String? = null,
-    val isPlaying: Boolean = false,
-    val positionMs: Long = 0L,
-    val durationMs: Long = 0L,
-    val hasPrevious: Boolean = false,
-    val hasNext: Boolean = false,
-    val queueMediaIds: List<String> = emptyList(),
-    val queueEntries: List<AudioQueueEntry> = emptyList(),
-    val currentMediaIndex: Int = 0,
-    val shuffleMediaIds: List<String> = emptyList(),
-    val repeatMode: AudioRepeatMode = AudioRepeatMode.OFF,
-    val shuffleEnabled: Boolean = false,
-    val playbackSpeed: Float = 1f,
-    val playbackPitch: Float = 1f,
-    val sleepTimerEndElapsedMs: Long? = null,
-    val error: Boolean = false
-)
-
-internal data class AudioQueueEntry(
-    val id: String,
-    val uri: String,
-    val title: String?,
-    val artist: String?,
-    val album: String?
-)
-
-internal enum class AudioRepeatMode {
-    OFF,
-    ALL,
-    ONE
-}
+internal typealias AudioPlaybackState = dev.qtremors.arcile.core.ui.audio.AudioPlaybackState
+internal typealias AudioQueueEntry = dev.qtremors.arcile.core.ui.audio.AudioQueueEntry
+internal typealias AudioRepeatMode = dev.qtremors.arcile.core.ui.audio.AudioRepeatMode
 
 @Singleton
 internal class AudioPlaybackController @Inject constructor(
@@ -70,10 +42,14 @@ internal class AudioPlaybackController @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val _state = MutableStateFlow(AudioPlaybackState())
     val state: StateFlow<AudioPlaybackState> = _state.asStateFlow()
+    private var observed = false
     private var controller: MediaController? = null
     private var pendingQueue: Triple<List<AudioTrack>, String, Boolean>? = null
-    private val playbackPreferences = context.getSharedPreferences("audio_playback_settings", Context.MODE_PRIVATE)
-    private var sleepTimerJob: Job? = null
+    private val playbackPreferences = AudioPlayerPreferences(context)
+    private val sleepTimer = dev.qtremors.arcile.core.ui.audio.AudioSleepTimer(scope) {
+        controller?.pause()
+        _state.value = _state.value.copy(sleepTimerEndElapsedMs = null)
+    }
     private var progressJob: Job? = null
 
     private val listener = object : Player.Listener {
@@ -91,6 +67,15 @@ internal class AudioPlaybackController @Inject constructor(
     }
 
     init {
+        scope.launch {
+            playbackPreferences.playbackParametersFlow.collect { controller?.setPlaybackParameters(it) }
+        }
+        scope.launch {
+            _state.subscriptionCount.map { it > 0 }.distinctUntilChanged().collect { watched ->
+                observed = watched
+                updateProgressPolling(controller?.isPlaying == true)
+            }
+        }
         val token = SessionToken(context, ComponentName(context, AudioPlaybackService::class.java))
         val future = MediaController.Builder(context, token).buildAsync()
         future.addListener(
@@ -99,8 +84,8 @@ internal class AudioPlaybackController @Inject constructor(
                     controller = connected
                     connected.addListener(listener)
                     connected.setPlaybackParameters(PlaybackParameters(
-                        playbackPreferences.getFloat("speed", 1f),
-                        playbackPreferences.getFloat("pitch", 1f)
+                        playbackPreferences.playbackSpeed,
+                        playbackPreferences.playbackPitch
                     ))
                     publish(connected)
                     updateProgressPolling(connected.isPlaying)
@@ -114,9 +99,14 @@ internal class AudioPlaybackController @Inject constructor(
         )
     }
 
+    /**
+     * Position ticks only matter while a player UI collects [state]; every collector is lifecycle-aware,
+     * so with the screen off or the app in the background playback runs without waking the main thread.
+     */
     private fun updateProgressPolling(isPlaying: Boolean) {
         progressJob?.cancel()
-        progressJob = if (isPlaying) scope.launch {
+        progressJob = if (isPlaying && observed) scope.launch {
+            controller?.let { publish(it, refreshQueue = false) }
             while (isActive) {
                 delay(POSITION_UPDATE_MS)
                 controller?.takeIf { it.isPlaying }?.let { publish(it, refreshQueue = false) }
@@ -177,27 +167,13 @@ internal class AudioPlaybackController @Inject constructor(
     }
 
     fun setPlaybackParameters(speed: Float, pitch: Float) {
-        val safeSpeed = speed.coerceIn(0.5f, 2f)
-        val safePitch = pitch.coerceIn(0.5f, 2f)
-        playbackPreferences.edit().putFloat("speed", safeSpeed)
-            .putFloat("pitch", safePitch).apply()
-        controller?.setPlaybackParameters(PlaybackParameters(safeSpeed, safePitch))
+        playbackPreferences.setPlaybackParameters(speed, pitch)
+        controller?.setPlaybackParameters(PlaybackParameters(playbackPreferences.playbackSpeed, playbackPreferences.playbackPitch))
     }
 
     fun setSleepTimerMinutes(minutes: Int?) {
-        sleepTimerJob?.cancel()
-        sleepTimerJob = null
-        val durationMs = minutes?.takeIf { it > 0 }?.toLong()?.times(60_000L)
-        _state.value = _state.value.copy(
-            sleepTimerEndElapsedMs = durationMs?.let { SystemClock.elapsedRealtime() + it }
-        )
-        if (durationMs != null) {
-            sleepTimerJob = scope.launch {
-                delay(durationMs)
-                controller?.pause()
-                _state.value = _state.value.copy(sleepTimerEndElapsedMs = null)
-            }
-        }
+        sleepTimer.setMinutes(minutes)
+        _state.value = _state.value.copy(sleepTimerEndElapsedMs = sleepTimer.endElapsedMs)
     }
 
     fun seekTo(positionMs: Long) {
@@ -304,61 +280,7 @@ internal class AudioPlaybackController @Inject constructor(
     }
 
     private fun publish(player: Player, refreshQueue: Boolean = true) {
-        val previous = _state.value
-        val mediaCount = player.mediaItemCount
-        val queueIds = if (refreshQueue || previous.queueMediaIds.size != mediaCount) {
-            (0 until mediaCount).map { index -> player.getMediaItemAt(index).mediaId }
-        } else previous.queueMediaIds
-        val queueEntries = if (refreshQueue || previous.queueEntries.size != mediaCount) {
-            (0 until mediaCount).map { index ->
-                val item = player.getMediaItemAt(index)
-                AudioQueueEntry(
-                    id = item.mediaId,
-                    uri = item.localConfiguration?.uri?.toString().orEmpty(),
-                    title = item.mediaMetadata.title?.toString(),
-                    artist = item.mediaMetadata.artist?.toString(),
-                    album = item.mediaMetadata.albumTitle?.toString()
-                )
-            }
-        } else previous.queueEntries
-        val timeline = player.currentTimeline
-        val shuffleIds = if (!refreshQueue && previous.shuffleEnabled == player.shuffleModeEnabled &&
-            previous.shuffleMediaIds.size == mediaCount
-        ) previous.shuffleMediaIds else if (!timeline.isEmpty && player.shuffleModeEnabled) {
-            val ids = mutableListOf<String>()
-            var idx = timeline.getFirstWindowIndex(true)
-            while (idx != C.INDEX_UNSET && ids.size < mediaCount) {
-                ids.add(player.getMediaItemAt(idx).mediaId)
-                idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, true)
-            }
-            ids.ifEmpty { (0 until mediaCount).map { player.getMediaItemAt(it).mediaId } }
-        } else emptyList()
-        val currentId = player.currentMediaItem?.mediaId?.takeIf(String::isNotBlank)
-        val currentIndex = player.currentMediaItemIndex.coerceAtLeast(0)
-
-        _state.value = AudioPlaybackState(
-            isConnected = true,
-            currentMediaId = currentId,
-            isPlaying = player.isPlaying,
-            positionMs = player.currentPosition.coerceAtLeast(0L),
-            durationMs = player.duration.takeIf { it != C.TIME_UNSET }?.coerceAtLeast(0L) ?: 0L,
-            hasPrevious = player.hasPreviousMediaItem(),
-            hasNext = player.hasNextMediaItem(),
-            queueMediaIds = queueIds,
-            queueEntries = queueEntries,
-            currentMediaIndex = currentIndex,
-            shuffleMediaIds = shuffleIds,
-            repeatMode = when (player.repeatMode) {
-                Player.REPEAT_MODE_ALL -> AudioRepeatMode.ALL
-                Player.REPEAT_MODE_ONE -> AudioRepeatMode.ONE
-                else -> AudioRepeatMode.OFF
-            },
-            shuffleEnabled = player.shuffleModeEnabled,
-            playbackSpeed = player.playbackParameters.speed,
-            playbackPitch = player.playbackParameters.pitch,
-            sleepTimerEndElapsedMs = previous.sleepTimerEndElapsedMs,
-            error = previous.error
-        )
+        _state.value = dev.qtremors.arcile.core.ui.audio.audioPlaybackSnapshot(player, _state.value, refreshQueue)
     }
 
     private fun AudioTrack.toMediaItem(): MediaItem {
@@ -384,34 +306,7 @@ internal class AudioPlaybackController @Inject constructor(
     }
 }
 
-internal fun audioQueueSuccessor(order: List<String>, currentId: String?, removed: Set<String>): String? {
-    val currentIndex = order.indexOf(currentId)
-    return order.drop(currentIndex + 1).firstOrNull { it !in removed }
-        ?: order.take(currentIndex.coerceAtLeast(0)).lastOrNull { it !in removed }
-}
-
-internal fun removeAudioQueueItems(player: Player, removed: Set<String>) {
-    val currentId = player.currentMediaItem?.mediaId
-    val resumePlayback = player.playWhenReady
-    val timeline = player.currentTimeline
-    val order = buildList {
-        var index = timeline.getFirstWindowIndex(player.shuffleModeEnabled)
-        while (index != C.INDEX_UNSET && size < player.mediaItemCount) {
-            add(player.getMediaItemAt(index).mediaId)
-            index = timeline.getNextWindowIndex(index, Player.REPEAT_MODE_OFF, player.shuffleModeEnabled)
-        }
-    }.ifEmpty { (0 until player.mediaItemCount).map { player.getMediaItemAt(it).mediaId } }
-    val successor = if (currentId in removed) audioQueueSuccessor(order, currentId, removed) else null
-    (player.mediaItemCount - 1 downTo 0).forEach { index ->
-        if (player.getMediaItemAt(index).mediaId in removed) player.removeMediaItem(index)
-    }
-    if (successor != null) {
-        val index = (0 until player.mediaItemCount).firstOrNull {
-            player.getMediaItemAt(it).mediaId == successor
-        }
-        if (index != null) {
-            player.seekToDefaultPosition(index)
-            player.playWhenReady = resumePlayback
-        }
-    }
-}
+internal fun audioQueueSuccessor(order: List<String>, currentId: String?, removed: Set<String>) =
+    dev.qtremors.arcile.core.ui.audio.audioQueueSuccessor(order, currentId, removed)
+internal fun removeAudioQueueItems(player: Player, removed: Set<String>) =
+    dev.qtremors.arcile.core.ui.audio.removeAudioQueueItems(player, removed)

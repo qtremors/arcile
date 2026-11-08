@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.ui.dialogs
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -40,7 +41,8 @@ fun DeleteConfirmationDialog(
     onTogglePermanentDelete: () -> Unit,
     decision: DeleteDecision? = null,
     isShredChecked: Boolean = false,
-    onToggleShred: (() -> Unit)? = null
+    onToggleShred: (() -> Unit)? = null,
+    showPermanentDeleteToggle: Boolean = true
 ) {
     val haptics = dev.qtremors.arcile.core.ui.rememberArcileHaptics()
     val permanentlyDeleteLabel = stringResource(R.string.permanently_delete_checkbox)
@@ -152,7 +154,7 @@ fun DeleteConfirmationDialog(
                     }
                 }
 
-                if (resolvedDecision.destination != DeleteDestination.MixedBlocked) {
+                if (showPermanentDeleteToggle && resolvedDecision.destination != DeleteDestination.MixedBlocked) {
                     Column(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -199,7 +201,7 @@ fun DeleteConfirmationDialog(
                                     )
                                 },
                                 trailingContent = {
-                                    Switch(
+                                    ExpressiveSwitch(
                                         checked = isPermanentDeleteChecked,
                                         onCheckedChange = null,
                                         enabled = isPermanentDeleteToggleEnabled,

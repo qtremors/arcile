@@ -40,9 +40,12 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -210,43 +213,41 @@ private fun EmptyStateIcon(
     iconTint: Color
 ) {
     val reduceMotion = LocalReducedMotionEnabled.current
+    val scale = remember { Animatable(1f) }
+    val rotation = remember { Animatable(0f) }
+    val morph = remember { Animatable(0f) }
 
-    val transition = rememberInfiniteTransition(label = "iconPulse")
-    val scale = if (reduceMotion) 1f else {
-        transition.animateFloat(
-            initialValue = 0.96f,
-            targetValue = 1.04f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 3000, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "scale"
-        ).value
+    // Breathes for as long as the background blobs drift, then eases back to rest so an empty
+    // screen left open stops drawing every frame.
+    LaunchedEffect(reduceMotion) {
+        if (reduceMotion) {
+            scale.snapTo(1f)
+            rotation.snapTo(0f)
+            morph.snapTo(0f)
+            return@LaunchedEffect
+        }
+        withTimeoutOrNull(EMPTY_ICON_ACTIVE_MILLIS) {
+            coroutineScope {
+                launch {
+                    scale.snapTo(0.96f)
+                    scale.animateTo(1.04f, infiniteRepeatable(tween(3000, easing = FastOutSlowInEasing), RepeatMode.Reverse))
+                }
+                launch {
+                    rotation.snapTo(-3f)
+                    rotation.animateTo(3f, infiniteRepeatable(tween(4000, easing = FastOutSlowInEasing), RepeatMode.Reverse))
+                }
+                launch {
+                    morph.animateTo(1f, infiniteRepeatable(tween(8000, easing = LinearEasing), RepeatMode.Restart))
+                }
+            }
+        }
+        coroutineScope {
+            launch { scale.animateTo(1f, tween(EMPTY_ICON_SETTLE_MILLIS)) }
+            launch { rotation.animateTo(0f, tween(EMPTY_ICON_SETTLE_MILLIS)) }
+            launch { morph.animateTo(0f, tween(EMPTY_ICON_SETTLE_MILLIS)) }
+        }
     }
-
-    val rotation = if (reduceMotion) 0f else {
-        transition.animateFloat(
-            initialValue = -3f,
-            targetValue = 3f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 4000, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "rotation"
-        ).value
-    }
-
-    val morphProgress = if (reduceMotion) 0f else {
-        transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 8000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "morphProgress"
-        ).value
-    }
+    val morphProgress = morph.value
 
     val colors = MaterialTheme.colorScheme
     val primColor = colors.primary
@@ -274,9 +275,10 @@ private fun EmptyStateIcon(
         modifier = Modifier
             .size(96.dp)
             .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                rotationZ = rotation
+                // Read in the draw phase so scale and rotation never recompose the icon.
+                scaleX = scale.value
+                scaleY = scale.value
+                rotationZ = rotation.value
             }
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -335,3 +337,6 @@ private fun emptyStateDescription(variant: EmptyStateVariant): String? =
         EmptyStateVariant.Archive -> stringResource(R.string.archive_empty_description)
         EmptyStateVariant.Recent -> stringResource(R.string.no_recent_files_description)
     }
+
+private const val EMPTY_ICON_ACTIVE_MILLIS = 15_000L
+private const val EMPTY_ICON_SETTLE_MILLIS = 1_200

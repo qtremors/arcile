@@ -35,7 +35,6 @@ import dev.qtremors.arcile.core.presentation.formatFileSize
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -81,12 +80,7 @@ class BulkFileOperationService : Service() {
         get() = if (::dispatchers.isInitialized) {
             dispatchers
         } else {
-            ArcileDispatchers(
-                io = Dispatchers.IO,
-                default = Dispatchers.Default,
-                main = Dispatchers.Main,
-                storage = Dispatchers.IO
-            )
+            ArcileDispatchers.Standard
         }
     private var currentRequest: BulkFileOperationRequest? = null
     private var currentOperationJob: Job? = null

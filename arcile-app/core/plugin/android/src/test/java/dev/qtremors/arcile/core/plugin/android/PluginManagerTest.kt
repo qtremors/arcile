@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
@@ -48,6 +49,17 @@ class PluginManagerTest {
     }
 
     @Test
+    fun `protected launches reject file URIs and stale explicit plugin targets`() {
+        val manager = PluginManager(RuntimeEnvironment.getApplication())
+        val plugin = plugin("dev.example.arcile.plugin", 1, setOf("image/tiff"), setOf("tiff"))
+        val file = manager.launchPlugin(plugin, Uri.parse("file:///scan.tiff"), "image/tiff", "scan.tiff")
+        val stale = manager.launchPlugin(plugin, Uri.parse("content://vault/grant/opaque"), "image/tiff", "scan.tiff")
+
+        assertTrue(file is PluginLaunchResult.Failed)
+        assertTrue(stale is PluginLaunchResult.Failed)
+    }
+
+    @Test
     fun `launch intent is explicit and grants the content uri`() {
         val plugin = plugin("dev.example.arcile.plugin", 1, setOf("image/tiff"), setOf("tiff"))
         val uri = Uri.parse("content://dev.qtremors.arcile.externalfileaccess/open/scan.tiff")
@@ -62,6 +74,7 @@ class PluginManagerTest {
         assertEquals(uri, launch.clipData?.getItemAt(0)?.uri)
         assertEquals("scan.tiff", launch.getStringExtra(PluginContract.EXTRA_FILE_NAME))
         assertTrue(launch.flags and Intent.FLAG_GRANT_READ_URI_PERMISSION != 0)
+        assertEquals(0, launch.flags and Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
     }
 
     private fun plugin(

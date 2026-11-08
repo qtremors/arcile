@@ -23,6 +23,17 @@ subprojects {
         }
     }
 
+    plugins.withId("org.jetbrains.kotlin.plugin.compose") {
+        extensions.configure<org.jetbrains.kotlin.compose.compiler.gradle.ComposeCompilerGradlePluginExtension> {
+            stabilityConfigurationFiles.add(rootProject.layout.projectDirectory.file("compose-stability.conf"))
+            // Reports and metrics make every Compose compile slower, so they are opt-in.
+            if (providers.gradleProperty("arcile.composeReports").orNull == "true") {
+                reportsDestination.set(layout.buildDirectory.dir("compose_compiler/reports"))
+                metricsDestination.set(layout.buildDirectory.dir("compose_compiler/metrics"))
+            }
+        }
+    }
+
     tasks.withType<org.gradle.api.tasks.testing.Test>().configureEach {
         jvmArgs("-Xshare:off")
     }

@@ -25,7 +25,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
@@ -98,7 +97,8 @@ fun FileViewOptionsSheet(
     gridContentWidth: Dp? = null,
     gridHorizontalPadding: Dp = 32.dp,
     gridItemSpacing: Dp = 16.dp,
-    filterOptions: FileViewFilterOptions = FileViewFilterOptions()
+    filterOptions: FileViewFilterOptions = FileViewFilterOptions(),
+    customSortControls: (@Composable () -> Unit)? = null
 ) {
     val minDateMillis = filterOptions.minDateMillis
     val maxDateMillis = filterOptions.maxDateMillis
@@ -336,7 +336,7 @@ fun FileViewOptionsSheet(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
-                                Switch(
+                                ExpressiveSwitch(
                                     checked = draftPreferences.foldersFirst,
                                     onCheckedChange = null
                                 )
@@ -344,6 +344,8 @@ fun FileViewOptionsSheet(
                         }
                     }
                 }
+
+                customSortControls?.invoke()
 
                 if (onDateRangeChange != null) {
                     SortDateRangeSection(
@@ -448,7 +450,7 @@ fun FileViewOptionsSheet(
                             )
                         }
                         Spacer(modifier = Modifier.width(16.dp))
-                        Switch(
+                        ExpressiveSwitch(
                             checked = applyToSubfolders,
                             onCheckedChange = null // Handled by Row click
                         )

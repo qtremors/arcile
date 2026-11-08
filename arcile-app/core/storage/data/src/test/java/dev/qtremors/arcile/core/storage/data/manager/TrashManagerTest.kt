@@ -291,6 +291,90 @@ class TrashManagerTest {
     }
 
     @Test
+    fun `external folder is published before source removal and restores to a chosen destination`() = runTest {
+        val managed = File(root, ".arcile")
+        val source = File(root, "encrypted").apply { writeText("encrypted source") }
+        trashManager.acceptExternalItem("notes", writePayload = { path ->
+            assertTrue(source.exists())
+            val folder = File(path).apply { mkdir() }
+            File(folder, "todo.md").writeText("plaintext")
+        }, afterPublished = {
+            val payload = File(managed, ".trash").listFiles().orEmpty().single { it.isDirectory }
+            assertEquals("plaintext", File(payload, "todo.md").readText())
+            assertTrue(File(managed, ".metadata/${payload.name}.json").isFile)
+            assertTrue(source.delete())
+        }).getOrThrow()
+
+        val listed = trashManager.getTrashFiles().getOrThrow().single()
+        assertEquals("notes", listed.fileModel.name)
+        assertEquals(TrashRestoreStatus.DESTINATION_REQUIRED, listed.restoreStatus)
+        assertTrue(trashManager.restoreFromTrash(listOf(listed.id), null).exceptionOrNull() is DestinationRequiredException)
+        val destination = File(root, "restore").apply { mkdir() }
+        trashManager.restoreFromTrash(listOf(listed.id), destination.absolutePath).getOrThrow()
+        assertEquals("plaintext", File(destination, "notes/todo.md").readText())
+        assertFalse(source.exists())
+    }
+
+    @Test
+    fun `external write failure discards staging and keeps the source callback uncalled`() = runTest {
+        var sourceRemoved = false
+        val result = trashManager.acceptExternalItem("private.txt", writePayload = { path ->
+            File(path).writeText("incomplete")
+            error("Write interrupted")
+        }, afterPublished = { sourceRemoved = true })
+
+        assertTrue(result.isFailure)
+        assertFalse(sourceRemoved)
+        assertTrue(trashManager.getTrashFiles().getOrThrow().isEmpty())
+        assertTrue(File(root, ".arcile/.metadata/.vault-staging").listFiles().orEmpty().none { it.isDirectory })
+    }
+
+    @Test
+    fun `trash restart removes only interrupted unpublished vault payloads`() = runTest {
+        var publishedId = ""
+        val trash = File(root, ".arcile/.trash")
+        val stages = File(root, ".arcile/.metadata/.vault-staging")
+        trashManager.acceptExternalItem("published.txt", writePayload = { path ->
+            File(path).writeText("published")
+        }, afterPublished = {
+            publishedId = trash.listFiles().orEmpty().single { it.name != ".nomedia" }.name
+        }).getOrThrow()
+        val unpublishedId = java.util.UUID.randomUUID().toString()
+        val unpublished = File(trash, unpublishedId).apply { writeText("incomplete") }
+        File(stages, unpublishedId).apply {
+            mkdir()
+            TrashMetadataStore().write(File(this, "metadata.json"), TrashMetadataEntity(
+                id = unpublishedId, originalPath = "", displayName = "unpublished.txt", deletionTime = 1L
+            ))
+        }
+        File(stages, publishedId).apply { mkdir() }
+        val unrelated = File(stages, "unrecognized").apply {
+            mkdir()
+            File(this, "keep").writeText("unrelated file")
+        }
+
+        val recovered = newTrashManager().getTrashFiles().getOrThrow().single()
+        assertEquals(publishedId, recovered.id)
+        assertEquals("published", File(recovered.fileModel.reference).readText())
+        assertFalse(unpublished.exists())
+        assertFalse(File(stages, unpublishedId).exists())
+        assertFalse(File(stages, publishedId).exists())
+        assertEquals("unrelated file", File(unrelated, "keep").readText())
+    }
+
+    @Test
+    fun `external item stays restorable when removing the source fails`() = runTest {
+        val result = trashManager.acceptExternalItem("private.txt", writePayload = { path ->
+            File(path).writeText("complete")
+        }, afterPublished = { error("Source could not be removed") })
+
+        assertTrue(result.isFailure)
+        val item = newTrashManager().getTrashFiles().getOrThrow().single()
+        assertEquals("private.txt", item.fileModel.name)
+        assertEquals("complete", File(item.fileModel.reference).readText())
+    }
+
+    @Test
     fun `restoreFromTrash restores recovered item to selected destination`() = runTest {
         val arcileDir = File(root, ".arcile")
         val metadataDir = File(arcileDir, ".metadata").apply { mkdirs() }

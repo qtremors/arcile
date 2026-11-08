@@ -12,17 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ContentCut
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
@@ -49,11 +43,15 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.operation.BulkFileOperationType
 import dev.qtremors.arcile.core.storage.domain.ArchiveFormat
 import dev.qtremors.arcile.core.storage.domain.FileOpenAsType
+import androidx.compose.material.icons.filled.Lock
+import dev.qtremors.arcile.core.ui.dialogs.OpenAsDialog
 import dev.qtremors.arcile.core.storage.domain.storagePathName
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.feature.browser.BrowserUiState
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.FloatingSelectionToolbar
+import dev.qtremors.arcile.core.ui.FloatingSelectionOverflowButton
+import dev.qtremors.arcile.core.ui.fileSelectionToolbarActions
 import dev.qtremors.arcile.core.ui.ToolbarAction
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
@@ -182,37 +180,19 @@ internal fun BrowserSelectionToolbar(
     var openAsPath by rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val isArchiveSelection = state.archiveContext != null
     val selectedArchive = state.selectedFiles.singleOrNull()?.let(ArchiveFormat::isSupported) == true
-    val mainActions = mutableListOf<ToolbarAction>()
-    if (isArchiveSelection) {
-        mainActions += ToolbarAction(
+    val mainActions = if (isArchiveSelection) {
+        listOf(ToolbarAction(
             icon = Icons.Default.Unarchive,
             contentDescription = stringResource(R.string.archive_extract_archive),
             onClick = { dialogVisibility.showExtractArchiveDialog = true }
-        )
+        ))
     } else {
-        mainActions += ToolbarAction(
-            icon = Icons.Default.ContentCopy,
-            contentDescription = stringResource(R.string.action_copy),
-            onClick = clipboardIntents.onCopySelected
+        fileSelectionToolbarActions(
+            onCopy = clipboardIntents.onCopySelected,
+            onCut = clipboardIntents.onCutSelected,
+            onDelete = mutationIntents.onRequestDeleteSelected,
+            onRename = { dialogVisibility.showRenameDialog = true }.takeIf { state.selectedFiles.isNotEmpty() }
         )
-        mainActions += ToolbarAction(
-            icon = Icons.Default.ContentCut,
-            contentDescription = stringResource(R.string.action_cut),
-            onClick = clipboardIntents.onCutSelected
-        )
-        mainActions += ToolbarAction(
-            icon = Icons.Default.Delete,
-            contentDescription = stringResource(R.string.action_delete_selected),
-            tint = MaterialTheme.colorScheme.error,
-            onClick = mutationIntents.onRequestDeleteSelected
-        )
-        if (state.selectedFiles.isNotEmpty()) {
-            mainActions += ToolbarAction(
-                icon = Icons.Default.Edit,
-                contentDescription = stringResource(R.string.action_rename),
-                onClick = { dialogVisibility.showRenameDialog = true }
-            )
-        }
     }
 
     FloatingSelectionToolbar(
@@ -221,27 +201,12 @@ internal fun BrowserSelectionToolbar(
         moreContent = {
             var showSelectionMenu by rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
             Box {
-                Surface(
-                    onClick = { showSelectionMenu = true },
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    shadowElevation = 4.dp,
-                    tonalElevation = 4.dp,
-                    modifier = Modifier.size(48.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            imageVector = Icons.Default.MoreVert,
-                            contentDescription = stringResource(R.string.action_more_options),
-                            modifier = Modifier.size(24.dp)
-                        )
-                    }
-                }
+                FloatingSelectionOverflowButton { showSelectionMenu = true }
                 val menuActions = remember(
                     selectionIntents.onShareSelected,
                     selectionIntents.onOpenSelectedWith,
                     selectionIntents.onOpenSelectedAs,
+                    selectionIntents.onSendToOnlyFiles,
                     state.selectedFiles,
                     isArchiveSelection
                 ) {
@@ -253,6 +218,18 @@ internal fun BrowserSelectionToolbar(
                                 onClick = {
                                     showSelectionMenu = false
                                     dialogVisibility.showCreateArchiveDialog = true
+                                }
+                            )
+                        }
+                        if (!isArchiveSelection && state.selectedFiles.isNotEmpty() &&
+                            state.selectedFiles.all { it.startsWith('/') }
+                        ) add {
+                            ArcileDropdownMenuItem(
+                                text = { Text(stringResource(R.string.send_to_onlyfiles)) },
+                                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null) },
+                                onClick = {
+                                    showSelectionMenu = false
+                                    selectionIntents.onSendToOnlyFiles(state.selectedFiles.toList())
                                 }
                             )
                         }

@@ -1,11 +1,12 @@
 # Arcile - Releases
 
 > **Project:** Arcile
-> **Version:** 2.2.0
-> **Last Updated:** 2026-10-04
+> **Version:** 2.5.0
+> **Last Updated:** 2026-11-08
 
 | Version | Release Date | Key Focus |
 | :--- | :--- | :--- |
+| [v2.5.0](#v250) | 2026-11-08 | OnlyFiles becomes a full private workspace, with clearer settings, safer recovery, and lighter background work |
 | [v2.2.0](#v220) | 2026-10-04 | Expanded music library, integrated playback and lyrics, faster browsing, and safer file recovery |
 | [v2.1.0](#v210) | 2026-08-28 | Adaptive workspaces, unified viewer actions, precision audio editing, safer storage cleaning, and conflict dialog refinements |
 | [v2.0.5](#v205) | 2026-08-21 | Responsive navigation, focused Root access, richer file opening and sorting, complete activity history, and surrounding-aware media controls |
@@ -18,6 +19,53 @@
 | [v1.2.0](#v120) | 2026-06-21 | Activity history, backup/restore, refresh reliability, Save-to-Arcile durability, Gallery/Viewer polish, and navigation fixes |
 | [v1.1.0](#v110) | 2026-06-14 | Storage Cleaner enhancements, Room-backed cache database, and immersive Media Viewer |
 | [v1.0.0](#v100) | 2026-06-07 | First Stable Release - v0.8.0 through v0.9.9 plus final stable hardening |
+
+---
+
+# v2.5.0
+
+**Release Date:** November 8, 2026
+
+Arcile v2.5.0 turns OnlyFiles into a complete private workspace that uses the same viewers, players, and file tools as the rest of Arcile. Vault settings, menus, and messages are simpler, interrupted transfers recover more safely, and the app does less work in the background.
+
+## Added
+
+- **Arcile's tools inside vaults:** Gallery's image viewer, the video, PDF, and music players, the archive screen, and Browser's selection, clipboard, conflict review, and transfer details all work in OnlyFiles.
+- **Archives in vaults:** Browse, create, and extract ZIP and 7z archives (with passwords), TAR, TAR.GZ, TAR.BZ2, TAR.XZ, GZIP, BZIP2, and XZ without writing unencrypted temporary files.
+- **Vault music:** Play vault tracks in the full player with cover art, queue, lyrics, speed and pitch, sleep timer, and visualizer. Edit MP3 and FLAC details and artwork, and trim, extract, or combine tracks.
+- **Undo in vaults:** Undo creating, renaming, moving, pasting, importing, and moving files in or out of a vault when nothing has changed since.
+- **Backups:** Create encrypted vault backups and restore them as separate vaults.
+- **Moving files in and out:** Send Browser selections to a vault as a copy or move, move local files in once their encrypted copies are checked, move vault items to Trash, print vault PDFs, and install APKs from a vault.
+- **Workspace tabs:** Keep separate folders, searches, and scroll positions open inside a vault.
+- **Folder icons and item details:** Choose Plain, Special, or App folder icons, and which details (count, size, date, time) appear under file and folder names.
+
+## Changed
+
+- **OnlyFiles menus:** Long-press a vault for its options. Pinned vaults have their own section, and the vault menu keeps folder actions in a short list with Lock, hidden files, and workspace tabs as icons.
+- **Settings pages:** OnlyFiles settings and each vault's settings open as full screens. Choose how long a vault stays open after you leave Arcile with connected buttons: Now, 30 sec, 1 min, or 5 min.
+- **Passwords:** Switch keyboards with an ABC / 123 toggle. Short passwords and PINs work everywhere through one "Use it anyway" switch.
+- **Health check:** Results say "All good" or "Needs attention", list each problem with an icon for how serious it is, and offer recovery when needed.
+- **File picker:** Choose files, folders, and backup locations on a full screen that stays steady while moving between folders, with floating actions.
+- **Switches:** Every switch in the app uses the same expressive style and is announced as a switch by screen readers.
+- **Clearer text:** OnlyFiles warnings, prompts, errors, and settings are shorter and plainer.
+- **Battery and speed:** Folder sizes cost less to calculate and stop when you leave a folder. Changes made by other apps are handled once when you return to Arcile. Viewers, thumbnails, music position saves, the gallery, paused videos, and empty screens all do less background work.
+- **Text editor:** Saving no longer reads the whole file back.
+- **License:** Arcile is now under the Tremors Source License (TSL) Version 2.0.
+
+## Fixed
+
+- **Recovery:** Interrupted imports, pastes, and exports resume after unlocking, and retries survive restarts.
+- **Video notifications:** A video opened from another app reopens when you tap its notification.
+- **Cancelling:** Cancelling an action or leaving a screen no longer shows an error.
+- **Translations:** 23 labels in the APK installer, batch rename, accent preview, storage cards, and video viewer can now be translated.
+- **OnlyFiles startup:** Opening OnlyFiles no longer flashes the empty screen before your vaults appear.
+- **Archive folders:** Folders inside archives show their size instead of calculating forever.
+- **Vault transfers:** Copy and cut survive switching vaults, viewers refresh after renaming or saving, and Move Out keeps a folder in the vault when any of its files is skipped.
+
+## Removed
+
+- **Folder pins in vaults:** Pinning is now only for vaults on the OnlyFiles screen.
+- **Unused code:** Unused screens, dialogs, and 192 unused strings.
 
 ---
 

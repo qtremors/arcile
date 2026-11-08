@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -50,8 +51,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
+import androidx.compose.runtime.collectAsState
+import coil3.compose.AsyncImagePainter
+import coil3.compose.rememberAsyncImagePainter
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
@@ -66,7 +68,8 @@ import dev.qtremors.arcile.core.ui.image.buildThumbnailImageRequest
 import dev.qtremors.arcile.core.ui.rememberDateTimeFormatter
 import dev.qtremors.arcile.core.ui.theme.ArcileMotion
 import dev.qtremors.arcile.core.ui.theme.LocalDoubleLineFilenames
-import dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled
+import dev.qtremors.arcile.core.ui.theme.LocalFileDetailVisibility
 import dev.qtremors.arcile.core.ui.theme.LocalMarqueeFilenames
 import dev.qtremors.arcile.core.ui.theme.LocalReducedMotionEnabled
 
@@ -152,7 +155,10 @@ fun FileItemRow(
         .copy(fontWeight = FontWeight.Medium)
     val supportStyle = MaterialTheme.typography.bodySmall.scaled(animatedScale)
         .copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
-    val subtitleText = row.displaySubtitle()
+    val subtitleText = presentation.contextLabel?.invoke(file) ?: row.displaySubtitle()
+    val details = LocalFileDetailVisibility.current
+    val visibleSubtitle = presentation.contextLabel?.invoke(file) ?: row.displaySubtitle(details)
+    val visibleTimestamp = row.displayTimestamp(details)
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val reducedMotion = LocalReducedMotionEnabled.current
@@ -230,32 +236,84 @@ fun FileItemRow(
             )
             if (presentation.showDetails) {
                 Spacer(modifier = Modifier.width(contentPadding))
-                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                FileRowText(
+                    name = file.name,
+                    subtitle = visibleSubtitle,
+                    timestamp = visibleTimestamp,
+                    titleStyle = titleStyle,
+                    supportStyle = supportStyle,
+                    nameMaxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
+                    marquee = marqueeEnabled,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Lays out the name and whichever details are visible so the row stays balanced:
+ * a subtitle goes under the name with the timestamp at its end; a timestamp alone sits
+ * beside the name on the same centered line; with nothing visible the name is centered alone.
+ */
+@Composable
+internal fun FileRowText(
+    name: String,
+    subtitle: String,
+    timestamp: String,
+    titleStyle: TextStyle,
+    supportStyle: TextStyle,
+    nameMaxLines: Int,
+    marquee: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val timestampBesideName = subtitle.isEmpty() && timestamp.isNotEmpty()
+    Column(modifier = modifier, verticalArrangement = Arrangement.Center) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = name,
+                maxLines = nameMaxLines,
+                overflow = if (marquee) TextOverflow.Clip else TextOverflow.Ellipsis,
+                style = titleStyle,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f).then(if (marquee) Modifier.basicMarquee() else Modifier)
+            )
+            if (timestampBesideName) {
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = timestamp,
+                    style = supportStyle,
+                    maxLines = 1,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.testTag(FILE_ROW_INLINE_TIMESTAMP_TAG)
+                )
+            }
+        }
+        if (subtitle.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = subtitle,
+                    style = supportStyle,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                if (timestamp.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = file.name,
-                        maxLines = if (doubleLineEnabled && !marqueeEnabled) 2 else 1,
-                        overflow = if (marqueeEnabled) TextOverflow.Clip else TextOverflow.Ellipsis,
-                        style = titleStyle,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = if (marqueeEnabled) Modifier.basicMarquee() else Modifier
+                        text = timestamp,
+                        style = supportStyle,
+                        maxLines = 1,
+                        textAlign = TextAlign.End
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = subtitleText, style = supportStyle, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Spacer(modifier = Modifier.weight(1f))
-                        Text(
-                            text = row.formattedDate,
-                            style = supportStyle,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.End
-                        )
-                    }
                 }
             }
         }
     }
 }
+
+internal const val FILE_ROW_INLINE_TIMESTAMP_TAG = "file_row_inline_timestamp"
 
 @Composable
 private fun FileListThumbnail(
@@ -318,9 +376,10 @@ private fun FileListThumbnail(
                 },
                 onError = { thumbnailPolicy.recordFailure(row.thumbnailKey, row.thumbnailSizePx) }
             )
-            if (painter.state is AsyncImagePainter.State.Empty ||
-                painter.state is AsyncImagePainter.State.Loading ||
-                painter.state is AsyncImagePainter.State.Error
+            val painterState by painter.state.collectAsState()
+            if (painterState is AsyncImagePainter.State.Empty ||
+                painterState is AsyncImagePainter.State.Loading ||
+                painterState is AsyncImagePainter.State.Error
             ) {
                 ListFileIcon(file, iconSize * 0.5f)
             }
@@ -352,7 +411,7 @@ private fun FileListThumbnail(
 
 @Composable
 private fun ListFileIcon(file: FileModel, iconSize: androidx.compose.ui.unit.Dp) {
-    val folderIconsEnabled = LocalFolderIconsEnabled.current
+    val specialFolderIcons = LocalSpecialFolderIconsEnabled.current
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val folderAppIcon = if (file.isDirectory) {
             dev.qtremors.arcile.core.ui.rememberFolderAppIcon(file.name, file.reference)
@@ -367,7 +426,7 @@ private fun ListFileIcon(file: FileModel, iconSize: androidx.compose.ui.unit.Dp)
             )
         } else {
             Icon(
-                imageVector = getFileIconVector(file, folderIconsEnabled),
+                imageVector = getFileIconVector(file, specialFolderIcons),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(iconSize)

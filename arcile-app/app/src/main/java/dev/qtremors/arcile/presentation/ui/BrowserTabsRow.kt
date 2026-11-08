@@ -1,53 +1,23 @@
 package dev.qtremors.arcile.presentation.ui
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.SdCard
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Usb
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.onLongClick
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import dev.qtremors.arcile.core.storage.domain.StorageKind
 import dev.qtremors.arcile.core.storage.domain.StorageVolume
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenu
 import dev.qtremors.arcile.core.ui.ArcileDropdownMenuItem
 import dev.qtremors.arcile.core.ui.R
-import dev.qtremors.arcile.core.ui.theme.bounceCombinedClickable
+import dev.qtremors.arcile.core.ui.WorkspaceTabMenu
+import dev.qtremors.arcile.core.ui.WorkspaceTabPresentation
+import dev.qtremors.arcile.core.ui.WorkspaceTabsRow
 
 @Composable
 internal fun BrowserTabsRow(
@@ -68,186 +38,53 @@ internal fun BrowserTabsRow(
     onCloseOthers: (Int) -> Unit,
     onClose: (Int) -> Unit
 ) {
-    val listState = rememberLazyListState()
-    var menuTabId by remember { mutableStateOf<Int?>(null) }
-    var showNewTabMenu by remember { mutableStateOf(false) }
-    val activeIndex = tabs.indexOfFirst { it.id == activeTabId }
-    val tabActionsLabel = stringResource(R.string.browser_tab_actions)
-
-    LaunchedEffect(activeTabId, tabs) {
-        if (activeIndex >= 0) listState.animateScrollToItem(activeIndex)
-        if (menuTabId != null && tabs.none { it.id == menuTabId }) menuTabId = null
-    }
-    LaunchedEffect(isRouteVisible) {
-        if (!isRouteVisible) {
-            menuTabId = null
-            showNewTabMenu = false
+    val tabPresentations = tabs.map { tab ->
+        if (tab.id == PRIMARY_BROWSER_TAB_ID) {
+            WorkspaceTabPresentation(tab.id, stringResource(R.string.internal_storage), Icons.Default.Home)
+        } else {
+            WorkspaceTabPresentation(
+                tab.id,
+                titles[tab.id]?.takeIf(String::isNotBlank) ?: stringResource(R.string.browse_title)
+            )
         }
     }
-
-    Box(
-        modifier = modifier
-            .heightIn(min = 48.dp)
-    ) {
-        LazyRow(
-            state = listState,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp),
-            contentPadding = PaddingValues(start = 8.dp, end = 56.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items(tabs, key = BrowserTab::id) { tab ->
-                val selected = tab.id == activeTabId
-                val isPrimaryTab = tab.id == PRIMARY_BROWSER_TAB_ID
-                val title = if (isPrimaryTab) {
-                    stringResource(R.string.internal_storage)
-                } else {
-                    titles[tab.id]
-                        ?.takeIf(String::isNotBlank)
-                        ?: stringResource(R.string.browse_title)
-                }
-                val showMenu = menuTabId == tab.id
-                Box(
-                    modifier = Modifier
-                        .heightIn(min = 48.dp)
-                        .clip(MaterialTheme.shapes.extraLarge)
-                        .semantics {
-                            this.selected = selected
-                            onLongClick(label = tabActionsLabel) {
-                                menuTabId = tab.id
-                                true
-                            }
-                        }
-                        .bounceCombinedClickable(
-                            role = Role.Tab,
-                            onClick = { onSelectTab(tab.id) },
-                            onLongClick = { menuTabId = tab.id }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        shape = MaterialTheme.shapes.extraLarge,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.primaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.surfaceContainerHigh
-                        },
-                        contentColor = if (selected) {
-                            MaterialTheme.colorScheme.onPrimaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        }
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .heightIn(min = 40.dp)
-                                .padding(horizontal = 14.dp, vertical = 10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (isPrimaryTab) {
-                                Icon(
-                                    imageVector = Icons.Default.Home,
-                                    contentDescription = title,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            } else {
-                                Text(
-                                    text = title,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    style = MaterialTheme.typography.labelLarge
-                                )
-                            }
-                        }
-                    }
-
-                    BrowserTabMenu(
-                        tab = tab,
-                        tabs = tabs,
-                        expanded = showMenu,
-                        onDismiss = { menuTabId = null },
-                        onSetPinned = {
-                            menuTabId = null
-                            onSetPinned(tab.id, it)
-                        },
-                        onDuplicate = {
-                            menuTabId = null
-                            onDuplicate(tab.id)
-                        },
-                        onMoveLeft = {
-                            menuTabId = null
-                            onMoveLeft(tab.id)
-                        },
-                        onMoveRight = {
-                            menuTabId = null
-                            onMoveRight(tab.id)
-                        },
-                        onCloseOthers = {
-                            menuTabId = null
-                            onCloseOthers(tab.id)
-                        },
-                        onClose = {
-                            menuTabId = null
-                            onClose(tab.id)
-                        }
-                    )
-                }
-            }
-        }
-
-        val newTabStorageMenuLabel = stringResource(R.string.browser_new_tab)
-        Box(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .padding(end = 8.dp)
-                .size(48.dp)
-                .clip(MaterialTheme.shapes.extraLarge)
-                .semantics {
-                    onLongClick(label = newTabStorageMenuLabel) {
-                        showNewTabMenu = true
-                        true
-                    }
-                }
-                .bounceCombinedClickable(
-                    onClick = onNewTab,
-                    onLongClick = { showNewTabMenu = true }
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Surface(
-                modifier = Modifier.size(40.dp),
-                shape = MaterialTheme.shapes.extraLarge,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = stringResource(R.string.browser_new_tab),
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-            }
-
-            val newTabMenuItems = buildList<@Composable () -> Unit> {
-                // Internal storage
+    WorkspaceTabsRow(
+        tabs = tabPresentations,
+        activeTabId = activeTabId,
+        onSelectTab = onSelectTab,
+        onNewTab = onNewTab,
+        modifier = modifier,
+        isRouteVisible = isRouteVisible,
+        tabMenu = { id, expanded, dismiss ->
+            val tab = tabs.first { it.id == id }
+            val primary = id == PRIMARY_BROWSER_TAB_ID
+            WorkspaceTabMenu(
+                expanded = expanded,
+                onDismiss = dismiss,
+                pinned = tab.isPinned.takeUnless { primary },
+                onSetPinned = { onSetPinned(id, it) },
+                onDuplicate = { onDuplicate(id) },
+                canDuplicate = tabs.size < MAX_BROWSER_TABS,
+                onMoveLeft = { onMoveLeft(id) }.takeIf { canMoveBrowserTab(tabs, id, -1) },
+                onMoveRight = { onMoveRight(id) }.takeIf { canMoveBrowserTab(tabs, id, 1) },
+                onCloseOthers = { onCloseOthers(id) },
+                canCloseOthers = tabs.any { it.id != id && it.id != PRIMARY_BROWSER_TAB_ID && !it.isPinned },
+                onClose = { onClose(id) }.takeUnless { primary || tab.isPinned }
+            )
+        },
+        newTabMenu = { expanded, dismiss ->
+            val items = buildList<@Composable () -> Unit> {
                 add {
                     ArcileDropdownMenuItem(
-                        text = stringResource(R.string.internal_storage),
+                        text = { Text(stringResource(R.string.internal_storage)) },
                         leadingIcon = { Icon(Icons.Default.Storage, contentDescription = null) },
-                        onClick = {
-                            showNewTabMenu = false
-                            onNewTabInternal()
-                        }
+                        onClick = { dismiss(); onNewTabInternal() }
                     )
                 }
-                // Other storage volumes (e.g. SD Card, USB OTG)
                 storageVolumes.filterNot { it.isPrimary }.forEach { volume ->
                     add {
                         ArcileDropdownMenuItem(
-                            text = volume.name,
+                            text = { Text(volume.name) },
                             leadingIcon = {
                                 val icon = when (volume.kind) {
                                     StorageKind.OTG -> Icons.Default.Usb
@@ -256,101 +93,12 @@ internal fun BrowserTabsRow(
                                 }
                                 Icon(icon, contentDescription = null)
                             },
-                            onClick = {
-                                showNewTabMenu = false
-                                onNewTabStorageVolume(volume)
-                            }
+                            onClick = { dismiss(); onNewTabStorageVolume(volume) }
                         )
                     }
                 }
             }
-
-            ArcileDropdownMenu(
-                expanded = showNewTabMenu,
-                onDismissRequest = { showNewTabMenu = false },
-                items = newTabMenuItems
-            )
+            ArcileDropdownMenu(expanded = expanded, onDismissRequest = dismiss, items = items)
         }
-    }
-}
-
-@Composable
-private fun BrowserTabMenu(
-    tab: BrowserTab,
-    tabs: List<BrowserTab>,
-    expanded: Boolean,
-    onDismiss: () -> Unit,
-    onSetPinned: (Boolean) -> Unit,
-    onDuplicate: () -> Unit,
-    onMoveLeft: () -> Unit,
-    onMoveRight: () -> Unit,
-    onCloseOthers: () -> Unit,
-    onClose: () -> Unit
-) {
-    val isPrimaryTab = tab.id == PRIMARY_BROWSER_TAB_ID
-    val canCloseOthers = tabs.any { other ->
-        other.id != tab.id && other.id != PRIMARY_BROWSER_TAB_ID && !other.isPinned
-    }
-    val items = buildList<@Composable () -> Unit> {
-        if (!isPrimaryTab) {
-            add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(R.string.browser_move_tab_left),
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null)
-                    },
-                    enabled = canMoveBrowserTab(tabs, tab.id, offset = -1),
-                    onClick = onMoveLeft
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(R.string.browser_move_tab_right),
-                    leadingIcon = {
-                        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null)
-                    },
-                    enabled = canMoveBrowserTab(tabs, tab.id, offset = 1),
-                    onClick = onMoveRight
-                )
-            }
-            add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(if (tab.isPinned) R.string.browser_unpin_tab else R.string.browser_pin_tab),
-                    leadingIcon = { Icon(Icons.Default.PushPin, contentDescription = null) },
-                    onClick = { onSetPinned(!tab.isPinned) }
-                )
-            }
-        }
-        add {
-            ArcileDropdownMenuItem(
-                text = stringResource(R.string.browser_duplicate_tab),
-                leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                enabled = tabs.size < MAX_BROWSER_TABS,
-                onClick = onDuplicate
-            )
-        }
-        add {
-            ArcileDropdownMenuItem(
-                text = stringResource(R.string.browser_close_other_tabs),
-                leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
-                enabled = canCloseOthers,
-                onClick = onCloseOthers
-            )
-        }
-        if (!isPrimaryTab && !tab.isPinned) {
-            add {
-                ArcileDropdownMenuItem(
-                    text = stringResource(R.string.browser_close_tab),
-                    leadingIcon = { Icon(Icons.Default.Close, contentDescription = null) },
-                    enabled = tabs.size > 1,
-                    onClick = onClose
-                )
-            }
-        }
-    }
-    ArcileDropdownMenu(
-        expanded = expanded,
-        onDismissRequest = onDismiss,
-        items = items
     )
 }

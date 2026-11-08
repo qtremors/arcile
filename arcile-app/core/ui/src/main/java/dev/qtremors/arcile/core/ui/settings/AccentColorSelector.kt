@@ -371,7 +371,7 @@ fun AccentColorPickerSheet(
 
             // Special System Options (Dynamic Material You & Monochrome)
             Text(
-                text = "System Themes",
+                text = stringResource(R.string.accent_system_themes),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -510,7 +510,7 @@ fun LiveAccentPreviewCard(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Arcile Interface",
+                        text = stringResource(R.string.accent_preview_interface),
                         style = MaterialTheme.typography.titleSmall,
                         color = onSurface
                     )
@@ -561,7 +561,7 @@ fun LiveAccentPreviewCard(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "List Item & Controls",
+                            text = stringResource(R.string.accent_preview_list_controls),
                             style = MaterialTheme.typography.labelMedium,
                             color = onSurface
                         )

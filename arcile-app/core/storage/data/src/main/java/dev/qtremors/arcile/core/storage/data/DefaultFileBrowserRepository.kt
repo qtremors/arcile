@@ -40,6 +40,10 @@ class DefaultFileBrowserRepository(
         folderStatsStore.queue(paths)
     }
 
+    override fun cancelFolderStatsOutside(parentPath: String) {
+        folderStatsStore.cancelOutside(parentPath)
+    }
+
     override fun observeFolderStatUpdates(): Flow<FolderStatUpdate> =
         folderStatsStore.observeUpdates()
 

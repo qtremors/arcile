@@ -1,7 +1,6 @@
 package dev.qtremors.arcile.core.storage.domain
 
 
-@Immutable
 data class ListingPage(
     val path: StorageNodePath,
     val files: List<FileModel>,

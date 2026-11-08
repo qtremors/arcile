@@ -1,55 +1,44 @@
 package dev.qtremors.arcile.backup
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 
 class BackupRulesTest {
+    private val legacyRules = excludesFrom("src/main/res/xml/backup_rules.xml")
+    private val extractionRules = excludesFrom("src/main/res/xml/data_extraction_rules.xml")
+
     @Test
     fun `backup rules exclude local private state`() {
-        val excludes = excludesFrom("src/main/res/xml/backup_rules.xml")
-        val excludedPaths = excludes.map { it.path }.toSet()
-
-        assertTrue("datastore should be excluded", "datastore" in excludedPaths)
-        assertTrue("browser preferences should be excluded", "datastore/browser_prefs.preferences_pb" in excludedPaths)
-        assertTrue("quick access preferences should be excluded", "datastore/quick_access_prefs.preferences_pb" in excludedPaths)
-        assertTrue("storage classifications should be excluded", "datastore/storage_classifications_prefs.preferences_pb" in excludedPaths)
-        assertTrue("activity log should be excluded", "datastore/activity_log.preferences_pb" in excludedPaths)
-        assertSensitiveSharedPreferencesExcluded(excludes)
-        assertTrue("Arcile storage metadata should be excluded", ".arcile" in excludedPaths)
-        assertTrue(
-            "Room cache database should be excluded",
-            excludes.any { it.domain == "database" && it.path == "arcile-cache.db" }
-        )
+        assertPrivateStateExcluded(legacyRules)
     }
 
     @Test
     fun `data extraction rules exclude local private state for backup and transfer`() {
-        val excludes = excludesFrom("src/main/res/xml/data_extraction_rules.xml")
-        val excludedPaths = excludes.map { it.path }.toSet()
-
-        assertTrue("datastore should be excluded", "datastore" in excludedPaths)
-        assertTrue("browser preferences should be excluded", "datastore/browser_prefs.preferences_pb" in excludedPaths)
-        assertTrue("quick access preferences should be excluded", "datastore/quick_access_prefs.preferences_pb" in excludedPaths)
-        assertTrue("storage classifications should be excluded", "datastore/storage_classifications_prefs.preferences_pb" in excludedPaths)
-        assertTrue("activity log should be excluded", "datastore/activity_log.preferences_pb" in excludedPaths)
         listOf("cloud-backup", "device-transfer").forEach { parent ->
-            assertSensitiveSharedPreferencesExcluded(excludes.filterTo(mutableSetOf()) { it.parent == parent })
+            assertPrivateStateExcluded(extractionRules.filterTo(mutableSetOf()) { it.parent == parent })
         }
-        assertTrue("Arcile storage metadata should be excluded", ".arcile" in excludedPaths)
-        assertTrue(
-            "Room cache database should be excluded from cloud backup",
-            excludes.any { it.parent == "cloud-backup" && it.domain == "database" && it.path == "arcile-cache.db" }
-        )
-        assertTrue(
-            "Room cache database should be excluded from device transfer",
-            excludes.any { it.parent == "device-transfer" && it.domain == "database" && it.path == "arcile-cache.db" }
-        )
     }
 
-    private fun assertSensitiveSharedPreferencesExcluded(excludes: Set<ExcludeRule>) {
+    @Test
+    fun `all backup paths list the same exclusions`() {
+        val legacy = legacyRules.map { it.domain to it.path }.toSet()
+        listOf("cloud-backup", "device-transfer").forEach { parent ->
+            assertEquals(
+                "$parent must match backup_rules.xml",
+                legacy,
+                extractionRules.filter { it.parent == parent }.map { it.domain to it.path }.toSet()
+            )
+        }
+    }
+
+    private fun assertPrivateStateExcluded(excludes: Set<ExcludeRule>) {
+        // Excluding the folder covers every DataStore file, including ones added later.
+        assertTrue("datastore should be excluded", excludes.any { it.domain == "file" && it.path == "datastore" })
         setOf(
+            "trash_crypto_prefs.xml",
             "operation_journal.xml",
             "mutation_journal.xml",
             "onlyfiles_vault_locations.xml"
@@ -59,6 +48,11 @@ class BackupRulesTest {
                 excludes.any { it.domain == "sharedpref" && it.path == path }
             )
         }
+        assertTrue("Arcile storage metadata should be excluded", excludes.any { it.path == ".arcile" })
+        assertTrue(
+            "Room cache database should be excluded",
+            excludes.any { it.domain == "database" && it.path == "arcile-cache.db" }
+        )
     }
 
     private fun excludesFrom(path: String): Set<ExcludeRule> {
@@ -72,13 +66,7 @@ class BackupRulesTest {
                 val domainValue = node.attributes?.getNamedItem("domain")?.nodeValue
                 val pathValue = node.attributes?.getNamedItem("path")?.nodeValue
                 if (domainValue != null && pathValue != null) {
-                    add(
-                        ExcludeRule(
-                            parent = node.parentNode.nodeName,
-                            domain = domainValue,
-                            path = pathValue
-                        )
-                    )
+                    add(ExcludeRule(node.parentNode.nodeName, domainValue, pathValue))
                 }
             }
         }

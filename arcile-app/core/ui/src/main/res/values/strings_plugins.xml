@@ -1,5 +1,4 @@
 <resources>
-    <string name="section_plugins">Plugins</string>
     <string name="plugins_title">Plugins</string>
     <string name="plugins_settings_description">Manage installed Arcile plugins.</string>
     <string name="plugins_available">Arcile plugins</string>

@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.core.plugin.android
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.annotation.SuppressLint
 import android.content.ClipData
 import android.content.ComponentName
@@ -86,11 +87,27 @@ class PluginManager(private val context: Context) {
         if (plugin.compatibility != PluginCompatibility.COMPATIBLE) {
             return PluginLaunchResult.Incompatible(plugin)
         }
-        return runCatching {
+        return runCatchingCancellable {
             val baseIntent = ExternalFileAccessHelper.createOpenIntent(context, path)
             val displayName = path.substringAfterLast('/').substringAfterLast('\\').ifBlank { "File" }
             val launchIntent = buildPluginLaunchIntent(plugin, baseIntent, displayName)
             context.startActivity(launchIntent)
+            PluginLaunchResult.Launched
+        }.getOrElse(PluginLaunchResult::Failed)
+    }
+
+    fun launchPlugin(
+        plugin: PluginMetadata,
+        contentUri: Uri,
+        mimeType: String,
+        displayName: String
+    ): PluginLaunchResult {
+        if (plugin.compatibility != PluginCompatibility.COMPATIBLE) return PluginLaunchResult.Incompatible(plugin)
+        return runCatching {
+            require(contentUri.scheme == "content")
+            check(plugin in getInstalledPlugins()) { "The selected plugin changed before launch" }
+            val baseIntent = Intent(Intent.ACTION_VIEW).setDataAndType(contentUri, mimeType)
+            context.startActivity(buildPluginLaunchIntent(plugin, baseIntent, displayName))
             PluginLaunchResult.Launched
         }.getOrElse(PluginLaunchResult::Failed)
     }

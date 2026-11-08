@@ -245,8 +245,12 @@ internal fun UiPreferences.withLandscapeDualPane(enabled: Boolean): UiPreference
     landscapeDualPaneEnabled = enabled
 )
 
-internal fun UiPreferences.withFolderIcons(enabled: Boolean): UiPreferences = copy(
-    folderIconsEnabled = enabled
+internal fun UiPreferences.withSpecialFolderIcons(enabled: Boolean): UiPreferences = copy(
+    specialFolderIconsEnabled = enabled
+)
+
+internal fun UiPreferences.withAppFolderIcons(enabled: Boolean): UiPreferences = copy(
+    appFolderIconsEnabled = enabled
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

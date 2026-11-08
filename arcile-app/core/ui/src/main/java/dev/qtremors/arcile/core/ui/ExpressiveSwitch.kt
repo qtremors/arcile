@@ -8,7 +8,6 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
@@ -19,6 +18,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -84,18 +86,25 @@ fun ExpressiveSwitch(
         label = "switchThumbColor"
     )
 
-    val clickableModifier = if (onCheckedChange != null) {
-        Modifier.clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            enabled = enabled
-        ) {
-            onCheckedChange(!checked)
-        }
+    // Announced as a switch with its on/off state. Without a callback the parent row is the
+    // toggle, so the switch stays a plain visual and does not steal the row's touch target.
+    val toggleModifier = if (onCheckedChange != null) {
+        Modifier
+            .minimumInteractiveComponentSize()
+            .toggleable(
+                value = checked,
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                role = Role.Switch,
+                onValueChange = onCheckedChange
+            )
     } else Modifier
 
     Box(
         modifier = modifier
+            .then(toggleModifier)
+            .graphicsLayer { alpha = if (enabled) 1f else DISABLED_ALPHA }
             .size(52.dp, 32.dp)
             .clip(RoundedCornerShape(50))
             .background(trackColor)
@@ -103,8 +112,7 @@ fun ExpressiveSwitch(
                 width = if (checked) 0.dp else 2.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(50)
-            )
-            .then(clickableModifier),
+            ),
         contentAlignment = Alignment.CenterStart
     ) {
         Box(
@@ -151,3 +159,5 @@ fun ExpressiveSwitch(
         }
     }
 }
+
+private const val DISABLED_ALPHA = 0.38f

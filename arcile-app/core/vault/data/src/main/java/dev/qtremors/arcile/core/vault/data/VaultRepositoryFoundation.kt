@@ -29,13 +29,14 @@ internal abstract class VaultRepositoryFoundation(
     protected val transferEngine = VaultTransferEngine(directoryCodec, fileCodec, transactionManager)
     protected val transferMutex = Mutex()
     protected val vaultRoot = File(context.noBackupFilesDir, ROOT_DIRECTORY)
+    internal val operationJournal = VaultOperationJournal(File(context.noBackupFilesDir, "vault-operation-queues"))
     protected val sessions = ConcurrentHashMap<String, VaultSessionRecord>()
     protected val locations = ConcurrentHashMap<String, VaultLocationRecord>()
     protected val importReservations = ConcurrentHashMap<String, VaultSessionRecord>()
     protected val lifecycleMutex = Mutex()
     protected var lockGeneration = 0L
     protected val locationRegistry = VaultLocationRegistry(context)
-    protected val importEngine = VaultImportEngine(context, directoryCodec, fileCodec, transactionManager)
+    protected val importEngine = VaultImportEngine(context, operationJournal, directoryCodec, fileCodec, transactionManager)
     protected val portableManager = VaultPortableManager(locationRegistry)
     protected val appPrivateManager = VaultAppPrivateManager(vaultRoot)
     protected val biometricStore = VaultBiometricStore(context)
@@ -85,7 +86,8 @@ internal abstract class VaultRepositoryFoundation(
 
     protected fun collectObsoleteSubtree(
         session: VaultSessionRecord,
-        root: VaultManifestEntry
+        root: VaultManifestEntry,
+        onDirectory: (DirectoryId) -> Unit = {}
     ): Set<String> {
         if (root.kind == VaultNodeKind.FILE) return setOf(requireNotNull(root.objectId).shardedPath())
         val obsolete = mutableSetOf<String>()
@@ -96,6 +98,7 @@ internal abstract class VaultRepositoryFoundation(
             try {
                 val snapshot = session.readDirectory(directoryId, key)
                 try {
+                    onDirectory(directoryId)
                     obsolete += snapshot.pageObjectIds.map(VaultObjectId::shardedPath)
                     obsolete += VaultDirectoryManifestCodec.rootSlot(directoryId, 0L)
                     obsolete += VaultDirectoryManifestCodec.rootSlot(directoryId, 1L)
@@ -240,7 +243,8 @@ internal fun VaultManifestEntry.toLegacyNode(parent: VaultPath): VaultNode = Vau
 internal data class SearchFrame(
     val directoryId: DirectoryId,
     val key: ByteArray,
-    val parentNames: List<String>
+    val parentNames: List<String>,
+    val parentDirectoryIds: List<DirectoryId> = emptyList()
 )
 
 internal fun VaultManifestEntry.toMetadata(vaultId: VaultId, parentId: DirectoryId): VaultNodeMetadata =
@@ -260,16 +264,27 @@ internal fun VaultManifestEntry.toMetadata(vaultId: VaultId, parentId: Directory
         mimeType = mimeType
     )
 
-internal fun VaultListOptions.comparator(): Comparator<VaultNodeMetadata> {
+internal fun vaultListingComparator(
+    sortField: VaultSortField,
+    direction: VaultSortDirection,
+    foldersFirst: Boolean,
+    fileCounts: Map<NodeId, Long>
+): Comparator<VaultNodeMetadata> {
+    val name = compareBy<VaultNodeMetadata> { VaultName.of(it.name).comparisonKey }
     val fieldComparator = when (sortField) {
         VaultSortField.NAME -> compareBy<VaultNodeMetadata> { VaultName.of(it.name).comparisonKey }
         VaultSortField.MODIFIED -> compareBy { it.modifiedAtMillis }
         VaultSortField.SIZE -> compareBy { it.sizeBytes }
         VaultSortField.TYPE -> compareBy<VaultNodeMetadata> { it.mimeType.orEmpty() }
             .thenBy { VaultName.of(it.name).comparisonKey }
+        VaultSortField.FILE_COUNT -> compareBy { fileCounts[it.ref.nodeId] ?: 0L }
     }
     val directed = if (direction == VaultSortDirection.ASCENDING) fieldComparator else fieldComparator.reversed()
-    return compareByDescending<VaultNodeMetadata> { it.isDirectory }.then(directed)
+    val ranked = if (sortField == VaultSortField.FILE_COUNT) {
+        compareBy<VaultNodeMetadata> { it.ref.nodeId !in fileCounts }.then(directed)
+    } else directed
+    val grouped = if (foldersFirst) compareByDescending<VaultNodeMetadata> { it.isDirectory }.then(ranked) else ranked
+    return grouped.then(name).thenBy { it.ref.nodeId }
 }
 
 internal fun String?.toPageOffset(maximum: Int): Int {

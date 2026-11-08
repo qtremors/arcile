@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.gallery
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -151,7 +152,7 @@ internal class MediaGalleryViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 repository.loadMedia(
                     volumeId = volumeId,
                     forceRefresh = forceRefresh,

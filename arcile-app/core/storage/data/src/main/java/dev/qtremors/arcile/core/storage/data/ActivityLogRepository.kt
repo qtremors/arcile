@@ -13,7 +13,6 @@ import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogStore
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import dev.qtremors.arcile.core.runtime.logging.AppLogger
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flowOn
@@ -31,12 +30,7 @@ val Context.activityLogDataStore by preferencesDataStore(name = "activity_log")
 class ActivityLogRepository(
     context: Context,
     private val dataStore: DataStore<Preferences> = context.activityLogDataStore,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : ActivityLogStore {
     private val entriesKey = stringPreferencesKey("entries")
     private val recordingEnabledKey = booleanPreferencesKey("recording_enabled")

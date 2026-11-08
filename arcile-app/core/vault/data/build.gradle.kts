@@ -44,6 +44,8 @@ dependencies {
     implementation(libs.coil.compose)
 
     testImplementation(libs.junit)
+    testImplementation(project(":core:archive"))
+    testImplementation(libs.apache.commons.compress)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
     testImplementation(libs.org.robolectric.robolectric)

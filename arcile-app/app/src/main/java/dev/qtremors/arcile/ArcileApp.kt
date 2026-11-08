@@ -1,15 +1,27 @@
 package dev.qtremors.arcile
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.SystemClock
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.Dispatchers
+import dev.qtremors.arcile.security.VaultAutoLockController
+import dev.qtremors.arcile.core.vault.domain.VaultSecurityPreferences
 import android.app.Application
 import android.os.StrictMode
-import coil.ImageLoader
-import coil.ImageLoaderFactory
-import coil.decode.GifDecoder
-import coil.decode.ImageDecoderDecoder
-import coil.decode.SvgDecoder
-import coil.decode.VideoFrameDecoder
-import coil.disk.DiskCache
-import coil.memory.MemoryCache
+import coil3.request.crossfade
+import coil3.request.addLastModifiedToFileCacheKey
+import coil3.ImageLoader
+import coil3.SingletonImageLoader
+import coil3.gif.GifDecoder
+import coil3.gif.AnimatedImageDecoder
+import coil3.svg.SvgDecoder
+import coil3.video.VideoFrameDecoder
+import okio.Path.Companion.toOkioPath
+import coil3.disk.DiskCache
+import coil3.memory.MemoryCache
 import dev.qtremors.arcile.core.storage.data.MutationJournal
 import dev.qtremors.arcile.core.storage.data.StorageCacheInvalidationObserver
 import dev.qtremors.arcile.core.storage.data.ThumbnailCacheRecord
@@ -26,6 +38,8 @@ import dev.qtremors.arcile.core.ui.image.ThumbnailStatePersistence
 import dev.qtremors.arcile.core.ui.image.VideoThumbnailFetcher
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -34,27 +48,26 @@ import dev.qtremors.arcile.core.vault.domain.VaultRepository
 import dev.qtremors.arcile.core.vault.domain.VaultThumbnailCache
 import dev.qtremors.arcile.core.vault.data.VaultThumbnailFetcher
 import javax.inject.Inject
-import coil.Coil
 import dev.qtremors.arcile.core.ui.security.SensitiveMemory
 import dev.qtremors.arcile.core.ui.externalfile.ExternalFileAccessHelper
 import dev.qtremors.arcile.core.operation.android.apk.ApkPackageParser
 
 @HiltAndroidApp
-class ArcileApp : Application(), ImageLoaderFactory {
+class ArcileApp : Application(), SingletonImageLoader.Factory {
     val appSessionTracker = AppSessionTracker()
 
     @Inject
-    lateinit var mutationJournal: MutationJournal
+    lateinit var mutationJournal: dagger.Lazy<MutationJournal>
 
     @Inject
     @ApplicationScope
     lateinit var applicationScope: CoroutineScope
 
     @Inject
-    lateinit var thumbnailCacheStore: ThumbnailCacheStore
+    lateinit var thumbnailCacheStore: dagger.Lazy<ThumbnailCacheStore>
 
     @Inject
-    lateinit var storageCacheInvalidationObserver: StorageCacheInvalidationObserver
+    lateinit var storageCacheInvalidationObserver: dagger.Lazy<StorageCacheInvalidationObserver>
 
     @Inject
     lateinit var vaultRepository: VaultRepository
@@ -62,9 +75,18 @@ class ArcileApp : Application(), ImageLoaderFactory {
     @Inject
     lateinit var vaultThumbnailCache: VaultThumbnailCache
 
+    @Inject
+    lateinit var vaultSecurityPreferences: VaultSecurityPreferences
+
+    internal lateinit var vaultAutoLockController: VaultAutoLockController
+        private set
+
+    /** Viewer activities run in their own processes (`:imageviewer`, `:pdfviewer`, `:texteditor`, `:videoviewer`). */
+    private val isMainProcess: Boolean by lazy { getProcessName() == packageName }
+
     override fun onCreate() {
         super.onCreate()
-        if (getProcessName() == packageName) {
+        if (isMainProcess) {
             val priorPolicy = StrictMode.allowThreadDiskWrites()
             try {
                 ExternalFileAccessHelper.quarantinePrivatePlaintextFallbacks(this)
@@ -74,23 +96,46 @@ class ArcileApp : Application(), ImageLoaderFactory {
             applicationScope.launch {
                 ApkPackageParser.cleanupAbandonedStaging(this@ArcileApp)
                 ExternalFileAccessHelper.clearQuarantinedPrivatePlaintextFallbacks(this@ArcileApp)
-                mutationJournal.cleanupAbandonedMutations()
+                mutationJournal.get().cleanupAbandonedMutations()
             }
         }
-        storageCacheInvalidationObserver.register()
-        SensitiveMemory.clearDelegate = { Coil.imageLoader(this).memoryCache?.clear() }
+        // Storage watching and thumbnail bookkeeping belong to the main process only; viewers would duplicate them.
+        if (isMainProcess) storageCacheInvalidationObserver.get().register()
+        SensitiveMemory.clearDelegate = { SingletonImageLoader.get(this).memoryCache?.clear() }
+        vaultAutoLockController = VaultAutoLockController(
+            vaultSecurityPreferences.settings,
+            CoroutineScope(applicationScope.coroutineContext + Dispatchers.Main.immediate),
+            SystemClock::elapsedRealtime, vaultRepository::lockAll, SensitiveMemory::clear
+        )
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                vaultAutoLockController.onForeground()
+                if (isMainProcess) storageCacheInvalidationObserver.get().onForeground()
+            }
+
             override fun onStop(owner: LifecycleOwner) {
-                SensitiveMemory.clear()
-                applicationScope.launch { vaultRepository.lockAll() }
+                vaultAutoLockController.onBackground()
+                if (isMainProcess) storageCacheInvalidationObserver.get().onBackground()
             }
         })
+        ContextCompat.registerReceiver(this, object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_OFF -> vaultAutoLockController.onScreenOff()
+                    Intent.ACTION_SCREEN_ON -> vaultAutoLockController.onScreenOn()
+                }
+            }
+        }, IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }, ContextCompat.RECEIVER_NOT_EXPORTED)
+        if (!isMainProcess) return
         GlobalThumbnailStatePersistence.delegate = RoomThumbnailStatePersistence(
-            thumbnailCacheStore = thumbnailCacheStore,
+            thumbnailCacheStore = thumbnailCacheStore.get(),
             applicationScope = applicationScope
         )
         applicationScope.launch {
-            val snapshot = thumbnailCacheStore.snapshot()
+            val snapshot = thumbnailCacheStore.get().snapshot()
             GlobalThumbnailStatePersistence.restore(
                 loadedVariantKeys = snapshot.loadedVariantKeys,
                 failedIdentityKeys = snapshot.failedIdentityKeys
@@ -98,22 +143,25 @@ class ArcileApp : Application(), ImageLoaderFactory {
         }
     }
 
-    override fun newImageLoader(): ImageLoader {
-        return ImageLoader.Builder(this)
+    override fun newImageLoader(context: android.content.Context): ImageLoader {
+        return ImageLoader.Builder(context)
+            .addLastModifiedToFileCacheKey(true)
             .memoryCache {
-                MemoryCache.Builder(this)
-                    .maxSizePercent(0.25)
+                MemoryCache.Builder()
+                    .maxSizePercent(context, 0.25)
                     .build()
             }
             .diskCache {
+                // Coil's disk cache is single-process; each viewer process gets its own directory.
+                val cacheName = if (isMainProcess) "image_cache" else "image_cache_${getProcessName().substringAfter(':')}"
                 DiskCache.Builder()
-                    .directory(this.cacheDir.resolve("image_cache"))
+                    .directory(context.cacheDir.resolve(cacheName).toOkioPath())
                     .maxSizePercent(0.08)
                     .build()
             }
             .components {
                 add(ThumbnailKeyer())
-                add(ImageDecoderDecoder.Factory())
+                add(AnimatedImageDecoder.Factory())
                 add(GifDecoder.Factory())
                 add(SvgDecoder.Factory())
                 add(PdfThumbnailFetcher.Factory())
@@ -137,9 +185,20 @@ private class RoomThumbnailStatePersistence(
     private val thumbnailCacheStore: ThumbnailCacheStore,
     private val applicationScope: CoroutineScope
 ) : ThumbnailStatePersistence {
+    private val pendingLoaded = ArrayList<ThumbnailCacheRecord>()
+    private var flushJob: Job? = null
+
+    /** Collects loaded thumbnails for a short window and writes them in one transaction. */
     override fun recordLoaded(key: ThumbnailKey, thumbnailSizePx: Int) {
-        applicationScope.launch {
-            thumbnailCacheStore.recordLoaded(key.toCacheRecord(thumbnailSizePx))
+        val record = key.toCacheRecord(thumbnailSizePx)
+        synchronized(pendingLoaded) {
+            pendingLoaded += record
+            if (flushJob?.isActive == true) return
+            flushJob = applicationScope.launch {
+                delay(LOADED_FLUSH_DELAY_MS)
+                val batch = synchronized(pendingLoaded) { pendingLoaded.toList().also { pendingLoaded.clear() } }
+                thumbnailCacheStore.recordLoaded(batch)
+            }
         }
     }
 
@@ -159,6 +218,10 @@ private class RoomThumbnailStatePersistence(
         applicationScope.launch {
             thumbnailCacheStore.clear()
         }
+    }
+
+    private companion object {
+        const val LOADED_FLUSH_DELAY_MS = 1_500L
     }
 
     private fun ThumbnailKey.toCacheRecord(thumbnailSizePx: Int): ThumbnailCacheRecord {

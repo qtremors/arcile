@@ -88,7 +88,6 @@ value class EpochMillis private constructor(val value: Long) {
     }
 }
 
-@Immutable
 data class StorageNodeCapabilities(
     val canRead: Boolean = true,
     val canWrite: Boolean = true,
@@ -103,7 +102,6 @@ data class StorageNodeCapabilities(
     val canOpenWith: Boolean = canRead
 )
 
-@Immutable
 data class StorageNodeRef(
     val backendId: String = LOCAL_BACKEND_ID,
     val volumeId: StorageVolumeId? = null,
@@ -193,5 +191,3 @@ data class StorageNodeRef(
         }
     }
 }
-
-fun String.toStorageNodePath(): StorageNodePath = StorageNodePath.of(this)

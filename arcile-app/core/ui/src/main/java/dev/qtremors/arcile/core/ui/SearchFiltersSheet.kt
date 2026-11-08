@@ -1,13 +1,10 @@
 package dev.qtremors.arcile.core.ui
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -20,7 +17,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import dev.qtremors.arcile.core.ui.ExpressiveFilterChip
@@ -33,23 +29,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DateRangePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.rememberDatePickerState
-import androidx.compose.material3.rememberDateRangePickerState
 import androidx.compose.material3.Icon
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.ui.text.style.TextOverflow
-import dev.qtremors.arcile.core.presentation.formatFileSize
 import dev.qtremors.arcile.core.ui.theme.ExpressiveShapes
 import dev.qtremors.arcile.core.ui.theme.sheet
-import kotlin.math.roundToInt
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -57,25 +44,11 @@ import androidx.compose.ui.unit.dp
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.storage.domain.SearchFilters
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.text.font.FontWeight
 import dev.qtremors.arcile.core.ui.theme.bounceClickable
-import androidx.compose.material.icons.filled.AllInclusive
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Today
-import androidx.compose.material.icons.filled.CalendarViewWeek
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material3.Surface
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.draw.clip
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -96,7 +69,10 @@ fun SearchFiltersSheet(
     currentFilters: SearchFilters,
     onApplyFilters: (SearchFilters) -> Unit,
     onDismiss: () -> Unit,
-    showCategoryFilter: Boolean = true
+    showCategoryFilter: Boolean = true,
+    showStorageFilters: Boolean = true,
+    onClearScope: (() -> Unit)? = null,
+    scopeContent: @Composable (() -> Unit)? = null
 ) {
     val allLabel = stringResource(R.string.all)
     val anyLabel = stringResource(R.string.item_type_any)
@@ -153,6 +129,7 @@ fun SearchFiltersSheet(
     )
 
     fun clearDraft() {
+        onClearScope?.invoke()
         itemType = null
         fileType = null
         minSizeText = ""
@@ -194,6 +171,8 @@ fun SearchFiltersSheet(
                     Text(stringResource(R.string.clear_all))
                 }
             }
+
+            scopeContent?.invoke()
 
             Text(stringResource(R.string.item_type), style = MaterialTheme.typography.titleMedium)
             val itemTypeOptions = listOf(anyLabel, foldersLabel, filesLabel)
@@ -379,16 +358,9 @@ fun SearchFiltersSheet(
                         )
                     },
                     trailingContent = {
-                        Switch(
+                        ExpressiveSwitch(
                             checked = includeHidden,
-                            onCheckedChange = { includeHidden = it },
-                            thumbContent = {
-                                Icon(
-                                    imageVector = if (includeHidden) Icons.Default.Check else Icons.Default.Close,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(SwitchDefaults.IconSize)
-                                )
-                            }
+                            onCheckedChange = { includeHidden = it }
                         )
                     },
                     colors = ListItemDefaults.colors(
@@ -399,36 +371,38 @@ fun SearchFiltersSheet(
                         .clip(ExpressiveShapes.medium)
                         .bounceClickable { includeHidden = !includeHidden }
                 )
-                OutlinedTextField(
-                    value = volumeText,
-                    onValueChange = { volumeText = it },
-                    label = { Text(stringResource(R.string.filter_storage_volume)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.SdCard,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth().keyboardInputField()
-                )
-                OutlinedTextField(
-                    value = folderScopeText,
-                    onValueChange = { folderScopeText = it },
-                    label = { Text(stringResource(R.string.filter_folder_scope)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Folder,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth().keyboardInputField()
-                )
+                if (showStorageFilters) {
+                    OutlinedTextField(
+                        value = volumeText,
+                        onValueChange = { volumeText = it },
+                        label = { Text(stringResource(R.string.filter_storage_volume)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.SdCard,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        singleLine = true,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
+                    )
+                    OutlinedTextField(
+                        value = folderScopeText,
+                        onValueChange = { folderScopeText = it },
+                        label = { Text(stringResource(R.string.filter_folder_scope)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Folder,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        singleLine = true,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
+                    )
+                }
                 OutlinedTextField(
                     value = mimeText,
                     onValueChange = { mimeText = it },
@@ -445,21 +419,23 @@ fun SearchFiltersSheet(
                     modifier = Modifier.fillMaxWidth().keyboardInputField()
                 )
 
-                OutlinedTextField(
-                    value = presetName,
-                    onValueChange = { presetName = it },
-                    label = { Text(stringResource(R.string.filter_saved_preset)) },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Default.Bookmark,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
-                    singleLine = true,
-                    shape = ExpressiveShapes.medium,
-                    modifier = Modifier.fillMaxWidth().keyboardInputField()
-                )
+                if (showStorageFilters) {
+                    OutlinedTextField(
+                        value = presetName,
+                        onValueChange = { presetName = it },
+                        label = { Text(stringResource(R.string.filter_saved_preset)) },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Bookmark,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        },
+                        singleLine = true,
+                        shape = ExpressiveShapes.medium,
+                        modifier = Modifier.fillMaxWidth().keyboardInputField()
+                    )
+                }
             }
 
             FilledTonalButton(

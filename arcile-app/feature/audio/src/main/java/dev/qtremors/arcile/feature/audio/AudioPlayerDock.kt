@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.ClipData
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -169,7 +170,7 @@ internal class AudioPlayerCoordinator @Inject constructor(
         musicStore.notifyMediaChanged()
         if (oldPath != track.file.reference) {
             scope.launch {
-                runCatching {
+                runCatchingCancellable {
                     musicStore.replaceTrackPath(oldPath, track.file.reference)
                     listeningStore.replacePath(oldPath, track.file.reference)
                 }
@@ -193,7 +194,7 @@ internal class AudioPlayerCoordinator @Inject constructor(
     }
 
     fun saveQueue(name: String, paths: List<String>) {
-        scope.launch { runCatching { musicStore.createPlaylist(name, paths) } }
+        scope.launch { runCatchingCancellable { musicStore.createPlaylist(name, paths) } }
     }
 }
 
@@ -269,7 +270,7 @@ internal fun AudioPlayerExpanded(
                 onToggleFavorite = {
                     val path = track.file.reference
                     scope.launch {
-                        runCatching { listeningStore.setFavorite(path, path !in favorites) }
+                        runCatchingCancellable { listeningStore.setFavorite(path, path !in favorites) }
                     }
                 },
                 sharedTransitionScope = sharedTransitionScope,

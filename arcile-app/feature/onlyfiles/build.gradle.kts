@@ -36,10 +36,13 @@ kotlin {
 dependencies {
     implementation(project(":core:navigation:api"))
     implementation(project(":core:presentation"))
+    implementation(project(":core:operation:api"))
     implementation(project(":core:storage:domain"))
+    implementation(project(":core:archive"))
     implementation(project(":core:vault:domain"))
     implementation(project(":core:ui"))
 
+    implementation(project(":core:runtime"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.graphics)
@@ -55,8 +58,12 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.apache.commons.compress)
+    implementation(libs.jaudiotagger)
 
     testImplementation(libs.junit)
+    testImplementation(libs.tukaani.xz)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.io.mockk.mockk)
     testImplementation(project(":core:testing"))

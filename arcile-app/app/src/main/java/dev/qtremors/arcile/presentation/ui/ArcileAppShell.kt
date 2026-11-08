@@ -26,9 +26,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarDuration
+import dev.qtremors.arcile.core.ui.showArcileFeedback
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -61,8 +62,8 @@ import androidx.compose.ui.platform.LocalContext
 import dev.qtremors.arcile.core.ui.ArcileSnackbarHost
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.ArcileFeedbackSeverity
-import dev.qtremors.arcile.core.ui.asString
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.first
 import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.storage.domain.AppStartPage
 import dev.qtremors.arcile.core.storage.domain.ActivityLogPage
@@ -94,9 +95,8 @@ fun ArcileAppShell(
         mutableStateOf(appLaunchContext.mode == AppLaunchMode.ColdLauncher)
     }
     val navBackStackEntry by navController.currentBackStackEntryAsState()
-    val audioLibraryIsCurrent = AppRoutes.AudioLibrary::class.qualifiedName?.let { route ->
-        navBackStackEntry?.destination?.route?.startsWith(route)
-    } == true
+    // Match by serializer, not class name: R8 renames classes, but serial names are fixed at compile time.
+    val audioLibraryIsCurrent = navBackStackEntry?.destination?.hasRoute<AppRoutes.AudioLibrary>() == true
     val feedbackOwnerId = navBackStackEntry?.id
     val context = LocalContext.current
 
@@ -125,17 +125,7 @@ fun ArcileAppShell(
                 return@collect
             }
             currentFeedbackSeverity = event.severity
-            val result = snackbarHostState.showSnackbar(
-                message = event.message.asString(context),
-                actionLabel = event.actionLabel?.asString(context),
-                withDismissAction = false,
-                duration = SnackbarDuration.Short
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                event.onAction?.invoke()
-            } else {
-                event.onDismiss?.invoke()
-            }
+            snackbarHostState.showArcileFeedback(context, event)
         }
     }
 
@@ -150,13 +140,7 @@ fun ArcileAppShell(
     )
     LaunchedEffect(appLaunchContext.navigationSessionId, coldLaunchPage) {
         if (coldLaunchPage != null) {
-            navController.navigate(AppRoutes.Main(initialPage = coldLaunchPage, restorePersistentLocation = true)) {
-                popUpTo(navController.graph.id) {
-                    inclusive = true
-                }
-                launchSingleTop = true
-                restoreState = false
-            }
+            navController.resetToColdLaunchPage(coldLaunchPage)
             isColdLaunchResetting = false
         }
     }
@@ -217,6 +201,23 @@ fun ArcileAppShell(
             }
             }
         }
+    }
+}
+
+/**
+ * Replaces the back stack with Main on [page]. The NavHost sets the graph when the Scaffold content
+ * composes, which can be after the caller's effect starts: a quick reopen has the start page ready
+ * on the first frame. Reading `graph` before then throws, so this waits for the first back stack
+ * entry, which exists as soon as the graph does.
+ */
+internal suspend fun NavHostController.resetToColdLaunchPage(page: Int) {
+    currentBackStackEntryFlow.first()
+    navigate(AppRoutes.Main(initialPage = page, restorePersistentLocation = true)) {
+        popUpTo(graph.id) {
+            inclusive = true
+        }
+        launchSingleTop = true
+        restoreState = false
     }
 }
 

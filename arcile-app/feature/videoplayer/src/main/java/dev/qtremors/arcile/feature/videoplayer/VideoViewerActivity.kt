@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.videoplayer
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.ClipData
 import android.content.Context
 import android.content.Intent
@@ -78,13 +79,13 @@ internal class VideoViewerActivity : ComponentActivity() {
                 clipData = ClipData.newUri(contentResolver, shareTarget.displayName, shareTarget.uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            runCatching { startActivity(Intent.createChooser(intent, shareTarget.displayName)) }.onFailure { showFailure() }
+            runCatchingCancellable { startActivity(Intent.createChooser(intent, shareTarget.displayName)) }.onFailure { showFailure() }
         }
     }
 
     private fun openWith(target: ExternalVideoTarget) {
         lifecycleScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val intent = ExternalFileAccessHelper.createOpenIntent(this@VideoViewerActivity, target.reference)
                 startActivity(Intent.createChooser(intent, target.displayName))
             }.onFailure { showFailure() }

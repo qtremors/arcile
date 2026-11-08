@@ -8,9 +8,10 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Size
 import androidx.test.core.app.ApplicationProvider
-import coil.fetch.DrawableResult
-import coil.request.Options
-import coil.size.Size as CoilSize
+import coil3.toBitmap
+import coil3.fetch.ImageFetchResult
+import coil3.request.Options
+import coil3.size.Size as CoilSize
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.test.runTest
@@ -33,10 +34,10 @@ class VideoThumbnailFetcherTest {
             every { context } returns ApplicationProvider.getApplicationContext()
         }
 
-        assertNotNull(factory.create(File("clip.mp4"), options, mockk(relaxed = true)))
-        assertNotNull(factory.create(File("clip.M2TS"), options, mockk(relaxed = true)))
-        assertNotNull(factory.create(File("clip.mpg"), options, mockk(relaxed = true)))
-        assertNull(factory.create(File("photo.jpg"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "clip.mp4"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "clip.M2TS"), options, mockk(relaxed = true)))
+        assertNotNull(factory.create(coil3.Uri(scheme = "file", path = "clip.mpg"), options, mockk(relaxed = true)))
+        assertNull(factory.create(coil3.Uri(scheme = "file", path = "photo.jpg"), options, mockk(relaxed = true)))
         assertNotNull(VideoThumbnailFetcher.KeyFactory().create(ThumbnailKey.from(File("clip.m2ts")), options, mockk(relaxed = true)))
     }
 
@@ -67,11 +68,11 @@ class VideoThumbnailFetcherTest {
             File("/storage/emulated/0/Movies/clip.mp4"),
             options,
             contentUri = "content://media/external_primary/video/media/42"
-        ).fetch() as DrawableResult
+        ).fetch() as ImageFetchResult
 
         assertEquals(0, queryCount)
         assertEquals("content://media/external_primary/video/media/42", requestedUri.toString())
-        assertEquals(expectedBitmap, (result.drawable as android.graphics.drawable.BitmapDrawable).bitmap)
+        assertEquals(expectedBitmap, result.image.toBitmap())
     }
 
     @Test

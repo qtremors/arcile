@@ -1,10 +1,14 @@
 package dev.qtremors.arcile.feature.onlyfiles
 
+import dev.qtremors.arcile.core.storage.domain.SearchFilters
+import dev.qtremors.arcile.core.storage.domain.BuiltInFileOpen
 import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultConflict
+import dev.qtremors.arcile.core.vault.domain.VaultExportRetry
 import dev.qtremors.arcile.core.vault.domain.VaultHealthReport
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import dev.qtremors.arcile.core.vault.domain.VaultImportState
+import dev.qtremors.arcile.core.vault.domain.VaultMergeRetry
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
 import dev.qtremors.arcile.core.vault.domain.VaultPath
@@ -13,13 +17,29 @@ import dev.qtremors.arcile.core.vault.domain.VaultSortDirection
 import dev.qtremors.arcile.core.vault.domain.VaultSortField
 import dev.qtremors.arcile.core.vault.domain.VaultSummary
 import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
+import dev.qtremors.arcile.core.vault.domain.VaultViewOptions
+import dev.qtremors.arcile.core.vault.domain.VaultFolderViewOptions
+import dev.qtremors.arcile.core.vault.domain.vaultFolderViewKey
 
-internal enum class OnlyFilesLayout { LIST, GRID }
 internal enum class VaultClipboardAction { COPY, MOVE }
 
 internal data class VaultDirectoryCrumb(val id: DirectoryId, val name: String, val path: VaultPath)
-internal data class VaultClipboard(val action: VaultClipboardAction, val sources: List<VaultNodeRef>)
-internal data class VaultConflictPrompt(val requestId: Long, val conflict: VaultConflict)
+internal data class VaultClipboard(
+    val action: VaultClipboardAction,
+    val sources: List<VaultNodeRef>,
+    val displayNodes: List<VaultNodeMetadata> = emptyList(),
+    val mergeRetries: Map<String, VaultMergeRetry> = emptyMap()
+) {
+    fun retriesAt(vault: VaultId?, directory: DirectoryId?): List<VaultMergeRetry> =
+        sources.mapNotNull { mergeRetries[it.backendIdentity] }
+            .filter { it.destinationVault == vault && it.destinationDirectory == directory }
+}
+internal data class VaultConflictPrompt(
+    val requestId: Long,
+    val conflicts: List<VaultConflict>,
+    val allowFuture: Boolean,
+    val exporting: Boolean
+)
 internal data class OnlyFilesBatchProgress(
     val completedItems: Int,
     val totalItems: Int,
@@ -28,47 +48,148 @@ internal data class OnlyFilesBatchProgress(
 
 internal data class OnlyFilesUiState(
     val vaults: List<VaultSummary> = emptyList(),
+    /** False until the first catalog scan finishes, so an empty list means "still loading". */
+    val vaultsLoaded: Boolean = false,
     val selectedVaultId: VaultId? = null,
+    val mountGeneration: Long = 0L,
+    val workspaceTabsEnabled: Boolean = false,
+    val workspace: VaultWorkspace = VaultWorkspace(),
     val directoryStack: List<VaultDirectoryCrumb> = emptyList(),
     val nodes: List<VaultNodeMetadata> = emptyList(),
     val nextPageToken: String? = null,
+    val listingRevision: Long = 0L,
     val searchHits: List<VaultSearchHit> = emptyList(),
     val searchNextPageToken: String? = null,
     val searchQuery: String = "",
-    val recursiveSearch: Boolean = false,
+    val searchFilters: SearchFilters = SearchFilters(),
+    val searchScope: List<VaultDirectoryCrumb>? = null,
+    val revealNodeId: String? = null,
+    val revealHiddenNodeId: String? = null,
+    val locationPicker: OnlyFilesLocationPickerState? = null,
+    val pinnedVaultIds: Set<VaultId> = emptySet(),
     val isSearching: Boolean = false,
-    val sortField: VaultSortField = VaultSortField.NAME,
-    val sortDirection: VaultSortDirection = VaultSortDirection.ASCENDING,
-    val layout: OnlyFilesLayout = OnlyFilesLayout.LIST,
+    val isListing: Boolean = false,
+    val defaultViewOptions: VaultViewOptions = VaultViewOptions(),
+    val folderViewOptions: Map<String, VaultFolderViewOptions> = emptyMap(),
     val selectedNodeIds: Set<String> = emptySet(),
     val clipboard: VaultClipboard? = null,
+    val exportRetries: List<VaultExportRetry> = emptyList(),
+    val recovery: OnlyFilesRecoveryState? = null,
     val viewer: VaultNodeMetadata? = null,
+    val viewerQueue: List<VaultNodeMetadata> = emptyList(),
+    val viewerSelectionEnabled: Boolean = false,
     val properties: List<VaultNodeMetadata> = emptyList(),
     val pendingConflict: VaultConflictPrompt? = null,
     val transferProgress: VaultTransferProgress? = null,
+    val transferMountGeneration: Long? = null,
+    val pasteQueueNames: List<String> = emptyList(),
     val healthReport: VaultHealthReport? = null,
     val activeImports: Map<VaultId, VaultImportState> = emptyMap(),
     val biometricVaultIds: Set<VaultId> = emptySet(),
     val folderPicker: VaultFolderPickerState? = null,
     val localPicker: OnlyFilesLocalPickerState? = null,
+    val pendingMoveIntoVault: List<String> = emptyList(),
+    val backupRequest: VaultBackupRequest? = null,
+    val backupInProgress: VaultBackupMode? = null,
+    val browserImportCount: Int = 0,
+    val browserImportMovePending: Boolean = false,
     val screenshotProtectionEnabled: Boolean = true,
+    val numericPasswordKeyboard: Boolean = false,
+    val backgroundLockDelay: dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay = dev.qtremors.arcile.core.vault.domain.VaultBackgroundLockDelay.IMMEDIATE,
+    val lockOnScreenOff: Boolean = true,
     val encryptedThumbnailFiles: Int = 0,
     val encryptedThumbnailBytes: Long = 0L,
     val activeExternalGrants: Int = 0,
     val isSettingsBusy: Boolean = false,
-    val showSettingsSheet: Boolean = false,
+    val settingsPage: OnlyFilesSettingsPage? = null,
     val showSecurityDisclosure: Boolean = false,
     val busy: Boolean = false,
+    val isSelectingRows: Boolean = false,
     val batchProgress: OnlyFilesBatchProgress? = null,
+    val archiveProgress: OnlyFilesArchiveProgress? = null,
+    val completedArchive: VaultNodeMetadata? = null,
+    val operationFeedback: OnlyFilesOperationFeedback? = null,
+    /** An Undo that crosses the vault boundary, waiting for explicit confirmation. Never saved. */
+    val pendingUndoConfirmation: OnlyFilesOperationFeedback? = null,
     val message: String? = null
 ) {
     val selectedVault: VaultSummary? get() = vaults.firstOrNull { it.id == selectedVaultId }
     val currentDirectory: VaultDirectoryCrumb? get() = directoryStack.lastOrNull()
+    val hasExactFolderView: Boolean
+        get() {
+            val vault = selectedVaultId ?: return false
+            val directory = currentDirectory ?: return false
+            return vaultFolderViewKey(vault, directory.id) in folderViewOptions
+        }
+    private val activeFolderOptions: VaultFolderViewOptions?
+        get() {
+            val vault = selectedVaultId ?: return null
+            for (index in directoryStack.indices.reversed()) {
+                val folder = folderViewOptions[vaultFolderViewKey(vault, directoryStack[index].id)] ?: continue
+                if (index == directoryStack.lastIndex || folder.applyToSubfolders) return folder
+            }
+            return null
+        }
+    val viewOptions: VaultViewOptions
+        get() = activeFolderOptions?.options?.copy(
+            recursiveSearch = defaultViewOptions.recursiveSearch,
+            showHiddenFiles = defaultViewOptions.showHiddenFiles
+        ) ?: defaultViewOptions
+    val viewOptionsApplyToSubfolders: Boolean get() = activeFolderOptions?.applyToSubfolders == true
+    val recursiveSearch: Boolean get() = viewOptions.recursiveSearch
+    val sortField: VaultSortField get() = viewOptions.sortField
+    val sortDirection: VaultSortDirection get() = viewOptions.sortDirection
+    val hasSearch: Boolean get() = searchQuery.isNotBlank() || searchFilters.hasActiveFilters || searchScope != null
+    val isLoadingRows: Boolean get() = if (hasSearch) isSearching else isListing
+    val hasMoreRows: Boolean get() = if (hasSearch) searchNextPageToken != null else nextPageToken != null
+    val viewerNextPageToken: String? get() = if (hasSearch) searchNextPageToken else nextPageToken
     val displayedNodes: List<VaultNodeMetadata>
-        get() = if (searchQuery.isBlank()) nodes else searchHits.map(VaultSearchHit::metadata)
+        get() = if (hasSearch) searchHits.map(VaultSearchHit::metadata) else nodes
     val selectedNodes: List<VaultNodeMetadata>
         get() = displayedNodes.filter { it.ref.nodeId.value in selectedNodeIds }
+
+    fun withUpdatedViewerNode(updated: VaultNodeMetadata): OnlyFilesUiState {
+        if (viewer?.ref != updated.ref && viewerQueue.none { it.ref == updated.ref }) return this
+        return copy(
+            viewer = if (viewer?.ref == updated.ref) updated else viewer,
+            viewerQueue = viewerQueue.map { if (it.ref == updated.ref) updated else it }
+        )
+    }
+
+    fun withCurrentMediaQueue(): OnlyFilesUiState {
+        val node = viewer ?: return this
+        val kind = node.builtInOpen()
+        if (kind != BuiltInFileOpen.IMAGE && kind != BuiltInFileOpen.AUDIO) return this
+        val queue = displayedNodes.filter { it.builtInOpen() == kind }
+        val refreshed = queue.firstOrNull { it.ref == node.ref }
+        return copy(viewer = refreshed ?: node, viewerQueue = if (refreshed != null) queue else listOf(node) + queue)
+    }
+
+    fun propertiesLocation(items: List<VaultNodeMetadata>): String {
+        val vaultName = selectedVault?.name.orEmpty()
+        val first = items.firstOrNull() ?: return vaultName
+        if (items.any { it.ref.parentId != first.ref.parentId }) return vaultName
+        val resultRoot = searchScope ?: directoryStack
+        val ancestors = when {
+            first.ref.parentId == currentDirectory?.id -> emptyList()
+            else -> searchHits.firstOrNull { it.metadata.ref.parentId == first.ref.parentId }?.parentNames
+                ?: return vaultName
+        }
+        val stack = if (first.ref.parentId == currentDirectory?.id) directoryStack else resultRoot
+        return (listOf(vaultName) + stack.drop(1).map(VaultDirectoryCrumb::name) + ancestors)
+            .joinToString(" / ")
+    }
 }
+
+/**
+ * Marks the first catalog scan finished. The scanned list is applied too, because the vault
+ * collector may not have delivered it yet and the empty state must never show in between.
+ */
+internal fun OnlyFilesUiState.withVaultsLoaded(scanned: List<VaultSummary>) =
+    copy(vaultsLoaded = true, vaults = vaults.ifEmpty { scanned })
+
+internal fun dev.qtremors.arcile.core.vault.domain.VaultRepository.currentVaults(): List<VaultSummary> =
+    vaults.value.withCurrentUnlockState(unlockedVaultIds.value)
 
 internal fun List<VaultSummary>.withCurrentUnlockState(
     unlockedVaultIds: Set<VaultId>
@@ -85,3 +206,6 @@ internal fun pendingUnlockVault(
     if (requestedId == null || requestedId == selectedId) return null
     return vaults.firstOrNull { vault -> vault.id == requestedId && !vault.isUnlocked }
 }
+
+/** Full-screen settings: app-wide OnlyFiles options, or administration of the open vault. */
+internal enum class OnlyFilesSettingsPage { APP, VAULT }

@@ -1,5 +1,8 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.storage.domain.TrashRepository
+import dev.qtremors.arcile.core.vault.domain.DirectoryId
 import dev.qtremors.arcile.core.vault.domain.VaultBatchResult
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferCoordinator
 import dev.qtremors.arcile.core.vault.domain.VaultBoundaryTransferReservation
@@ -8,6 +11,7 @@ import dev.qtremors.arcile.core.vault.domain.VaultConflict
 import dev.qtremors.arcile.core.vault.domain.VaultConflictDecision
 import dev.qtremors.arcile.core.vault.domain.VaultConflictResolver
 import dev.qtremors.arcile.core.vault.domain.VaultFailure
+import dev.qtremors.arcile.core.vault.domain.VaultExportRetry
 import dev.qtremors.arcile.core.vault.domain.VaultFileSystem
 import dev.qtremors.arcile.core.vault.domain.VaultItemOutcome
 import dev.qtremors.arcile.core.vault.domain.VaultItemResult
@@ -15,18 +19,21 @@ import dev.qtremors.arcile.core.vault.domain.VaultLeasePurpose
 import dev.qtremors.arcile.core.vault.domain.VaultListOptions
 import dev.qtremors.arcile.core.vault.domain.VaultNodeMetadata
 import dev.qtremors.arcile.core.vault.domain.VaultNodeRef
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryKind
+import dev.qtremors.arcile.core.vault.domain.VaultRecoveryQueue
 import dev.qtremors.arcile.core.vault.domain.VaultSessionManager
 import dev.qtremors.arcile.core.vault.domain.VaultTransferAction
 import dev.qtremors.arcile.core.vault.domain.VaultTransferProgress
+import dev.qtremors.arcile.core.vault.domain.VaultPlaintextUndo
+import dev.qtremors.arcile.core.vault.domain.VaultUndoOrigin
 import java.security.MessageDigest
 import java.io.File
-import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.sync.Mutex
@@ -37,16 +44,18 @@ import kotlinx.coroutines.withContext
 class DefaultVaultBoundaryTransferCoordinator private constructor(
     private val repository: DefaultVaultRepository?,
     private val legacyFileSystem: VaultFileSystem?,
-    private val legacySessions: VaultSessionManager?
+    private val legacySessions: VaultSessionManager?,
+    private val trashRepository: TrashRepository?,
+    private val dispatchers: ArcileDispatchers
 ) : VaultBoundaryTransferCoordinator {
-    @Inject internal constructor(
-        repository: DefaultVaultRepository
-    ) : this(repository, null, null)
+    @Inject internal constructor(repository: DefaultVaultRepository, trashRepository: TrashRepository, dispatchers: ArcileDispatchers) :
+        this(repository, null, null, trashRepository, dispatchers)
 
     internal constructor(
         fileSystem: VaultFileSystem,
-        sessions: VaultSessionManager
-    ) : this(null, fileSystem, sessions)
+        sessions: VaultSessionManager,
+        trashRepository: TrashRepository? = null
+    ) : this(null, fileSystem, sessions, trashRepository, ArcileDispatchers.Standard)
     private val mutex = Mutex()
     private val updates = MutableSharedFlow<VaultTransferProgress>(extraBufferCapacity = 32)
     override val progress: Flow<VaultTransferProgress> = updates
@@ -75,19 +84,212 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         move: Boolean,
         conflicts: VaultConflictResolver,
         cancellation: VaultCancellationSignal
-    ): VaultBatchResult = withContext(Dispatchers.IO) {
+    ): VaultBatchResult = withExportSession(reservation) { session, sources ->
+        val destination = File(destinationPath)
+        validateLocalDestination(destination)
+        val actual = session as? BoundaryAccessSession.Repository
+        if (actual == null) {
+            exportToLocalDirectory(session, sources, destination, move, conflicts, cancellation)
+        } else {
+            val canonical = destination.canonicalFile
+            val plan = VaultQueuePlan(
+                VaultRecoveryKind.EXPORT, canonical.path, move, nodes = sources.map(QueuedVaultNode::from),
+                localDestinationIdentity = ExportFolderIdentity.read(canonical), publicationReceipts = true
+            )
+            requireNotNull(repository).operationJournal.start(actual.value, plan).use { queue ->
+                val result = exportToLocalDirectory(session, sources, canonical, move, conflicts, cancellation, queue)
+                queue.finishQueue()
+                result
+            }
+        }
+    }
+
+    internal suspend fun resumeInterruptedExport(
+        recovery: VaultRecoveryQueue,
+        plan: VaultQueuePlan,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        val destination = File(plan.destination)
+        validateLocalDestination(destination)
+        if (destination.canonicalFile != destination || plan.localDestinationIdentity?.matches(destination) != true) {
+            throw VaultFailure.Unavailable("The original export destination changed")
+        }
+        val sources = plan.nodes.map(QueuedVaultNode::ref)
+        return prepareExport(sources).getOrThrow().use { reservation ->
+            withExportSession(reservation) { session, _ ->
+                check(session is BoundaryAccessSession.Repository)
+                requireNotNull(repository).operationJournal.resume(session.value, recovery.id, VaultRecoveryKind.EXPORT).use { queue ->
+                    val pending = queue.plan.nodes.drop(queue.startIndex).map(QueuedVaultNode::ref)
+                    val resumed = mutableListOf<VaultItemResult>()
+                    for ((index, saved) in queue.pendingRetries()) {
+                        cancellation.throwIfCancelled()
+                        val retry = saved.exportRetry as? PendingVaultExport
+                            ?: throw VaultFailure.InvalidPath("This checkpoint does not describe a vault export")
+                        val progress = queue.retryProgress(index)
+                        val result = resumeLocalExport(session, retry, conflicts, cancellation,
+                            onPublication = { child, receipt -> progress.prepare(VaultRetryPublication.export(child, receipt)) },
+                            onPublished = progress::published)
+                        resumed += queue.finishRetry(index, result)
+                    }
+                    val fresh = exportToLocalDirectory(
+                        session, pending, destination, move = false, conflicts, cancellation, queue
+                    )
+                    queue.finishQueue()
+                    VaultBatchResult(resumed + fresh.items)
+                }
+            }
+        }
+    }
+
+    override suspend fun resumeExport(
+        retry: VaultExportRetry,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal
+    ): VaultItemResult {
+        val pending = retry as? PendingVaultExport
+            ?: throw VaultFailure.InvalidPath("This export cannot be resumed")
+        return prepareExport(listOf(retry.source)).getOrThrow().use { reservation ->
+            withExportSession(reservation) { session, _ ->
+                val origin = pending.origin
+                if (origin != null && session is BoundaryAccessSession.Repository) {
+                    if (origin.ownerMount !== session.value.mutationMutex) {
+                        throw VaultFailure.Unavailable("The original export retry expired. Reopen interrupted transfers to resume as a copy.")
+                    }
+                    requireNotNull(repository).operationJournal.resume(session.value, origin.queueId, VaultRecoveryKind.EXPORT).use { queue ->
+                        val saved = queue.pendingRetries().find { it.first == origin.index }?.second?.exportRetry as? PendingVaultExport
+                            ?: throw VaultFailure.Unavailable("This folder retry is no longer available")
+                        val current = saved.copy(move = pending.move)
+                        val progress = queue.retryProgress(origin.index)
+                        val result = resumeLocalExport(session, current, conflicts, cancellation,
+                            onPublication = { child, receipt -> progress.prepare(VaultRetryPublication.export(child, receipt)) },
+                            onPublished = progress::published)
+                        queue.finishRetry(origin.index, result).also { queue.finishQueue() }
+                    }
+                } else resumeLocalExport(session, pending, conflicts, cancellation)
+            }
+        }
+    }
+
+    private suspend fun <T> withExportSession(
+        reservation: VaultBoundaryTransferReservation,
+        operation: suspend (BoundaryAccessSession, List<VaultNodeRef>) -> T
+    ): T = withContext(dispatchers.io) {
         mutex.withLock {
             val prepared = reservation as? BoundaryReservation
                 ?: throw VaultFailure.Unavailable("Export session is invalid")
             val session = prepared.consume()
             val unique = prepared.sources
             try {
-                val destination = File(destinationPath)
-                exportToLocalDirectory(session, unique, destination, move, conflicts, cancellation)
+                when (session) {
+                    is BoundaryAccessSession.Repository -> session.value.mutationMutex.withLock {
+                        operation(session, unique)
+                    }
+                    is BoundaryAccessSession.Legacy -> operation(session, unique)
+                }
             } finally {
                 prepared.closeSession(session)
             }
         }
+    }
+
+    override suspend fun moveToMainTrash(
+        reservation: VaultBoundaryTransferReservation,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = withContext(dispatchers.io) {
+        mutex.withLock {
+            val trash = trashRepository ?: throw VaultFailure.Unavailable("Main Trash is unavailable")
+            val prepared = reservation as? BoundaryReservation
+                ?: throw VaultFailure.Unavailable("Trash export session is invalid")
+            val session = prepared.consume()
+            try {
+                when (session) {
+                    is BoundaryAccessSession.Repository -> session.value.mutationMutex.withLock {
+                        moveToTrash(session, prepared.sources, trash, cancellation)
+                    }
+                    is BoundaryAccessSession.Legacy -> moveToTrash(session, prepared.sources, trash, cancellation)
+                }
+            } finally {
+                prepared.closeSession(session)
+            }
+        }
+    }
+
+    override suspend fun undoPlaintext(
+        proofs: List<VaultPlaintextUndo>,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult = withContext(dispatchers.io) {
+        // Serialized with exports and Trash moves so an Undo never races the operation it reverses.
+        mutex.withLock {
+            VaultPlaintextUndoRunner(repository ?: requireNotNull(legacyFileSystem), trashRepository).undo(proofs, cancellation)
+        }
+    }
+
+    private suspend fun moveToTrash(
+        session: BoundaryAccessSession,
+        sources: List<VaultNodeRef>,
+        trash: TrashRepository,
+        cancellation: VaultCancellationSignal
+    ): VaultBatchResult {
+        val progress = ExportProgress(VaultTransferAction.MOVE, sources.size, null)
+        val results = sources.mapIndexed { index, ref ->
+            var name = ""
+            var accepted = false
+            var removed = emptySet<DirectoryId>()
+            var trashId: String? = null
+            var fingerprint: LocalTreeFingerprint? = null
+            var source: VaultNodeMetadata? = null
+            try {
+                cancellation.throwIfCancelled()
+                val current = metadata(session, ref).also { source = it }
+                name = current.name
+                progress.start(index, name)
+                trash.acceptExternalItem(
+                    displayName = name,
+                    writePayload = { path ->
+                        val payload = File(path)
+                        cancellation.throwIfCancelled()
+                        if (current.isDirectory) {
+                            check(payload.mkdir()) { "Unable to prepare folder for Trash" }
+                            val partial = exportVaultDirectoryLocal(
+                                session, current, payload, VaultConflictResolver { VaultConflictDecision.SKIP },
+                                cancellation, progress::advance
+                            )
+                            check(!partial) { "Unable to export the complete folder to Trash" }
+                        } else exportLocalFile(session, current, payload, cancellation, progress::advance)
+                        cancellation.throwIfCancelled()
+                        // Trash names each staged payload's folder by the item ID it publishes under.
+                        trashId = payload.parentFile?.name
+                        fingerprint = LocalTreeFingerprint.captureOrNull(payload, cancellation)
+                    },
+                    afterPublished = {
+                        accepted = true
+                        cancellation.throwIfCancelled()
+                        removed = deletePermanently(session, ref)
+                    }
+                ).getOrThrow()
+                check(accepted) { "Main Trash did not publish the item" }
+                val proof = fingerprint?.takeIf { it.restorable && trashId != null }?.let {
+                    PendingVaultPlaintextUndo(
+                        name, VaultUndoOrigin.VaultFolder(ref.vaultId, requireNotNull(source).ref.parentId, name),
+                        trashed = true, path = null, trashId = trashId, fingerprint = it
+                    )
+                }
+                item(ref, name, VaultItemOutcome.COMPLETED).copy(removedFolders = removed, plaintextUndo = proof)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                val failure = failed(ref, name, error)
+                when {
+                    accepted -> failure.copy(outcome = VaultItemOutcome.PARTIAL, removedFolders = removed)
+                    error is VaultFailure.Cancelled -> failure.copy(outcome = VaultItemOutcome.ROLLED_BACK)
+                    else -> failure
+                }
+            } finally {
+                progress.finish(index + 1)
+            }
+        }
+        return VaultBatchResult(results)
     }
 
     private suspend fun exportToLocalDirectory(
@@ -96,71 +298,298 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         destination: File,
         move: Boolean,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
+        cancellation: VaultCancellationSignal,
+        queue: VaultQueueRun? = null
     ): VaultBatchResult {
-        if (!destination.isDirectory || !destination.canWrite()) {
-            throw VaultFailure.Unavailable("The Arcile destination is not writable")
-        }
-        val results = mutableListOf<VaultItemResult>()
-        sources.forEachIndexed { index, ref ->
-            val source = runCatching { metadata(session, ref) }.getOrElse {
-                results += failed(ref, ref.nodeId.value, it); return@forEachIndexed
+        validateLocalDestination(destination)
+        val start = queue?.startIndex ?: 0
+        val prepared = sources.map { ref ->
+            ref to try {
+                if (cancellation.isCancelled()) Result.failure(VaultFailure.Cancelled())
+                else Result.success(metadata(session, ref))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Result.failure(error)
             }
-            updates.tryEmit(VaultTransferProgress(
-                if (move) VaultTransferAction.MOVE else VaultTransferAction.EXPORT,
-                source.name, index, sources.size, 0L, source.sizeBytes.takeIf { !source.isDirectory }
-            ))
+        }
+        val destinationEntries = destination.readLocalChildren()
+        val resolver = conflicts.reviewed(prepared.mapNotNull { (_, result) ->
+            val source = result.getOrNull() ?: return@mapNotNull null
+            val existing = destinationEntries.findLocalChild(source.name) ?: return@mapNotNull null
             try {
-                cancellation.throwIfCancelled()
-                val outcome = exportLocalTopLevel(session, source, destination, conflicts, cancellation)
-                if (outcome == VaultItemOutcome.COMPLETED && move) deletePermanently(session, ref)
-                results += item(ref, source.name, outcome)
-            } catch (error: VaultFailure.Cancelled) {
-                results += item(ref, source.name, VaultItemOutcome.ROLLED_BACK, error)
+                existing.inspectDestination().conflictWith(source)
+            } catch (_: Exception) {
+                // A changed or unsupported entry is validated again before that item is copied.
+                null
+            }
+        }, cancellation)
+        val results = mutableListOf<VaultItemResult>()
+        val totalBytes = if (prepared.all { it.second.getOrNull()?.isDirectory == false }) {
+            prepared.sumOf { it.second.getOrThrow().sizeBytes }
+        } else null
+        val progress = ExportProgress(
+            if (move) VaultTransferAction.MOVE else VaultTransferAction.EXPORT, sources.size, totalBytes
+        )
+        prepared.forEachIndexed { index, (ref, metadata) ->
+            if (cancellation.isCancelled()) {
+                results += item(ref, metadata.getOrNull()?.name.orEmpty(), VaultItemOutcome.ROLLED_BACK, VaultFailure.Cancelled())
                 sources.drop(index + 1).forEach {
                     results += item(it, it.nodeId.value, VaultItemOutcome.SKIPPED, VaultFailure.Cancelled())
                 }
                 return VaultBatchResult(results)
-            } catch (error: Throwable) {
-                results += failed(ref, source.name, error)
             }
+            queue?.beginItem(start + index)
+            try {
+                cancellation.throwIfCancelled()
+                val source = metadata.getOrThrow()
+                progress.start(index, source.name)
+                val exported = exportLocalTopLevel(session, source, destination, resolver, cancellation, move, progress::advance,
+                    onPublication = { queue?.prepareExportPublication(start + index, it) }) {
+                    val expected = queue?.plan?.localDestinationIdentity
+                    if (expected != null && (destination.canonicalFile != destination || !expected.matches(destination))) {
+                        throw VaultFailure.ConcurrentMutation()
+                    }
+                }
+                val removed = if (exported.outcome == VaultItemOutcome.COMPLETED && move) deletePermanently(session, ref)
+                else emptySet()
+                val retryUnavailable = if (exported.outcome == VaultItemOutcome.PARTIAL && exported.snapshot == null) {
+                    VaultFailure.Unavailable("This export exceeded the retry limit. The vault original was kept.")
+                } else null
+                val plaintextUndo = exported.fingerprint
+                    ?.takeIf { exported.outcome == VaultItemOutcome.COMPLETED && (!move || it.restorable) }
+                    ?.let { fingerprint ->
+                        PendingVaultPlaintextUndo(
+                            source.name,
+                            if (move) VaultUndoOrigin.VaultFolder(ref.vaultId, source.ref.parentId, source.name) else null,
+                            trashed = false, path = exported.published?.path, trashId = null, fingerprint = fingerprint
+                        )
+                    }
+                results += item(ref, source.name, exported.outcome, retryUnavailable).copy(
+                    removedFolders = removed,
+                    exportRetry = exported.snapshot?.takeIf { exported.outcome == VaultItemOutcome.PARTIAL },
+                    plaintextUndo = plaintextUndo
+                )
+                progress.finish(index + 1)
+            } catch (error: VaultFailure.Cancelled) {
+                queue?.finishItem(start + index)
+                results += item(ref, metadata.getOrNull()?.name.orEmpty(), VaultItemOutcome.ROLLED_BACK, error)
+                sources.drop(index + 1).forEach {
+                    results += item(it, it.nodeId.value, VaultItemOutcome.SKIPPED, VaultFailure.Cancelled())
+                }
+                return VaultBatchResult(results)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Throwable) {
+                results += failed(ref, metadata.getOrNull()?.name.orEmpty(), error)
+            }
+            if (queue?.finishItem(start + index, results.lastOrNull()) == false) return VaultBatchResult(results)
+            if (queue != null) results[results.lastIndex] = queue.bindRetry(start + index, results.last())
         }
         return VaultBatchResult(results)
     }
+
+    private fun validateLocalDestination(destination: File) {
+        if (!destination.inspectDestination().isDirectory || !destination.canWrite()) {
+            throw VaultFailure.Unavailable("The Arcile destination is not writable")
+        }
+    }
+
+    private suspend fun resumeLocalExport(
+        session: BoundaryAccessSession,
+        retry: PendingVaultExport,
+        conflicts: VaultConflictResolver,
+        cancellation: VaultCancellationSignal,
+        onPublication: (DeferredExportChild, VaultExportPublicationReceipt) -> Unit = { _, _ -> },
+        onPublished: () -> Unit = {}
+    ): VaultItemResult {
+        var checkpoint = retry
+        var removed = emptySet<DirectoryId>()
+        var failure: VaultFailure? = null
+        var canContinue = true
+        val progress = ExportProgress(
+            if (retry.move) VaultTransferAction.MOVE else VaultTransferAction.EXPORT, retry.remainingCount, null
+        )
+        try {
+            cancellation.throwIfCancelled()
+            verifyExportSource(session, retry, cancellation)
+            if (retry.move && retry.deferred.isNotEmpty()) verifyExportOutputs(retry, cancellation)
+            val known = retry.deferred.mapNotNull { child ->
+                cancellation.throwIfCancelled()
+                val source = unchangedSource(session, child.node)
+                val parent = exportFolder(retry, child.parent)
+                parent.readLocalChildren().findLocalChild(source.name)?.inspectDestination()?.conflictWith(source)
+            }
+            val resolver = conflicts.reviewed(known, cancellation)
+            for ((index, child) in retry.deferred.withIndex()) {
+                cancellation.throwIfCancelled()
+                progress.start(index, child.node.name)
+                val source = unchangedSource(session, child.node)
+                val parent = exportFolder(retry, child.parent)
+                val exported = exportLocalTopLevel(
+                    session, source, parent, resolver, cancellation, retry.move, progress::advance,
+                    onPublication = { onPublication(child, it) }
+                ) { exportFolder(retry, child.parent) }
+                if (exported.outcome != VaultItemOutcome.SKIPPED) {
+                    val appended = exported.snapshot
+                    if (appended == null) {
+                        canContinue = false
+                        throw VaultFailure.Unavailable("This export exceeded the retry limit. The vault original was kept.")
+                    }
+                    checkpoint = checkpoint.withPublishedChild(child, appended)
+                    if (checkpoint.deferred.size + checkpoint.files.size + checkpoint.folders.size > MAX_EXPORT_RETRY_RECORDS) {
+                        canContinue = false
+                        throw VaultFailure.Unavailable("This export exceeded the retry limit. The vault original was kept.")
+                    }
+                }
+                onPublished()
+                progress.finish(index + 1)
+            }
+            if (checkpoint.deferred.isEmpty() && checkpoint.move) {
+                verifyExportSource(session, checkpoint, cancellation)
+                verifyExportOutputs(checkpoint, cancellation)
+                cancellation.throwIfCancelled()
+                removed = deletePermanently(session, retry.source)
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            failure = error as? VaultFailure ?: VaultFailure.Unavailable("The export could not be resumed", error)
+        }
+        val completed = failure == null && checkpoint.deferred.isEmpty()
+        return item(
+            retry.source, retry.rootNode.name,
+            if (completed) VaultItemOutcome.COMPLETED else VaultItemOutcome.PARTIAL, failure
+        ).copy(
+            removedFolders = removed,
+            exportRetry = checkpoint.takeIf { !completed && canContinue }
+        )
+    }
+
+    private fun PendingVaultExport.withPublishedChild(
+        child: DeferredExportChild,
+        appended: PendingVaultExport
+    ): PendingVaultExport {
+        val prefix = child.parent + appended.outputRoot.name
+        return copy(
+            deferred = deferred - child + appended.deferred.map { it.copy(parent = prefix + it.parent) },
+            generations = generations + appended.generations,
+            files = files + appended.files.map { it.copy(relativePath = prefix + it.relativePath) },
+            folders = folders + appended.folders.mapKeys { (path, _) -> prefix + path }
+        )
+    }
+
+    private suspend fun unchangedSource(session: BoundaryAccessSession, expected: VaultNodeMetadata): VaultNodeMetadata {
+        val current = metadata(session, expected.ref)
+        if (current.revision != expected.revision || current.name != expected.name ||
+            current.isDirectory != expected.isDirectory || current.sizeBytes != expected.sizeBytes
+        ) throw VaultFailure.SourceChanged()
+        return current
+    }
+
+    private suspend fun verifyExportSource(
+        session: BoundaryAccessSession,
+        retry: PendingVaultExport,
+        cancellation: VaultCancellationSignal
+    ) {
+        unchangedSource(session, retry.rootNode)
+        for ((directory, generation) in retry.generations) {
+            cancellation.throwIfCancelled()
+            val current = listDirectory(session, retry.source.vaultId, directory, VaultListOptions(pageSize = 1))
+            if (current.generation != generation) throw VaultFailure.SourceChanged()
+        }
+    }
+
+    private fun verifyExportOutputs(retry: PendingVaultExport, cancellation: VaultCancellationSignal) {
+        exportFolder(retry, emptyList())
+        for (folder in retry.folders.keys) {
+            cancellation.throwIfCancelled()
+            exportFolder(retry, folder)
+        }
+        for (file in retry.files) {
+            val parent = exportFolder(retry, file.relativePath.dropLast(1))
+            val output = File(parent, file.relativePath.last())
+            val before = output.inspectDestination()
+            if (before.isDirectory || before.size != file.size || localDigest(output, cancellation) != file.digest ||
+                output.inspectDestination() != before
+            ) throw VaultFailure.IntegrityFailed("A previously exported file changed. The vault original was kept.")
+        }
+    }
+
+    private data class LocalExport(
+        val outcome: VaultItemOutcome,
+        val snapshot: PendingVaultExport? = null,
+        val published: File? = null,
+        val fingerprint: LocalTreeFingerprint? = null
+    )
 
     private suspend fun exportLocalTopLevel(
         session: BoundaryAccessSession,
         source: VaultNodeMetadata,
         parent: File,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
-    ): VaultItemOutcome {
-        val existing = parent.listFiles()?.firstOrNull { it.name.equals(source.name, true) }
+        cancellation: VaultCancellationSignal,
+        move: Boolean,
+        onBytes: (Int) -> Unit,
+        onPublication: (VaultExportPublicationReceipt) -> Unit = {},
+        validateParent: () -> Unit = {}
+    ): LocalExport {
+        val existing = parent.readLocalChildren().findLocalChild(source.name)?.inspectDestination()
         val decision = existing?.let {
-            conflicts.decide(VaultConflict(source.name, it.name, source.isDirectory, it.isDirectory))
+            conflicts.decide(it.conflictWith(source))
         }
-        if (decision == VaultConflictDecision.SKIP) return VaultItemOutcome.SKIPPED
+        if (decision == VaultConflictDecision.SKIP) return LocalExport(VaultItemOutcome.SKIPPED)
+        validateParent()
         if (decision == VaultConflictDecision.MERGE_DIRECTORIES &&
-            (!source.isDirectory || existing.isDirectory != true)
+            (!source.isDirectory || !existing.isDirectory)
         ) throw VaultFailure.NameConflict(source.name)
         val finalName = if (decision == VaultConflictDecision.KEEP_BOTH) uniqueLocalName(parent, source.name) else source.name
+        val published = File(parent.canonicalFile, finalName)
         val staging = File(parent, ".arcile-${UUID.randomUUID()}.tmp")
+        val trace = ExportRetryTrace(staging, trackProofs = move)
+        val replacing = existing?.takeIf { decision == VaultConflictDecision.REPLACE || decision == VaultConflictDecision.MERGE_DIRECTORIES }
+        val backup = replacing?.let { File(parent, ".arcile-backup-${UUID.randomUUID()}.tmp") }
+        var receipt: VaultExportPublicationReceipt? = null
+        fun staged() {
+            receipt = VaultExportPublicationReceipt(
+                staging.path, published.path, ExportFolderIdentity.read(parent), ExportEntryIdentity.read(staging),
+                backup?.path, replacing?.let { ExportEntryIdentity.from(it, cancellation) }
+            ).also(onPublication)
+        }
         try {
-            if (source.isDirectory) {
+            val partial = if (source.isDirectory) {
                 check(staging.mkdir()) { "Unable to stage exported folder" }
+                staged()
                 if (decision == VaultConflictDecision.MERGE_DIRECTORIES) {
-                    copyLocalDirectory(requireNotNull(existing), staging, cancellation)
+                    copyLocalDirectory(requireNotNull(existing).file, staging, cancellation)
                 }
-                exportVaultDirectoryLocal(session, source, staging, conflicts, cancellation)
+                exportVaultDirectoryLocal(session, source, staging, conflicts, cancellation, onBytes, trace)
             } else {
-                exportLocalFile(session, source, staging, cancellation)
+                val digest = exportLocalFile(session, source, staging, cancellation, onBytes, ::staged)
+                trace.file(staging, source.sizeBytes, digest)
+                false
             }
-            publishLocal(staging, File(parent, finalName), existing?.takeIf {
-                decision == VaultConflictDecision.REPLACE || decision == VaultConflictDecision.MERGE_DIRECTORIES
-            })
-            return VaultItemOutcome.COMPLETED
+            cancellation.throwIfCancelled()
+            validateParent()
+            val snapshot = trace.snapshot(source, published, move)
+            onPublication(requireNotNull(receipt).copy(ready = true, partial = partial,
+                checkpoint = snapshot?.takeIf { partial }?.let { retry ->
+                    VaultRetryCheckpoint.from(item(source.ref, source.name, VaultItemOutcome.PARTIAL).copy(exportRetry = retry))
+                }))
+            publishLocal(staging, File(parent, finalName), replacing, backup)
+            // A replaced or merged destination lost its previous contents, so only new outputs can be reversed.
+            val fingerprint = if (!partial && replacing == null) LocalTreeFingerprint.captureOrNull(published, cancellation) else null
+            return LocalExport(
+                if (partial) VaultItemOutcome.PARTIAL else VaultItemOutcome.COMPLETED,
+                trace.snapshot(source, published, move),
+                published, fingerprint
+            )
         } catch (error: Throwable) {
-            staging.deleteRecursively()
+            try {
+                staging.deleteLocalTree()
+            } catch (cleanup: Exception) {
+                error.addSuppressed(cleanup)
+            }
             throw error
         }
     }
@@ -170,8 +599,11 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         root: VaultNodeMetadata,
         rootDestination: File,
         conflicts: VaultConflictResolver,
-        cancellation: VaultCancellationSignal
-    ) {
+        cancellation: VaultCancellationSignal,
+        onBytes: (Int) -> Unit,
+        trace: ExportRetryTrace? = null
+    ): Boolean {
+        var skipped = false
         val pending = ArrayDeque<Pair<VaultNodeMetadata, File>>()
         pending += root to rootDestination
         while (pending.isNotEmpty()) {
@@ -180,28 +612,37 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
             var token: String? = null
             do {
                 val page = listDirectory(session, directory.ref.vaultId, id, VaultListOptions(pageToken = token))
+                trace?.directory(id, page.generation, destination)
                 page.items.forEach { child ->
                     cancellation.throwIfCancelled()
-                    val existing = destination.listFiles()?.firstOrNull { it.name.equals(child.name, true) }
+                    val existing = destination.readLocalChildren().findLocalChild(child.name)?.inspectDestination()
                     val decision = existing?.let {
-                        conflicts.decide(VaultConflict(child.name, it.name, child.isDirectory, it.isDirectory))
+                        conflicts.decide(it.conflictWith(child))
                     }
-                    if (decision == VaultConflictDecision.SKIP) return@forEach
+                    if (decision == VaultConflictDecision.SKIP) {
+                        skipped = true
+                        trace?.skipped(child, destination)
+                        return@forEach
+                    }
                     val name = if (decision == VaultConflictDecision.KEEP_BOTH) uniqueLocalName(destination, child.name) else child.name
                     if (child.isDirectory) {
-                        if (decision == VaultConflictDecision.MERGE_DIRECTORIES && existing.isDirectory != true) {
+                        if (decision == VaultConflictDecision.MERGE_DIRECTORIES && !existing.isDirectory) {
                             throw VaultFailure.NameConflict(child.name)
                         }
-                        if (decision == VaultConflictDecision.REPLACE) existing.deleteRecursively()
-                        val target = if (decision == VaultConflictDecision.MERGE_DIRECTORIES) requireNotNull(existing)
+                        if (decision == VaultConflictDecision.REPLACE) {
+                            requireNotNull(existing).file.deleteLocalTree()
+                        }
+                        val target = if (decision == VaultConflictDecision.MERGE_DIRECTORIES) requireNotNull(existing).file
                         else File(destination, name).also { check(it.mkdir()) { "Unable to create exported folder" } }
                         pending += child to target
                     } else {
                         if (decision == VaultConflictDecision.MERGE_DIRECTORIES) throw VaultFailure.NameConflict(child.name)
                         val temporary = File(destination, ".arcile-${UUID.randomUUID()}.tmp")
                         try {
-                            exportLocalFile(session, child, temporary, cancellation)
-                            publishLocal(temporary, File(destination, name), existing?.takeIf { decision == VaultConflictDecision.REPLACE })
+                            val digest = exportLocalFile(session, child, temporary, cancellation, onBytes)
+                            val target = File(destination, name)
+                            publishLocal(temporary, target, existing?.takeIf { decision == VaultConflictDecision.REPLACE })
+                            trace?.file(target, child.sizeBytes, digest)
                         } finally {
                             temporary.delete()
                         }
@@ -210,78 +651,44 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
                 token = page.nextPageToken
             } while (token != null)
         }
+        return skipped
     }
 
     private fun exportLocalFile(
         session: BoundaryAccessSession,
         source: VaultNodeMetadata,
         destination: File,
-        cancellation: VaultCancellationSignal
-    ) {
+        cancellation: VaultCancellationSignal,
+        onBytes: (Int) -> Unit,
+        onStarted: () -> Unit = {}
+    ): String {
         val expected = MessageDigest.getInstance("SHA-256")
         openReader(session, source.ref).use { reader ->
             FileOutputStream(destination).use { output ->
-                val buffer = ByteArray(BUFFER_SIZE)
+                onStarted()
+                val buffer = ByteArray(VAULT_LOCAL_EXPORT_BUFFER_SIZE)
                 var position = 0L
-                while (position < reader.sizeBytes) {
-                    cancellation.throwIfCancelled()
-                    val count = reader.readAt(position, buffer, 0, minOf(buffer.size.toLong(), reader.sizeBytes - position).toInt())
-                    if (count <= 0) throw VaultFailure.SourceChanged()
-                    output.write(buffer, 0, count); expected.update(buffer, 0, count); position += count
+                try {
+                    while (position < reader.sizeBytes) {
+                        cancellation.throwIfCancelled()
+                        val count = reader.readAt(position, buffer, 0, minOf(buffer.size.toLong(), reader.sizeBytes - position).toInt())
+                        if (count <= 0) throw VaultFailure.SourceChanged()
+                        output.write(buffer, 0, count)
+                        expected.update(buffer, 0, count)
+                        position += count
+                        onBytes(count)
+                    }
+                    output.fd.sync()
+                } finally {
+                    buffer.fill(0)
                 }
-                buffer.fill(0); output.fd.sync()
             }
         }
-        val actual = MessageDigest.getInstance("SHA-256")
-        FileInputStream(destination).use { input ->
-            val buffer = ByteArray(BUFFER_SIZE)
-            while (true) { val count = input.read(buffer); if (count < 0) break; actual.update(buffer, 0, count) }
-            buffer.fill(0)
-        }
-        val hash = expected.digest()
-        if (destination.length() != source.sizeBytes || !MessageDigest.isEqual(hash, actual.digest())) {
+        val hash = expected.digest().toHexDigest()
+        if (destination.length() != source.sizeBytes || hash != localDigest(destination, cancellation)) {
             throw VaultFailure.IntegrityFailed("Destination verification failed")
         }
-        hash.fill(0)
-    }
-
-    private fun copyLocalDirectory(source: File, destination: File, cancellation: VaultCancellationSignal) {
-        val pending = ArrayDeque<Pair<File, File>>()
-        pending += source to destination
-        while (pending.isNotEmpty()) {
-            val (from, to) = pending.removeLast()
-            from.listFiles()?.forEach { child ->
-                cancellation.throwIfCancelled()
-                val target = File(to, child.name)
-                if (child.isDirectory) { check(target.mkdir()); pending += child to target }
-                else child.inputStream().use { input -> target.outputStream().use(input::copyTo) }
-            } ?: throw VaultFailure.Unavailable("Unable to read existing destination")
-        }
-    }
-
-    private fun publishLocal(staging: File, destination: File, replacing: File?) {
-        if (replacing == null) {
-            if (!staging.renameTo(destination)) throw VaultFailure.Unavailable("Unable to publish exported item")
-            return
-        }
-        val backup = File(replacing.parentFile, ".arcile-backup-${UUID.randomUUID()}.tmp")
-        if (!replacing.renameTo(backup)) throw VaultFailure.Unavailable("Unable to stage existing destination")
-        if (!staging.renameTo(destination)) {
-            backup.renameTo(replacing)
-            throw VaultFailure.Unavailable("Unable to publish replacement")
-        }
-        if (!backup.deleteRecursively()) throw VaultFailure.Unavailable("Unable to remove replaced destination")
-    }
-
-    private fun uniqueLocalName(parent: File, name: String): String {
-        val dot = name.lastIndexOf('.').takeIf { it > 0 }
-        val stem = dot?.let { name.substring(0, it) } ?: name
-        val suffix = dot?.let(name::substring).orEmpty()
-        for (index in 1..10_000) {
-            val candidate = "$stem ($index)$suffix"
-            if (parent.listFiles()?.none { it.name.equals(candidate, true) } == true) return candidate
-        }
-        throw VaultFailure.NameConflict(name)
+        return hash
     }
 
     private suspend fun metadata(session: BoundaryAccessSession, ref: VaultNodeRef): VaultNodeMetadata =
@@ -307,10 +714,44 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).openReader(ref).getOrThrow()
     }
 
-    private suspend fun deletePermanently(session: BoundaryAccessSession, ref: VaultNodeRef) {
+    private suspend fun deletePermanently(session: BoundaryAccessSession, ref: VaultNodeRef): Set<DirectoryId> =
         when (session) {
-            is BoundaryAccessSession.Repository -> requireNotNull(repository).deletePermanently(session.value, ref)
-            is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).deletePermanently(ref).getOrThrow()
+            is BoundaryAccessSession.Repository -> buildSet {
+                requireNotNull(repository).deleteWithMutationLockHeld(session.value, ref) { add(it) }
+            }
+            is BoundaryAccessSession.Legacy -> requireNotNull(legacyFileSystem).deleteAndReportFolders(ref).getOrThrow()
+        }
+
+    private inner class ExportProgress(
+        private val action: VaultTransferAction,
+        private val totalItems: Int,
+        private val totalBytes: Long?
+    ) {
+        private val startedAt = System.currentTimeMillis()
+        private var lastUpdate = System.nanoTime()
+        private var completed = 0
+        private var name: String? = null
+        private var bytes = 0L
+
+        fun start(index: Int, sourceName: String) {
+            completed = index
+            name = sourceName
+            emit()
+        }
+
+        fun advance(count: Int) {
+            bytes += count
+            if (System.nanoTime() - lastUpdate >= 100_000_000L) emit()
+        }
+
+        fun finish(count: Int) {
+            completed = count
+            emit()
+        }
+
+        private fun emit() {
+            lastUpdate = System.nanoTime()
+            updates.tryEmit(VaultTransferProgress(action, name, completed, totalItems, bytes, totalBytes, startedAt))
         }
     }
 
@@ -354,5 +795,4 @@ class DefaultVaultBoundaryTransferCoordinator private constructor(
         ref, name, VaultItemOutcome.FAILED, error as? VaultFailure ?: VaultFailure.Unavailable("Boundary transfer failed", error)
     )
 
-    private companion object { const val BUFFER_SIZE = 256 * 1024 }
 }

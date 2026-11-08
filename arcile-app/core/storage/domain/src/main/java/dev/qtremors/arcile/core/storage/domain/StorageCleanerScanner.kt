@@ -10,7 +10,6 @@ enum class StorageCleanerScanPhase {
     Complete
 }
 
-@Immutable
 data class StorageCleanerScanProgress(
     val phase: StorageCleanerScanPhase = StorageCleanerScanPhase.Discovering,
     val scannedFiles: Int = 0,
@@ -19,13 +18,11 @@ data class StorageCleanerScanProgress(
     val completedGroups: Set<CleanerGroupType> = emptySet()
 )
 
-@Immutable
 data class StorageCleanerScanUpdate(
     val progress: StorageCleanerScanProgress,
     val result: StorageCleanerResult? = null
 )
 
-@Immutable
 data class CachedStorageCleanerResult(
     val result: StorageCleanerResult,
     val cachedAt: Long

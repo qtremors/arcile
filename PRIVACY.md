@@ -1,6 +1,6 @@
 # Privacy Policy for Arcile
 
-**Last Updated:** 2026-10-04
+**Last Updated:** 2026-11-08
 
 Arcile is a personal project built with a privacy-first mindset. This policy explains how the application handles your information.
 
@@ -20,17 +20,21 @@ The application contains **zero advertisements** and **zero third-party tracking
 
 Arcile requires the `MANAGE_EXTERNAL_STORAGE` permission (Android 11+) to perform file management operations such as browsing, copying, moving, and deleting files as initiated by you. These operations run locally. Files leave Arcile only through an action you request, such as sharing or opening a file with another installed application.
 
-## 5. OnlyFiles Vaults
+## 5. Installed Apps
+
+Arcile reads the list of apps installed on your device to show the installed version when you open an APK, to show app icons for folders that belong to an app, and to offer apps for Quick Access and Open With. This list is used only on your device and is never stored outside Arcile or shared.
+
+## 6. OnlyFiles Vaults
 
 OnlyFiles vaults encrypt their contents locally and do not use a cloud service. Optional biometric unlock material is protected by Android Keystore. App-private vaults are removed if Arcile is uninstalled or its app data is cleared; portable vaults remain in their selected storage location.
 
 OnlyFiles has not received an independent security audit. Its format, visible metadata, plaintext handoff boundaries, backup guidance, and recovery limits are documented in the [OnlyFiles format and security guide](https://github.com/qtremors/arcile/blob/main/arcile-app/docs/ONLYFILES_FORMAT_AND_SECURITY.md).
 
-## 6. Source Availability
+## 7. Source Availability
 
 Arcile's source code is publicly available for inspection. You are welcome to audit it yourself on [GitHub](https://github.com/qtremors/arcile).
 
-## 7. Changes to This Policy
+## 8. Changes to This Policy
 
 This policy may be updated as new features are introduced. However, the core principles — **privacy, offline-only operations, and zero data collection** — will remain unchanged.
 

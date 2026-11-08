@@ -19,7 +19,6 @@ import dev.qtremors.arcile.core.storage.domain.ImageCatalogSnapshot
 import dev.qtremors.arcile.core.storage.domain.StorageNodeRef
 import dev.qtremors.arcile.core.storage.domain.StorageScope
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
@@ -30,12 +29,7 @@ class DefaultImageCatalogRepository @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val volumeProvider: VolumeProvider,
     private val storageNodeDao: StorageNodeDao,
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    )
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard
 ) : ImageCatalogRepository {
 
     override suspend fun loadImages(volumeId: String?, forceRefresh: Boolean): Result<ImageCatalogSnapshot> =
@@ -53,7 +47,8 @@ class DefaultImageCatalogRepository @Inject constructor(
                 }
 
                 refreshImages(normalizedVolumeId)
-                ImageCatalogSnapshot(readableCachedImages(normalizedVolumeId), isStale = false)
+                // Refresh only stores rows whose files exist, so the fresh rows need no second check.
+                ImageCatalogSnapshot(cachedImages(normalizedVolumeId), isStale = false)
             }
         }
 
@@ -66,9 +61,6 @@ class DefaultImageCatalogRepository @Inject constructor(
         storageNodeDao
             .listImages(volumeId, FileCategories.Images.extensions.toList())
             .map { it.toImageCatalogItem() }
-
-    private suspend fun readableCachedImages(volumeId: String?): List<ImageCatalogItem> =
-        cachedImages(volumeId).filter { it.hasReadableSource() }
 
     private suspend fun refreshImages(volumeId: String?) {
         val scope: StorageScope = StorageScope.Category(
@@ -85,9 +77,15 @@ class DefaultImageCatalogRepository @Inject constructor(
         val uri = MediaStore.Files.getContentUri("external")
         val selectionParts = mutableListOf<String>()
         val selectionArgs = mutableListOf<String>()
-        val imageClauses = mutableListOf("${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?")
+        // MediaStore's indexed media type and MIME columns cover almost every image. Name matching
+        // (an unindexed leading-wildcard LIKE) is kept only for extensions without an image MIME type.
+        val imageClauses = mutableListOf(
+            "${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?",
+            "${MediaStore.Files.FileColumns.MIME_TYPE} LIKE ?"
+        )
+        selectionArgs += MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE.toString()
         selectionArgs += "image/%"
-        FileCategories.Images.extensions.forEach { extension ->
+        imageExtensionsWithoutImageMime().forEach { extension ->
             imageClauses += "${MediaStore.Files.FileColumns.DISPLAY_NAME} LIKE ?"
             selectionArgs += "%.$extension"
         }
@@ -113,14 +111,14 @@ class DefaultImageCatalogRepository @Inject constructor(
             }
         }
 
-        storageNodeDao.deleteImages(volumeId, FileCategories.Images.extensions.toList())
-        if (rows.isNotEmpty()) {
-            val readableRows = rows
-                .distinctBy { it.path }
-                .filter { it.toImageCatalogItem().hasReadableSource() }
-            if (readableRows.isNotEmpty()) {
-                storageNodeDao.upsert(readableRows)
-            }
+        val readableRows = rows.distinctBy { it.path }.filter { File(it.path).isFile }
+        storageNodeDao.replaceImages(volumeId, FileCategories.Images.extensions.toList(), readableRows)
+    }
+
+    private fun imageExtensionsWithoutImageMime(): List<String> {
+        val mimeTypes = android.webkit.MimeTypeMap.getSingleton()
+        return FileCategories.Images.extensions.filterNot { extension ->
+            mimeTypes.getMimeTypeFromExtension(extension)?.startsWith("image/") == true
         }
     }
 
@@ -176,8 +174,4 @@ class DefaultImageCatalogRepository @Inject constructor(
             width = width,
             height = height
         )
-
-    private fun ImageCatalogItem.hasReadableSource(): Boolean {
-        return File(file.reference).let { it.exists() && it.isFile && it.length() >= 0L }
-    }
 }

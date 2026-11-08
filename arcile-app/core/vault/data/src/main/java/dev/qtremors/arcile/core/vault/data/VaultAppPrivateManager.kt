@@ -7,7 +7,10 @@ import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
 import dev.qtremors.arcile.core.vault.crypto.VaultHeaderCodec
 import dev.qtremors.arcile.core.vault.domain.VaultId
 import java.io.File
+import java.nio.file.Files
 import java.util.UUID
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 internal data class OpenAppPrivateVault(
     val id: VaultId,
@@ -19,18 +22,28 @@ internal class VaultAppPrivateManager(private val root: File) {
     private val headerCodec = VaultHeaderCodec()
     private val directoryCodec = VaultDirectoryManifestCodec()
 
-    fun create(name: String, password: CharArray): OpenAppPrivateVault = try {
-        createVault(name, password)
+    suspend fun create(
+        name: String,
+        password: CharArray,
+        outputName: String? = null,
+        initialize: suspend (OpenAppPrivateVault) -> Unit = {}
+    ): OpenAppPrivateVault = try {
+        createVault(name, password, outputName, initialize)
     } finally {
         password.fill('\u0000')
     }
 
-    private fun createVault(name: String, password: CharArray): OpenAppPrivateVault {
+    private suspend fun createVault(
+        name: String,
+        password: CharArray,
+        outputName: String?,
+        initialize: suspend (OpenAppPrivateVault) -> Unit
+    ): OpenAppPrivateVault {
         val label = validateVaultName(name)
         root.mkdirs()
         val id = VaultId.random()
         val staging = File(root, "$STAGING_PREFIX${UUID.randomUUID()}")
-        val target = File(root, id.value)
+        val target = File(root, outputName?.let(::validateVaultName) ?: id.value)
         val masterSecret = VaultCryptography.randomBytes(VaultCryptography.KEY_SIZE_BYTES)
         var openedSecret: ByteArray? = null
         try {
@@ -47,11 +60,14 @@ internal class VaultAppPrivateManager(private val root: File) {
             val opened = headerCodec.open(access, password).getOrThrow()
             openedSecret = opened.masterKey
             verifyRoot(access, id, openedSecret)
-            moveDirectory(staging, target)
+            initialize(OpenAppPrivateVault(id, access, openedSecret))
+            currentCoroutineContext().ensureActive()
+            // No replacement. A backup name can already exist or become occupied during the copy.
+            if (outputName == null) moveDirectory(staging, target)
+            else Files.move(staging.toPath(), target.toPath())
             return OpenAppPrivateVault(id, FileVaultDirectory(target), openedSecret).also { openedSecret = null }
         } catch (error: Throwable) {
             staging.deleteRecursively()
-            target.deleteRecursively()
             throw error
         } finally {
             masterSecret.fill(0)

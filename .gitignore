@@ -53,14 +53,11 @@ captures/
 Thumbs.db
 desktop.ini
 
-# Kotlin
+# Kotlin daemon state and compiler crash logs
 .kotlin/
 
 # Log files
 *.log
-*.txt
-!README.txt
-!LICENSE.txt
 
 # TempDocs (templates, not part of the app)
 TempDocs/

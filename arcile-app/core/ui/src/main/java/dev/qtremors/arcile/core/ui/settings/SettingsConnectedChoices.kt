@@ -106,7 +106,7 @@ fun SettingsConnectedChoices(
                             if (testTagForIndex == null) Modifier else Modifier.testTag(testTagForIndex(index))
                         ),
                     shapes = shapes,
-                    colors = ToggleButtonDefaults.toggleButtonColors(
+                    colors = ToggleButtonDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainerLowest,
                         contentColor = MaterialTheme.colorScheme.onSurface,
                         checkedContainerColor = MaterialTheme.colorScheme.primaryContainer,

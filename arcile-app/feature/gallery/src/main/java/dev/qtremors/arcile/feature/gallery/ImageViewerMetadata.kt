@@ -93,8 +93,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.ui.R
 import dev.qtremors.arcile.core.ui.dialogs.DeleteConfirmationDialog
@@ -310,14 +310,3 @@ internal fun MetadataSheet(
         }
     }
 }
-
-@Composable
-internal fun MetadataSectionHeader(title: String) {
-    MediaMetadataSectionHeader(title)
-}
-
-@Composable
-internal fun MetadataRow(label: String, value: String) {
-    MediaMetadataRow(label, value)
-}
-

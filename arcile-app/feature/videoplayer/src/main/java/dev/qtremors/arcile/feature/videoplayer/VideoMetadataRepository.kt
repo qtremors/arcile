@@ -1,8 +1,6 @@
 package dev.qtremors.arcile.feature.videoplayer
 
 import android.content.Context
-import android.media.MediaMetadataRetriever
-import android.net.Uri
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.FileModel
@@ -10,6 +8,7 @@ import dev.qtremors.arcile.core.ui.metadata.VisualMediaMetadata
 import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailLabels
 import dev.qtremors.arcile.core.ui.metadata.MediaMetadataDetailRow
 import dev.qtremors.arcile.core.ui.metadata.buildMediaMetadataDetailRows
+import dev.qtremors.arcile.core.ui.metadata.readVideoVisualMetadata
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.util.Locale
@@ -31,67 +30,15 @@ internal class DefaultVideoMetadataRepository @Inject constructor(
         filePath: String,
         mimeType: String?
     ): VideoFileMetadata = withContext(dispatchers.io) {
-        val file = File(filePath)
-        val retriever = MediaMetadataRetriever()
-        var width = 0
-        var height = 0
-        var dateTaken: String? = null
-        val isEditable = false
-        var latitude: Double? = null
-        var longitude: Double? = null
-
-        try {
-            if (filePath.startsWith("content://")) {
+        val isContent = filePath.startsWith("content://")
+        val size = if (isContent) 0L else File(filePath).length()
+        readVideoVisualMetadata(filePath, size, mimeType) { retriever ->
+            if (isContent) {
                 retriever.setDataSource(context, filePath.toUri())
             } else {
                 retriever.setDataSource(filePath)
             }
-            width = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 0
-            height = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 0
-            dateTaken = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DATE)
-
-            // Extract location if present
-            val location = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_LOCATION)
-            if (location != null) {
-                // Location usually in format "+XX.XXXX+YY.YYYY/" or similar ISO 6709
-                val match = Regex("([+-]\\d+\\.\\d+)([+-]\\d+\\.\\d+)").find(location)
-                if (match != null) {
-                    latitude = match.groupValues[1].toDoubleOrNull()
-                    longitude = match.groupValues[2].toDoubleOrNull()
-                }
-            }
-        } catch (e: Exception) {
-            // Fallback or ignore retriever error
-        } finally {
-            try {
-                retriever.release()
-            } catch (e: Exception) {
-                // Ignore
-            }
         }
-
-        VisualMediaMetadata(
-            path = filePath,
-            size = if (filePath.startsWith("content://")) 0L else file.takeIf { it.exists() }?.length() ?: 0L,
-            mimeType = mimeType,
-            width = width,
-            height = height,
-            megapixel = (width * height).toDouble() / 1_000_000.0,
-            cameraMaker = null,
-            cameraModel = null,
-            lensModel = null,
-            iso = null,
-            exposureTime = null,
-            fNumber = null,
-            focalLength = null,
-            whiteBalance = null,
-            flash = null,
-            dateTaken = dateTaken,
-            latitude = latitude,
-            longitude = longitude,
-            altitude = null,
-            isEditable = isEditable
-        )
     }
 
 }
@@ -103,11 +50,12 @@ internal fun buildVideoMetadataRows(
     labels: MediaMetadataDetailLabels,
     durationMs: Long?,
     dateText: String?,
-    durationLabel: String
+    durationLabel: String,
+    showReference: Boolean = true
 ): List<MediaMetadataDetailRow> {
     val baseRows = buildMediaMetadataDetailRows(
         title = file.name,
-        reference = file.reference,
+        reference = if (showReference) file.reference else "",
         size = file.size,
         lastModifiedText = dateText ?: formatViewerDateTime(file.lastModified),
         mimeType = file.mimeType,
@@ -133,7 +81,7 @@ internal fun buildVideoMetadataRows(
     }
 
     // Insert Content URI if available
-    val uri = file.nodeRef.contentUri?.takeIf { it.isNotBlank() }
+    val uri = file.nodeRef.contentUri?.takeIf { showReference && it.isNotBlank() }
     if (uri != null) {
         val pathIndex = finalRows.indexOfFirst { it.label == labels.path }.takeIf { it >= 0 } ?: finalRows.size
         finalRows.add(pathIndex, MediaMetadataDetailRow(labels.uri, uri))

@@ -1,59 +1,13 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# Arcile release shrinking rules.
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Libraries ship their own consumer rules: kotlinx.serialization keeps generated serializers and
+# companions, Hilt keeps its components, and Navigation resolves type-safe routes through those
+# serializers. Persisted JSON keys and route names come from compile-time serial names, so
+# renaming classes does not change them. Only add a rule here for code reached by reflection.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
-
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
-
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
-
-# kotlinx.serialization
--keepattributes *Annotation*, InnerClasses
-
-# Keep `Companion` object fields of serializable classes.
--if @kotlinx.serialization.Serializable class **
--keepclassmembers class <1> {
-    static <1>$Companion Companion;
-}
-
-# Keep `serializer()` on companion objects (both default and named) of serializable classes.
--if @kotlinx.serialization.Serializable class ** {
-    static **$* *;
-}
--keepclassmembers class <2>$<3> {
-    kotlinx.serialization.KSerializer serializer(...);
-}
-
-# Keep `INSTANCE.serializer()` of serializable objects.
--if @kotlinx.serialization.Serializable class ** {
-    public static ** INSTANCE;
-}
--keepclassmembers class <1> {
-    public kotlinx.serialization.KSerializer serializer(...);
-}
-
-# Keep `serializer()` on custom serializers.
--if @kotlinx.serialization.Serializer class **
--keepclassmembers class <1> {
-    public kotlinx.serialization.KSerializer serializer(...);
-}
-
-# Coil Custom Fetchers
--keep class dev.qtremors.arcile.core.ui.image.** { *; }
--keep class dev.qtremors.arcile.navigation.AppRoutes** { *; }
+# Readable crash traces without shipping original file names.
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
 # Commons Compress exposes optional Zstandard support that Arcile does not ship.
 -dontwarn com.github.luben.zstd.ZstdInputStream
@@ -63,8 +17,3 @@
 -dontwarn java.awt.image.BufferedImage
 -dontwarn javax.imageio.ImageIO
 -dontwarn javax.imageio.stream.ImageInputStream
-
-# Keep all @Serializable data classes that are persisted to disk or passed via Intent extras
--keep class dev.qtremors.arcile.** implements kotlinx.serialization.KSerializer { *; }
--keep @kotlinx.serialization.Serializable class dev.qtremors.arcile.** { *; }
-

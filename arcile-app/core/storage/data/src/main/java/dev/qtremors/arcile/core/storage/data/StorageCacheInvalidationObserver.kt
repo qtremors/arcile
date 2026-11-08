@@ -40,6 +40,13 @@ class StorageCacheInvalidationObserver @Inject constructor(
     private var pendingCleanerInvalidation = false
     private var pendingMutationNotification = false
 
+    /**
+     * While the app is in the background, MediaStore changes (camera, downloads, messaging apps) are
+     * only recorded. Cache clearing, folder-size invalidation, and Home refreshes run once on return.
+     */
+    @Volatile
+    private var foreground = false
+
     private val observer = object : ContentObserver(Handler(Looper.getMainLooper())) {
         override fun onChange(selfChange: Boolean) {
             scheduleInvalidation(null)
@@ -69,20 +76,42 @@ class StorageCacheInvalidationObserver @Inject constructor(
         // actual notifications and cache freshness policies decide what needs refreshing.
     }
 
+    fun onForeground() {
+        foreground = true
+        val hasPending = synchronized(pendingUris) {
+            pendingBroadInvalidation || pendingUris.isNotEmpty() || pendingMutationNotification
+        }
+        if (hasPending) launchInvalidation()
+    }
+
+    fun onBackground() {
+        foreground = false
+    }
+
     private fun scheduleInvalidation(
         uri: Uri?,
         invalidateCleaner: Boolean = true,
         notifyMutation: Boolean = true
     ) {
         synchronized(pendingUris) {
-            if (uri == null) {
+            if (uri == null || pendingBroadInvalidation) {
                 pendingBroadInvalidation = true
+                pendingUris.clear()
             } else {
                 pendingUris += uri
+                // A long background session collapses into one broad refresh instead of an unbounded list.
+                if (pendingUris.size > MAX_PENDING_URIS) {
+                    pendingBroadInvalidation = true
+                    pendingUris.clear()
+                }
             }
             pendingCleanerInvalidation = pendingCleanerInvalidation || invalidateCleaner
             pendingMutationNotification = pendingMutationNotification || notifyMutation
         }
+        if (foreground) launchInvalidation()
+    }
+
+    private fun launchInvalidation() {
         invalidationJob?.cancel()
         invalidationJob = applicationScope.launch {
             delay(INVALIDATION_DEBOUNCE_MS)
@@ -155,5 +184,6 @@ class StorageCacheInvalidationObserver @Inject constructor(
 
     private companion object {
         const val INVALIDATION_DEBOUNCE_MS = 200L
+        const val MAX_PENDING_URIS = 512
     }
 }

@@ -3,6 +3,7 @@ package dev.qtremors.arcile.presentation.ui
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.composable
+import dev.qtremors.arcile.core.storage.domain.FileOpenBehavior
 import dev.qtremors.arcile.core.ui.ArcileFeedbackEvent
 import dev.qtremors.arcile.core.ui.theme.UiPreferences
 import dev.qtremors.arcile.feature.activitylog.registerActivityLogRoute
@@ -21,6 +22,7 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
     actions: AppNavigationActions,
     transitions: AppNavigationTransitions,
     currentUiPreferences: UiPreferences,
+    getFileOpenBehaviors: () -> Map<String, FileOpenBehavior>,
     onThemeChange: (UiPreferences) -> Unit,
     onRestartApp: () -> Unit,
     onFeedback: (ArcileFeedbackEvent) -> Unit
@@ -41,17 +43,32 @@ internal fun NavGraphBuilder.registerUtilityRoutes(
                 }
             },
             onNavigateToActivity = { navController.navigate(AppRoutes.ActivityLog) },
-            onNavigateToOnlyFiles = { navController.navigate(AppRoutes.OnlyFiles) }
+            onNavigateToOnlyFiles = { navController.navigate(AppRoutes.OnlyFiles()) }
         )
     }
     registerOnlyFilesRoute(
+        getFileOpenBehaviors = getFileOpenBehaviors,
         enterTransition = transitions.utilityEnter,
         exitTransition = transitions.utilityExit,
         popEnterTransition = transitions.utilityPopEnter,
         popExitTransition = transitions.utilityPopExit,
         onNavigateBack = { navController.popBackStack() },
+        findPlugin = actions::findVaultPlugin,
+        onOpenOperationDestination = { path ->
+            if (path == null) navController.navigate(AppRoutes.Trash)
+            else actions.navigateToBrowser(AppRoutes.Main(initialPage = BROWSER_PAGE, path = path, restorePersistentLocation = false))
+        },
         onPlayVideo = { session ->
             navController.navigate(AppRoutes.VideoViewer(GlobalVideoPlaybackSessions.register(session)))
+        },
+        packageInstaller = { grant, dismiss ->
+            AppApkInstallerDialog(
+                target = AppFileOpenResolution.InstallApk(
+                    path = grant.displayName, contentUri = grant.contentUri, displayName = grant.displayName
+                ),
+                onDismiss = dismiss,
+                cleanupWhenDisposed = true
+            )
         }
     )
     registerActivityLogRoute(

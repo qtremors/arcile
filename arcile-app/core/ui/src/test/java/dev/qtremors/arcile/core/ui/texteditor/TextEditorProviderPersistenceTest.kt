@@ -114,6 +114,8 @@ class TextEditorProviderPersistenceTest {
                         }
                     }
                 }
+                // performSave stores the snapshot before publishing; the writer itself never reads.
+                writeDraft(context, reference, "original", edited)
                 assertTrue(writeAndVerifyTextFile(context, reference, edited).isFailure)
                 val recovery = requireNotNull(readTextDraft(draftFile))
                 assertEquals(edited, recovery.text)

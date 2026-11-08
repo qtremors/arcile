@@ -32,13 +32,6 @@ data class VaultSummary(
     val headerFingerprint: String? = null
 )
 
-data class VaultRegistration(
-    val vaultId: VaultId,
-    val location: VaultLocation,
-    val cachedPublicLabel: String,
-    val headerFingerprint: String
-)
-
 data class VaultCreationRequest(
     val label: String,
     val password: CharArray,

@@ -1,5 +1,11 @@
 package dev.qtremors.arcile.core.storage.data.manager
 
+import android.annotation.SuppressLint
+import dev.qtremors.arcile.core.archive.ArchivePasswordRequired
+import dev.qtremors.arcile.core.archive.ArchiveReadSession
+import dev.qtremors.arcile.core.archive.ArchiveReadSource
+import dev.qtremors.arcile.core.archive.ArchiveReader
+import dev.qtremors.arcile.core.archive.isSingleStreamCompression
 import dev.qtremors.arcile.core.storage.data.rethrowIfCancellation
 import dev.qtremors.arcile.core.operation.BulkFileOperationProgress
 import dev.qtremors.arcile.core.storage.data.MutationFinalizer
@@ -19,34 +25,26 @@ import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import java.io.File
 import java.io.IOException
+import java.nio.file.Files
 import java.util.UUID
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 
-data class ArchiveSafetyPolicy(
-    val maxEntries: Int = 10_000,
-    val maxUncompressedBytes: Long = 20L * 1024L * 1024L * 1024L,
-    val maxEntryPathLength: Int = 4_096,
-    val maxNestedDepth: Int = 64,
-    val maxCompressionRatio: Double = 1_000.0
-)
+typealias ArchiveSafetyPolicy = dev.qtremors.arcile.core.archive.ArchiveSafetyPolicy
 
 class DefaultArchiveManager(
     private val volumeProvider: VolumeProvider,
     private val mutationFinalizer: MutationFinalizer,
     private val safetyPolicy: ArchiveSafetyPolicy = ArchiveSafetyPolicy(),
-    private val dispatchers: ArcileDispatchers = ArcileDispatchers(
-        io = Dispatchers.IO,
-        default = Dispatchers.Default,
-        main = Dispatchers.Main,
-        storage = Dispatchers.IO
-    ),
+    private val dispatchers: ArcileDispatchers = ArcileDispatchers.Standard,
     private val mutationJournal: MutationJournal = NoOpMutationJournal(),
     private val rename: (File, File) -> Boolean = { source, target -> source.renameTo(target) }
 ) : ArchiveManager {
     private val zipHandler by lazy { ZipArchiveHandler(safetyPolicy, ::validateMutationPath) }
     private val sevenZipHandler by lazy { SevenZipHandler(safetyPolicy, ::validateMutationPath) }
     private val tarHandler by lazy { TarAndCompressedStreamHandler(safetyPolicy, ::validateMutationPath) }
+    private val archiveReader = ArchiveReader(safetyPolicy)
 
     override suspend fun listArchiveEntries(archivePath: String): Result<List<ArchiveEntryModel>> = withContext(dispatchers.io) {
         listArchiveEntries(archivePath, null, ArchiveNameEncoding.UTF_8)
@@ -62,20 +60,8 @@ class DefaultArchiveManager(
             validatePath(archive).getOrThrow()
             require(archive.isFile) { "Archive is not available" }
             val format = supportedFormat(archivePath)
-            when (format) {
-                ArchiveFormat.ZIP -> zipHandler.listEntries(archive, password, nameEncoding)
-                ArchiveFormat.SEVEN_Z -> sevenZipHandler.listEntries(archive, password)
-                ArchiveFormat.TAR,
-                ArchiveFormat.TAR_GZIP,
-                ArchiveFormat.TGZ,
-                ArchiveFormat.TAR_BZIP2,
-                ArchiveFormat.TBZ2,
-                ArchiveFormat.TAR_XZ,
-                ArchiveFormat.TXZ,
-                ArchiveFormat.GZIP,
-                ArchiveFormat.BZIP2,
-                ArchiveFormat.XZ -> tarHandler.listEntries(archive, format)
-                ArchiveFormat.RAR -> throw IllegalArgumentException("RAR archives are not supported in this build")
+            readArchive(archive, format, password, nameEncoding) { reader ->
+                reader.entries.mapNotNull { it.toModel() }
             }
         }
     }
@@ -119,20 +105,8 @@ class DefaultArchiveManager(
             val replacementBackups = linkedMapOf<File, File>()
             try {
                 val format = supportedFormat(archivePath)
-                when (format) {
-                    ArchiveFormat.ZIP -> zipHandler.extract(archive, destination, entryPrefix, password, nameEncoding, resolutions, createdOutputs, replacementBackups, onProgress)
-                    ArchiveFormat.SEVEN_Z -> sevenZipHandler.extract(archive, destination, entryPrefix, password, resolutions, createdOutputs, replacementBackups, onProgress)
-                    ArchiveFormat.TAR,
-                    ArchiveFormat.TAR_GZIP,
-                    ArchiveFormat.TGZ,
-                    ArchiveFormat.TAR_BZIP2,
-                    ArchiveFormat.TBZ2,
-                    ArchiveFormat.TAR_XZ,
-                    ArchiveFormat.TXZ,
-                    ArchiveFormat.GZIP,
-                    ArchiveFormat.BZIP2,
-                    ArchiveFormat.XZ -> tarHandler.extract(archive, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, onProgress)
-                    ArchiveFormat.RAR -> throw IllegalArgumentException("RAR archives are not supported in this build")
+                readArchive(archive, format, password, nameEncoding) { reader ->
+                    extractEntries(reader, format, destination, entryPrefix, resolutions, createdOutputs, replacementBackups, onProgress)
                 }
             } catch (e: Exception) {
                 cleanupCreatedOutputs(createdOutputs)
@@ -141,6 +115,77 @@ class DefaultArchiveManager(
             }
             cleanupReplacementBackups(replacementBackups)
             mutationFinalizer.finalize(destination.absolutePath)
+        }
+    }
+
+    private suspend fun <T> readArchive(
+        archive: File,
+        format: ArchiveFormat,
+        password: String?,
+        encoding: ArchiveNameEncoding,
+        read: suspend (ArchiveReadSession) -> T
+    ): T {
+        val coroutine = currentCoroutineContext()
+        val secret = password?.toCharArray()
+        try {
+            val source = ArchiveReadSource(archive.name, archive.length(), archive.lastModified().takeIf { it > 0L }) {
+                Files.newByteChannel(archive.toPath())
+            }
+            return archiveReader.open(source, format, secret, encoding) { coroutine.ensureActive() }.use { reader ->
+                if (password.isNullOrEmpty() && reader.entries.any { it.encrypted }) throw ArchivePasswordRequired()
+                read(reader)
+            }
+        } finally {
+            secret?.fill('\u0000')
+        }
+    }
+
+    @SuppressLint("UsableSpace")
+    private suspend fun extractEntries(
+        reader: ArchiveReadSession,
+        format: ArchiveFormat,
+        destination: File,
+        entryPrefix: String?,
+        resolutions: Map<String, ConflictResolution>,
+        createdOutputs: MutableSet<File>,
+        replacementBackups: MutableMap<File, File>,
+        onProgress: ((BulkFileOperationProgress) -> Unit)?
+    ) {
+        val context = ArchiveExtractionContext(safetyPolicy, ::validateMutationPath)
+        val entries = reader.entries.mapNotNull { entry ->
+            val model = entry.toModel()?.takeIf { it.path.matchesPrefix(entryPrefix) } ?: return@mapNotNull null
+            entry to model
+        }
+        val total = entries.sumOf { it.second.size }.coerceAtLeast(1L)
+        var copied = 0L
+        for ((index, item) in entries.withIndex()) {
+            currentCoroutineContext().ensureActive()
+            val (entry, model) = item
+            if (!entry.canRead) throw IOException("Archive contains unsupported entries")
+            val target = context.resolveTarget(destination, model.path, model.isDirectory, resolutions)
+            if (target != null) {
+                if (entry.isDirectory) {
+                    prepareDirectoryTarget(target, createdOutputs, replacementBackups)
+                } else {
+                    if (format.isSingleStreamCompression) {
+                        val free = destination.usableSpace
+                        require(free <= 0L || entry.size <= (free - ARCHIVE_EXTRACTION_FREE_SPACE_RESERVE_BYTES).coerceAtLeast(0L)) {
+                            "Not enough free space to extract this archive safely"
+                        }
+                    }
+                    prepareFileTarget(target, createdOutputs, replacementBackups)
+                    validateMutationPath(target).getOrThrow()
+                    entry.openStream().buffered().use { input ->
+                        target.outputStream().buffered().use { output ->
+                            copied += copyWithProgress(input::read, output::write) { delta ->
+                                onProgress?.invoke(BulkFileOperationProgress(index, entries.size, model.path, copied + delta, total))
+                            }
+                        }
+                    }
+                    entry.modifiedAt?.let { target.setLastModified(it) }
+                }
+            }
+            onProgress?.invoke(BulkFileOperationProgress(index + 1, entries.size, model.path, copied, total))
         }
     }
 

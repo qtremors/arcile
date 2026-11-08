@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
@@ -13,7 +14,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -32,7 +32,8 @@ internal data class AudioPlaylist(
 /** Small user-managed state. Audio files continue to come directly from MediaStore. */
 @Singleton
 internal class AudioCollectionStore @Inject constructor(
-    @ApplicationContext context: Context
+    @ApplicationContext context: Context,
+    private val dispatchers: ArcileDispatchers
 ) {
     private val preferences = context.getSharedPreferences("audio_music", Context.MODE_PRIVATE)
     private val playlistsFile = File(context.filesDir, "audio_playlists.json")
@@ -46,7 +47,7 @@ internal class AudioCollectionStore @Inject constructor(
 
     fun musicOnly(): Boolean = preferences.getBoolean(MUSIC_ONLY_KEY, false)
 
-    suspend fun saveMusicOnly(enabled: Boolean) = withContext(Dispatchers.IO) {
+    suspend fun saveMusicOnly(enabled: Boolean) = withContext(dispatchers.io) {
         if (!preferences.edit().putBoolean(MUSIC_ONLY_KEY, enabled).commit()) {
             throw IllegalStateException("Could not save music filter")
         }
@@ -57,14 +58,14 @@ internal class AudioCollectionStore @Inject constructor(
             audioNavigationSections.firstOrNull { it.name == saved }
         } ?: fallback
 
-    suspend fun saveDefaultSection(section: AudioCollectionKind) = withContext(Dispatchers.IO) {
+    suspend fun saveDefaultSection(section: AudioCollectionKind) = withContext(dispatchers.io) {
         if (!preferences.edit().putString(DEFAULT_SECTION_KEY, section.name).commit()) {
             throw IllegalStateException("Could not save opening page")
         }
     }
 
     suspend fun createPlaylist(name: String, paths: List<String> = emptyList()): AudioPlaylist =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
         synchronized(lock) {
             val title = name.trim().takeIf(String::isNotEmpty)
                 ?: throw IllegalArgumentException("Enter a playlist name")
@@ -75,7 +76,7 @@ internal class AudioCollectionStore @Inject constructor(
         }
     }
 
-    suspend fun renamePlaylist(id: String, name: String) = withContext(Dispatchers.IO) {
+    suspend fun renamePlaylist(id: String, name: String) = withContext(dispatchers.io) {
         synchronized(lock) {
             val title = name.trim().takeIf(String::isNotEmpty)
                 ?: throw IllegalArgumentException("Enter a playlist name")
@@ -83,11 +84,11 @@ internal class AudioCollectionStore @Inject constructor(
         }
     }
 
-    suspend fun deletePlaylist(id: String) = withContext(Dispatchers.IO) {
+    suspend fun deletePlaylist(id: String) = withContext(dispatchers.io) {
         synchronized(lock) { writePlaylists(mutablePlaylists.value.filterNot { it.id == id }) }
     }
 
-    suspend fun setPlaylistTracks(id: String, paths: List<String>) = withContext(Dispatchers.IO) {
+    suspend fun setPlaylistTracks(id: String, paths: List<String>) = withContext(dispatchers.io) {
         synchronized(lock) {
             updatePlaylist(id) {
                 it.copy(trackPaths = paths.filter(String::isNotBlank).distinct(), updatedAt = now())
@@ -95,7 +96,7 @@ internal class AudioCollectionStore @Inject constructor(
         }
     }
 
-    suspend fun appendPlaylistTracks(id: String, paths: List<String>) = withContext(Dispatchers.IO) {
+    suspend fun appendPlaylistTracks(id: String, paths: List<String>) = withContext(dispatchers.io) {
         synchronized(lock) {
             updatePlaylist(id) {
                 it.copy(trackPaths = (it.trackPaths + paths).filter(String::isNotBlank).distinct(),
@@ -104,7 +105,7 @@ internal class AudioCollectionStore @Inject constructor(
         }
     }
 
-    suspend fun replaceTrackPath(oldPath: String, newPath: String) = withContext(Dispatchers.IO) {
+    suspend fun replaceTrackPath(oldPath: String, newPath: String) = withContext(dispatchers.io) {
         synchronized(lock) {
             val updated = mutablePlaylists.value.map { playlist ->
                 if (oldPath !in playlist.trackPaths) playlist else playlist.copy(
@@ -138,7 +139,7 @@ internal class AudioCollectionStore @Inject constructor(
     }
 
     suspend fun savePresentation(section: AudioCollectionKind, value: FileListingPreferences) =
-        withContext(Dispatchers.IO) {
+        withContext(dispatchers.io) {
             val normalized = value.normalized()
             val json = JSONObject()
                 .put("sort", normalized.sortOption.name)

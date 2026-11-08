@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.audio
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.ClipData
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -113,7 +114,7 @@ class AudioPlayerActivity : ComponentActivity() {
                             val path = current.file.reference
                             val nextFavorite = path !in favorites
                             lifecycleScope.launch {
-                                runCatching { listeningStore.setFavorite(path, nextFavorite) }
+                                runCatchingCancellable { listeningStore.setFavorite(path, nextFavorite) }
                             }
                         },
                         playbackController = playback,
@@ -141,7 +142,7 @@ class AudioPlayerActivity : ComponentActivity() {
                                 playback.replaceQueueItem(oldPath, renamedTrack)
                                 musicStore.notifyMediaChanged()
                                 lifecycleScope.launch {
-                                    runCatching {
+                                    runCatchingCancellable {
                                         musicStore.replaceTrackPath(oldPath, newFile.reference)
                                         listeningStore.replacePath(oldPath, newFile.reference)
                                     }
@@ -159,7 +160,7 @@ class AudioPlayerActivity : ComponentActivity() {
                             if (queue.isEmpty()) finish()
                         },
                         onSaveQueue = { name, paths ->
-                            lifecycleScope.launch { runCatching { musicStore.createPlaylist(name, paths) } }
+                            lifecycleScope.launch { runCatchingCancellable { musicStore.createPlaylist(name, paths) } }
                         }
                     )
                 }
@@ -261,7 +262,7 @@ class AudioPlayerActivity : ComponentActivity() {
 
     private fun share(file: FileModel) {
         lifecycleScope.launch {
-            val reference = runCatching { file.toHandoffReference() }
+            val reference = runCatchingCancellable { file.toHandoffReference() }
                 .getOrElse { return@launch showFailure() }
             val target = ExternalFileAccessHelper.createShareTargets(
                 this@AudioPlayerActivity,
@@ -273,7 +274,7 @@ class AudioPlayerActivity : ComponentActivity() {
                 clipData = ClipData.newUri(contentResolver, target.displayName, target.uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            runCatching {
+            runCatchingCancellable {
                 startActivity(Intent.createChooser(shareIntent, target.displayName))
             }.onFailure { showFailure() }
         }
@@ -281,7 +282,7 @@ class AudioPlayerActivity : ComponentActivity() {
 
     private fun openWith(file: FileModel) {
         lifecycleScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     this@AudioPlayerActivity,
                     file.toHandoffReference()

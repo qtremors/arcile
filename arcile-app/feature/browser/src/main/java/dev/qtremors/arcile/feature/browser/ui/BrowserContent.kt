@@ -1,8 +1,5 @@
 package dev.qtremors.arcile.feature.browser.ui
 
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -27,13 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -53,6 +48,7 @@ import dev.qtremors.arcile.core.ui.EmptyStateVariant
 import dev.qtremors.arcile.core.ui.FolderTabsRow
 import dev.qtremors.arcile.core.ui.arcileHorizontalSwipe
 import dev.qtremors.arcile.core.ui.lists.FileGridRows
+import dev.qtremors.arcile.core.ui.lists.pinchToResizeGrid
 import dev.qtremors.arcile.core.ui.lists.FileGrid
 import dev.qtremors.arcile.core.ui.lists.FileItemPresentation
 import dev.qtremors.arcile.core.ui.lists.FileListRows
@@ -541,40 +537,3 @@ internal fun Modifier.browserWorkspaceSwipe(onSwipe: (Int) -> Unit): Modifier =
             ArcileSwipeDirection.Down -> Unit
         }
     }
-
-private fun Modifier.pinchToResizeGrid(
-    currentCellSize: State<Float>,
-    onSizeChanged: State<(Float) -> Unit>,
-    onSizeFinalized: State<(Float) -> Unit>
-): Modifier = pointerInput(Unit) {
-    awaitEachGesture {
-        awaitFirstDown(requireUnconsumed = false)
-        var accumulatedScale = 1f
-        val startCellSize = currentCellSize.value
-        var isPinching = false
-        var lastRawSize = startCellSize
-        do {
-            val event = awaitPointerEvent()
-            if (event.changes.size >= 2) {
-                isPinching = true
-                accumulatedScale *= event.calculateZoom()
-                lastRawSize = (startCellSize * accumulatedScale).coerceIn(
-                    FileListingPreferences.MIN_GRID_MIN_CELL_SIZE,
-                    FileListingPreferences.MAX_GRID_MIN_CELL_SIZE
-                )
-                onSizeChanged.value(lastRawSize)
-                event.changes.forEach { it.consume() }
-            }
-        } while (event.changes.any { it.pressed })
-        if (isPinching) {
-            val widthDp = if (density > 0f) size.width.toFloat() / density else size.width.toFloat()
-            val snapped = dev.qtremors.arcile.core.ui.GridColumnModel.snapCellSize(
-                currentCellSize = lastRawSize,
-                contentWidthDp = widthDp,
-                horizontalPaddingDp = 16f,
-                itemSpacingDp = 16f
-            )
-            onSizeFinalized.value(snapped)
-        }
-    }
-}

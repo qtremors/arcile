@@ -1,5 +1,7 @@
 package dev.qtremors.arcile.core.vault.data
 
+import dev.qtremors.arcile.core.runtime.di.ArcileDispatchers
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.core.graphics.scale
@@ -8,6 +10,7 @@ import android.media.MediaDataSource
 import android.media.MediaMetadataRetriever
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.qtremors.arcile.core.storage.domain.VaultThumbnailRequest
+import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.vault.crypto.VaultCryptography
 import dev.qtremors.arcile.core.vault.crypto.VaultKeyDomain
 import dev.qtremors.arcile.core.vault.crypto.VaultSealedValue
@@ -29,7 +32,6 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -37,22 +39,23 @@ import kotlinx.coroutines.withContext
 @Singleton
 internal class DefaultVaultThumbnailCache @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val repository: DefaultVaultRepository
+    private val repository: DefaultVaultRepository,
+    private val dispatchers: ArcileDispatchers
 ) : VaultThumbnailCache {
     private val root by lazy { File(context.noBackupFilesDir, "onlyfiles-thumbnail-cache") }
     private val mutex = Mutex()
 
     override suspend fun loadOrCreate(ref: VaultNodeRef, revision: Long, requestedSizePx: Int): Result<ByteArray> =
-        withContext(Dispatchers.IO) {
-            runCatching {
+        withContext(dispatchers.io) {
+            runCatchingCancellable {
                 require(revision >= 0L)
                 val bucket = VaultThumbnailRequest.sizeBucket(requestedSizePx)
                 mutex.withLock { loadOrCreateLocked(ref, revision, bucket) }
             }
         }
 
-    override suspend fun clear(): Result<VaultThumbnailCacheStats> = withContext(Dispatchers.IO) {
-        runCatching {
+    override suspend fun clear(): Result<VaultThumbnailCacheStats> = withContext(dispatchers.io) {
+        runCatchingCancellable {
             mutex.withLock {
                 if (root.exists() && !root.deleteRecursively() && root.exists()) {
                     throw IllegalStateException("The encrypted thumbnail cache could not be cleared")
@@ -62,8 +65,8 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
         }
     }
 
-    override suspend fun stats(): Result<VaultThumbnailCacheStats> = withContext(Dispatchers.IO) {
-        runCatching { mutex.withLock { calculateStats() } }
+    override suspend fun stats(): Result<VaultThumbnailCacheStats> = withContext(dispatchers.io) {
+        runCatchingCancellable { mutex.withLock { calculateStats() } }
     }
 
     private fun loadOrCreateLocked(ref: VaultNodeRef, revision: Long, bucket: Int): ByteArray {
@@ -77,8 +80,11 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
             readEncrypted(destination, key, associatedData)?.let { return it }
             val reader = repository.openReader(ref).getOrThrow()
             val encoded = reader.use {
-                if (metadata.mimeType?.startsWith("video/") == true) createVideoThumbnail(it, bucket)
-                else createImageThumbnail(it, bucket)
+                when (FileCategories.getCategoryForFile(metadata.extension, metadata.mimeType)) {
+                    FileCategories.Videos -> createVideoThumbnail(it, bucket)
+                    FileCategories.Audio -> createAudioThumbnail(it, bucket)
+                    else -> createImageThumbnail(it, bucket)
+                }
             }
             require(encoded.size in 1..MAX_PLAINTEXT_BYTES) { "Thumbnail output is invalid" }
             val sealed = VaultCryptography.seal(key, encoded, associatedData)
@@ -164,6 +170,21 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
         return encodeScaled(bitmap, bucket)
     }
 
+    private fun createAudioThumbnail(reader: VaultSeekableReader, bucket: Int): ByteArray {
+        val retriever = MediaMetadataRetriever()
+        try {
+            retriever.setDataSource(ReaderMediaDataSource(reader))
+            val bytes = retriever.embeddedPicture ?: throw IllegalArgumentException("Audio has no embedded artwork")
+            try {
+                return encodeScaled(decodeEmbeddedAudioArtwork(bytes, bucket), bucket)
+            } finally {
+                bytes.fill(0)
+            }
+        } finally {
+            retriever.release()
+        }
+    }
+
     private fun createVideoThumbnail(reader: VaultSeekableReader, bucket: Int): ByteArray {
         val retriever = MediaMetadataRetriever()
         return try {
@@ -240,4 +261,16 @@ internal class DefaultVaultThumbnailCache @Inject constructor(
         const val MAX_PLAINTEXT_BYTES = 8 * 1024 * 1024
         const val MAX_ENCRYPTED_BYTES = MAX_PLAINTEXT_BYTES + 1024
     }
+}
+
+internal fun decodeEmbeddedAudioArtwork(bytes: ByteArray, bucket: Int): Bitmap {
+    require(bucket > 0)
+    require(bytes.size in 1..8 * 1024 * 1024) { "Audio artwork exceeds the preview limit" }
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    require(bounds.outWidth > 0 && bounds.outHeight > 0) { "Unsupported audio artwork" }
+    var sample = 1
+    while (bounds.outWidth / sample > bucket * 2 || bounds.outHeight / sample > bucket * 2) sample = sample shl 1
+    return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+        ?: throw IllegalArgumentException("Unsupported audio artwork")
 }

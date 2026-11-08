@@ -1,5 +1,6 @@
 package dev.qtremors.arcile
 
+import dev.qtremors.arcile.core.runtime.runCatchingCancellable
 import android.content.Context
 import android.content.Intent
 import android.database.Cursor
@@ -96,7 +97,7 @@ class ImageViewerActivity : ComponentActivity() {
 
     private fun openTargetWithChooser(target: StandaloneImageTarget) {
         lifecycleScope.launch {
-            runCatching {
+            runCatchingCancellable {
                 val openIntent = ExternalFileAccessHelper.createOpenIntent(
                     this@ImageViewerActivity,
                     ExternalFileAccessHelper.ExternalFileReference(

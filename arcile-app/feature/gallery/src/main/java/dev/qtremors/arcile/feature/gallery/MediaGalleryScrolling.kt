@@ -117,7 +117,6 @@ import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -156,10 +155,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import coil.size.Precision
+import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.size.Precision
 import dev.qtremors.arcile.core.storage.domain.FileListingPreferences
 import dev.qtremors.arcile.core.storage.domain.FileViewMode
 import dev.qtremors.arcile.core.storage.domain.ClipboardState
@@ -189,9 +188,6 @@ import dev.qtremors.arcile.core.ui.theme.menuGroupMiddle
 import dev.qtremors.arcile.core.ui.theme.menuGroupSingle
 import kotlinx.coroutines.flow.SharedFlow
 
-internal enum class GalleryViewState {
-    ITEMS_TAB, FOLDERS_TAB_GRID, FOLDER_ITEMS
-}
 internal fun Modifier.pinchToResize(
     currentCellSize: Float,
     minSize: Float = 96f,

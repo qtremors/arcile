@@ -37,10 +37,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
-import coil.request.CachePolicy
-import coil.request.ImageRequest
-import coil.size.Precision
+import coil3.compose.AsyncImage
+import coil3.request.CachePolicy
+import coil3.request.ImageRequest
+import coil3.size.Precision
 import dev.qtremors.arcile.core.storage.domain.FileModel
 import dev.qtremors.arcile.core.storage.domain.FileCategories
 import dev.qtremors.arcile.core.ui.getFileIconVector
@@ -118,7 +118,7 @@ internal fun GalleryMediaListItem(
                 Icon(
                     imageVector = getFileIconVector(
                         file,
-                        dev.qtremors.arcile.core.ui.theme.LocalFolderIconsEnabled.current
+                        dev.qtremors.arcile.core.ui.theme.LocalSpecialFolderIconsEnabled.current
                     ),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),

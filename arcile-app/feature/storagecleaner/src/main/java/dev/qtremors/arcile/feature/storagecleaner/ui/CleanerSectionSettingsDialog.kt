@@ -1,5 +1,6 @@
 package dev.qtremors.arcile.feature.storagecleaner.ui
 
+import dev.qtremors.arcile.core.ui.ExpressiveSwitch
 import android.graphics.Bitmap
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
@@ -41,7 +42,6 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.graphicsLayer
@@ -148,7 +148,7 @@ internal fun CleanerSectionSettingsDialog(
                             text = stringResource(R.string.cleaner_section_enabled),
                             modifier = Modifier.weight(1f)
                         )
-                        Switch(checked = enabled, onCheckedChange = { enabled = it })
+                        ExpressiveSwitch(checked = enabled, onCheckedChange = { enabled = it })
                     }
                 }
                 if (type == CleanerGroupType.LargeFiles) {
